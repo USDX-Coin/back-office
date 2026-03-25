@@ -80,10 +80,12 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Minting Request #{item.id}</DialogTitle>
-          <DialogDescription>
-            <Badge variant={statusConfig.variant} className={statusConfig.className}>
-              {statusConfig.label}
-            </Badge>
+          <DialogDescription asChild>
+            <div className="mt-1">
+              <Badge variant={statusConfig.variant} className={statusConfig.className}>
+                {statusConfig.label}
+              </Badge>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
