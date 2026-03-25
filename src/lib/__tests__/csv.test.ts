@@ -43,7 +43,7 @@ describe('buildCsvContent', () => {
 
     test('should handle null values', () => {
       const data = [{ name: null, amount: 0, status: 'pending' }]
-      const csv = buildCsvContent(data as unknown as Record<string, unknown>[], columns)
+      const csv = buildCsvContent(data as unknown as { name: string; amount: number; status: string }[], columns)
       expect(csv).toContain(',0,pending')
     })
   })

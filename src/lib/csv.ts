@@ -1,4 +1,4 @@
-export function exportToCsv<T extends Record<string, unknown>>(
+export function exportToCsv<T extends object>(
   data: T[],
   columns: { key: keyof T; header: string }[],
   filename: string
@@ -28,7 +28,7 @@ export function exportToCsv<T extends Record<string, unknown>>(
   URL.revokeObjectURL(url)
 }
 
-export function buildCsvContent<T extends Record<string, unknown>>(
+export function buildCsvContent<T extends object>(
   data: T[],
   columns: { key: keyof T; header: string }[]
 ): string {
