@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import Field from '@/components/Field'
 import { formatAmount, formatDate } from '@/lib/format'
 import { getRedeemStatusConfig } from '@/lib/status'
 import type { RedeemRequest } from '@/lib/types'
@@ -55,14 +56,5 @@ export default function RedeemDetailModal({ item, open, onClose }: RedeemDetailM
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({ label, value, className = '' }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={className}>
-      <p className="text-muted text-xs">{label}</p>
-      <p className="font-medium text-dark">{value}</p>
-    </div>
   )
 }

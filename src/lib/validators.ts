@@ -3,14 +3,20 @@ export interface ValidationResult {
   errors: Record<string, string>
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function validateEmail(email: string, errors: Record<string, string>) {
+  if (!email.trim()) {
+    errors.email = 'Email is required'
+  } else if (!EMAIL_RE.test(email)) {
+    errors.email = 'Invalid email format'
+  }
+}
+
 export function validateLoginForm(email: string, password: string): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!email.trim()) {
-    errors.email = 'Email is required'
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'Invalid email format'
-  }
+  validateEmail(email, errors)
 
   if (!password) {
     errors.password = 'Password is required'
@@ -31,11 +37,7 @@ export function validateRegisterForm(
     errors.name = 'Name is required'
   }
 
-  if (!email.trim()) {
-    errors.email = 'Email is required'
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'Invalid email format'
-  }
+  validateEmail(email, errors)
 
   if (!password) {
     errors.password = 'Password is required'
@@ -55,11 +57,7 @@ export function validateRegisterForm(
 export function validateForgotPasswordForm(email: string): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!email.trim()) {
-    errors.email = 'Email is required'
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'Invalid email format'
-  }
+  validateEmail(email, errors)
 
   return { valid: Object.keys(errors).length === 0, errors }
 }

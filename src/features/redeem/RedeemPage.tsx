@@ -8,7 +8,7 @@ import RedeemDetailModal from './RedeemDetailModal'
 import { useRedeemList } from './hooks'
 import { formatAmount, formatShortDate } from '@/lib/format'
 import { getRedeemStatusConfig } from '@/lib/status'
-import { buildCsvContent } from '@/lib/csv'
+import { exportToCsv } from '@/lib/csv'
 import type { RedeemRequest, RedeemStatus } from '@/lib/types'
 
 const statusOptions: { value: string; label: string }[] = [
@@ -101,14 +101,7 @@ export default function RedeemPage() {
 
   function handleExportCsv() {
     if (!data?.data) return
-    const csv = buildCsvContent(data.data, csvColumns)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `redeem-export-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+    exportToCsv(data.data, csvColumns, `redeem-export-${new Date().toISOString().slice(0, 10)}`)
   }
 
   return (

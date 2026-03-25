@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import Field from '@/components/Field'
 import { formatAmount, formatDate } from '@/lib/format'
 import { getMintingStatusConfig, canApprove, canReject, canStartReview } from '@/lib/status'
 import { useApproveMinting, useRejectMinting, useStartReview } from './hooks'
@@ -163,14 +164,5 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Field({ label, value, className = '' }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={className}>
-      <p className="text-muted text-xs">{label}</p>
-      <p className="font-medium text-dark">{value}</p>
-    </div>
   )
 }

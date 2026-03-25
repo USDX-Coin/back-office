@@ -162,16 +162,4 @@ export const handlers = [
     return HttpResponse.json(item)
   }),
 
-  // CSV Export endpoints
-  http.get('/api/minting/export', ({ request }) => {
-    const url = new URL(request.url)
-    const filtered = filterItems(mintingData, url.searchParams)
-    return HttpResponse.json({ data: filtered })
-  }),
-
-  http.get('/api/redeem/export', ({ request }) => {
-    const url = new URL(request.url)
-    const filtered = filterItems(redeemData, url.searchParams)
-    return HttpResponse.json({ data: filtered })
-  }),
 ]
