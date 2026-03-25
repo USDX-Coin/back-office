@@ -5,17 +5,27 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth'
+import { validateForgotPasswordForm } from '@/lib/validators'
 
 export default function ForgotPasswordPage() {
   const { forgotPassword } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setFieldErrors({})
+
+    const validation = validateForgotPasswordForm(email)
+    if (!validation.valid) {
+      setFieldErrors(validation.errors)
+      return
+    }
+
     setLoading(true)
     try {
       await forgotPassword(email)
@@ -58,7 +68,9 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  aria-invalid={!!fieldErrors.email}
                 />
+                {fieldErrors.email && <p className="text-sm text-error">{fieldErrors.email}</p>}
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-3">

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth'
+import { validateLoginForm } from '@/lib/validators'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -12,11 +13,20 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setFieldErrors({})
+
+    const validation = validateLoginForm(email, password)
+    if (!validation.valid) {
+      setFieldErrors(validation.errors)
+      return
+    }
+
     setLoading(true)
     try {
       await login(email, password)
@@ -54,7 +64,11 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-invalid={!!fieldErrors.email}
               />
+              {fieldErrors.email && (
+                <p className="text-sm text-error">{fieldErrors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -65,7 +79,11 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-invalid={!!fieldErrors.password}
               />
+              {fieldErrors.password && (
+                <p className="text-sm text-error">{fieldErrors.password}</p>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-3">

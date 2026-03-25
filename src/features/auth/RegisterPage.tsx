@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth'
+import { validateRegisterForm } from '@/lib/validators'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -14,18 +15,17 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setFieldErrors({})
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+    const validation = validateRegisterForm(name, email, password, confirmPassword)
+    if (!validation.valid) {
+      setFieldErrors(validation.errors)
       return
     }
 
@@ -66,7 +66,9 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                aria-invalid={!!fieldErrors.name}
               />
+              {fieldErrors.name && <p className="text-sm text-error">{fieldErrors.name}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -77,7 +79,9 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-invalid={!!fieldErrors.email}
               />
+              {fieldErrors.email && <p className="text-sm text-error">{fieldErrors.email}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -88,8 +92,9 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={8}
+                aria-invalid={!!fieldErrors.password}
               />
+              {fieldErrors.password && <p className="text-sm text-error">{fieldErrors.password}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -100,7 +105,9 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                aria-invalid={!!fieldErrors.confirmPassword}
               />
+              {fieldErrors.confirmPassword && <p className="text-sm text-error">{fieldErrors.confirmPassword}</p>}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
