@@ -37,8 +37,8 @@ export default function ProfilePage() {
           {/* Avatar overlapping the banner */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div className="flex items-end gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-white text-3xl font-bold shadow-lg border-4 border-white shrink-0">
-                {user.name.charAt(0).toUpperCase()}
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary shadow-lg border-4 border-white shrink-0">
+                <img src="/image/Logo.svg" alt="USDX" className="h-12 w-12" />
               </div>
               <div className="pb-1">
                 <h2 className="text-xl font-bold text-dark leading-tight">{user.name}</h2>
