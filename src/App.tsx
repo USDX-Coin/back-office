@@ -9,6 +9,7 @@ import ForgotPasswordPage from '@/features/auth/ForgotPasswordPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import MintingPage from '@/features/minting/MintingPage'
 import RedeemPage from '@/features/redeem/RedeemPage'
+import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
 const queryClient = new QueryClient({
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/minting', element: <MintingPage /> },
           { path: '/redeem', element: <RedeemPage /> },
+          { path: '/profile', element: <ProfilePage /> },
         ],
       },
     ],

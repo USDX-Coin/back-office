@@ -1,9 +1,11 @@
-import { Menu, LogOut } from 'lucide-react'
+import { Menu, LogOut, User } from 'lucide-react'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/lib/auth'
@@ -48,8 +50,15 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={logout}>
+          <DropdownMenuContent align="end" className="w-48 bg-white shadow-lg border border-border">
+            <DropdownMenuItem asChild>
+              <Link to="/profile" className="flex items-center cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout} className="text-error focus:text-error">
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>

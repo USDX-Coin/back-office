@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router'
-import { LayoutDashboard, Coins, ArrowRightLeft } from 'lucide-react'
+import { LayoutDashboard, Coins, ArrowRightLeft, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/minting', label: 'Minting', icon: Coins },
   { to: '/redeem', label: 'Redeem', icon: ArrowRightLeft },
+  { to: '/profile', label: 'Profile', icon: User },
 ]
 
 interface SidebarProps {
