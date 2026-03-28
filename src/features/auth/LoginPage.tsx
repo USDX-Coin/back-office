@@ -117,7 +117,7 @@ export default function LoginPage() {
                 placeholder="admin@usdx.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                // required
                 className={cn(
                   'h-11',
                   fieldErrors.email && 'border-error focus-visible:ring-error/30'
@@ -137,7 +137,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                // required
                 className={cn(
                   'h-11',
                   fieldErrors.password && 'border-error focus-visible:ring-error/30'
