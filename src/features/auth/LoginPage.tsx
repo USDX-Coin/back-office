@@ -42,9 +42,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <span className="text-xl font-bold text-white">U</span>
-          </div>
+          <img src="/image/Logo.svg" alt="USDX" className="mx-auto mb-4 h-12 w-12" />
           <CardTitle className="text-2xl">Welcome back</CardTitle>
           <CardDescription>Sign in to USDX Back Office</CardDescription>
         </CardHeader>
