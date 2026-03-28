@@ -78,7 +78,7 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[calc(100vh-10rem)] sm:max-h-[90vh] flex flex-col gap-0 p-0">
         {/* Sticky header */}
         <DialogHeader className="shrink-0 px-6 py-4 border-b border-border">
           <DialogTitle>Minting Request #{item.id}</DialogTitle>
@@ -93,19 +93,19 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <Field label="Requester" value={item.requester} />
             <Field label="Email" value={item.email} />
             <Field label="Amount" value={formatAmount(item.amount)} />
             <Field label="Token Type" value={item.tokenType} />
             <Field label="Bank Account" value={item.bankAccount} />
-            <Field label="Wallet Address" value={item.walletAddress} className="col-span-2 break-all" />
-            <Field label="Transaction Hash" value={item.transactionHash} className="col-span-2 break-all" />
+            <Field label="Wallet Address" value={item.walletAddress} className="sm:col-span-2 break-all" />
+            <Field label="Transaction Hash" value={item.transactionHash} className="sm:col-span-2 break-all" />
             <Field label="Fee" value={formatAmount(item.fee)} />
             <Field label="Network" value={item.network} />
             <Field label="Created" value={formatDate(item.createdAt)} />
             <Field label="Updated" value={formatDate(item.updatedAt)} />
-            {item.notes && <Field label="Notes" value={item.notes} className="col-span-2" />}
+            {item.notes && <Field label="Notes" value={item.notes} className="sm:col-span-2" />}
           </div>
 
           {item.proofOfTransfer && (
