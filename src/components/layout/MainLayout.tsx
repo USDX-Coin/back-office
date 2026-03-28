@@ -7,11 +7,11 @@ export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-hidden bg-background">
       <Navbar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-      <div className="flex pt-16 min-h-[calc(100vh-4rem)]">
+      <div className="flex h-[calc(100vh-4rem)] mt-16">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex-1 p-4 lg:p-6 min-h-full">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
