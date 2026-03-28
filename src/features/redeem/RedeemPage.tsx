@@ -87,11 +87,12 @@ export default function RedeemPage() {
       header: 'Action',
       cell: ({ row }) => (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
+          className="border-primary/40 text-primary hover:bg-primary-light hover:text-primary-dark hover:border-primary"
           onClick={() => setSelectedId(row.original.id)}
         >
-          <Eye className="mr-1 h-4 w-4" />
+          <Eye className="mr-1.5 h-3.5 w-3.5" />
           Detail
         </Button>
       ),
