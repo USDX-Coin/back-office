@@ -5,7 +5,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/lib/auth'
@@ -57,7 +56,6 @@ export default function Navbar({ onToggleSidebar }: NavbarProps) {
                 Profile
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-error focus:text-error">
               <LogOut className="mr-2 h-4 w-4" />
               Logout
