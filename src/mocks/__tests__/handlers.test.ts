@@ -75,7 +75,7 @@ describe('MSW handlers', () => {
     })
 
     test('should filter minting by search term', async () => {
-      const res = await fetch('/api/minting?search=User%201&page=1&pageSize=100')
+      const res = await fetch('/api/minting?search=Siti&page=1&pageSize=100')
       const data = await res.json()
       expect(data.data.length).toBeGreaterThan(0)
     })
