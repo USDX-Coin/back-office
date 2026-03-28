@@ -22,7 +22,7 @@ export default function ProfilePage() {
 
       {/* Hero banner */}
       <Card className="overflow-hidden">
-        <div className="h-24 bg-gradient-to-r from-dark to-dark/80 relative">
+        {/* <div className="h-24 bg-gradient-to-r from-dark to-dark/80 relative">
           <div className="absolute inset-0 opacity-10"
             style={{
               backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)',
@@ -32,10 +32,10 @@ export default function ProfilePage() {
           <div className="absolute bottom-[-2px] right-6 opacity-5">
             <Coins className="h-28 w-28 text-primary" />
           </div>
-        </div>
-        <CardContent className="pt-0 pb-6 px-6">
+        </div> */}
+        <CardContent className="p-6">
           {/* Avatar overlapping the banner */}
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-10">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div className="flex items-end gap-4">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-white text-3xl font-bold shadow-lg border-4 border-white shrink-0">
                 {user.name.charAt(0).toUpperCase()}
