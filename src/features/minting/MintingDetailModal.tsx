@@ -3,7 +3,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -35,6 +34,7 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
   if (!item) return null
 
   const statusConfig = getMintingStatusConfig(item.status)
+  const hasActions = canApprove(item.status) || canReject(item.status) || canStartReview(item.status)
 
   async function handleApprove() {
     setActionError('')
@@ -78,8 +78,9 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[calc(100vh-10rem)] sm:max-h-[90vh] flex flex-col gap-0 p-0">
+        {/* Sticky header */}
+        <DialogHeader className="shrink-0 px-6 py-4 border-b border-border">
           <DialogTitle>Minting Request #{item.id}</DialogTitle>
           <DialogDescription asChild>
             <div className="mt-1">
@@ -90,47 +91,48 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <Field label="Requester" value={item.requester} />
-          <Field label="Email" value={item.email} />
-          <Field label="Amount" value={formatAmount(item.amount)} />
-          <Field label="Token Type" value={item.tokenType} />
-          <Field label="Bank Account" value={item.bankAccount} />
-          <Field label="Wallet Address" value={item.walletAddress} className="col-span-2 break-all" />
-          <Field label="Transaction Hash" value={item.transactionHash} className="col-span-2 break-all" />
-          <Field label="Fee" value={formatAmount(item.fee)} />
-          <Field label="Network" value={item.network} />
-          <Field label="Created" value={formatDate(item.createdAt)} />
-          <Field label="Updated" value={formatDate(item.updatedAt)} />
-          {item.notes && <Field label="Notes" value={item.notes} className="col-span-2" />}
-        </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <Field label="Requester" value={item.requester} />
+            <Field label="Email" value={item.email} />
+            <Field label="Amount" value={formatAmount(item.amount)} />
+            <Field label="Token Type" value={item.tokenType} />
+            <Field label="Bank Account" value={item.bankAccount} />
+            <Field label="Wallet Address" value={item.walletAddress} className="sm:col-span-2 break-all" />
+            <Field label="Transaction Hash" value={item.transactionHash} className="sm:col-span-2 break-all" />
+            <Field label="Fee" value={formatAmount(item.fee)} />
+            <Field label="Network" value={item.network} />
+            <Field label="Created" value={formatDate(item.createdAt)} />
+            <Field label="Updated" value={formatDate(item.updatedAt)} />
+            {item.notes && <Field label="Notes" value={item.notes} className="sm:col-span-2" />}
+          </div>
 
-        {item.proofOfTransfer && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-sm font-medium text-dark mb-2">Proof of Transfer</p>
-              <img
-                src={item.proofOfTransfer}
-                alt="Proof of transfer"
-                className="max-h-48 rounded-lg border border-border object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none'
-                }}
-              />
-            </div>
-          </>
-        )}
-
-        {(canApprove(item.status) || canReject(item.status) || canStartReview(item.status)) && (
-          <>
-            <Separator />
-            <div className="space-y-3">
+          {item.proofOfTransfer && (
+            <>
+              <Separator />
               <div>
+                <p className="text-sm font-medium text-dark mb-2">Proof of Transfer</p>
+                <img
+                  src={item.proofOfTransfer}
+                  alt="Proof of transfer"
+                  className="max-h-48 rounded-lg border border-border object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            </>
+          )}
+
+          {hasActions && (
+            <>
+              <Separator />
+              <div className="space-y-2">
                 <Label htmlFor="action-notes">Notes</Label>
                 <Textarea
                   id="action-notes"
-                  placeholder={canReject(item.status) ? 'Required for rejection...' : 'Optional notes...'}
+                  placeholder={canReject(item.status) ? 'Required for rejection…' : 'Optional notes…'}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -141,27 +143,38 @@ export default function MintingDetailModal({ item, open, onClose }: MintingDetai
                   {actionError}
                 </div>
               )}
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
 
-        <DialogFooter className="gap-2">
-          {canStartReview(item.status) && (
-            <Button variant="outline" onClick={handleStartReview} disabled={isActioning}>
-              {startReview.isPending ? 'Starting...' : 'Start Review'}
-            </Button>
-          )}
-          {canReject(item.status) && (
-            <Button variant="destructive" onClick={handleReject} disabled={isActioning}>
-              {reject.isPending ? 'Rejecting...' : 'Reject'}
-            </Button>
-          )}
-          {canApprove(item.status) && (
-            <Button className="bg-success hover:bg-success/90" onClick={handleApprove} disabled={isActioning}>
-              {approve.isPending ? 'Approving...' : 'Approve'}
-            </Button>
-          )}
-        </DialogFooter>
+        {/* Sticky footer */}
+        {hasActions && (
+          <div className="shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-gray-50/50">
+            {canStartReview(item.status) && (
+              <Button variant="outline" onClick={handleStartReview} disabled={isActioning}>
+                {startReview.isPending ? 'Starting…' : 'Start Review'}
+              </Button>
+            )}
+            {canReject(item.status) && (
+              <Button
+                onClick={handleReject}
+                disabled={isActioning}
+                className="bg-error hover:bg-error/90 text-white border-0 min-w-[90px]"
+              >
+                {reject.isPending ? 'Rejecting…' : 'Reject'}
+              </Button>
+            )}
+            {canApprove(item.status) && (
+              <Button
+                className="bg-success hover:bg-success/90 text-white min-w-[90px]"
+                onClick={handleApprove}
+                disabled={isActioning}
+              >
+                {approve.isPending ? 'Approving…' : 'Approve'}
+              </Button>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

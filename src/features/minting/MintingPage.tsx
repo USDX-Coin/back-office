@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
@@ -95,11 +94,11 @@ export default function MintingPage() {
       header: 'Action',
       cell: ({ row }) => (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
+          className="border-primary/40 text-primary hover:bg-primary-light hover:text-primary-dark hover:border-primary"
           onClick={() => setSelectedId(row.original.id)}
         >
-          <Eye className="mr-1 h-4 w-4" />
           Detail
         </Button>
       ),
