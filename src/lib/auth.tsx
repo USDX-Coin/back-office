@@ -15,6 +15,15 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 const STORAGE_KEY = 'usdx_auth_user'
 
+const DEMO_USER = {
+  id: '1',
+  name: 'Administrator',
+  email: 'admin@usdx.com',
+  role: 'Admin',
+} as const
+
+const DEMO_PASSWORD = 'Admin@2024!'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -29,17 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
-  const login = useCallback(async (email: string, _password: string) => {
-    // Mock login — accepts any non-empty credentials
-    if (!email || !_password) {
-      throw new Error('Email and password are required')
+  const login = useCallback(async (email: string, password: string) => {
+    if (email !== DEMO_USER.email || password !== DEMO_PASSWORD) {
+      throw new Error('Invalid email or password')
     }
-    const mockUser: User = {
-      id: '1',
-      name: email.split('@')[0],
-      email,
-    }
-    setUser(mockUser)
+    setUser(DEMO_USER)
   }, [])
 
   const register = useCallback(async (name: string, email: string, _password: string) => {
