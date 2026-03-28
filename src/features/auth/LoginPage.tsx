@@ -116,7 +116,7 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"

@@ -5,7 +5,7 @@ test.describe('main flow @e2e', () => {
     // Login first
     await page.goto('/login')
     await page.getByLabel('Email').fill('admin@usdx.com')
-    await page.getByLabel('Password').fill('password123')
+    await page.getByLabel('Password').fill('Admin@2024!')
     await page.getByRole('button', { name: 'Sign in' }).click()
     await expect(page).toHaveURL(/\/dashboard/)
   })
@@ -18,13 +18,13 @@ test.describe('main flow @e2e', () => {
     })
 
     test('should navigate to minting page', async ({ page }) => {
-      await page.getByRole('link', { name: 'Minting' }).click()
+      await page.getByRole('link', { name: 'Minting', exact: true }).first().click()
       await expect(page).toHaveURL(/\/minting/)
       await expect(page.getByRole('heading', { name: 'Minting Requests' })).toBeVisible()
     })
 
     test('should open minting detail modal', async ({ page }) => {
-      await page.getByRole('link', { name: 'Minting' }).click()
+      await page.getByRole('link', { name: 'Minting', exact: true }).first().click()
       await expect(page).toHaveURL(/\/minting/)
 
       // Wait for table data to load
@@ -38,13 +38,13 @@ test.describe('main flow @e2e', () => {
     })
 
     test('should navigate to redeem page', async ({ page }) => {
-      await page.getByRole('link', { name: 'Redeem' }).click()
+      await page.getByRole('link', { name: 'Redeem', exact: true }).first().click()
       await expect(page).toHaveURL(/\/redeem/)
       await expect(page.getByRole('heading', { name: 'Redeem Requests' })).toBeVisible()
     })
 
     test('should open redeem detail modal', async ({ page }) => {
-      await page.getByRole('link', { name: 'Redeem' }).click()
+      await page.getByRole('link', { name: 'Redeem', exact: true }).first().click()
       await expect(page).toHaveURL(/\/redeem/)
 
       await expect(page.getByRole('table')).toBeVisible()
