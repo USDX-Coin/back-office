@@ -140,10 +140,10 @@ export default function DataTable<T>({
               value={status}
               onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[160px] border">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white border shadow-lg p-2">
                 <SelectItem value="all">All statuses</SelectItem>
                 {statusOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
