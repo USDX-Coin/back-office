@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import {
   LayoutDashboard,
@@ -42,11 +42,9 @@ const NAV: NavGroup[] = [
 
 export default function Sidebar() {
   const { pathname } = useLocation()
-  const [openOtc, setOpenOtc] = useState(pathname.startsWith('/otc'))
-
-  useEffect(() => {
-    if (pathname.startsWith('/otc')) setOpenOtc(true)
-  }, [pathname])
+  const onOtcRoute = pathname.startsWith('/otc')
+  const [manualOpen, setManualOpen] = useState(false)
+  const openOtc = onOtcRoute || manualOpen
 
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-64 lg:shrink-0 flex-col border-r border-outline-variant/15 bg-surface-container-low">
@@ -59,7 +57,7 @@ export default function Sidebar() {
               <div key={item.to}>
                 <button
                   type="button"
-                  onClick={() => setOpenOtc((v) => !v)}
+                  onClick={() => setManualOpen((v) => !v)}
                   aria-expanded={openOtc}
                   className={cn(
                     'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
