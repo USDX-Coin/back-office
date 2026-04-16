@@ -5,8 +5,12 @@ import { ProtectedRoute, PublicRoute } from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
-import MintingPage from '@/features/minting/MintingPage'
-import RedeemPage from '@/features/redeem/RedeemPage'
+import UsersPage from '@/features/users/UsersPage'
+import StaffPage from '@/features/staff/StaffPage'
+import OtcSplashPage from '@/features/otc/OtcSplashPage'
+import OtcMintPage from '@/features/otc/mint/OtcMintPage'
+import OtcRedeemPage from '@/features/otc/redeem/OtcRedeemPage'
+import ReportPage from '@/features/report/ReportPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -33,8 +37,12 @@ const router = createBrowserRouter([
         element: <MainLayout />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
-          { path: '/minting', element: <MintingPage /> },
-          { path: '/redeem', element: <RedeemPage /> },
+          { path: '/users', element: <UsersPage /> },
+          { path: '/staff', element: <StaffPage /> },
+          { path: '/otc', element: <OtcSplashPage /> },
+          { path: '/otc/mint', element: <OtcMintPage /> },
+          { path: '/otc/redeem', element: <OtcRedeemPage /> },
+          { path: '/report', element: <ReportPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },
