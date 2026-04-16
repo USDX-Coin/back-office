@@ -1,6 +1,7 @@
 # E2E Tests
 
-Playwright end-to-end tests running against the dev server with MSW mock API.
+Playwright end-to-end tests running against the dev server with the MSW
+browser worker.
 
 ## Running
 
@@ -13,14 +14,14 @@ pnpm exec playwright test  # Run directly
 
 | File | Description |
 |------|-------------|
-| `smoke.spec.ts` | Basic page load verification |
-| `auth.spec.ts` | Login, register navigation, forgot password, redirect guard |
-| `main-flow.spec.ts` | Dashboard → Minting → Detail → Redeem → Logout |
+| `smoke.spec.ts` | End-to-end smoke flow: login → Dashboard → Users → OTC Mint → Report → Profile (via navbar dropdown). Plus negative path for empty-credentials login. |
 
 ## Conventions
 
 - Tag tests with `@e2e` in the describe block name
-- Use `test.beforeEach` for login setup on authenticated tests
+- Authenticate by filling the login form (any non-empty email + password
+  works in mock mode; smoke spec uses the deterministic seed
+  `demo@usdx.io` to land on the Demo Operator staff record)
 - Use `getByRole` / `getByLabel` over `getByText` for strict mode compliance
 - Each test is independent — no shared state between tests
 - Tests run against `http://localhost:5173` (Vite dev server, auto-started by Playwright)

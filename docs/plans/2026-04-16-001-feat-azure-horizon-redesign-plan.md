@@ -1,7 +1,7 @@
 ---
 title: "feat: Azure Horizon Redesign — USDX Back Office"
 type: feat
-status: active
+status: completed
 date: 2026-04-16
 origin: docs/brainstorms/2026-04-16-azure-horizon-redesign-requirements.md
 ---
