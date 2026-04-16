@@ -36,9 +36,6 @@ export function validatePhone(phone: string): string | null {
   return null
 }
 
-// EIP-55 checksum not re-computed here (would need keccak256). Mock-phase
-// validation: hex-only + correct length. Real checksum validation added with
-// a real wallet library in a production build.
 const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 const SOLANA_BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 
@@ -52,8 +49,6 @@ export function validateWalletAddress(
   }
   return EVM_ADDRESS_RE.test(address) ? null : 'Invalid wallet address'
 }
-
-// ─── Form validators ───
 
 export function validateLoginForm(email: string, password: string): ValidationResult {
   const errors: Record<string, string> = {}
@@ -135,35 +130,5 @@ export function validateOtcRedeemForm(input: {
   } else if (amt > input.availableBalance) {
     errors.amount = 'Amount exceeds available balance'
   }
-  return { valid: Object.keys(errors).length === 0, errors }
-}
-
-// ─── Transitional: kept for old Register/ForgotPassword pages until Phase 7 ───
-
-export function validateRegisterForm(
-  name: string,
-  email: string,
-  password: string,
-  confirmPassword: string
-): ValidationResult {
-  const errors: Record<string, string> = {}
-  if (!name.trim()) errors.name = 'Name is required'
-  validateEmail(email, errors)
-  if (!password) {
-    errors.password = 'Password is required'
-  } else if (password.length < 8) {
-    errors.password = 'Password must be at least 8 characters'
-  }
-  if (!confirmPassword) {
-    errors.confirmPassword = 'Please confirm your password'
-  } else if (password !== confirmPassword) {
-    errors.confirmPassword = 'Passwords do not match'
-  }
-  return { valid: Object.keys(errors).length === 0, errors }
-}
-
-export function validateForgotPasswordForm(email: string): ValidationResult {
-  const errors: Record<string, string> = {}
-  validateEmail(email, errors)
   return { valid: Object.keys(errors).length === 0, errors }
 }

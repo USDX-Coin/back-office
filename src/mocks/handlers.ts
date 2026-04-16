@@ -1,7 +1,5 @@
 import { http, HttpResponse } from 'msw'
 import type {
-  MintingRequest,
-  RedeemRequest,
   Customer,
   Staff,
   OtcMintTransaction,
@@ -9,12 +7,9 @@ import type {
   OtcStatus,
 } from '@/lib/types'
 import {
-  createMockMintingList,
-  createMockRedeemList,
   createMockCustomerList,
   createMockStaffList,
   createMockOtcTransactions,
-  createMockDashboardStats,
   createCustomer,
   createStaff,
   createOtcMintTransaction,
@@ -27,9 +22,6 @@ import {
 } from './data'
 
 // ─── Stores ───
-let mintingData = createMockMintingList()
-let redeemData = createMockRedeemList()
-
 let customerStore: Customer[] = createMockCustomerList()
 let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
@@ -39,8 +31,6 @@ let otcRedeemStore: OtcRedeemTransaction[]
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
-  mintingData = createMockMintingList()
-  redeemData = createMockRedeemList()
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
@@ -121,42 +111,6 @@ function paginate<T>(items: T[], page: number, pageSize: number) {
       totalPages: Math.ceil(items.length / pageSize) || 1,
     },
   }
-}
-
-function filterItems<T extends MintingRequest | RedeemRequest>(
-  items: T[],
-  params: URLSearchParams
-): T[] {
-  let result = [...items]
-  const search = params.get('search')
-  const status = params.get('status')
-  const startDate = params.get('startDate')
-  const endDate = params.get('endDate')
-  const sortBy = params.get('sortBy')
-  const sortOrder = params.get('sortOrder') || 'desc'
-
-  if (search) {
-    const q = search.toLowerCase()
-    result = result.filter(
-      (item) =>
-        item.requester.toLowerCase().includes(q) ||
-        ('email' in item && (item as MintingRequest).email.toLowerCase().includes(q))
-    )
-  }
-  if (status) result = result.filter((item) => item.status === status)
-  if (startDate) result = result.filter((item) => item.createdAt >= startDate)
-  if (endDate) result = result.filter((item) => item.createdAt <= endDate)
-
-  if (sortBy) {
-    result.sort((a, b) => {
-      const aVal = a[sortBy as keyof T]
-      const bVal = b[sortBy as keyof T]
-      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
-      return 0
-    })
-  }
-  return result
 }
 
 function applyCommonFilters<T extends { createdAt: string }>(
@@ -445,75 +399,4 @@ export const handlers = [
 
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
-
-  // ─── Legacy endpoints (transitional — removed in Phase 7) ───
-  http.get('/api/dashboard', () => HttpResponse.json(createMockDashboardStats())),
-
-  http.get('/api/minting', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const filtered = filterItems(mintingData, url.searchParams)
-    return HttpResponse.json(paginate(filtered, page, pageSize))
-  }),
-
-  http.get('/api/minting/:id', ({ params }) => {
-    const item = mintingData.find((m) => m.id === params.id)
-    if (!item) return notFound()
-    return HttpResponse.json(item)
-  }),
-
-  http.post('/api/minting/:id/approve', async ({ params, request }) => {
-    const item = mintingData.find((m) => m.id === params.id)
-    if (!item) return notFound()
-    if (item.status !== 'pending' && item.status !== 'under_review') {
-      return badRequest('INVALID_STATUS', 'Cannot approve in current status')
-    }
-    const body = (await request.json()) as { notes?: string }
-    item.status = 'approved'
-    item.notes = body?.notes || item.notes
-    item.updatedAt = new Date().toISOString()
-    return HttpResponse.json(item)
-  }),
-
-  http.post('/api/minting/:id/reject', async ({ params, request }) => {
-    const item = mintingData.find((m) => m.id === params.id)
-    if (!item) return notFound()
-    if (item.status !== 'pending' && item.status !== 'under_review') {
-      return badRequest('INVALID_STATUS', 'Cannot reject in current status')
-    }
-    const body = (await request.json()) as { notes?: string }
-    if (!body?.notes) {
-      return badRequest('NOTES_REQUIRED', 'Notes are required when rejecting')
-    }
-    item.status = 'rejected'
-    item.notes = body.notes
-    item.updatedAt = new Date().toISOString()
-    return HttpResponse.json(item)
-  }),
-
-  http.post('/api/minting/:id/review', ({ params }) => {
-    const item = mintingData.find((m) => m.id === params.id)
-    if (!item) return notFound()
-    if (item.status !== 'pending') {
-      return badRequest('INVALID_STATUS', 'Can only start review from pending')
-    }
-    item.status = 'under_review'
-    item.updatedAt = new Date().toISOString()
-    return HttpResponse.json(item)
-  }),
-
-  http.get('/api/redeem', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const filtered = filterItems(redeemData, url.searchParams)
-    return HttpResponse.json(paginate(filtered, page, pageSize))
-  }),
-
-  http.get('/api/redeem/:id', ({ params }) => {
-    const item = redeemData.find((r) => r.id === params.id)
-    if (!item) return notFound()
-    return HttpResponse.json(item)
-  }),
 ]
