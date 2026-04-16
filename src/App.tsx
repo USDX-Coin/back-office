@@ -4,8 +4,6 @@ import { AuthProvider } from '@/lib/auth'
 import { ProtectedRoute, PublicRoute } from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
-import RegisterPage from '@/features/auth/RegisterPage'
-import ForgotPasswordPage from '@/features/auth/ForgotPasswordPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import MintingPage from '@/features/minting/MintingPage'
 import RedeemPage from '@/features/redeem/RedeemPage'
@@ -26,8 +24,6 @@ const router = createBrowserRouter([
     element: <PublicRoute />,
     children: [
       { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
     ],
   },
   {

@@ -41,7 +41,7 @@ export default function ProfilePage() {
                 <img src="/image/Logo.svg" alt="USDX" className="h-12 w-12" />
               </div>
               <div className="pb-1">
-                <h2 className="text-xl font-bold text-dark leading-tight">{user.name}</h2>
+                <h2 className="text-xl font-bold text-dark leading-tight">{user.displayName}</h2>
                 <p className="text-muted text-sm">{user.email}</p>
               </div>
             </div>

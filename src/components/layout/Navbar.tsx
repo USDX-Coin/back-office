@@ -28,11 +28,11 @@ export default function Navbar() {
             <Button variant="ghost" className="gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-light">
                 <span className="text-sm font-medium text-primary-dark">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user.firstName.charAt(0).toUpperCase()}
                 </span>
               </div>
               <span className="hidden text-sm font-medium text-dark sm:inline">
-                {user.name}
+                {user.displayName}
               </span>
             </Button>
           </DropdownMenuTrigger>

@@ -122,19 +122,7 @@ export interface ReportInsights {
   }
 }
 
-// ─── Transitional: removed in Phase 7 ───
-
-/**
- * Legacy pre-redesign auth user shape. Still consumed by src/lib/auth.tsx
- * and src/test/test-utils.tsx until Unit 4 rewrites AuthContext to use Staff.
- */
-export interface User {
-  id: string
-  name: string
-  email: string
-  role: string
-}
-
+// ─── Transitional: kept for old minting/redeem code until Phase 7 deletion ───
 
 export type MintingStatus =
   | 'pending'

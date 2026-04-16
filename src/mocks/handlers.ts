@@ -48,10 +48,14 @@ export function resetMockData() {
   pendingTimers.clear()
 }
 
-// Exposed for AuthProvider: looks up Staff by email without going over HTTP
+// Exposed for AuthProvider: looks up Staff without going over HTTP
 export function findStaffByEmail(email: string): Staff | undefined {
   const needle = email.trim().toLowerCase()
   return staffStore.find((s) => s.email.toLowerCase() === needle)
+}
+
+export function findStaffById(id: string): Staff | undefined {
+  return staffStore.find((s) => s.id === id)
 }
 
 export function getDefaultStaff(): Staff | undefined {

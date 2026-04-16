@@ -1,13 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import type { User } from './types'
+import type { Staff } from './types'
+import { findStaffByEmail, findStaffById, getDefaultStaff } from '@/mocks/handlers'
 
 interface AuthContextType {
-  user: User | null
+  user: Staff | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
-  forgotPassword: (email: string) => Promise<void>
   logout: () => void
 }
 
@@ -15,48 +14,54 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 const STORAGE_KEY = 'usdx_auth_user'
 
-const DEMO_USER = {
-  id: '1',
-  name: 'Administrator',
-  email: 'admin@usdx.com',
-  role: 'Admin',
-} as const
+interface PersistedSession {
+  version: 2
+  staffId: string
+}
 
-const DEMO_PASSWORD = 'Admin@2024!'
+function readPersistedStaff(): Staff | null {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedSession> & { email?: string }
+    if (parsed.version === 2 && parsed.staffId) {
+      return findStaffById(parsed.staffId) ?? null
+    }
+    // Legacy v1 → v2 migration: old shape was the full User object {id, name, email, role}
+    if (parsed.email) {
+      const matched = findStaffByEmail(parsed.email)
+      if (matched) {
+        const next: PersistedSession = { version: 2, staffId: matched.id }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        return matched
+      }
+    }
+  } catch {
+    // fall through
+  }
+  localStorage.removeItem(STORAGE_KEY)
+  return null
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : null
-  })
+  const [user, setUser] = useState<Staff | null>(() => readPersistedStaff())
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+      const session: PersistedSession = { version: 2, staffId: user.id }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }
   }, [user])
 
   const login = useCallback(async (email: string, password: string) => {
-    if (email !== DEMO_USER.email || password !== DEMO_PASSWORD) {
-      throw new Error('Invalid email or password')
+    if (!email.trim() || !password) {
+      throw new Error('Email and password are required')
     }
-    setUser(DEMO_USER)
-  }, [])
-
-  const register = useCallback(async (name: string, email: string, _password: string) => {
-    if (!name || !email || !_password) {
-      throw new Error('All fields are required')
-    }
-    // Mock register — just validates, doesn't auto-login
-  }, [])
-
-  const forgotPassword = useCallback(async (email: string) => {
-    if (!email) {
-      throw new Error('Email is required')
-    }
-    // Mock forgot password — always succeeds
+    const matched = findStaffByEmail(email) ?? getDefaultStaff()
+    if (!matched) throw new Error('No staff record available')
+    setUser(matched)
   }, [])
 
   const logout = useCallback(() => {
@@ -69,8 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         login,
-        register,
-        forgotPassword,
         logout,
       }}
     >
