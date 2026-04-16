@@ -65,6 +65,8 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  /* eslint-disable react-hooks/set-state-in-effect */
+  // Reset form state when dialog opens — intentional pattern, not a perf concern.
   useEffect(() => {
     if (open) {
       if (mode === 'edit' && customer) {
@@ -83,6 +85,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
       setErrors({})
     }
   }, [open, mode, customer])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -93,8 +96,9 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
     })
     if (errors[key as string]) {
       setErrors((prev) => {
-        const { [key as string]: _, ...rest } = prev
-        return rest
+        const next = { ...prev }
+        delete next[key as string]
+        return next
       })
     }
   }

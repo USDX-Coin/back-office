@@ -10,25 +10,28 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 
-export interface UserFilterValues {
+export interface StaffFilterValues {
   search: string
-  type: string
   role: string
 }
 
-interface UserFilterToolbarProps {
-  values: UserFilterValues
-  onChange: (next: UserFilterValues) => void
+interface StaffFilterToolbarProps {
+  values: StaffFilterValues
+  onChange: (next: StaffFilterValues) => void
   onClear: () => void
 }
 
-export default function UserFilterToolbar({ values, onChange, onClear }: UserFilterToolbarProps) {
+export default function StaffFilterToolbar({
+  values,
+  onChange,
+  onClear,
+}: StaffFilterToolbarProps) {
   const [searchInput, setSearchInput] = useState(values.search)
   // Sync local input when parent clears filters externally (URL reset).
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setSearchInput(values.search), [values.search])
 
-  const hasFilters = Boolean(values.search || values.type || values.role)
+  const hasFilters = Boolean(values.search || values.role)
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -44,36 +47,23 @@ export default function UserFilterToolbar({ values, onChange, onClear }: UserFil
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="pl-9 bg-surface-container-lowest"
-          aria-label="Search users"
+          aria-label="Search staff"
         />
       </form>
-
-      <Select
-        value={values.type || 'all'}
-        onValueChange={(val) => onChange({ ...values, type: val === 'all' ? '' : val })}
-      >
-        <SelectTrigger className="w-[160px] bg-surface-container-lowest">
-          <SelectValue placeholder="All types" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All types</SelectItem>
-          <SelectItem value="personal">Personal</SelectItem>
-          <SelectItem value="organization">Organization</SelectItem>
-        </SelectContent>
-      </Select>
 
       <Select
         value={values.role || 'all'}
         onValueChange={(val) => onChange({ ...values, role: val === 'all' ? '' : val })}
       >
-        <SelectTrigger className="w-[160px] bg-surface-container-lowest">
+        <SelectTrigger className="w-[200px] bg-surface-container-lowest">
           <SelectValue placeholder="All roles" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All roles</SelectItem>
-          <SelectItem value="admin">Admin</SelectItem>
-          <SelectItem value="editor">Editor</SelectItem>
-          <SelectItem value="member">Member</SelectItem>
+          <SelectItem value="support">Support Agent</SelectItem>
+          <SelectItem value="operations">Operations Manager</SelectItem>
+          <SelectItem value="compliance">Compliance Officer</SelectItem>
+          <SelectItem value="super_admin">Super Admin</SelectItem>
         </SelectContent>
       </Select>
 
