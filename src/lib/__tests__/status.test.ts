@@ -6,8 +6,10 @@ import {
   canApprove,
   canReject,
   isTerminalStatus,
+  getOtcStatusConfig,
+  isOtcTerminal,
 } from '@/lib/status'
-import type { MintingStatus, RedeemStatus } from '@/lib/types'
+import type { MintingStatus, OtcStatus, RedeemStatus } from '@/lib/types'
 
 describe('getMintingStatusConfig', () => {
   describe('positive', () => {
@@ -135,6 +137,52 @@ describe('isTerminalStatus', () => {
 
     test('should return false for processing', () => {
       expect(isTerminalStatus('processing')).toBe(false)
+    })
+  })
+})
+
+describe('getOtcStatusConfig', () => {
+  describe('positive', () => {
+    test('should return Pending config with warning color', () => {
+      const config = getOtcStatusConfig('pending')
+      expect(config.label).toBe('Pending')
+      expect(config.className).toContain('warning')
+    })
+
+    test('should return Completed config with success color', () => {
+      const config = getOtcStatusConfig('completed')
+      expect(config.label).toBe('Completed')
+      expect(config.className).toContain('success')
+    })
+
+    test('should return Failed config with error color', () => {
+      const config = getOtcStatusConfig('failed')
+      expect(config.label).toBe('Failed')
+      expect(config.className).toContain('error')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should return defensive config for unknown status', () => {
+      const config = getOtcStatusConfig('unknown' as OtcStatus)
+      expect(config.label).toBe('unknown')
+    })
+  })
+})
+
+describe('isOtcTerminal', () => {
+  describe('positive', () => {
+    test('should return true for completed', () => {
+      expect(isOtcTerminal('completed')).toBe(true)
+    })
+    test('should return true for failed', () => {
+      expect(isOtcTerminal('failed')).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('should return false for pending', () => {
+      expect(isOtcTerminal('pending')).toBe(false)
     })
   })
 })

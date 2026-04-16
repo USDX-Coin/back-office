@@ -2,9 +2,9 @@
 
 ## Overview
 
-Internal back office SPA for managing **minting** and **redeem** operations of the USDX stablecoin. Used by operators to review, approve/reject minting requests, monitor redeem requests, and view dashboard statistics.
+Internal back office SPA for managing **OTC mint** and **redeem** operations on the USDX stablecoin, plus directory management for end-customers and internal staff. Operators submit single-shot OTC transactions that settle asynchronously on-chain; there is no approval workflow.
 
-**Brand:** USDX | **Primary Color:** `#1eaed5`
+**Brand:** USDX | **Design system:** Azure Horizon (teal-anchored, Manrope + Inter, no-line tables) — see `back-office-usdx/azure_horizon/DESIGN.md` for the full spec.
 
 ## Tech Stack
 
@@ -15,9 +15,24 @@ Internal back office SPA for managing **minting** and **redeem** operations of t
 - **TanStack Query v5** — server state management
 - **TanStack Table v8** — data table with server-side pagination/sorting/filtering
 - **MSW v2** — mock API in development (handlers in `src/mocks/`)
+- **Recharts** — Dashboard volume trend chart (lazy-imported)
 - **pnpm** — package manager
 - **Vitest** — unit tests
 - **Playwright** — E2E tests
+
+## Menu Structure
+
+| Route | Menu label | Purpose |
+|-------|-----------|---------|
+| `/dashboard` | Dashboard | KPIs, volume trend chart, recent activity, network distribution |
+| `/users` | User | End-customer directory (table + add/edit/delete modal) |
+| `/staff` | Staf | Internal staff directory (table + invite modal) |
+| `/otc/mint` | OTC → Mint | Single-shot mint submission form + recent requests |
+| `/otc/redeem` | OTC → Redeem | Single-shot redeem submission form + recent redemptions |
+| `/report` | Report | Full transaction table with filters + CSV export |
+| `/profile` | *(navbar dropdown, not sidebar)* | Operator profile + personal details |
+
+Mobile BottomNav: Dashboard / OTC / Report / More (drawer containing User / Staf / Profile).
 
 ## Project Structure
 
@@ -33,41 +48,40 @@ Internal back office SPA for managing **minting** and **redeem** operations of t
 ├── src/
 │   ├── App.tsx            # Router + providers (QueryClient, AuthProvider)
 │   ├── main.tsx           # Entry point, MSW init in dev mode
-│   ├── index.css          # Tailwind directives + @theme tokens
+│   ├── index.css          # Azure Horizon @theme tokens
 │   ├── components/
-│   │   ├── ui/            # shadcn/ui components (do not edit directly)
-│   │   ├── layout/        # Navbar, Sidebar, MainLayout, AuthGuard
-│   │   └── DataTable.tsx  # Shared generic table component
+│   │   ├── ui/            # shadcn/ui primitives (do not edit directly)
+│   │   ├── layout/        # Navbar, Sidebar, MainLayout, BottomNav, AuthGuard
+│   │   ├── Avatar.tsx     # Initials + fixed-palette avatar
+│   │   ├── FieldError.tsx # Inline form error primitive
+│   │   ├── TableEmptyState.tsx  # Table empty-state primitive
+│   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
+│   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
-│   │   ├── auth/          # Login, Register, ForgotPassword pages
-│   │   ├── dashboard/     # Dashboard page + hooks
-│   │   ├── minting/       # Minting page, detail modal, hooks
-│   │   └── redeem/        # Redeem page, detail modal, hooks
+│   │   ├── auth/          # LoginPage only (Register/Forgot removed)
+│   │   ├── dashboard/     # DashboardPage + hooks
+│   │   ├── users/         # UsersPage + modal + hooks (Customer directory)
+│   │   ├── staff/         # StaffPage + modal + hooks
+│   │   ├── otc/
+│   │   │   ├── mint/      # OtcMintPage + form + info panel
+│   │   │   ├── redeem/    # OtcRedeemPage + form + table
+│   │   │   └── hooks.ts   # Shared pending-settlement polling
+│   │   ├── report/        # ReportPage + filter toolbar + CSV export
+│   │   └── profile/       # ProfilePage
 │   ├── lib/               # Shared utilities
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook
-│   │   ├── types.ts       # TypeScript types (entities, API responses)
-│   │   ├── validators.ts  # Form validation functions
-│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate
-│   │   ├── status.ts      # Status config maps, canApprove/canReject
-│   │   ├── csv.ts         # CSV export utilities
+│   │   ├── types.ts       # Staff, Customer, OTC types, DashboardSnapshot
+│   │   ├── validators.ts  # Pure form validators
+│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime
+│   │   ├── status.ts      # OTC status config + helpers
+│   │   ├── csv.ts         # CSV export (with formula-injection guard)
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
-│   │   ├── handlers.ts    # API endpoint handlers
+│   │   ├── handlers.ts    # REST handlers + inline settlement simulator
 │   │   ├── data.ts        # Mock data factories
 │   │   ├── server.ts      # MSW node server (for tests)
 │   │   └── browser.ts     # MSW browser worker (for dev)
 │   └── test/              # Test setup + utilities
-│       ├── setup.ts       # Vitest setup (cleanup, localStorage clear)
-│       └── test-utils.tsx  # renderWithProviders helper
-├── index.html
-├── package.json
-├── vite.config.ts         # Vite + Tailwind + Vitest config
-├── tsconfig.json
-├── tsconfig.app.json      # App TypeScript config (strict)
-├── tsconfig.node.json     # Build tool TypeScript config
-├── eslint.config.js       # ESLint flat config
-├── playwright.config.ts   # Playwright config
-└── components.json        # shadcn/ui config
 ```
 
 ## Commands
@@ -91,16 +105,15 @@ pnpm test:all       # Run all tests (unit + E2E)
 - **Server state via TanStack Query** — no manual fetch + useState patterns
 - **URL-driven table state** — filters, pagination, sort persisted in URL search params
 - **Mock-first development** — MSW handlers serve as API contract definition
-- **TDD per feature** — write tests first, then implement
 
 ## Conventions
 
 ### Naming
 
-- Components: PascalCase files + default export (`LoginPage.tsx` → `export default function LoginPage()`)
-- Hooks: camelCase files (`hooks.ts` → `export function useMintingList()`)
+- Components: PascalCase files + default export (`UsersPage.tsx` → `export default function UsersPage()`)
+- Hooks: camelCase files (`hooks.ts` → `export function useCustomers()`)
 - Utilities: camelCase files (`format.ts` → `export function formatAmount()`)
-- Types: PascalCase interfaces/types (`MintingRequest`, `RedeemStatus`)
+- Types: PascalCase interfaces/types (`Customer`, `OtcStatus`)
 - Tests: `__tests__/` folder next to source, named `*.test.ts(x)`
 - E2E tests: `e2e/*.spec.ts`
 
@@ -120,13 +133,13 @@ describe('functionName', () => {
 })
 ```
 
-### Component Pattern
+### Form / modal conventions
 
-- Pages are default-exported function components
-- Hooks co-locate with their feature in `hooks.ts`
-- Modal components receive `open`, `onClose`, and data props
-- Use shadcn/ui primitives — do not create custom low-level UI components
-- Use `cn()` from `@/lib/utils` for conditional class names
+- Forms validate on blur after first interaction; re-validate on change once a field is touched; submit revalidates all
+- Modals use shadcn `Dialog`; Esc / outside-click disabled while a mutation is in flight
+- Submit button shows spinner + "Submitting…" during mutation
+- On success: modal closes, form resets to initial state, focus returns to first field
+- On error: toast fires; modal stays open with error visible; form values preserved
 
 ### Data Flow
 
@@ -136,32 +149,37 @@ Page → useMutation hook → fetch() → MSW handler / Real API
   └→ onSuccess: invalidateQueries → refetch list + dashboard
 ```
 
-### Color System
+### Color System (Azure Horizon)
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `primary` | `#1eaed5` | Buttons, links, accents |
-| `primary-dark` | `#1899bc` | Hover states |
-| `primary-light` | `#e8f7fb` | Badges, icon backgrounds |
-| `dark` | `#1a1a2e` | Headings, text |
-| `success` | `#10b981` | Approved, completed badges |
+| `primary` | `#006780` | Dark teal anchor, headings, active states |
+| `primary-container` | `#1eaed5` | Cyan action accent, CTA gradient endpoint |
+| `surface` | `#f5fafd` | Page background |
+| `surface-container-low` | `#eff4f7` | Sidebar, grouping surfaces |
+| `surface-container-lowest` | `#ffffff` | Cards, modals, input fields |
+| `on-surface` | `#171c1f` | Body text (never pure black) |
+| `on-surface-variant` | `#3d484d` | Secondary text |
+| `outline-variant` | `#bcc8ce` | Ghost borders at 15% opacity |
+| `success` | `#10b981` | Completed badges |
 | `warning` | `#f59e0b` | Pending badges |
-| `error` | `#ef4444` | Rejected, failed badges, error text |
+| `error` | `#ba1a1a` | Failed badges, error text |
 
-### Status Flows
+Primary CTA uses a 135° gradient from `primary` to `primary-container` (`bg-blue-pulse` utility).
 
-**Minting:**
+### OTC Status Flow (single-shot)
+
 ```
-Pending → Under Review → Approved → Processing → Completed
-                       → Rejected (terminal)
-                                    → Failed (terminal)
+operator submits form
+      │
+      ▼
+  [ Pending ]  ──── on-chain failure ───▶ [ Failed ]  (terminal)
+      │
+      ▼  (network confirms, 8–15s)
+ [ Completed ] (terminal)
 ```
 
-**Redeem (read-only):**
-```
-Pending → Processing → Completed
-                     → Failed
-```
+No approval gate. No "Under Review". Settlement is async and simulated in mock mode via inline `setTimeout` inside the POST handler.
 
 ## Security
 
@@ -170,15 +188,16 @@ Pending → Processing → Completed
 - Auth is mocked via localStorage — **not production-ready**
 - All `target="_blank"` links should include `rel="noopener noreferrer"`
 - No `dangerouslySetInnerHTML`, no `eval()`, no `innerHTML`
+- CSV export escapes cells starting with `=`, `+`, `-`, `@` to prevent formula injection
 
-## Known Limitations (Mock Phase)
+## Known v1 Risks (mock-only; documented intentionally)
 
-- Auth accepts any non-empty credentials (mock)
-- No real API backend — all data served by MSW
-- No RBAC / role-based access control
-- No session expiration
-- CSV export is client-side only (current page data)
-- Registration is open (should be admin-only in production)
+1. **Any non-empty email + password authenticates** (R64). Production must replace with real IdP.
+2. **No RBAC** — all five menus are visible and fully functional for any authenticated user.
+3. **OTC submissions run with no approver, no cap, no confirmation** — any operator can mint/redeem unbounded volume.
+4. **Staff invites have no authorization check** — any operator can invite a Super Admin.
+5. **localStorage staffId is user-tamperable** via DevTools; no impact in mock mode (auth already permissive), but must be replaced by server-side session validation pre-production.
+6. **Clipboard-hijack wallet substitution** is not mitigated (no confirmation modal); address validation is checksum-only.
 
 ## Adding a New Feature
 
@@ -187,5 +206,5 @@ Pending → Processing → Completed
 3. Add nav item in `src/components/layout/Sidebar.tsx`
 4. Add MSW handlers in `src/mocks/handlers.ts`
 5. Add mock data factory in `src/mocks/data.ts`
-6. Write unit tests in `src/lib/__tests__/` for business logic
-7. Write E2E test in `e2e/{name}.spec.ts`
+6. Write unit tests colocated in `__tests__/` for business logic and page integration
+7. If the feature adds a critical flow, extend `e2e/smoke.spec.ts`

@@ -1,5 +1,14 @@
+// CSV injection guard: cells starting with =, +, -, @ are prefixed with a
+// single quote so Excel/LibreOffice does not interpret them as formulas.
+// Without this, a free-text Notes field containing e.g. `=HYPERLINK(...)` would
+// execute when the exported CSV is opened downstream.
+const FORMULA_CHARS = new Set(['=', '+', '-', '@'])
+
 function escapeCsvCell(val: unknown): string {
-  const str = val == null ? '' : String(val)
+  let str = val == null ? '' : String(val)
+  if (str.length > 0 && FORMULA_CHARS.has(str[0]!)) {
+    str = `'${str}`
+  }
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return `"${str.replace(/"/g, '""')}"`
   }
@@ -10,9 +19,11 @@ export function buildCsvContent<T extends object>(
   data: T[],
   columns: { key: keyof T; header: string }[]
 ): string {
-  if (data.length === 0) return ''
-
   const headers = columns.map((col) => col.header)
+  if (data.length === 0) {
+    return headers.join(',')
+  }
+
   const rows = data.map((row) =>
     columns.map((col) => escapeCsvCell(row[col.key]))
   )

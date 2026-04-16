@@ -1,10 +1,28 @@
-import type { MintingStatus, RedeemStatus } from './types'
+import type { MintingStatus, OtcStatus, RedeemStatus } from './types'
 
 export interface StatusConfig {
   label: string
   variant: 'default' | 'secondary' | 'destructive' | 'outline'
   className: string
 }
+
+// ─── OTC single-shot status (post-redesign canonical) ───
+
+const otcStatusMap: Record<OtcStatus, StatusConfig> = {
+  pending: { label: 'Pending', variant: 'outline', className: 'border-warning text-warning bg-warning/10' },
+  completed: { label: 'Completed', variant: 'default', className: 'bg-success/15 text-success border-success/30' },
+  failed: { label: 'Failed', variant: 'destructive', className: 'bg-error/10 text-error border-error/30' },
+}
+
+export function getOtcStatusConfig(status: OtcStatus): StatusConfig {
+  return otcStatusMap[status] ?? { label: status, variant: 'outline', className: '' }
+}
+
+export function isOtcTerminal(status: OtcStatus): boolean {
+  return status === 'completed' || status === 'failed'
+}
+
+// ─── Transitional: old approval-workflow helpers (deleted in Phase 7) ───
 
 const mintingStatusMap: Record<MintingStatus, StatusConfig> = {
   pending: { label: 'Pending', variant: 'outline', className: 'border-warning text-warning' },
