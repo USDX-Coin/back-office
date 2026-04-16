@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#ecf1f5",
+                    "on-surface-variant": "#3d484d",
+                    "outline-variant": "#bcc8ce",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#de8f2f",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#ffb86c",
+                    "primary-fixed-dim": "#5ad5fd",
+                    "primary-container": "#1eaed5",
+                    "surface-container-low": "#eff4f7",
+                    "on-tertiary-container": "#532f00",
+                    "on-primary-fixed-variant": "#004d61",
+                    "surface-dim": "#d6dbde",
+                    "error": "#ba1a1a",
+                    "inverse-surface": "#2c3134",
+                    "surface-container-highest": "#dee3e6",
+                    "secondary-fixed-dim": "#a4cdde",
+                    "on-secondary-fixed-variant": "#224c5a",
+                    "outline": "#6d797e",
+                    "on-primary-container": "#003d4d",
+                    "primary-fixed": "#b8eaff",
+                    "on-background": "#171c1f",
+                    "surface-bright": "#f5fafd",
+                    "on-tertiary-fixed-variant": "#683c00",
+                    "secondary": "#3c6473",
+                    "surface-container-high": "#e4e9ec",
+                    "surface": "#f5fafd",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#2c1600",
+                    "on-secondary-fixed": "#001f28",
+                    "secondary-container": "#bfe9fb",
+                    "background": "#f5fafd",
+                    "on-primary-fixed": "#001f28",
+                    "on-secondary": "#ffffff",
+                    "inverse-primary": "#5ad5fd",
+                    "surface-container": "#eaeff2",
+                    "tertiary": "#895100",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#006780",
+                    "tertiary-fixed": "#ffdcbc",
+                    "on-error": "#ffffff",
+                    "on-secondary-container": "#426a79",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#dee3e6",
+                    "secondary-fixed": "#bfe9fb",
+                    "primary": "#006780",
+                    "on-surface": "#171c1f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface flex min-h-screen">
+<!-- SideNavBar Component -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#eff4f7] dark:bg-slate-900 z-50 flex flex-col py-8">
+<div class="px-6 mb-10">
+<h1 class="text-xl font-bold text-[#006780] tracking-tight">StableCore</h1>
+<p class="text-[10px] uppercase tracking-[0.2em] text-outline font-semibold mt-1">Back-Office Admin</p>
+</div>
+<nav class="flex-1 flex flex-col space-y-1 overflow-y-auto no-scrollbar">
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-medium tracking-wide">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-medium tracking-wide">User</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="badge">badge</span>
+<span class="font-medium tracking-wide">Staf</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="monetization_on">monetization_on</span>
+<span class="font-medium tracking-wide">OTC Mint</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="toll">toll</span>
+<span class="font-medium tracking-wide">OTC Redeem</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-medium tracking-wide">Report</span>
+</a>
+<!-- Active State: Profile -->
+<a class="flex items-center gap-3 border-l-4 border-[#1eaed5] bg-[#1eaed5]/10 text-[#006780] dark:text-[#1eaed5] py-3 px-6 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+<span class="font-semibold tracking-wide">Profile</span>
+</a>
+</nav>
+<div class="px-6 mt-auto">
+<div class="p-4 rounded-xl bg-surface-container-highest/30 flex items-center gap-3">
+<img alt="Admin User" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" data-alt="Professional portrait of a middle-aged male administrator in a light blue shirt, clean minimal background, soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3jLys_s3Jy5lL64Ld9B8lNQONlmzaytvQ3B_zkzRuzre_bIILt3pH7SkFNwixu9e1veSWDm4UHCy4y12tgfaLXXnUrX2GsiB0Gvt0RnL5ULhMLmJVuvRwSNP_5ERndHtIirMYmU3KW8g0JJz7cPnRMmSVgb7Y-Zz_Gn1v_q6cB4mWE_bPcvkGTNTwt5VM8R5Ru1bmxTNUxKNIN6nsL2LDGIllOFQSAu8q50JrqLrkCYrYRmah4bGK7izlua9a0_BcTNN7iKF3Jss"/>
+<div class="overflow-hidden">
+<p class="text-sm font-bold truncate">Marcus Thorne</p>
+<p class="text-[10px] text-on-surface-variant font-medium">Head of Operations</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Shell -->
+<main class="flex-1 pl-64 transition-all duration-300">
+<!-- TopNavBar Component -->
+<header class="flex justify-between items-center w-full pl-8 pr-8 py-4 sticky top-0 z-40 bg-[#f5fafd]/80 dark:bg-slate-950/80 backdrop-blur-md shadow-[0_12px_40px_rgba(0,103,128,0.06)]">
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-lowest border-none rounded-lg text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-slate-400" placeholder="Search operations..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-slate-400 tracking-wider">NETWORK</span>
+<span class="px-2 py-0.5 bg-tertiary-container/10 text-tertiary font-bold text-[10px] rounded-full">MAINNET</span>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="hover:text-[#1eaed5] transition-colors opacity-80 hover:opacity-100 relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full border-2 border-white"></span>
+</button>
+<button class="hover:text-[#1eaed5] transition-colors opacity-80 hover:opacity-100">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Profile Content Body -->
+<div class="p-8 max-w-7xl mx-auto space-y-8">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
+<div>
+<nav class="flex items-center gap-2 text-xs text-slate-400 mb-2 font-body">
+<span>Dashboard</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-on-primary-fixed-variant font-semibold">User Profile</span>
+</nav>
+<h2 class="text-4xl font-extrabold text-primary tracking-tight headline">Administrator Profile</h2>
+<p class="text-on-surface-variant mt-2 max-w-md">Manage your account credentials, security settings, and view recent platform activity logs.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 bg-surface-container-highest text-on-surface font-semibold rounded-xl hover:bg-surface-dim transition-all active:scale-95 text-sm">
+                        Export Logs
+                    </button>
+<button class="px-6 py-2.5 bg-gradient-to-br from-primary to-primary-container text-white font-semibold rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-95 text-sm">
+                        Update Status
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Profile Identity Card -->
+<div class="col-span-12 lg:col-span-4 space-y-6">
+<div class="bg-surface-container-lowest rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col items-center text-center">
+<div class="relative mb-6">
+<div class="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-primary-container to-white">
+<img alt="Profile Large" class="w-full h-full rounded-full object-cover border-4 border-white" data-alt="Close-up portrait of Marcus Thorne, professional male admin with confident expression, neutral office background, high-end photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfV3jY2M0Zp7w4JoZF5kKROrNwEYHF_IfhsXZ9_RDastm8BA9IJkI_IaqHLCA03Oy8A_8-gPkuqEyisQ5KqNH023ozRT_zEWMpGcgRjvY-2e3NUH7mDht0_D-wHr0cqA0nDi6Hs0lmkXBId0KC2KRg0n9Rj7IMf9Q2R4RWGHg9Oq794TQ48Z0vnDqADkBpGxQIskCKSYgVOdgE_ubcjnM6flbTeWKp3z7nIE57M90WukWjrO4JpPKnJ1EGzqcVzZWhZb7Ft162-2M"/>
+</div>
+<button class="absolute bottom-1 right-1 bg-primary text-white p-2 rounded-full border-4 border-surface-container-lowest shadow-md hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+</button>
+</div>
+<h3 class="text-2xl font-bold text-on-surface headline">Marcus Thorne</h3>
+<p class="text-primary font-semibold tracking-wide text-sm mt-1">Head of Global Operations</p>
+<div class="w-full mt-8 pt-8 border-t border-surface-container border-dashed space-y-4">
+<div class="flex justify-between text-sm">
+<span class="text-slate-400 font-medium">Employee ID</span>
+<span class="text-on-surface font-bold">#SC-9982-OP</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-400 font-medium">Department</span>
+<span class="text-on-surface font-bold">Core Infrastructure</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-400 font-medium">Joined Date</span>
+<span class="text-on-surface font-bold">Jan 12, 2022</span>
+</div>
+</div>
+</div>
+<!-- Contact Quick Actions -->
+<div class="bg-surface-container-low rounded-3xl p-6 space-y-4">
+<h4 class="text-xs font-extrabold uppercase tracking-[0.2em] text-primary/70 mb-2">Connect</h4>
+<div class="flex items-center gap-4 group cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]" data-icon="mail">mail</span>
+</div>
+<div class="overflow-hidden">
+<p class="text-[10px] text-slate-400 font-bold uppercase">Work Email</p>
+<p class="text-sm font-semibold truncate">m.thorne@stablecore.network</p>
+</div>
+</div>
+<div class="flex items-center gap-4 group cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]" data-icon="call">call</span>
+</div>
+<div>
+<p class="text-[10px] text-slate-400 font-bold uppercase">Direct Line</p>
+<p class="text-sm font-semibold">+1 (555) 892-0210</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Settings Area -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<!-- Tabs Navigation -->
+<div class="flex gap-8 border-b border-surface-container-highest">
+<button class="pb-4 text-primary font-bold border-b-2 border-primary text-sm">Account Settings</button>
+<button class="pb-4 text-slate-400 font-semibold hover:text-on-surface transition-colors text-sm">Security &amp; Privacy</button>
+<button class="pb-4 text-slate-400 font-semibold hover:text-on-surface transition-colors text-sm">Permissions</button>
+<button class="pb-4 text-slate-400 font-semibold hover:text-on-surface transition-colors text-sm">Integrations</button>
+</div>
+<!-- Settings Form Card -->
+<div class="bg-surface-container-lowest rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xl font-bold headline">Personal Details</h3>
+<span class="text-xs font-semibold text-primary px-3 py-1 bg-primary/10 rounded-full">Verified Admin</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-xs font-bold text-on-surface-variant ml-1 uppercase tracking-wider">Full Legal Name</label>
+<input class="w-full px-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium" type="text" value="Marcus Thorne"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold text-on-surface-variant ml-1 uppercase tracking-wider">Display Name</label>
+<input class="w-full px-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium" type="text" value="MThorne_SC"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold text-on-surface-variant ml-1 uppercase tracking-wider">Regional Access</label>
+<select class="w-full px-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium">
+<option>North America (HQ)</option>
+<option>EMEA Region</option>
+<option>APAC Region</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold text-on-surface-variant ml-1 uppercase tracking-wider">Timezone</label>
+<select class="w-full px-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium">
+<option>UTC-05:00 Eastern Time</option>
+<option>UTC+00:00 Greenwich Mean Time</option>
+<option>UTC+08:00 Singapore Standard Time</option>
+</select>
+</div>
+</div>
+<div class="mt-10 pt-8 border-t border-surface-container">
+<h3 class="text-lg font-bold headline mb-6">Security Access</h3>
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl mb-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="lock_reset">lock_reset</span>
+</div>
+<div>
+<p class="text-sm font-bold">Password Security</p>
+<p class="text-xs text-slate-500">Last changed 42 days ago</p>
+</div>
+</div>
+<button class="px-4 py-2 bg-white text-primary text-xs font-bold rounded-lg border border-primary/10 hover:bg-primary hover:text-white transition-all">Change</button>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="two_factor_authentication">authenticator</span>
+</div>
+<div>
+<p class="text-sm font-bold">Two-Factor Authentication</p>
+<p class="text-xs text-slate-500">Hardware token (Yubikey) active</p>
+</div>
+</div>
+<div class="w-12 h-6 bg-primary rounded-full relative cursor-pointer shadow-inner">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Activity Log Section -->
+<div class="bg-surface-container-low rounded-3xl p-8">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-lg font-bold headline">Recent Activity Summary</h3>
+<button class="text-xs font-bold text-primary hover:underline">View All Logs</button>
+</div>
+<div class="space-y-6">
+<div class="flex gap-4 relative">
+<div class="absolute left-4 top-10 bottom-0 w-[1px] bg-outline-variant/30"></div>
+<div class="w-9 h-9 rounded-full bg-primary-container/20 flex items-center justify-center text-primary z-10">
+<span class="material-symbols-outlined text-[18px]" data-icon="token">token</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<p class="text-sm font-bold">Approved OTC Mint Request</p>
+<span class="text-[10px] font-bold text-slate-400 uppercase">2 hours ago</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Authorized $1.2M USDT issuance for Institutional Partner #4402.</p>
+</div>
+</div>
+<div class="flex gap-4 relative">
+<div class="absolute left-4 top-10 bottom-0 w-[1px] bg-outline-variant/30"></div>
+<div class="w-9 h-9 rounded-full bg-secondary-container/30 flex items-center justify-center text-secondary z-10">
+<span class="material-symbols-outlined text-[18px]" data-icon="security_update_good">security_update_good</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<p class="text-sm font-bold">System Configuration Update</p>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Yesterday, 14:22</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Modified gas fee threshold for automated redemptions.</p>
+</div>
+</div>
+<div class="flex gap-4 relative">
+<div class="w-9 h-9 rounded-full bg-tertiary-container/20 flex items-center justify-center text-tertiary z-10">
+<span class="material-symbols-outlined text-[18px]" data-icon="shield_person">shield_person</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between">
+<p class="text-sm font-bold">New Staff Onboarding</p>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Oct 14, 09:10</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-1">Provisioned "Compliance Auditor" role for Sarah Jenkins.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
