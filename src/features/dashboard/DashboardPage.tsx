@@ -1,12 +1,12 @@
 import { lazy, Suspense } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Users, Clock } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import KpiCard from './KpiCard'
 import RecentActivityList from './RecentActivityList'
 import NetworkDistribution from './NetworkDistribution'
 import { useDashboardSnapshot } from './hooks'
 
-// Lazy-load Recharts so the ~70KB payload stays out of the initial bundle
 const VolumeTrendChart = lazy(() => import('./VolumeTrendChart'))
 
 function formatUSD(value: number): string {
@@ -22,8 +22,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold text-on-surface">Operations Overview</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <h1 className="text-2xl font-semibold tracking-tight">Operations Overview</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Rolling 30-day performance across OTC mint and redeem.
         </p>
       </div>
@@ -60,18 +60,22 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-8 rounded-xl bg-surface-container-lowest p-5 shadow-ambient-sm">
-          <h3 className="mb-3 text-sm font-medium text-on-surface">Volume Trend</h3>
-          <div className="h-64">
-            {isLoading ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <Suspense fallback={<Skeleton className="h-full w-full" />}>
-                <VolumeTrendChart data={data?.volumeTrend ?? []} />
-              </Suspense>
-            )}
-          </div>
-        </div>
+        <Card className="lg:col-span-8">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Volume Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {isLoading ? (
+                <Skeleton className="h-full w-full" />
+              ) : (
+                <Suspense fallback={<Skeleton className="h-full w-full" />}>
+                  <VolumeTrendChart data={data?.volumeTrend ?? []} />
+                </Suspense>
+              )}
+            </div>
+          </CardContent>
+        </Card>
         <div className="lg:col-span-4">
           <NetworkDistribution items={data?.networkDistribution ?? []} />
         </div>

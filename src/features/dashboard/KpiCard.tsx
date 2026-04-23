@@ -24,7 +24,7 @@ export default function KpiCard({
   tone = 'default',
 }: KpiCardProps) {
   return (
-    <Card className="bg-surface-container-lowest shadow-ambient-sm border-0">
+    <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div
@@ -39,7 +39,7 @@ export default function KpiCard({
             <span
               className={cn(
                 'inline-flex items-center gap-1 text-xs font-medium',
-                trend.direction === 'up' ? 'text-success' : 'text-error'
+                trend.direction === 'up' ? 'text-success' : 'text-destructive'
               )}
             >
               {trend.direction === 'up' ? (
@@ -51,12 +51,12 @@ export default function KpiCard({
             </span>
           )}
         </div>
-        <p className="mt-4 text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+        <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p className="mt-1 font-display text-3xl font-bold text-on-surface">{value}</p>
+        <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
         {trendDescription && (
-          <p className="mt-1 text-xs text-on-surface-variant">{trendDescription}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{trendDescription}</p>
         )}
       </CardContent>
     </Card>
