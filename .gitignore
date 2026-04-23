@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 test-results/
 walkthrough-screenshots/
+
+# Local visual verification output
+verify-screenshots/
