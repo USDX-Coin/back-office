@@ -1,12 +1,13 @@
 import { Link } from 'react-router'
-import { Coins, ArrowRightLeft } from 'lucide-react'
+import { Coins, ArrowRightLeft, ArrowRight } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 
 export default function OtcSplashPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold text-on-surface">OTC Operations</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <h1 className="text-2xl font-semibold tracking-tight">OTC Operations</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Choose an operation to continue.
         </p>
       </div>
@@ -14,17 +15,15 @@ export default function OtcSplashPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <SplashCard
           to="/otc/mint"
-          icon={<Coins className="h-7 w-7" />}
+          icon={<Coins className="h-5 w-5" />}
           title="OTC Mint"
           description="Issue new USDX to a customer's wallet."
-          accent="from-primary to-primary-container"
         />
         <SplashCard
           to="/otc/redeem"
-          icon={<ArrowRightLeft className="h-7 w-7" />}
+          icon={<ArrowRightLeft className="h-5 w-5" />}
           title="OTC Redeem"
           description="Burn USDX in exchange for treasury funds."
-          accent="from-secondary to-primary-container"
         />
       </div>
     </div>
@@ -36,29 +35,29 @@ function SplashCard({
   icon,
   title,
   description,
-  accent,
 }: {
   to: string
   icon: React.ReactNode
   title: string
   description: string
-  accent: string
 }) {
   return (
     <Link
       to={to}
-      className="group flex flex-col gap-4 rounded-xl bg-surface-container-lowest p-6 shadow-ambient transition-all hover:shadow-ambient hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+      className="group rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
-      <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${accent} text-on-primary shadow-md`}>
-        {icon}
-      </div>
-      <div>
-        <h2 className="font-display text-xl font-semibold text-on-surface">{title}</h2>
-        <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
-      </div>
-      <span className="mt-2 text-sm font-medium text-primary group-hover:underline">
-        Open →
-      </span>
+      <Card className="transition-colors group-hover:border-primary/50">
+        <CardContent className="flex items-center gap-4 p-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            {icon}
+          </div>
+          <div className="flex-1">
+            <h2 className="text-base font-semibold">{title}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+        </CardContent>
+      </Card>
     </Link>
   )
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Send, Wallet } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -95,120 +96,92 @@ export default function OtcMintForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-xl bg-surface-container-lowest p-6 shadow-ambient-sm space-y-5"
-      noValidate
-    >
-      <div>
-        <Label className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-          Select customer
-        </Label>
-        <div className="mt-1.5">
-          <CustomerTypeahead
-            value={form.customer}
-            onSelect={(c) => set('customer', c)}
-            placeholder="Search by name or email…"
-          />
-        </div>
-        <FieldError message={errors.customerId} />
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>New mint request</CardTitle>
+      </CardHeader>
+      <form onSubmit={handleSubmit} noValidate id="mint-form">
+        <CardContent className="space-y-5">
+          <div className="space-y-1.5">
+            <Label>Customer</Label>
+            <CustomerTypeahead
+              value={form.customer}
+              onSelect={(c) => set('customer', c)}
+              placeholder="Search by name or email…"
+            />
+            <FieldError message={errors.customerId} />
+          </div>
 
-      <div>
-        <Label htmlFor="mintNetwork" className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-          Network
-        </Label>
-        <Select
-          value={form.network}
-          onValueChange={(val) => set('network', val as Network)}
-        >
-          <SelectTrigger id="mintNetwork" className="mt-1.5 bg-surface-container-lowest">
-            <SelectValue placeholder="Choose destination network" />
-          </SelectTrigger>
-          <SelectContent>
-            {NETWORKS.map((n) => (
-              <SelectItem key={n.value} value={n.value}>
-                {n.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <FieldError message={errors.network} />
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mintNetwork">Network</Label>
+            <Select value={form.network} onValueChange={(val) => set('network', val as Network)}>
+              <SelectTrigger id="mintNetwork">
+                <SelectValue placeholder="Choose destination network" />
+              </SelectTrigger>
+              <SelectContent>
+                {NETWORKS.map((n) => (
+                  <SelectItem key={n.value} value={n.value}>
+                    {n.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={errors.network} />
+          </div>
 
-      <div>
-        <Label htmlFor="mintAmount" className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-          Mint amount
-        </Label>
-        <div className="relative mt-1.5">
-          <Input
-            id="mintAmount"
-            type="number"
-            step="any"
-            min="0"
-            value={form.amount}
-            onChange={(e) => set('amount', e.target.value)}
-            placeholder="0"
-            className="h-14 bg-surface-container-lowest pr-20 text-2xl font-semibold"
-          />
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-on-surface-variant">
-            USDX
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-on-surface-variant">
-          OTC fee 0.1% applied at settlement.
-        </p>
-        <FieldError message={errors.amount} />
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mintAmount">Mint amount</Label>
+            <div className="relative">
+              <Input
+                id="mintAmount"
+                type="number"
+                step="any"
+                min="0"
+                value={form.amount}
+                onChange={(e) => set('amount', e.target.value)}
+                placeholder="0"
+                className="pr-16"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                USDX
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">OTC fee 0.1% applied at settlement.</p>
+            <FieldError message={errors.amount} />
+          </div>
 
-      <div>
-        <Label htmlFor="mintAddress" className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-          Destination wallet address
-        </Label>
-        <div className="relative mt-1.5">
-          <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-          <Input
-            id="mintAddress"
-            value={form.destinationAddress}
-            onChange={(e) => set('destinationAddress', e.target.value)}
-            placeholder="0x…"
-            className="h-11 pl-10 bg-surface-container-lowest font-mono text-sm"
-          />
-        </div>
-        <p className="mt-1 text-xs text-success">
-          Auto-checksum validation active.
-        </p>
-        <FieldError message={errors.destinationAddress} />
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mintAddress">Destination wallet address</Label>
+            <div className="relative">
+              <Wallet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="mintAddress"
+                value={form.destinationAddress}
+                onChange={(e) => set('destinationAddress', e.target.value)}
+                placeholder="0x…"
+                className="pl-9 font-mono text-sm"
+              />
+            </div>
+            <FieldError message={errors.destinationAddress} />
+          </div>
 
-      <div>
-        <Label htmlFor="mintNotes" className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-          Internal notes
-        </Label>
-        <Textarea
-          id="mintNotes"
-          value={form.notes}
-          onChange={(e) => set('notes', e.target.value)}
-          placeholder="Reference, treasury ID, or any context for audit…"
-          className="mt-1.5 min-h-[80px] bg-surface-container-lowest"
-        />
-      </div>
-
-      <Button
-        type="submit"
-        disabled={create.isPending}
-        aria-busy={create.isPending}
-        className="h-12 w-full rounded-xl bg-blue-pulse text-on-primary font-medium shadow-md transition-all hover:shadow-lg active:scale-[0.99] disabled:opacity-70"
-      >
-        {create.isPending ? (
-          'Submitting…'
-        ) : (
-          <span className="inline-flex items-center gap-2">
-            Confirm Mint Request
-            <Send className="h-4 w-4" />
-          </span>
-        )}
-      </Button>
-    </form>
+          <div className="space-y-1.5">
+            <Label htmlFor="mintNotes">Internal notes</Label>
+            <Textarea
+              id="mintNotes"
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+              placeholder="Reference, treasury ID, or any context for audit…"
+              className="min-h-[80px]"
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" form="mint-form" disabled={create.isPending} aria-busy={create.isPending} className="w-full">
+            {create.isPending ? 'Submitting…' : 'Submit mint request'}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   )
 }

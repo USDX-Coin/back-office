@@ -9,8 +9,8 @@ export default function OtcRedeemPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold text-on-surface">OTC Redemption</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <h1 className="text-2xl font-semibold tracking-tight">OTC Redemption</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Burn USDX in exchange for treasury funds. Settlement is asynchronous;
           recent redemptions appear below.
         </p>

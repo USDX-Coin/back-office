@@ -1,44 +1,66 @@
-import { ShieldCheck, Droplets } from 'lucide-react'
+import { Droplets } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const AVAILABLE_BALANCE = 5_000_000
+const TREASURY_HEALTH_PCT = 82
 
 export default function OtcRedeemInfoPanel() {
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-surface-container-lowest p-5 shadow-ambient-sm">
-        <div className="flex items-center gap-2 text-sm font-medium text-primary">
-          <Droplets className="h-4 w-4" />
-          Treasury Liquidity
-        </div>
-        <p className="mt-2 font-display text-2xl font-bold text-on-surface">
-          {AVAILABLE_BALANCE.toLocaleString()} USDX
-        </p>
-        <p className="text-xs text-on-surface-variant">Available for redemption</p>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-container">
-          <div className="h-full w-[82%] bg-blue-pulse" aria-label="82% treasury health" />
-        </div>
-        <p className="mt-1.5 text-xs text-on-surface-variant">Treasury health: 82%</p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Droplets className="h-4 w-4 text-primary" />
+            Treasury liquidity
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-2xl font-semibold tracking-tight">
+              {AVAILABLE_BALANCE.toLocaleString()} <span className="text-base font-medium text-muted-foreground">USDX</span>
+            </p>
+            <p className="text-xs text-muted-foreground">Available for redemption</p>
+          </div>
+          <div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary"
+                style={{ width: `${TREASURY_HEALTH_PCT}%` }}
+                aria-label={`${TREASURY_HEALTH_PCT}% treasury health`}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Treasury health: {TREASURY_HEALTH_PCT}%
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="relative overflow-hidden rounded-xl bg-blue-pulse p-6 text-on-primary shadow-md">
-        <ShieldCheck className="absolute right-4 top-4 h-5 w-5 opacity-30" />
-        <p className="text-xs font-medium uppercase tracking-wider opacity-70">Operations Guide</p>
-        <p className="mt-1 font-display text-lg font-semibold">Institutional Redemption</p>
-        <p className="mt-2 text-sm opacity-80">
-          Daily redemption cap 5,000,000 USDX. For amounts exceeding this
-          threshold, contact compliance to schedule an OTC batch.
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Operations guide</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Daily redemption cap 5,000,000 USDX. For amounts exceeding this threshold,
+            contact compliance to schedule an OTC batch.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-surface-container-lowest p-4 shadow-ambient-sm">
-          <p className="text-xs uppercase tracking-wider text-on-surface-variant">Redeem Fee</p>
-          <p className="mt-1 font-display text-lg font-semibold text-on-surface">0.15%</p>
-        </div>
-        <div className="rounded-xl bg-surface-container-lowest p-4 shadow-ambient-sm">
-          <p className="text-xs uppercase tracking-wider text-on-surface-variant">Slippage</p>
-          <p className="mt-1 font-display text-lg font-semibold text-on-surface">&lt;0.01%</p>
-        </div>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Redeem fee</p>
+            <p className="mt-1 text-lg font-semibold">0.15%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Slippage</p>
+            <p className="mt-1 text-lg font-semibold">&lt;0.01%</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

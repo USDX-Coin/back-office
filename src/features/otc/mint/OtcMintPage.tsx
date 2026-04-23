@@ -9,8 +9,8 @@ export default function OtcMintPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold text-on-surface">OTC Minting</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
+        <h1 className="text-2xl font-semibold tracking-tight">OTC Minting</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Issue new USDX to a customer's destination wallet. Settlement is
           asynchronous; pending requests appear on the right.
         </p>

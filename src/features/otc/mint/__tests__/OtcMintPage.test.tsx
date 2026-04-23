@@ -17,7 +17,7 @@ describe('OtcMintPage', () => {
     test('should render header + form + info panel + recent list', () => {
       renderWithProviders(<OtcMintPage />, { authenticated: true })
       expect(screen.getByRole('heading', { name: /otc minting/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /confirm mint request/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /submit mint request/i })).toBeInTheDocument()
       expect(screen.getByText(/minting protocol/i)).toBeInTheDocument()
       expect(screen.getByText(/recent requests/i)).toBeInTheDocument()
     })
@@ -33,10 +33,9 @@ describe('OtcMintPage', () => {
       expect(screen.getByLabelText(/internal notes/i)).toBeInTheDocument()
     })
 
-    test('should render Destination wallet input with checksum hint', () => {
+    test('should render Destination wallet input', () => {
       renderWithProviders(<OtcMintPage />, { authenticated: true })
       expect(screen.getByLabelText(/destination wallet address/i)).toBeInTheDocument()
-      expect(screen.getByText(/auto-checksum validation active/i)).toBeInTheDocument()
     })
   })
 })

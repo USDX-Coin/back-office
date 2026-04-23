@@ -1,6 +1,15 @@
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import type { OtcRedeemTransaction } from '@/lib/types'
 import { formatRelativeTime } from '@/lib/format'
 import { getOtcStatusConfig } from '@/lib/status'
@@ -33,56 +42,52 @@ async function copyHash(hash: string) {
   }
 }
 
-export default function RecentRedemptionsTable({
-  items,
-  isLoading,
-}: RecentRedemptionsTableProps) {
+export default function RecentRedemptionsTable({ items, isLoading }: RecentRedemptionsTableProps) {
   return (
-    <div className="rounded-xl bg-surface-container-lowest p-5 shadow-ambient-sm">
-      <h3 role="heading" aria-level={3} className="mb-3 text-sm font-medium text-on-surface">
-        Recent Redemptions
-      </h3>
-      {isLoading && items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-on-surface-variant">Loading…</p>
-      ) : items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-on-surface-variant">No redemptions yet.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-xs uppercase tracking-wider text-on-surface-variant">
-                <th className="pb-2 pr-4 text-left font-medium">Transaction ID</th>
-                <th className="pb-2 pr-4 text-left font-medium">Amount</th>
-                <th className="pb-2 pr-4 text-left font-medium">Network</th>
-                <th className="pb-2 pr-4 text-left font-medium">When</th>
-                <th className="pb-2 text-left font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
+    <Card>
+      <CardHeader>
+        <CardTitle role="heading" aria-level={3} className="text-sm">
+          Recent redemptions
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading && items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No redemptions yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Transaction ID</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Network</TableHead>
+                <TableHead>When</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {items.slice(0, 5).map((item) => {
                 const cfg = getOtcStatusConfig(item.status)
                 return (
-                  <tr
-                    key={item.id}
-                    className="text-sm transition-colors hover:bg-surface-container-highest/60"
-                  >
-                    <td className="py-2.5 pr-4">
+                  <TableRow key={item.id}>
+                    <TableCell>
                       <button
                         type="button"
                         onClick={() => copyHash(item.txHash)}
-                        className="inline-flex items-center gap-1.5 font-mono text-xs text-on-surface hover:text-primary"
+                        className="inline-flex items-center gap-1.5 font-mono text-xs hover:text-primary"
                         title={item.txHash}
                         aria-label={`Copy ${item.txHash}`}
                       >
                         {shortHash(item.txHash)}
                         <Copy className="h-3 w-3 opacity-40" />
                       </button>
-                    </td>
-                    <td className="py-2.5 pr-4 font-medium text-on-surface">
+                    </TableCell>
+                    <TableCell className="font-medium">
                       {item.amount.toLocaleString()} USDX
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span
                           className={cn(
                             'inline-flex h-1.5 w-1.5 rounded-full',
@@ -91,22 +96,22 @@ export default function RecentRedemptionsTable({
                         />
                         {item.network.charAt(0).toUpperCase() + item.network.slice(1)}
                       </span>
-                    </td>
-                    <td className="py-2.5 pr-4 text-xs text-on-surface-variant">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
                       {formatRelativeTime(item.createdAt)}
-                    </td>
-                    <td className="py-2.5">
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="outline" className={cfg.className}>
                         {cfg.label}
                       </Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   )
 }
