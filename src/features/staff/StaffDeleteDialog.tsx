@@ -48,12 +48,12 @@ export default function StaffDeleteDialog({ open, onOpenChange, staff }: StaffDe
       }}
     >
       <DialogContent
-        className="max-w-md bg-surface-container-lowest"
+        className="max-w-md bg-card"
         onEscapeKeyDown={(e) => del.isPending && e.preventDefault()}
         onPointerDownOutside={(e) => del.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle>
             {isSelfDelete ? 'Delete your own account?' : 'Delete staff?'}
           </DialogTitle>
           <DialogDescription>
@@ -77,7 +77,7 @@ export default function StaffDeleteDialog({ open, onOpenChange, staff }: StaffDe
             type="button"
             onClick={handleConfirm}
             disabled={del.isPending}
-            className="bg-error text-on-primary hover:bg-error/90"
+            className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
             {del.isPending ? 'Deleting…' : 'Delete'}
           </Button>

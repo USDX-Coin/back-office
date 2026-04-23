@@ -18,7 +18,7 @@ export default function BottomNav() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-stretch border-t border-outline-variant/15 bg-surface-container-lowest lg:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-stretch border-t border-border bg-card lg:hidden"
         aria-label="Mobile navigation"
       >
         {NAV.map((item) => {
@@ -33,7 +33,7 @@ export default function BottomNav() {
               to={item.to}
               className={cn(
                 'flex flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors',
-                isActive ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <Icon className="h-5 w-5" />
@@ -46,7 +46,7 @@ export default function BottomNav() {
           onClick={() => setMoreOpen(true)}
           className={cn(
             'flex flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors',
-            moreActive ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
+            moreActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
           )}
           aria-label="More menu"
         >

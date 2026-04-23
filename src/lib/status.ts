@@ -9,7 +9,7 @@ export interface StatusConfig {
 const otcStatusMap: Record<OtcStatus, StatusConfig> = {
   pending: { label: 'Pending', variant: 'outline', className: 'border-warning text-warning bg-warning/10' },
   completed: { label: 'Completed', variant: 'default', className: 'bg-success/15 text-success border-success/30' },
-  failed: { label: 'Failed', variant: 'destructive', className: 'bg-error/10 text-error border-error/30' },
+  failed: { label: 'Failed', variant: 'destructive', className: 'bg-destructive/10 text-destructive border-destructive/30' },
 }
 
 export function getOtcStatusConfig(status: OtcStatus): StatusConfig {

@@ -39,12 +39,12 @@ export default function UserDeleteDialog({ open, onOpenChange, customer }: UserD
       }}
     >
       <DialogContent
-        className="max-w-md bg-surface-container-lowest"
+        className="max-w-md bg-card"
         onEscapeKeyDown={(e) => del.isPending && e.preventDefault()}
         onPointerDownOutside={(e) => del.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="font-display">Delete user?</DialogTitle>
+          <DialogTitle>Delete user?</DialogTitle>
           <DialogDescription>
             {customer
               ? `Delete user ${customer.firstName} ${customer.lastName}? This cannot be undone.`
@@ -64,7 +64,7 @@ export default function UserDeleteDialog({ open, onOpenChange, customer }: UserD
             type="button"
             onClick={handleConfirm}
             disabled={del.isPending}
-            className="bg-error text-on-primary hover:bg-error/90"
+            className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
             {del.isPending ? 'Deleting…' : 'Delete'}
           </Button>

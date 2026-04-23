@@ -66,15 +66,15 @@ export default function ReportFilterToolbar({
             type="date"
             value={values.startDate}
             onChange={(e) => onChange({ ...values, startDate: e.target.value })}
-            className="w-[150px] bg-surface-container-lowest"
+            className="w-[150px] bg-card"
             aria-label="Start date"
           />
-          <span className="text-xs text-on-surface-variant">→</span>
+          <span className="text-xs text-muted-foreground">→</span>
           <Input
             type="date"
             value={values.endDate}
             onChange={(e) => onChange({ ...values, endDate: e.target.value })}
-            className="w-[150px] bg-surface-container-lowest"
+            className="w-[150px] bg-card"
             aria-label="End date"
           />
         </div>
@@ -83,7 +83,7 @@ export default function ReportFilterToolbar({
           value={values.type || 'all'}
           onValueChange={(val) => onChange({ ...values, type: val === 'all' ? '' : val })}
         >
-          <SelectTrigger className="w-[140px] bg-surface-container-lowest">
+          <SelectTrigger className="w-[140px] bg-card">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>
@@ -102,12 +102,12 @@ export default function ReportFilterToolbar({
         </div>
 
         <form onSubmit={submitSearch} className="relative min-w-[200px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search tx id or name…"
-            className="pl-9 bg-surface-container-lowest"
+            className="pl-9 bg-card"
             aria-label="Search transactions"
           />
         </form>
@@ -121,7 +121,7 @@ export default function ReportFilterToolbar({
       </div>
 
       <div
-        className="inline-flex rounded-lg bg-surface-container p-0.5"
+        className="inline-flex rounded-lg bg-muted/60 p-0.5"
         role="group"
         aria-label="Status filter"
       >
@@ -135,8 +135,8 @@ export default function ReportFilterToolbar({
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                 active
-                  ? 'bg-surface-container-lowest text-on-surface shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {opt.label}

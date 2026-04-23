@@ -41,12 +41,12 @@ export default function StaffFilterToolbar({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <form onSubmit={submitSearch} className="relative flex-1 max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search by name or email"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          className="pl-9 bg-surface-container-lowest"
+          className="pl-9 bg-card"
           aria-label="Search staff"
         />
       </form>
@@ -55,7 +55,7 @@ export default function StaffFilterToolbar({
         value={values.role || 'all'}
         onValueChange={(val) => onChange({ ...values, role: val === 'all' ? '' : val })}
       >
-        <SelectTrigger className="w-[200px] bg-surface-container-lowest">
+        <SelectTrigger className="w-[200px] bg-card">
           <SelectValue placeholder="All roles" />
         </SelectTrigger>
         <SelectContent>

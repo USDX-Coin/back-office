@@ -21,20 +21,20 @@ function Toaster({ ...props }: ToasterProps) {
         success: <CircleCheck className="h-4 w-4 text-success" />,
         info: <Info className="h-4 w-4 text-primary" />,
         warning: <TriangleAlert className="h-4 w-4 text-warning" />,
-        error: <OctagonX className="h-4 w-4 text-error" />,
-        loading: <LoaderCircle className="h-4 w-4 animate-spin text-on-surface-variant" />,
+        error: <OctagonX className="h-4 w-4 text-destructive" />,
+        loading: <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />,
       }}
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-surface-container-lowest group-[.toaster]:text-on-surface group-[.toaster]:border-outline-variant/20 group-[.toaster]:shadow-ambient",
-          description: "group-[.toast]:text-on-surface-variant",
+            "group toast group-[.toaster]:bg-card group-[.toaster]:text-foreground group-[.toaster]:border-border/20 group-[.toaster]:shadow-sm",
+          description: "group-[.toast]:text-muted-foreground",
           actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-on-primary",
+            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton:
-            "group-[.toast]:bg-surface-container group-[.toast]:text-on-surface-variant",
+            "group-[.toast]:bg-muted/60 group-[.toast]:text-muted-foreground",
           error:
-            "group-[.toaster]:border-error/30 group-[.toast]:!duration-[8000ms]",
+            "group-[.toaster]:border-destructive/30 group-[.toast]:!duration-[8000ms]",
           success: "group-[.toaster]:border-success/30",
           warning:
             "group-[.toaster]:border-warning/30 group-[.toast]:!duration-[8000ms]",

@@ -141,12 +141,12 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
       }}
     >
       <DialogContent
-        className="max-w-2xl bg-surface-container-lowest"
+        className="max-w-2xl bg-card"
         onEscapeKeyDown={(e) => isPending && e.preventDefault()}
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle>
             {mode === 'add' ? 'Add new user' : 'Edit user'}
           </DialogTitle>
           <DialogDescription>
@@ -212,7 +212,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 value={form.type}
                 onValueChange={(val) => set('type', val as CustomerType)}
               >
-                <SelectTrigger id="type" className="mt-1.5 bg-surface-container-lowest">
+                <SelectTrigger id="type" className="mt-1.5 bg-card">
                   <SelectValue placeholder="Choose type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -253,14 +253,14 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                     'cursor-pointer rounded-xl border p-3 transition-colors',
                     form.role === card.value
                       ? 'border-primary bg-primary/5'
-                      : 'border-outline-variant/30 hover:bg-surface-container'
+                      : 'border-border/30 hover:bg-muted/60'
                   )}
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value={card.value} id={`role-${card.value}`} />
-                    <span className="text-sm font-medium text-on-surface">{card.title}</span>
+                    <span className="text-sm font-medium text-foreground">{card.title}</span>
                   </div>
-                  <p className="mt-1 pl-6 text-xs text-on-surface-variant">{card.description}</p>
+                  <p className="mt-1 pl-6 text-xs text-muted-foreground">{card.description}</p>
                 </Label>
               ))}
             </RadioGroup>
@@ -279,7 +279,6 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-blue-pulse text-on-primary"
             >
               {isPending
                 ? 'Submitting…'

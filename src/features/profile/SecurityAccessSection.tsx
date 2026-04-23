@@ -11,17 +11,17 @@ import {
 export default function SecurityAccessSection() {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium text-on-surface">Security access</h3>
+      <h3 className="text-sm font-medium">Security access</h3>
 
       <TooltipProvider>
-        <div className="flex items-center justify-between rounded-xl bg-surface-container-low p-4">
+        <div className="flex items-center justify-between rounded-xl bg-muted/40 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high">
-              <Lock className="h-4 w-4 text-on-surface-variant" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+              <Lock className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium text-on-surface">Password</p>
-              <p className="text-xs text-on-surface-variant">Last changed 42 days ago</p>
+              <p className="text-sm font-medium">Password</p>
+              <p className="text-xs text-muted-foreground">Last changed 42 days ago</p>
             </div>
           </div>
           <Tooltip>
@@ -36,14 +36,14 @@ export default function SecurityAccessSection() {
           </Tooltip>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl bg-surface-container-low p-4">
+        <div className="flex items-center justify-between rounded-xl bg-muted/40 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high">
-              <ShieldAlert className="h-4 w-4 text-on-surface-variant" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium text-on-surface">Two-Factor Authentication</p>
-              <p className="text-xs text-on-surface-variant">Not configured</p>
+              <p className="text-sm font-medium">Two-Factor Authentication</p>
+              <p className="text-xs text-muted-foreground">Not configured</p>
             </div>
           </div>
           <Tooltip>

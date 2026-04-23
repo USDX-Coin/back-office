@@ -63,19 +63,19 @@ export default function CustomerTypeahead({
 
   if (value) {
     return (
-      <div className={cn('flex items-center gap-3 rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-3', className)}>
+      <div className={cn('flex items-center gap-3 rounded-lg border border-border/30 bg-card p-3', className)}>
         <Avatar name={`${value.firstName} ${value.lastName}`} size="md" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-on-surface">
+          <p className="truncate text-sm font-medium text-foreground">
             {value.firstName} {value.lastName}
           </p>
-          <p className="truncate text-xs text-on-surface-variant">{value.email}</p>
+          <p className="truncate text-xs text-muted-foreground">{value.email}</p>
         </div>
         {!disabled && (
           <button
             type="button"
             onClick={handleClear}
-            className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
             aria-label="Clear selection"
           >
             <X className="h-4 w-4" />
@@ -87,7 +87,7 @@ export default function CustomerTypeahead({
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={query}
         disabled={disabled}
@@ -97,12 +97,12 @@ export default function CustomerTypeahead({
         }}
         onFocus={() => query.length > 0 && setOpen(true)}
         placeholder={placeholder}
-        className="pl-10 bg-surface-container-lowest"
+        className="pl-10 bg-card"
         aria-autocomplete="list"
         aria-expanded={open}
       />
       {open && debouncedQuery.length > 0 && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg bg-surface-container-lowest shadow-ambient">
+        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg bg-card shadow-sm">
           {isFetching && (
             <div className="space-y-2 p-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -117,10 +117,10 @@ export default function CustomerTypeahead({
             </div>
           )}
           {!isFetching && isError && (
-            <div className="p-4 text-sm text-error">Could not load customers.</div>
+            <div className="p-4 text-sm text-destructive">Could not load customers.</div>
           )}
           {!isFetching && !isError && data && data.data.length === 0 && (
-            <div className="p-4 text-sm text-on-surface-variant">No users found.</div>
+            <div className="p-4 text-sm text-muted-foreground">No users found.</div>
           )}
           {!isFetching && !isError && data && data.data.length > 0 && (
             <ul className="max-h-72 overflow-auto py-1">
@@ -129,14 +129,14 @@ export default function CustomerTypeahead({
                   <button
                     type="button"
                     onClick={() => handleSelect(c)}
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-container"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
                   >
                     <Avatar name={`${c.firstName} ${c.lastName}`} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-on-surface">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {c.firstName} {c.lastName}
                       </p>
-                      <p className="truncate text-xs text-on-surface-variant">{c.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">{c.email}</p>
                     </div>
                   </button>
                 </li>

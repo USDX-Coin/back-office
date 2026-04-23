@@ -5,7 +5,7 @@ import BottomNav from './BottomNav'
 
 export default function MainLayout() {
   return (
-    <div className="h-screen overflow-hidden bg-surface">
+    <div className="h-screen overflow-hidden bg-background">
       <Navbar />
       <div className="flex h-[calc(100vh-4rem)] mt-16">
         <Sidebar />

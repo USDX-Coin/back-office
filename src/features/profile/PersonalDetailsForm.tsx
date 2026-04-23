@@ -105,7 +105,6 @@ export default function PersonalDetailsForm({ staff }: PersonalDetailsFormProps)
         <Button
           type="submit"
           disabled={update.isPending}
-          className="bg-blue-pulse text-on-primary"
         >
           {update.isPending ? 'Saving…' : 'Save changes'}
         </Button>

@@ -47,7 +47,7 @@ export default function Sidebar() {
   const openOtc = onOtcRoute || manualOpen
 
   return (
-    <aside className="hidden lg:flex lg:h-full lg:w-64 lg:shrink-0 flex-col border-r border-outline-variant/15 bg-surface-container-low">
+    <aside className="hidden lg:flex lg:h-full lg:w-64 lg:shrink-0 flex-col border-r border-border bg-muted/40">
       <nav className="flex flex-1 flex-col gap-0.5 p-4">
         {NAV.map((item) => {
           if (item.children) {
@@ -62,8 +62,8 @@ export default function Sidebar() {
                   className={cn(
                     'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     groupActive
-                      ? 'text-on-surface'
-                      : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                   )}
                 >
                   <span className="flex items-center gap-3">
@@ -88,15 +88,15 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="m-4 rounded-xl bg-surface-container-lowest p-3 shadow-ambient-sm">
+      <div className="m-4 rounded-xl bg-card p-3 shadow-sm">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
           </span>
-          <span className="text-xs font-medium text-on-surface">System Status</span>
+          <span className="text-xs font-medium text-foreground">System Status</span>
         </div>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-on-surface-variant">
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
           <CircleCheck className="h-3 w-3 text-success" />
           Node operational
         </p>
@@ -119,8 +119,8 @@ function SidebarLink({
           'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
           indent && 'pl-10',
           isActive
-            ? 'bg-primary-container/15 text-on-surface'
-            : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+            ? 'bg-primary/15 text-foreground'
+            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
         )
       }
     >

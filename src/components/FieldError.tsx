@@ -8,7 +8,7 @@ export interface FieldErrorProps {
 export default function FieldError({ message, className }: FieldErrorProps) {
   if (!message) return null
   return (
-    <p role="alert" className={cn('mt-1 text-sm text-error', className)}>
+    <p role="alert" className={cn('mt-1 text-sm text-destructive', className)}>
       {message}
     </p>
   )

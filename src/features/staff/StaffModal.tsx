@@ -127,12 +127,12 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
       }}
     >
       <DialogContent
-        className="max-w-xl bg-surface-container-lowest"
+        className="max-w-xl bg-card"
         onEscapeKeyDown={(e) => isPending && e.preventDefault()}
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle>
             {mode === 'add' ? 'Add new staff member' : 'Edit staff member'}
           </DialogTitle>
           <DialogDescription>
@@ -193,7 +193,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
           <div>
             <Label htmlFor="staffRole">Access role</Label>
             <Select value={form.role} onValueChange={(val) => set('role', val as StaffRole)}>
-              <SelectTrigger id="staffRole" className="mt-1.5 bg-surface-container-lowest">
+              <SelectTrigger id="staffRole" className="mt-1.5 bg-card">
                 <SelectValue placeholder="Choose role" />
               </SelectTrigger>
               <SelectContent>
@@ -219,7 +219,6 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-blue-pulse text-on-primary"
             >
               {isPending
                 ? 'Sending…'

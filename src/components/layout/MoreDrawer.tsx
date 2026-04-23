@@ -38,7 +38,7 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-2xl bg-surface-container-lowest">
+      <SheetContent side="bottom" className="rounded-t-2xl bg-card">
         <SheetHeader className="text-left">
           <SheetTitle>More</SheetTitle>
           <SheetDescription className="sr-only">
@@ -47,11 +47,11 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
         </SheetHeader>
 
         {user && (
-          <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-container-low p-3">
+          <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted/40 p-3">
             <Avatar name={user.displayName} size="lg" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-on-surface">{user.displayName}</p>
-              <p className="truncate text-xs text-on-surface-variant">{user.email}</p>
+              <p className="truncate text-sm font-medium text-foreground">{user.displayName}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
           </div>
         )}
@@ -64,12 +64,12 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
                 key={item.to}
                 type="button"
                 onClick={() => go(item.to)}
-                className="flex items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="flex items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <Icon className="h-5 w-5 text-on-surface-variant" />
+                <Icon className="h-5 w-5 text-muted-foreground" />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-on-surface">{item.label}</p>
-                  <p className="text-xs text-on-surface-variant">{item.description}</p>
+                  <p className="text-sm font-medium text-foreground">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.description}</p>
                 </div>
               </button>
             )
@@ -77,12 +77,12 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-3 rounded-xl p-3 text-left text-error transition-colors hover:bg-error/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
+            className="flex items-center gap-3 rounded-xl p-3 text-left text-destructive transition-colors hover:bg-destructive/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
           >
             <LogOut className="h-5 w-5" />
             <div>
               <p className="text-sm font-medium">Logout</p>
-              <p className="text-xs text-error/70">End your session</p>
+              <p className="text-xs text-destructive/70">End your session</p>
             </div>
           </button>
         </div>

@@ -35,12 +35,12 @@ export default function TableEmptyState({
   const DefaultIcon = defaults.Icon
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="text-on-surface-variant/60">
+      <div className="text-muted-foreground/60">
         {icon ?? <DefaultIcon className="h-10 w-10" strokeWidth={1.5} />}
       </div>
       <div className="space-y-1">
-        <p className="font-medium text-on-surface">{title ?? defaults.title}</p>
-        <p className="text-sm text-on-surface-variant">{description ?? defaults.description}</p>
+        <p className="font-medium text-foreground">{title ?? defaults.title}</p>
+        <p className="text-sm text-muted-foreground">{description ?? defaults.description}</p>
       </div>
       {mode === 'no-results' && onClearFilters ? (
         <button
