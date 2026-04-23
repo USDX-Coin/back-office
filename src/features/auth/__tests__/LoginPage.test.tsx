@@ -5,12 +5,12 @@ import { renderWithProviders } from '@/test/test-utils'
 
 describe('LoginPage', () => {
   describe('positive', () => {
-    test('should render the Welcome back heading and required fields', () => {
+    test('should render the Sign in heading and required fields', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
+      expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /secure login/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument()
     })
 
     test('should toggle password visibility', () => {
@@ -33,7 +33,7 @@ describe('LoginPage', () => {
   describe('negative', () => {
     test('should show inline errors for empty submit', async () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      fireEvent.click(screen.getByRole('button', { name: /secure login/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
       await waitFor(() => {
         expect(screen.getByText(/email is required/i)).toBeInTheDocument()
         expect(screen.getByText(/password is required/i)).toBeInTheDocument()
