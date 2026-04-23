@@ -46,15 +46,11 @@ export interface DataTableProps<T> {
   data: T[]
   rowCount: number
   isLoading?: boolean
-  /** Hard-coded toolbar opts — used when no filterToolbar slot is provided. */
   statusOptions?: { value: string; label: string }[]
   onExportCsv?: () => void
   pageSize?: number
-  /** Custom filter toolbar (replaces the default search + status + date toolbar). */
   filterToolbar?: ReactNode
-  /** Custom empty-state for the no-data variant. */
   emptyState?: ReactNode
-  /** Whether the table currently has filters active — controls which empty-state mode renders. */
   hasFilters?: boolean
 }
 
@@ -141,25 +137,23 @@ export default function DataTable<T>({
     setSearchParams(new URLSearchParams())
   }
 
-  // hasFilters: explicit prop overrides; otherwise derive from URL
   const derivedHasFilters = Boolean(search || status || startDate || endDate)
   const hasFilters = hasFiltersProp ?? derivedHasFilters
 
   return (
     <div className="space-y-4">
-      {/* Filter toolbar — custom slot OR default search+status+date */}
       {filterToolbar ? (
         <div>{filterToolbar}</div>
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
             <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9 bg-surface-container-lowest"
+                className="pl-9"
               />
             </form>
 
@@ -168,10 +162,10 @@ export default function DataTable<T>({
                 value={status}
                 onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
               >
-                <SelectTrigger className="w-[160px] bg-surface-container-lowest border-outline-variant/15">
+                <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-container-lowest shadow-ambient">
+                <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   {statusOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
@@ -187,14 +181,14 @@ export default function DataTable<T>({
                 type="date"
                 value={startDate}
                 onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
-                className="w-[150px] bg-surface-container-lowest"
+                className="w-[150px]"
                 aria-label="Start date"
               />
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
-                className="w-[150px] bg-surface-container-lowest"
+                className="w-[150px]"
                 aria-label="End date"
               />
             </div>
@@ -216,17 +210,13 @@ export default function DataTable<T>({
         </div>
       )}
 
-      {/* Table — Azure Horizon "no-line" treatment: no row dividers, hover wash, uppercase headers */}
-      <div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-ambient-sm">
+      <div className="rounded-lg border bg-card">
         <Table>
-          <TableHeader className="bg-surface-container/50">
+          <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-0 hover:bg-transparent">
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="text-xs font-medium uppercase tracking-wider text-on-surface-variant"
-                  >
+                  <TableHead key={header.id}>
                     {header.isPlaceholder ? null : (
                       <div
                         className={cn(
@@ -243,7 +233,7 @@ export default function DataTable<T>({
                             ) : header.column.getIsSorted() === 'desc' ? (
                               <ArrowDown className="h-3.5 w-3.5" />
                             ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 text-on-surface-variant/40" />
+                              <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
                             )}
                           </>
                         )}
@@ -257,7 +247,7 @@ export default function DataTable<T>({
           <TableBody>
             {isLoading ? (
               Array.from({ length: defaultPageSize }).map((_, i) => (
-                <TableRow key={i} className="border-0 hover:bg-transparent">
+                <TableRow key={i} className="hover:bg-transparent">
                   {columns.map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-5 w-full" />
@@ -266,7 +256,7 @@ export default function DataTable<T>({
                 </TableRow>
               ))
             ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow className="border-0 hover:bg-transparent">
+              <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="p-0">
                   {hasFilters ? (
                     <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
@@ -279,10 +269,7 @@ export default function DataTable<T>({
               </TableRow>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="border-0 transition-colors hover:bg-surface-container-highest/60"
-                >
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="text-sm">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -295,9 +282,8 @@ export default function DataTable<T>({
         </Table>
       </div>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-on-surface-variant">
+        <p className="text-sm text-muted-foreground">
           Showing {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
           {Math.min(page * defaultPageSize, rowCount)} of {rowCount}
         </p>
@@ -308,7 +294,6 @@ export default function DataTable<T>({
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
             aria-label="First page"
-            className="border-outline-variant/15"
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
@@ -318,11 +303,10 @@ export default function DataTable<T>({
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             aria-label="Previous page"
-            className="border-outline-variant/15"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="px-2 text-sm text-on-surface-variant">
+          <span className="px-2 text-sm text-muted-foreground">
             {page} / {totalPages}
           </span>
           <Button
@@ -331,7 +315,6 @@ export default function DataTable<T>({
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             aria-label="Next page"
-            className="border-outline-variant/15"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -341,7 +324,6 @@ export default function DataTable<T>({
             onClick={() => table.setPageIndex(totalPages - 1)}
             disabled={!table.getCanNextPage()}
             aria-label="Last page"
-            className="border-outline-variant/15"
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>

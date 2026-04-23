@@ -1,14 +1,14 @@
 import { cn } from '@/lib/utils'
 
 const AVATAR_PALETTE = [
-  'bg-primary text-on-primary',
-  'bg-primary-container text-on-primary-fixed-variant',
-  'bg-secondary text-on-primary',
-  'bg-secondary-container text-on-surface',
-  'bg-tertiary text-on-primary',
-  'bg-tertiary-container text-on-surface',
-  'bg-surface-container-high text-on-surface',
-  'bg-on-surface-variant text-on-primary',
+  'bg-primary/15 text-primary',
+  'bg-secondary text-secondary-foreground',
+  'bg-muted text-foreground',
+  'bg-success/15 text-success',
+  'bg-warning/20 text-warning',
+  'bg-destructive/10 text-destructive',
+  'bg-accent text-accent-foreground',
+  'bg-primary/25 text-primary',
 ]
 
 const SIZE_CLASSES = {
@@ -37,7 +37,7 @@ function getInitials(name: string): string {
 
 function getColorClass(name: string): string {
   const trimmed = (name ?? '').trim()
-  if (!trimmed) return 'bg-surface-container-high text-on-surface-variant'
+  if (!trimmed) return 'bg-muted text-muted-foreground'
   const code = trimmed.charCodeAt(0)
   return AVATAR_PALETTE[code % AVATAR_PALETTE.length]!
 }

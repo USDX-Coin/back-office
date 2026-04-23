@@ -12,7 +12,7 @@ describe('FieldError', () => {
 
     test('should apply error text color class', () => {
       render(<FieldError message="Invalid" />)
-      expect(screen.getByRole('alert')).toHaveClass('text-error')
+      expect(screen.getByRole('alert')).toHaveClass('text-destructive')
     })
   })
 
