@@ -23,7 +23,7 @@ export default function ReportInsightsBento({ data }: ReportInsightsBentoProps) 
         trend={data?.trends.volume}
       />
       <InsightCard
-        icon={<Users className="h-5 w-5 text-tertiary" />}
+        icon={<Users className="h-5 w-5 text-warning" />}
         label="Active Minters"
         value={data ? data.activeMinters.toLocaleString() : '—'}
         trend={data?.trends.minters}
@@ -48,17 +48,17 @@ interface InsightCardProps {
 
 function InsightCard({ icon, label, value, trend, description }: InsightCardProps) {
   return (
-    <Card className="bg-surface-container-lowest shadow-ambient-sm border-0">
+    <Card>
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60">
             {icon}
           </div>
           {trend && (
             <span
               className={cn(
                 'inline-flex items-center gap-1 text-xs font-medium',
-                trend.direction === 'up' ? 'text-success' : 'text-error'
+                trend.direction === 'up' ? 'text-success' : 'text-destructive'
               )}
             >
               {trend.direction === 'up' ? (
@@ -70,11 +70,11 @@ function InsightCard({ icon, label, value, trend, description }: InsightCardProp
             </span>
           )}
         </div>
-        <p className="mt-4 text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+        <p className="mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p className="mt-1 font-display text-3xl font-bold text-on-surface">{value}</p>
-        {description && <p className="mt-1 text-xs text-on-surface-variant">{description}</p>}
+        <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
+        {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
       </CardContent>
     </Card>
   )

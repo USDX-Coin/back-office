@@ -25,8 +25,8 @@ const NETWORK_DOT: Record<string, string> = {
 }
 
 const KIND_BADGE: Record<'mint' | 'redeem', string> = {
-  mint: 'bg-primary-container/20 text-primary border-primary/30',
-  redeem: 'bg-tertiary-container/30 text-tertiary border-tertiary/30',
+  mint: 'bg-primary/20 text-primary border-primary/30',
+  redeem: 'bg-warning/15 text-warning border-warning/30',
 }
 
 const CSV_COLUMNS: { key: keyof ReportRow; header: string }[] = [
@@ -147,7 +147,7 @@ export default function ReportPage() {
           <button
             type="button"
             onClick={() => copyHash(hash)}
-            className="inline-flex items-center gap-1.5 font-mono text-xs text-on-surface hover:text-primary"
+            className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
             title={hash}
             aria-label={`Copy ${hash}`}
           >
@@ -185,7 +185,7 @@ export default function ReportPage() {
       cell: ({ getValue }) => {
         const n = getValue() as string
         return (
-          <span className="inline-flex items-center gap-1.5 text-sm text-on-surface-variant">
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <span className={cn('inline-flex h-1.5 w-1.5 rounded-full', NETWORK_DOT[n] ?? 'bg-slate-400')} />
             {n.charAt(0).toUpperCase() + n.slice(1)}
           </span>
@@ -196,7 +196,7 @@ export default function ReportPage() {
       accessorKey: 'amount',
       header: 'Amount',
       cell: ({ getValue }) => (
-        <span className="font-medium text-on-surface">
+        <span className="font-medium text-foreground">
           ${(getValue() as number).toLocaleString()}
         </span>
       ),
@@ -225,16 +225,12 @@ export default function ReportPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-on-surface">Transaction Reporting</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          <h1 className="text-2xl font-semibold tracking-tight">Transaction Reporting</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Filter, search, and export OTC transaction history.
           </p>
         </div>
-        <Button
-          onClick={handleExport}
-          variant="outline"
-          className="border-outline-variant/30 bg-surface-container-lowest"
-        >
+        <Button variant="outline" onClick={handleExport}>
           <Download className="mr-1.5 h-4 w-4" />
           Export CSV
         </Button>

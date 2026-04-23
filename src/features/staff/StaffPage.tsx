@@ -29,10 +29,10 @@ const ROLE_LABEL: Record<Staff['role'], string> = {
 }
 
 const ROLE_BADGE: Record<Staff['role'], string> = {
-  support: 'bg-surface-container-high text-on-surface-variant border-outline-variant/30',
-  operations: 'bg-secondary-container/40 text-secondary border-secondary/30',
-  compliance: 'bg-tertiary-container/30 text-tertiary border-tertiary/30',
-  super_admin: 'bg-primary-container/20 text-primary border-primary/30',
+  support: 'bg-muted text-muted-foreground border-border/30',
+  operations: 'bg-secondary/40 text-secondary-foreground border-border/30',
+  compliance: 'bg-warning/15 text-warning border-warning/30',
+  super_admin: 'bg-primary/20 text-primary border-primary/30',
 }
 
 export default function StaffPage() {
@@ -89,7 +89,7 @@ export default function StaffPage() {
         return (
           <div className="flex items-center gap-3">
             <Avatar name={s.displayName} size="sm" />
-            <span className="font-medium text-on-surface">{s.displayName}</span>
+            <span className="font-medium text-foreground">{s.displayName}</span>
           </div>
         )
       },
@@ -126,7 +126,7 @@ export default function StaffPage() {
             size="icon"
             onClick={() => openDelete(row.original)}
             aria-label={`Delete ${row.original.firstName}`}
-            className="text-error hover:bg-error/10 hover:text-error"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -138,11 +138,11 @@ export default function StaffPage() {
   const noDataState = (
     <TableEmptyState
       mode="no-data"
-      icon={<UserCog className="h-10 w-10 text-on-surface-variant/40" strokeWidth={1.5} />}
+      icon={<UserCog className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
       title="No staff members yet"
       description="Invite your first operator to get started."
       cta={
-        <Button onClick={openAdd} className="mt-2 bg-blue-pulse text-on-primary">
+        <Button onClick={openAdd} className="mt-2 bg-primary text-primary-foreground">
           <Plus className="mr-1.5 h-4 w-4" />
           Add Staff
         </Button>
@@ -154,12 +154,12 @@ export default function StaffPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-on-surface">Staff</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
+          <h1 className="text-2xl font-semibold tracking-tight">Staff</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Internal team directory · {summary.data?.total ?? '…'} members
           </p>
         </div>
-        <Button onClick={openAdd} className="bg-blue-pulse text-on-primary shadow-md">
+        <Button onClick={openAdd}>
           <Plus className="mr-1.5 h-4 w-4" />
           Add Staff
         </Button>
@@ -172,7 +172,7 @@ export default function StaffPage() {
           value={summary.data?.total ?? '…'}
         />
         <SummaryCard
-          icon={<ShieldCheck className="h-5 w-5 text-tertiary" />}
+          icon={<ShieldCheck className="h-5 w-5 text-warning" />}
           label="Admins"
           value={summary.data?.admins ?? '…'}
         />
@@ -224,14 +224,14 @@ function SummaryCard({
   value: number | string
 }) {
   return (
-    <Card className="bg-surface-container-lowest shadow-ambient-sm border-0">
+    <Card>
       <CardContent className="flex items-center gap-3 p-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-container">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60">
           {icon}
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wider text-on-surface-variant">{label}</p>
-          <p className="font-display text-2xl font-bold text-on-surface">{value}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="text-2xl font-semibold">{value}</p>
         </div>
       </CardContent>
     </Card>
