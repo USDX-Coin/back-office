@@ -4,16 +4,39 @@ export interface StatusConfig {
   label: string
   variant: 'default' | 'secondary' | 'destructive' | 'outline'
   className: string
+  dotClass: string
 }
 
 const otcStatusMap: Record<OtcStatus, StatusConfig> = {
-  pending: { label: 'Pending', variant: 'outline', className: 'border-warning text-warning bg-warning/10' },
-  completed: { label: 'Completed', variant: 'default', className: 'bg-success/15 text-success border-success/30' },
-  failed: { label: 'Failed', variant: 'destructive', className: 'bg-destructive/10 text-destructive border-destructive/30' },
+  pending: {
+    label: 'Pending',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  completed: {
+    label: 'Completed',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  failed: {
+    label: 'Failed',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
 }
 
 export function getOtcStatusConfig(status: OtcStatus): StatusConfig {
-  return otcStatusMap[status] ?? { label: status, variant: 'outline', className: '' }
+  return (
+    otcStatusMap[status] ?? {
+      label: status,
+      variant: 'outline',
+      className: '',
+      dotClass: 'bg-muted-foreground',
+    }
+  )
 }
 
 export function isOtcTerminal(status: OtcStatus): boolean {
