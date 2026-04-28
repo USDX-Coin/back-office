@@ -1,32 +1,35 @@
 import { useCallback, useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Copy, Download } from 'lucide-react'
+import { ArrowDown, ArrowUp, Copy, Download } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
+import PageHeader from '@/components/PageHeader'
 import ReportFilterToolbar, { type ReportFilterValues } from './ReportFilterToolbar'
 import ReportInsightsBento from './ReportInsightsBento'
 import { useReport, useReportInsights, fetchAllReportRows } from './hooks'
 import { exportToCsv } from '@/lib/csv'
 import { formatShortDate } from '@/lib/format'
 import { getOtcStatusConfig } from '@/lib/status'
-import type { Customer, ReportRow } from '@/lib/types'
+import type { Customer, Network, ReportRow } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-const NETWORK_DOT: Record<string, string> = {
-  ethereum: 'bg-slate-400',
-  polygon: 'bg-purple-500',
-  arbitrum: 'bg-blue-500',
-  solana: 'bg-emerald-500',
-  base: 'bg-blue-400',
+const NETWORK_DOT: Record<Network, string> = {
+  ethereum: 'bg-[#627EEA]',
+  polygon: 'bg-[#8247E5]',
+  arbitrum: 'bg-[#28A0F0]',
+  solana: 'bg-[#9945FF]',
+  base: 'bg-[#0052FF]',
 }
 
-const KIND_BADGE: Record<'mint' | 'redeem', string> = {
-  mint: 'bg-primary/20 text-primary border-primary/30',
-  redeem: 'bg-warning/15 text-warning border-warning/30',
+const NETWORK_LABEL: Record<Network, string> = {
+  ethereum: 'Ethereum',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  solana: 'Solana',
+  base: 'Base',
 }
 
 const CSV_COLUMNS: { key: keyof ReportRow; header: string }[] = [
@@ -62,9 +65,9 @@ export default function ReportPage() {
   const customerId = params.searchParams.get('customerId') ?? ''
   const searchParam = params.searchParams.get('search') ?? ''
 
-  // Customer object kept locally so the typeahead chip re-renders after URL restore.
   const [customerSelection, setCustomerSelection] = useState<Customer | null>(null)
-  const activeCustomer = customerSelection && customerSelection.id === customerId ? customerSelection : null
+  const activeCustomer =
+    customerSelection && customerSelection.id === customerId ? customerSelection : null
 
   const filters = useMemo(
     () => ({
@@ -135,19 +138,23 @@ export default function ReportPage() {
     {
       accessorKey: 'createdAt',
       header: 'Date',
-      cell: ({ getValue }) => formatShortDate(getValue() as string),
+      cell: ({ getValue }) => (
+        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+          {formatShortDate(getValue() as string)}
+        </span>
+      ),
       enableSorting: true,
     },
     {
       accessorKey: 'txHash',
-      header: 'Transaction ID',
+      header: 'Tx',
       cell: ({ getValue }) => {
         const hash = getValue() as string
         return (
           <button
             type="button"
             onClick={() => copyHash(hash)}
-            className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
+            className="inline-flex items-center gap-1.5 font-mono text-[11.5px] text-muted-foreground hover:text-primary"
             title={hash}
             aria-label={`Copy ${hash}`}
           >
@@ -159,13 +166,23 @@ export default function ReportPage() {
     },
     {
       accessorKey: 'kind',
-      header: 'Type',
+      header: 'Direction',
       cell: ({ getValue }) => {
         const k = getValue() as 'mint' | 'redeem'
         return (
-          <Badge variant="outline" className={cn('text-[10px] uppercase', KIND_BADGE[k])}>
-            {k}
-          </Badge>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 text-[11.5px]',
+              k === 'mint' ? 'text-primary' : 'text-muted-foreground'
+            )}
+          >
+            {k === 'mint' ? (
+              <ArrowUp className="h-3 w-3" />
+            ) : (
+              <ArrowDown className="h-3 w-3" />
+            )}
+            {k === 'mint' ? 'Mint' : 'Redeem'}
+          </span>
         )
       },
     },
@@ -173,9 +190,9 @@ export default function ReportPage() {
       id: 'customer',
       header: 'Customer',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Avatar name={row.original.customerName} size="sm" />
-          <span className="text-sm">{row.original.customerName}</span>
+          <span className="font-medium">{row.original.customerName}</span>
         </div>
       ),
     },
@@ -183,11 +200,11 @@ export default function ReportPage() {
       accessorKey: 'network',
       header: 'Network',
       cell: ({ getValue }) => {
-        const n = getValue() as string
+        const n = getValue() as Network
         return (
-          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-            <span className={cn('inline-flex h-1.5 w-1.5 rounded-full', NETWORK_DOT[n] ?? 'bg-slate-400')} />
-            {n.charAt(0).toUpperCase() + n.slice(1)}
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+            <span className={cn('h-1.5 w-1.5 rounded-full', NETWORK_DOT[n])} />
+            {NETWORK_LABEL[n]}
           </span>
         )
       },
@@ -196,7 +213,7 @@ export default function ReportPage() {
       accessorKey: 'amount',
       header: 'Amount',
       cell: ({ getValue }) => (
-        <span className="font-medium text-foreground">
+        <span className="font-mono font-medium tabular-nums">
           ${(getValue() as number).toLocaleString()}
         </span>
       ),
@@ -209,9 +226,15 @@ export default function ReportPage() {
         const s = getValue() as ReportRow['status']
         const cfg = getOtcStatusConfig(s)
         return (
-          <Badge variant="outline" className={cfg.className}>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              cfg.className
+            )}
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
             {cfg.label}
-          </Badge>
+          </span>
         )
       },
     },
@@ -222,19 +245,24 @@ export default function ReportPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Transaction Reporting</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Filter, search, and export OTC transaction history.
-          </p>
-        </div>
-        <Button variant="outline" onClick={handleExport}>
-          <Download className="mr-1.5 h-4 w-4" />
-          Export CSV
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="Insights"
+        title="Report"
+        italicAccent="transactions"
+        subtitle="Filter, search, and export OTC transaction history."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-[12px]"
+            onClick={handleExport}
+          >
+            <Download className="mr-1 h-3.5 w-3.5" />
+            Export CSV
+          </Button>
+        }
+      />
 
       <DataTable
         columns={columns}
@@ -251,7 +279,9 @@ export default function ReportPage() {
         hasFilters={hasFilters}
       />
 
-      <ReportInsightsBento data={insights.data} />
+      <div className="mt-6">
+        <ReportInsightsBento data={insights.data} />
+      </div>
     </div>
   )
 }
