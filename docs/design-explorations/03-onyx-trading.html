@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USDX Back Office — Motif C · Onyx Trading</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0A0E14;
+  --bg-glass: #0F141C;
+  --bg-elev: #131923;
+  --bg-hover: #1A2330;
+  --ink: #E8EDF3;
+  --ink-muted: #7A8696;
+  --ink-faint: #4A5568;
+  --hairline: #1F2733;
+  --hairline-lit: #2A3441;
+  --green: #00FFA3;
+  --green-dim: #00CC82;
+  --red: #FF4D6D;
+  --amber: #FFB546;
+  --blue: #5AB8FF;
+  --purple: #B47DFF;
+  --radius: 4px;
+  --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(0,255,163,0.04), transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(180,125,255,0.03), transparent 60%);
+  min-height: 100vh;
+}
+.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+.sidebar { background: var(--bg-glass); border-right: 1px solid var(--hairline); padding: 16px 10px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; }
+.brand-mark { width: 26px; height: 26px; background: linear-gradient(135deg, var(--green), var(--blue)); color: var(--bg); border-radius: var(--radius); display: grid; place-items: center; font-family: var(--mono); font-weight: 600; font-size: 13px; }
+.brand-name { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.04em; }
+.brand-sub { font-size: 10px; color: var(--ink-faint); margin-top: -1px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.network-status { padding: 6px 8px; margin: 4px 0 16px; display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-muted); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.4; } }
+
+.nav-section { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding: 12px 8px 6px; letter-spacing: 0.1em; text-transform: uppercase; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 6px 8px; margin: 1px 0; border-radius: var(--radius); color: var(--ink-muted); font-size: 12.5px; cursor: pointer; }
+.nav-item:hover { background: var(--bg-hover); color: var(--ink); }
+.nav-item.active { background: var(--bg-hover); color: var(--ink); border-left: 2px solid var(--green); padding-left: 6px; }
+.nav-icon { width: 14px; height: 14px; opacity: 0.85; }
+
+.sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.user-pill { display: flex; align-items: center; gap: 9px; padding: 4px 6px; }
+.avatar { width: 26px; height: 26px; border-radius: var(--radius); background: var(--bg-hover); color: var(--green); display: grid; place-items: center; font-family: var(--mono); font-size: 10.5px; font-weight: 500; border: 1px solid var(--hairline-lit); }
+.user-name { font-size: 12px; font-weight: 500; }
+.user-role { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.main { min-width: 0; }
+.topbar { height: 44px; padding: 0 20px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--hairline); background: var(--bg); }
+.market-strip { display: flex; gap: 18px; font-family: var(--mono); font-size: 11px; }
+.market-pair { display: flex; gap: 6px; align-items: center; color: var(--ink-muted); }
+.market-pair strong { color: var(--ink); font-weight: 500; }
+.market-pair .up { color: var(--green); }
+.market-pair .down { color: var(--red); }
+
+.search { margin-left: auto; display: flex; align-items: center; gap: 7px; padding: 4px 10px; background: var(--bg-glass); border: 1px solid var(--hairline); border-radius: var(--radius); font-family: var(--mono); font-size: 11px; color: var(--ink-faint); min-width: 240px; }
+.kbd { margin-left: auto; font-size: 10px; padding: 0 4px; border: 1px solid var(--hairline-lit); border-radius: 2px; }
+
+.page { padding: 20px 24px 64px; max-width: 1400px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+.page-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+.page-title { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; font-family: var(--mono); }
+.page-subtitle { color: var(--ink-muted); font-size: 12px; margin-top: 4px; font-family: var(--mono); }
+
+.page-actions { display: flex; gap: 6px; align-items: center; }
+.btn { font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--hairline-lit); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: var(--bg-glass); color: var(--ink); text-transform: uppercase; letter-spacing: 0.04em; }
+.btn:hover { background: var(--bg-hover); border-color: var(--green-dim); color: var(--green); }
+.btn-primary { background: var(--green); color: var(--bg); border-color: var(--green); }
+.btn-primary:hover { background: var(--green-dim); color: var(--bg); border-color: var(--green-dim); }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+.kpi { background: var(--bg-glass); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 14px 14px; position: relative; overflow: hidden; }
+.kpi::after { content: ''; position: absolute; top: 0; left: 0; height: 2px; width: 100%; background: linear-gradient(90deg, var(--green), transparent); opacity: 0.5; }
+.kpi-label { font-family: var(--mono); font-size: 10px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+.kpi-value { font-family: var(--mono); font-size: 24px; font-weight: 500; letter-spacing: -0.01em; line-height: 1; color: var(--ink); }
+.kpi-value .unit { font-size: 13px; color: var(--ink-muted); margin-left: 3px; }
+.kpi-delta { margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+.delta-up { color: var(--green); }
+.delta-down { color: var(--red); }
+
+.section-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 20px; }
+.panel { background: var(--bg-glass); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.panel-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+.panel-title { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
+.panel-title strong { color: var(--ink); }
+.panel-meta { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); }
+
+.tabbar { display: flex; gap: 0; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+.tab { font-family: var(--mono); font-size: 10.5px; padding: 3px 10px; color: var(--ink-faint); cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; }
+.tab.active { background: var(--bg-hover); color: var(--green); }
+
+.chart-area { padding: 14px 12px; position: relative; }
+.chart-svg { width: 100%; height: 220px; display: block; }
+.chart-legend { position: absolute; top: 18px; left: 24px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-muted); display: flex; gap: 16px; }
+.legend-dot { display: inline-block; width: 8px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+.netlist { padding: 8px 14px 14px; }
+.netlist-row { display: grid; grid-template-columns: 80px 1fr 60px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--hairline); font-size: 11.5px; font-family: var(--mono); }
+.netlist-row:last-child { border-bottom: none; }
+.netlist-label { font-weight: 500; }
+.netlist-bar { height: 2px; background: var(--bg-hover); border-radius: 1px; overflow: hidden; margin: 0 12px; }
+.netlist-fill { height: 100%; background: var(--green); }
+.netlist-value { font-size: 11px; text-align: right; color: var(--ink); }
+
+.table-section { background: var(--bg-glass); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.section-title-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+.section-title { font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); }
+.section-title strong { color: var(--green); }
+.tablelink { font-family: var(--mono); font-size: 10.5px; color: var(--green); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; text-decoration: none; }
+
+.table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+.table thead th { text-align: left; padding: 8px 14px; font-size: 10px; color: var(--ink-faint); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--hairline); }
+.table tbody td { padding: 9px 14px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: rgba(0,255,163,0.025); }
+.cust-cell { display: flex; align-items: center; gap: 8px; }
+.cust-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--bg-hover); color: var(--green); display: grid; place-items: center; font-size: 9.5px; font-weight: 500; border: 1px solid var(--hairline-lit); font-family: var(--mono); }
+.cust-name { font-family: var(--sans); font-weight: 500; font-size: 12.5px; }
+.cust-org { font-size: 10.5px; color: var(--ink-faint); }
+.amount { font-weight: 500; color: var(--ink); }
+.amount.in { color: var(--green); }
+.amount.out { color: var(--red); }
+.network-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-muted); }
+.network-dot { width: 6px; height: 6px; border-radius: 50%; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 500; padding: 2px 8px; border-radius: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+.status.success { color: var(--green); background: rgba(0,255,163,0.08); border: 1px solid rgba(0,255,163,0.2); }
+.status.warning { color: var(--amber); background: rgba(255,181,70,0.08); border: 1px solid rgba(255,181,70,0.2); }
+.status.error { color: var(--red); background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.2); }
+
+.tx-type { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
+.tx-type.mint { color: var(--green); }
+.tx-type.redeem { color: var(--red); }
+
+.time { color: var(--ink-faint); font-size: 11px; }
+.id-mono { font-size: 10.5px; color: var(--ink-faint); cursor: pointer; }
+.id-mono:hover { color: var(--blue); }
+
+@media (max-width: 1100px) {
+  .section-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div>
+        <div class="brand-name">USDX</div>
+        <div class="brand-sub">Desk · v2.4</div>
+      </div>
+    </div>
+    <div class="network-status">
+      <span class="live-dot"></span>
+      MAINNET · 32ms
+    </div>
+    <div class="nav-section">// Workspace</div>
+    <div class="nav-item active"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="4" height="4"/><rect x="8" y="2" width="4" height="4"/><rect x="2" y="8" width="4" height="4"/><rect x="8" y="8" width="4" height="4"/></svg>Dashboard</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="5" r="2.5"/><path d="M2 12c0-3 2-5 5-5s5 2 5 5"/></svg>Customers</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4.5" cy="5" r="1.8"/><circle cx="9.5" cy="5" r="1.8"/><path d="M2 11.5c0-2 1-3 2.5-3M12 11.5c0-2-1-3-2.5-3"/></svg>Staff</div>
+    <div class="nav-section">// Trading</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 12V2M3 6l4-4 4 4"/></svg>Mint</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 12V2M11 8l-4 4-4-4"/></svg>Redeem</div>
+    <div class="nav-section">// Analytics</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="10" height="10"/><path d="M4.5 9.5V7M7 9.5V4.5M9.5 9.5V6"/></svg>Reports</div>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="avatar">DO</div>
+        <div>
+          <div class="user-name">Demo Operator</div>
+          <div class="user-role">SUPER_ADMIN</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="market-strip">
+        <span class="market-pair">USDX/USD <strong>1.0000</strong> <span class="up">+0.01%</span></span>
+        <span class="market-pair">SUPPLY <strong>847.2M</strong></span>
+        <span class="market-pair">24H_VOL <strong>$12.4M</strong> <span class="up">+8.2%</span></span>
+        <span class="market-pair">FAIL_RATE <strong>0.3%</strong> <span class="down">+0.1%</span></span>
+      </div>
+      <div class="search">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M12 12l-3-3"/></svg>
+        Search tx, address…
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-eyebrow">› Operator dashboard</div>
+          <h1 class="page-title">overview.dashboard</h1>
+          <p class="page-subtitle">// 718 settlements · 14 pending · last_sync 2m</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">Apr 1 — 28</button>
+          <button class="btn">Sync</button>
+          <button class="btn btn-primary">Export.csv</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="kpi-label">Total volume / 30d</div>
+          <div class="kpi-value">$24.81<span class="unit">M</span></div>
+          <div class="kpi-delta"><span class="delta-up">▲ 12.40%</span> vs prev</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Active customers</div>
+          <div class="kpi-value">1,247</div>
+          <div class="kpi-delta"><span class="delta-up">▲ 8.20%</span> +94 new</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Pending OTC</div>
+          <div class="kpi-value">14</div>
+          <div class="kpi-delta"><span class="delta-down">▼ 5</span> from yesterday</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Settlement rate</div>
+          <div class="kpi-value">98.30<span class="unit">%</span></div>
+          <div class="kpi-delta">12 / 718 failed</div>
+        </div>
+      </div>
+
+      <div class="section-grid">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">[ Volume <strong>trend</strong> ]</div>
+            <div class="tabbar">
+              <span class="tab">7D</span>
+              <span class="tab active">30D</span>
+              <span class="tab">90D</span>
+            </div>
+          </div>
+          <div class="chart-area">
+            <div class="chart-legend">
+              <span><span class="legend-dot" style="background:#00FFA3"></span>MINT</span>
+              <span><span class="legend-dot" style="background:#FF4D6D"></span>REDEEM</span>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 600 220" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="grad-c-green" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00FFA3" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#00FFA3" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="55" x2="600" y2="55" stroke="#1F2733" stroke-dasharray="2 6"/>
+              <line x1="0" y1="110" x2="600" y2="110" stroke="#1F2733" stroke-dasharray="2 6"/>
+              <line x1="0" y1="165" x2="600" y2="165" stroke="#1F2733" stroke-dasharray="2 6"/>
+              <path d="M0,170 L40,160 L80,135 L120,140 L160,115 L200,100 L240,108 L280,80 L320,65 L360,75 L400,58 L440,42 L480,55 L520,45 L560,60 L600,48 L600,220 L0,220 Z" fill="url(#grad-c-green)"/>
+              <path d="M0,170 L40,160 L80,135 L120,140 L160,115 L200,100 L240,108 L280,80 L320,65 L360,75 L400,58 L440,42 L480,55 L520,45 L560,60 L600,48" fill="none" stroke="#00FFA3" stroke-width="1.5"/>
+              <path d="M0,190 L40,185 L80,178 L120,182 L160,175 L200,170 L240,172 L280,165 L320,160 L360,168 L400,158 L440,150 L480,162 L520,155 L560,168 L600,160" fill="none" stroke="#FF4D6D" stroke-width="1" stroke-opacity="0.7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">[ Network <strong>split</strong> ]</div>
+            <div class="panel-meta">by_volume</div>
+          </div>
+          <div class="netlist">
+            <div class="netlist-row"><span class="netlist-label">ETH</span><span class="netlist-bar"><span class="netlist-fill" style="width:72%"></span></span><span class="netlist-value">42.1%</span></div>
+            <div class="netlist-row"><span class="netlist-label">MATIC</span><span class="netlist-bar"><span class="netlist-fill" style="width:48%"></span></span><span class="netlist-value">23.5%</span></div>
+            <div class="netlist-row"><span class="netlist-label">ARB</span><span class="netlist-bar"><span class="netlist-fill" style="width:32%"></span></span><span class="netlist-value">18.2%</span></div>
+            <div class="netlist-row"><span class="netlist-label">SOL</span><span class="netlist-bar"><span class="netlist-fill" style="width:18%"></span></span><span class="netlist-value">10.8%</span></div>
+            <div class="netlist-row"><span class="netlist-label">BASE</span><span class="netlist-bar"><span class="netlist-fill" style="width:9%"></span></span><span class="netlist-value">5.4%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-section">
+        <div class="section-title-row">
+          <div class="section-title">[ Recent <strong>activity</strong> ]</div>
+          <a href="#" class="tablelink">view_all →</a>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Type</th>
+              <th>Amount (USDX)</th>
+              <th>Network</th>
+              <th>Tx hash</th>
+              <th>Status</th>
+              <th style="text-align:right">Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">JA</div><div><div class="cust-name">Julian Anderson</div><div class="cust-org">Vertex Solutions</div></div></td>
+              <td><span class="tx-type mint">↑ MINT</span></td>
+              <td class="amount in">+1,500,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#627EEA"></span>Ethereum</span></td>
+              <td class="id-mono">0x7f4a…2c91</td>
+              <td><span class="status warning">◐ Pending</span></td>
+              <td class="time" style="text-align:right">00:02:14</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">SM</div><div><div class="cust-name">Sarah Mitchell</div><div class="cust-org">Apex Capital</div></div></td>
+              <td><span class="tx-type redeem">↓ REDEEM</span></td>
+              <td class="amount out">−250,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#8247E5"></span>Polygon</span></td>
+              <td class="id-mono">0xa3b2…91ef</td>
+              <td><span class="status success">● Settled</span></td>
+              <td class="time" style="text-align:right">00:12:48</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">RD</div><div><div class="cust-name">Robert Deon</div><div class="cust-org">Nexus Logistics</div></div></td>
+              <td><span class="tx-type mint">↑ MINT</span></td>
+              <td class="amount in">+500,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#28A0F0"></span>Arbitrum</span></td>
+              <td class="id-mono">0x5e1d…8b04</td>
+              <td><span class="status success">● Settled</span></td>
+              <td class="time" style="text-align:right">00:38:02</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">MS</div><div><div class="cust-name">Maria Sanchez</div><div class="cust-org">Quantum Holdings</div></div></td>
+              <td><span class="tx-type redeem">↓ REDEEM</span></td>
+              <td class="amount out">−75,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#9945FF"></span>Solana</span></td>
+              <td class="id-mono">5Ck9…2ZhF</td>
+              <td><span class="status error">✕ Failed</span></td>
+              <td class="time" style="text-align:right">01:04:15</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">DC</div><div><div class="cust-name">David Chen</div><div class="cust-org">Stellar Ventures</div></div></td>
+              <td><span class="tx-type mint">↑ MINT</span></td>
+              <td class="amount in">+125,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#0052FF"></span>Base</span></td>
+              <td class="id-mono">0xfa7c…4421</td>
+              <td><span class="status success">● Settled</span></td>
+              <td class="time" style="text-align:right">02:11:33</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
