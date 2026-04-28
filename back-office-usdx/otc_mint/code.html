@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OTC Minting - StableCore</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#ecf1f5",
+                    "on-surface-variant": "#3d484d",
+                    "outline-variant": "#bcc8ce",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#de8f2f",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#ffb86c",
+                    "primary-fixed-dim": "#5ad5fd",
+                    "primary-container": "#1eaed5",
+                    "surface-container-low": "#eff4f7",
+                    "on-tertiary-container": "#532f00",
+                    "on-primary-fixed-variant": "#004d61",
+                    "surface-dim": "#d6dbde",
+                    "error": "#ba1a1a",
+                    "inverse-surface": "#2c3134",
+                    "surface-container-highest": "#dee3e6",
+                    "secondary-fixed-dim": "#a4cdde",
+                    "on-secondary-fixed-variant": "#224c5a",
+                    "outline": "#6d797e",
+                    "on-primary-container": "#003d4d",
+                    "primary-fixed": "#b8eaff",
+                    "on-background": "#171c1f",
+                    "surface-bright": "#f5fafd",
+                    "on-tertiary-fixed-variant": "#683c00",
+                    "secondary": "#3c6473",
+                    "surface-container-high": "#e4e9ec",
+                    "surface": "#f5fafd",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#2c1600",
+                    "on-secondary-fixed": "#001f28",
+                    "secondary-container": "#bfe9fb",
+                    "background": "#f5fafd",
+                    "on-primary-fixed": "#001f28",
+                    "on-secondary": "#ffffff",
+                    "inverse-primary": "#5ad5fd",
+                    "surface-container": "#eaeff2",
+                    "tertiary": "#895100",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#006780",
+                    "tertiary-fixed": "#ffdcbc",
+                    "on-error": "#ffffff",
+                    "on-secondary-container": "#426a79",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#dee3e6",
+                    "secondary-fixed": "#bfe9fb",
+                    "primary": "#006780",
+                    "on-surface": "#171c1f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.5rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .brand-font { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- Side Navigation Shell -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#eff4f7] dark:bg-slate-900 flex flex-col py-8 z-50">
+<div class="px-6 mb-10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white shadow-lg">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="text-xl font-bold text-[#006780] tracking-tight">StableCore</h1>
+<p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-bold opacity-60">Back-Office Admin</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1 overflow-y-auto no-scrollbar">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<!-- User -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-sm font-medium">User</span>
+</a>
+<!-- Staff -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="badge">badge</span>
+<span class="text-sm font-medium">Staf</span>
+</a>
+<!-- OTC Mint (ACTIVE) -->
+<a class="flex items-center gap-3 border-l-4 border-[#1eaed5] bg-[#1eaed5]/10 text-[#006780] dark:text-[#1eaed5] py-3 px-6 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="monetization_on" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="text-sm font-bold">OTC Mint</span>
+</a>
+<!-- OTC Redeem -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="toll">toll</span>
+<span class="text-sm font-medium">OTC Redeem</span>
+</a>
+<!-- Report -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="text-sm font-medium">Report</span>
+</a>
+<!-- Profile -->
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="text-sm font-medium">Profile</span>
+</a>
+</nav>
+<div class="px-6 mt-auto">
+<div class="p-4 rounded-xl bg-surface-container-highest/50 border border-outline-variant/10">
+<p class="text-xs text-on-surface-variant mb-2">System Status</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span class="text-xs font-semibold">Node Operational</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen relative flex flex-col">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-40 bg-[#f5fafd]/80 backdrop-blur-md flex justify-between items-center w-full px-12 py-5">
+<div class="flex items-center gap-4">
+<nav class="flex items-center gap-2 text-xs font-medium text-slate-400">
+<span>Operations</span>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-[#006780] font-semibold">OTC Minting</span>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="opacity-80 hover:opacity-100 transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="opacity-80 hover:opacity-100 transition-all">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant/30"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-bold text-on-surface leading-none">Admin User</p>
+<p class="text-[10px] text-on-surface-variant">Compliance Officer</p>
+</div>
+<img alt="Admin User" class="w-10 h-10 rounded-full border-2 border-primary/20 object-cover" data-alt="professional portrait of a person in business attire for an administrative dashboard user profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNYhjp1ovTs8R0W7fYjrv53m6o4AK_bF-bHtmuCNP3Lwc0TnHeYF1ODeJ6I6JwU1A4kY7AhvUhT_n-6xFKfgBbba1vkeHO2VYxMB2atsJnAiGmsyLncHLMckk7L2049aQQByxP2AhI1txVVEs6BpeQIhlWgSQiN5p48M2FYK_Dz_v2_A2PCcI7HlEA8CqqtS5RfkftSK3Xcx3_fO2w9Oz5MsA4Ve5QPoGwseOU5NUSmRfHB8Q1yHkGNfA5vlWVzGNfwCtC9Buzhb4"/>
+</div>
+</div>
+</header>
+<!-- Screen Content -->
+<div class="flex-1 p-12 max-w-6xl mx-auto w-full">
+<!-- Page Header -->
+<div class="mb-12 flex justify-between items-end">
+<div>
+<h2 class="text-4xl font-extrabold text-on-surface tracking-tight mb-2">OTC Minting</h2>
+<p class="text-on-surface-variant max-w-md">Initiate a new OTC asset creation request. Ensure all wallet addresses and user compliance data are verified before submission.</p>
+</div>
+<div class="flex gap-3">
+<div class="px-4 py-2 rounded-lg bg-surface-container-low flex items-center gap-3 border border-outline-variant/10">
+<span class="material-symbols-outlined text-primary" data-icon="security">security</span>
+<div class="leading-none">
+<p class="text-[10px] uppercase font-bold text-on-surface-variant opacity-60">Auth Level</p>
+<p class="text-sm font-bold">Level 3 Sig</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Centralized Form Bento Container -->
+<div class="grid grid-cols-12 gap-8 items-start">
+<!-- Main Form Card -->
+<div class="col-span-12 lg:col-span-8">
+<div class="bg-surface-container-lowest rounded-2xl shadow-[0_12px_40px_rgba(0,103,128,0.06)] p-10">
+<div class="space-y-8">
+<!-- Form Row: User & Network -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Select User</label>
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant opacity-40 group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container rounded-lg border-none focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all outline-none" placeholder="Search by name or email..." type="text"/>
+</div>
+<p class="text-[10px] text-on-surface-variant/70 italic">Search through verified institutional clients only.</p>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Network</label>
+<select class="w-full px-4 py-3 bg-surface-container rounded-lg border-none focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all outline-none appearance-none">
+<option>Ethereum Mainnet (ERC-20)</option>
+<option>Polygon POS</option>
+<option>Arbitrum One</option>
+<option>Solana</option>
+<option>Base</option>
+</select>
+</div>
+</div>
+<!-- Form Row: Amount -->
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Mint Amount (USDX)</label>
+<div class="relative">
+<input class="w-full px-6 py-5 bg-surface-container rounded-xl border-none focus:ring-2 focus:ring-primary/20 text-3xl font-bold tracking-tight text-primary transition-all outline-none placeholder:opacity-20" placeholder="0.00" type="number"/>
+<div class="absolute right-6 top-1/2 -translate-y-1/2 bg-white/50 backdrop-blur-sm px-3 py-1 rounded-md border border-outline-variant/20 shadow-sm">
+<span class="text-sm font-black text-on-surface-variant">USDX</span>
+</div>
+</div>
+<div class="flex justify-between items-center px-1">
+<p class="text-[10px] text-on-surface-variant font-medium">Available Supply: 1,450,200.00 USDX</p>
+<p class="text-[10px] text-on-surface-variant font-medium">Fee: 0.00% (OTC Priority)</p>
+</div>
+</div>
+<!-- Form Row: Destination -->
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Destination Wallet Address</label>
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant opacity-40">account_balance_wallet</span>
+<input class="w-full pl-12 pr-4 py-4 bg-surface-container rounded-lg border-none focus:ring-2 focus:ring-primary/20 font-mono text-sm transition-all outline-none" placeholder="0x..." type="text"/>
+</div>
+<div class="flex items-center gap-2 mt-2 px-2">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<p class="text-[10px] text-on-surface-variant leading-none uppercase font-bold tracking-tight">Auto-checksum validation active</p>
+</div>
+</div>
+<!-- Form Row: Notes -->
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Internal Notes &amp; Reference</label>
+<textarea class="w-full p-4 bg-surface-container rounded-lg border-none focus:ring-2 focus:ring-primary/20 text-sm transition-all outline-none resize-none" placeholder="Add transaction reference, treasury ID, or approval notes..." rows="3"></textarea>
+</div>
+<!-- Final Action -->
+<div class="pt-4">
+<button class="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
+<span class="material-symbols-outlined" data-icon="send" style="font-variation-settings: 'FILL' 1;">send</span>
+<span>Confirm Mint Request</span>
+</button>
+<p class="text-center text-[10px] text-on-surface-variant mt-4 font-medium italic">All minting operations are recorded on the immutable audit trail.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Secondary Info Panel -->
+<div class="col-span-12 lg:col-span-4 space-y-8">
+<!-- Guidance Card -->
+<div class="bg-primary/5 p-8 rounded-2xl border border-primary/10">
+<div class="flex items-start gap-4 mb-4">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary shrink-0 shadow-sm">
+<span class="material-symbols-outlined">info</span>
+</div>
+<div>
+<h3 class="font-bold text-primary">Minting Protocol</h3>
+<p class="text-xs text-on-primary-fixed-variant opacity-80 leading-relaxed mt-1">OTC requests bypass standard liquidity pools and are fulfilled directly from the reserve treasury.</p>
+</div>
+</div>
+<ul class="space-y-4">
+<li class="flex gap-3 text-xs text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+<span>Ensures immediate settlement</span>
+</li>
+<li class="flex gap-3 text-xs text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+<span>Zero price slippage for institutional orders</span>
+</li>
+<li class="flex gap-3 text-xs text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+<span>Automated compliance check triggering</span>
+</li>
+</ul>
+</div>
+<!-- Security Visualization -->
+<div class="rounded-2xl overflow-hidden relative group aspect-video">
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent z-10"></div>
+<img alt="Blockchain Security Visualization" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" data-alt="abstract digital visualization of blockchain nodes connecting in deep blue and turquoise neon light futuristic secure atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCr18cNnjlRDalNqWZEnoQbzXQfYcPvjF8r0SVv-2RrwQtpiQlWr57zOApzg5vFrUh2rZi8uEn-n9cW7Z4WLOCXa-RZbQwe_Es5FeobprRuf6AFPDqQbfxqsVt5lHnBrY_pbsmydNx-TtZKmwxV_2NKQufa-xBhjG9JbF5O--nuHKVOBg0gnQnbpS_Rwr8FYoM04cv0xzs4s5tS8RHsqjtgKJ1GVPV-Mm7whs3caYwO4GaAmxYxg0xaiG9qGl2kxtDyg8Ro9phZYa4"/>
+<div class="absolute bottom-4 left-4 z-20">
+<p class="text-white text-[10px] font-bold tracking-widest uppercase opacity-60">System Security</p>
+<h4 class="text-white font-bold">Vault-Grade Protection</h4>
+</div>
+</div>
+<!-- Recent Activity Ghost List -->
+<div class="space-y-4">
+<h4 class="text-xs font-extrabold uppercase tracking-widest text-on-surface-variant/60 ml-2">Recent Requests</h4>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">history</span>
+</div>
+<div>
+<p class="text-xs font-bold">120,000 USDX</p>
+<p class="text-[9px] text-on-surface-variant uppercase">Polygon · Pending</p>
+</div>
+</div>
+<span class="text-[10px] font-bold text-primary">12m ago</span>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">history</span>
+</div>
+<div>
+<p class="text-xs font-bold">50,000 USDX</p>
+<p class="text-[9px] text-on-surface-variant uppercase">Ethereum · Success</p>
+</div>
+</div>
+<span class="text-[10px] font-bold text-on-surface-variant">1h ago</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="mt-auto py-6 px-12 border-t border-outline-variant/5 text-center">
+<p class="text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant opacity-40">StableCore Operations Hub © 2024. Enterprise Grade Custody.</p>
+</footer>
+</main>
+</body></html>

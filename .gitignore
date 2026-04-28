@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 test-results/
+walkthrough-screenshots/
+
+# Local visual verification output
+verify-screenshots/

@@ -1,16 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import type { DashboardStats } from '@/lib/types'
+import type { DashboardSnapshot } from '@/lib/types'
 
-async function fetchDashboardStats(): Promise<DashboardStats> {
-  const res = await fetch('/api/dashboard')
-  if (!res.ok) throw new Error('Failed to fetch dashboard stats')
-  return res.json()
-}
-
-export function useDashboardStats() {
+export function useDashboardSnapshot() {
   return useQuery({
-    queryKey: ['dashboard'],
-    queryFn: fetchDashboardStats,
+    queryKey: ['dashboard', 'snapshot'],
+    queryFn: async (): Promise<DashboardSnapshot> => {
+      const res = await fetch('/api/dashboard/snapshot')
+      if (!res.ok) throw new Error('Failed to fetch dashboard snapshot')
+      return res.json()
+    },
     refetchInterval: 30_000,
   })
 }

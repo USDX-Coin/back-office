@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USDX Back Office — Motif B · Linear Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090B;
+  --bg-card: #0E1014;
+  --bg-hover: #16191D;
+  --ink: #E8E9EB;
+  --ink-muted: #8B8F95;
+  --ink-faint: #5A5E64;
+  --hairline: rgba(255,255,255,0.06);
+  --hairline-strong: rgba(255,255,255,0.12);
+  --accent-fg: #FFFFFF;
+  --accent-bg: #08090B;
+  --signature: #B8FF45;
+  --success: #4ADE80;
+  --warning: #FBBF24;
+  --error: #F87171;
+  --radius: 5px;
+  --sans: 'Inter Tight', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --serif: 'Instrument Serif', serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.app { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; }
+
+.sidebar { background: var(--bg); border-right: 1px solid var(--hairline); padding: 16px 12px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 24px; }
+.brand-mark { width: 24px; height: 24px; background: var(--signature); color: var(--bg); border-radius: 4px; display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: -0.04em; }
+.brand-name { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-sub { font-size: 11px; color: var(--ink-faint); margin-top: -2px; }
+
+.nav-section { font-size: 10.5px; color: var(--ink-faint); padding: 14px 8px 6px; font-weight: 500; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 6px 8px; margin: 1px 0; border-radius: var(--radius); color: var(--ink-muted); font-weight: 450; font-size: 13px; cursor: pointer; }
+.nav-item:hover { background: var(--bg-hover); color: var(--ink); }
+.nav-item.active { background: var(--bg-hover); color: var(--ink); font-weight: 500; }
+.nav-icon { width: 14px; height: 14px; opacity: 0.85; }
+.kbd-tag { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+
+.sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.user-pill { display: flex; align-items: center; gap: 9px; padding: 4px 6px; }
+.avatar { width: 24px; height: 24px; border-radius: 4px; background: var(--bg-hover); color: var(--ink); display: grid; place-items: center; font-size: 10.5px; font-weight: 500; border: 1px solid var(--hairline); }
+.user-name { font-size: 12px; font-weight: 500; }
+.user-role { font-size: 10.5px; color: var(--ink-faint); }
+
+.main { min-width: 0; }
+.topbar { height: 48px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--hairline); }
+.crumbs { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); }
+.crumbs strong { color: var(--ink); font-weight: 500; }
+.sep { color: var(--ink-faint); }
+.search { margin-left: 24px; display: flex; align-items: center; gap: 7px; padding: 4px 10px; border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 12px; color: var(--ink-faint); min-width: 280px; }
+.kbd { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); padding: 0 4px; border: 1px solid var(--hairline); border-radius: 3px; }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.icon-btn { width: 28px; height: 28px; border-radius: 4px; display: grid; place-items: center; color: var(--ink-muted); cursor: pointer; background: transparent; border: none; }
+.icon-btn:hover { background: var(--bg-hover); color: var(--ink); }
+
+.page { padding: 24px 32px 64px; max-width: 1320px; }
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; }
+.page-eyebrow { font-size: 11px; color: var(--signature); font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 6px; font-family: var(--mono); }
+.page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+.page-title em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--ink-muted); font-size: 0.92em; letter-spacing: 0; }
+.page-subtitle { color: var(--ink-muted); font-size: 12.5px; margin-top: 6px; }
+
+.page-actions { display: flex; gap: 6px; align-items: center; }
+.btn { font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: var(--radius); border: 1px solid var(--hairline-strong); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: var(--bg-card); color: var(--ink); font-family: var(--sans); }
+.btn:hover { background: var(--bg-hover); }
+.btn-primary { background: var(--accent-fg); color: var(--accent-bg); border-color: var(--accent-fg); }
+.btn-primary:hover { background: #DDDEE0; }
+.btn-icon { padding: 5px 8px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 14px 16px; }
+.kpi-label { font-size: 11px; color: var(--ink-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.kpi-spark { margin-left: auto; opacity: 0.6; }
+.kpi-value { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-feature-settings: 'tnum'; }
+.kpi-value .unit { font-size: 13px; color: var(--ink-muted); margin-left: 3px; font-weight: 500; }
+.kpi-delta { margin-top: 10px; font-size: 11.5px; font-family: var(--mono); color: var(--ink-faint); display: flex; align-items: center; gap: 6px; }
+.delta-pill { padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+.delta-pill.up { color: var(--success); background: rgba(74,222,128,0.08); }
+.delta-pill.down { color: var(--error); background: rgba(248,113,113,0.08); }
+
+.section-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 28px; }
+.panel { background: var(--bg-card); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.panel-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+.panel-title { font-size: 13px; font-weight: 600; letter-spacing: -0.005em; }
+.panel-meta { font-size: 11.5px; color: var(--ink-faint); font-family: var(--mono); }
+
+.tabbar { display: flex; gap: 2px; }
+.tab { font-size: 11.5px; padding: 3px 8px; border-radius: 3px; color: var(--ink-faint); cursor: pointer; font-family: var(--mono); }
+.tab.active { background: var(--bg-hover); color: var(--ink); }
+
+.chart-area { padding: 20px 16px; }
+.chart-svg { width: 100%; height: 200px; display: block; }
+
+.netlist { padding: 8px 16px 16px; }
+.netlist-row { display: grid; grid-template-columns: 80px 1fr 60px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--hairline); font-size: 12px; }
+.netlist-row:last-child { border-bottom: none; }
+.netlist-label { font-weight: 500; }
+.netlist-bar { height: 3px; background: var(--bg-hover); border-radius: 2px; overflow: hidden; margin: 0 12px; }
+.netlist-fill { height: 100%; background: var(--signature); }
+.netlist-value { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--ink-muted); }
+
+.table-section { background: var(--bg-card); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.section-title-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+.section-title { font-size: 13px; font-weight: 600; }
+.tablelink { font-size: 11.5px; color: var(--ink-muted); font-weight: 500; text-decoration: none; font-family: var(--mono); }
+.tablelink:hover { color: var(--ink); }
+
+.table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.table thead th { text-align: left; padding: 8px 16px; font-size: 11px; color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--hairline); font-family: var(--mono); }
+.table tbody td { padding: 11px 16px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--bg-hover); }
+.cust-cell { display: flex; align-items: center; gap: 8px; }
+.cust-avatar { width: 22px; height: 22px; border-radius: 4px; background: var(--bg-hover); color: var(--ink); display: grid; place-items: center; font-size: 9.5px; font-weight: 500; border: 1px solid var(--hairline); }
+.cust-org { font-size: 10.5px; color: var(--ink-faint); }
+.amount { font-family: var(--mono); font-weight: 500; font-feature-settings: 'tnum'; }
+.network-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-muted); }
+.network-dot { width: 6px; height: 6px; border-radius: 50%; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; padding: 2px 8px; border-radius: 3px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.status.success { color: var(--success); background: rgba(74,222,128,0.08); }
+.status.success .status-dot { background: var(--success); }
+.status.warning { color: var(--warning); background: rgba(251,191,36,0.08); }
+.status.warning .status-dot { background: var(--warning); }
+.status.error { color: var(--error); background: rgba(248,113,113,0.08); }
+.status.error .status-dot { background: var(--error); }
+.tx-type { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-muted); }
+.tx-arrow { width: 11px; height: 11px; }
+.tx-type.mint .tx-arrow { color: var(--signature); }
+.time { color: var(--ink-faint); font-family: var(--mono); font-size: 11.5px; }
+.id-mono { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+
+@media (max-width: 1100px) {
+  .section-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div>
+        <div class="brand-name">USDX</div>
+        <div class="brand-sub">Operator console</div>
+      </div>
+    </div>
+    <div class="nav-section">Workspace</div>
+    <div class="nav-item active"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="4" height="4"/><rect x="8" y="2" width="4" height="4"/><rect x="2" y="8" width="4" height="4"/><rect x="8" y="8" width="4" height="4"/></svg>Dashboard<span class="kbd-tag">G D</span></div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="5" r="2.5"/><path d="M2 12c0-3 2-5 5-5s5 2 5 5"/></svg>Customers<span class="kbd-tag">G C</span></div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4.5" cy="5" r="1.8"/><circle cx="9.5" cy="5" r="1.8"/><path d="M2 11.5c0-2 1-3 2.5-3M12 11.5c0-2-1-3-2.5-3"/></svg>Staff<span class="kbd-tag">G S</span></div>
+    <div class="nav-section">OTC desk</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 12V2M3 6l4-4 4 4"/></svg>Mint<span class="kbd-tag">G M</span></div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 12V2M11 8l-4 4-4-4"/></svg>Redeem<span class="kbd-tag">G R</span></div>
+    <div class="nav-section">Insights</div>
+    <div class="nav-item"><svg class="nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="10" height="10"/><path d="M4.5 9.5V7M7 9.5V4.5M9.5 9.5V6"/></svg>Reports<span class="kbd-tag">G P</span></div>
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="avatar">DO</div>
+        <div>
+          <div class="user-name">Demo Operator</div>
+          <div class="user-role">Super admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="crumbs"><span>Workspace</span><span class="sep">/</span><strong>Dashboard</strong></div>
+      <div class="search">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M12 12l-3-3"/></svg>
+        Search…<span class="kbd">⌘K</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10V6a4 4 0 018 0v4l1 1.5H2zM5.5 11.5a1.5 1.5 0 003 0"/></svg></button>
+      </div>
+    </div>
+
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-eyebrow">› Last 30 days</div>
+          <h1 class="page-title">Dashboard <em>overview</em></h1>
+          <p class="page-subtitle">718 settlements · 14 currently pending · last update 2 min ago</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">Apr 1 — Apr 28</button>
+          <button class="btn btn-icon" aria-label="Refresh"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7a5 5 0 019-3l1 1M12 7a5 5 0 01-9 3l-1-1M11 2v3h-3M3 12V9h3"/></svg></button>
+          <button class="btn btn-primary">Export</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="kpi-label">Total volume <span class="kpi-spark"><svg width="40" height="14" viewBox="0 0 40 14" fill="none" stroke="var(--ink-muted)" stroke-width="1"><path d="M0,10 L8,8 L16,9 L24,5 L32,6 L40,2"/></svg></span></div>
+          <div class="kpi-value">$24.8<span class="unit">M</span></div>
+          <div class="kpi-delta"><span class="delta-pill up">↑ 12.4%</span> vs prior 30d</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Active customers <span class="kpi-spark"><svg width="40" height="14" viewBox="0 0 40 14" fill="none" stroke="var(--ink-muted)" stroke-width="1"><path d="M0,11 L8,9 L16,10 L24,7 L32,5 L40,3"/></svg></span></div>
+          <div class="kpi-value">1,247</div>
+          <div class="kpi-delta"><span class="delta-pill up">↑ 8.2%</span> +94 new</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Pending OTC</div>
+          <div class="kpi-value">14</div>
+          <div class="kpi-delta"><span class="delta-pill down">↓ 5</span> from yesterday</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Settlement rate</div>
+          <div class="kpi-value">98.3<span class="unit">%</span></div>
+          <div class="kpi-delta">12 / 718 failed</div>
+        </div>
+      </div>
+
+      <div class="section-grid">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Volume trend</div>
+            <div class="tabbar">
+              <span class="tab">7d</span>
+              <span class="tab active">30d</span>
+              <span class="tab">90d</span>
+            </div>
+          </div>
+          <div class="chart-area">
+            <svg class="chart-svg" viewBox="0 0 600 200" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="grad-b" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#B8FF45" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#B8FF45" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="50" x2="600" y2="50" stroke="rgba(255,255,255,0.04)"/>
+              <line x1="0" y1="100" x2="600" y2="100" stroke="rgba(255,255,255,0.04)"/>
+              <line x1="0" y1="150" x2="600" y2="150" stroke="rgba(255,255,255,0.04)"/>
+              <path d="M0,160 L40,150 L80,130 L120,135 L160,110 L200,95 L240,100 L280,75 L320,60 L360,72 L400,55 L440,38 L480,52 L520,40 L560,55 L600,42 L600,200 L0,200 Z" fill="url(#grad-b)"/>
+              <path d="M0,160 L40,150 L80,130 L120,135 L160,110 L200,95 L240,100 L280,75 L320,60 L360,72 L400,55 L440,38 L480,52 L520,40 L560,55 L600,42" fill="none" stroke="#B8FF45" stroke-width="1.5"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Network split</div>
+            <div class="panel-meta">by_volume</div>
+          </div>
+          <div class="netlist">
+            <div class="netlist-row"><span class="netlist-label">Ethereum</span><span class="netlist-bar"><span class="netlist-fill" style="width:72%"></span></span><span class="netlist-value">42.1%</span></div>
+            <div class="netlist-row"><span class="netlist-label">Polygon</span><span class="netlist-bar"><span class="netlist-fill" style="width:48%"></span></span><span class="netlist-value">23.5%</span></div>
+            <div class="netlist-row"><span class="netlist-label">Arbitrum</span><span class="netlist-bar"><span class="netlist-fill" style="width:32%"></span></span><span class="netlist-value">18.2%</span></div>
+            <div class="netlist-row"><span class="netlist-label">Solana</span><span class="netlist-bar"><span class="netlist-fill" style="width:18%"></span></span><span class="netlist-value">10.8%</span></div>
+            <div class="netlist-row"><span class="netlist-label">Base</span><span class="netlist-bar"><span class="netlist-fill" style="width:9%"></span></span><span class="netlist-value">5.4%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-section">
+        <div class="section-title-row">
+          <div class="section-title">Recent activity</div>
+          <a href="#" class="tablelink">View report →</a>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Direction</th>
+              <th>Amount</th>
+              <th>Network</th>
+              <th>Status</th>
+              <th>Tx</th>
+              <th style="text-align:right">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">JA</div><div><div style="font-weight:500">Julian Anderson</div><div class="cust-org">Vertex Solutions</div></div></td>
+              <td><span class="tx-type mint"><svg class="tx-arrow" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 11V3M3 7l4-4 4 4"/></svg>Mint</span></td>
+              <td class="amount">1,500,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#627EEA"></span>Ethereum</span></td>
+              <td><span class="status warning"><span class="status-dot"></span>Pending</span></td>
+              <td class="id-mono">0x7f4a…2c91</td>
+              <td class="time" style="text-align:right">2m</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">SM</div><div><div style="font-weight:500">Sarah Mitchell</div><div class="cust-org">Apex Capital</div></div></td>
+              <td><span class="tx-type"><svg class="tx-arrow" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3v8M11 7l-4 4-4-4"/></svg>Redeem</span></td>
+              <td class="amount">250,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#8247E5"></span>Polygon</span></td>
+              <td><span class="status success"><span class="status-dot"></span>Completed</span></td>
+              <td class="id-mono">0xa3b2…91ef</td>
+              <td class="time" style="text-align:right">12m</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">RD</div><div><div style="font-weight:500">Robert Deon</div><div class="cust-org">Nexus Logistics</div></div></td>
+              <td><span class="tx-type mint"><svg class="tx-arrow" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 11V3M3 7l4-4 4 4"/></svg>Mint</span></td>
+              <td class="amount">500,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#28A0F0"></span>Arbitrum</span></td>
+              <td><span class="status success"><span class="status-dot"></span>Completed</span></td>
+              <td class="id-mono">0x5e1d…8b04</td>
+              <td class="time" style="text-align:right">38m</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">MS</div><div><div style="font-weight:500">Maria Sanchez</div><div class="cust-org">Quantum Holdings</div></div></td>
+              <td><span class="tx-type"><svg class="tx-arrow" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3v8M11 7l-4 4-4-4"/></svg>Redeem</span></td>
+              <td class="amount">75,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#9945FF"></span>Solana</span></td>
+              <td><span class="status error"><span class="status-dot"></span>Failed</span></td>
+              <td class="id-mono">5Ck9…2ZhF</td>
+              <td class="time" style="text-align:right">1h</td>
+            </tr>
+            <tr>
+              <td class="cust-cell"><div class="cust-avatar">DC</div><div><div style="font-weight:500">David Chen</div><div class="cust-org">Stellar Ventures</div></div></td>
+              <td><span class="tx-type mint"><svg class="tx-arrow" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 11V3M3 7l4-4 4 4"/></svg>Mint</span></td>
+              <td class="amount">125,000.00</td>
+              <td><span class="network-pill"><span class="network-dot" style="background:#0052FF"></span>Base</span></td>
+              <td><span class="status success"><span class="status-dot"></span>Completed</span></td>
+              <td class="id-mono">0xfa7c…4421</td>
+              <td class="time" style="text-align:right">2h</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

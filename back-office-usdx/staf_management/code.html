@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StableCore | Staf Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#ecf1f5",
+                    "on-surface-variant": "#3d484d",
+                    "outline-variant": "#bcc8ce",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#de8f2f",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#ffb86c",
+                    "primary-fixed-dim": "#5ad5fd",
+                    "primary-container": "#1eaed5",
+                    "surface-container-low": "#eff4f7",
+                    "on-tertiary-container": "#532f00",
+                    "on-primary-fixed-variant": "#004d61",
+                    "surface-dim": "#d6dbde",
+                    "error": "#ba1a1a",
+                    "inverse-surface": "#2c3134",
+                    "surface-container-highest": "#dee3e6",
+                    "secondary-fixed-dim": "#a4cdde",
+                    "on-secondary-fixed-variant": "#224c5a",
+                    "outline": "#6d797e",
+                    "on-primary-container": "#003d4d",
+                    "primary-fixed": "#b8eaff",
+                    "on-background": "#171c1f",
+                    "surface-bright": "#f5fafd",
+                    "on-tertiary-fixed-variant": "#683c00",
+                    "secondary": "#3c6473",
+                    "surface-container-high": "#e4e9ec",
+                    "surface": "#f5fafd",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#2c1600",
+                    "on-secondary-fixed": "#001f28",
+                    "secondary-container": "#bfe9fb",
+                    "background": "#f5fafd",
+                    "on-primary-fixed": "#001f28",
+                    "on-secondary": "#ffffff",
+                    "inverse-primary": "#5ad5fd",
+                    "surface-container": "#eaeff2",
+                    "tertiary": "#895100",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#006780",
+                    "tertiary-fixed": "#ffdcbc",
+                    "on-error": "#ffffff",
+                    "on-secondary-container": "#426a79",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#dee3e6",
+                    "secondary-fixed": "#bfe9fb",
+                    "primary": "#006780",
+                    "on-surface": "#171c1f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- Side Navigation Shell -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#eff4f7] dark:bg-slate-900 flex flex-col py-8 z-50">
+<div class="px-6 mb-10 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<div>
+<h1 class="text-xl font-bold text-[#006780] tracking-tight">StableCore</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Back-Office Admin</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-medium">User</span>
+</a>
+<!-- Active Tab: Staf -->
+<a class="flex items-center gap-3 border-l-4 border-[#1eaed5] bg-[#1eaed5]/10 text-[#006780] dark:text-[#1eaed5] py-3 px-6 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">badge</span>
+<span class="font-semibold">Staf</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined">monetization_on</span>
+<span class="font-medium">OTC Mint</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined">toll</span>
+<span class="font-medium">OTC Redeem</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-medium">Report</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 py-3 px-6 hover:bg-[#eaeff2] dark:hover:bg-slate-800 hover:text-[#006780] transition-all mt-auto" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-medium">Profile</span>
+</a>
+</nav>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="flex justify-between items-center w-full pl-72 pr-8 py-4 bg-[#f5fafd]/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant/15 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all w-64 md:w-96 text-sm" placeholder="Search staff members..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="flex items-center gap-3 border-l border-outline-variant/30 pl-6">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-semibold text-on-surface leading-none">Admin User</p>
+<p class="text-[10px] text-on-surface-variant">Super Admin</p>
+</div>
+<img class="w-10 h-10 rounded-full bg-surface-container-high object-cover" data-alt="professional portrait of a middle-aged male executive with glasses in a corporate setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCSUxmdwAPt6eyDWdx6OZm3sd5N05vd2WnjMCAxyzBXrF1rdZ7-F7UWCK8V10ojYw3pFdHpulEqSFlcqP4cZBW9__zgUR8kYZ3IBxQy3TbtbfRKNeOyfQl-3Lido_7vEVJgY3Z0hW7Kaf40iUvQHXchs3lKkdFk9gIoEH0QOS85g2E5ZE8Jk9tMkWksjszMlX2i3_NEM8Y2mP8LuFBMCDbphaJqVDANBvuC-0A9DEtUNdNn8ZyEu5W6FvJvtm6mmWDDroUWVUvZt0"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pl-72 pr-8 pt-8 pb-12 min-h-screen">
+<!-- Header Section with Stats -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<h2 class="text-3xl font-extrabold text-on-surface tracking-tight font-headline">Staf Management</h2>
+<p class="text-on-surface-variant mt-1">Configure permissions and manage back-office personnel access.</p>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-container text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-primary/20 hover:scale-[0.98] transition-transform flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                Add Staf
+            </button>
+</div>
+<!-- Dashboard Widgets / Stats Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_12px_40px_rgba(0,103,128,0.06)] flex items-center gap-4">
+<div class="w-12 h-12 bg-primary-container/20 text-primary rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined">groups</span>
+</div>
+<div>
+<p class="text-sm text-on-surface-variant font-medium">Total Staff</p>
+<p class="text-2xl font-bold">24</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_12px_40px_rgba(0,103,128,0.06)] flex items-center gap-4">
+<div class="w-12 h-12 bg-tertiary-fixed-dim/20 text-tertiary rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+</div>
+<div>
+<p class="text-sm text-on-surface-variant font-medium">Admins</p>
+<p class="text-2xl font-bold">6</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_12px_40px_rgba(0,103,128,0.06)] flex items-center gap-4">
+<div class="w-12 h-12 bg-secondary-container/30 text-secondary rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined">verified_user</span>
+</div>
+<div>
+<p class="text-sm text-on-surface-variant font-medium">Active Now</p>
+<p class="text-2xl font-bold">12</p>
+</div>
+</div>
+</div>
+<!-- Staff Table Container -->
+<div class="bg-surface-container-lowest rounded-2xl shadow-[0_12px_40px_rgba(0,103,128,0.06)] overflow-hidden">
+<div class="px-8 py-6 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="font-bold text-lg text-on-surface">Personnel Directory</h3>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-8 py-4 text-[11px] font-bold uppercase tracking-wider text-outline">Name (First/Last)</th>
+<th class="px-8 py-4 text-[11px] font-bold uppercase tracking-wider text-outline">Email</th>
+<th class="px-8 py-4 text-[11px] font-bold uppercase tracking-wider text-outline">Phone</th>
+<th class="px-8 py-4 text-[11px] font-bold uppercase tracking-wider text-outline">Role</th>
+<th class="px-8 py-4 text-[11px] font-bold uppercase tracking-wider text-outline text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-container-highest/20 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold text-sm">JS</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">John Smith</p>
+<p class="text-[10px] text-on-surface-variant">ID: SC-8921</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">john.smith@stablecore.io</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">+1 (555) 123-4567</td>
+<td class="px-8 py-5">
+<span class="px-3 py-1 bg-primary-container/10 text-on-primary-fixed-variant text-[11px] font-bold rounded-full uppercase tracking-tighter">Super Admin</span>
+</td>
+<td class="px-8 py-5 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/20 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container/20 flex items-center justify-center text-secondary font-bold text-sm">LC</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Linda Chen</p>
+<p class="text-[10px] text-on-surface-variant">ID: SC-4432</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">linda.c@stablecore.io</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">+1 (555) 987-6543</td>
+<td class="px-8 py-5">
+<span class="px-3 py-1 bg-secondary-container/30 text-on-secondary-fixed-variant text-[11px] font-bold rounded-full uppercase tracking-tighter">Operations</span>
+</td>
+<td class="px-8 py-5 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/20 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed/30 flex items-center justify-center text-tertiary font-bold text-sm">MA</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Marcus Aurelius</p>
+<p class="text-[10px] text-on-surface-variant">ID: SC-1209</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">marcus.a@stablecore.io</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">+1 (555) 234-5678</td>
+<td class="px-8 py-5">
+<span class="px-3 py-1 bg-tertiary-fixed/30 text-on-tertiary-fixed-variant text-[11px] font-bold rounded-full uppercase tracking-tighter">Compliance</span>
+</td>
+<td class="px-8 py-5 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/20 transition-colors group">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary font-bold text-sm">SK</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Sarah King</p>
+<p class="text-[10px] text-on-surface-variant">ID: SC-3321</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">sking@stablecore.io</td>
+<td class="px-8 py-5 text-sm text-on-surface-variant">+1 (555) 888-9999</td>
+<td class="px-8 py-5">
+<span class="px-3 py-1 bg-surface-container-highest text-on-surface-variant text-[11px] font-bold rounded-full uppercase tracking-tighter">Support</span>
+</td>
+<td class="px-8 py-5 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-8 py-4 bg-surface-container-low/30 border-t border-outline-variant/10 flex justify-between items-center text-xs font-medium text-on-surface-variant">
+<p>Showing 4 of 24 staff members</p>
+<div class="flex items-center gap-4">
+<button class="opacity-50 cursor-not-allowed">Previous</button>
+<div class="flex gap-2">
+<span class="w-6 h-6 flex items-center justify-center bg-primary text-white rounded-md">1</span>
+<span class="w-6 h-6 flex items-center justify-center hover:bg-surface-container rounded-md cursor-pointer">2</span>
+<span class="w-6 h-6 flex items-center justify-center hover:bg-surface-container rounded-md cursor-pointer">3</span>
+</div>
+<button class="hover:text-primary transition-colors">Next</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Backdrop (Hidden by default, shown for Add Staf) -->
+<!-- Note: Adding 'flex' instead of 'hidden' to demonstrate the layout as requested -->
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+<div class="bg-surface-container-lowest w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+<div class="px-8 py-6 border-b border-outline-variant/10 flex justify-between items-center">
+<div>
+<h3 class="text-xl font-bold text-on-surface font-headline">Add New Staff Member</h3>
+<p class="text-sm text-on-surface-variant">Enter personnel details and assign an access level.</p>
+</div>
+<button class="p-2 hover:bg-surface-container rounded-full text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form class="p-8 space-y-6">
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="text-[11px] font-bold uppercase tracking-wider text-outline px-1">First Name</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" placeholder="e.g. Robert" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-[11px] font-bold uppercase tracking-wider text-outline px-1">Last Name</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" placeholder="e.g. Fox" type="text"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-[11px] font-bold uppercase tracking-wider text-outline px-1">Work Email</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" placeholder="robert.fox@stablecore.io" type="email"/>
+</div>
+<div class="space-y-2">
+<label class="text-[11px] font-bold uppercase tracking-wider text-outline px-1">Phone Number</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant font-medium">+1</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" placeholder="(555) 000-0000" type="tel"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-[11px] font-bold uppercase tracking-wider text-outline px-1">Access Role</label>
+<select class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer">
+<option value="support">Support Agent</option>
+<option value="ops">Operations Manager</option>
+<option value="compliance">Compliance Officer</option>
+<option value="admin">Super Admin</option>
+</select>
+</div>
+<div class="pt-4 flex gap-4">
+<button class="flex-1 py-3 border border-outline-variant/30 text-on-surface-variant font-semibold rounded-xl hover:bg-surface-container transition-colors" type="button">Cancel</button>
+<button class="flex-1 py-3 bg-gradient-to-br from-primary to-primary-container text-white font-semibold rounded-xl shadow-lg shadow-primary/20 hover:scale-[0.98] transition-transform" type="submit">Create Staf</button>
+</div>
+</form>
+</div>
+</div>
+</body></html>

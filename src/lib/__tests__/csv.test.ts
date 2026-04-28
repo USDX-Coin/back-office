@@ -23,8 +23,8 @@ describe('buildCsvContent', () => {
   })
 
   describe('negative', () => {
-    test('should return empty string for empty data', () => {
-      expect(buildCsvContent([], columns)).toBe('')
+    test('should return only headers for empty data', () => {
+      expect(buildCsvContent([], columns)).toBe('Name,Amount,Status')
     })
   })
 
@@ -45,6 +45,39 @@ describe('buildCsvContent', () => {
       const data = [{ name: null, amount: 0, status: 'pending' }]
       const csv = buildCsvContent(data as unknown as { name: string; amount: number; status: string }[], columns)
       expect(csv).toContain(',0,pending')
+    })
+  })
+
+  describe('CSV formula injection guard', () => {
+    test('should prefix cells starting with = with a single quote', () => {
+      const data = [{ name: '=HYPERLINK("http://x")', amount: 0, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain("'=HYPERLINK")
+    })
+
+    test('should prefix cells starting with +', () => {
+      const data = [{ name: '+cmd', amount: 0, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain("'+cmd")
+    })
+
+    test('should prefix cells starting with -', () => {
+      const data = [{ name: '-LEAD(1)', amount: 0, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain("'-LEAD")
+    })
+
+    test('should prefix cells starting with @', () => {
+      const data = [{ name: '@command', amount: 0, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain("'@command")
+    })
+
+    test('should not modify benign cells', () => {
+      const data = [{ name: 'Alice', amount: 100, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain('Alice')
+      expect(csv).not.toContain("'Alice")
     })
   })
 })

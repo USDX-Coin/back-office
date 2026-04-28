@@ -4,6 +4,17 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import FieldError from '@/components/FieldError'
+import ThemeToggle from '@/components/ThemeToggle'
 import { useAuth } from '@/lib/auth'
 import { validateLoginForm } from '@/lib/validators'
 import { cn } from '@/lib/utils'
@@ -14,13 +25,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
+  const [remember, setRemember] = useState(true)
+  const [submitError, setSubmitError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    setSubmitError('')
     setFieldErrors({})
 
     const validation = validateLoginForm(email, password)
@@ -32,169 +44,116 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setSubmitError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Left brand panel */}
-      <div className="hidden lg:flex lg:w-3/5 flex-col justify-between bg-dark p-12 relative overflow-hidden">
-        {/* Background grid decoration */}
-        <div className="absolute inset-0 opacity-5">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-              backgroundSize: '40px 40px',
-            }}
-          />
-        </div>
-        <div className="absolute top-[-80px] right-[-80px] h-64 w-64 rounded-full bg-primary opacity-10 blur-3xl" />
-        <div className="absolute bottom-[-60px] left-[-60px] h-48 w-48 rounded-full bg-primary opacity-10 blur-3xl" />
-
-        {/* Logo + brand */}
-        <div className="relative flex items-center gap-3">
-          <img src="/image/Logo.svg" alt="USDX" className="h-10 w-10" />
-          <div>
-            <span className="text-xl font-bold text-white">USDX</span>
-            <span className="ml-2 text-sm text-white/50">Back Office</span>
-          </div>
-        </div>
-
-        {/* Hero copy */}
-        <div className="relative space-y-4">
-          <h1 className="text-4xl font-bold leading-tight text-white">
-            Stablecoin Operations<br />Management Platform
-          </h1>
-          <p className="text-lg text-white/60 leading-relaxed max-w-md">
-            Manage USDX minting and redemption requests with full visibility
-            into transaction status, compliance workflows, and real-time metrics.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <p className="relative text-xs text-white/30">
-          © {new Date().getFullYear()} USDX. All rights reserved.
-        </p>
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex justify-end p-4">
+        <ThemeToggle />
       </div>
-
-      {/* Right form panel */}
-      <div className="flex w-full lg:w-2/5 flex-col items-center justify-center bg-white px-8 py-12">
+      <main className="flex flex-1 items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm">
-          {/* Logo — visible on all screen sizes */}
-          <div className="mb-8 flex flex-col items-center gap-3">
-            <img src="/image/Logo.svg" alt="USDX" className="h-12 w-12" />
+          <div className="mb-6 flex flex-col items-center gap-3">
+            <img src="/image/Logo.svg" alt="USDX" className="h-10 w-10" />
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-dark">Welcome back</h2>
-              <p className="mt-1 text-sm text-muted">Sign in to your admin account to continue.</p>
+              <p className="text-lg font-semibold tracking-tight">USDX Back Office</p>
+              <p className="text-xs text-muted-foreground">Operator console</p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* General error */}
-            <div className={cn(
-              'rounded-lg border px-4 py-3 text-sm transition-all',
-              error
-                ? 'border-error/20 bg-red-50 text-error opacity-100'
-                : 'border-transparent bg-transparent opacity-0 pointer-events-none select-none h-0 py-0 px-0 overflow-hidden'
-            )} role={error ? 'alert' : undefined}>
-              {error}
-            </div>
-
-            {/* Email field */}
-            <FieldGroup
-              id="email"
-              label="Email"
-              error={fieldErrors.email}
-            >
-              <Input
-                id="email"
-                type="email"
-                placeholder="admin@usdx.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                // required
-                className={cn(
-                  'h-11',
-                  fieldErrors.email && 'border-error focus-visible:ring-error/30'
+          <Card>
+            <CardHeader>
+              <CardTitle>Sign in</CardTitle>
+              <CardDescription>
+                Use your operator credentials to continue.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4" noValidate id="login-form">
+                {submitError && (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  >
+                    {submitError}
+                  </div>
                 )}
-              />
-            </FieldGroup>
 
-            {/* Password field */}
-            <FieldGroup
-              id="password"
-              label="Password"
-              error={fieldErrors.password}
-            >
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  // required
-                  className={cn(
-                    'h-11 pr-10',
-                    fieldErrors.password && 'border-error focus-visible:ring-error/30'
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-dark transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </FieldGroup>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="admin@usdx.io"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={cn(fieldErrors.email && 'border-destructive focus-visible:ring-destructive/30')}
+                  />
+                  <FieldError message={fieldErrors.email} />
+                </div>
 
-            <Button
-              type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary-dark text-white font-medium"
-              disabled={loading}
-            >
-              {loading ? 'Signing in…' : 'Sign in'}
-            </Button>
-          </form>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={cn('pr-10', fieldErrors.password && 'border-destructive focus-visible:ring-destructive/30')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <FieldError message={fieldErrors.password} />
+                </div>
 
-          <p className="mt-8 text-center text-xs text-muted">
-            Authorized personnel only. Contact your administrator for access.
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                  <Checkbox
+                    checked={remember}
+                    onCheckedChange={(checked) => setRemember(checked === true)}
+                    aria-label="Remember this device for 30 days"
+                  />
+                  <span>Remember this device for 30 days</span>
+                </label>
+              </form>
+            </CardContent>
+            <CardFooter className="flex-col gap-3">
+              <Button
+                type="submit"
+                form="login-form"
+                disabled={loading}
+                aria-busy={loading}
+                className="w-full"
+              >
+                {loading ? 'Signing in…' : 'Sign in'}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Authorized personnel only.
+              </p>
+            </CardFooter>
+          </Card>
+
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            © {new Date().getFullYear()} USDX · All rights reserved
           </p>
         </div>
-      </div>
-    </div>
-  )
-}
-
-/** Label + input slot + reserved error line (always rendered to prevent layout shift) */
-function FieldGroup({
-  id,
-  label,
-  error,
-  children,
-}: {
-  id: string
-  label: string
-  error?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-      {/* Always reserve space for error text — avoids layout shift */}
-      <p className="text-xs text-error min-h-[1rem]">
-        {error ?? ''}
-      </p>
+      </main>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,7 +8,18 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, Download, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Search,
+  Download,
+  X,
+} from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -27,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import TableEmptyState from '@/components/TableEmptyState'
+import { cn } from '@/lib/utils'
 
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
@@ -36,6 +49,9 @@ export interface DataTableProps<T> {
   statusOptions?: { value: string; label: string }[]
   onExportCsv?: () => void
   pageSize?: number
+  filterToolbar?: ReactNode
+  emptyState?: ReactNode
+  hasFilters?: boolean
 }
 
 export default function DataTable<T>({
@@ -46,6 +62,9 @@ export default function DataTable<T>({
   statusOptions,
   onExportCsv,
   pageSize: defaultPageSize = 10,
+  filterToolbar,
+  emptyState,
+  hasFilters: hasFiltersProp,
 }: DataTableProps<T>) {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -106,7 +125,7 @@ export default function DataTable<T>({
     manualFiltering: true,
   })
 
-  const totalPages = Math.ceil(rowCount / defaultPageSize)
+  const totalPages = Math.ceil(rowCount / defaultPageSize) || 1
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -118,101 +137,106 @@ export default function DataTable<T>({
     setSearchParams(new URLSearchParams())
   }
 
-  const hasFilters = search || status || startDate || endDate
+  const derivedHasFilters = Boolean(search || status || startDate || endDate)
+  const hasFilters = hasFiltersProp ?? derivedHasFilters
 
   return (
     <div className="space-y-4">
-      {/* Filters bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <Input
-              placeholder="Search..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-9"
-            />
-          </form>
+      {filterToolbar ? (
+        <div>{filterToolbar}</div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+            <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9"
+              />
+            </form>
 
-          {statusOptions && (
-            <Select
-              value={status}
-              onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
-            >
-              <SelectTrigger className="w-[160px] border">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border shadow-lg p-2">
-                <SelectItem value="all">All statuses</SelectItem>
-                {statusOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+            {statusOptions && (
+              <Select
+                value={status}
+                onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {statusOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
-              className="w-[150px]"
-              aria-label="Start date"
-            />
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
-              className="w-[150px]"
-              aria-label="End date"
-            />
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
+                className="w-[150px]"
+                aria-label="Start date"
+              />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
+                className="w-[150px]"
+                aria-label="End date"
+              />
+            </div>
+
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="mr-1 h-4 w-4" />
+                Clear
+              </Button>
+            )}
           </div>
 
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="mr-1 h-4 w-4" />
-              Clear
+          {onExportCsv && (
+            <Button variant="outline" size="sm" onClick={onExportCsv}>
+              <Download className="mr-1 h-4 w-4" />
+              Export CSV
             </Button>
           )}
         </div>
+      )}
 
-        {onExportCsv && (
-          <Button variant="outline" size="sm" onClick={onExportCsv}>
-            <Download className="mr-1 h-4 w-4" />
-            Export CSV
-          </Button>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-md bg-card">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="hover:bg-transparent border-border">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                  >
                     {header.isPlaceholder ? null : (
                       <div
-                        className={
-                          header.column.getCanSort()
-                            ? 'flex cursor-pointer select-none items-center gap-1'
-                            : ''
-                        }
+                        className={cn(
+                          'flex items-center gap-1.5',
+                          header.column.getCanSort() && 'cursor-pointer select-none'
+                        )}
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getCanSort() && (
                           <>
                             {header.column.getIsSorted() === 'asc' ? (
-                              <ArrowUp className="h-4 w-4" />
+                              <ArrowUp className="h-3 w-3" />
                             ) : header.column.getIsSorted() === 'desc' ? (
-                              <ArrowDown className="h-4 w-4" />
+                              <ArrowDown className="h-3 w-3" />
                             ) : (
-                              <ArrowUpDown className="h-4 w-4 text-muted" />
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
                             )}
                           </>
                         )}
@@ -226,25 +250,31 @@ export default function DataTable<T>({
           <TableBody>
             {isLoading ? (
               Array.from({ length: defaultPageSize }).map((_, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className="hover:bg-transparent border-border">
                   {columns.map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-5 w-full" />
+                    <TableCell key={j} className="px-4 py-2.5">
+                      <Skeleton className="h-4 w-full" />
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-32 text-center text-muted">
-                  {hasFilters ? 'No results match your filters' : 'No data available'}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="p-0">
+                  {hasFilters ? (
+                    <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
+                  ) : emptyState ? (
+                    emptyState
+                  ) : (
+                    <TableEmptyState mode="no-data" />
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className="border-border hover:bg-muted/40">
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -255,51 +285,54 @@ export default function DataTable<T>({
         </Table>
       </div>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">
-          Showing {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
+        <p className="font-mono text-[11.5px] text-muted-foreground tabular-nums">
+          {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
           {Math.min(page * defaultPageSize, rowCount)} of {rowCount}
         </p>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon"
+            className="h-7 w-7"
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
             aria-label="First page"
           >
-            <ChevronsLeft className="h-4 w-4" />
+            <ChevronsLeft className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="outline"
             size="icon"
+            className="h-7 w-7"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="px-2 text-sm text-muted">
-            {page} / {totalPages || 1}
+          <span className="px-2 font-mono text-[11.5px] tabular-nums text-muted-foreground">
+            {page} / {totalPages}
           </span>
           <Button
             variant="outline"
             size="icon"
+            className="h-7 w-7"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             aria-label="Next page"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="outline"
             size="icon"
+            className="h-7 w-7"
             onClick={() => table.setPageIndex(totalPages - 1)}
             disabled={!table.getCanNextPage()}
             aria-label="Last page"
           >
-            <ChevronsRight className="h-4 w-4" />
+            <ChevronsRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

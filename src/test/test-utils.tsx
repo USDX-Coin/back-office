@@ -2,6 +2,8 @@ import { render, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
+import { ThemeProvider } from '@/lib/theme'
+import { getDefaultStaff } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
 
 interface WrapperOptions {
@@ -25,17 +27,22 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
     const queryClient = createTestQueryClient()
 
     if (authenticated) {
-      localStorage.setItem(
-        'usdx_auth_user',
-        JSON.stringify({ id: '1', name: 'Test User', email: 'test@usdx.com' })
-      )
+      const staff = getDefaultStaff()
+      if (staff) {
+        localStorage.setItem(
+          'usdx_auth_user',
+          JSON.stringify({ version: 2, staffId: staff.id })
+        )
+      }
     }
 
     return (
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+          </AuthProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     )
   }
