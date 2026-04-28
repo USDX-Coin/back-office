@@ -1,3 +1,4 @@
+import PageHeader from '@/components/PageHeader'
 import OtcRedeemForm from './OtcRedeemForm'
 import OtcRedeemInfoPanel from './OtcRedeemInfoPanel'
 import RecentRedemptionsTable from './RecentRedemptionsTable'
@@ -8,13 +9,12 @@ export default function OtcRedeemPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">OTC Redemption</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Burn USDX in exchange for treasury funds. Settlement is asynchronous;
-          recent redemptions appear below.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="OTC Desk"
+        title="Redeem"
+        italicAccent="burn USDX"
+        subtitle="Burn USDX in exchange for treasury funds. Settlement is asynchronous; recent redemptions appear below."
+      />
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7">

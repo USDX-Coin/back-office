@@ -17,10 +17,10 @@ const STATUS_DOT: Record<OtcMintTransaction['status'], string> = {
 
 export default function RecentRequestsList({ items, isLoading }: RecentRequestsListProps) {
   return (
-    <Card>
+    <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Clock className="h-4 w-4" />
+        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold">
+          <Clock className="h-3.5 w-3.5" />
           Recent requests
         </CardTitle>
       </CardHeader>

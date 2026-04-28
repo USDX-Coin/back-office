@@ -96,9 +96,9 @@ export default function OtcMintForm() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle>New mint request</CardTitle>
+        <CardTitle className="text-[15px] font-semibold tracking-tight">New mint request</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="mint-form">
         <CardContent className="space-y-5">

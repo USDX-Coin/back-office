@@ -1,6 +1,5 @@
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -10,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import type { OtcRedeemTransaction } from '@/lib/types'
+import type { Network, OtcRedeemTransaction } from '@/lib/types'
 import { formatRelativeTime } from '@/lib/format'
 import { getOtcStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -20,12 +19,20 @@ interface RecentRedemptionsTableProps {
   isLoading: boolean
 }
 
-const NETWORK_DOT: Record<string, string> = {
-  ethereum: 'bg-slate-400',
-  polygon: 'bg-purple-500',
-  arbitrum: 'bg-blue-500',
-  solana: 'bg-emerald-500',
-  base: 'bg-blue-400',
+const NETWORK_DOT: Record<Network, string> = {
+  ethereum: 'bg-[#627EEA]',
+  polygon: 'bg-[#8247E5]',
+  arbitrum: 'bg-[#28A0F0]',
+  solana: 'bg-[#9945FF]',
+  base: 'bg-[#0052FF]',
+}
+
+const NETWORK_LABEL: Record<Network, string> = {
+  ethereum: 'Ethereum',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  solana: 'Solana',
+  base: 'Base',
 }
 
 function shortHash(hash: string): string {
@@ -42,40 +49,64 @@ async function copyHash(hash: string) {
   }
 }
 
-export default function RecentRedemptionsTable({ items, isLoading }: RecentRedemptionsTableProps) {
+export default function RecentRedemptionsTable({
+  items,
+  isLoading,
+}: RecentRedemptionsTableProps) {
   return (
-    <Card>
+    <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle role="heading" aria-level={3} className="text-sm">
+        <CardTitle
+          role="heading"
+          aria-level={3}
+          className="text-[13px] font-semibold"
+        >
           Recent redemptions
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading && items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Loading…
+          </p>
         ) : items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No redemptions yet.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No redemptions yet.
+          </p>
         ) : (
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Transaction ID</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Network</TableHead>
-                <TableHead>When</TableHead>
-                <TableHead>Status</TableHead>
+              <TableRow className="hover:bg-transparent border-border">
+                <TableHead className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80">
+                  Tx
+                </TableHead>
+                <TableHead className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80">
+                  Amount
+                </TableHead>
+                <TableHead className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80">
+                  Network
+                </TableHead>
+                <TableHead className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80">
+                  When
+                </TableHead>
+                <TableHead className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80">
+                  Status
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.slice(0, 5).map((item) => {
                 const cfg = getOtcStatusConfig(item.status)
                 return (
-                  <TableRow key={item.id}>
-                    <TableCell>
+                  <TableRow
+                    key={item.id}
+                    className="border-border last:border-0 hover:bg-muted/40"
+                  >
+                    <TableCell className="px-4 py-2.5 text-[12.5px]">
                       <button
                         type="button"
                         onClick={() => copyHash(item.txHash)}
-                        className="inline-flex items-center gap-1.5 font-mono text-xs hover:text-primary"
+                        className="inline-flex items-center gap-1.5 font-mono text-[11.5px] text-muted-foreground hover:text-primary"
                         title={item.txHash}
                         aria-label={`Copy ${item.txHash}`}
                       >
@@ -83,27 +114,39 @@ export default function RecentRedemptionsTable({ items, isLoading }: RecentRedem
                         <Copy className="h-3 w-3 opacity-40" />
                       </button>
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {item.amount.toLocaleString()} USDX
+                    <TableCell className="px-4 py-2.5 font-mono font-medium tabular-nums">
+                      {item.amount.toLocaleString()}{' '}
+                      <span className="text-muted-foreground">USDX</span>
                     </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <TableCell className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
                         <span
                           className={cn(
-                            'inline-flex h-1.5 w-1.5 rounded-full',
-                            NETWORK_DOT[item.network] ?? 'bg-slate-400'
+                            'h-1.5 w-1.5 rounded-full',
+                            NETWORK_DOT[item.network]
                           )}
                         />
-                        {item.network.charAt(0).toUpperCase() + item.network.slice(1)}
+                        {NETWORK_LABEL[item.network]}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="px-4 py-2.5 font-mono text-[11.5px] text-muted-foreground">
                       {formatRelativeTime(item.createdAt)}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cfg.className}>
+                    <TableCell className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                          cfg.className
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            cfg.dotClass
+                          )}
+                        />
                         {cfg.label}
-                      </Badge>
+                      </span>
                     </TableCell>
                   </TableRow>
                 )

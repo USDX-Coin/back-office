@@ -1,3 +1,4 @@
+import PageHeader from '@/components/PageHeader'
 import OtcMintForm from './OtcMintForm'
 import OtcMintInfoPanel from './OtcMintInfoPanel'
 import RecentRequestsList from './RecentRequestsList'
@@ -7,14 +8,13 @@ export default function OtcMintPage() {
   const recent = useRecentMints()
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">OTC Minting</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Issue new USDX to a customer's destination wallet. Settlement is
-          asynchronous; pending requests appear on the right.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="OTC Desk"
+        title="Mint"
+        italicAccent="issue USDX"
+        subtitle="Single-shot mint to a customer's destination wallet. Settlement is asynchronous — pending requests appear on the right."
+      />
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8">

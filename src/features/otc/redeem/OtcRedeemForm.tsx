@@ -90,9 +90,9 @@ export default function OtcRedeemForm() {
   }
 
   return (
-    <Card>
+    <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle>New redemption</CardTitle>
+        <CardTitle className="text-[15px] font-semibold tracking-tight">New redemption</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="redeem-form">
         <CardContent className="space-y-5">

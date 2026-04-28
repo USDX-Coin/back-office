@@ -10,10 +10,10 @@ const POINTS = [
 
 export default function OtcMintInfoPanel() {
   return (
-    <Card>
+    <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <ShieldCheck className="h-4 w-4 text-primary" />
+        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold">
+          <ShieldCheck className="h-3.5 w-3.5 text-primary" />
           Minting Protocol
         </CardTitle>
       </CardHeader>
