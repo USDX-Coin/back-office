@@ -1,28 +1,29 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Users as UsersIcon, Activity, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
+import PageHeader from '@/components/PageHeader'
+import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
 import { useCustomers, useCustomerSummary } from './hooks'
 import type { Customer } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
-const ROLE_BADGE: Record<Customer['role'], string> = {
-  admin: 'bg-primary/20 text-primary border-primary/30',
-  editor: 'bg-secondary/40 text-secondary-foreground border-border/30',
-  member: 'bg-muted text-muted-foreground border-border/30',
+const ROLE_PILL: Record<Customer['role'], string> = {
+  admin: 'bg-primary/10 text-primary',
+  editor: 'bg-muted text-foreground',
+  member: 'bg-muted text-muted-foreground',
 }
 
-const TYPE_BADGE: Record<Customer['type'], string> = {
-  personal: 'bg-success/15 text-success border-success/30',
-  organization: 'bg-primary/20 text-primary border-primary/30',
+const TYPE_PILL: Record<Customer['type'], string> = {
+  personal: 'bg-success/10 text-success',
+  organization: 'bg-primary/10 text-primary',
 }
 
 export default function UsersPage() {
@@ -73,10 +74,6 @@ export default function UsersPage() {
     })
   }
 
-  function handleClear() {
-    params.clearAll()
-  }
-
   const columns: ColumnDef<Customer>[] = [
     {
       id: 'name',
@@ -85,7 +82,7 @@ export default function UsersPage() {
         const c = row.original
         const fullName = `${c.firstName} ${c.lastName}`.trim()
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <Avatar name={fullName} size="sm" />
             <span className="font-medium text-foreground">{fullName}</span>
           </div>
@@ -93,23 +90,40 @@ export default function UsersPage() {
       },
     },
     { accessorKey: 'email', header: 'Email' },
-    { accessorKey: 'phone', header: 'Phone' },
+    {
+      accessorKey: 'phone',
+      header: 'Phone',
+      cell: ({ getValue }) => (
+        <span className="font-mono text-[12px] tabular-nums">
+          {getValue() as string}
+        </span>
+      ),
+    },
     {
       accessorKey: 'type',
       header: 'Type',
       cell: ({ getValue }) => {
         const t = getValue() as Customer['type']
         return (
-          <Badge variant="outline" className={TYPE_BADGE[t]}>
+          <span
+            className={cn(
+              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              TYPE_PILL[t]
+            )}
+          >
             {t === 'personal' ? 'Personal' : 'Organization'}
-          </Badge>
+          </span>
         )
       },
     },
     {
       accessorKey: 'organization',
       header: 'Organization',
-      cell: ({ getValue }) => (getValue() as string | undefined) ?? '—',
+      cell: ({ getValue }) => (
+        <span className="text-muted-foreground">
+          {(getValue() as string | undefined) ?? '—'}
+        </span>
+      ),
     },
     {
       accessorKey: 'role',
@@ -117,33 +131,39 @@ export default function UsersPage() {
       cell: ({ getValue }) => {
         const r = getValue() as Customer['role']
         return (
-          <Badge variant="outline" className={ROLE_BADGE[r]}>
+          <span
+            className={cn(
+              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              ROLE_PILL[r]
+            )}
+          >
             {r.charAt(0).toUpperCase() + r.slice(1)}
-          </Badge>
+          </span>
         )
       },
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: '',
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center justify-end gap-0.5">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => openEdit(row.original)}
             aria-label={`Edit ${row.original.firstName}`}
+            className="h-7 w-7"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => openDelete(row.original)}
             aria-label={`Delete ${row.original.firstName}`}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
@@ -153,11 +173,16 @@ export default function UsersPage() {
   const noDataState = (
     <TableEmptyState
       mode="no-data"
-      icon={<UsersIcon className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
+      icon={
+        <UsersIcon
+          className="h-10 w-10 text-muted-foreground/40"
+          strokeWidth={1.5}
+        />
+      }
       title="No users yet"
       description="Add your first customer to get started."
       cta={
-        <Button onClick={openAdd} className="mt-2 bg-primary text-primary-foreground">
+        <Button onClick={openAdd} className="mt-2">
           <Plus className="mr-1.5 h-4 w-4" />
           Add User
         </Button>
@@ -166,35 +191,35 @@ export default function UsersPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Customer directory · {summary.data?.total ?? '…'} total
-          </p>
-        </div>
-        <Button onClick={openAdd}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add User
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="Workspace"
+        title="User"
+        italicAccent="directory"
+        subtitle={`Customer directory · ${summary.data?.total ?? '…'} total`}
+        actions={
+          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Add User
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryCard
-          icon={<UsersIcon className="h-5 w-5 text-primary" />}
-          label="Total Users"
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <SummaryStat
+          label="Total users"
           value={summary.data?.total ?? '…'}
+          hint="all-time"
         />
-        <SummaryCard
-          icon={<Activity className="h-5 w-5 text-success" />}
-          label="Active Now"
+        <SummaryStat
+          label="Active now"
           value={summary.data?.active ?? '…'}
+          hint="last 30 days"
         />
-        <SummaryCard
-          icon={<Building2 className="h-5 w-5 text-warning" />}
+        <SummaryStat
           label="Organizations"
           value={summary.data?.organizations ?? '…'}
+          hint="active orgs"
         />
       </div>
 
@@ -207,7 +232,7 @@ export default function UsersPage() {
           <UserFilterToolbar
             values={{ search, type, role }}
             onChange={handleFilterChange}
-            onClear={handleClear}
+            onClear={params.clearAll}
           />
         }
         hasFilters={Boolean(search || type || role)}
@@ -226,29 +251,5 @@ export default function UsersPage() {
         customer={activeCustomer}
       />
     </div>
-  )
-}
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number | string
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60">
-          {icon}
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
   )
 }

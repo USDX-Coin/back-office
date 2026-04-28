@@ -150,6 +150,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
                 id="staffFirstName"
                 value={form.firstName}
                 onChange={(e) => set('firstName', e.target.value)}
+                placeholder="Marcus"
                 className="mt-1.5"
               />
               <FieldError message={errors.firstName} />
@@ -160,6 +161,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
                 id="staffLastName"
                 value={form.lastName}
                 onChange={(e) => set('lastName', e.target.value)}
+                placeholder="Thorne"
                 className="mt-1.5"
               />
               <FieldError message={errors.lastName} />
@@ -173,6 +175,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
               type="email"
               value={form.email}
               onChange={(e) => set('email', e.target.value)}
+              placeholder="marcus.t@usdx.io"
               className="mt-1.5"
             />
             <FieldError message={errors.email} />
@@ -193,7 +196,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
           <div>
             <Label htmlFor="staffRole">Access role</Label>
             <Select value={form.role} onValueChange={(val) => set('role', val as StaffRole)}>
-              <SelectTrigger id="staffRole" className="mt-1.5 bg-card">
+              <SelectTrigger id="staffRole" className="mt-1.5">
                 <SelectValue placeholder="Choose role" />
               </SelectTrigger>
               <SelectContent>

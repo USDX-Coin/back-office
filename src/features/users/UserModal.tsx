@@ -164,6 +164,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 id="firstName"
                 value={form.firstName}
                 onChange={(e) => set('firstName', e.target.value)}
+                placeholder="Jane"
                 className="mt-1.5"
               />
               <FieldError message={errors.firstName} />
@@ -174,6 +175,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 id="lastName"
                 value={form.lastName}
                 onChange={(e) => set('lastName', e.target.value)}
+                placeholder="Doe"
                 className="mt-1.5"
               />
               <FieldError message={errors.lastName} />
@@ -188,6 +190,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 type="email"
                 value={form.email}
                 onChange={(e) => set('email', e.target.value)}
+                placeholder="jane.doe@example.com"
                 className="mt-1.5"
               />
               <FieldError message={errors.email} />
@@ -212,7 +215,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 value={form.type}
                 onValueChange={(val) => set('type', val as CustomerType)}
               >
-                <SelectTrigger id="type" className="mt-1.5 bg-card">
+                <SelectTrigger id="type" className="mt-1.5">
                   <SelectValue placeholder="Choose type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -229,6 +232,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 value={form.organization}
                 onChange={(e) => set('organization', e.target.value)}
                 disabled={form.type !== 'organization'}
+                placeholder={form.type === 'organization' ? 'Acme Corp' : 'Personal customer'}
                 className={cn(
                   'mt-1.5',
                   form.type !== 'organization' && 'opacity-50'
@@ -250,17 +254,17 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                   key={card.value}
                   htmlFor={`role-${card.value}`}
                   className={cn(
-                    'cursor-pointer rounded-xl border p-3 transition-colors',
+                    'cursor-pointer rounded-md border p-3 transition-colors',
                     form.role === card.value
                       ? 'border-primary bg-primary/5'
-                      : 'border-border/30 hover:bg-muted/60'
+                      : 'border-transparent bg-secondary hover:bg-muted'
                   )}
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value={card.value} id={`role-${card.value}`} />
-                    <span className="text-sm font-medium text-foreground">{card.title}</span>
+                    <span className="text-[13px] font-medium text-foreground">{card.title}</span>
                   </div>
-                  <p className="mt-1 pl-6 text-xs text-muted-foreground">{card.description}</p>
+                  <p className="mt-1 pl-6 text-[11.5px] text-muted-foreground">{card.description}</p>
                 </Label>
               ))}
             </RadioGroup>
