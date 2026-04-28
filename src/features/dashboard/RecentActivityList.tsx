@@ -1,7 +1,7 @@
-import { Badge } from '@/components/ui/badge'
+import { Link } from 'react-router'
+import { ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Avatar from '@/components/Avatar'
-import type { ReportRow } from '@/lib/types'
+import type { Network, ReportRow } from '@/lib/types'
 import { formatRelativeTime } from '@/lib/format'
 import { getOtcStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -10,67 +10,157 @@ interface RecentActivityListProps {
   items: ReportRow[]
 }
 
-const NETWORK_DOT: Record<string, string> = {
-  ethereum: 'bg-slate-400',
-  polygon: 'bg-purple-500',
-  arbitrum: 'bg-blue-500',
-  solana: 'bg-emerald-500',
-  base: 'bg-blue-400',
+const NETWORK_DOT: Record<Network, string> = {
+  ethereum: 'bg-[#627EEA]',
+  polygon: 'bg-[#8247E5]',
+  arbitrum: 'bg-[#28A0F0]',
+  solana: 'bg-[#9945FF]',
+  base: 'bg-[#0052FF]',
 }
 
-const KIND_BADGE: Record<'mint' | 'redeem', string> = {
-  mint: 'bg-primary/15 text-primary border-primary/30',
-  redeem: 'bg-warning/15 text-warning border-warning/30',
+const NETWORK_LABEL: Record<Network, string> = {
+  ethereum: 'Ethereum',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  solana: 'Solana',
+  base: 'Base',
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0]![0]!.toUpperCase()
+  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase()
 }
 
 export default function RecentActivityList({ items }: RecentActivityListProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+    <Card className="rounded-md py-0 gap-0 shadow-none dark:border-0 overflow-hidden">
+      <CardHeader className="px-4 pt-3.5 pb-3 border-b border-border [&]:!gap-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-[13px] font-semibold">
+            Recent activity
+          </CardTitle>
+          <Link
+            to="/report"
+            className="font-mono text-[11.5px] text-muted-foreground hover:text-foreground"
+          >
+            View report →
+          </Link>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {items.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">No activity yet.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No activity yet.
+          </p>
         ) : (
-          <ul className="divide-y divide-border">
-            {items.map((item) => {
-              const statusCfg = getOtcStatusConfig(item.status)
-              return (
-                <li key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <Avatar name={item.customerName} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={cn('text-[10px] uppercase', KIND_BADGE[item.kind])}>
-                        {item.kind}
-                      </Badge>
-                      <span className="truncate text-sm font-medium">{item.customerName}</span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className="border-b border-border">
+                <Th>Customer</Th>
+                <Th>Direction</Th>
+                <Th>Amount</Th>
+                <Th>Network</Th>
+                <Th>Status</Th>
+                <Th className="text-right">When</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const statusCfg = getOtcStatusConfig(item.status)
+                return (
+                  <tr
+                    key={item.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/50"
+                  >
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-6 w-6 place-items-center rounded-md border border-border bg-muted text-[9.5px] font-medium">
+                          {getInitials(item.customerName)}
+                        </span>
+                        <span className="font-medium">{item.customerName}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
                       <span
                         className={cn(
-                          'mr-1.5 inline-block h-1.5 w-1.5 rounded-full',
-                          NETWORK_DOT[item.network] ?? 'bg-slate-400'
+                          'inline-flex items-center gap-1 text-[11.5px]',
+                          item.kind === 'mint'
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
                         )}
-                      />
-                      {item.network.charAt(0).toUpperCase() + item.network.slice(1)} ·{' '}
-                      {item.amount.toLocaleString()} USDX
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge variant="outline" className={cn('text-[10px]', statusCfg.className)}>
-                      {statusCfg.label}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground">
+                      >
+                        {item.kind === 'mint' ? (
+                          <ArrowUp className="h-3 w-3" />
+                        ) : (
+                          <ArrowDown className="h-3 w-3" />
+                        )}
+                        {item.kind === 'mint' ? 'Mint' : 'Redeem'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 font-mono tabular-nums">
+                      {item.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                        <span
+                          className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            NETWORK_DOT[item.network]
+                          )}
+                        />
+                        {NETWORK_LABEL[item.network]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                          statusCfg.className
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'h-1.5 w-1.5 rounded-full',
+                            statusCfg.dotClass
+                          )}
+                        />
+                        {statusCfg.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-[11.5px] text-muted-foreground">
                       {formatRelativeTime(item.createdAt)}
-                    </span>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <th
+      className={cn(
+        'px-4 py-2 text-left font-mono text-[11px] font-medium text-muted-foreground/80',
+        className
+      )}
+    >
+      {children}
+    </th>
   )
 }

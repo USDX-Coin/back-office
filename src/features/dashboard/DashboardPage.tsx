@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { ArrowUpCircle, ArrowDownCircle, Users, Clock } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import PageHeader from '@/components/PageHeader'
 import KpiCard from './KpiCard'
 import RecentActivityList from './RecentActivityList'
 import NetworkDistribution from './NetworkDistribution'
@@ -16,56 +18,97 @@ function formatUSD(value: number): string {
 }
 
 export default function DashboardPage() {
-  const { data, isLoading } = useDashboardSnapshot()
+  const { data, isLoading, refetch } = useDashboardSnapshot()
   const kpis = data?.kpis
 
+  const trail = (data?.volumeTrend ?? []).slice(-12)
+  const mintSpark = trail.map((d) => d.mint)
+  const redeemSpark = trail.map((d) => d.redeem)
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Operations Overview</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Rolling 30-day performance across OTC mint and redeem.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow="Last 30 days"
+        title="Dashboard"
+        italicAccent="overview"
+        subtitle={
+          kpis
+            ? `${kpis.activeUsers.toLocaleString()} active customers · ${kpis.pendingTransactions} pending settlement`
+            : 'Loading…'
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-[12px] font-mono font-normal"
+              disabled
+            >
+              Apr 1 — Apr 28
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => refetch()}
+              aria-label="Refresh"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Total Mint Volume (30d)"
+          label="Mint volume / 30d"
           value={kpis ? formatUSD(kpis.totalMintVolume30d) : '—'}
-          icon={<ArrowUpCircle className="h-5 w-5 text-primary" />}
           trend={kpis?.trends.mintVolume}
-          trendDescription="vs previous 30d"
+          trendDescription="vs prior 30d"
+          sparkline={mintSpark}
         />
         <KpiCard
-          label="Total Redeem Volume (30d)"
+          label="Redeem volume / 30d"
           value={kpis ? formatUSD(kpis.totalRedeemVolume30d) : '—'}
-          icon={<ArrowDownCircle className="h-5 w-5 text-primary" />}
           trend={kpis?.trends.redeemVolume}
-          trendDescription="vs previous 30d"
+          trendDescription="vs prior 30d"
+          sparkline={redeemSpark}
         />
         <KpiCard
-          label="Active Users"
+          label="Active customers"
           value={kpis ? kpis.activeUsers.toLocaleString() : '—'}
-          icon={<Users className="h-5 w-5 text-primary" />}
           trend={kpis?.trends.activeUsers}
-          trendDescription="vs previous period"
+          trendDescription="vs prior period"
         />
         <KpiCard
-          label="Pending Transactions"
+          label="Pending OTC"
           value={kpis ? kpis.pendingTransactions.toLocaleString() : '—'}
-          icon={<Clock className="h-5 w-5 text-warning" />}
           tone="warning"
-          trendDescription={kpis?.pendingTransactions === 0 ? 'Queue clear' : 'Awaiting settlement'}
+          trendDescription={
+            kpis?.pendingTransactions === 0 ? 'Queue clear' : 'Awaiting settlement'
+          }
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-8">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Volume Trend</CardTitle>
+      <div className="mb-6 grid gap-3 lg:grid-cols-3">
+        <Card className="lg:col-span-2 rounded-md py-0 gap-0 shadow-none dark:border-0">
+          <CardHeader className="px-4 pt-3.5 pb-3 border-b border-border [&]:!gap-0">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[13px] font-semibold">
+                Volume trend
+              </CardTitle>
+              <div className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-0.5 w-3 bg-primary" /> Mint
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-0.5 w-3 bg-primary/40" /> Redeem
+                </span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-64">
+          <CardContent className="px-2 py-3">
+            <div className="h-[230px]">
               {isLoading ? (
                 <Skeleton className="h-full w-full" />
               ) : (
@@ -76,9 +119,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <div className="lg:col-span-4">
-          <NetworkDistribution items={data?.networkDistribution ?? []} />
-        </div>
+        <NetworkDistribution items={data?.networkDistribution ?? []} />
       </div>
 
       <RecentActivityList items={data?.recentActivity ?? []} />
