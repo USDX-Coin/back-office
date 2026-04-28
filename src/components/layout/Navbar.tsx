@@ -1,19 +1,18 @@
 import { useLocation } from 'react-router'
 import { Bell, Search, ChevronRight } from 'lucide-react'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import ProfileDropdown from './ProfileDropdown'
 import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 const BREADCRUMB_MAP: Record<string, [string, string]> = {
-  '/dashboard': ['Operations', 'Dashboard'],
-  '/users': ['Directory', 'Users'],
-  '/staff': ['Directory', 'Staff'],
-  '/otc': ['Operations', 'OTC'],
-  '/otc/mint': ['Operations', 'OTC Minting'],
-  '/otc/redeem': ['Operations', 'OTC Redemption'],
-  '/report': ['Insights', 'Transaction Reporting'],
+  '/dashboard': ['Workspace', 'Dashboard'],
+  '/users': ['Workspace', 'User'],
+  '/staff': ['Workspace', 'Staf'],
+  '/otc': ['OTC Desk', 'Overview'],
+  '/otc/mint': ['OTC Desk', 'Mint'],
+  '/otc/redeem': ['OTC Desk', 'Redeem'],
+  '/report': ['Insights', 'Report'],
   '/profile': ['Account', 'Profile'],
 }
 
@@ -30,46 +29,55 @@ export default function Navbar() {
   const segments = buildBreadcrumb(pathname)
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <img src="/image/Logo.svg" alt="USDX" className="h-8 w-8" />
-          <span className="text-lg font-semibold tracking-tight">USDX</span>
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background pl-4 pr-3 lg:pl-5">
+      <div className="flex items-center gap-3 lg:hidden">
+        <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
+          U
         </div>
-        <nav className="hidden md:flex items-center gap-1.5 pl-3 text-sm" aria-label="Breadcrumb">
-          {segments.map((seg, i) => (
-            <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
-              {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />}
-              <span
-                className={cn(
-                  i === segments.length - 1
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground'
-                )}
-              >
-                {seg}
-              </span>
-            </span>
-          ))}
-        </nav>
+        <span className="text-[14px] font-semibold tracking-tight">USDX</span>
       </div>
 
+      <nav
+        className="hidden lg:flex items-center gap-1.5 text-[12.5px]"
+        aria-label="Breadcrumb"
+      >
+        {segments.map((seg, i) => (
+          <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
+            {i > 0 && (
+              <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
+            )}
+            <span
+              className={cn(
+                i === segments.length - 1
+                  ? 'font-medium text-foreground'
+                  : 'text-muted-foreground'
+              )}
+            >
+              {seg}
+            </span>
+          </span>
+        ))}
+      </nav>
+
       <div className="flex items-center gap-1">
-        <div className="relative hidden lg:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search…"
-            className="h-9 w-56 pl-9"
-            aria-label="Search"
-          />
+        <div className="relative hidden lg:flex h-7 w-64 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-[12px] text-muted-foreground/80 hover:border-border/80 transition-colors">
+          <Search className="h-3.5 w-3.5" />
+          <span>Search…</span>
+          <kbd className="ml-auto rounded border border-border px-1 font-mono text-[10px] leading-none py-0.5">
+            ⌘K
+          </kbd>
         </div>
 
         <ThemeToggle />
 
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2 top-2 inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Notifications"
+          className="relative h-8 w-8"
+        >
+          <Bell className="h-3.5 w-3.5" />
+          <span className="absolute right-1.5 top-1.5 inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
           <span className="sr-only">Unread notifications</span>
         </Button>
 

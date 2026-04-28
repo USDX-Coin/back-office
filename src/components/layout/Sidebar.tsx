@@ -1,138 +1,125 @@
-import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { NavLink } from 'react-router'
 import {
   LayoutDashboard,
   Users,
   UserCog,
-  ArrowRightLeft,
+  ArrowUpFromLine,
+  ArrowDownToLine,
   BarChart3,
-  ChevronDown,
-  Coins,
-  Wallet,
-  CircleCheck,
 } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  exact?: boolean
 }
 
-interface NavGroup extends NavItem {
-  children?: NavItem[]
+interface NavSection {
+  label: string
+  items: NavItem[]
 }
 
-const NAV: NavGroup[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/users', label: 'User', icon: Users },
-  { to: '/staff', label: 'Staf', icon: UserCog },
+const SECTIONS: NavSection[] = [
   {
-    to: '/otc',
-    label: 'OTC',
-    icon: ArrowRightLeft,
-    children: [
-      { to: '/otc/mint', label: 'Mint', icon: Coins },
-      { to: '/otc/redeem', label: 'Redeem', icon: Wallet },
+    label: 'Workspace',
+    items: [
+      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/users', label: 'User', icon: Users },
+      { to: '/staff', label: 'Staf', icon: UserCog },
     ],
   },
-  { to: '/report', label: 'Report', icon: BarChart3 },
+  {
+    label: 'OTC Desk',
+    items: [
+      { to: '/otc/mint', label: 'Mint', icon: ArrowUpFromLine },
+      { to: '/otc/redeem', label: 'Redeem', icon: ArrowDownToLine },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
+  },
 ]
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0]![0]!.toUpperCase()
+  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase()
+}
+
+function formatRole(role: string): string {
+  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export default function Sidebar() {
-  const { pathname } = useLocation()
-  const onOtcRoute = pathname.startsWith('/otc')
-  const [manualOpen, setManualOpen] = useState(false)
-  const openOtc = onOtcRoute || manualOpen
+  const { user } = useAuth()
 
   return (
-    <aside className="hidden lg:flex lg:h-full lg:w-64 lg:shrink-0 flex-col border-r border-border bg-muted/40">
-      <nav className="flex flex-1 flex-col gap-0.5 p-4">
-        {NAV.map((item) => {
-          if (item.children) {
-            const groupActive = pathname.startsWith(item.to)
-            const Icon = item.icon
-            return (
-              <div key={item.to}>
-                <button
-                  type="button"
-                  onClick={() => setManualOpen((v) => !v)}
-                  aria-expanded={openOtc}
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    groupActive
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                  )}
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className={cn('h-5 w-5', groupActive && 'text-primary')} />
-                    {item.label}
-                  </span>
-                  <ChevronDown
-                    className={cn('h-4 w-4 transition-transform', openOtc && 'rotate-180')}
-                  />
-                </button>
-                {openOtc && (
-                  <div className="mt-0.5 space-y-0.5">
-                    {item.children.map((child) => (
-                      <SidebarLink key={child.to} {...child} indent />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          }
-          return <SidebarLink key={item.to} {...item} />
-        })}
+    <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
+      <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
+        <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
+          U
+        </div>
+        <div className="flex flex-col leading-tight">
+          <span className="text-[13.5px] font-semibold tracking-tight">USDX</span>
+          <span className="text-[10.5px] text-muted-foreground">
+            Operator console
+          </span>
+        </div>
+      </div>
+
+      <nav className="flex flex-1 flex-col px-2 pb-2 pt-1">
+        {SECTIONS.map((section) => (
+          <div key={section.label} className="flex flex-col">
+            <div className="px-2 pt-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
+              {section.label}
+            </div>
+            {section.items.map((item) => (
+              <SidebarLink key={item.to} {...item} />
+            ))}
+          </div>
+        ))}
       </nav>
 
-      <div className="m-4 rounded-xl bg-card p-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
-          </span>
-          <span className="text-xs font-medium text-foreground">System Status</span>
+      {user && (
+        <div className="border-t border-border px-2 py-2">
+          <div className="flex items-center gap-2.5 px-2 py-1.5">
+            <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
+              {getInitials(user.displayName)}
+            </div>
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate text-[12.5px] font-medium">
+                {user.displayName}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {formatRole(user.role)}
+              </span>
+            </div>
+          </div>
         </div>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <CircleCheck className="h-3 w-3 text-success" />
-          Node operational
-        </p>
-      </div>
+      )}
     </aside>
   )
 }
 
-function SidebarLink({
-  to,
-  label,
-  icon: Icon,
-  indent,
-}: NavItem & { indent?: boolean }) {
+function SidebarLink({ to, label, icon: Icon }: NavItem) {
   return (
     <NavLink
       to={to}
       className={({ isActive }) =>
         cn(
-          'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-          indent && 'pl-10',
+          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors',
           isActive
-            ? 'bg-primary/15 text-foreground'
+            ? 'bg-muted text-foreground'
             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
         )
       }
     >
-      {({ isActive }) => (
-        <>
-          {isActive && !indent && (
-            <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
-          )}
-          <Icon className={cn('h-5 w-5', isActive && 'text-primary')} />
-          {label}
-        </>
-      )}
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
     </NavLink>
   )
 }

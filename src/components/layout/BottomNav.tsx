@@ -18,7 +18,7 @@ export default function BottomNav() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-stretch border-t border-border bg-card lg:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-14 items-stretch border-t border-border bg-background lg:hidden"
         aria-label="Mobile navigation"
       >
         {NAV.map((item) => {
@@ -32,11 +32,11 @@ export default function BottomNav() {
               key={item.to}
               to={item.to}
               className={cn(
-                'flex flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors',
+                'flex flex-1 flex-col items-center justify-center gap-1 text-[10.5px] font-medium tracking-tight transition-colors',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4" strokeWidth={1.75} />
               {item.label}
             </NavLink>
           )
@@ -45,12 +45,12 @@ export default function BottomNav() {
           type="button"
           onClick={() => setMoreOpen(true)}
           className={cn(
-            'flex flex-1 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors',
+            'flex flex-1 flex-col items-center justify-center gap-1 text-[10.5px] font-medium tracking-tight transition-colors',
             moreActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
           )}
           aria-label="More menu"
         >
-          <MoreHorizontal className="h-5 w-5" />
+          <MoreHorizontal className="h-4 w-4" strokeWidth={1.75} />
           More
         </button>
       </nav>
