@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -9,7 +11,14 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import {
   Select,
   SelectContent,
@@ -17,8 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import FieldError from '@/components/FieldError'
-import { validateStaffForm } from '@/lib/validators'
+import { staffSchema, type StaffFormValues } from '@/lib/schemas'
 import type { Staff, StaffRole } from '@/lib/types'
 import { useCreateStaff, useUpdateStaff } from './hooks'
 
@@ -29,20 +37,12 @@ interface StaffModalProps {
   staff?: Staff | null
 }
 
-interface FormState {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  role: StaffRole | ''
-}
-
-const EMPTY: FormState = {
+const EMPTY: StaffFormValues = {
   firstName: '',
   lastName: '',
   email: '',
   phone: '',
-  role: '',
+  role: 'support',
 }
 
 const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
@@ -52,65 +52,46 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: 'super_admin', label: 'Super Admin' },
 ]
 
-export default function StaffModal({ open, onOpenChange, mode, staff }: StaffModalProps) {
+export default function StaffModal({
+  open,
+  onOpenChange,
+  mode,
+  staff,
+}: StaffModalProps) {
   const create = useCreateStaff()
   const update = useUpdateStaff()
   const isPending = create.isPending || update.isPending
 
-  const [form, setForm] = useState<FormState>(EMPTY)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const form = useForm<StaffFormValues>({
+    resolver: zodResolver(staffSchema),
+    mode: 'onTouched',
+    defaultValues: EMPTY,
+  })
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  // Reset form state when dialog opens — intentional pattern.
   useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && staff) {
-        setForm({
-          firstName: staff.firstName,
-          lastName: staff.lastName,
-          email: staff.email,
-          phone: staff.phone,
-          role: staff.role,
-        })
-      } else {
-        setForm(EMPTY)
-      }
-      setErrors({})
-    }
-  }, [open, mode, staff])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    if (errors[key as string]) {
-      setErrors((prev) => {
-        const next = { ...prev }
-        delete next[key as string]
-        return next
+    if (!open) return
+    if (mode === 'edit' && staff) {
+      form.reset({
+        firstName: staff.firstName,
+        lastName: staff.lastName,
+        email: staff.email,
+        phone: staff.phone,
+        role: staff.role,
       })
+    } else {
+      form.reset(EMPTY)
     }
-  }
+    // form.reset is stable; ignore for deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, staff])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const v = validateStaffForm(form)
-    if (!v.valid) {
-      setErrors(v.errors)
-      return
-    }
-    const payload = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      role: form.role as StaffRole,
-    }
+  async function onSubmit(values: StaffFormValues) {
     try {
       if (mode === 'add') {
-        await create.mutateAsync(payload)
-        toast.success(`Invitation sent to ${form.email}`)
+        await create.mutateAsync(values)
+        toast.success(`Invitation sent to ${values.email}`)
       } else if (staff) {
-        await update.mutateAsync({ id: staff.id, patch: payload })
+        await update.mutateAsync({ id: staff.id, patch: values })
         toast.success('Staff updated')
       }
       onOpenChange(false)
@@ -142,95 +123,116 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="staffFirstName">First name</Label>
-              <Input
-                id="staffFirstName"
-                value={form.firstName}
-                onChange={(e) => set('firstName', e.target.value)}
-                placeholder="Marcus"
-                className="mt-1.5"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>First name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Marcus" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <FieldError message={errors.firstName} />
-            </div>
-            <div>
-              <Label htmlFor="staffLastName">Last name</Label>
-              <Input
-                id="staffLastName"
-                value={form.lastName}
-                onChange={(e) => set('lastName', e.target.value)}
-                placeholder="Thorne"
-                className="mt-1.5"
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Thorne" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <FieldError message={errors.lastName} />
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="staffEmail">Work email</Label>
-            <Input
-              id="staffEmail"
-              type="email"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              placeholder="marcus.t@usdx.io"
-              className="mt-1.5"
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Work email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="marcus.t@usdx.io"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <FieldError message={errors.email} />
-          </div>
 
-          <div>
-            <Label htmlFor="staffPhone">Phone</Label>
-            <Input
-              id="staffPhone"
-              value={form.phone}
-              placeholder="+1 415 555 0123"
-              onChange={(e) => set('phone', e.target.value)}
-              className="mt-1.5"
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+1 415 555 0123" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <FieldError message={errors.phone} />
-          </div>
 
-          <div>
-            <Label htmlFor="staffRole">Access role</Label>
-            <Select value={form.role} onValueChange={(val) => set('role', val as StaffRole)}>
-              <SelectTrigger id="staffRole" className="mt-1.5">
-                <SelectValue placeholder="Choose role" />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.role} />
-          </div>
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Access role</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose role" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-            >
-              {isPending
-                ? 'Sending…'
-                : mode === 'add'
-                ? 'Send invitation'
-                : 'Save changes'}
-            </Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending
+                  ? 'Sending…'
+                  : mode === 'add'
+                    ? 'Send invitation'
+                    : 'Save changes'}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
