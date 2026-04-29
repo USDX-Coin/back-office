@@ -12,7 +12,7 @@ import ReportInsightsBento from './ReportInsightsBento'
 import { useReport, useReportInsights, fetchAllReportRows } from './hooks'
 import { exportToCsv } from '@/lib/csv'
 import { formatShortDate } from '@/lib/format'
-import { getOtcStatusConfig } from '@/lib/status'
+import { StatusPill } from '@/components/StatusPill'
 import type { Customer, Network, ReportRow } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -224,18 +224,7 @@ export default function ReportPage() {
       header: 'Status',
       cell: ({ getValue }) => {
         const s = getValue() as ReportRow['status']
-        const cfg = getOtcStatusConfig(s)
-        return (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              cfg.className
-            )}
-          >
-            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
-            {cfg.label}
-          </span>
-        )
+        return <StatusPill status={s} appearance="soft" />
       },
     },
   ]

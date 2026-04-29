@@ -13,7 +13,7 @@ import StaffDeleteDialog from './StaffDeleteDialog'
 import StaffFilterToolbar, { type StaffFilterValues } from './StaffFilterToolbar'
 import { useStaff, useStaffSummary } from './hooks'
 import type { Staff } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
 const ROLE_LABEL: Record<Staff['role'], string> = {
   support: 'Support Agent',
@@ -22,11 +22,11 @@ const ROLE_LABEL: Record<Staff['role'], string> = {
   super_admin: 'Super Admin',
 }
 
-const ROLE_PILL: Record<Staff['role'], string> = {
-  support: 'bg-muted text-muted-foreground',
-  operations: 'bg-muted text-foreground',
-  compliance: 'bg-warning/10 text-warning',
-  super_admin: 'bg-primary/10 text-primary',
+const ROLE_TONE: Record<Staff['role'], StatusTone> = {
+  support: 'neutral',
+  operations: 'neutral',
+  compliance: 'warning',
+  super_admin: 'info',
 }
 
 export default function StaffPage() {
@@ -104,14 +104,11 @@ export default function StaffPage() {
       cell: ({ getValue }) => {
         const r = getValue() as Staff['role']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {ROLE_LABEL[r]}
-          </span>
+          <StatusPill
+            label={ROLE_LABEL[r]}
+            tone={ROLE_TONE[r]}
+            appearance="soft"
+          />
         )
       },
     },

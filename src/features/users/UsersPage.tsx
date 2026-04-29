@@ -13,17 +13,17 @@ import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
 import { useCustomers, useCustomerSummary } from './hooks'
 import type { Customer } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
-const ROLE_PILL: Record<Customer['role'], string> = {
-  admin: 'bg-primary/10 text-primary',
-  editor: 'bg-muted text-foreground',
-  member: 'bg-muted text-muted-foreground',
+const ROLE_TONE: Record<Customer['role'], StatusTone> = {
+  admin: 'info',
+  editor: 'neutral',
+  member: 'neutral',
 }
 
-const TYPE_PILL: Record<Customer['type'], string> = {
-  personal: 'bg-success/10 text-success',
-  organization: 'bg-primary/10 text-primary',
+const TYPE_TONE: Record<Customer['type'], StatusTone> = {
+  personal: 'success',
+  organization: 'info',
 }
 
 export default function UsersPage() {
@@ -105,14 +105,11 @@ export default function UsersPage() {
       cell: ({ getValue }) => {
         const t = getValue() as Customer['type']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              TYPE_PILL[t]
-            )}
-          >
-            {t === 'personal' ? 'Personal' : 'Organization'}
-          </span>
+          <StatusPill
+            label={t === 'personal' ? 'Personal' : 'Organization'}
+            tone={TYPE_TONE[t]}
+            appearance="soft"
+          />
         )
       },
     },
@@ -131,14 +128,11 @@ export default function UsersPage() {
       cell: ({ getValue }) => {
         const r = getValue() as Customer['role']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {r.charAt(0).toUpperCase() + r.slice(1)}
-          </span>
+          <StatusPill
+            label={r.charAt(0).toUpperCase() + r.slice(1)}
+            tone={ROLE_TONE[r]}
+            appearance="soft"
+          />
         )
       },
     },

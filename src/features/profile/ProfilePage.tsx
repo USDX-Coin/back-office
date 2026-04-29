@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusPill } from '@/components/StatusPill'
 import PersonalDetailsForm from './PersonalDetailsForm'
 import SecurityAccessSection from './SecurityAccessSection'
 import RecentActivityTimeline from './RecentActivityTimeline'
@@ -61,9 +62,12 @@ export default function ProfilePage() {
               <h2 className="mt-4 text-[18px] font-semibold tracking-tight">
                 {staff.displayName}
               </h2>
-              <span className="mt-2 inline-flex rounded-sm bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">
-                {ROLE_LABEL[staff.role] ?? staff.role}
-              </span>
+              <StatusPill
+                label={ROLE_LABEL[staff.role] ?? staff.role}
+                tone="info"
+                appearance="soft"
+                className="mt-2"
+              />
             </CardContent>
           </Card>
 
