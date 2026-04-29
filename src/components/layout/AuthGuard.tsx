@@ -15,7 +15,7 @@ export function PublicRoute() {
   const { isAuthenticated } = useAuth()
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/user/internal" replace />
   }
 
   return <Outlet />

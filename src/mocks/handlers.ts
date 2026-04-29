@@ -337,12 +337,12 @@ export const handlers = [
     const status = url.searchParams.get('status')
     const customerId = url.searchParams.get('customerId')
     const search = url.searchParams.get('search')?.toLowerCase()
-    const startDate = url.searchParams.get('startDate')
-    const endDate = url.searchParams.get('endDate')
+    const network = url.searchParams.get('network')
 
     let rows = computeReportRows(otcMintStore, otcRedeemStore)
     if (type === 'mint' || type === 'redeem') rows = rows.filter((r) => r.kind === type)
     if (status) rows = rows.filter((r) => r.status === status)
+    if (network) rows = rows.filter((r) => r.network === network)
     if (customerId) rows = rows.filter((r) => r.customerId === customerId)
     if (search) {
       rows = rows.filter(
@@ -351,8 +351,7 @@ export const handlers = [
           r.customerName.toLowerCase().includes(search)
       )
     }
-    if (startDate) rows = rows.filter((r) => r.createdAt >= startDate)
-    if (endDate) rows = rows.filter((r) => r.createdAt <= endDate)
+    rows = applyCommonFilters(rows, url.searchParams)
 
     return HttpResponse.json(paginate(rows, page, pageSize))
   }),

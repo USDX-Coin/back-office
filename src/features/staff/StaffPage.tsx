@@ -6,14 +6,13 @@ import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import StaffModal from './StaffModal'
 import StaffDeleteDialog from './StaffDeleteDialog'
 import StaffFilterToolbar, { type StaffFilterValues } from './StaffFilterToolbar'
-import { useStaff, useStaffSummary } from './hooks'
+import { useStaff } from './hooks'
 import type { Staff } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
 const ROLE_LABEL: Record<Staff['role'], string> = {
   support: 'Support Agent',
@@ -22,11 +21,11 @@ const ROLE_LABEL: Record<Staff['role'], string> = {
   super_admin: 'Super Admin',
 }
 
-const ROLE_PILL: Record<Staff['role'], string> = {
-  support: 'bg-muted text-muted-foreground',
-  operations: 'bg-muted text-foreground',
-  compliance: 'bg-warning/10 text-warning',
-  super_admin: 'bg-primary/10 text-primary',
+const ROLE_TONE: Record<Staff['role'], StatusTone> = {
+  support: 'neutral',
+  operations: 'neutral',
+  compliance: 'warning',
+  super_admin: 'info',
 }
 
 export default function StaffPage() {
@@ -42,7 +41,6 @@ export default function StaffPage() {
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
   })
-  const summary = useStaffSummary()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
@@ -88,7 +86,11 @@ export default function StaffPage() {
         )
       },
     },
-    { accessorKey: 'email', header: 'Email' },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      meta: { filterType: 'text' },
+    },
     {
       accessorKey: 'phone',
       header: 'Phone',
@@ -97,21 +99,28 @@ export default function StaffPage() {
           {getValue() as string}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'role',
       header: 'Role',
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'support', label: 'Support Agent' },
+          { value: 'operations', label: 'Operations Manager' },
+          { value: 'compliance', label: 'Compliance Officer' },
+          { value: 'super_admin', label: 'Super Admin' },
+        ],
+      },
       cell: ({ getValue }) => {
         const r = getValue() as Staff['role']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {ROLE_LABEL[r]}
-          </span>
+          <StatusPill
+            label={ROLE_LABEL[r]}
+            tone={ROLE_TONE[r]}
+            appearance="soft"
+          />
         )
       },
     },
@@ -166,35 +175,14 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="Staf"
-        italicAccent="directory"
-        subtitle={`Internal team directory · ${summary.data?.total ?? '…'} members`}
+        title="Internal"
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+          <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Add Staff
           </Button>
         }
       />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total staff"
-          value={summary.data?.total ?? '…'}
-          hint="all roles"
-        />
-        <SummaryStat
-          label="Admins"
-          value={summary.data?.admins ?? '…'}
-          hint="super admins"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.activeNow ?? '…'}
-          hint="last 30 days"
-        />
-      </div>
 
       <DataTable
         columns={columns}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -44,6 +44,20 @@ export default function ReportFilterToolbar({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setSearchInput(values.search), [values.search])
 
+  // Debounce push of searchInput to parent (URL) for live filtering.
+  const debounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (searchInput === values.search) return
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      onChange({ ...values, search: searchInput })
+    }, 250)
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
+
   const hasFilters = Boolean(
     values.startDate ||
       values.endDate ||
@@ -52,11 +66,6 @@ export default function ReportFilterToolbar({
       values.customer ||
       values.search
   )
-
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault()
-    onChange({ ...values, search: searchInput })
-  }
 
   return (
     <div className="space-y-3">
@@ -101,7 +110,7 @@ export default function ReportFilterToolbar({
           />
         </div>
 
-        <form onSubmit={submitSearch} className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
@@ -110,7 +119,7 @@ export default function ReportFilterToolbar({
             className="pl-9 bg-card"
             aria-label="Search transactions"
           />
-        </form>
+        </div>
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={onClear}>

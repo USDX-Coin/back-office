@@ -16,8 +16,12 @@ describe('ReportPage', () => {
   describe('positive', () => {
     test('should render header + filter toolbar + Export CSV', () => {
       renderWithProviders(<ReportPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /transaction reporting/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: /^report$/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /export csv/i }),
+      ).toBeInTheDocument()
       expect(screen.getByLabelText(/start date/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/end date/i)).toBeInTheDocument()
     })
@@ -34,12 +38,8 @@ describe('ReportPage', () => {
       }, { timeout: 3000 })
     })
 
-    test('should render Report Insights bento (Total Volume / Active Minters / Flagged)', async () => {
-      renderWithProviders(<ReportPage />, { authenticated: true })
-      expect(screen.getByText(/total volume/i)).toBeInTheDocument()
-      expect(screen.getByText(/active minters/i)).toBeInTheDocument()
-      expect(screen.getByText(/flagged transactions/i)).toBeInTheDocument()
-    })
+    // ReportInsightsBento was removed in the page-header simplification
+    // (commit b359284). The page now renders title + table directly.
   })
 
   describe('regression guards', () => {

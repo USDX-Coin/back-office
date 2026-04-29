@@ -3,8 +3,8 @@ import { ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Network, ReportRow } from '@/lib/types'
 import { formatRelativeTime } from '@/lib/format'
-import { getOtcStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
+import { StatusPill } from '@/components/StatusPill'
 
 interface RecentActivityListProps {
   items: ReportRow[]
@@ -68,7 +68,6 @@ export default function RecentActivityList({ items }: RecentActivityListProps) {
             </thead>
             <tbody>
               {items.map((item) => {
-                const statusCfg = getOtcStatusConfig(item.status)
                 return (
                   <tr
                     key={item.id}
@@ -117,20 +116,7 @@ export default function RecentActivityList({ items }: RecentActivityListProps) {
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-                          statusCfg.className
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'h-1.5 w-1.5 rounded-full',
-                            statusCfg.dotClass
-                          )}
-                        />
-                        {statusCfg.label}
-                      </span>
+                      <StatusPill status={item.status} appearance="soft" />
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-[11.5px] text-muted-foreground">
                       {formatRelativeTime(item.createdAt)}

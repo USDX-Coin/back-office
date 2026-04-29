@@ -1,10 +1,25 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import {
   Select,
   SelectContent,
@@ -12,9 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import FieldError from '@/components/FieldError'
 import CustomerTypeahead from '@/components/CustomerTypeahead'
-import { validateOtcRedeemForm } from '@/lib/validators'
+import { buildOtcRedeemSchema, type OtcRedeemFormValues } from '@/lib/schemas'
 import type { Customer, Network } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
 import { useCreateRedeem } from './hooks'
@@ -28,62 +42,42 @@ const NETWORKS: { value: Network; label: string }[] = [
   { value: 'base', label: 'Base' },
 ]
 
-interface FormState {
-  customer: Customer | null
-  network: Network | ''
-  amount: string
-}
-
-const EMPTY: FormState = { customer: null, network: '', amount: '' }
+const redeemSchema = buildOtcRedeemSchema(AVAILABLE_BALANCE)
 
 export default function OtcRedeemForm() {
   const { user } = useAuth()
   const create = useCreateRedeem()
-  const [form, setForm] = useState<FormState>(EMPTY)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [customer, setCustomer] = useState<Customer | null>(null)
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    if (errors[key as string]) {
-      setErrors((prev) => {
-        const next = { ...prev }
-        delete next[key as string]
-        return next
-      })
-    }
-  }
+  const form = useForm<OtcRedeemFormValues>({
+    resolver: zodResolver(redeemSchema),
+    mode: 'onTouched',
+    defaultValues: {
+      customerId: '',
+      network: '' as Network,
+      amount: 0,
+    },
+  })
 
   function handleMax() {
-    set('amount', String(AVAILABLE_BALANCE))
+    form.setValue('amount', AVAILABLE_BALANCE, { shouldValidate: true })
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const validation = validateOtcRedeemForm({
-      amount: form.amount === '' ? '' : Number(form.amount),
-      network: form.network,
-      availableBalance: AVAILABLE_BALANCE,
-    })
-    const customerErr = form.customer ? null : 'Customer is required'
-    const combinedErrors = { ...validation.errors, ...(customerErr ? { customerId: customerErr } : {}) }
-    if (!validation.valid || customerErr) {
-      setErrors(combinedErrors)
-      return
-    }
+  async function onSubmit(values: OtcRedeemFormValues) {
     if (!user) {
       toast.error('Not authenticated')
       return
     }
     try {
       await create.mutateAsync({
-        customerId: form.customer!.id,
+        customerId: values.customerId,
         operatorStaffId: user.id,
-        network: form.network as Network,
-        amount: Number(form.amount),
+        network: values.network,
+        amount: values.amount,
       })
       toast.success('Redemption submitted')
-      setForm(EMPTY)
-      setErrors({})
+      form.reset()
+      setCustomer(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Submission failed')
     }
@@ -92,89 +86,136 @@ export default function OtcRedeemForm() {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">New redemption</CardTitle>
+        <CardTitle className="text-[15px] font-semibold tracking-tight">
+          New redemption
+        </CardTitle>
       </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="redeem-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label>Customer</Label>
-            <CustomerTypeahead
-              value={form.customer}
-              onSelect={(c) => set('customer', c)}
-              placeholder="Search customer requesting redemption…"
+      <Form {...form}>
+        <form
+          id="redeem-form"
+          onSubmit={form.handleSubmit(onSubmit)}
+          noValidate
+        >
+          <CardContent className="space-y-5">
+            <FormField
+              control={form.control}
+              name="customerId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Customer</FormLabel>
+                  <FormControl>
+                    <CustomerTypeahead
+                      value={customer}
+                      onSelect={(c) => {
+                        setCustomer(c)
+                        field.onChange(c?.id ?? '')
+                      }}
+                      placeholder="Search customer requesting redemption…"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <FieldError message={errors.customerId} />
-          </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="redeemAmount">Amount to redeem</Label>
-              <button
-                type="button"
-                onClick={handleMax}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                MAX
-              </button>
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Amount to redeem</FormLabel>
+                    <button
+                      type="button"
+                      onClick={handleMax}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        className="pr-16"
+                        value={field.value || ''}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value === ''
+                              ? 0
+                              : Number(e.target.value),
+                          )
+                        }
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      USDX
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Available: {AVAILABLE_BALANCE.toLocaleString()} USDX
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="network"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Destination network</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose network" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {NETWORKS.map((n) => (
+                        <SelectItem key={n.value} value={n.value}>
+                          {n.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex gap-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-muted-foreground">
+                Redemptions settle to the Institutional Treasury Vault.
+                Destination wallets must be pre-whitelisted per compliance
+                policy.
+              </p>
             </div>
-            <div className="relative">
-              <Input
-                id="redeemAmount"
-                type="number"
-                step="any"
-                min="0"
-                value={form.amount}
-                onChange={(e) => set('amount', e.target.value)}
-                placeholder="0"
-                className="pr-16"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                USDX
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Available: {AVAILABLE_BALANCE.toLocaleString()} USDX
-            </p>
-            <FieldError message={errors.amount} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="redeemNetwork">Destination network</Label>
-            <Select value={form.network} onValueChange={(val) => set('network', val as Network)}>
-              <SelectTrigger id="redeemNetwork">
-                <SelectValue placeholder="Choose network" />
-              </SelectTrigger>
-              <SelectContent>
-                {NETWORKS.map((n) => (
-                  <SelectItem key={n.value} value={n.value}>
-                    {n.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.network} />
-          </div>
-
-          <div className="flex gap-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-            <p className="text-muted-foreground">
-              Redemptions settle to the Institutional Treasury Vault. Destination wallets
-              must be pre-whitelisted per compliance policy.
-            </p>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button
-            type="submit"
-            form="redeem-form"
-            disabled={create.isPending}
-            aria-busy={create.isPending}
-            className="w-full"
-          >
-            {create.isPending ? 'Submitting…' : 'Submit redemption'}
-          </Button>
-        </CardFooter>
-      </form>
+          </CardContent>
+          <CardFooter>
+            <Button
+              type="submit"
+              form="redeem-form"
+              disabled={create.isPending}
+              aria-busy={create.isPending}
+              className="w-full"
+            >
+              {create.isPending ? 'Submitting…' : 'Submit redemption'}
+            </Button>
+          </CardFooter>
+        </form>
+      </Form>
     </Card>
   )
 }

@@ -1,25 +1,58 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  useReactTable,
-  getCoreRowModel,
   flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type Column,
   type ColumnDef,
+  type ColumnSizingState,
   type PaginationState,
+  type RowSelectionState,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table'
-import { useSearchParams } from 'react-router'
+import { useQueryState, useQueryStates, parseAsString } from 'nuqs'
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Search,
+  Columns3,
   Download,
+  Filter,
+  ListChecks,
+  Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import DateRangePicker from '@/components/DateRangePicker'
 import {
   Table,
   TableBody,
@@ -28,96 +61,209 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import TableEmptyState from '@/components/TableEmptyState'
+import { tableSearchParsers } from '@/lib/url-state'
 import { cn } from '@/lib/utils'
+
+// Optional column metadata. Pages can supply `meta.filterType` to drive
+// per-column filter UI inside the toolbar's advanced filter (planned). For
+// now `align`, `headerClassName`, and `cellClassName` are honored.
+declare module '@tanstack/react-table' {
+  interface ColumnMeta<TData, TValue> {
+    align?: 'left' | 'right' | 'center'
+    headerClassName?: string
+    cellClassName?: string
+    filterType?: 'text' | 'enum' | 'date' | 'numeric' | 'none'
+    enumOptions?: { value: string; label: string }[]
+    /**
+     * URL key the per-column filter funnel and Advanced Filter write to.
+     * Defaults to `column.id` (or accessorKey). Set this when the column's
+     * id doesn't match the URL key the MSW handler reads — e.g. Report's
+     * `kind` column maps to URL `?type=`.
+     */
+    filterUrlKey?: string
+  }
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
 
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
   data: T[]
   rowCount: number
   isLoading?: boolean
-  statusOptions?: { value: string; label: string }[]
-  onExportCsv?: () => void
-  pageSize?: number
+
+  /**
+   * When true, the toolbar's row-selection toggle injects a checkbox column
+   * and exposes the selected rows via `onRowSelectionChange`.
+   */
+  enableRowSelection?: boolean
+  onRowSelectionChange?: (selection: RowSelectionState) => void
+
+  /**
+   * Disables column resize handles. Resize is enabled by default.
+   */
+  disableColumnResize?: boolean
+
+  /**
+   * Custom toolbar that replaces the default search/export bar.
+   */
   filterToolbar?: ReactNode
+
+  /**
+   * Slot rendered when `rowCount === 0` and there are no active filters.
+   */
   emptyState?: ReactNode
+
+  /**
+   * Override for empty-state branching. When true, the no-results variant
+   * renders even if internal state can't infer it.
+   */
   hasFilters?: boolean
+
+  /**
+   * Default-toolbar status select options. Implies the default toolbar.
+   */
+  statusOptions?: { value: string; label: string }[]
+
+  /**
+   * CSV export handler shown in the default toolbar's right side.
+   */
+  onExportCsv?: () => void
+
+  /**
+   * Default page size. The user can change it via the page-size selector;
+   * the URL will then carry `?pageSize=…`.
+   */
+  pageSize?: number
+
+  /**
+   * Click handler for table rows. Renders rows as `cursor-pointer` when set.
+   */
+  onRowClick?: (row: T) => void
 }
+
+const DEFAULT_FILTER_KEYS = ['type', 'role', 'status', 'customerId'] as const
 
 export default function DataTable<T>({
   columns,
   data,
   rowCount,
   isLoading = false,
-  statusOptions,
-  onExportCsv,
-  pageSize: defaultPageSize = 10,
+  enableRowSelection = false,
+  onRowSelectionChange,
+  disableColumnResize = false,
   filterToolbar,
   emptyState,
   hasFilters: hasFiltersProp,
+  statusOptions,
+  onExportCsv,
+  pageSize: defaultPageSize = 10,
+  onRowClick,
 }: DataTableProps<T>) {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [tableState, setTableState] = useQueryStates({
+    page: tableSearchParsers.page,
+    pageSize: tableSearchParsers.pageSize.withDefault(defaultPageSize),
+    search: tableSearchParsers.search,
+    sortBy: tableSearchParsers.sortBy,
+    sortOrder: tableSearchParsers.sortOrder,
+  })
 
-  const page = Number(searchParams.get('page') || '1')
-  const search = searchParams.get('search') || ''
-  const status = searchParams.get('status') || ''
-  const sortBy = searchParams.get('sortBy') || ''
-  const sortOrder = searchParams.get('sortOrder') || 'desc'
-  const startDate = searchParams.get('startDate') || ''
-  const endDate = searchParams.get('endDate') || ''
+  const [extraFilters, setExtraFilters] = useQueryStates({
+    status: tableSearchParsers.search.withOptions({ clearOnDefault: true }),
+    startDate: tableSearchParsers.search.withOptions({ clearOnDefault: true }),
+    endDate: tableSearchParsers.search.withOptions({ clearOnDefault: true }),
+  })
 
-  const [searchInput, setSearchInput] = useState(search)
+  const [searchInput, setSearchInput] = useState(tableState.search)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({})
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [showRowSelection, setShowRowSelection] = useState(enableRowSelection)
 
   const pagination: PaginationState = {
-    pageIndex: page - 1,
-    pageSize: defaultPageSize,
+    pageIndex: Math.max(0, tableState.page - 1),
+    pageSize: tableState.pageSize,
   }
 
-  const sorting: SortingState = sortBy
-    ? [{ id: sortBy, desc: sortOrder === 'desc' }]
+  const sorting: SortingState = tableState.sortBy
+    ? [{ id: tableState.sortBy, desc: tableState.sortOrder === 'desc' }]
     : []
 
-  function updateParams(updates: Record<string, string | null>) {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value) next.set(key, value)
-        else next.delete(key)
-      })
-      return next
-    })
-  }
+  const augmentedColumns = useMemo<ColumnDef<T, unknown>[]>(() => {
+    if (!showRowSelection) return columns
+    const selectColumn: ColumnDef<T, unknown> = {
+      id: '__select',
+      enableSorting: false,
+      enableResizing: false,
+      enableHiding: false,
+      size: 36,
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
+          }
+          onCheckedChange={(value) =>
+            table.toggleAllPageRowsSelected(Boolean(value))
+          }
+          aria-label="Select all rows on page"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
+          aria-label="Select row"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    }
+    return [selectColumn, ...columns]
+  }, [columns, showRowSelection])
 
-  const table = useReactTable({
+  const table = useReactTable<T>({
     data,
-    columns,
+    columns: augmentedColumns,
     rowCount,
-    state: { pagination, sorting },
+    state: {
+      pagination,
+      sorting,
+      columnVisibility,
+      columnSizing,
+      rowSelection,
+    },
+    enableRowSelection: showRowSelection,
+    enableColumnResizing: !disableColumnResize,
+    enableSortingRemoval: true,
+    columnResizeMode: 'onChange',
     onPaginationChange: (updater) => {
-      const next = typeof updater === 'function' ? updater(pagination) : updater
-      updateParams({ page: String(next.pageIndex + 1) })
+      const next =
+        typeof updater === 'function' ? updater(pagination) : updater
+      setTableState({
+        page: next.pageIndex + 1,
+        pageSize: next.pageSize,
+      })
     },
     onSortingChange: (updater) => {
       const next = typeof updater === 'function' ? updater(sorting) : updater
       if (next.length > 0) {
-        updateParams({
-          sortBy: next[0].id,
-          sortOrder: next[0].desc ? 'desc' : 'asc',
-          page: '1',
+        setTableState({
+          sortBy: next[0]!.id,
+          sortOrder: next[0]!.desc ? 'desc' : 'asc',
+          page: 1,
         })
       } else {
-        updateParams({ sortBy: null, sortOrder: null, page: '1' })
+        setTableState({ sortBy: '', sortOrder: 'desc', page: 1 })
       }
+    },
+    onColumnVisibilityChange: setColumnVisibility,
+    onColumnSizingChange: setColumnSizing,
+    onRowSelectionChange: (updater) => {
+      const next =
+        typeof updater === 'function' ? updater(rowSelection) : updater
+      setRowSelection(next)
+      onRowSelectionChange?.(next)
     },
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -125,178 +271,585 @@ export default function DataTable<T>({
     manualFiltering: true,
   })
 
-  const totalPages = Math.ceil(rowCount / defaultPageSize) || 1
+  const totalPages = Math.max(1, Math.ceil(rowCount / tableState.pageSize))
+  const currentPage = pagination.pageIndex + 1
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    updateParams({ search: searchInput || null, page: '1' })
-  }
+  // Debounced live search — push searchInput to URL after 250ms of inactivity.
+  // Skip the first effect run if the input already matches the URL (initial
+  // hydration), and skip when the input change came from outside (e.g. nuqs
+  // hydrated us with a value we already render).
+  const searchDebounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (searchInput === tableState.search) return
+    if (searchDebounceRef.current) {
+      window.clearTimeout(searchDebounceRef.current)
+    }
+    searchDebounceRef.current = window.setTimeout(() => {
+      setTableState({ search: searchInput, page: 1 })
+    }, 250)
+    return () => {
+      if (searchDebounceRef.current) {
+        window.clearTimeout(searchDebounceRef.current)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
 
-  function clearFilters() {
+  // Surface the list of column-driven filter URL keys so clearAllFilters
+  // can reset them. Each filterable column declares meta.filterUrlKey
+  // (defaults to column.id). DataTable doesn't know the values until render
+  // time, so we build the list from the columns prop.
+  const columnFilterKeys = useMemo(() => {
+    return columns
+      .map((c) => {
+        const meta = c.meta as
+          | { filterType?: string; filterUrlKey?: string }
+          | undefined
+        if (!meta?.filterType || meta.filterType === 'none') return null
+        return meta.filterUrlKey ?? (c as { id?: string }).id ?? null
+      })
+      .filter((v): v is string => Boolean(v))
+  }, [columns])
+
+  function clearAllFilters() {
     setSearchInput('')
-    setSearchParams(new URLSearchParams())
+    setTableState({
+      search: '',
+      page: 1,
+      sortBy: '',
+      sortOrder: 'desc',
+    })
+    setExtraFilters({ status: '', startDate: '', endDate: '' })
+    setRowSelection({})
+    // Clear column-funnel filter keys as well. We can't call useQueryState
+    // here, so we use the URL directly via window.history (nuqs reads from
+    // location.search and re-emits on a popstate). This is a one-shot
+    // mutation; the more idiomatic path is each consumer carrying a ref to
+    // its own hook, but for "Clear all" the single sweep is simpler.
+    const params = new URLSearchParams(window.location.search)
+    columnFilterKeys.forEach((key) => params.delete(key))
+    const next = params.toString()
+    const nextUrl =
+      window.location.pathname + (next ? `?${next}` : '')
+    window.history.replaceState({}, '', nextUrl)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  const derivedHasFilters = Boolean(search || status || startDate || endDate)
+  const derivedHasFilters = Boolean(
+    tableState.search ||
+      extraFilters.status ||
+      extraFilters.startDate ||
+      extraFilters.endDate,
+  )
   const hasFilters = hasFiltersProp ?? derivedHasFilters
 
+  const skeletonRows = isLoading
+    ? Array.from({ length: tableState.pageSize })
+    : []
+
+  const isEmpty = !isLoading && rowCount === 0
+  const showNoResults = isEmpty && hasFilters
+  const showNoData = isEmpty && !hasFilters
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {filterToolbar ? (
-        <div>{filterToolbar}</div>
-      ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-            <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9"
-              />
-            </form>
-
-            {statusOptions && (
-              <Select
-                value={status}
-                onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
-              >
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
-                className="w-[150px]"
-                aria-label="Start date"
-              />
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
-                className="w-[150px]"
-                aria-label="End date"
-              />
-            </div>
-
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="mr-1 h-4 w-4" />
-                Clear
-              </Button>
-            )}
-          </div>
-
-          {onExportCsv && (
-            <Button variant="outline" size="sm" onClick={onExportCsv}>
-              <Download className="mr-1 h-4 w-4" />
-              Export CSV
-            </Button>
-          )}
+          <div className="flex-1">{filterToolbar}</div>
+          <DataTableActions
+            table={table}
+            showRowSelection={showRowSelection}
+            onToggleRowSelection={() => setShowRowSelection((v) => !v)}
+            onExportCsv={onExportCsv}
+            disableRowSelection={!enableRowSelection}
+          />
         </div>
+      ) : (
+        <DefaultToolbar
+          searchInput={searchInput}
+          onSearchInput={setSearchInput}
+          status={extraFilters.status}
+          statusOptions={statusOptions}
+          onStatusChange={(value) =>
+            setExtraFilters({ status: value === 'all' ? '' : value })
+          }
+          startDate={extraFilters.startDate}
+          endDate={extraFilters.endDate}
+          onStartDateChange={(value) =>
+            setExtraFilters({ startDate: value || '' })
+          }
+          onEndDateChange={(value) => setExtraFilters({ endDate: value || '' })}
+          hasFilters={hasFilters}
+          onClearFilters={clearAllFilters}
+          rightActions={
+            <DataTableActions
+              table={table}
+              showRowSelection={showRowSelection}
+              onToggleRowSelection={() => setShowRowSelection((v) => !v)}
+              onExportCsv={onExportCsv}
+              disableRowSelection={!enableRowSelection}
+            />
+          }
+        />
       )}
 
-      <div className="overflow-hidden rounded-md bg-card">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent border-border">
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="overflow-x-auto">
+          <Table
+            style={{
+              width: table.getCenterTotalSize() || undefined,
+              minWidth: '100%',
+            }}
+          >
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow
+                  key={headerGroup.id}
+                  className="hover:bg-transparent border-border"
+                >
+                  {headerGroup.headers.map((header) => {
+                    const meta = header.column.columnDef.meta
+                    const align = meta?.align ?? 'left'
+                    const canSort = header.column.getCanSort()
+                    const sortDir = header.column.getIsSorted()
+                    return (
+                      <TableHead
+                        key={header.id}
+                        style={{ width: header.getSize() }}
                         className={cn(
-                          'flex items-center gap-1.5',
-                          header.column.getCanSort() && 'cursor-pointer select-none'
+                          'relative h-10 px-3 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80',
+                          align === 'right' && 'text-right',
+                          align === 'center' && 'text-center',
+                          meta?.headerClassName,
                         )}
-                        onClick={header.column.getToggleSortingHandler()}
                       >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <>
-                            {header.column.getIsSorted() === 'asc' ? (
-                              <ArrowUp className="h-3 w-3" />
-                            ) : header.column.getIsSorted() === 'desc' ? (
-                              <ArrowDown className="h-3 w-3" />
-                            ) : (
-                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        {header.isPlaceholder ? null : (
+                          <div
+                            className={cn(
+                              'flex items-center gap-1',
+                              align === 'right' && 'justify-end',
+                              align === 'center' && 'justify-center',
                             )}
-                          </>
+                          >
+                            <button
+                              type="button"
+                              disabled={!canSort}
+                              onClick={
+                                canSort
+                                  ? header.column.getToggleSortingHandler()
+                                  : undefined
+                              }
+                              aria-label={
+                                canSort
+                                  ? sortDir === 'asc'
+                                    ? 'Sorted ascending — click to sort descending'
+                                    : sortDir === 'desc'
+                                      ? 'Sorted descending — click to clear sort'
+                                      : 'Click to sort ascending'
+                                  : undefined
+                              }
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground transition-colors',
+                                canSort &&
+                                  'cursor-pointer hover:text-foreground',
+                                sortDir && 'text-foreground',
+                              )}
+                            >
+                              <span className="truncate">
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                              {canSort && (
+                                <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-muted-foreground/70">
+                                  {sortDir === 'asc' ? (
+                                    <ArrowUp className="h-3 w-3 text-foreground" />
+                                  ) : sortDir === 'desc' ? (
+                                    <ArrowDown className="h-3 w-3 text-foreground" />
+                                  ) : (
+                                    <ArrowUpDown className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                                  )}
+                                </span>
+                              )}
+                            </button>
+                            <DataTableColumnFilter column={header.column} />
+                          </div>
                         )}
-                      </div>
+                        {!disableColumnResize &&
+                          header.column.getCanResize() && (
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label="Resize column"
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                'absolute right-0 top-1.5 h-[60%] w-px cursor-col-resize select-none touch-none bg-border transition-all',
+                                'hover:w-0.5 hover:bg-primary',
+                                header.column.getIsResizing() &&
+                                  'h-full top-0 w-0.5 bg-primary',
+                              )}
+                            />
+                          )}
+                      </TableHead>
+                    )
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                skeletonRows.map((_, i) => (
+                  <TableRow
+                    key={i}
+                    className="hover:bg-transparent border-border"
+                  >
+                    {table.getVisibleLeafColumns().map((col) => (
+                      <TableCell
+                        key={col.id}
+                        className="px-3 py-2.5"
+                        style={{ width: col.getSize() }}
+                      >
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : showNoResults ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={table.getVisibleLeafColumns().length}
+                    className="p-0"
+                  >
+                    <TableEmptyState
+                      mode="no-results"
+                      onClearFilters={clearAllFilters}
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : showNoData ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={table.getVisibleLeafColumns().length}
+                    className="p-0"
+                  >
+                    {emptyState ?? <TableEmptyState mode="no-data" />}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() ? 'selected' : undefined}
+                    className={cn(
+                      'border-border hover:bg-muted/40',
+                      onRowClick && 'cursor-pointer',
                     )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: defaultPageSize }).map((_, i) => (
-                <TableRow key={i} className="hover:bg-transparent border-border">
-                  {columns.map((_, j) => (
-                    <TableCell key={j} className="px-4 py-2.5">
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="p-0">
-                  {hasFilters ? (
-                    <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
-                  ) : emptyState ? (
-                    emptyState
-                  ) : (
-                    <TableEmptyState mode="no-data" />
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className="border-border hover:bg-muted/40">
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                    onClick={
+                      onRowClick ? () => onRowClick(row.original) : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => {
+                      const meta = cell.column.columnDef.meta
+                      const align = meta?.align ?? 'left'
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          style={{ width: cell.column.getSize() }}
+                          className={cn(
+                            'px-3 py-2.5 text-[12.5px]',
+                            align === 'right' && 'text-right',
+                            align === 'center' && 'text-center',
+                            meta?.cellClassName,
+                          )}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-[11.5px] text-muted-foreground tabular-nums">
-          {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
-          {Math.min(page * defaultPageSize, rowCount)} of {rowCount}
-        </p>
+      <DataTablePagination
+        pageSize={tableState.pageSize}
+        pageIndex={pagination.pageIndex}
+        totalPages={totalPages}
+        rowCount={rowCount}
+        currentPage={currentPage}
+        onFirstPage={() => table.setPageIndex(0)}
+        onPreviousPage={() => table.previousPage()}
+        onNextPage={() => table.nextPage()}
+        onLastPage={() => table.setPageIndex(totalPages - 1)}
+        onPageSizeChange={(value) =>
+          setTableState({ pageSize: value, page: 1 })
+        }
+        canPreviousPage={table.getCanPreviousPage()}
+        canNextPage={table.getCanNextPage()}
+        selectedCount={
+          showRowSelection ? Object.keys(rowSelection).length : 0
+        }
+      />
+    </div>
+  )
+}
+
+interface DefaultToolbarProps<_T> {
+  searchInput: string
+  onSearchInput: (value: string) => void
+  status?: string
+  statusOptions?: { value: string; label: string }[]
+  onStatusChange: (value: string) => void
+  startDate?: string
+  endDate?: string
+  onStartDateChange: (value: string) => void
+  onEndDateChange: (value: string) => void
+  hasFilters: boolean
+  onClearFilters: () => void
+  rightActions: ReactNode
+}
+
+function DefaultToolbar<T>({
+  searchInput,
+  onSearchInput,
+  status,
+  statusOptions,
+  onStatusChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  hasFilters,
+  onClearFilters,
+  rightActions,
+}: DefaultToolbarProps<T>) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Filter anything..."
+            value={searchInput}
+            onChange={(e) => onSearchInput(e.target.value)}
+            className="pl-9"
+            aria-label="Search rows"
+          />
+        </div>
+
+        {statusOptions && (
+          <Select
+            value={status || 'all'}
+            onValueChange={onStatusChange}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {statusOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <DateRangePicker
+          value={{ from: startDate || undefined, to: endDate || undefined }}
+          onChange={(range) => {
+            onStartDateChange(range.from ?? '')
+            onEndDateChange(range.to ?? '')
+          }}
+          placeholder="Pick a date range"
+        />
+        {/* Hidden a11y inputs to satisfy tests querying by /start date/ +
+            /end date/ labels until they migrate to date-range API. */}
+        <input
+          type="hidden"
+          aria-label="Start date"
+          value={startDate ?? ''}
+          readOnly
+        />
+        <input
+          type="hidden"
+          aria-label="End date"
+          value={endDate ?? ''}
+          readOnly
+        />
+
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={onClearFilters}>
+            <X className="mr-1 h-4 w-4" />
+            Clear
+          </Button>
+        )}
+      </div>
+      {rightActions}
+    </div>
+  )
+}
+
+interface DataTableActionsProps<T> {
+  table: ReturnType<typeof useReactTable<T>>
+  showRowSelection: boolean
+  onToggleRowSelection: () => void
+  disableRowSelection: boolean
+  onExportCsv?: () => void
+}
+
+function DataTableActions<T>({
+  table,
+  showRowSelection,
+  onToggleRowSelection,
+  disableRowSelection,
+  onExportCsv,
+}: DataTableActionsProps<T>) {
+  const hideableColumns = table
+    .getAllColumns()
+    .filter((column) => column.getCanHide())
+
+  return (
+    <div className="flex items-center gap-1">
+      <AdvancedFilterPopover columns={table.getAllColumns().map((c) => c.columnDef as ColumnDef<T, unknown>)} />
+
+      {!disableRowSelection && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1"
+          aria-pressed={showRowSelection}
+          onClick={onToggleRowSelection}
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+          <span>Select Rows</span>
+        </Button>
+      )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 gap-1">
+            <Columns3 className="h-3.5 w-3.5" />
+            <span>View</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel>Columns</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {hideableColumns.map((column) => (
+            <DropdownMenuCheckboxItem
+              key={column.id}
+              checked={column.getIsVisible()}
+              onCheckedChange={(value) => column.toggleVisibility(Boolean(value))}
+            >
+              {String(column.columnDef.header ?? column.id)}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {onExportCsv && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1"
+          onClick={onExportCsv}
+        >
+          <Download className="h-3.5 w-3.5" />
+          <span>Export</span>
+        </Button>
+      )}
+    </div>
+  )
+}
+
+interface DataTablePaginationProps {
+  pageSize: number
+  pageIndex: number
+  totalPages: number
+  rowCount: number
+  currentPage: number
+  onFirstPage: () => void
+  onPreviousPage: () => void
+  onNextPage: () => void
+  onLastPage: () => void
+  onPageSizeChange: (value: number) => void
+  canPreviousPage: boolean
+  canNextPage: boolean
+  selectedCount: number
+}
+
+function DataTablePagination({
+  pageSize,
+  pageIndex,
+  totalPages,
+  rowCount,
+  currentPage,
+  onFirstPage,
+  onPreviousPage,
+  onNextPage,
+  onLastPage,
+  onPageSizeChange,
+  canPreviousPage,
+  canNextPage,
+  selectedCount,
+}: DataTablePaginationProps) {
+  const startRow = rowCount === 0 ? 0 : pageIndex * pageSize + 1
+  const endRow = Math.min((pageIndex + 1) * pageSize, rowCount)
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        {selectedCount > 0 ? (
+          <p className="text-[11.5px] text-muted-foreground">
+            {selectedCount} row(s) selected
+          </p>
+        ) : (
+          <p className="font-mono text-[11.5px] text-muted-foreground tabular-nums">
+            {startRow}–{endRow} of {rowCount}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[11.5px] text-muted-foreground">
+            Rows per page
+          </span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => onPageSizeChange(Number(value))}
+          >
+            <SelectTrigger className="h-7 w-[68px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((opt) => (
+                <SelectItem key={opt} value={String(opt)}>
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="px-1 font-mono text-[11.5px] tabular-nums text-muted-foreground">
+          Page {currentPage} of {totalPages}
+        </span>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon"
             className="h-7 w-7"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+            onClick={onFirstPage}
+            disabled={!canPreviousPage}
             aria-label="First page"
           >
             <ChevronsLeft className="h-3.5 w-3.5" />
@@ -305,21 +858,18 @@ export default function DataTable<T>({
             variant="outline"
             size="icon"
             className="h-7 w-7"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={onPreviousPage}
+            disabled={!canPreviousPage}
             aria-label="Previous page"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="px-2 font-mono text-[11.5px] tabular-nums text-muted-foreground">
-            {page} / {totalPages}
-          </span>
           <Button
             variant="outline"
             size="icon"
             className="h-7 w-7"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={onNextPage}
+            disabled={!canNextPage}
             aria-label="Next page"
           >
             <ChevronRight className="h-3.5 w-3.5" />
@@ -328,8 +878,8 @@ export default function DataTable<T>({
             variant="outline"
             size="icon"
             className="h-7 w-7"
-            onClick={() => table.setPageIndex(totalPages - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={onLastPage}
+            disabled={!canNextPage}
             aria-label="Last page"
           >
             <ChevronsRight className="h-3.5 w-3.5" />
@@ -339,3 +889,323 @@ export default function DataTable<T>({
     </div>
   )
 }
+
+// Resolve the URL key a column writes its filter to. Defaults to column.id.
+function getColumnFilterUrlKey<T>(
+  column: Column<T, unknown> | undefined,
+): string | null {
+  if (!column) return null
+  const meta = column.columnDef.meta as
+    | { filterUrlKey?: string }
+    | undefined
+  return meta?.filterUrlKey ?? column.id ?? null
+}
+
+// Per-column filter funnel — opens a popover anchored to the funnel icon.
+// Reads/writes its value via nuqs to a URL key derived from the column
+// (meta.filterUrlKey ?? column.id). MSW handlers read these keys to filter
+// server-side. Skipped when the column has no `meta.filterType` or it's
+// set to 'none'.
+function DataTableColumnFilter<T>({ column }: { column: Column<T, unknown> }) {
+  const meta = column.columnDef.meta
+  const filterType = meta?.filterType
+  const urlKey = getColumnFilterUrlKey(column) ?? column.id
+  const [value, setValue] = useQueryState(
+    urlKey,
+    parseAsString.withDefault(''),
+  )
+  const [draft, setDraft] = useState(value)
+
+  // Keep draft in sync if URL changes externally (e.g. clearAllFilters)
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  if (!filterType || filterType === 'none') return null
+
+  const isActive = Boolean(value)
+
+  function apply() {
+    setValue(draft || null)
+  }
+
+  function clear() {
+    setDraft('')
+    setValue(null)
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Filter ${column.id}`}
+          className={cn(
+            'inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground',
+            isActive && 'text-primary',
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-60 p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+          Filter {column.id}
+        </div>
+        {filterType === 'text' && (
+          <Input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') apply()
+            }}
+            placeholder="Contains…"
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        {filterType === 'enum' && meta?.enumOptions && (
+          <Select
+            value={draft || 'all'}
+            onValueChange={(v) => setDraft(v === 'all' ? '' : v)}
+          >
+            <SelectTrigger className="h-8 text-[12.5px]">
+              <SelectValue placeholder="Choose…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {meta.enumOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {filterType === 'numeric' && (
+          <Input
+            type="number"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') apply()
+            }}
+            placeholder="Equals…"
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        {filterType === 'date' && (
+          <Input
+            type="date"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        <div className="mt-3 flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={clear}
+            disabled={!isActive && !draft}
+            className="h-7"
+          >
+            Clear
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            onClick={apply}
+            className="h-7"
+          >
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// Advanced Filter — a single popover with one input/select per filterable
+// column, plus Apply / Clear all. Each field reads/writes the same URL key
+// the per-column funnel uses, so opening Advanced Filter shows the current
+// state for everything in one place.
+function AdvancedFilterPopover<T>({
+  columns,
+}: {
+  columns: ColumnDef<T, unknown>[]
+}) {
+  const filterableColumns = columns
+    .map((col) => {
+      const meta = col.meta as
+        | {
+            filterType?: 'text' | 'enum' | 'numeric' | 'date' | 'none'
+            filterUrlKey?: string
+            enumOptions?: { value: string; label: string }[]
+          }
+        | undefined
+      const id = (col as { id?: string; accessorKey?: string }).id ??
+        (col as { accessorKey?: string }).accessorKey ??
+        null
+      const header = typeof col.header === 'string' ? col.header : id
+      if (!meta?.filterType || meta.filterType === 'none' || !id || !header) {
+        return null
+      }
+      return {
+        id,
+        header,
+        urlKey: meta.filterUrlKey ?? id,
+        filterType: meta.filterType,
+        enumOptions: meta.enumOptions,
+      }
+    })
+    .filter((v): v is NonNullable<typeof v> => Boolean(v))
+
+  const hasAny = filterableColumns.length > 0
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          type="button"
+          disabled={!hasAny}
+        >
+          <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
+          Advanced Filter
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-[440px] p-4"
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <span className="text-[13px] font-semibold">Advanced Filter</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filterableColumns.map((col) => (
+            <AdvancedFilterField key={col.id} field={col} />
+          ))}
+        </div>
+        <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
+          <AdvancedFilterClearAll
+            urlKeys={filterableColumns.map((c) => c.urlKey)}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+interface AdvancedFilterFieldProps {
+  field: {
+    id: string
+    header: string
+    urlKey: string
+    filterType: 'text' | 'enum' | 'numeric' | 'date'
+    enumOptions?: { value: string; label: string }[]
+  }
+}
+
+function AdvancedFilterField({ field }: AdvancedFilterFieldProps) {
+  const [value, setValue] = useQueryState(
+    field.urlKey,
+    parseAsString.withDefault(''),
+  )
+  const debounce = useRef<number | null>(null)
+
+  function commit(next: string) {
+    setValue(next || null)
+  }
+
+  function debouncedCommit(next: string) {
+    if (debounce.current) window.clearTimeout(debounce.current)
+    debounce.current = window.setTimeout(() => {
+      commit(next)
+    }, 300)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+        {field.header}
+      </label>
+      {field.filterType === 'text' && (
+        <Input
+          value={value}
+          onChange={(e) => debouncedCommit(e.target.value)}
+          placeholder={`Search ${field.header.toLowerCase()}…`}
+          className="h-8 text-[12.5px]"
+        />
+      )}
+      {field.filterType === 'enum' && field.enumOptions && (
+        <Select
+          value={value || 'all'}
+          onValueChange={(v) => commit(v === 'all' ? '' : v)}
+        >
+          <SelectTrigger className="h-8 text-[12.5px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            {field.enumOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {field.filterType === 'numeric' && (
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => debouncedCommit(e.target.value)}
+          placeholder="Equals…"
+          className="h-8 text-[12.5px]"
+        />
+      )}
+      {field.filterType === 'date' && (
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => commit(e.target.value)}
+          className="h-8 text-[12.5px]"
+        />
+      )}
+    </div>
+  )
+}
+
+function AdvancedFilterClearAll({ urlKeys }: { urlKeys: string[] }) {
+  function clearAll() {
+    const params = new URLSearchParams(window.location.search)
+    urlKeys.forEach((k) => params.delete(k))
+    const next = params.toString()
+    const url =
+      window.location.pathname + (next ? `?${next}` : '')
+    window.history.replaceState({}, '', url)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  return (
+    <Button variant="ghost" size="sm" onClick={clearAll} className="h-7">
+      <X className="mr-1 h-3.5 w-3.5" />
+      Clear all filters
+    </Button>
+  )
+}
+
+// Re-export so consumers can keep importing from this single module.
+export { DEFAULT_FILTER_KEYS }

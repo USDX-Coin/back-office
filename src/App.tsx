@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
 import { ProtectedRoute, PublicRoute } from '@/components/layout/AuthGuard'
@@ -37,9 +38,13 @@ const router = createBrowserRouter([
       {
         element: <MainLayout />,
         children: [
+          { path: '/', element: <Navigate to="/user/internal" replace /> },
           { path: '/dashboard', element: <DashboardPage /> },
-          { path: '/users', element: <UsersPage /> },
-          { path: '/staff', element: <StaffPage /> },
+          { path: '/user/internal', element: <StaffPage /> },
+          { path: '/user/user-client', element: <UsersPage /> },
+          // Legacy aliases — keep redirecting until tests + links migrate.
+          { path: '/users', element: <Navigate to="/user/user-client" replace /> },
+          { path: '/staff', element: <Navigate to="/user/internal" replace /> },
           { path: '/otc', element: <OtcSplashPage /> },
           { path: '/otc/mint', element: <OtcMintPage /> },
           { path: '/otc/redeem', element: <OtcRedeemPage /> },
@@ -57,7 +62,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <NuqsAdapter>
+            <RouterProvider router={router} />
+          </NuqsAdapter>
           <Toaster />
         </AuthProvider>
       </ThemeProvider>

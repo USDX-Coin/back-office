@@ -6,24 +6,23 @@ import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
-import { useCustomers, useCustomerSummary } from './hooks'
+import { useCustomers } from './hooks'
 import type { Customer } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
-const ROLE_PILL: Record<Customer['role'], string> = {
-  admin: 'bg-primary/10 text-primary',
-  editor: 'bg-muted text-foreground',
-  member: 'bg-muted text-muted-foreground',
+const ROLE_TONE: Record<Customer['role'], StatusTone> = {
+  admin: 'info',
+  editor: 'neutral',
+  member: 'neutral',
 }
 
-const TYPE_PILL: Record<Customer['type'], string> = {
-  personal: 'bg-success/10 text-success',
-  organization: 'bg-primary/10 text-primary',
+const TYPE_TONE: Record<Customer['type'], StatusTone> = {
+  personal: 'success',
+  organization: 'info',
 }
 
 export default function UsersPage() {
@@ -41,7 +40,6 @@ export default function UsersPage() {
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
   })
-  const summary = useCustomerSummary()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
@@ -89,7 +87,11 @@ export default function UsersPage() {
         )
       },
     },
-    { accessorKey: 'email', header: 'Email' },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      meta: { filterType: 'text' },
+    },
     {
       accessorKey: 'phone',
       header: 'Phone',
@@ -98,6 +100,7 @@ export default function UsersPage() {
           {getValue() as string}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'type',
@@ -105,15 +108,19 @@ export default function UsersPage() {
       cell: ({ getValue }) => {
         const t = getValue() as Customer['type']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              TYPE_PILL[t]
-            )}
-          >
-            {t === 'personal' ? 'Personal' : 'Organization'}
-          </span>
+          <StatusPill
+            label={t === 'personal' ? 'Personal' : 'Organization'}
+            tone={TYPE_TONE[t]}
+            appearance="soft"
+          />
         )
+      },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'personal', label: 'Personal' },
+          { value: 'organization', label: 'Organization' },
+        ],
       },
     },
     {
@@ -124,21 +131,27 @@ export default function UsersPage() {
           {(getValue() as string | undefined) ?? '—'}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'role',
       header: 'Role',
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'admin', label: 'Admin' },
+          { value: 'editor', label: 'Editor' },
+          { value: 'member', label: 'Member' },
+        ],
+      },
       cell: ({ getValue }) => {
         const r = getValue() as Customer['role']
         return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {r.charAt(0).toUpperCase() + r.slice(1)}
-          </span>
+          <StatusPill
+            label={r.charAt(0).toUpperCase() + r.slice(1)}
+            tone={ROLE_TONE[r]}
+            appearance="soft"
+          />
         )
       },
     },
@@ -193,35 +206,14 @@ export default function UsersPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="User"
-        italicAccent="directory"
-        subtitle={`Customer directory · ${summary.data?.total ?? '…'} total`}
+        title="User Client"
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+          <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Add User
           </Button>
         }
       />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total users"
-          value={summary.data?.total ?? '…'}
-          hint="all-time"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.active ?? '…'}
-          hint="last 30 days"
-        />
-        <SummaryStat
-          label="Organizations"
-          value={summary.data?.organizations ?? '…'}
-          hint="active orgs"
-        />
-      </div>
 
       <DataTable
         columns={columns}

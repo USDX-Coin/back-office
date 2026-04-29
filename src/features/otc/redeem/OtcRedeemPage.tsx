@@ -9,12 +9,7 @@ export default function OtcRedeemPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="OTC Desk"
-        title="Redeem"
-        italicAccent="burn USDX"
-        subtitle="Burn USDX in exchange for treasury funds. Settlement is asynchronous; recent redemptions appear below."
-      />
+      <PageHeader title="Redeem" />
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7">

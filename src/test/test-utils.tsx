@@ -1,8 +1,10 @@
 import { render, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import { getDefaultStaff } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
 
@@ -40,7 +42,11 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
-            <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+            <NuqsTestingAdapter>
+              <MemoryRouter initialEntries={initialEntries}>
+                <SidebarProvider>{children}</SidebarProvider>
+              </MemoryRouter>
+            </NuqsTestingAdapter>
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>

@@ -16,8 +16,12 @@ describe('UsersPage', () => {
   describe('positive', () => {
     test('should render the page title and Add User button', async () => {
       renderWithProviders(<UsersPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /users/i })).toBeInTheDocument()
-      expect(screen.getAllByRole('button', { name: /add user/i }).length).toBeGreaterThan(0)
+      expect(
+        screen.getByRole('heading', { name: /user client/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getAllByRole('button', { name: /add user/i }).length,
+      ).toBeGreaterThan(0)
     })
 
     test('should populate the table from /api/customers', async () => {
@@ -34,12 +38,8 @@ describe('UsersPage', () => {
       )
     })
 
-    test('should render summary cards', async () => {
-      renderWithProviders(<UsersPage />, { authenticated: true })
-      expect(screen.getByText(/total users/i)).toBeInTheDocument()
-      expect(screen.getByText(/active now/i)).toBeInTheDocument()
-      expect(screen.getByText(/organizations/i)).toBeInTheDocument()
-    })
+    // Summary KPI cards were removed in the page-header simplification
+    // (commit b359284). The page now renders title + table directly.
   })
 
   describe('filter toolbar', () => {

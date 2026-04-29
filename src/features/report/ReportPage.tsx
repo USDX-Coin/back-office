@@ -8,11 +8,10 @@ import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import ReportFilterToolbar, { type ReportFilterValues } from './ReportFilterToolbar'
-import ReportInsightsBento from './ReportInsightsBento'
-import { useReport, useReportInsights, fetchAllReportRows } from './hooks'
+import { useReport, fetchAllReportRows } from './hooks'
 import { exportToCsv } from '@/lib/csv'
 import { formatShortDate } from '@/lib/format'
-import { getOtcStatusConfig } from '@/lib/status'
+import { StatusPill } from '@/components/StatusPill'
 import type { Customer, Network, ReportRow } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -88,7 +87,6 @@ export default function ReportPage() {
     sortBy: params.sortBy || undefined,
     sortOrder: params.sortOrder || undefined,
   })
-  const insights = useReportInsights(filters)
 
   const filterValues: ReportFilterValues = {
     startDate,
@@ -185,6 +183,15 @@ export default function ReportPage() {
           </span>
         )
       },
+      meta: {
+        filterType: 'enum',
+        // Report MSW reads `?type=` for the kind/direction column.
+        filterUrlKey: 'type',
+        enumOptions: [
+          { value: 'mint', label: 'Mint' },
+          { value: 'redeem', label: 'Redeem' },
+        ],
+      },
     },
     {
       id: 'customer',
@@ -208,6 +215,16 @@ export default function ReportPage() {
           </span>
         )
       },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'ethereum', label: 'Ethereum' },
+          { value: 'polygon', label: 'Polygon' },
+          { value: 'arbitrum', label: 'Arbitrum' },
+          { value: 'solana', label: 'Solana' },
+          { value: 'base', label: 'Base' },
+        ],
+      },
     },
     {
       accessorKey: 'amount',
@@ -218,24 +235,22 @@ export default function ReportPage() {
         </span>
       ),
       enableSorting: true,
+      meta: { filterType: 'numeric', align: 'right' },
     },
     {
       accessorKey: 'status',
       header: 'Status',
       cell: ({ getValue }) => {
         const s = getValue() as ReportRow['status']
-        const cfg = getOtcStatusConfig(s)
-        return (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              cfg.className
-            )}
-          >
-            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
-            {cfg.label}
-          </span>
-        )
+        return <StatusPill status={s} appearance="soft" />
+      },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'completed', label: 'Completed' },
+          { value: 'failed', label: 'Failed' },
+        ],
       },
     },
   ]
@@ -247,17 +262,9 @@ export default function ReportPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Insights"
         title="Report"
-        italicAccent="transactions"
-        subtitle="Filter, search, and export OTC transaction history."
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-[12px]"
-            onClick={handleExport}
-          >
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-1 h-3.5 w-3.5" />
             Export CSV
           </Button>
@@ -278,10 +285,6 @@ export default function ReportPage() {
         }
         hasFilters={hasFilters}
       />
-
-      <div className="mt-6">
-        <ReportInsightsBento data={insights.data} />
-      </div>
     </div>
   )
 }

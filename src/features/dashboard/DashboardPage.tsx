@@ -28,14 +28,7 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Last 30 days"
         title="Dashboard"
-        italicAccent="overview"
-        subtitle={
-          kpis
-            ? `${kpis.activeUsers.toLocaleString()} active customers · ${kpis.pendingTransactions} pending settlement`
-            : 'Loading…'
-        }
         actions={
           <>
             <Button

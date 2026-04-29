@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/table'
 import type { Network, OtcRedeemTransaction } from '@/lib/types'
 import { formatRelativeTime } from '@/lib/format'
-import { getOtcStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
+import { StatusPill } from '@/components/StatusPill'
 
 interface RecentRedemptionsTableProps {
   items: OtcRedeemTransaction[]
@@ -96,7 +96,6 @@ export default function RecentRedemptionsTable({
             </TableHeader>
             <TableBody>
               {items.slice(0, 5).map((item) => {
-                const cfg = getOtcStatusConfig(item.status)
                 return (
                   <TableRow
                     key={item.id}
@@ -133,20 +132,7 @@ export default function RecentRedemptionsTable({
                       {formatRelativeTime(item.createdAt)}
                     </TableCell>
                     <TableCell className="px-4 py-2.5">
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-                          cfg.className
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'h-1.5 w-1.5 rounded-full',
-                            cfg.dotClass
-                          )}
-                        />
-                        {cfg.label}
-                      </span>
+                      <StatusPill status={item.status} appearance="soft" />
                     </TableCell>
                   </TableRow>
                 )
