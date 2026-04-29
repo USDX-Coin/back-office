@@ -5,51 +5,61 @@ import { renderWithProviders } from '@/test/test-utils'
 
 describe('Navbar', () => {
   describe('breadcrumb', () => {
-    test('should render Operations / Dashboard for /dashboard', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByText('Operations')).toBeInTheDocument()
-      expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    test('should render User > Internal for /user/internal', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/user/internal'],
+        authenticated: true,
+      })
+      expect(screen.getByText('User')).toBeInTheDocument()
+      expect(screen.getByText('Internal')).toBeInTheDocument()
     })
 
-    test('should render Operations / OTC Minting for /otc/mint', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/otc/mint'], authenticated: true })
-      expect(screen.getByText('OTC Minting')).toBeInTheDocument()
+    test('should render OTC > Mint for /otc/mint', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/otc/mint'],
+        authenticated: true,
+      })
+      expect(screen.getByText('OTC')).toBeInTheDocument()
+      expect(screen.getByText('Mint')).toBeInTheDocument()
     })
 
-    test('should render Directory / Users for /users', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/users'], authenticated: true })
-      expect(screen.getByText('Directory')).toBeInTheDocument()
-      expect(screen.getByText('Users')).toBeInTheDocument()
+    test('should render single-segment Report for /report', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/report'],
+        authenticated: true,
+      })
+      expect(screen.getByText('Report')).toBeInTheDocument()
     })
 
-    test('should fall back to raw path segments for unknown routes', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/unknown-route'], authenticated: true })
-      expect(screen.getByText('unknown-route')).toBeInTheDocument()
+    test('should title-case unknown segments', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/some-other-path'],
+        authenticated: true,
+      })
+      expect(screen.getByText(/Some other path/i)).toBeInTheDocument()
     })
   })
 
   describe('chrome', () => {
-    test('should render notifications button with unread badge', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      const bell = screen.getByRole('button', { name: /notifications/i })
-      expect(bell).toBeInTheDocument()
+    test('should render the sidebar trigger', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/user/internal'],
+        authenticated: true,
+      })
+      // shadcn SidebarTrigger renders a button labeled "Toggle Sidebar"
+      expect(
+        screen.getByRole('button', { name: /toggle sidebar/i }),
+      ).toBeInTheDocument()
     })
 
-    test('should render search input', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByRole('searchbox', { name: /search/i })).toBeInTheDocument()
-    })
-
-    test('should render USDX logo', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByRole('img', { name: /usdx/i })).toBeInTheDocument()
-    })
-  })
-
-  describe('profile dropdown', () => {
-    test('should render profile dropdown trigger when authenticated', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByText(/open profile menu/i)).toBeInTheDocument()
+    test('should render the profile dropdown trigger when authenticated', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/user/internal'],
+        authenticated: true,
+      })
+      expect(
+        screen.getByRole('button', { name: /open profile menu/i }),
+      ).toBeInTheDocument()
     })
   })
 })

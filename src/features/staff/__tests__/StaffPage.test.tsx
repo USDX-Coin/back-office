@@ -16,8 +16,12 @@ describe('StaffPage', () => {
   describe('positive', () => {
     test('should render the page header and Add Staff button', () => {
       renderWithProviders(<StaffPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /^staff$/i })).toBeInTheDocument()
-      expect(screen.getAllByRole('button', { name: /add staff/i }).length).toBeGreaterThan(0)
+      expect(
+        screen.getByRole('heading', { name: /internal/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getAllByRole('button', { name: /add staff/i }).length,
+      ).toBeGreaterThan(0)
     })
 
     test('should populate the table from /api/staff', async () => {
@@ -28,12 +32,8 @@ describe('StaffPage', () => {
       }, { timeout: 3000 })
     })
 
-    test('should render Total Staff / Admins / Active Now summary cards', () => {
-      renderWithProviders(<StaffPage />, { authenticated: true })
-      expect(screen.getByText(/total staff/i)).toBeInTheDocument()
-      expect(screen.getByText(/^admins$/i)).toBeInTheDocument()
-      expect(screen.getByText(/active now/i)).toBeInTheDocument()
-    })
+    // Summary KPI cards were removed in the page-header simplification
+    // (commit b359284). The page now renders title + table directly.
   })
 
   describe('filter toolbar', () => {

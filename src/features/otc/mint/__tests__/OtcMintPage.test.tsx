@@ -16,7 +16,7 @@ describe('OtcMintPage', () => {
   describe('positive', () => {
     test('should render header + form + info panel + recent list', () => {
       renderWithProviders(<OtcMintPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /otc minting/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /^mint$/i, level: 1 })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /submit mint request/i })).toBeInTheDocument()
       expect(screen.getByText(/minting protocol/i)).toBeInTheDocument()
       expect(screen.getByText(/recent requests/i)).toBeInTheDocument()
