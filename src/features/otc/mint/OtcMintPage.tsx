@@ -9,12 +9,7 @@ export default function OtcMintPage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="OTC Desk"
-        title="Mint"
-        italicAccent="issue USDX"
-        subtitle="Single-shot mint to a customer's destination wallet. Settlement is asynchronous — pending requests appear on the right."
-      />
+      <PageHeader title="Mint" />
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8">

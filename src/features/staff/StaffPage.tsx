@@ -6,12 +6,11 @@ import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import StaffModal from './StaffModal'
 import StaffDeleteDialog from './StaffDeleteDialog'
 import StaffFilterToolbar, { type StaffFilterValues } from './StaffFilterToolbar'
-import { useStaff, useStaffSummary } from './hooks'
+import { useStaff } from './hooks'
 import type { Staff } from '@/lib/types'
 import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
@@ -42,7 +41,6 @@ export default function StaffPage() {
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
   })
-  const summary = useStaffSummary()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
@@ -163,35 +161,14 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="Staf"
-        italicAccent="directory"
-        subtitle={`Internal team directory · ${summary.data?.total ?? '…'} members`}
+        title="Internal"
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+          <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Add Staff
           </Button>
         }
       />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total staff"
-          value={summary.data?.total ?? '…'}
-          hint="all roles"
-        />
-        <SummaryStat
-          label="Admins"
-          value={summary.data?.admins ?? '…'}
-          hint="super admins"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.activeNow ?? '…'}
-          hint="last 30 days"
-        />
-      </div>
 
       <DataTable
         columns={columns}

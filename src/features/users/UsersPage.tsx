@@ -6,12 +6,11 @@ import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
-import { useCustomers, useCustomerSummary } from './hooks'
+import { useCustomers } from './hooks'
 import type { Customer } from '@/lib/types'
 import { StatusPill, type StatusTone } from '@/components/StatusPill'
 
@@ -41,7 +40,6 @@ export default function UsersPage() {
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
   })
-  const summary = useCustomerSummary()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
@@ -187,35 +185,14 @@ export default function UsersPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="User"
-        italicAccent="directory"
-        subtitle={`Customer directory · ${summary.data?.total ?? '…'} total`}
+        title="User Client"
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+          <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Add User
           </Button>
         }
       />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total users"
-          value={summary.data?.total ?? '…'}
-          hint="all-time"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.active ?? '…'}
-          hint="last 30 days"
-        />
-        <SummaryStat
-          label="Organizations"
-          value={summary.data?.organizations ?? '…'}
-          hint="active orgs"
-        />
-      </div>
 
       <DataTable
         columns={columns}

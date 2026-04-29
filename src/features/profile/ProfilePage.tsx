@@ -33,10 +33,7 @@ export default function ProfilePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Account"
-        title={staff.displayName}
-        italicAccent="profile"
-        subtitle={ROLE_LABEL[staff.role] ?? staff.role}
+        title="Profile"
         actions={
           <Button
             variant="outline"

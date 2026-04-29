@@ -8,8 +8,7 @@ import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import ReportFilterToolbar, { type ReportFilterValues } from './ReportFilterToolbar'
-import ReportInsightsBento from './ReportInsightsBento'
-import { useReport, useReportInsights, fetchAllReportRows } from './hooks'
+import { useReport, fetchAllReportRows } from './hooks'
 import { exportToCsv } from '@/lib/csv'
 import { formatShortDate } from '@/lib/format'
 import { StatusPill } from '@/components/StatusPill'
@@ -88,7 +87,6 @@ export default function ReportPage() {
     sortBy: params.sortBy || undefined,
     sortOrder: params.sortOrder || undefined,
   })
-  const insights = useReportInsights(filters)
 
   const filterValues: ReportFilterValues = {
     startDate,
@@ -236,17 +234,9 @@ export default function ReportPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Insights"
         title="Report"
-        italicAccent="transactions"
-        subtitle="Filter, search, and export OTC transaction history."
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-[12px]"
-            onClick={handleExport}
-          >
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-1 h-3.5 w-3.5" />
             Export CSV
           </Button>
@@ -267,10 +257,6 @@ export default function ReportPage() {
         }
         hasFilters={hasFilters}
       />
-
-      <div className="mt-6">
-        <ReportInsightsBento data={insights.data} />
-      </div>
     </div>
   )
 }
