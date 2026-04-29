@@ -12,9 +12,15 @@ import {
   validateWalletAddressZ,
 } from '@/lib/schemas'
 
-const firstError = (result: { success: boolean; error?: { issues: { path: (string | number)[]; message: string }[] } }, path: string) => {
+type Issue = { path: PropertyKey[]; message: string }
+const firstError = (
+  result: { success: boolean; error?: { issues: Issue[] } },
+  path: string,
+) => {
   if (result.success) return undefined
-  return result.error?.issues.find((i) => i.path.join('.') === path)?.message
+  return result.error?.issues.find((i) =>
+    i.path.map(String).join('.') === path,
+  )?.message
 }
 
 describe('emailSchema', () => {

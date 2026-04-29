@@ -1,6 +1,8 @@
 import { useLocation } from 'react-router'
 import { Bell, Search, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 import ProfileDropdown from './ProfileDropdown'
 import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
@@ -29,16 +31,14 @@ export default function Navbar() {
   const segments = buildBreadcrumb(pathname)
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background pl-4 pr-3 lg:pl-5">
-      <div className="flex items-center gap-3 lg:hidden">
-        <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
-          U
-        </div>
-        <span className="text-[14px] font-semibold tracking-tight">USDX</span>
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background pl-2 pr-3 lg:pl-3">
+      <div className="flex items-center gap-2">
+        <SidebarTrigger className="h-8 w-8" />
+        <Separator orientation="vertical" className="h-4" />
       </div>
 
       <nav
-        className="hidden lg:flex items-center gap-1.5 text-[12.5px]"
+        className="hidden flex-1 items-center gap-1.5 px-2 text-[12.5px] lg:flex"
         aria-label="Breadcrumb"
       >
         {segments.map((seg, i) => (
