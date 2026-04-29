@@ -38,9 +38,13 @@ const router = createBrowserRouter([
       {
         element: <MainLayout />,
         children: [
+          { path: '/', element: <Navigate to="/user/internal" replace /> },
           { path: '/dashboard', element: <DashboardPage /> },
-          { path: '/users', element: <UsersPage /> },
-          { path: '/staff', element: <StaffPage /> },
+          { path: '/user/internal', element: <StaffPage /> },
+          { path: '/user/user-client', element: <UsersPage /> },
+          // Legacy aliases — keep redirecting until tests + links migrate.
+          { path: '/users', element: <Navigate to="/user/user-client" replace /> },
+          { path: '/staff', element: <Navigate to="/user/internal" replace /> },
           { path: '/otc', element: <OtcSplashPage /> },
           { path: '/otc/mint', element: <OtcMintPage /> },
           { path: '/otc/redeem', element: <OtcRedeemPage /> },

@@ -1,19 +1,27 @@
 import { NavLink, useLocation } from 'react-router'
+import { ChevronRight } from 'lucide-react'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/lib/auth'
-import { SIDEBAR_SECTIONS } from './nav-config'
+import { SIDEBAR_ENTRIES, isNavGroup, type NavGroup } from './nav-config'
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -24,6 +32,47 @@ function getInitials(name: string): string {
 
 function formatRole(role: string): string {
   return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function NavGroupItem({
+  group,
+  pathname,
+}: {
+  group: NavGroup
+  pathname: string
+}) {
+  const ParentIcon = group.icon
+  const isWithinGroup = pathname.startsWith(group.basePath)
+
+  return (
+    <Collapsible defaultOpen={isWithinGroup} className="group/collapsible">
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton tooltip={group.label}>
+            <ParentIcon />
+            <span>{group.label}</span>
+            <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {group.items.map((leaf) => {
+              const active = pathname.startsWith(leaf.to)
+              return (
+                <SidebarMenuSubItem key={leaf.to}>
+                  <SidebarMenuSubButton asChild isActive={active}>
+                    <NavLink to={leaf.to}>
+                      <span>{leaf.label}</span>
+                    </NavLink>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              )
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  )
 }
 
 export default function AppSidebar() {
@@ -42,40 +91,46 @@ export default function AppSidebar() {
               USDX
             </span>
             <span className="text-[10.5px] text-muted-foreground">
-              Operator console
+              Back Office
             </span>
           </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        {SIDEBAR_SECTIONS.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => {
-                  const Icon = item.icon
-                  const active = location.pathname.startsWith(item.to)
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {SIDEBAR_ENTRIES.map((entry) => {
+                if (isNavGroup(entry)) {
                   return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={active}
-                        tooltip={item.label}
-                      >
-                        <NavLink to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <NavGroupItem
+                      key={entry.label}
+                      group={entry}
+                      pathname={location.pathname}
+                    />
                   )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+                }
+                const Icon = entry.icon
+                const active = location.pathname.startsWith(entry.to)
+                return (
+                  <SidebarMenuItem key={entry.to}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      tooltip={entry.label}
+                    >
+                      <NavLink to={entry.to}>
+                        <Icon />
+                        <span>{entry.label}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       {user && (
