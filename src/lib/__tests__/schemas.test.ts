@@ -340,7 +340,7 @@ describe('profileSchema', () => {
         profileSchema.safeParse({
           firstName: 'Ada',
           lastName: 'Lovelace',
-          email: 'ada@example.com',
+          displayName: 'Ada Lovelace',
           phone: '+14155551234',
         }).success,
       ).toBe(true)
@@ -348,15 +348,17 @@ describe('profileSchema', () => {
   })
 
   describe('negative', () => {
-    test('should reject empty email', () => {
+    test('should reject empty display name', () => {
       const result = profileSchema.safeParse({
         firstName: 'Ada',
         lastName: 'Lovelace',
-        email: '',
+        displayName: '',
         phone: '+14155551234',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result, 'email')).toBe('Email is required')
+      expect(firstError(result, 'displayName')).toBe(
+        'Display name is required',
+      )
     })
   })
 })

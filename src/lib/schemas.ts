@@ -140,12 +140,12 @@ export type OtcRedeemFormValues = z.infer<
   ReturnType<typeof buildOtcRedeemSchema>
 >
 
-// Profile (personal details) — derive from validators when migrated; placeholder
-// covering the core required fields. Will be tightened in Unit 15.
+// Profile personal details — staff record patch, no email (email is the
+// auth identity and not editable from this form).
 export const profileSchema = z.object({
   firstName: nameSchema('First name'),
   lastName: nameSchema('Last name'),
-  email: emailSchema,
+  displayName: nameSchema('Display name'),
   phone: phoneSchema,
 })
 export type ProfileFormValues = z.infer<typeof profileSchema>
