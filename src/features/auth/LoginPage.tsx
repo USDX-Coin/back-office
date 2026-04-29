@@ -44,7 +44,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard', { replace: true })
+      navigate('/user/internal', { replace: true })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Login failed')
     } finally {
