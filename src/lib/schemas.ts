@@ -126,6 +126,7 @@ export type OtcMintFormValues = z.infer<typeof otcMintSchema>
 // passed in via context. Build the schema lazily so `gt(balance)` can use it.
 export function buildOtcRedeemSchema(availableBalance: number) {
   return z.object({
+    customerId: z.string().min(1, 'Customer is required'),
     network: networkSchema,
     amount: z
       .number()

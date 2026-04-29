@@ -305,18 +305,19 @@ describe('otcMintSchema', () => {
 
 describe('buildOtcRedeemSchema', () => {
   const schema = buildOtcRedeemSchema(1000)
+  const baseInput = { customerId: 'cust-1', network: 'ethereum' as const }
 
   describe('positive', () => {
     test('should accept amount within balance', () => {
-      expect(
-        schema.safeParse({ network: 'ethereum', amount: 500 }).success,
-      ).toBe(true)
+      expect(schema.safeParse({ ...baseInput, amount: 500 }).success).toBe(
+        true,
+      )
     })
   })
 
   describe('negative', () => {
     test('should reject amount exceeding balance', () => {
-      const result = schema.safeParse({ network: 'ethereum', amount: 1500 })
+      const result = schema.safeParse({ ...baseInput, amount: 1500 })
       expect(result.success).toBe(false)
       expect(firstError(result, 'amount')).toBe(
         'Amount exceeds available balance',
@@ -324,11 +325,21 @@ describe('buildOtcRedeemSchema', () => {
     })
 
     test('should reject zero amount as greater-than-zero', () => {
-      const result = schema.safeParse({ network: 'ethereum', amount: 0 })
+      const result = schema.safeParse({ ...baseInput, amount: 0 })
       expect(result.success).toBe(false)
       expect(firstError(result, 'amount')).toBe(
         'Amount must be greater than 0',
       )
+    })
+
+    test('should reject missing customer', () => {
+      const result = schema.safeParse({
+        customerId: '',
+        network: 'ethereum',
+        amount: 500,
+      })
+      expect(result.success).toBe(false)
+      expect(firstError(result, 'customerId')).toBe('Customer is required')
     })
   })
 })
