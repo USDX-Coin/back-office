@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
 import { ProtectedRoute, PublicRoute } from '@/components/layout/AuthGuard'
@@ -57,7 +58,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <NuqsAdapter>
+            <RouterProvider router={router} />
+          </NuqsAdapter>
           <Toaster />
         </AuthProvider>
       </ThemeProvider>
