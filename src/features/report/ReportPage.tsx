@@ -185,6 +185,8 @@ export default function ReportPage() {
       },
       meta: {
         filterType: 'enum',
+        // Report MSW reads `?type=` for the kind/direction column.
+        filterUrlKey: 'type',
         enumOptions: [
           { value: 'mint', label: 'Mint' },
           { value: 'redeem', label: 'Redeem' },

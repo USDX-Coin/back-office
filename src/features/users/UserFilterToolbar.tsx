@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -28,16 +28,25 @@ export default function UserFilterToolbar({ values, onChange, onClear }: UserFil
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setSearchInput(values.search), [values.search])
 
-  const hasFilters = Boolean(values.search || values.type || values.role)
+  // Debounce push of searchInput to parent (URL) for live filtering.
+  const debounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (searchInput === values.search) return
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      onChange({ ...values, search: searchInput })
+    }, 250)
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
 
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault()
-    onChange({ ...values, search: searchInput })
-  }
+  const hasFilters = Boolean(values.search || values.type || values.role)
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <form onSubmit={submitSearch} className="relative flex-1 max-w-sm">
+      <div className="relative flex-1 max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search by name or email"
@@ -46,7 +55,7 @@ export default function UserFilterToolbar({ values, onChange, onClear }: UserFil
           className="pl-9 bg-card"
           aria-label="Search users"
         />
-      </form>
+      </div>
 
       <Select
         value={values.type || 'all'}
