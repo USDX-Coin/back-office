@@ -86,7 +86,11 @@ export default function StaffPage() {
         )
       },
     },
-    { accessorKey: 'email', header: 'Email' },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      meta: { filterType: 'text' },
+    },
     {
       accessorKey: 'phone',
       header: 'Phone',
@@ -95,10 +99,20 @@ export default function StaffPage() {
           {getValue() as string}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'role',
       header: 'Role',
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'support', label: 'Support Agent' },
+          { value: 'operations', label: 'Operations Manager' },
+          { value: 'compliance', label: 'Compliance Officer' },
+          { value: 'super_admin', label: 'Super Admin' },
+        ],
+      },
       cell: ({ getValue }) => {
         const r = getValue() as Staff['role']
         return (

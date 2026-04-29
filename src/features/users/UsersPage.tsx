@@ -87,7 +87,11 @@ export default function UsersPage() {
         )
       },
     },
-    { accessorKey: 'email', header: 'Email' },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      meta: { filterType: 'text' },
+    },
     {
       accessorKey: 'phone',
       header: 'Phone',
@@ -96,6 +100,7 @@ export default function UsersPage() {
           {getValue() as string}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'type',
@@ -110,6 +115,13 @@ export default function UsersPage() {
           />
         )
       },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'personal', label: 'Personal' },
+          { value: 'organization', label: 'Organization' },
+        ],
+      },
     },
     {
       accessorKey: 'organization',
@@ -119,10 +131,19 @@ export default function UsersPage() {
           {(getValue() as string | undefined) ?? '—'}
         </span>
       ),
+      meta: { filterType: 'text' },
     },
     {
       accessorKey: 'role',
       header: 'Role',
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'admin', label: 'Admin' },
+          { value: 'editor', label: 'Editor' },
+          { value: 'member', label: 'Member' },
+        ],
+      },
       cell: ({ getValue }) => {
         const r = getValue() as Customer['role']
         return (

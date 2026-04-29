@@ -183,6 +183,13 @@ export default function ReportPage() {
           </span>
         )
       },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'mint', label: 'Mint' },
+          { value: 'redeem', label: 'Redeem' },
+        ],
+      },
     },
     {
       id: 'customer',
@@ -206,6 +213,16 @@ export default function ReportPage() {
           </span>
         )
       },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'ethereum', label: 'Ethereum' },
+          { value: 'polygon', label: 'Polygon' },
+          { value: 'arbitrum', label: 'Arbitrum' },
+          { value: 'solana', label: 'Solana' },
+          { value: 'base', label: 'Base' },
+        ],
+      },
     },
     {
       accessorKey: 'amount',
@@ -216,6 +233,7 @@ export default function ReportPage() {
         </span>
       ),
       enableSorting: true,
+      meta: { filterType: 'numeric', align: 'right' },
     },
     {
       accessorKey: 'status',
@@ -223,6 +241,14 @@ export default function ReportPage() {
       cell: ({ getValue }) => {
         const s = getValue() as ReportRow['status']
         return <StatusPill status={s} appearance="soft" />
+      },
+      meta: {
+        filterType: 'enum',
+        enumOptions: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'completed', label: 'Completed' },
+          { value: 'failed', label: 'Failed' },
+        ],
       },
     },
   ]
