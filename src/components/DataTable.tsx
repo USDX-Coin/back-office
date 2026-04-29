@@ -3,6 +3,7 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
+  type Column,
   type ColumnDef,
   type ColumnSizingState,
   type PaginationState,
@@ -21,6 +22,7 @@ import {
   ChevronsRight,
   Columns3,
   Download,
+  Filter,
   ListChecks,
   Search,
   SlidersHorizontal,
@@ -36,6 +38,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -221,6 +228,7 @@ export default function DataTable<T>({
     },
     enableRowSelection: showRowSelection,
     enableColumnResizing: !disableColumnResize,
+    enableSortingRemoval: true,
     columnResizeMode: 'onChange',
     onPaginationChange: (updater) => {
       const next =
@@ -368,31 +376,54 @@ export default function DataTable<T>({
                         {header.isPlaceholder ? null : (
                           <div
                             className={cn(
-                              'flex items-center gap-1.5',
+                              'flex items-center gap-1',
                               align === 'right' && 'justify-end',
                               align === 'center' && 'justify-center',
-                              canSort && 'cursor-pointer select-none',
                             )}
-                            onClick={
-                              canSort
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
                           >
-                            <span className="truncate">
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
+                            <button
+                              type="button"
+                              disabled={!canSort}
+                              onClick={
+                                canSort
+                                  ? header.column.getToggleSortingHandler()
+                                  : undefined
+                              }
+                              aria-label={
+                                canSort
+                                  ? sortDir === 'asc'
+                                    ? 'Sorted ascending — click to sort descending'
+                                    : sortDir === 'desc'
+                                      ? 'Sorted descending — click to clear sort'
+                                      : 'Click to sort ascending'
+                                  : undefined
+                              }
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground transition-colors',
+                                canSort &&
+                                  'cursor-pointer hover:text-foreground',
+                                sortDir && 'text-foreground',
                               )}
-                            </span>
-                            {canSort &&
-                              (sortDir === 'asc' ? (
-                                <ArrowUp className="h-3 w-3" />
-                              ) : sortDir === 'desc' ? (
-                                <ArrowDown className="h-3 w-3" />
-                              ) : (
-                                <ArrowUpDown className="h-3 w-3 opacity-40" />
-                              ))}
+                            >
+                              <span className="truncate">
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                              {canSort && (
+                                <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-muted-foreground/70">
+                                  {sortDir === 'asc' ? (
+                                    <ArrowUp className="h-3 w-3 text-foreground" />
+                                  ) : sortDir === 'desc' ? (
+                                    <ArrowDown className="h-3 w-3 text-foreground" />
+                                  ) : (
+                                    <ArrowUpDown className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                                  )}
+                                </span>
+                              )}
+                            </button>
+                            <DataTableColumnFilter column={header.column} />
                           </div>
                         )}
                         {!disableColumnResize &&
@@ -404,10 +435,10 @@ export default function DataTable<T>({
                               onMouseDown={header.getResizeHandler()}
                               onTouchStart={header.getResizeHandler()}
                               className={cn(
-                                'absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none',
-                                'opacity-0 transition-opacity hover:opacity-100',
+                                'absolute right-0 top-1.5 h-[60%] w-px cursor-col-resize select-none touch-none bg-border transition-all',
+                                'hover:w-0.5 hover:bg-primary',
                                 header.column.getIsResizing() &&
-                                  'bg-primary opacity-100',
+                                  'h-full top-0 w-0.5 bg-primary',
                               )}
                             />
                           )}
@@ -819,6 +850,126 @@ function DataTablePagination({
         </div>
       </div>
     </div>
+  )
+}
+
+// Per-column filter funnel — opens a popover anchored to the funnel icon.
+// Renders a small input/select form sized to the column's `meta.filterType`.
+// Skipped when the column has no `meta.filterType` or it's set to 'none'.
+function DataTableColumnFilter<T>({ column }: { column: Column<T, unknown> }) {
+  const meta = column.columnDef.meta
+  const filterType = meta?.filterType
+  const [draft, setDraft] = useState<string>(
+    String(column.getFilterValue() ?? ''),
+  )
+
+  if (!filterType || filterType === 'none') return null
+
+  const isActive = column.getFilterValue() !== undefined
+
+  function apply() {
+    column.setFilterValue(draft || undefined)
+  }
+
+  function clear() {
+    setDraft('')
+    column.setFilterValue(undefined)
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Filter ${column.id}`}
+          className={cn(
+            'inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground',
+            isActive && 'text-primary',
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-60 p-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+          Filter {column.id}
+        </div>
+        {filterType === 'text' && (
+          <Input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') apply()
+            }}
+            placeholder="Contains…"
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        {filterType === 'enum' && meta?.enumOptions && (
+          <Select value={draft || 'all'} onValueChange={setDraft}>
+            <SelectTrigger className="h-8 text-[12.5px]">
+              <SelectValue placeholder="Choose…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {meta.enumOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {filterType === 'numeric' && (
+          <Input
+            type="number"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') apply()
+            }}
+            placeholder="Equals…"
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        {filterType === 'date' && (
+          <Input
+            type="date"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="h-8 text-[12.5px]"
+          />
+        )}
+        <div className="mt-3 flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={clear}
+            disabled={!isActive && !draft}
+            className="h-7"
+          >
+            Clear
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            onClick={apply}
+            className="h-7"
+          >
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
