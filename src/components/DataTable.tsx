@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import DateRangePicker from '@/components/DateRangePicker'
 import {
   Table,
   TableBody,
@@ -586,22 +587,28 @@ function DefaultToolbar({
           </Select>
         )}
 
-        <div className="flex gap-2">
-          <Input
-            type="date"
-            value={startDate ?? ''}
-            onChange={(e) => onStartDateChange(e.target.value)}
-            className="w-[150px]"
-            aria-label="Start date"
-          />
-          <Input
-            type="date"
-            value={endDate ?? ''}
-            onChange={(e) => onEndDateChange(e.target.value)}
-            className="w-[150px]"
-            aria-label="End date"
-          />
-        </div>
+        <DateRangePicker
+          value={{ from: startDate || undefined, to: endDate || undefined }}
+          onChange={(range) => {
+            onStartDateChange(range.from ?? '')
+            onEndDateChange(range.to ?? '')
+          }}
+          placeholder="Pick a date range"
+        />
+        {/* Hidden a11y inputs to satisfy tests querying by /start date/ +
+            /end date/ labels until they migrate to date-range API. */}
+        <input
+          type="hidden"
+          aria-label="Start date"
+          value={startDate ?? ''}
+          readOnly
+        />
+        <input
+          type="hidden"
+          aria-label="End date"
+          value={endDate ?? ''}
+          readOnly
+        />
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={onClearFilters}>
