@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -11,7 +11,7 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { useQueryStates } from 'nuqs'
+import { useQueryState, useQueryStates, parseAsString } from 'nuqs'
 import {
   ArrowDown,
   ArrowUp,
@@ -75,6 +75,13 @@ declare module '@tanstack/react-table' {
     cellClassName?: string
     filterType?: 'text' | 'enum' | 'date' | 'numeric' | 'none'
     enumOptions?: { value: string; label: string }[]
+    /**
+     * URL key the per-column filter funnel and Advanced Filter write to.
+     * Defaults to `column.id` (or accessorKey). Set this when the column's
+     * id doesn't match the URL key the MSW handler reads — e.g. Report's
+     * `kind` column maps to URL `?type=`.
+     */
+    filterUrlKey?: string
   }
 }
 
@@ -267,10 +274,42 @@ export default function DataTable<T>({
   const totalPages = Math.max(1, Math.ceil(rowCount / tableState.pageSize))
   const currentPage = pagination.pageIndex + 1
 
-  function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setTableState({ search: searchInput, page: 1 })
-  }
+  // Debounced live search — push searchInput to URL after 250ms of inactivity.
+  // Skip the first effect run if the input already matches the URL (initial
+  // hydration), and skip when the input change came from outside (e.g. nuqs
+  // hydrated us with a value we already render).
+  const searchDebounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (searchInput === tableState.search) return
+    if (searchDebounceRef.current) {
+      window.clearTimeout(searchDebounceRef.current)
+    }
+    searchDebounceRef.current = window.setTimeout(() => {
+      setTableState({ search: searchInput, page: 1 })
+    }, 250)
+    return () => {
+      if (searchDebounceRef.current) {
+        window.clearTimeout(searchDebounceRef.current)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
+
+  // Surface the list of column-driven filter URL keys so clearAllFilters
+  // can reset them. Each filterable column declares meta.filterUrlKey
+  // (defaults to column.id). DataTable doesn't know the values until render
+  // time, so we build the list from the columns prop.
+  const columnFilterKeys = useMemo(() => {
+    return columns
+      .map((c) => {
+        const meta = c.meta as
+          | { filterType?: string; filterUrlKey?: string }
+          | undefined
+        if (!meta?.filterType || meta.filterType === 'none') return null
+        return meta.filterUrlKey ?? (c as { id?: string }).id ?? null
+      })
+      .filter((v): v is string => Boolean(v))
+  }, [columns])
 
   function clearAllFilters() {
     setSearchInput('')
@@ -282,6 +321,18 @@ export default function DataTable<T>({
     })
     setExtraFilters({ status: '', startDate: '', endDate: '' })
     setRowSelection({})
+    // Clear column-funnel filter keys as well. We can't call useQueryState
+    // here, so we use the URL directly via window.history (nuqs reads from
+    // location.search and re-emits on a popstate). This is a one-shot
+    // mutation; the more idiomatic path is each consumer carrying a ref to
+    // its own hook, but for "Clear all" the single sweep is simpler.
+    const params = new URLSearchParams(window.location.search)
+    columnFilterKeys.forEach((key) => params.delete(key))
+    const next = params.toString()
+    const nextUrl =
+      window.location.pathname + (next ? `?${next}` : '')
+    window.history.replaceState({}, '', nextUrl)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const derivedHasFilters = Boolean(
@@ -317,7 +368,6 @@ export default function DataTable<T>({
         <DefaultToolbar
           searchInput={searchInput}
           onSearchInput={setSearchInput}
-          onSearchSubmit={handleSearchSubmit}
           status={extraFilters.status}
           statusOptions={statusOptions}
           onStatusChange={(value) =>
@@ -552,10 +602,9 @@ export default function DataTable<T>({
   )
 }
 
-interface DefaultToolbarProps {
+interface DefaultToolbarProps<_T> {
   searchInput: string
   onSearchInput: (value: string) => void
-  onSearchSubmit: (e: React.FormEvent) => void
   status?: string
   statusOptions?: { value: string; label: string }[]
   onStatusChange: (value: string) => void
@@ -568,10 +617,9 @@ interface DefaultToolbarProps {
   rightActions: ReactNode
 }
 
-function DefaultToolbar({
+function DefaultToolbar<T>({
   searchInput,
   onSearchInput,
-  onSearchSubmit,
   status,
   statusOptions,
   onStatusChange,
@@ -582,22 +630,20 @@ function DefaultToolbar({
   hasFilters,
   onClearFilters,
   rightActions,
-}: DefaultToolbarProps) {
+}: DefaultToolbarProps<T>) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-        <form
-          onSubmit={onSearchSubmit}
-          className="relative max-w-sm flex-1"
-        >
+        <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Filter anything..."
             value={searchInput}
             onChange={(e) => onSearchInput(e.target.value)}
             className="pl-9"
+            aria-label="Search rows"
           />
-        </form>
+        </div>
 
         {statusOptions && (
           <Select
@@ -674,16 +720,7 @@ function DataTableActions<T>({
 
   return (
     <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8"
-        type="button"
-        aria-pressed={false}
-      >
-        <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
-        Advanced Filter
-      </Button>
+      <AdvancedFilterPopover columns={table.getAllColumns().map((c) => c.columnDef as ColumnDef<T, unknown>)} />
 
       {!disableRowSelection && (
         <Button
@@ -853,27 +890,48 @@ function DataTablePagination({
   )
 }
 
+// Resolve the URL key a column writes its filter to. Defaults to column.id.
+function getColumnFilterUrlKey<T>(
+  column: Column<T, unknown> | undefined,
+): string | null {
+  if (!column) return null
+  const meta = column.columnDef.meta as
+    | { filterUrlKey?: string }
+    | undefined
+  return meta?.filterUrlKey ?? column.id ?? null
+}
+
 // Per-column filter funnel — opens a popover anchored to the funnel icon.
-// Renders a small input/select form sized to the column's `meta.filterType`.
-// Skipped when the column has no `meta.filterType` or it's set to 'none'.
+// Reads/writes its value via nuqs to a URL key derived from the column
+// (meta.filterUrlKey ?? column.id). MSW handlers read these keys to filter
+// server-side. Skipped when the column has no `meta.filterType` or it's
+// set to 'none'.
 function DataTableColumnFilter<T>({ column }: { column: Column<T, unknown> }) {
   const meta = column.columnDef.meta
   const filterType = meta?.filterType
-  const [draft, setDraft] = useState<string>(
-    String(column.getFilterValue() ?? ''),
+  const urlKey = getColumnFilterUrlKey(column) ?? column.id
+  const [value, setValue] = useQueryState(
+    urlKey,
+    parseAsString.withDefault(''),
   )
+  const [draft, setDraft] = useState(value)
+
+  // Keep draft in sync if URL changes externally (e.g. clearAllFilters)
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
 
   if (!filterType || filterType === 'none') return null
 
-  const isActive = column.getFilterValue() !== undefined
+  const isActive = Boolean(value)
 
   function apply() {
-    column.setFilterValue(draft || undefined)
+    setValue(draft || null)
   }
 
   function clear() {
     setDraft('')
-    column.setFilterValue(undefined)
+    setValue(null)
   }
 
   return (
@@ -912,7 +970,10 @@ function DataTableColumnFilter<T>({ column }: { column: Column<T, unknown> }) {
           />
         )}
         {filterType === 'enum' && meta?.enumOptions && (
-          <Select value={draft || 'all'} onValueChange={setDraft}>
+          <Select
+            value={draft || 'all'}
+            onValueChange={(v) => setDraft(v === 'all' ? '' : v)}
+          >
             <SelectTrigger className="h-8 text-[12.5px]">
               <SelectValue placeholder="Choose…" />
             </SelectTrigger>
@@ -970,6 +1031,179 @@ function DataTableColumnFilter<T>({ column }: { column: Column<T, unknown> }) {
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// Advanced Filter — a single popover with one input/select per filterable
+// column, plus Apply / Clear all. Each field reads/writes the same URL key
+// the per-column funnel uses, so opening Advanced Filter shows the current
+// state for everything in one place.
+function AdvancedFilterPopover<T>({
+  columns,
+}: {
+  columns: ColumnDef<T, unknown>[]
+}) {
+  const filterableColumns = columns
+    .map((col) => {
+      const meta = col.meta as
+        | {
+            filterType?: 'text' | 'enum' | 'numeric' | 'date' | 'none'
+            filterUrlKey?: string
+            enumOptions?: { value: string; label: string }[]
+          }
+        | undefined
+      const id = (col as { id?: string; accessorKey?: string }).id ??
+        (col as { accessorKey?: string }).accessorKey ??
+        null
+      const header = typeof col.header === 'string' ? col.header : id
+      if (!meta?.filterType || meta.filterType === 'none' || !id || !header) {
+        return null
+      }
+      return {
+        id,
+        header,
+        urlKey: meta.filterUrlKey ?? id,
+        filterType: meta.filterType,
+        enumOptions: meta.enumOptions,
+      }
+    })
+    .filter((v): v is NonNullable<typeof v> => Boolean(v))
+
+  const hasAny = filterableColumns.length > 0
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          type="button"
+          disabled={!hasAny}
+        >
+          <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
+          Advanced Filter
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-[440px] p-4"
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <span className="text-[13px] font-semibold">Advanced Filter</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filterableColumns.map((col) => (
+            <AdvancedFilterField key={col.id} field={col} />
+          ))}
+        </div>
+        <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
+          <AdvancedFilterClearAll
+            urlKeys={filterableColumns.map((c) => c.urlKey)}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+interface AdvancedFilterFieldProps {
+  field: {
+    id: string
+    header: string
+    urlKey: string
+    filterType: 'text' | 'enum' | 'numeric' | 'date'
+    enumOptions?: { value: string; label: string }[]
+  }
+}
+
+function AdvancedFilterField({ field }: AdvancedFilterFieldProps) {
+  const [value, setValue] = useQueryState(
+    field.urlKey,
+    parseAsString.withDefault(''),
+  )
+  const debounce = useRef<number | null>(null)
+
+  function commit(next: string) {
+    setValue(next || null)
+  }
+
+  function debouncedCommit(next: string) {
+    if (debounce.current) window.clearTimeout(debounce.current)
+    debounce.current = window.setTimeout(() => {
+      commit(next)
+    }, 300)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+        {field.header}
+      </label>
+      {field.filterType === 'text' && (
+        <Input
+          value={value}
+          onChange={(e) => debouncedCommit(e.target.value)}
+          placeholder={`Search ${field.header.toLowerCase()}…`}
+          className="h-8 text-[12.5px]"
+        />
+      )}
+      {field.filterType === 'enum' && field.enumOptions && (
+        <Select
+          value={value || 'all'}
+          onValueChange={(v) => commit(v === 'all' ? '' : v)}
+        >
+          <SelectTrigger className="h-8 text-[12.5px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            {field.enumOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {field.filterType === 'numeric' && (
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => debouncedCommit(e.target.value)}
+          placeholder="Equals…"
+          className="h-8 text-[12.5px]"
+        />
+      )}
+      {field.filterType === 'date' && (
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => commit(e.target.value)}
+          className="h-8 text-[12.5px]"
+        />
+      )}
+    </div>
+  )
+}
+
+function AdvancedFilterClearAll({ urlKeys }: { urlKeys: string[] }) {
+  function clearAll() {
+    const params = new URLSearchParams(window.location.search)
+    urlKeys.forEach((k) => params.delete(k))
+    const next = params.toString()
+    const url =
+      window.location.pathname + (next ? `?${next}` : '')
+    window.history.replaceState({}, '', url)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  return (
+    <Button variant="ghost" size="sm" onClick={clearAll} className="h-7">
+      <X className="mr-1 h-3.5 w-3.5" />
+      Clear all filters
+    </Button>
   )
 }
 
