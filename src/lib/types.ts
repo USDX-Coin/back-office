@@ -6,9 +6,14 @@
 //   Operator = the current Staff (runtime identity, typed as Staff)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type OtcStatus = 'pending' | 'completed' | 'failed'
+// `pending_approval` represents a Safe multisig transaction awaiting human
+// signers (sot/phase-1.md). The legacy `pending` value still represents the
+// simplified single-shot async settlement used elsewhere in the v1 mock.
+export type OtcStatus = 'pending_approval' | 'pending' | 'completed' | 'failed'
 
 export type Network = 'ethereum' | 'polygon' | 'arbitrum' | 'solana' | 'base'
+
+export type SafeType = 'STAFF' | 'MANAGER'
 
 export type CustomerType = 'personal' | 'organization'
 
@@ -53,6 +58,11 @@ export interface OtcMintTransaction {
   status: OtcStatus
   createdAt: string
   settledAt?: string
+  // Safe multisig fields (populated when status === 'pending_approval')
+  safeType?: SafeType
+  safeAddress?: string
+  safeTxHash?: string
+  chainId?: number
 }
 
 export interface OtcRedeemTransaction {
@@ -67,9 +77,26 @@ export interface OtcRedeemTransaction {
   status: OtcStatus
   createdAt: string
   settledAt?: string
+  safeType?: SafeType
+  safeAddress?: string
+  safeTxHash?: string
+  chainId?: number
 }
 
 export type OtcTransactionKind = 'mint' | 'redeem'
+
+export interface Notification {
+  id: string
+  kind: OtcTransactionKind
+  userName: string
+  amount: number
+  network: Network
+  safeType: SafeType
+  safeAddress: string
+  safeTxHash: string
+  chainId: number
+  createdAt: string
+}
 
 export interface ReportRow {
   id: string

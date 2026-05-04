@@ -8,6 +8,12 @@ export interface StatusConfig {
 }
 
 const otcStatusMap: Record<OtcStatus, StatusConfig> = {
+  pending_approval: {
+    label: 'Pending approval',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
   pending: {
     label: 'Pending',
     variant: 'outline',
