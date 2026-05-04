@@ -150,9 +150,83 @@ function notFound() {
   return new HttpResponse(null, { status: 404 })
 }
 
+// ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
+function base64UrlEncode(payload: object): string {
+  const json = JSON.stringify(payload)
+  // btoa is available in browser + jsdom; encodeURIComponent guards against unicode
+  const b64 = btoa(unescape(encodeURIComponent(json)))
+  return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+export function issueMockJwt(staff: Staff): string {
+  const header = base64UrlEncode({ alg: 'HS256', typ: 'JWT' })
+  const now = Math.floor(Date.now() / 1000)
+  const body = base64UrlEncode({
+    sub: staff.id,
+    email: staff.email,
+    role: staff.role,
+    iat: now,
+    exp: now + 60 * 60 * 24 * 30, // 30 days — matches "Remember this device for 30 days"
+  })
+  return `${header}.${body}.mock-signature`
+}
+
 // ─── Handlers ───
 
 export const handlers = [
+  // ─── Auth ───
+  // Response envelope follows sot/openapi.yaml § /api/v1/auth/login.
+  http.post('/api/v1/auth/login', async ({ request }) => {
+    let body: { email?: string; password?: string }
+    try {
+      body = (await request.json()) as { email?: string; password?: string }
+    } catch {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+        },
+        { status: 400 }
+      )
+    }
+    const email = body.email?.trim() ?? ''
+    const password = body.password ?? ''
+    if (!email || !password) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    // R64 (mock-only): any non-empty credential pair authenticates.
+    const matched = findStaffByEmail(email) ?? getDefaultStaff()
+    if (!matched) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        accessToken: issueMockJwt(matched),
+        staff: matched,
+      },
+    })
+  }),
+
   // ─── Customers (User menu) ───
   http.get('/api/customers', ({ request }) => {
     const url = new URL(request.url)
