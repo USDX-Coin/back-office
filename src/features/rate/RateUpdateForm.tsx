@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,23 +31,31 @@ interface FormState {
   spreadPct: string
 }
 
-function initialFormState(current: RateInfo | undefined): FormState {
-  if (!current) return { mode: '', manualRate: '', spreadPct: '' }
-  return {
-    mode: current.mode,
-    // Don't seed manualRate from the effective rate — it's already had
-    // spread applied. Operator must enter the desired manual base.
-    manualRate: '',
-    spreadPct: current.spreadPct,
-  }
-}
+const EMPTY_FORM: FormState = { mode: '', manualRate: '', spreadPct: '' }
 
 export default function RateUpdateForm({ current }: RateUpdateFormProps) {
   const { user } = useAuth()
   const update = useUpdateRate()
-  const [form, setForm] = useState<FormState>(() => initialFormState(current))
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  // Seed mode + spreadPct from the current config once it arrives so the
+  // operator's first edit can be a single-field change. We only seed once;
+  // any in-progress edit is preserved across refetches.
+  const hasSeededRef = useRef(false)
+  useEffect(() => {
+    if (hasSeededRef.current) return
+    if (!current) return
+    hasSeededRef.current = true
+    setForm({
+      mode: current.mode,
+      // Don't seed manualRate from the effective rate — it has spread
+      // baked in. Operator types the desired base value explicitly.
+      manualRate: '',
+      spreadPct: current.spreadPct,
+    })
+  }, [current])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))

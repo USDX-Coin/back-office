@@ -16,6 +16,18 @@ if (typeof Element.prototype.scrollIntoView === 'undefined') {
   Element.prototype.scrollIntoView = function () {}
 }
 
+// Radix UI's Select uses Pointer Events APIs that JSDOM does not implement.
+// Stub the missing methods so tests can interact with `<Select>` triggers.
+if (typeof Element.prototype.hasPointerCapture === 'undefined') {
+  Element.prototype.hasPointerCapture = () => false
+}
+if (typeof Element.prototype.setPointerCapture === 'undefined') {
+  Element.prototype.setPointerCapture = () => {}
+}
+if (typeof Element.prototype.releasePointerCapture === 'undefined') {
+  Element.prototype.releasePointerCapture = () => {}
+}
+
 if (typeof globalThis.matchMedia === 'undefined') {
   Object.defineProperty(globalThis, 'matchMedia', {
     writable: true,
