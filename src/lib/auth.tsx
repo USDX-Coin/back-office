@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
 import { findStaffById } from '@/mocks/handlers'
+import { apiFetch, ApiError, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
   user: Staff | null
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 const STORAGE_KEY = 'usdx_auth_user'
 const LOGIN_ENDPOINT = '/api/v1/auth/login'
+const ME_ENDPOINT = '/api/v1/auth/me'
 
 interface PersistedSession {
   version: 3
@@ -47,19 +49,12 @@ function readPersistedSession(): RestoredSession | null {
   return null
 }
 
-// Response shapes mirror sot/openapi.yaml § /api/v1/auth/login.
-interface LoginSuccessPayload {
-  status: 'success'
-  data: { accessToken: string; staff: Staff }
-}
-
-interface LoginErrorPayload {
-  status?: 'error'
-  error?: { code?: string; message?: string }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<RestoredSession | null>(() => readPersistedSession())
+  // Mirror session in a ref so the configureApiFetch bindings always see the
+  // freshest token without re-registering on every render.
+  const sessionRef = useRef(session)
+  sessionRef.current = session
 
   useEffect(() => {
     if (session) {
@@ -75,32 +70,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
+  useEffect(() => {
+    configureApiFetch({
+      getToken: () => sessionRef.current?.token ?? null,
+      onUnauthorized: () => setSession(null),
+    })
+  }, [])
+
+  // Boot validation: when restored from localStorage, verify the token by
+  // calling /api/v1/auth/me. apiFetch already calls onUnauthorized on 401.
+  // We refresh the user record from the server response for freshness.
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    apiFetch<Staff>(ME_ENDPOINT)
+      .then((staff) => {
+        if (cancelled) return
+        if (staff && staff.id) {
+          setSession((prev) => (prev ? { ...prev, user: staff } : prev))
+        }
+      })
+      .catch(() => {
+        // ApiError(401) already triggered onUnauthorized -> setSession(null).
+        // Other errors (network down) we ignore so offline users stay signed in.
+      })
+    return () => {
+      cancelled = true
+    }
+    // Run only when token identity changes — not on every staff refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.token])
+
   const login = useCallback(async (email: string, password: string) => {
     if (!email.trim() || !password) {
       throw new Error('Email and password are required')
     }
-    const response = await fetch(LOGIN_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-    if (!response.ok) {
-      let message = 'Invalid email or password'
-      try {
-        const payload = (await response.json()) as LoginErrorPayload
-        if (payload.error?.message) message = payload.error.message
-      } catch {
-        // keep default message
+    try {
+      const data = await apiFetch<{ accessToken: string; staff: Staff }>(LOGIN_ENDPOINT, {
+        method: 'POST',
+        body: { email, password },
+        skipAuth: true,
+      })
+      if (!data?.accessToken || !data?.staff) {
+        throw new Error('Malformed login response')
       }
-      throw new Error(message)
+      setSession({ user: data.staff, token: data.accessToken })
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw new Error(err.message)
+      }
+      throw err
     }
-    const payload = (await response.json()) as LoginSuccessPayload
-    const accessToken = payload.data?.accessToken
-    const staff = payload.data?.staff
-    if (!accessToken || !staff) {
-      throw new Error('Malformed login response')
-    }
-    setSession({ user: staff, token: accessToken })
   }, [])
 
   const logout = useCallback(() => {
