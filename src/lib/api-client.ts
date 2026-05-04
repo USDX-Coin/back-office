@@ -5,11 +5,13 @@ const BASE_URL = '/api'
 export type ApiError = { code: string; message: string }
 
 export class ApiClientError extends Error {
-  constructor(
-    public status: number,
-    public error: ApiError,
-  ) {
+  status: number
+  error: ApiError
+
+  constructor(status: number, error: ApiError) {
     super(error.message)
+    this.status = status
+    this.error = error
   }
 }
 
