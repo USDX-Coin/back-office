@@ -150,9 +150,143 @@ function notFound() {
   return new HttpResponse(null, { status: 404 })
 }
 
+// ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
+function base64UrlEncode(payload: object): string {
+  const json = JSON.stringify(payload)
+  // btoa is available in browser + jsdom; encodeURIComponent guards against unicode
+  const b64 = btoa(unescape(encodeURIComponent(json)))
+  return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+export function issueMockJwt(staff: Staff): string {
+  const header = base64UrlEncode({ alg: 'HS256', typ: 'JWT' })
+  const now = Math.floor(Date.now() / 1000)
+  const body = base64UrlEncode({
+    sub: staff.id,
+    email: staff.email,
+    role: staff.role,
+    iat: now,
+    exp: now + 60 * 60 * 24 * 30, // 30 days — matches "Remember this device for 30 days"
+  })
+  return `${header}.${body}.mock-signature`
+}
+
+function base64UrlDecode(segment: string): string {
+  const pad = segment.length % 4 === 0 ? 0 : 4 - (segment.length % 4)
+  const b64 = segment.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(pad)
+  return decodeURIComponent(escape(atob(b64)))
+}
+
+interface MockJwtClaims {
+  sub: string
+  email: string
+  role: string
+  iat: number
+  exp: number
+}
+
+export function verifyMockJwt(token: string): MockJwtClaims | null {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  if (parts[2] !== 'mock-signature') return null
+  try {
+    const claims = JSON.parse(base64UrlDecode(parts[1])) as MockJwtClaims
+    if (typeof claims.exp !== 'number') return null
+    if (Math.floor(Date.now() / 1000) >= claims.exp) return null
+    if (typeof claims.sub !== 'string' || !claims.sub) return null
+    return claims
+  } catch {
+    return null
+  }
+}
+
+function unauthorized(message = 'Invalid or missing token') {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'UNAUTHORIZED', message },
+    },
+    { status: 401 }
+  )
+}
+
+function authenticatedStaff(request: Request): Staff | null {
+  const header = request.headers.get('Authorization') ?? ''
+  if (!header.startsWith('Bearer ')) return null
+  const claims = verifyMockJwt(header.slice('Bearer '.length).trim())
+  if (!claims) return null
+  return findStaffById(claims.sub) ?? null
+}
+
 // ─── Handlers ───
 
 export const handlers = [
+  // ─── Auth ───
+  // Response envelope follows sot/openapi.yaml § /api/v1/auth/login.
+  http.post('/api/v1/auth/login', async ({ request }) => {
+    let body: { email?: string; password?: string }
+    try {
+      body = (await request.json()) as { email?: string; password?: string }
+    } catch {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+        },
+        { status: 400 }
+      )
+    }
+    const email = body.email?.trim() ?? ''
+    const password = body.password ?? ''
+    if (!email || !password) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    // R64 (mock-only): any non-empty credential pair authenticates.
+    const matched = findStaffByEmail(email) ?? getDefaultStaff()
+    if (!matched) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        accessToken: issueMockJwt(matched),
+        staff: matched,
+      },
+    })
+  }),
+
+  // sot/openapi.yaml § /api/v1/auth/me — restore session by Bearer token.
+  http.get('/api/v1/auth/me', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: staff,
+    })
+  }),
+
   // ─── Customers (User menu) ───
   http.get('/api/customers', ({ request }) => {
     const url = new URL(request.url)
