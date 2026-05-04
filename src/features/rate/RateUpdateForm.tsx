@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,34 +31,32 @@ interface FormState {
   spreadPct: string
 }
 
-const EMPTY_FORM: FormState = { mode: '', manualRate: '', spreadPct: '' }
+// Form state is the user's overrides on top of the current config.
+// Undefined fields fall back to the current rate values, so the form
+// "seeds" itself naturally as soon as GET resolves — no effect needed.
+type FormOverrides = Partial<FormState>
+
+function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): FormState {
+  return {
+    mode: overrides.mode ?? current?.mode ?? '',
+    // manualRate intentionally not seeded from current — current.rate has
+    // spread baked in, and asking the operator to retype the base value
+    // makes the change explicit.
+    manualRate: overrides.manualRate ?? '',
+    spreadPct: overrides.spreadPct ?? current?.spreadPct ?? '',
+  }
+}
 
 export default function RateUpdateForm({ current }: RateUpdateFormProps) {
   const { user } = useAuth()
   const update = useUpdateRate()
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [overrides, setOverrides] = useState<FormOverrides>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmOpen, setConfirmOpen] = useState(false)
-
-  // Seed mode + spreadPct from the current config once it arrives so the
-  // operator's first edit can be a single-field change. We only seed once;
-  // any in-progress edit is preserved across refetches.
-  const hasSeededRef = useRef(false)
-  useEffect(() => {
-    if (hasSeededRef.current) return
-    if (!current) return
-    hasSeededRef.current = true
-    setForm({
-      mode: current.mode,
-      // Don't seed manualRate from the effective rate — it has spread
-      // baked in. Operator types the desired base value explicitly.
-      manualRate: '',
-      spreadPct: current.spreadPct,
-    })
-  }, [current])
+  const form = resolveForm(overrides, current)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+    setOverrides((prev) => ({ ...prev, [key]: value }))
     if (errors[key as string]) {
       setErrors((prev) => {
         const next = { ...prev }
@@ -97,8 +95,9 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
       })
       toast.success('Rate updated')
       setConfirmOpen(false)
-      // Keep mode/spread to make repeat tweaks ergonomic; clear manualRate.
-      setForm((prev) => ({ ...prev, manualRate: '' }))
+      // Clear all overrides — the next refetched current rate becomes the
+      // new baseline, and the form snaps back to "no edit in progress".
+      setOverrides({})
       setErrors({})
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update rate')
