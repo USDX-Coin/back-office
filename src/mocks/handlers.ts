@@ -12,6 +12,7 @@ import {
   createMockOtcTransactions,
   createCustomer,
   createStaff,
+  createUserWallet,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
   computeCustomerSummary,
@@ -19,6 +20,8 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  computeUserAnalytics,
+  computeUserRecentRequests,
 } from './data'
 
 // ─── Stores ───
@@ -168,7 +171,8 @@ export const handlers = [
         (c) =>
           c.firstName.toLowerCase().includes(search) ||
           c.lastName.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search)
+          c.email.toLowerCase().includes(search) ||
+          c.wallets.some((w) => w.address.toLowerCase().includes(search))
       )
     }
     if (type) result = result.filter((c) => c.type === type)
@@ -180,12 +184,54 @@ export const handlers = [
 
   http.get('/api/customers/summary', () => HttpResponse.json(computeCustomerSummary(customerStore))),
 
+  http.get('/api/customers/:id', ({ params }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const analytics = computeUserAnalytics(customer.id, otcMintStore, otcRedeemStore)
+    const recentRequests = computeUserRecentRequests(customer.id, otcMintStore, otcRedeemStore)
+    return HttpResponse.json({ ...customer, analytics, recentRequests })
+  }),
+
+  http.post('/api/customers/:id/wallets', async ({ params, request }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const body = (await request.json()) as { chain?: string; address?: string }
+    if (!body.chain || !body.address) {
+      return badRequest('VALIDATION', 'Chain and address are required')
+    }
+    const duplicate = customer.wallets.some(
+      (w) => w.chain === body.chain && w.address.toLowerCase() === body.address!.toLowerCase()
+    )
+    if (duplicate) {
+      return HttpResponse.json(
+        { error: { code: 'CONFLICT', message: 'Wallet already exists for this user' } },
+        { status: 409 }
+      )
+    }
+    const wallet = createUserWallet({
+      chain: body.chain as Customer['wallets'][number]['chain'],
+      address: body.address,
+      createdAt: new Date().toISOString(),
+    })
+    customer.wallets.push(wallet)
+    return HttpResponse.json(wallet, { status: 201 })
+  }),
+
+  http.delete('/api/customers/:id/wallets/:walletId', ({ params }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const idx = customer.wallets.findIndex((w) => w.id === params.walletId)
+    if (idx < 0) return notFound()
+    customer.wallets.splice(idx, 1)
+    return new HttpResponse(null, { status: 204 })
+  }),
+
   http.post('/api/customers', async ({ request }) => {
     const body = (await request.json()) as Partial<Customer>
     if (!body.firstName || !body.lastName || !body.email || !body.type || !body.role) {
       return badRequest('VALIDATION', 'Missing required fields')
     }
-    const created = createCustomer(body as Partial<Customer>)
+    const created = createCustomer({ ...(body as Partial<Customer>), wallets: body.wallets ?? [] })
     customerStore.unshift(created)
     return HttpResponse.json(created, { status: 201 })
   }),
