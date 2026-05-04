@@ -16,7 +16,9 @@ describe('OtcRedeemPage', () => {
   describe('positive', () => {
     test('should render header + form + info panel + recent table', () => {
       renderWithProviders(<OtcRedeemPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /otc redemption/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: /redeem.*burn.*usdx/i })
+      ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /submit redemption/i })).toBeInTheDocument()
       expect(screen.getByText(/treasury liquidity/i)).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: /recent redemptions/i })).toBeInTheDocument()

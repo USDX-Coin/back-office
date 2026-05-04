@@ -13,7 +13,9 @@ const NAV = [
 export default function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false)
   const { pathname } = useLocation()
-  const moreActive = ['/users', '/staff', '/profile'].some((p) => pathname.startsWith(p))
+  const moreActive = ['/users', '/staff', '/profile', '/requests'].some((p) =>
+    pathname.startsWith(p)
+  )
 
   return (
     <>
