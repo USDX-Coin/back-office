@@ -17,6 +17,7 @@ import {
   createStaff,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
+  createBurnRequestFromSubmission,
   computeCustomerSummary,
   computeStaffSummary,
   computeReportRows,
@@ -578,5 +579,161 @@ export const handlers = [
       )
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  // sot/openapi.yaml § POST /api/v1/burn — submit burn request (OTC).
+  // Performs SoT-aligned shape validation. Real backend additionally verifies
+  // depositTxHash on-chain (amount match, deposit recipient = correct Safe);
+  // mock-only proxy: txHash ending in `0xdead…dead` simulates that failure.
+  http.post('/api/v1/burn', async ({ request }) => {
+    const staff = authenticatedStaff(request) ?? getDefaultStaff()
+    if (!staff) return unauthorized()
+
+    let body: Partial<{
+      userName: string
+      userAddress: string
+      amount: string
+      chain: string
+      depositTxHash: string
+      bankName: string
+      bankAccount: string
+      notes: string
+    }>
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+        },
+        { status: 400 }
+      )
+    }
+
+    const required = ['userName', 'userAddress', 'amount', 'chain', 'depositTxHash', 'bankName', 'bankAccount'] as const
+    for (const key of required) {
+      const value = body[key]
+      if (typeof value !== 'string' || !value.trim()) {
+        return HttpResponse.json(
+          {
+            status: 'error',
+            metadata: null,
+            data: null,
+            error: { code: 'VALIDATION_ERROR', message: `${key} is required` },
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    const userAddress = String(body.userAddress).trim()
+    const depositTxHash = String(body.depositTxHash).trim()
+    const amount = String(body.amount).trim()
+    const chain = String(body.chain) as RequestListItem['chain']
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid userAddress (expected 0x + 40 hex chars)' },
+        },
+        { status: 400 }
+      )
+    }
+
+    if (!/^0x[a-fA-F0-9]{64}$/.test(depositTxHash)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid depositTxHash (expected 0x + 64 hex chars)',
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const amountNum = Number(amount)
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION_ERROR', message: 'amount must be greater than 0' },
+        },
+        { status: 400 }
+      )
+    }
+
+    const allowedChains = ['ethereum', 'polygon', 'arbitrum', 'base'] as const
+    if (!(allowedChains as readonly string[]).includes(chain)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: `Unsupported chain (expected one of: ${allowedChains.join(', ')})`,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    // Mock proxy for "deposit TX failed verification on-chain" — sot/phase-1.md
+    // step 2 says backend verifies the deposit hits the Safe. Use a recognisable
+    // sentinel so tests can exercise the failure branch deterministically.
+    const failureSentinel = '0x' + 'dead'.repeat(16)
+    if (depositTxHash.toLowerCase() === failureSentinel) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Deposit TX could not be verified on-chain or amount mismatch',
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const matchedUser = customerStore.find(
+      (c) => `${c.firstName} ${c.lastName}`.toLowerCase() === String(body.userName).trim().toLowerCase()
+    )
+
+    const { list, detail } = createBurnRequestFromSubmission(
+      {
+        userName: String(body.userName),
+        userAddress,
+        amount,
+        chain: chain as 'ethereum' | 'polygon' | 'arbitrum' | 'base',
+        depositTxHash,
+        bankName: String(body.bankName),
+        bankAccount: String(body.bankAccount),
+        notes: typeof body.notes === 'string' ? body.notes : undefined,
+      },
+      staff,
+      matchedUser
+    )
+
+    requestList.unshift(list)
+    requestDetails.set(detail.id, detail)
+
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: detail },
+      { status: 201 }
+    )
   }),
 ]
