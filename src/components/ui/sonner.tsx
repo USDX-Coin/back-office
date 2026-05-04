@@ -1,3 +1,5 @@
+"use client"
+
 import {
   CircleCheck,
   Info,
@@ -5,39 +7,34 @@ import {
   OctagonX,
   TriangleAlert,
 } from "lucide-react"
-import { Toaster as SonnerToaster } from "sonner"
+import { useTheme } from "next-themes"
+import { Toaster as Sonner } from "sonner"
 
-type ToasterProps = React.ComponentProps<typeof SonnerToaster>
+type ToasterProps = React.ComponentProps<typeof Sonner>
 
-function Toaster({ ...props }: ToasterProps) {
+const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme = "system" } = useTheme()
+
   return (
-    <SonnerToaster
-      theme="light"
-      position="top-right"
-      duration={5000}
-      closeButton
+    <Sonner
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
-        success: <CircleCheck className="h-4 w-4 text-success" />,
-        info: <Info className="h-4 w-4 text-primary" />,
-        warning: <TriangleAlert className="h-4 w-4 text-warning" />,
-        error: <OctagonX className="h-4 w-4 text-destructive" />,
-        loading: <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />,
+        success: <CircleCheck className="h-4 w-4" />,
+        info: <Info className="h-4 w-4" />,
+        warning: <TriangleAlert className="h-4 w-4" />,
+        error: <OctagonX className="h-4 w-4" />,
+        loading: <LoaderCircle className="h-4 w-4 animate-spin" />,
       }}
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-card group-[.toaster]:text-foreground group-[.toaster]:border-border/20 group-[.toaster]:shadow-sm",
+            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
           description: "group-[.toast]:text-muted-foreground",
           actionButton:
             "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton:
-            "group-[.toast]:bg-muted/60 group-[.toast]:text-muted-foreground",
-          error:
-            "group-[.toaster]:border-destructive/30 group-[.toast]:!duration-[8000ms]",
-          success: "group-[.toaster]:border-success/30",
-          warning:
-            "group-[.toaster]:border-warning/30 group-[.toast]:!duration-[8000ms]",
+            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
       }}
       {...props}

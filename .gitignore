@@ -22,8 +22,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-test-results/
-walkthrough-screenshots/
-
-# Local visual verification output
-verify-screenshots/
+.env.local
