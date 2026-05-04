@@ -410,7 +410,17 @@ export const handlers = [
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
 
   // ─── Rate (sot/openapi.yaml § /api/v1/rate) ───
-  http.get('/api/v1/rate', () => HttpResponse.json({ data: computeRateInfo(rateHistory) })),
+  // Wraps responses in the SoT envelope (SuccessResponse / ErrorResponse)
+  // because /api/v1/* paths follow the documented contract strictly. Other
+  // endpoints under /api/* in this mock predate that contract and use the
+  // legacy bare shape.
+  http.get('/api/v1/rate', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: computeRateInfo(rateHistory),
+    })
+  ),
 
   http.post('/api/v1/rate', async ({ request }) => {
     const body = (await request.json()) as UpdateRateConfig & {
@@ -426,24 +436,41 @@ export const handlers = [
       : null
     if (!operator || !canManageRate(operator.role)) {
       return HttpResponse.json(
-        { error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' } },
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' },
+        },
         { status: 403 }
       )
     }
 
+    function rateBadRequest(message: string) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION', message },
+        },
+        { status: 400 }
+      )
+    }
+
     if (body.mode !== 'MANUAL' && body.mode !== 'DYNAMIC') {
-      return badRequest('VALIDATION', 'mode must be MANUAL or DYNAMIC')
+      return rateBadRequest('mode must be MANUAL or DYNAMIC')
     }
     if (body.mode === 'MANUAL') {
       const n = Number(body.manualRate)
       if (!body.manualRate || !Number.isFinite(n) || n <= 0) {
-        return badRequest('VALIDATION', 'manualRate is required when mode is MANUAL')
+        return rateBadRequest('manualRate is required when mode is MANUAL')
       }
     }
     if (body.spreadPct != null) {
       const n = Number(body.spreadPct)
       if (!Number.isFinite(n) || n < 0) {
-        return badRequest('VALIDATION', 'spreadPct must be a non-negative number')
+        return rateBadRequest('spreadPct must be a non-negative number')
       }
     }
 
@@ -455,6 +482,9 @@ export const handlers = [
       createdAt: new Date().toISOString(),
     })
     rateHistory.push(created)
-    return HttpResponse.json({ data: created }, { status: 201 })
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
   }),
 ]

@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { RateConfig, RateInfo, UpdateRateConfig } from '@/lib/types'
 
+// SoT envelope (sot/openapi.yaml § SuccessResponse). Extra fields are
+// ignored on the client, but typed so the contract is explicit.
 interface DataEnvelope<T> {
+  status: 'success'
+  metadata: null | object
   data: T
 }
 
