@@ -62,4 +62,47 @@ test.describe('smoke @e2e', () => {
     await expect(page.getByText(/email is required/i)).toBeVisible()
     await expect(page).toHaveURL(/\/login/)
   })
+
+  test('should list mint/burn requests and open detail modal', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel(/^email$/i).fill(DEMO_EMAIL)
+    await page.getByLabel(/^password$/i).fill(DEMO_PASSWORD)
+    await page.getByRole('button', { name: /^sign in$/i }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 })
+
+    await page.getByRole('link', { name: /^requests$/i }).click()
+    await expect(page).toHaveURL(/\/requests/)
+    await expect(
+      page.getByRole('heading', { name: /requests.*mint.*burn/i })
+    ).toBeVisible()
+
+    // First clickable row carries an aria-label "Open mint|burn request for ..."
+    const firstRow = page.locator('tr[role="button"][aria-label^="Open"]').first()
+    await expect(firstRow).toBeVisible({ timeout: 10000 })
+    await firstRow.click()
+
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /(mint|burn) request/i })
+    ).toBeVisible()
+  })
+
+  test('should filter by mint type on the requests page', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel(/^email$/i).fill(DEMO_EMAIL)
+    await page.getByLabel(/^password$/i).fill(DEMO_PASSWORD)
+    await page.getByRole('button', { name: /^sign in$/i }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 })
+
+    await page.goto('/requests')
+    await expect(
+      page.getByRole('heading', { name: /requests.*mint.*burn/i })
+    ).toBeVisible()
+
+    const typeGroup = page.getByRole('group', { name: /type filter/i })
+    await typeGroup.getByRole('button', { name: /^mint$/i }).click()
+
+    // URL reflects the active filter
+    await expect(page).toHaveURL(/[?&]type=mint(&|$)/)
+  })
 })
