@@ -7,6 +7,10 @@ import {
   validateStaffForm,
   validateOtcMintForm,
   validateOtcRedeemForm,
+  validateManualRate,
+  validateSpreadPct,
+  validateRateUpdateForm,
+  isManualRateUnusual,
 } from '@/lib/validators'
 
 describe('validateLoginForm', () => {
@@ -238,5 +242,120 @@ describe('validateOtcRedeemForm', () => {
     test('should fail with zero amount', () => {
       expect(validateOtcRedeemForm({ amount: 0, network: 'ethereum', availableBalance: 1000 }).valid).toBe(false)
     })
+  })
+})
+
+describe('validateManualRate', () => {
+  describe('positive', () => {
+    test('should accept realistic IDR/USD rate', () => {
+      expect(validateManualRate('16250')).toBeNull()
+    })
+    test('should accept up to 4 decimals', () => {
+      expect(validateManualRate('16250.1234')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('should fail when empty', () => {
+      expect(validateManualRate('')).toBe('Manual rate is required')
+    })
+    test('should fail with non-numeric', () => {
+      expect(validateManualRate('abc')).toMatch(/number/)
+    })
+    test('should fail with more than 4 decimals', () => {
+      expect(validateManualRate('16250.12345')).toMatch(/number/)
+    })
+    test('should fail with zero', () => {
+      expect(validateManualRate('0')).toBe('Rate must be greater than 0')
+    })
+    test('should fail with negative', () => {
+      expect(validateManualRate('-1')).toMatch(/number/)
+    })
+    test('should fail at hard upper bound', () => {
+      expect(validateManualRate('100000')).toMatch(/less than/)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should trim whitespace', () => {
+      expect(validateManualRate('  16250  ')).toBeNull()
+    })
+  })
+})
+
+describe('validateSpreadPct', () => {
+  describe('positive', () => {
+    test('should accept zero (default)', () => {
+      expect(validateSpreadPct('0')).toBeNull()
+    })
+    test('should accept SoT example value', () => {
+      expect(validateSpreadPct('0.5')).toBeNull()
+    })
+    test('should accept empty (optional)', () => {
+      expect(validateSpreadPct('')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('should fail above 10%', () => {
+      expect(validateSpreadPct('10.01')).toMatch(/at most/)
+    })
+    test('should fail with negative', () => {
+      expect(validateSpreadPct('-0.1')).toMatch(/number/)
+    })
+    test('should fail with non-numeric', () => {
+      expect(validateSpreadPct('abc')).toMatch(/number/)
+    })
+    test('should fail with more than 2 decimals', () => {
+      expect(validateSpreadPct('0.123')).toMatch(/number/)
+    })
+  })
+})
+
+describe('validateRateUpdateForm', () => {
+  describe('positive', () => {
+    test('MANUAL with valid rate passes', () => {
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '16250', spreadPct: '0.5' })
+      expect(r.valid).toBe(true)
+    })
+    test('DYNAMIC ignores manualRate (even if blank)', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '0.5' })
+      expect(r.valid).toBe(true)
+      expect(r.errors.manualRate).toBeUndefined()
+    })
+  })
+
+  describe('negative', () => {
+    test('MANUAL without rate fails', () => {
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadPct: '0.5' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.manualRate).toBe('Manual rate is required')
+    })
+    test('missing mode fails', () => {
+      const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadPct: '0.5' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.mode).toBe('Mode is required')
+    })
+    test('out-of-range spread fails for DYNAMIC mode too', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.spreadPct).toBeDefined()
+    })
+  })
+})
+
+describe('isManualRateUnusual', () => {
+  test('flags rate below 5,000', () => {
+    expect(isManualRateUnusual('1000')).toBe(true)
+  })
+  test('flags rate above 50,000', () => {
+    expect(isManualRateUnusual('60000')).toBe(true)
+  })
+  test('does NOT flag realistic rate', () => {
+    expect(isManualRateUnusual('16250')).toBe(false)
+  })
+  test('does not flag empty / invalid input (validator owns that)', () => {
+    expect(isManualRateUnusual('')).toBe(false)
+    expect(isManualRateUnusual('abc')).toBe(false)
   })
 })

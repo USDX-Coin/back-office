@@ -1,4 +1,4 @@
-import type { CustomerRole, CustomerType, Network, StaffRole } from './types'
+import type { CustomerRole, CustomerType, Network, RateMode, StaffRole } from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -114,6 +114,75 @@ export function validateOtcMintForm(input: {
   } else if (!input.destinationAddress.trim()) {
     errors.destinationAddress = 'Destination wallet is required'
   }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// Rate update form validators
+//
+// SoT (sot/phase-1.md § Rate Configuration, openapi.yaml § UpdateRateConfig)
+// defines required-when rules but no min/max. The bounds below are defensive
+// defaults — see docs/notes/usdx-20-decisions.md for why we picked these
+// numbers and how to revisit if the backend disagrees.
+
+const DECIMAL_RE = /^\d+(\.\d{1,4})?$/
+const SPREAD_RE = /^\d+(\.\d{1,2})?$/
+
+const RATE_MIN_EXCLUSIVE = 0
+const RATE_MAX_EXCLUSIVE = 100_000 // 6× current ~16k IDR/USD; blocks runaway typos
+const SPREAD_MIN_INCLUSIVE = 0
+const SPREAD_MAX_INCLUSIVE = 10 // 10% is already an extreme forex spread
+
+const RATE_SOFT_LOW = 5_000
+const RATE_SOFT_HIGH = 50_000
+
+export function validateManualRate(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Manual rate is required'
+  if (!DECIMAL_RE.test(trimmed)) return 'Rate must be a number (up to 4 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n <= RATE_MIN_EXCLUSIVE) return 'Rate must be greater than 0'
+  if (n >= RATE_MAX_EXCLUSIVE) return `Rate must be less than ${RATE_MAX_EXCLUSIVE.toLocaleString()}`
+  return null
+}
+
+export function validateSpreadPct(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null // optional in SoT
+  if (!SPREAD_RE.test(trimmed)) return 'Spread must be a number (up to 2 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < SPREAD_MIN_INCLUSIVE) return 'Spread cannot be negative'
+  if (n > SPREAD_MAX_INCLUSIVE) return `Spread must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  return null
+}
+
+// Soft warning bound — non-blocking; nudges users who likely typoed an extra
+// or missing zero. Validation handles hard-impossible values; this catches
+// the "syntactically valid but probably-wrong" case.
+export function isManualRateUnusual(raw: string): boolean {
+  const trimmed = raw.trim()
+  if (!trimmed || !DECIMAL_RE.test(trimmed)) return false
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return false
+  return n < RATE_SOFT_LOW || n > RATE_SOFT_HIGH
+}
+
+export function validateRateUpdateForm(input: {
+  mode: RateMode | ''
+  manualRate: string
+  spreadPct: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.mode) {
+    errors.mode = 'Mode is required'
+  }
+  if (input.mode === 'MANUAL') {
+    const err = validateManualRate(input.manualRate)
+    if (err) errors.manualRate = err
+  }
+  // DYNAMIC: manualRate intentionally not validated — UI disables the field
+  // and the payload omits it.
+  const spreadErr = validateSpreadPct(input.spreadPct)
+  if (spreadErr) errors.spreadPct = spreadErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

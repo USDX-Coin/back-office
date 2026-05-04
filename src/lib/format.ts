@@ -28,6 +28,30 @@ export function formatShortDate(dateString: string): string {
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
+// Format a decimal rate string ("16250.00") as "16,250.00 IDR/USD".
+// Falls back to the raw string when input cannot be parsed, so we never
+// hide unexpected backend values behind a coercion artifact.
+export function formatRate(rate: string): string {
+  const n = Number(rate)
+  if (!Number.isFinite(n)) return rate
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)} IDR/USD`
+}
+
+// Format spread as a literal percentage. SoT example "0.5" means 0.5%
+// (sot/phase-1.md § Rate Configuration: "spread_pct ... markup % di atas rate").
+// See docs/notes/usdx-20-decisions.md for the literal-percent rationale.
+export function formatSpreadPct(pct: string): string {
+  const n = Number(pct)
+  if (!Number.isFinite(n)) return `${pct}%`
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n)}%`
+}
+
 export function formatRelativeTime(dateString: string, now: Date = new Date()): string {
   const then = new Date(dateString)
   const deltaMs = now.getTime() - then.getTime()

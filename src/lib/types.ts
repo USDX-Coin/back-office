@@ -16,6 +16,31 @@ export type CustomerRole = 'admin' | 'editor' | 'member'
 
 export type StaffRole = 'support' | 'operations' | 'compliance' | 'super_admin'
 
+// SoT-defined role enum (sot/openapi.yaml § StaffRole). Used by features that
+// must mirror backend authorization exactly (e.g. POST /api/v1/rate gates on
+// ADMIN/MANAGER). Existing StaffRole values are mapped via mapStaffRoleToSoT.
+export type SoTRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
+
+const STAFF_TO_SOT_ROLE: Record<StaffRole, SoTRole> = {
+  super_admin: 'ADMIN',
+  operations: 'MANAGER',
+  compliance: 'STAFF',
+  support: 'STAFF',
+}
+
+export function mapStaffRoleToSoT(role: StaffRole): SoTRole {
+  return STAFF_TO_SOT_ROLE[role]
+}
+
+// Roles allowed to write rate config per sot/phase-1.md § Rate Management
+// ("admin/manager only") and openapi.yaml /api/v1/rate POST 403 response.
+export function canManageRate(role: StaffRole | SoTRole): boolean {
+  const sot = (role === 'STAFF' || role === 'MANAGER' || role === 'DEVELOPER' || role === 'ADMIN')
+    ? role
+    : mapStaffRoleToSoT(role)
+  return sot === 'ADMIN' || sot === 'MANAGER'
+}
+
 export interface Staff {
   id: string
   firstName: string
@@ -137,4 +162,31 @@ export interface ApiError {
     code: string
     message: string
   }
+}
+
+// ─── Rate (sot/openapi.yaml § /api/v1/rate) ──────────────────────────────────
+// All numeric values are decimal strings to preserve precision across the wire.
+
+export type RateMode = 'MANUAL' | 'DYNAMIC'
+
+export interface RateInfo {
+  rate: string
+  mode: RateMode
+  spreadPct: string
+  updatedAt: string
+}
+
+export interface UpdateRateConfig {
+  mode: RateMode
+  manualRate?: string | null
+  spreadPct?: string
+}
+
+export interface RateConfig {
+  id: string
+  mode: RateMode
+  manualRate: string | null
+  spreadPct: string
+  updatedBy: string
+  createdAt: string
 }
