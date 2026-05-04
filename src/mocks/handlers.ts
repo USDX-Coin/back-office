@@ -19,6 +19,7 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  computeNotifications,
 } from './data'
 
 // ─── Stores ───
@@ -91,10 +92,26 @@ export function flushSettlement(txId: string, outcome: 'completed' | 'failed' = 
   tx.settledAt = new Date().toISOString()
 }
 
+/**
+ * Test hook — simulate Safe UI sign + execute by transitioning a
+ * `pending_approval` tx to `completed` (= SoT EXECUTED). The notifications
+ * list filters on `status === 'pending_approval'`, so executed rows
+ * automatically disappear from the page.
+ */
+export function flushApproval(txId: string, outcome: 'completed' | 'failed' = 'completed') {
+  const all = [...otcMintStore, ...otcRedeemStore]
+  const tx = all.find((t) => t.id === txId)
+  if (!tx || tx.status !== 'pending_approval') return
+  tx.status = outcome
+  tx.settledAt = new Date().toISOString()
+}
+
 // Browser dev hook for the E2E smoke spec
 if (typeof window !== 'undefined') {
   ;(window as unknown as { __mswFlushSettlement?: typeof flushSettlement }).__mswFlushSettlement =
     flushSettlement
+  ;(window as unknown as { __mswFlushApproval?: typeof flushApproval }).__mswFlushApproval =
+    flushApproval
 }
 
 // ─── Helpers ───
@@ -397,6 +414,22 @@ export const handlers = [
     return HttpResponse.json(staff)
   }),
 
-  // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
-  http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
+  // ─── Notifications (Safe multisig pending approvals — sot/phase-1.md) ───
+  http.get('/api/notifications', () => {
+    const data = computeNotifications(otcMintStore, otcRedeemStore)
+    return HttpResponse.json({
+      data,
+      meta: {
+        page: 1,
+        pageSize: data.length,
+        total: data.length,
+        totalPages: 1,
+      },
+    })
+  }),
+
+  http.get('/api/notifications/count', () => {
+    const count = computeNotifications(otcMintStore, otcRedeemStore).length
+    return HttpResponse.json({ count })
+  }),
 ]

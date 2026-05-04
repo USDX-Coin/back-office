@@ -7,6 +7,7 @@ import type {
   OtcRedeemTransaction,
   OtcStatus,
   Network,
+  Notification,
   DashboardSnapshot,
   ReportRow,
   CustomerSummary,
@@ -66,6 +67,15 @@ const ORGANIZATIONS = [
 ]
 
 const NETWORKS: Network[] = ['ethereum', 'polygon', 'arbitrum', 'solana', 'base']
+
+// Mock Safe wallet addresses + chain (Polygon mainnet) per sot/phase-1.md.
+// Per-amount routing: < 1B IDR → Staff Safe, >= 1B IDR → Manager Safe.
+// Threshold here is approximated against USDX amount for mock purposes.
+export const MOCK_SAFE_ADDRESSES: Record<'STAFF' | 'MANAGER', string> = {
+  STAFF: '0x1111111111111111111111111111111111111111',
+  MANAGER: '0x2222222222222222222222222222222222222222',
+}
+export const MOCK_SAFE_CHAIN_ID = 137 // Polygon mainnet
 
 const OTC_AMOUNTS_MINT = [25_000, 50_000, 75_000, 100_000, 125_000, 250_000, 500_000, 1_000_000, 1_500_000]
 const OTC_AMOUNTS_REDEEM = [8_000, 15_000, 22_000, 35_000, 50_000, 75_000, 100_000, 150_000, 250_000]
@@ -199,6 +209,27 @@ export function createMockStaffList(): Staff[] {
   return STAFF_NAMES.map(() => createStaff())
 }
 
+function chooseSafeType(amount: number): 'STAFF' | 'MANAGER' {
+  // Approximate threshold (USDX ≈ USD; SoT threshold is 1B IDR ≈ ~60k USD).
+  return amount >= 60_000 ? 'MANAGER' : 'STAFF'
+}
+
+function applyPendingApproval<T extends OtcMintTransaction | OtcRedeemTransaction>(
+  tx: T,
+  seed: number
+): T {
+  const safeType = chooseSafeType(tx.amount)
+  return {
+    ...tx,
+    status: 'pending_approval',
+    settledAt: undefined,
+    safeType,
+    safeAddress: MOCK_SAFE_ADDRESSES[safeType],
+    safeTxHash: `0x${seededHex(64, seed + 9000)}`,
+    chainId: MOCK_SAFE_CHAIN_ID,
+  }
+}
+
 export function createMockOtcTransactions(
   customers: Customer[],
   staff: Staff[],
@@ -212,7 +243,51 @@ export function createMockOtcTransactions(
   const redeems = Array.from({ length: redeemCount }, (_, i) =>
     createOtcRedeemTransaction(customers[(i + 7) % customers.length]!, staff[(i + 1) % staff.length]!)
   )
+  // Seed Safe-multisig pending-approval rows (sot/phase-1.md). 5 mints + 3 redeems.
+  for (let i = 0; i < 5 && i < mints.length; i++) {
+    mints[i] = applyPendingApproval(mints[i]!, i + 1)
+  }
+  for (let i = 0; i < 3 && i < redeems.length; i++) {
+    redeems[i] = applyPendingApproval(redeems[i]!, i + 50)
+  }
   return { mints, redeems }
+}
+
+export function computeNotifications(
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[]
+): Notification[] {
+  const fromMint: Notification[] = mints
+    .filter((t) => t.status === 'pending_approval' && t.safeType && t.safeAddress && t.safeTxHash && t.chainId)
+    .map((t) => ({
+      id: t.id,
+      kind: 'mint',
+      userName: t.customerName,
+      amount: t.amount,
+      network: t.network,
+      safeType: t.safeType!,
+      safeAddress: t.safeAddress!,
+      safeTxHash: t.safeTxHash!,
+      chainId: t.chainId!,
+      createdAt: t.createdAt,
+    }))
+  const fromRedeem: Notification[] = redeems
+    .filter((t) => t.status === 'pending_approval' && t.safeType && t.safeAddress && t.safeTxHash && t.chainId)
+    .map((t) => ({
+      id: t.id,
+      kind: 'redeem',
+      userName: t.customerName,
+      amount: t.amount,
+      network: t.network,
+      safeType: t.safeType!,
+      safeAddress: t.safeAddress!,
+      safeTxHash: t.safeTxHash!,
+      chainId: t.chainId!,
+      createdAt: t.createdAt,
+    }))
+  return [...fromMint, ...fromRedeem].sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : -1
+  )
 }
 
 // ─── Derived computations (consumed by handlers) ───
