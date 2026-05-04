@@ -431,11 +431,12 @@ function decimalIdr(amount: string): string {
 }
 
 function amountWei(amount: string): string {
-  // 6 decimals (USDX) — strip the dot, append zeros to reach 6 decimal places
+  // sot/conventions.md L30: USDX uses 6 decimals (like USDC/USDT).
+  //   1 USDX = 1_000_000 wei
+  //   "100.50" → "100500000"
   const [whole, fraction = ''] = amount.split('.')
   const padded = (fraction + '000000').slice(0, 6)
-  // multiply by 1e12 to reach 18 decimals (uint256 representation)
-  return `${whole}${padded}000000000000`.replace(/^0+(?!$)/, '')
+  return (BigInt(whole + padded)).toString()
 }
 
 interface CreateRequestOpts {

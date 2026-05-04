@@ -223,3 +223,170 @@ describe('Report endpoint', () => {
     expect(data.flagged).toBeTypeOf('number')
   })
 })
+
+describe('POST /api/v1/burn @ sot/openapi.yaml + sot/conventions.md', () => {
+  const validBody = {
+    userName: 'Alice User',
+    userAddress: '0x' + 'a'.repeat(40),
+    amount: '500.00',
+    chain: 'polygon',
+    depositTxHash: '0x' + 'b'.repeat(64),
+    bankName: 'BCA',
+    bankAccount: '1234567890',
+    notes: 'IDR via BCA',
+  }
+
+  describe('positive', () => {
+    test('returns 201 with SoT SuccessResponse envelope wrapping BurnRequest', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(201)
+      const payload = await res.json()
+      expect(payload.status).toBe('success')
+      expect(payload.metadata).toBeNull()
+      expect(payload.data).toMatchObject({
+        type: 'burn',
+        status: 'PENDING_APPROVAL',
+        userAddress: validBody.userAddress,
+        depositTxHash: validBody.depositTxHash,
+        bankName: 'BCA',
+        bankAccount: '1234567890',
+        chain: 'polygon',
+        amount: '500.00',
+        rateUsed: '16250',
+        notes: 'IDR via BCA',
+        safeTxHash: null,
+        onChainTxHash: null,
+      })
+    })
+
+    test('idempotencyKey is a 0x-prefixed bytes32 (66 chars)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.idempotencyKey).toMatch(/^0x[0-9a-fA-F]{64}$/)
+      expect(payload.data.idempotencyKey).toHaveLength(66)
+    })
+
+    test('amountWei follows USDX 6-decimal convention (sot/conventions.md L30)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, amount: '500.00' }),
+      })
+      const payload = await res.json()
+      // 500.00 USDX × 1_000_000 wei/USDX = 500_000_000 wei
+      expect(payload.data.amountWei).toBe('500000000')
+    })
+
+    test('amountWei handles fractional amount per 6-decimal convention', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, amount: '100.50' }),
+      })
+      const payload = await res.json()
+      // 100.50 USDX → 100_500_000 wei
+      expect(payload.data.amountWei).toBe('100500000')
+    })
+
+    test('safeType routes to STAFF below 1B IDR threshold (phase-1.md L25)', async () => {
+      // amount 500 USDX × rate 16250 = 8,125,000 IDR (well under 1B)
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('STAFF')
+    })
+
+    test('safeType routes to MANAGER at or above 1B IDR threshold', async () => {
+      // 100_000 USDX × 16_250 = 1,625,000,000 IDR ≥ 1B
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, amount: '100000' }),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('MANAGER')
+    })
+
+    test('newly created burn appears in /api/v1/requests list', async () => {
+      const before = await (await fetch('/api/v1/requests?type=burn')).json()
+      const beforeTotal = before.metadata.total
+
+      await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+
+      const after = await (await fetch('/api/v1/requests?type=burn')).json()
+      expect(after.metadata.total).toBe(beforeTotal + 1)
+    })
+  })
+
+  describe('negative', () => {
+    test('returns 400 VALIDATION_ERROR when a required field is missing', async () => {
+      const { bankAccount: _o, ...missing } = validBody
+      void _o
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(missing),
+      })
+      expect(res.status).toBe(400)
+      const payload = await res.json()
+      expect(payload.status).toBe('error')
+      expect(payload.error.code).toBe('VALIDATION_ERROR')
+    })
+
+    test('returns 400 when userAddress fails the 0x+40 hex pattern', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, userAddress: '0xnope' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when depositTxHash fails the 0x+64 hex pattern', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, depositTxHash: '0x' + 'a'.repeat(63) }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when chain is not in the allowed set', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...validBody, chain: 'solana' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 with on-chain failure message for the sentinel txHash', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...validBody,
+          depositTxHash: '0x' + 'dead'.repeat(16),
+        }),
+      })
+      expect(res.status).toBe(400)
+      const payload = await res.json()
+      expect(payload.error.message).toMatch(/on-chain|amount mismatch/i)
+    })
+  })
+})
