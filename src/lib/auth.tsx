@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
-import { findStaffByEmail, findStaffById, getDefaultStaff } from '@/mocks/handlers'
+import { findStaffById } from '@/mocks/handlers'
 
 interface AuthContextType {
   user: Staff | null
+  token: string | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
@@ -13,66 +14,105 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 const STORAGE_KEY = 'usdx_auth_user'
+const LOGIN_ENDPOINT = '/api/v1/auth/login'
 
 interface PersistedSession {
-  version: 2
+  version: 3
   staffId: string
+  token: string
+  issuedAt: number
 }
 
-function readPersistedStaff(): Staff | null {
+interface RestoredSession {
+  user: Staff
+  token: string
+}
+
+function readPersistedSession(): RestoredSession | null {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as Partial<PersistedSession> & { email?: string }
-    if (parsed.version === 2 && parsed.staffId) {
-      return findStaffById(parsed.staffId) ?? null
-    }
-    // Legacy v1 → v2 migration: old shape was the full User object {id, name, email, role}
-    if (parsed.email) {
-      const matched = findStaffByEmail(parsed.email)
-      if (matched) {
-        const next: PersistedSession = { version: 2, staffId: matched.id }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-        return matched
-      }
+    const parsed = JSON.parse(raw) as Partial<PersistedSession>
+    if (parsed.version === 3 && parsed.staffId && parsed.token) {
+      const matched = findStaffById(parsed.staffId)
+      if (matched) return { user: matched, token: parsed.token }
     }
   } catch {
     // fall through
   }
+  // v1 (legacy {id,name,email,role}) and v2 ({version:2,staffId}) sessions
+  // pre-date JWT issuance; clear them so the user re-authenticates and we
+  // mint a real token via /api/v1/auth/login.
   localStorage.removeItem(STORAGE_KEY)
   return null
 }
 
+// Response shapes mirror sot/openapi.yaml § /api/v1/auth/login.
+interface LoginSuccessPayload {
+  status: 'success'
+  data: { accessToken: string; staff: Staff }
+}
+
+interface LoginErrorPayload {
+  status?: 'error'
+  error?: { code?: string; message?: string }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Staff | null>(() => readPersistedStaff())
+  const [session, setSession] = useState<RestoredSession | null>(() => readPersistedSession())
 
   useEffect(() => {
-    if (user) {
-      const session: PersistedSession = { version: 2, staffId: user.id }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+    if (session) {
+      const persisted: PersistedSession = {
+        version: 3,
+        staffId: session.user.id,
+        token: session.token,
+        issuedAt: Date.now(),
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }
-  }, [user])
+  }, [session])
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email.trim() || !password) {
       throw new Error('Email and password are required')
     }
-    const matched = findStaffByEmail(email) ?? getDefaultStaff()
-    if (!matched) throw new Error('No staff record available')
-    setUser(matched)
+    const response = await fetch(LOGIN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!response.ok) {
+      let message = 'Invalid email or password'
+      try {
+        const payload = (await response.json()) as LoginErrorPayload
+        if (payload.error?.message) message = payload.error.message
+      } catch {
+        // keep default message
+      }
+      throw new Error(message)
+    }
+    const payload = (await response.json()) as LoginSuccessPayload
+    const accessToken = payload.data?.accessToken
+    const staff = payload.data?.staff
+    if (!accessToken || !staff) {
+      throw new Error('Malformed login response')
+    }
+    setSession({ user: staff, token: accessToken })
   }, [])
 
   const logout = useCallback(() => {
-    setUser(null)
+    setSession(null)
   }, [])
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        isAuthenticated: !!user,
+        user: session?.user ?? null,
+        token: session?.token ?? null,
+        isAuthenticated: !!session,
         login,
         logout,
       }}
