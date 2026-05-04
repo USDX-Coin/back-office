@@ -12,6 +12,16 @@ import type {
   CustomerSummary,
   StaffSummary,
   ReportInsights,
+  RequestChain,
+  RequestDetail,
+  RequestListItem,
+  RequestStatus,
+  RequestType,
+  SafeType,
+  MintRequestDetail,
+  BurnRequestDetail,
+  MintRequestStatus,
+  BurnRequestStatus,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -359,5 +369,174 @@ export function computeDashboardSnapshot(
     recentActivity,
     networkDistribution,
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint/burn request factories (matches sot/openapi.yaml)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REQUEST_CHAINS: RequestChain[] = ['ethereum', 'polygon', 'arbitrum', 'base']
+const SAFE_TYPES: SafeType[] = ['STAFF', 'MANAGER']
+const BANKS = ['BCA', 'Mandiri', 'BNI', 'BRI', 'CIMB Niaga', 'Permata']
+
+const MINT_STATUSES: MintRequestStatus[] = [
+  'PENDING_APPROVAL',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'EXECUTED',
+  'EXECUTED',
+  'EXECUTED',
+  'REJECTED',
+]
+const BURN_STATUSES: BurnRequestStatus[] = [
+  'PENDING_APPROVAL',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'EXECUTED',
+  'IDR_TRANSFERRED',
+  'IDR_TRANSFERRED',
+  'REJECTED',
+]
+
+const RATE_USED = '16250'
+
+let requestIdCounter = 1
+
+function uuidLike(seed: number, prefix = ''): string {
+  const hex = seededHex(32, seed)
+  return `${prefix}${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
+function bytes32(seed: number): string {
+  return `0x${seededHex(64, seed)}`
+}
+
+function bytes20(seed: number): string {
+  return `0x${seededHex(40, seed)}`
+}
+
+function decimalAmount(seed: number, type: RequestType): string {
+  const base = type === 'mint'
+    ? [1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000]
+    : [500, 2_500, 7_500, 15_000, 35_000, 75_000, 150_000, 300_000]
+  const whole = base[seed % base.length]!
+  const cents = (seed * 37) % 100
+  return `${whole}.${cents.toString().padStart(2, '0')}`
+}
+
+function decimalIdr(amount: string): string {
+  const usd = Number.parseFloat(amount)
+  const idr = Math.round(usd * Number.parseFloat(RATE_USED))
+  return idr.toString()
+}
+
+function amountWei(amount: string): string {
+  // 6 decimals (USDX) — strip the dot, append zeros to reach 6 decimal places
+  const [whole, fraction = ''] = amount.split('.')
+  const padded = (fraction + '000000').slice(0, 6)
+  // multiply by 1e12 to reach 18 decimals (uint256 representation)
+  return `${whole}${padded}000000000000`.replace(/^0+(?!$)/, '')
+}
+
+interface CreateRequestOpts {
+  type: RequestType
+  user: Customer
+  createdBy: Staff
+}
+
+function createRequestPair(opts: CreateRequestOpts, seed: number): {
+  list: RequestListItem
+  detail: RequestDetail
+} {
+  const id = uuidLike(seed + 9000)
+  const idempotencyKey = bytes32(seed + 11000)
+  const userAddress = bytes20(seed + 13000)
+  const amount = decimalAmount(seed, opts.type)
+  const amountIdrValue = decimalIdr(amount)
+  const amountWeiValue = amountWei(amount)
+  const chain = REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!
+  const safeType = SAFE_TYPES[seed % SAFE_TYPES.length]!
+  const status: RequestStatus =
+    opts.type === 'mint'
+      ? MINT_STATUSES[seed % MINT_STATUSES.length]!
+      : BURN_STATUSES[seed % BURN_STATUSES.length]!
+  const createdAt = pastDateRecent(seed % 60)
+  const updatedAt = createdAt
+  const userName = `${opts.user.firstName} ${opts.user.lastName}`.trim()
+  const isExecutedOrLater =
+    status === 'EXECUTED' || status === 'IDR_TRANSFERRED'
+  const safeTxHash = status !== 'PENDING_APPROVAL' ? bytes32(seed + 15000) : null
+  const onChainTxHash = isExecutedOrLater ? bytes32(seed + 17000) : null
+
+  const list: RequestListItem = {
+    id,
+    type: opts.type,
+    userId: opts.user.id,
+    userName,
+    userAddress,
+    amount,
+    amountIdr: amountIdrValue,
+    chain,
+    safeType,
+    status,
+    createdBy: opts.createdBy.id,
+    createdAt,
+  }
+
+  const base = {
+    id,
+    idempotencyKey,
+    userId: opts.user.id,
+    userName,
+    userAddress,
+    amount,
+    amountWei: amountWeiValue,
+    amountIdr: amountIdrValue,
+    rateUsed: RATE_USED,
+    chain,
+    notes: seed % 4 === 0 ? null : `Reference #${seed}`,
+    safeType,
+    safeTxHash,
+    onChainTxHash,
+    createdBy: opts.createdBy.id,
+    createdAt,
+    updatedAt,
+  } satisfies Omit<MintRequestDetail | BurnRequestDetail, 'type' | 'status' | 'depositTxHash' | 'bankName' | 'bankAccount'>
+
+  const detail: RequestDetail =
+    opts.type === 'mint'
+      ? { ...base, type: 'mint', status: status as MintRequestStatus }
+      : {
+          ...base,
+          type: 'burn',
+          status: status as BurnRequestStatus,
+          depositTxHash: bytes32(seed + 19000),
+          bankName: BANKS[seed % BANKS.length]!,
+          bankAccount: seededBankAccount(seed + 21000).slice(0, 10),
+        }
+
+  return { list, detail }
+}
+
+export function createMockRequests(
+  customers: Customer[],
+  staff: Staff[],
+  count = 64
+): { list: RequestListItem[]; details: Map<string, RequestDetail> } {
+  requestIdCounter = 1
+  const list: RequestListItem[] = []
+  const details = new Map<string, RequestDetail>()
+  if (customers.length === 0 || staff.length === 0) return { list, details }
+  for (let i = 0; i < count; i++) {
+    const seed = requestIdCounter++
+    const type: RequestType = i % 3 === 0 ? 'burn' : 'mint'
+    const user = customers[i % customers.length]!
+    const createdBy = staff[i % staff.length]!
+    const pair = createRequestPair({ type, user, createdBy }, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return { list, details }
 }
 
