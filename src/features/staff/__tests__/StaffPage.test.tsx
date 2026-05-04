@@ -16,9 +16,7 @@ describe('StaffPage', () => {
   describe('positive', () => {
     test('should render the page header and Add Staff button', () => {
       renderWithProviders(<StaffPage />, { authenticated: true })
-      expect(
-        screen.getByRole('heading', { name: /staf.*directory/i })
-      ).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /^staff$/i })).toBeInTheDocument()
       expect(screen.getAllByRole('button', { name: /add staff/i }).length).toBeGreaterThan(0)
     })
 
@@ -42,9 +40,7 @@ describe('StaffPage', () => {
     test('should render search input and role select', () => {
       renderWithProviders(<StaffPage />, { authenticated: true })
       expect(screen.getByLabelText(/search staff/i)).toBeInTheDocument()
-      // Radix Select renders the placeholder span AND the SelectItem with the same text;
-      // assert presence via length.
-      expect(screen.getAllByText(/all roles/i).length).toBeGreaterThan(0)
+      expect(screen.getByText(/all roles/i)).toBeInTheDocument()
     })
   })
 })

@@ -5,14 +5,11 @@ import type {
   OtcMintTransaction,
   OtcRedeemTransaction,
   OtcStatus,
-  RequestDetail,
-  RequestListItem,
 } from '@/lib/types'
 import {
   createMockCustomerList,
   createMockStaffList,
   createMockOtcTransactions,
-  createMockRequests,
   createCustomer,
   createStaff,
   createOtcMintTransaction,
@@ -30,9 +27,6 @@ let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
-let requestList: RequestListItem[]
-let requestDetails: Map<string, RequestDetail>
-;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -40,7 +34,6 @@ export function resetMockData() {
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
-  ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -540,43 +533,4 @@ export const handlers = [
 
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
-
-  // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
-  http.get('/api/v1/requests', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
-    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
-    const type = url.searchParams.get('type')
-    const status = url.searchParams.get('status')
-    const chain = url.searchParams.get('chain')
-    const safeType = url.searchParams.get('safeType')
-
-    let rows = [...requestList]
-    if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
-    if (status) rows = rows.filter((r) => r.status === status)
-    if (chain) rows = rows.filter((r) => r.chain === chain)
-    if (safeType === 'STAFF' || safeType === 'MANAGER') {
-      rows = rows.filter((r) => r.safeType === safeType)
-    }
-
-    const start = (page - 1) * limit
-    const data = rows.slice(start, start + limit)
-
-    return HttpResponse.json({
-      status: 'success',
-      metadata: { page, limit, total: rows.length },
-      data,
-    })
-  }),
-
-  http.get('/api/v1/requests/:id', ({ params }) => {
-    const detail = requestDetails.get(String(params.id))
-    if (!detail) {
-      return HttpResponse.json(
-        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
-        { status: 404 }
-      )
-    }
-    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
-  }),
 ]

@@ -16,21 +16,19 @@ describe('DashboardPage', () => {
   describe('positive', () => {
     test('should render header + 4 KPI cards + Volume Trend', () => {
       renderWithProviders(<DashboardPage />, { authenticated: true })
-      expect(
-        screen.getByRole('heading', { name: /dashboard.*overview/i })
-      ).toBeInTheDocument()
-      expect(screen.getByText(/mint volume/i)).toBeInTheDocument()
-      expect(screen.getByText(/redeem volume/i)).toBeInTheDocument()
-      expect(screen.getByText(/active customers/i)).toBeInTheDocument()
-      expect(screen.getByText(/pending otc/i)).toBeInTheDocument()
-      expect(screen.getByText(/volume trend/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /operations overview/i })).toBeInTheDocument()
+      expect(screen.getByText(/total mint volume/i)).toBeInTheDocument()
+      expect(screen.getByText(/total redeem volume/i)).toBeInTheDocument()
+      expect(screen.getByText(/active users/i)).toBeInTheDocument()
+      expect(screen.getByText(/pending transactions/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /volume trend/i })).toBeInTheDocument()
     })
 
-    test('should render Network split once data loads', async () => {
+    test('should render Network Distribution once data loads', async () => {
       renderWithProviders(<DashboardPage />, { authenticated: true })
       await waitFor(
         () => {
-          expect(screen.getByText(/network split/i)).toBeInTheDocument()
+          expect(screen.getByRole('heading', { name: /network distribution/i })).toBeInTheDocument()
         },
         { timeout: 3000 }
       )

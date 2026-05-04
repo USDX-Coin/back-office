@@ -29,11 +29,10 @@ Internal back office SPA for managing **OTC mint** and **redeem** operations on 
 | `/staff` | Staf | Internal staff directory (table + invite modal) |
 | `/otc/mint` | OTC → Mint | Single-shot mint submission form + recent requests |
 | `/otc/redeem` | OTC → Redeem | Single-shot redeem submission form + recent redemptions |
-| `/requests` | Requests | Phase-1 mint/burn request list with approval-lifecycle filters + detail modal |
 | `/report` | Report | Full transaction table with filters + CSV export |
 | `/profile` | *(navbar dropdown, not sidebar)* | Operator profile + personal details |
 
-Mobile BottomNav: Dashboard / OTC / Report / More (drawer containing Requests / User / Staf / Profile).
+Mobile BottomNav: Dashboard / OTC / Report / More (drawer containing User / Staf / Profile).
 
 ## Project Structure
 

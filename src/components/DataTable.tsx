@@ -52,8 +52,6 @@ export interface DataTableProps<T> {
   filterToolbar?: ReactNode
   emptyState?: ReactNode
   hasFilters?: boolean
-  onRowClick?: (row: T) => void
-  rowAriaLabel?: (row: T) => string
 }
 
 export default function DataTable<T>({
@@ -67,8 +65,6 @@ export default function DataTable<T>({
   filterToolbar,
   emptyState,
   hasFilters: hasFiltersProp,
-  onRowClick,
-  rowAriaLabel,
 }: DataTableProps<T>) {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -275,45 +271,15 @@ export default function DataTable<T>({
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row) => {
-                const clickable = Boolean(onRowClick)
-                return (
-                  <TableRow
-                    key={row.id}
-                    className={cn(
-                      'border-border hover:bg-muted/40',
-                      clickable &&
-                        'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
-                    )}
-                    role={clickable ? 'button' : undefined}
-                    tabIndex={clickable ? 0 : undefined}
-                    aria-label={
-                      clickable && rowAriaLabel
-                        ? rowAriaLabel(row.original)
-                        : undefined
-                    }
-                    onClick={
-                      clickable ? () => onRowClick!(row.original) : undefined
-                    }
-                    onKeyDown={
-                      clickable
-                        ? (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              onRowClick!(row.original)
-                            }
-                          }
-                        : undefined
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} className="border-border hover:bg-muted/40">
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

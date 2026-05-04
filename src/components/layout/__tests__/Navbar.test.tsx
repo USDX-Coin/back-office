@@ -5,22 +5,21 @@ import { renderWithProviders } from '@/test/test-utils'
 
 describe('Navbar', () => {
   describe('breadcrumb', () => {
-    test('should render Workspace / Dashboard for /dashboard', () => {
+    test('should render Operations / Dashboard for /dashboard', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByText('Workspace')).toBeInTheDocument()
+      expect(screen.getByText('Operations')).toBeInTheDocument()
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
 
-    test('should render OTC Desk / Mint for /otc/mint', () => {
+    test('should render Operations / OTC Minting for /otc/mint', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/otc/mint'], authenticated: true })
-      expect(screen.getByText('OTC Desk')).toBeInTheDocument()
-      expect(screen.getByText('Mint')).toBeInTheDocument()
+      expect(screen.getByText('OTC Minting')).toBeInTheDocument()
     })
 
-    test('should render Workspace / User for /users', () => {
+    test('should render Directory / Users for /users', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/users'], authenticated: true })
-      expect(screen.getByText('Workspace')).toBeInTheDocument()
-      expect(screen.getByText('User')).toBeInTheDocument()
+      expect(screen.getByText('Directory')).toBeInTheDocument()
+      expect(screen.getByText('Users')).toBeInTheDocument()
     })
 
     test('should fall back to raw path segments for unknown routes', () => {
@@ -36,17 +35,14 @@ describe('Navbar', () => {
       expect(bell).toBeInTheDocument()
     })
 
-    test('should render the cmd-k search affordance', () => {
+    test('should render search input', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      // Static affordance, not an input — text + keyboard hint visible
-      expect(screen.getByText(/search/i)).toBeInTheDocument()
-      expect(screen.getByText('⌘K')).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: /search/i })).toBeInTheDocument()
     })
 
-    test('should render USDX wordmark on mobile', () => {
+    test('should render USDX logo', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      // Wordmark renders as a <span>USDX</span> next to a "U" tile (not an <img>)
-      expect(screen.getByText('USDX')).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: /usdx/i })).toBeInTheDocument()
     })
   })
 
