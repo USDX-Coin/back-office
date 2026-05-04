@@ -219,6 +219,18 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
+// sot/openapi.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
+export interface CreateBurnRequest {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
 // Phase-1 API envelope (matches openapi.yaml — `metadata` + `limit`)
 export interface PhaseOnePaginatedResponse<T> {
   status: 'success'
