@@ -8,6 +8,7 @@ import type {
   OtcStatus,
   Network,
   DashboardSnapshot,
+  DashboardStats,
   ReportRow,
   CustomerSummary,
   StaffSummary,
@@ -540,3 +541,86 @@ export function createMockRequests(
   return { list, details }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard stats (sot/openapi.yaml § /api/v1/dashboard/stats)
+// Derives totalMinted/Burned + status breakdown from the request list so that
+// stats stay consistent with whatever rows the requests endpoint is serving.
+// Supply, Safe balances, and the active rate use stable mock values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function decimalToCents(value: string): number {
+  // Returns signed integer cents. Inputs are always 2-decimal strings produced
+  // by `decimalAmount()`, so we never have to round.
+  const negative = value.startsWith('-')
+  const abs = negative ? value.slice(1) : value
+  const [whole = '0', fraction = ''] = abs.split('.')
+  const cents = (fraction + '00').slice(0, 2).padEnd(2, '0')
+  const total = Number.parseInt(whole, 10) * 100 + Number.parseInt(cents, 10)
+  return negative ? -total : total
+}
+
+function centsToDecimal(totalCents: number): string {
+  const negative = totalCents < 0
+  const abs = Math.abs(totalCents)
+  const whole = Math.trunc(abs / 100).toString()
+  const cents = (abs % 100).toString().padStart(2, '0')
+  return `${negative ? '-' : ''}${whole}.${cents}`
+}
+
+function sumDecimals(values: string[]): string {
+  let totalCents = 0
+  for (const v of values) totalCents += decimalToCents(v)
+  return centsToDecimal(totalCents)
+}
+
+const SAFE_BALANCE_STAFF = '750000.00'
+const SAFE_BALANCE_MANAGER = '5250000.00'
+
+export function computeDashboardStats(
+  requests: RequestListItem[]
+): DashboardStats {
+  const mintExecuted = requests.filter(
+    (r) => r.type === 'mint' && r.status === 'EXECUTED'
+  )
+  const burnExecuted = requests.filter(
+    (r) => r.type === 'burn' &&
+      (r.status === 'EXECUTED' || r.status === 'IDR_TRANSFERRED')
+  )
+
+  const totalMinted = sumDecimals(mintExecuted.map((r) => r.amount))
+  const totalBurned = sumDecimals(burnExecuted.map((r) => r.amount))
+  // Supply on-chain = total ever minted − total ever burned + Safe holdings
+  const totalSupply = centsToDecimal(
+    decimalToCents(totalMinted) -
+      decimalToCents(totalBurned) +
+      decimalToCents(SAFE_BALANCE_STAFF) +
+      decimalToCents(SAFE_BALANCE_MANAGER)
+  )
+
+  const requestsByStatus = {
+    PENDING_APPROVAL: 0,
+    APPROVED: 0,
+    EXECUTED: 0,
+    REJECTED: 0,
+  }
+  for (const r of requests) {
+    if (r.status === 'PENDING_APPROVAL') requestsByStatus.PENDING_APPROVAL++
+    else if (r.status === 'APPROVED') requestsByStatus.APPROVED++
+    else if (r.status === 'EXECUTED' || r.status === 'IDR_TRANSFERRED') {
+      requestsByStatus.EXECUTED++
+    } else if (r.status === 'REJECTED') requestsByStatus.REJECTED++
+  }
+
+  return {
+    totalSupply,
+    totalMinted,
+    totalBurned,
+    pendingRequests: requestsByStatus.PENDING_APPROVAL,
+    requestsByStatus,
+    safeBalances: {
+      staff: SAFE_BALANCE_STAFF,
+      manager: SAFE_BALANCE_MANAGER,
+    },
+    currentRate: RATE_USED,
+  }
+}
