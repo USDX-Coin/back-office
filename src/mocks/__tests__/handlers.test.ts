@@ -195,6 +195,54 @@ describe('Dashboard snapshot endpoint', () => {
   })
 })
 
+describe('Dashboard stats endpoint (USDX-16)', () => {
+  describe('positive', () => {
+    test('returns SoT envelope with all DashboardStats fields', async () => {
+      const res = await fetch('/api/v1/dashboard/stats')
+      const body = await res.json()
+      expect(body.status).toBe('success')
+      expect(body.data).toBeDefined()
+      const data = body.data
+      expect(typeof data.totalSupply).toBe('string')
+      expect(typeof data.totalMinted).toBe('string')
+      expect(typeof data.totalBurned).toBe('string')
+      expect(typeof data.pendingRequests).toBe('number')
+      expect(data.requestsByStatus).toEqual(
+        expect.objectContaining({
+          PENDING_APPROVAL: expect.any(Number),
+          APPROVED: expect.any(Number),
+          EXECUTED: expect.any(Number),
+          REJECTED: expect.any(Number),
+        })
+      )
+      expect(typeof data.safeBalances.staff).toBe('string')
+      expect(typeof data.safeBalances.manager).toBe('string')
+      expect(typeof data.currentRate).toBe('string')
+    })
+
+    test('pendingRequests matches /api/v1/requests?status=PENDING_APPROVAL count', async () => {
+      const stats = (await (await fetch('/api/v1/dashboard/stats')).json()).data
+      const list = await (
+        await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=100')
+      ).json()
+      expect(stats.pendingRequests).toBe(list.metadata.total)
+      expect(stats.requestsByStatus.PENDING_APPROVAL).toBe(list.metadata.total)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('decimal strings are well-formed (no NaN, two-decimal precision)', async () => {
+      const data = (await (await fetch('/api/v1/dashboard/stats')).json()).data
+      const decimal = /^-?\d+\.\d{2}$/
+      expect(data.totalSupply).toMatch(decimal)
+      expect(data.totalMinted).toMatch(decimal)
+      expect(data.totalBurned).toMatch(decimal)
+      expect(data.safeBalances.staff).toMatch(decimal)
+      expect(data.safeBalances.manager).toMatch(decimal)
+    })
+  })
+})
+
 describe('Report endpoint', () => {
   test('returns paginated report rows', async () => {
     const res = await fetch('/api/report?pageSize=10')
