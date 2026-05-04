@@ -132,3 +132,34 @@ export function validateOtcRedeemForm(input: {
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function validateMintRequestForm(input: {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.userName.trim()) {
+    errors.userName = 'User name is required'
+  }
+  if (!input.userAddress.trim()) {
+    errors.userAddress = 'Wallet address is required'
+  } else if (!EVM_ADDRESS_RE.test(input.userAddress.trim())) {
+    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+  }
+  const amt = Number.parseFloat(input.amount)
+  if (!input.amount.trim()) {
+    errors.amount = 'Amount is required'
+  } else if (Number.isNaN(amt) || amt <= 0) {
+    errors.amount = 'Amount must be greater than 0'
+  }
+  if (!input.chain.trim()) {
+    errors.chain = 'Chain is required'
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}

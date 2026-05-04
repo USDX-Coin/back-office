@@ -7,6 +7,7 @@ import {
   validateStaffForm,
   validateOtcMintForm,
   validateOtcRedeemForm,
+  validateMintRequestForm,
 } from '@/lib/validators'
 
 describe('validateLoginForm', () => {
@@ -237,6 +238,117 @@ describe('validateOtcRedeemForm', () => {
     })
     test('should fail with zero amount', () => {
       expect(validateOtcRedeemForm({ amount: 0, network: 'ethereum', availableBalance: 1000 }).valid).toBe(false)
+    })
+  })
+})
+
+describe('validateMintRequestForm', () => {
+  const valid = {
+    userName: 'Bruce Wayne',
+    userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+    amount: '1000.50',
+    chain: 'polygon',
+  }
+
+  describe('positive', () => {
+    test('should pass with all fields valid', () => {
+      const r = validateMintRequestForm(valid)
+      expect(r.valid).toBe(true)
+      expect(r.errors).toEqual({})
+    })
+
+    test('should accept lowercase and mixed-case hex addresses', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0x' + 'a'.repeat(40),
+        }).valid
+      ).toBe(true)
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0xAbCdEf1234567890aBcDeF1234567890AbCdEf12',
+        }).valid
+      ).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('should report all empty fields when all blank', () => {
+      const r = validateMintRequestForm({
+        userName: '',
+        userAddress: '',
+        amount: '',
+        chain: '',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userName).toMatch(/required/i)
+      expect(r.errors.userAddress).toMatch(/required/i)
+      expect(r.errors.amount).toMatch(/required/i)
+      expect(r.errors.chain).toMatch(/required/i)
+    })
+
+    test('should reject address missing 0x prefix', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject address with wrong length', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x123',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject address containing non-hex characters', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x' + 'g'.repeat(40),
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject zero amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '0' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+
+    test('should reject negative amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+
+    test('should reject non-numeric amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: 'abc' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should accept decimal amounts', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '0.000001' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept whitespace-padded fields and trim before validating', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userName: '  Bruce Wayne  ',
+          userAddress: `  ${valid.userAddress}  `,
+        }).valid
+      ).toBe(true)
     })
   })
 })
