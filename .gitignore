@@ -27,3 +27,9 @@ walkthrough-screenshots/
 
 # Local visual verification output
 verify-screenshots/
+sot/
+
+# Env files (commit only .env.example)
+.env
+.env.*
+!.env.example
