@@ -29,9 +29,17 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
     if (authenticated) {
       const staff = getDefaultStaff()
       if (staff) {
+        // Match src/lib/auth.tsx PersistedSession (v3, JWT-bearing). The
+        // test-mode token is a placeholder — apiFetch attaches it as Bearer
+        // and MSW handlers that don't require auth ignore it.
         localStorage.setItem(
           'usdx_auth_user',
-          JSON.stringify({ version: 2, staffId: staff.id })
+          JSON.stringify({
+            version: 3,
+            staffId: staff.id,
+            token: 'test-bypass',
+            issuedAt: Date.now(),
+          })
         )
       }
     }
