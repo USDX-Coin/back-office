@@ -7,6 +7,7 @@ import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
+import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
 import OtcSplashPage from '@/features/otc/OtcSplashPage'
 import OtcMintPage from '@/features/otc/mint/OtcMintPage'
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/users', element: <UsersPage /> },
+          { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
           { path: '/otc', element: <OtcSplashPage /> },
           { path: '/otc/mint', element: <OtcMintPage /> },
