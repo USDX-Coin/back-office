@@ -89,3 +89,10 @@ export function useAuth() {
   }
   return context
 }
+
+// SOT phase-1.md § Roles: only Admin has CRUD on User Management. In this
+// mock-only codebase the closest analogue to ADMIN is `super_admin`; all
+// other staff roles are read-only on /users.
+export function canManageUsers(staff: Staff | null): boolean {
+  return staff?.role === 'super_admin'
+}
