@@ -152,11 +152,18 @@ export function validateMintRequestForm(input: {
   } else if (!EVM_ADDRESS_RE.test(input.userAddress.trim())) {
     errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
   }
-  const amt = Number.parseFloat(input.amount)
-  if (!input.amount.trim()) {
+  const amountTrimmed = input.amount.trim()
+  const amt = Number.parseFloat(amountTrimmed)
+  if (!amountTrimmed) {
     errors.amount = 'Amount is required'
   } else if (Number.isNaN(amt) || amt <= 0) {
     errors.amount = 'Amount must be greater than 0'
+  } else {
+    // sot/openapi.yaml § CreateMintRequest.amount — "decimal USDX, 6 decimals max"
+    const [, fraction = ''] = amountTrimmed.split('.')
+    if (fraction.length > 6) {
+      errors.amount = 'Amount supports at most 6 decimal places'
+    }
   }
   if (!input.chain.trim()) {
     errors.chain = 'Chain is required'

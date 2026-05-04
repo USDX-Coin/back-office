@@ -332,12 +332,30 @@ describe('validateMintRequestForm', () => {
       expect(r.valid).toBe(false)
       expect(r.errors.amount).toMatch(/greater than 0/i)
     })
+
+    test('should reject amount with more than 6 decimal places', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '1.1234567' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/6 decimal places/i)
+    })
   })
 
   describe('edge cases', () => {
-    test('should accept decimal amounts', () => {
+    test('should accept decimal amounts up to 6 places', () => {
       expect(
         validateMintRequestForm({ ...valid, amount: '0.000001' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept exactly 6 decimal places (boundary)', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '12.123456' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept integer amounts (no fraction)', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '1000' }).valid
       ).toBe(true)
     })
 
