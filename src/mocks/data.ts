@@ -22,6 +22,8 @@ import type {
   BurnRequestDetail,
   MintRequestStatus,
   BurnRequestStatus,
+  PhaseOneUser,
+  PhaseOneUserWallet,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -516,6 +518,98 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
         }
 
   return { list, detail }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — user directory derived from existing Customer store.
+// Customers carry first/last name; Phase-1 User has a single `name` field
+// plus on-chain wallets. We synthesize one wallet per Customer (deterministic).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phase-1 IDR threshold for the role split.
+ * Submissions ≥ this amount must come from a Manager Safe — backend rejects
+ * with 403 if the submitter is not a manager/admin.
+ * (sot/phase-1.md § Mint - Backend API step 3)
+ */
+export const MANAGER_THRESHOLD_IDR = 1_000_000_000
+
+/**
+ * Operator roles permitted to submit mint/burn ≥ MANAGER_THRESHOLD_IDR.
+ */
+export function operatorCanSubmitManagerAmount(role: Staff['role']): boolean {
+  return role === 'super_admin'
+}
+
+/**
+ * Build a Phase-1 mint request pair (list item + detail) from a submission.
+ * Uses the latest counter seed so freshly created requests get unique ids.
+ */
+export function createMintFromRequest(
+  user: { id: string; name: string },
+  createdBy: Staff,
+  body: { userAddress: string; amount: string; chain: string; notes?: string },
+  amountIdrValue: number,
+  safeType: SafeType
+): { list: RequestListItem; detail: MintRequestDetail } {
+  const seed = ++requestIdCounter + 100_000
+  const id = uuidLike(seed + 9000)
+  const idempotencyKey = bytes32(seed + 11000)
+  const createdAt = new Date().toISOString()
+  const list: RequestListItem = {
+    id,
+    type: 'mint',
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountIdr: amountIdrValue.toString(),
+    chain: body.chain as RequestChain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    createdBy: createdBy.id,
+    createdAt,
+  }
+  const detail: MintRequestDetail = {
+    id,
+    type: 'mint',
+    idempotencyKey,
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountWei: amountWei(body.amount),
+    amountIdr: amountIdrValue.toString(),
+    rateUsed: RATE_USED,
+    chain: body.chain as RequestChain,
+    notes: body.notes && body.notes.length > 0 ? body.notes : null,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    safeTxHash: null,
+    onChainTxHash: null,
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+  return { list, detail }
+}
+
+export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseOneUser {
+  const fullName = `${customer.firstName} ${customer.lastName}`.trim()
+  const wallet: PhaseOneUserWallet = {
+    id: uuidLike(seed + 23000),
+    chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
+    address: bytes20(seed + 25000),
+    createdAt: customer.createdAt,
+  }
+  return {
+    id: customer.id,
+    name: fullName,
+    notes: customer.organization ?? null,
+    wallets: [wallet],
+    createdAt: customer.createdAt,
+    updatedAt: customer.createdAt,
+  }
 }
 
 export function createMockRequests(
