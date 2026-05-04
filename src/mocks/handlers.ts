@@ -5,7 +5,11 @@ import type {
   OtcMintTransaction,
   OtcRedeemTransaction,
   OtcStatus,
+  RateConfig,
+  RateMode,
+  UpdateRateConfig,
 } from '@/lib/types'
+import { canManageRate } from '@/lib/types'
 import {
   createMockCustomerList,
   createMockStaffList,
@@ -19,6 +23,9 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  createInitialRateHistory,
+  createRateConfig,
+  computeRateInfo,
 } from './data'
 
 // ─── Stores ───
@@ -27,6 +34,7 @@ let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
+let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -34,6 +42,7 @@ export function resetMockData() {
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
+  rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -399,4 +408,53 @@ export const handlers = [
 
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
+
+  // ─── Rate (sot/openapi.yaml § /api/v1/rate) ───
+  http.get('/api/v1/rate', () => HttpResponse.json({ data: computeRateInfo(rateHistory) })),
+
+  http.post('/api/v1/rate', async ({ request }) => {
+    const body = (await request.json()) as UpdateRateConfig & {
+      operatorStaffId?: string
+    }
+
+    // Auth gate mirrors backend 403: ADMIN/MANAGER only. The operatorStaffId
+    // is sent by the client (mock auth has no JWT) so the mock can enforce
+    // the same role check the backend would. UI gating is the primary
+    // defense; this is defense-in-depth so tests can cover the 403 branch.
+    const operator = body.operatorStaffId
+      ? staffStore.find((s) => s.id === body.operatorStaffId)
+      : null
+    if (!operator || !canManageRate(operator.role)) {
+      return HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' } },
+        { status: 403 }
+      )
+    }
+
+    if (body.mode !== 'MANUAL' && body.mode !== 'DYNAMIC') {
+      return badRequest('VALIDATION', 'mode must be MANUAL or DYNAMIC')
+    }
+    if (body.mode === 'MANUAL') {
+      const n = Number(body.manualRate)
+      if (!body.manualRate || !Number.isFinite(n) || n <= 0) {
+        return badRequest('VALIDATION', 'manualRate is required when mode is MANUAL')
+      }
+    }
+    if (body.spreadPct != null) {
+      const n = Number(body.spreadPct)
+      if (!Number.isFinite(n) || n < 0) {
+        return badRequest('VALIDATION', 'spreadPct must be a non-negative number')
+      }
+    }
+
+    const created = createRateConfig({
+      mode: body.mode as RateMode,
+      manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
+      spreadPct: body.spreadPct ?? '0',
+      updatedBy: operator.id,
+      createdAt: new Date().toISOString(),
+    })
+    rateHistory.push(created)
+    return HttpResponse.json({ data: created }, { status: 201 })
+  }),
 ]

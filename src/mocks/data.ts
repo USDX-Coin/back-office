@@ -12,6 +12,8 @@ import type {
   CustomerSummary,
   StaffSummary,
   ReportInsights,
+  RateConfig,
+  RateInfo,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -358,6 +360,73 @@ export function computeDashboardSnapshot(
     })),
     recentActivity,
     networkDistribution,
+  }
+}
+
+// ─── Rate config (sot/openapi.yaml § /api/v1/rate) ───────────────────────────
+//
+// Append-only history per sot/phase-1.md § Rate Configuration: every update
+// pushes a new entry, the latest entry is the active config. The seeded
+// initial config matches the SoT example values (rate 16,250.00, spread 0.5%).
+
+let rateIdCounter = 1
+function nextRateId(): string {
+  // Mock-only id generator. Backend uses UUID v7; shape is opaque to clients.
+  return `rate-${(rateIdCounter++).toString().padStart(4, '0')}`
+}
+
+export function createRateConfig(overrides: Partial<RateConfig> = {}): RateConfig {
+  return {
+    id: nextRateId(),
+    mode: 'DYNAMIC',
+    manualRate: null,
+    spreadPct: '0.5',
+    updatedBy: 'seed',
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
+  rateIdCounter = 1
+  return [
+    createRateConfig({
+      mode: 'DYNAMIC',
+      manualRate: null,
+      spreadPct: '0.5',
+      updatedBy: seedStaffId,
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    }),
+  ]
+}
+
+// Compute the rate the backend would surface to clients. For MANUAL we use
+// manual_rate * (1 + spread/100); DYNAMIC mocks the third-party feed at a
+// fixed value (16,200) and applies the same spread. The exact base is
+// unimportant for FE — what matters is that GET returns a stable shape.
+const MOCK_DYNAMIC_BASE_RATE = 16_200
+
+export function computeRateInfo(history: RateConfig[]): RateInfo {
+  const latest = history[history.length - 1]
+  if (!latest) {
+    return {
+      rate: '0.00',
+      mode: 'DYNAMIC',
+      spreadPct: '0',
+      updatedAt: new Date().toISOString(),
+    }
+  }
+  const spread = Number(latest.spreadPct) || 0
+  const base =
+    latest.mode === 'MANUAL' && latest.manualRate
+      ? Number(latest.manualRate)
+      : MOCK_DYNAMIC_BASE_RATE
+  const effective = base * (1 + spread / 100)
+  return {
+    rate: effective.toFixed(2),
+    mode: latest.mode,
+    spreadPct: latest.spreadPct,
+    updatedAt: latest.createdAt,
   }
 }
 
