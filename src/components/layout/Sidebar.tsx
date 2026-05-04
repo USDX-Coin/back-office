@@ -6,6 +6,7 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   BarChart3,
+  TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -40,6 +41,13 @@ const SECTIONS: NavSection[] = [
   {
     label: 'Insights',
     items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
+  },
+  {
+    // Sidebar item is visible to every authenticated role; the rate page
+    // itself renders read-only for STAFF/DEVELOPER. See
+    // docs/notes/usdx-20-decisions.md § 1.
+    label: 'Configuration',
+    items: [{ to: '/rate', label: 'Rate', icon: TrendingUp }],
   },
 ]
 

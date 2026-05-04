@@ -12,6 +12,7 @@ import OtcSplashPage from '@/features/otc/OtcSplashPage'
 import OtcMintPage from '@/features/otc/mint/OtcMintPage'
 import OtcRedeemPage from '@/features/otc/redeem/OtcRedeemPage'
 import ReportPage from '@/features/report/ReportPage'
+import RatePage from '@/features/rate/RatePage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
           { path: '/otc/mint', element: <OtcMintPage /> },
           { path: '/otc/redeem', element: <OtcRedeemPage /> },
           { path: '/report', element: <ReportPage /> },
+          { path: '/rate', element: <RatePage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },
