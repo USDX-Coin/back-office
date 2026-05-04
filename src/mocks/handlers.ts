@@ -171,6 +171,55 @@ export function issueMockJwt(staff: Staff): string {
   return `${header}.${body}.mock-signature`
 }
 
+function base64UrlDecode(segment: string): string {
+  const pad = segment.length % 4 === 0 ? 0 : 4 - (segment.length % 4)
+  const b64 = segment.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(pad)
+  return decodeURIComponent(escape(atob(b64)))
+}
+
+interface MockJwtClaims {
+  sub: string
+  email: string
+  role: string
+  iat: number
+  exp: number
+}
+
+export function verifyMockJwt(token: string): MockJwtClaims | null {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  if (parts[2] !== 'mock-signature') return null
+  try {
+    const claims = JSON.parse(base64UrlDecode(parts[1])) as MockJwtClaims
+    if (typeof claims.exp !== 'number') return null
+    if (Math.floor(Date.now() / 1000) >= claims.exp) return null
+    if (typeof claims.sub !== 'string' || !claims.sub) return null
+    return claims
+  } catch {
+    return null
+  }
+}
+
+function unauthorized(message = 'Invalid or missing token') {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'UNAUTHORIZED', message },
+    },
+    { status: 401 }
+  )
+}
+
+function authenticatedStaff(request: Request): Staff | null {
+  const header = request.headers.get('Authorization') ?? ''
+  if (!header.startsWith('Bearer ')) return null
+  const claims = verifyMockJwt(header.slice('Bearer '.length).trim())
+  if (!claims) return null
+  return findStaffById(claims.sub) ?? null
+}
+
 // ─── Handlers ───
 
 export const handlers = [
@@ -224,6 +273,17 @@ export const handlers = [
         accessToken: issueMockJwt(matched),
         staff: matched,
       },
+    })
+  }),
+
+  // sot/openapi.yaml § /api/v1/auth/me — restore session by Bearer token.
+  http.get('/api/v1/auth/me', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: staff,
     })
   }),
 
