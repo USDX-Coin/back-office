@@ -7,16 +7,19 @@ import {
   ArrowDownToLine,
   Flame,
   BarChart3,
+  Bell,
   Inbox,
   Coins,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { useNotificationsCount } from '@/features/notifications/hooks'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+  badgeKey?: 'notifications'
 }
 
 interface NavSection {
@@ -46,6 +49,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: '/mint', label: 'Mint request', icon: Coins },
       { to: '/requests', label: 'Requests', icon: Inbox },
+      { to: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
       { to: '/report', label: 'Report', icon: BarChart3 },
     ],
   },
@@ -64,6 +68,8 @@ function formatRole(role: string): string {
 
 export default function Sidebar() {
   const { user } = useAuth()
+  const { data: notifData } = useNotificationsCount()
+  const notificationsCount = notifData?.count ?? 0
 
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
@@ -86,7 +92,11 @@ export default function Sidebar() {
               {section.label}
             </div>
             {section.items.map((item) => (
-              <SidebarLink key={item.to} {...item} />
+              <SidebarLink
+                key={item.to}
+                {...item}
+                badgeCount={item.badgeKey === 'notifications' ? notificationsCount : 0}
+              />
             ))}
           </div>
         ))}
@@ -113,7 +123,12 @@ export default function Sidebar() {
   )
 }
 
-function SidebarLink({ to, label, icon: Icon }: NavItem) {
+function SidebarLink({
+  to,
+  label,
+  icon: Icon,
+  badgeCount = 0,
+}: NavItem & { badgeCount?: number }) {
   return (
     <NavLink
       to={to}
@@ -127,7 +142,16 @@ function SidebarLink({ to, label, icon: Icon }: NavItem) {
       }
     >
       <Icon className="h-3.5 w-3.5" />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badgeCount > 0 && (
+        <span
+          className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
+          aria-label={`${badgeCount} pending`}
+          data-testid={`nav-badge-${to.replace(/^\//, '')}`}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
     </NavLink>
   )
 }

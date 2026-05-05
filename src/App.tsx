@@ -16,6 +16,7 @@ import MintRequestPage from '@/features/mint/MintRequestPage'
 import RequestsPage from '@/features/requests/RequestsPage'
 import BurnRequestPage from '@/features/burn/BurnRequestPage'
 import ReportPage from '@/features/report/ReportPage'
+import NotificationsPage from '@/features/notifications/NotificationsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
           { path: '/burn', element: <BurnRequestPage /> },
           { path: '/requests', element: <RequestsPage /> },
           { path: '/report', element: <ReportPage /> },
+          { path: '/notifications', element: <NotificationsPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

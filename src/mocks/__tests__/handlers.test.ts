@@ -323,9 +323,13 @@ describe('POST /api/v1/burn @ sot/openapi.yaml + sot/conventions.md', () => {
         amount: '500.00',
         rateUsed: '16250',
         notes: 'IDR via BCA',
-        safeTxHash: null,
+        // safeTxHash is populated as soon as the backend proposes the Safe TX
+        // (sot/phase-1.md § Burn flow steps 5–8). USDX-19 surfaces this on
+        // the Notifications page, so the burn factory now sets it on
+        // creation rather than leaving it null.
         onChainTxHash: null,
       })
+      expect(payload.data.safeTxHash).toMatch(/^0x[0-9a-fA-F]+$/)
     })
 
     test('response shape matches sot/openapi.yaml § BurnRequest exactly (no userName / display extras)', async () => {

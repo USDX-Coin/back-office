@@ -200,6 +200,12 @@ export interface RequestListItem {
   chain: RequestChain
   safeType: SafeType
   status: RequestStatus
+  // Safe transaction hash (nullable). Present once the backend has proposed
+  // the Safe multisig transaction (sot/phase-1.md § Mint / Burn flow steps
+  // 6–8). The Notifications page needs this on the list response to deep-link
+  // each pending row to the Safe UI without an extra fetch — flagged as a
+  // proposed openapi extension on USDX-19.
+  safeTxHash: string | null
   createdBy: string
   createdAt: string
 }

@@ -521,7 +521,10 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
   const userName = `${opts.user.firstName} ${opts.user.lastName}`.trim()
   const isExecutedOrLater =
     status === 'EXECUTED' || status === 'IDR_TRANSFERRED'
-  const safeTxHash = status !== 'PENDING_APPROVAL' ? bytes32(seed + 15000) : null
+  // safe_tx_hash is populated as soon as the backend proposes the Safe TX
+  // (sot/phase-1.md § Mint flow steps 6–8). REJECTED rows may have been
+  // rejected before propose, so leave them null.
+  const safeTxHash = status === 'REJECTED' ? null : bytes32(seed + 15000)
   const onChainTxHash = isExecutedOrLater ? bytes32(seed + 17000) : null
 
   const list: RequestListItem = {
@@ -535,6 +538,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     chain,
     safeType,
     status,
+    safeTxHash,
     createdBy: opts.createdBy.id,
     createdAt,
   }
@@ -602,6 +606,11 @@ export function createMintFromRequest(
   const seed = ++requestIdCounter + 100_000
   const id = uuidLike(seed + 9000)
   const idempotencyKey = bytes32(seed + 11000)
+  // Per sot/phase-1.md § Mint flow steps 6–8, the backend proposes the Safe
+  // TX (and auto-signs) as part of submission, so a freshly minted
+  // PENDING_APPROVAL row already carries a safeTxHash. The Notifications
+  // page (USDX-19) consumes this to deep-link to the Safe UI.
+  const safeTxHash = bytes32(seed + 15000)
   const createdAt = new Date().toISOString()
   const list: RequestListItem = {
     id,
@@ -614,6 +623,7 @@ export function createMintFromRequest(
     chain: body.chain as RequestChain,
     safeType,
     status: 'PENDING_APPROVAL',
+    safeTxHash,
     createdBy: createdBy.id,
     createdAt,
   }
@@ -632,7 +642,7 @@ export function createMintFromRequest(
     notes: body.notes && body.notes.length > 0 ? body.notes : null,
     safeType,
     status: 'PENDING_APPROVAL',
-    safeTxHash: null,
+    safeTxHash,
     onChainTxHash: null,
     createdBy: createdBy.id,
     createdAt,
@@ -713,6 +723,11 @@ export function createBurnRequestFromSubmission(
     Number(amountIdrValue) >= 1_000_000_000 ? 'MANAGER' : 'STAFF'
   const createdAt = new Date().toISOString()
   const userId = matchedUser?.id ?? `usr_burn_${seed}`
+  // Per sot/phase-1.md § Burn flow steps 5–8, the backend proposes the Safe
+  // TX (and auto-signs) as part of submission, so a freshly minted
+  // PENDING_APPROVAL row already carries a safeTxHash. Consumed by the
+  // Notifications page (USDX-19).
+  const safeTxHash = bytes32(seed + 200)
 
   const list: RequestListItem = {
     id,
@@ -725,6 +740,7 @@ export function createBurnRequestFromSubmission(
     chain: input.chain,
     safeType,
     status: 'PENDING_APPROVAL',
+    safeTxHash,
     createdBy: createdBy.id,
     createdAt,
   }
@@ -744,7 +760,7 @@ export function createBurnRequestFromSubmission(
     chain: input.chain,
     notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
     safeType,
-    safeTxHash: null,
+    safeTxHash,
     onChainTxHash: null,
     depositTxHash: input.depositTxHash.trim(),
     bankName: input.bankName.trim(),

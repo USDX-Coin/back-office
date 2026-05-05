@@ -108,10 +108,30 @@ export function flushSettlement(txId: string, outcome: 'completed' | 'failed' = 
   tx.settledAt = new Date().toISOString()
 }
 
+/**
+ * Test hook — simulate Safe UI sign + execute by transitioning a
+ * Phase-1 request from PENDING_APPROVAL → EXECUTED. The Notifications
+ * list filters on `status === 'PENDING_APPROVAL'`, so executed rows
+ * disappear automatically once the polling refetch lands.
+ */
+export function flushApproval(
+  requestId: string,
+  outcome: 'EXECUTED' | 'REJECTED' = 'EXECUTED'
+) {
+  const list = requestList.find((r) => r.id === requestId)
+  const detail = requestDetails.get(requestId)
+  if (!list || !detail || list.status !== 'PENDING_APPROVAL') return
+  list.status = outcome
+  detail.status = outcome
+  detail.updatedAt = new Date().toISOString()
+}
+
 // Browser dev hook for the E2E smoke spec
 if (typeof window !== 'undefined') {
   ;(window as unknown as { __mswFlushSettlement?: typeof flushSettlement }).__mswFlushSettlement =
     flushSettlement
+  ;(window as unknown as { __mswFlushApproval?: typeof flushApproval }).__mswFlushApproval =
+    flushApproval
 }
 
 // ─── Helpers ───
@@ -603,9 +623,6 @@ export const handlers = [
     }
     return HttpResponse.json(staff)
   }),
-
-  // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
-  http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
   http.get('/api/v1/requests', ({ request }) => {
