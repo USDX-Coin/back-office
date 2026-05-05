@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import PageHeader from '@/components/PageHeader'
 import KpiCard from './KpiCard'
+import Phase1Stats from './Phase1Stats'
 import RecentActivityList from './RecentActivityList'
 import NetworkDistribution from './NetworkDistribution'
-import { useDashboardSnapshot } from './hooks'
+import { useDashboardSnapshot, useDashboardStats } from './hooks'
 
 const VolumeTrendChart = lazy(() => import('./VolumeTrendChart'))
 
@@ -19,6 +20,11 @@ function formatUSD(value: number): string {
 
 export default function DashboardPage() {
   const { data, isLoading, refetch } = useDashboardSnapshot()
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useDashboardStats()
   const kpis = data?.kpis
 
   const trail = (data?.volumeTrend ?? []).slice(-12)
@@ -28,12 +34,12 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Last 30 days"
+        eyebrow="USDX network"
         title="Dashboard"
         italicAccent="overview"
         subtitle={
-          kpis
-            ? `${kpis.activeUsers.toLocaleString()} active customers · ${kpis.pendingTransactions} pending settlement`
+          stats
+            ? `${stats.pendingRequests} pending request${stats.pendingRequests === 1 ? '' : 's'} · rate Rp${stats.currentRate}/USDX`
             : 'Loading…'
         }
         actions={
@@ -44,13 +50,16 @@ export default function DashboardPage() {
               className="h-7 text-[12px] font-mono font-normal"
               disabled
             >
-              Apr 1 — Apr 28
+              Live · 30s refresh
             </Button>
             <Button
               variant="outline"
               size="icon"
               className="h-7 w-7"
-              onClick={() => refetch()}
+              onClick={() => {
+                refetch()
+                refetchStats()
+              }}
               aria-label="Refresh"
             >
               <RefreshCw className="h-3 w-3" />
@@ -58,6 +67,8 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      <Phase1Stats data={stats} isLoading={statsLoading} />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard

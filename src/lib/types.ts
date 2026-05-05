@@ -315,3 +315,29 @@ export interface CreateMintRequestBody {
   chain: string
   notes?: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — dashboard statistics (sot/openapi.yaml § /api/v1/dashboard/stats)
+//
+// All on-chain quantities and Safe balances are decimal strings (USDX has
+// 6 on-chain decimals; the API returns the human-readable form so the
+// client never has to reason about wei).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DashboardStats {
+  totalSupply: string
+  totalMinted: string
+  totalBurned: string
+  pendingRequests: number
+  requestsByStatus: {
+    PENDING_APPROVAL: number
+    APPROVED: number
+    EXECUTED: number
+    REJECTED: number
+  }
+  safeBalances: {
+    staff: string
+    manager: string
+  }
+  currentRate: string
+}

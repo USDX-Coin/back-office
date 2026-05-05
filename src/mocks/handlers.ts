@@ -25,6 +25,7 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
   MANAGER_THRESHOLD_IDR,
@@ -587,6 +588,15 @@ export const handlers = [
       data,
     })
   }),
+
+  // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
+  http.get('/api/v1/dashboard/stats', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: computeDashboardStats(requestList),
+    })
+  ),
 
   http.get('/api/v1/requests/:id', ({ params }) => {
     const detail = requestDetails.get(String(params.id))
