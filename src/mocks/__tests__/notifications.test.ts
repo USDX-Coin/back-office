@@ -9,68 +9,65 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-describe('Notifications endpoints', () => {
-  describe('GET /api/notifications', () => {
-    test('should return only requests with status pending_approval', async () => {
-      const res = await fetch('/api/notifications')
+describe('Notifications via /api/v1/requests', () => {
+  describe('GET /api/v1/requests?status=PENDING_APPROVAL', () => {
+    test('should return only PENDING_APPROVAL rows in SoT envelope', async () => {
+      const res = await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')
       expect(res.ok).toBe(true)
       const body = await res.json()
+      expect(body.status).toBe('success')
+      expect(body.metadata).toMatchObject({ page: 1, limit: 200 })
+      expect(typeof body.metadata.total).toBe('number')
       expect(Array.isArray(body.data)).toBe(true)
       expect(body.data.length).toBeGreaterThan(0)
-      // Each notification must carry the SoT-mandated fields
-      for (const n of body.data) {
-        expect(n.id).toBeTypeOf('string')
-        expect(['mint', 'redeem']).toContain(n.kind)
-        expect(n.userName).toBeTypeOf('string')
-        expect(n.amount).toBeTypeOf('number')
-        expect(['STAFF', 'MANAGER']).toContain(n.safeType)
-        expect(n.safeAddress).toMatch(/^0x[0-9a-fA-F]+$/)
-        expect(n.safeTxHash).toMatch(/^0x[0-9a-fA-F]+$/)
-        expect(n.chainId).toBeTypeOf('number')
-        expect(n.createdAt).toBeTypeOf('string')
+      // Each row must be in PENDING_APPROVAL with the SoT-mandated fields
+      for (const row of body.data) {
+        expect(row.status).toBe('PENDING_APPROVAL')
+        expect(row.id).toBeTypeOf('string')
+        expect(['mint', 'burn']).toContain(row.type)
+        expect(row.userName).toBeTypeOf('string')
+        expect(row.amount).toBeTypeOf('string')
+        expect(['STAFF', 'MANAGER']).toContain(row.safeType)
+        expect(row.createdAt).toBeTypeOf('string')
+        // The Notifications page needs safeTxHash on the list to deep-link
+        // each row to Safe UI without an extra fetch.
+        expect(row.safeTxHash).toMatch(/^0x[0-9a-fA-F]+$/)
       }
-    })
-
-    test('should match the count returned by /api/notifications/count', async () => {
-      const list = await (await fetch('/api/notifications')).json()
-      const count = await (await fetch('/api/notifications/count')).json()
-      expect(count.count).toBe(list.data.length)
     })
   })
 
   describe('flushApproval test hook', () => {
-    test('should remove an item from the notifications list once executed', async () => {
-      const before = await (await fetch('/api/notifications')).json()
-      expect(before.data.length).toBeGreaterThan(0)
+    test('should remove an item from the PENDING_APPROVAL list once executed', async () => {
+      const before = await (
+        await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')
+      ).json()
+      const initialCount = before.data.length
+      expect(initialCount).toBeGreaterThan(0)
       const target = before.data[0]
 
-      flushApproval(target.id, 'completed')
+      flushApproval(target.id, 'EXECUTED')
 
-      const after = await (await fetch('/api/notifications')).json()
+      const after = await (
+        await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')
+      ).json()
+      expect(after.data.length).toBe(initialCount - 1)
       const ids = after.data.map((n: { id: string }) => n.id)
       expect(ids).not.toContain(target.id)
-      expect(after.data.length).toBe(before.data.length - 1)
-
-      // And the count endpoint reflects the new state
-      const count = await (await fetch('/api/notifications/count')).json()
-      expect(count.count).toBe(after.data.length)
     })
 
     test('should be a no-op for unknown ids', () => {
-      expect(() => flushApproval('otc_mint_99999')).not.toThrow()
+      expect(() => flushApproval('does-not-exist')).not.toThrow()
     })
 
-    test('should be a no-op for ids that are not in pending_approval', async () => {
-      // Pick a mint tx that is NOT in pending_approval (the OTC list contains
-      // all statuses including pending/completed/failed).
-      const list = await (await fetch('/api/otc/mint?pageSize=100')).json()
+    test('should be a no-op for ids that are not PENDING_APPROVAL', async () => {
+      const list = await (await fetch('/api/v1/requests?limit=200')).json()
       const nonPending = list.data.find(
-        (t: { status: string }) => t.status !== 'pending_approval'
+        (r: { status: string }) => r.status !== 'PENDING_APPROVAL'
       )
       expect(nonPending).toBeDefined()
-      const before = (await (await fetch('/api/notifications')).json()).data.length
-      flushApproval(nonPending.id, 'completed')
-      const after = (await (await fetch('/api/notifications')).json()).data.length
+      const before = (await (await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')).json()).data.length
+      flushApproval(nonPending.id, 'EXECUTED')
+      const after = (await (await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')).json()).data.length
       expect(after).toBe(before)
     })
   })

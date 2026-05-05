@@ -16,7 +16,9 @@ describe('UsersPage', () => {
   describe('positive', () => {
     test('should render the page title and Add User button', async () => {
       renderWithProviders(<UsersPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /users/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: /user.*directory/i })
+      ).toBeInTheDocument()
       expect(screen.getAllByRole('button', { name: /add user/i }).length).toBeGreaterThan(0)
     })
 

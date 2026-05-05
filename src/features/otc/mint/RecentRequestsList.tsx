@@ -10,7 +10,6 @@ interface RecentRequestsListProps {
 }
 
 const STATUS_DOT: Record<OtcMintTransaction['status'], string> = {
-  pending_approval: 'bg-warning animate-pulse-dot',
   pending: 'bg-warning animate-pulse-dot',
   completed: 'bg-success',
   failed: 'bg-destructive',

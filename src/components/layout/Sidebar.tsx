@@ -7,6 +7,7 @@ import {
   ArrowDownToLine,
   BarChart3,
   Bell,
+  Inbox,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useNotificationsCount } from '@/features/notifications/hooks'
@@ -43,8 +44,9 @@ const SECTIONS: NavSection[] = [
   {
     label: 'Insights',
     items: [
-      { to: '/report', label: 'Report', icon: BarChart3 },
+      { to: '/requests', label: 'Requests', icon: Inbox },
       { to: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
+      { to: '/report', label: 'Report', icon: BarChart3 },
     ],
   },
 ]

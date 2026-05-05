@@ -20,9 +20,13 @@ describe('Sidebar — Notifications badge (AC #3)', () => {
     ).toBeInTheDocument()
   })
 
-  test('should display the pending count from /api/notifications/count', async () => {
+  test('should display the PENDING_APPROVAL count from /api/v1/requests', async () => {
     renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
-    const expected = (await (await fetch('/api/notifications/count')).json()).count
+    const expected = (
+      await (
+        await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')
+      ).json()
+    ).metadata.total
 
     await waitFor(
       () => {
@@ -35,9 +39,10 @@ describe('Sidebar — Notifications badge (AC #3)', () => {
 
   test('should hide the badge when count is zero', async () => {
     renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
-    // Drain pending approvals
-    const list = await (await fetch('/api/notifications')).json()
-    for (const n of list.data) flushApproval(n.id, 'completed')
+    const list = await (
+      await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=200')
+    ).json()
+    for (const r of list.data) flushApproval(r.id, 'EXECUTED')
 
     await waitFor(
       () => {

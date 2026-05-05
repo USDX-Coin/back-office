@@ -6,14 +6,9 @@
 //   Operator = the current Staff (runtime identity, typed as Staff)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// `pending_approval` represents a Safe multisig transaction awaiting human
-// signers (sot/phase-1.md). The legacy `pending` value still represents the
-// simplified single-shot async settlement used elsewhere in the v1 mock.
-export type OtcStatus = 'pending_approval' | 'pending' | 'completed' | 'failed'
+export type OtcStatus = 'pending' | 'completed' | 'failed'
 
 export type Network = 'ethereum' | 'polygon' | 'arbitrum' | 'solana' | 'base'
-
-export type SafeType = 'STAFF' | 'MANAGER'
 
 export type CustomerType = 'personal' | 'organization'
 
@@ -58,11 +53,6 @@ export interface OtcMintTransaction {
   status: OtcStatus
   createdAt: string
   settledAt?: string
-  // Safe multisig fields (populated when status === 'pending_approval')
-  safeType?: SafeType
-  safeAddress?: string
-  safeTxHash?: string
-  chainId?: number
 }
 
 export interface OtcRedeemTransaction {
@@ -77,26 +67,9 @@ export interface OtcRedeemTransaction {
   status: OtcStatus
   createdAt: string
   settledAt?: string
-  safeType?: SafeType
-  safeAddress?: string
-  safeTxHash?: string
-  chainId?: number
 }
 
 export type OtcTransactionKind = 'mint' | 'redeem'
-
-export interface Notification {
-  id: string
-  kind: OtcTransactionKind
-  userName: string
-  amount: number
-  network: Network
-  safeType: SafeType
-  safeAddress: string
-  safeTxHash: string
-  chainId: number
-  createdAt: string
-}
 
 export interface ReportRow {
   id: string
@@ -164,4 +137,107 @@ export interface ApiError {
     code: string
     message: string
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint/burn request lifecycle (see sot/openapi.yaml § /api/v1/requests)
+//
+// Distinct from OtcMintTransaction / OtcRedeemTransaction (single-shot OTC):
+// these requests follow an approval workflow:
+//   PENDING_APPROVAL → APPROVED → EXECUTED → (burn only) IDR_TRANSFERRED
+//                  └→ REJECTED  (terminal at any stage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RequestType = 'mint' | 'burn'
+
+export type SafeType = 'STAFF' | 'MANAGER'
+
+export type RequestChain = 'ethereum' | 'polygon' | 'arbitrum' | 'base'
+
+export type MintRequestStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'REJECTED'
+
+export type BurnRequestStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'IDR_TRANSFERRED'
+  | 'REJECTED'
+
+export type RequestStatus = MintRequestStatus | BurnRequestStatus
+
+export interface RequestListItem {
+  id: string
+  type: RequestType
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string
+  amountIdr: string
+  chain: RequestChain
+  safeType: SafeType
+  status: RequestStatus
+  // Safe transaction hash (nullable). Present once the backend has proposed
+  // the Safe multisig transaction (sot/phase-1.md § Mint / Burn flow steps
+  // 6–8). The Notifications page needs this on the list response to deep-link
+  // each pending row to the Safe UI without an extra fetch — flagged as a
+  // proposed openapi extension on USDX-19.
+  safeTxHash: string | null
+  createdBy: string
+  createdAt: string
+}
+
+interface RequestDetailBase {
+  id: string
+  idempotencyKey: string
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string
+  amountWei: string
+  amountIdr: string
+  rateUsed: string
+  chain: RequestChain
+  notes: string | null
+  safeType: SafeType
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MintRequestDetail extends RequestDetailBase {
+  type: 'mint'
+  status: MintRequestStatus
+}
+
+export interface BurnRequestDetail extends RequestDetailBase {
+  type: 'burn'
+  status: BurnRequestStatus
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+}
+
+export type RequestDetail = MintRequestDetail | BurnRequestDetail
+
+// Phase-1 API envelope (matches openapi.yaml — `metadata` + `limit`)
+export interface PhaseOnePaginatedResponse<T> {
+  status: 'success'
+  metadata: {
+    page: number
+    limit: number
+    total: number
+  }
+  data: T[]
+}
+
+export interface PhaseOneSuccessResponse<T> {
+  status: 'success'
+  metadata: Record<string, unknown> | null
+  data: T
 }
