@@ -1,4 +1,6 @@
 import { http, HttpResponse } from 'msw'
+import { isAddress } from 'viem'
+import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
   Staff,
@@ -582,11 +584,11 @@ export const handlers = [
   }),
 
   // sot/openapi.yaml § POST /api/v1/burn — submit burn request (OTC).
-  // Performs SoT-aligned shape validation. Real backend additionally verifies
-  // depositTxHash on-chain (amount match, deposit recipient = correct Safe);
-  // mock-only proxy: txHash ending in `0xdead…dead` simulates that failure.
+  // Bearer auth (global `security: [bearerAuth]`); 400 on shape failures;
+  // 403 when submitter role can't handle the IDR amount; 201 returns the
+  // strict BurnRequest shape (no display extras).
   http.post('/api/v1/burn', async ({ request }) => {
-    const staff = authenticatedStaff(request) ?? getDefaultStaff()
+    const staff = authenticatedStaff(request)
     if (!staff) return unauthorized()
 
     let body: Partial<{
@@ -634,13 +636,13 @@ export const handlers = [
     const amount = String(body.amount).trim()
     const chain = String(body.chain) as RequestListItem['chain']
 
-    if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+    if (!isAddress(userAddress)) {
       return HttpResponse.json(
         {
           status: 'error',
           metadata: null,
           data: null,
-          error: { code: 'VALIDATION_ERROR', message: 'Invalid userAddress (expected 0x + 40 hex chars)' },
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid userAddress' },
         },
         { status: 400 }
       )
@@ -674,8 +676,8 @@ export const handlers = [
       )
     }
 
-    const allowedChains = ['ethereum', 'polygon', 'arbitrum', 'base'] as const
-    if (!(allowedChains as readonly string[]).includes(chain)) {
+    // Phase 1 ships polygon-only (sot/phase-1.md § Smart Contract deliverables).
+    if (chain !== 'polygon') {
       return HttpResponse.json(
         {
           status: 'error',
@@ -683,26 +685,7 @@ export const handlers = [
           data: null,
           error: {
             code: 'VALIDATION_ERROR',
-            message: `Unsupported chain (expected one of: ${allowedChains.join(', ')})`,
-          },
-        },
-        { status: 400 }
-      )
-    }
-
-    // Mock proxy for "deposit TX failed verification on-chain" — sot/phase-1.md
-    // step 2 says backend verifies the deposit hits the Safe. Use a recognisable
-    // sentinel so tests can exercise the failure branch deterministically.
-    const failureSentinel = '0x' + 'dead'.repeat(16)
-    if (depositTxHash.toLowerCase() === failureSentinel) {
-      return HttpResponse.json(
-        {
-          status: 'error',
-          metadata: null,
-          data: null,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Deposit TX could not be verified on-chain or amount mismatch',
+            message: 'Unsupported chain (only polygon is enabled in Phase 1)',
           },
         },
         { status: 400 }
@@ -718,7 +701,7 @@ export const handlers = [
         userName: String(body.userName),
         userAddress,
         amount,
-        chain: chain as 'ethereum' | 'polygon' | 'arbitrum' | 'base',
+        chain: 'polygon',
         depositTxHash,
         bankName: String(body.bankName),
         bankAccount: String(body.bankAccount),
@@ -728,11 +711,32 @@ export const handlers = [
       matchedUser
     )
 
+    // sot/openapi.yaml L143 — 403 when submitter role is insufficient for
+    // the computed IDR amount. Threshold + role mapping live in roleAuth.
+    if (!canHandleAmountIdr(staff.role, Number(detail.amountIdr))) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Insufficient role for this amount' },
+        },
+        { status: 403 }
+      )
+    }
+
     requestList.unshift(list)
     requestDetails.set(detail.id, detail)
 
+    // Strip code-side discriminator (`type`) and display-only extras
+    // (`userName`) so the POST response matches sot/openapi.yaml §
+    // BurnRequest exactly.
+    const { userName: _name, type: _type, ...burnRequest } = detail
+    void _name
+    void _type
+
     return HttpResponse.json(
-      { status: 'success', metadata: null, data: detail },
+      { status: 'success', metadata: null, data: burnRequest },
       { status: 201 }
     )
   }),
