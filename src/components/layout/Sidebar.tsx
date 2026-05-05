@@ -5,8 +5,10 @@ import {
   UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
+  Flame,
   BarChart3,
   Inbox,
+  Coins,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -36,11 +38,13 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: '/otc/mint', label: 'Mint', icon: ArrowUpFromLine },
       { to: '/otc/redeem', label: 'Redeem', icon: ArrowDownToLine },
+      { to: '/burn', label: 'Burn', icon: Flame },
     ],
   },
   {
     label: 'Insights',
     items: [
+      { to: '/mint', label: 'Mint request', icon: Coins },
       { to: '/requests', label: 'Requests', icon: Inbox },
       { to: '/report', label: 'Report', icon: BarChart3 },
     ],
