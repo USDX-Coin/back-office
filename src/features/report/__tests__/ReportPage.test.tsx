@@ -16,7 +16,9 @@ describe('ReportPage', () => {
   describe('positive', () => {
     test('should render header + filter toolbar + Export CSV', () => {
       renderWithProviders(<ReportPage />, { authenticated: true })
-      expect(screen.getByRole('heading', { name: /transaction reporting/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: /report.*transactions/i })
+      ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument()
       expect(screen.getByLabelText(/start date/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/end date/i)).toBeInTheDocument()

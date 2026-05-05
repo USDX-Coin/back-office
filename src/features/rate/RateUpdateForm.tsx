@@ -87,8 +87,9 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
     }
     if (!form.mode) return
     try {
+      // Bearer token attaches via apiFetch — backend derives updatedBy from
+      // the JWT, no need to send the staff id in the body.
       await update.mutateAsync({
-        operatorStaffId: user.id,
         mode: form.mode,
         manualRate: form.mode === 'MANUAL' ? form.manualRate : null,
         spreadPct: form.spreadPct || '0',

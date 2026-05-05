@@ -6,6 +6,7 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   BarChart3,
+  Inbox,
   TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
@@ -40,7 +41,10 @@ const SECTIONS: NavSection[] = [
   },
   {
     label: 'Insights',
-    items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
+    items: [
+      { to: '/requests', label: 'Requests', icon: Inbox },
+      { to: '/report', label: 'Report', icon: BarChart3 },
+    ],
   },
   {
     // Sidebar item is visible to every authenticated role; the rate page

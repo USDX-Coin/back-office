@@ -190,3 +190,100 @@ export interface RateConfig {
   updatedBy: string
   createdAt: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint/burn request lifecycle (see sot/openapi.yaml § /api/v1/requests)
+//
+// Distinct from OtcMintTransaction / OtcRedeemTransaction (single-shot OTC):
+// these requests follow an approval workflow:
+//   PENDING_APPROVAL → APPROVED → EXECUTED → (burn only) IDR_TRANSFERRED
+//                  └→ REJECTED  (terminal at any stage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RequestType = 'mint' | 'burn'
+
+export type SafeType = 'STAFF' | 'MANAGER'
+
+export type RequestChain = 'ethereum' | 'polygon' | 'arbitrum' | 'base'
+
+export type MintRequestStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'REJECTED'
+
+export type BurnRequestStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'IDR_TRANSFERRED'
+  | 'REJECTED'
+
+export type RequestStatus = MintRequestStatus | BurnRequestStatus
+
+export interface RequestListItem {
+  id: string
+  type: RequestType
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string
+  amountIdr: string
+  chain: RequestChain
+  safeType: SafeType
+  status: RequestStatus
+  createdBy: string
+  createdAt: string
+}
+
+interface RequestDetailBase {
+  id: string
+  idempotencyKey: string
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string
+  amountWei: string
+  amountIdr: string
+  rateUsed: string
+  chain: RequestChain
+  notes: string | null
+  safeType: SafeType
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MintRequestDetail extends RequestDetailBase {
+  type: 'mint'
+  status: MintRequestStatus
+}
+
+export interface BurnRequestDetail extends RequestDetailBase {
+  type: 'burn'
+  status: BurnRequestStatus
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+}
+
+export type RequestDetail = MintRequestDetail | BurnRequestDetail
+
+// Phase-1 API envelope (matches openapi.yaml — `metadata` + `limit`)
+export interface PhaseOnePaginatedResponse<T> {
+  status: 'success'
+  metadata: {
+    page: number
+    limit: number
+    total: number
+  }
+  data: T[]
+}
+
+export interface PhaseOneSuccessResponse<T> {
+  status: 'success'
+  metadata: Record<string, unknown> | null
+  data: T
+}

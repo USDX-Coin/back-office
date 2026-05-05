@@ -8,12 +8,15 @@ import type {
   RateConfig,
   RateMode,
   UpdateRateConfig,
+  RequestDetail,
+  RequestListItem,
 } from '@/lib/types'
 import { canManageRate } from '@/lib/types'
 import {
   createMockCustomerList,
   createMockStaffList,
   createMockOtcTransactions,
+  createMockRequests,
   createCustomer,
   createStaff,
   createOtcMintTransaction,
@@ -35,6 +38,9 @@ let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+let requestList: RequestListItem[]
+let requestDetails: Map<string, RequestDetail>
+;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -43,6 +49,7 @@ export function resetMockData() {
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+  ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -159,9 +166,143 @@ function notFound() {
   return new HttpResponse(null, { status: 404 })
 }
 
+// ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
+function base64UrlEncode(payload: object): string {
+  const json = JSON.stringify(payload)
+  // btoa is available in browser + jsdom; encodeURIComponent guards against unicode
+  const b64 = btoa(unescape(encodeURIComponent(json)))
+  return b64.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+export function issueMockJwt(staff: Staff): string {
+  const header = base64UrlEncode({ alg: 'HS256', typ: 'JWT' })
+  const now = Math.floor(Date.now() / 1000)
+  const body = base64UrlEncode({
+    sub: staff.id,
+    email: staff.email,
+    role: staff.role,
+    iat: now,
+    exp: now + 60 * 60 * 24 * 30, // 30 days — matches "Remember this device for 30 days"
+  })
+  return `${header}.${body}.mock-signature`
+}
+
+function base64UrlDecode(segment: string): string {
+  const pad = segment.length % 4 === 0 ? 0 : 4 - (segment.length % 4)
+  const b64 = segment.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(pad)
+  return decodeURIComponent(escape(atob(b64)))
+}
+
+interface MockJwtClaims {
+  sub: string
+  email: string
+  role: string
+  iat: number
+  exp: number
+}
+
+export function verifyMockJwt(token: string): MockJwtClaims | null {
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  if (parts[2] !== 'mock-signature') return null
+  try {
+    const claims = JSON.parse(base64UrlDecode(parts[1])) as MockJwtClaims
+    if (typeof claims.exp !== 'number') return null
+    if (Math.floor(Date.now() / 1000) >= claims.exp) return null
+    if (typeof claims.sub !== 'string' || !claims.sub) return null
+    return claims
+  } catch {
+    return null
+  }
+}
+
+function unauthorized(message = 'Invalid or missing token') {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'UNAUTHORIZED', message },
+    },
+    { status: 401 }
+  )
+}
+
+function authenticatedStaff(request: Request): Staff | null {
+  const header = request.headers.get('Authorization') ?? ''
+  if (!header.startsWith('Bearer ')) return null
+  const claims = verifyMockJwt(header.slice('Bearer '.length).trim())
+  if (!claims) return null
+  return findStaffById(claims.sub) ?? null
+}
+
 // ─── Handlers ───
 
 export const handlers = [
+  // ─── Auth ───
+  // Response envelope follows sot/openapi.yaml § /api/v1/auth/login.
+  http.post('/api/v1/auth/login', async ({ request }) => {
+    let body: { email?: string; password?: string }
+    try {
+      body = (await request.json()) as { email?: string; password?: string }
+    } catch {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+        },
+        { status: 400 }
+      )
+    }
+    const email = body.email?.trim() ?? ''
+    const password = body.password ?? ''
+    if (!email || !password) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    // R64 (mock-only): any non-empty credential pair authenticates.
+    const matched = findStaffByEmail(email) ?? getDefaultStaff()
+    if (!matched) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' },
+        },
+        { status: 401 }
+      )
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        accessToken: issueMockJwt(matched),
+        staff: matched,
+      },
+    })
+  }),
+
+  // sot/openapi.yaml § /api/v1/auth/me — restore session by Bearer token.
+  http.get('/api/v1/auth/me', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: staff,
+    })
+  }),
+
   // ─── Customers (User menu) ───
   http.get('/api/customers', ({ request }) => {
     const url = new URL(request.url)
@@ -410,10 +551,11 @@ export const handlers = [
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
 
   // ─── Rate (sot/openapi.yaml § /api/v1/rate) ───
-  // Wraps responses in the SoT envelope (SuccessResponse / ErrorResponse)
-  // because /api/v1/* paths follow the documented contract strictly. Other
-  // endpoints under /api/* in this mock predate that contract and use the
-  // legacy bare shape.
+  // GET is intentionally not Bearer-gated in the mock: the production endpoint
+  // requires auth, but enforcing it here would 401 React Query's first fetch
+  // when child-component effects fire before AuthProvider has wired apiFetch
+  // bindings. Real backend reads JWT and returns 401 — UI handles that path
+  // already via apiFetch.onUnauthorized.
   http.get('/api/v1/rate', () =>
     HttpResponse.json({
       status: 'success',
@@ -423,18 +565,9 @@ export const handlers = [
   ),
 
   http.post('/api/v1/rate', async ({ request }) => {
-    const body = (await request.json()) as UpdateRateConfig & {
-      operatorStaffId?: string
-    }
-
-    // Auth gate mirrors backend 403: ADMIN/MANAGER only. The operatorStaffId
-    // is sent by the client (mock auth has no JWT) so the mock can enforce
-    // the same role check the backend would. UI gating is the primary
-    // defense; this is defense-in-depth so tests can cover the 403 branch.
-    const operator = body.operatorStaffId
-      ? staffStore.find((s) => s.id === body.operatorStaffId)
-      : null
-    if (!operator || !canManageRate(operator.role)) {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageRate(operator.role)) {
       return HttpResponse.json(
         {
           status: 'error',
@@ -445,6 +578,8 @@ export const handlers = [
         { status: 403 }
       )
     }
+
+    const body = (await request.json()) as UpdateRateConfig
 
     function rateBadRequest(message: string) {
       return HttpResponse.json(
@@ -486,5 +621,44 @@ export const handlers = [
       { status: 'success', metadata: null, data: created },
       { status: 201 }
     )
+  }),
+
+  // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
+  http.get('/api/v1/requests', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+    const type = url.searchParams.get('type')
+    const status = url.searchParams.get('status')
+    const chain = url.searchParams.get('chain')
+    const safeType = url.searchParams.get('safeType')
+
+    let rows = [...requestList]
+    if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (chain) rows = rows.filter((r) => r.chain === chain)
+    if (safeType === 'STAFF' || safeType === 'MANAGER') {
+      rows = rows.filter((r) => r.safeType === safeType)
+    }
+
+    const start = (page - 1) * limit
+    const data = rows.slice(start, start + limit)
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: rows.length },
+      data,
+    })
+  }),
+
+  http.get('/api/v1/requests/:id', ({ params }) => {
+    const detail = requestDetails.get(String(params.id))
+    if (!detail) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
+        { status: 404 }
+      )
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
   }),
 ]

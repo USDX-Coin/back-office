@@ -5,7 +5,7 @@ import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import RatePage from '@/features/rate/RatePage'
 import { renderWithProviders } from '@/test/test-utils'
-import { findStaffByEmail, findStaffById } from '@/mocks/handlers'
+import { findStaffByEmail, findStaffById, issueMockJwt } from '@/mocks/handlers'
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -16,13 +16,19 @@ afterAll(() => server.close())
 
 // Default-seeded staff (demo@usdx.io) is super_admin → maps to ADMIN.
 // To exercise the read-only path we pre-populate localStorage with a
-// staff whose role maps to STAFF before rendering.
+// staff whose role maps to STAFF before rendering. Session shape v3
+// (token + staffId) matches what AuthProvider expects post-USDX-7.
 function loginAsStaffRole(email: string) {
   const staff = findStaffByEmail(email)
   if (!staff) throw new Error(`Test fixture missing: ${email}`)
   localStorage.setItem(
     'usdx_auth_user',
-    JSON.stringify({ version: 2, staffId: staff.id })
+    JSON.stringify({
+      version: 3,
+      staffId: staff.id,
+      token: issueMockJwt(staff),
+      issuedAt: Date.now(),
+    })
   )
   return staff
 }
@@ -189,5 +195,86 @@ describe('Auth gate sanity', () => {
     if (staff) {
       expect(['super_admin', 'operations']).toContain(staff.role)
     }
+  })
+})
+
+// Mock-level auth gate sanity. Mirrors the SoT 403 branch on POST /api/v1/rate
+// (sot/openapi.yaml L419–420) — backend rejects non-admin/manager. We exercise
+// it directly against the MSW handler so coverage doesn't depend on the form
+// (which already gates client-side).
+describe('POST /api/v1/rate authorization (SoT 403)', () => {
+  test('returns 403 with SoT ErrorResponse envelope when caller is not ADMIN/MANAGER', async () => {
+    const staff = findStaffByEmail('marcus.a@usdx.io')! // compliance → STAFF
+    const token = issueMockJwt(staff)
+    const res = await fetch('/api/v1/rate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ mode: 'DYNAMIC', spreadPct: '0.5' }),
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body).toMatchObject({
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN' },
+    })
+  })
+
+  test('returns 401 when no Bearer token is sent', async () => {
+    const res = await fetch('/api/v1/rate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'DYNAMIC' }),
+    })
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.status).toBe('error')
+    expect(body.error.code).toBe('UNAUTHORIZED')
+  })
+
+  test('returns 201 + RateConfig when caller is ADMIN', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // super_admin → ADMIN
+    const token = issueMockJwt(staff)
+    const res = await fetch('/api/v1/rate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ mode: 'MANUAL', manualRate: '16400', spreadPct: '0.4' }),
+    })
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.status).toBe('success')
+    expect(body.data).toMatchObject({
+      mode: 'MANUAL',
+      manualRate: '16400',
+      spreadPct: '0.4',
+      updatedBy: staff.id,
+    })
+    expect(typeof body.data.id).toBe('string')
+    expect(typeof body.data.createdAt).toBe('string')
+  })
+})
+
+// Sanity check on the GET response shape — confirms the SoT envelope
+// (status/metadata/data) is what the client receives.
+describe('GET /api/v1/rate response shape', () => {
+  test('returns RateInfo wrapped in SoT SuccessResponse envelope', async () => {
+    const res = await fetch('/api/v1/rate')
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('success')
+    expect(body.metadata).toBeNull()
+    expect(body.data).toMatchObject({
+      rate: expect.stringMatching(/^\d+(\.\d+)?$/),
+      mode: expect.stringMatching(/^(MANUAL|DYNAMIC)$/),
+      spreadPct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      updatedAt: expect.any(String),
+    })
   })
 })
