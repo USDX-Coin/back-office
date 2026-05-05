@@ -22,6 +22,9 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  customerToPhaseOneUser,
+  createMintFromRequest,
+  MANAGER_THRESHOLD_IDR,
 } from './data'
 
 // ─── Stores ───
@@ -216,6 +219,19 @@ function unauthorized(message = 'Invalid or missing token') {
       error: { code: 'UNAUTHORIZED', message },
     },
     { status: 401 }
+  )
+}
+
+// sot/openapi.yaml § ErrorResponse declares only `error: { code, message }`.
+function phaseOneBadRequest(message: string, code = 'VALIDATION_ERROR') {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code, message },
+    },
+    { status: 400 }
   )
 }
 
@@ -578,5 +594,103 @@ export const handlers = [
       )
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  // ─── Phase 1 Users (sot/openapi.yaml § /api/v1/users) ───
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Returns Phase-1 User entities for the userName autocomplete in the mint
+  // and burn request forms.
+  http.get('/api/v1/users', ({ request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+
+    let users = customerStore.map((c, i) => customerToPhaseOneUser(c, i + 1))
+    if (search) {
+      users = users.filter(
+        (u) =>
+          u.name.toLowerCase().includes(search) ||
+          u.wallets.some((w) => w.address.toLowerCase().includes(search))
+      )
+    }
+    const start = (page - 1) * limit
+    const data = users.slice(start, start + limit)
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: users.length },
+      data,
+    })
+  }),
+
+  // ─── Phase 1 Mint Submission (sot/openapi.yaml § POST /api/v1/mint) ───
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Validates body, computes IDR equivalent, picks Safe by threshold,
+  // persists as PENDING_APPROVAL, returns the fresh MintRequest detail.
+  // 403 (role insufficient) is intentionally not modeled in the mock — Linear
+  // AC #6 only verifies the FE displays the message; tests use server.use().
+  http.post('/api/v1/mint', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+
+    let body: Partial<{
+      userName: string
+      userAddress: string
+      amount: string
+      chain: string
+      notes: string
+    }>
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
+    }
+
+    // Validate per sot/openapi.yaml § CreateMintRequest required fields.
+    const userName = (body.userName ?? '').trim()
+    const userAddress = (body.userAddress ?? '').trim()
+    const amountRaw = (body.amount ?? '').trim()
+    const chain = (body.chain ?? '').trim()
+    if (!userName) return phaseOneBadRequest('userName is required')
+    if (!userAddress) return phaseOneBadRequest('userAddress is required')
+    if (!/^0x[0-9a-fA-F]{40}$/.test(userAddress)) {
+      return phaseOneBadRequest('userAddress must match ^0x[0-9a-fA-F]{40}$')
+    }
+    const amountNum = Number.parseFloat(amountRaw)
+    if (!amountRaw) return phaseOneBadRequest('amount is required')
+    if (Number.isNaN(amountNum) || amountNum <= 0) {
+      return phaseOneBadRequest('amount must be a positive decimal')
+    }
+    if (!chain) return phaseOneBadRequest('chain is required')
+
+    // Compute IDR equivalent + pick Safe by threshold (sot/phase-1.md L52-55).
+    const RATE_USD_IDR = 16250
+    const amountIdr = Math.round(amountNum * RATE_USD_IDR)
+    const safeType: 'STAFF' | 'MANAGER' =
+      amountIdr >= MANAGER_THRESHOLD_IDR ? 'MANAGER' : 'STAFF'
+
+    // Resolve user (lookup by exact name match, else create lightweight stub).
+    const matched = customerStore.find(
+      (c) => `${c.firstName} ${c.lastName}`.trim().toLowerCase() === userName.toLowerCase()
+    )
+    const user = matched
+      ? { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
+      : { id: `usr_adhoc_${Date.now()}`, name: userName }
+
+    const pair = createMintFromRequest(
+      user,
+      operator,
+      { userAddress, amount: amountRaw, chain, notes: body.notes },
+      amountIdr,
+      safeType
+    )
+    requestList.unshift(pair.list)
+    requestDetails.set(pair.list.id, pair.detail)
+
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: pair.detail },
+      { status: 201 }
+    )
   }),
 ]

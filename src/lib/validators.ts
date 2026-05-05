@@ -1,3 +1,4 @@
+import { getAddress } from 'viem'
 import type { CustomerRole, CustomerType, Network, StaffRole } from './types'
 
 export interface ValidationResult {
@@ -129,6 +130,63 @@ export function validateOtcRedeemForm(input: {
     errors.amount = 'Amount must be greater than 0'
   } else if (amt > input.availableBalance) {
     errors.amount = 'Amount exceeds available balance'
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function validateMintRequestForm(input: {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.userName.trim()) {
+    errors.userName = 'User name is required'
+  }
+  // sot/conventions.md L114-115: simpan dalam checksummed format + validasi
+  // checksum saat input. Lenient: all-lowercase atau all-uppercase = format-
+  // only check (no checksum to verify). Mixed-case = harus match EIP-55
+  // checksum (viem.getAddress normalisasi → bandingkan ke input).
+  const trimmedAddress = input.userAddress.trim()
+  if (!trimmedAddress) {
+    errors.userAddress = 'Wallet address is required'
+  } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
+    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+  } else {
+    // Skip the `0x` prefix when checking case-uniformity (the `x` is always lowercase).
+    const hex = trimmedAddress.slice(2)
+    const isAllLower = hex === hex.toLowerCase()
+    const isAllUpper = hex === hex.toUpperCase()
+    if (!isAllLower && !isAllUpper) {
+      try {
+        if (getAddress(trimmedAddress) !== trimmedAddress) {
+          errors.userAddress = 'Address checksum is invalid (EIP-55)'
+        }
+      } catch {
+        errors.userAddress = 'Address checksum is invalid (EIP-55)'
+      }
+    }
+  }
+  const amountTrimmed = input.amount.trim()
+  const amt = Number.parseFloat(amountTrimmed)
+  if (!amountTrimmed) {
+    errors.amount = 'Amount is required'
+  } else if (Number.isNaN(amt) || amt <= 0) {
+    errors.amount = 'Amount must be greater than 0'
+  } else {
+    // sot/openapi.yaml § CreateMintRequest.amount — "decimal USDX, 6 decimals max"
+    const [, fraction = ''] = amountTrimmed.split('.')
+    if (fraction.length > 6) {
+      errors.amount = 'Amount supports at most 6 decimal places'
+    }
+  }
+  if (!input.chain.trim()) {
+    errors.chain = 'Chain is required'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
