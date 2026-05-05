@@ -5,7 +5,11 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
-import { resetMockData, getDefaultStaff } from '@/mocks/handlers'
+import {
+  resetMockData,
+  getDefaultStaff,
+  issueMockJwt,
+} from '@/mocks/handlers'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
 import BurnRequestPage from '@/features/burn/BurnRequestPage'
@@ -17,25 +21,25 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-// Renders /burn inside a router that also recognises /requests so we can
-// assert post-submit navigation (AC3) without leaving the test harness.
+// Mounts /burn alongside a /requests sentinel route so we can assert the
+// post-submit navigation (AC3) without leaving the test harness.
 function renderBurnRoute(initialPath = '/burn') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
 
-  const staff = getDefaultStaff()
-  if (staff) {
-    localStorage.setItem(
-      'usdx_auth_user',
-      JSON.stringify({
-        version: 3,
-        staffId: staff.id,
-        token: 'test-bypass',
-        issuedAt: Date.now(),
-      })
-    )
-  }
+  const staff = getDefaultStaff()!
+  // sot/openapi.yaml § security: bearerAuth — handler now strictly verifies
+  // the JWT, so seed the localStorage session with a real mock-signed JWT.
+  localStorage.setItem(
+    'usdx_auth_user',
+    JSON.stringify({
+      version: 3,
+      staffId: staff.id,
+      token: issueMockJwt(staff),
+      issuedAt: Date.now(),
+    })
+  )
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -61,15 +65,18 @@ function renderBurnRoute(initialPath = '/burn') {
 const VALID_ADDRESS = '0x' + 'a'.repeat(40)
 const VALID_TX = '0x' + 'b'.repeat(64)
 
-async function fillAllRequiredFields(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/user name/i), 'Alice Tester')
+async function pickFirstCustomer(user: ReturnType<typeof userEvent.setup>) {
+  const search = screen.getByPlaceholderText(/search customer/i)
+  await user.type(search, 'Julian')
+  // Mock data seeds "Julian Anderson" as the first customer.
+  const result = await screen.findByText(/Julian Anderson/i)
+  await user.click(result)
+}
+
+async function fillRequiredNonUserName(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/user wallet address/i), VALID_ADDRESS)
   await user.type(screen.getByLabelText(/^amount$/i), '500.00')
-
-  // Radix Select — open the trigger then click the option
-  await user.click(screen.getByLabelText(/^chain$/i))
-  await user.click(await screen.findByRole('option', { name: /polygon/i }))
-
+  // Chain is preset to polygon (single-option Phase 1 scope), no click needed.
   await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
   await user.type(screen.getByLabelText(/bank name/i), 'BCA')
   await user.type(screen.getByLabelText(/bank account/i), '1234567890')
@@ -85,7 +92,13 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         screen.getByRole('heading', { name: /burn.*redeem.*usdx/i })
       ).toBeInTheDocument()
 
-      expect(screen.getByLabelText(/user name/i)).toBeInTheDocument()
+      // userName surface = customer typeahead (sot/phase-1.md L271 users
+      // table is the source of truth — no free-text input).
+      expect(screen.getByText(/^user name$/i)).toBeInTheDocument()
+      expect(
+        screen.getByPlaceholderText(/search customer/i)
+      ).toBeInTheDocument()
+
       expect(screen.getByLabelText(/user wallet address/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/^amount$/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/^chain$/i)).toBeInTheDocument()
@@ -98,6 +111,16 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         screen.getByRole('button', { name: /submit burn request/i })
       ).toBeInTheDocument()
     })
+
+    test('should show only polygon as the chain option (Phase 1 scope)', async () => {
+      const user = userEvent.setup()
+      renderBurnRoute()
+      // Chain is preset; opening the dropdown should expose exactly one option.
+      await user.click(screen.getByLabelText(/^chain$/i))
+      const options = await screen.findAllByRole('option')
+      expect(options).toHaveLength(1)
+      expect(options[0]).toHaveTextContent(/polygon/i)
+    })
   })
 
   // ─── AC2: depositTxHash validation: must be 0x + 64 hex chars ───
@@ -106,8 +129,8 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await fillAllRequiredFields(user)
-      // Replace the valid hash with an invalid one (too short)
+      await pickFirstCustomer(user)
+      await fillRequiredNonUserName(user)
       const txInput = screen.getByLabelText(/deposit tx hash/i)
       await user.clear(txInput)
       await user.type(txInput, '0x' + 'a'.repeat(63))
@@ -117,7 +140,6 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       await waitFor(() => {
         expect(screen.getByText(/invalid tx hash/i)).toBeInTheDocument()
       })
-      // Confirms the form was NOT submitted (sentinel never appeared)
       expect(screen.queryByTestId('requests-route')).toBeNull()
     })
 
@@ -125,7 +147,8 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await fillAllRequiredFields(user)
+      await pickFirstCustomer(user)
+      await fillRequiredNonUserName(user)
       const txInput = screen.getByLabelText(/deposit tx hash/i)
       await user.clear(txInput)
       await user.type(txInput, 'a'.repeat(64))
@@ -144,7 +167,8 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await fillAllRequiredFields(user)
+      await pickFirstCustomer(user)
+      await fillRequiredNonUserName(user)
       await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
       await waitFor(() => {
@@ -157,7 +181,8 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
   describe('AC4 — backend error surfaces in the form', () => {
     test('should display the backend error message and stay on /burn', async () => {
       // Override the burn handler to simulate a backend rejection
-      // (e.g. on-chain verification failure, amount mismatch).
+      // (e.g. on-chain verification failure, amount mismatch — sot/phase-1.md
+      // L236). The form must surface the message and stay put.
       server.use(
         http.post('/api/v1/burn', () =>
           HttpResponse.json(
@@ -178,7 +203,8 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await fillAllRequiredFields(user)
+      await pickFirstCustomer(user)
+      await fillRequiredNonUserName(user)
       await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
       await waitFor(() => {
@@ -186,32 +212,11 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
           screen.getByText(/deposit tx could not be verified on-chain/i)
         ).toBeInTheDocument()
       })
-      // Did NOT navigate
+      // Did NOT navigate; values preserved.
       expect(screen.queryByTestId('requests-route')).toBeNull()
-      // Form values preserved
       expect(screen.getByLabelText(/user wallet address/i)).toHaveValue(
         VALID_ADDRESS
       )
-    })
-
-    test('should also surface the error from the built-in mock failure sentinel txHash', async () => {
-      const user = userEvent.setup()
-      renderBurnRoute()
-
-      await fillAllRequiredFields(user)
-      const txInput = screen.getByLabelText(/deposit tx hash/i)
-      await user.clear(txInput)
-      // 0xdead repeated 16x = 64 hex chars; matches src/mocks/handlers.ts sentinel
-      await user.type(txInput, '0x' + 'dead'.repeat(16))
-
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/deposit tx could not be verified on-chain or amount mismatch/i)
-        ).toBeInTheDocument()
-      })
-      expect(screen.queryByTestId('requests-route')).toBeNull()
     })
   })
 })

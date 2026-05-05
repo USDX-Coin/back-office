@@ -144,7 +144,7 @@ export default function BurnRequestForm() {
       <form onSubmit={handleSubmit} noValidate id="burn-form">
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="burnUserName">User name</Label>
+            <Label>User name</Label>
             <CustomerTypeahead
               value={form.customer}
               onSelect={selectCustomer}
