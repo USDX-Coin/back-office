@@ -16,19 +16,6 @@ if (typeof Element.prototype.scrollIntoView === 'undefined') {
   Element.prototype.scrollIntoView = function () {}
 }
 
-// Radix UI Select uses Pointer Capture APIs that JSDOM doesn't implement.
-if (typeof Element.prototype.hasPointerCapture === 'undefined') {
-  Element.prototype.hasPointerCapture = function () {
-    return false
-  }
-}
-if (typeof Element.prototype.setPointerCapture === 'undefined') {
-  Element.prototype.setPointerCapture = function () {}
-}
-if (typeof Element.prototype.releasePointerCapture === 'undefined') {
-  Element.prototype.releasePointerCapture = function () {}
-}
-
 if (typeof globalThis.matchMedia === 'undefined') {
   Object.defineProperty(globalThis, 'matchMedia', {
     writable: true,

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
-import { getDefaultStaff, issueMockJwt } from '@/mocks/handlers'
+import { getDefaultStaff } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
 
 interface WrapperOptions {
@@ -29,15 +29,9 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
     if (authenticated) {
       const staff = getDefaultStaff()
       if (staff) {
-        // Match the v3 schema AuthProvider expects (staffId + JWT bearer token).
         localStorage.setItem(
           'usdx_auth_user',
-          JSON.stringify({
-            version: 3,
-            staffId: staff.id,
-            token: issueMockJwt(staff),
-            issuedAt: Date.now(),
-          })
+          JSON.stringify({ version: 2, staffId: staff.id })
         )
       }
     }
