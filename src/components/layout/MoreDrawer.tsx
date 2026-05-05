@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Bell, Inbox, Users, UserCog, UserRound, LogOut } from 'lucide-react'
+import { Bell, Flame, Inbox, Users, UserCog, UserRound, LogOut } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -18,6 +18,7 @@ interface MoreDrawerProps {
 
 const ITEMS = [
   { to: '/notifications', label: 'Notifications', icon: Bell, description: 'Pending Safe approvals', badgeKey: 'notifications' as const },
+  { to: '/burn', label: 'Burn', icon: Flame, description: 'Submit OTC burn request' },
   { to: '/requests', label: 'Requests', icon: Inbox, description: 'Mint & burn lifecycle' },
   { to: '/users', label: 'User', icon: Users, description: 'Customer directory' },
   { to: '/staff', label: 'Staf', icon: UserCog, description: 'Internal team' },

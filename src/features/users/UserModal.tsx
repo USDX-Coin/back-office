@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -39,6 +40,7 @@ interface FormState {
   type: CustomerType | ''
   organization: string
   role: CustomerRole | ''
+  notes: string
 }
 
 const EMPTY: FormState = {
@@ -49,6 +51,7 @@ const EMPTY: FormState = {
   type: '',
   organization: '',
   role: 'member',
+  notes: '',
 }
 
 const ROLE_CARDS: { value: CustomerRole; title: string; description: string }[] = [
@@ -78,6 +81,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
           type: customer.type,
           organization: customer.organization ?? '',
           role: customer.role,
+          notes: customer.notes ?? '',
         })
       } else {
         setForm(EMPTY)
@@ -119,6 +123,7 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
         type: form.type as CustomerType,
         organization: form.type === 'organization' ? form.organization : undefined,
         role: form.role as CustomerRole,
+        notes: form.notes.trim() || undefined,
       }
       if (mode === 'add') {
         await create.mutateAsync(payload)
@@ -240,6 +245,17 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
               />
               <FieldError message={errors.organization} />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+              placeholder="Optional notes (visible to staff only)"
+              className="mt-1.5 min-h-[72px]"
+            />
           </div>
 
           <div>

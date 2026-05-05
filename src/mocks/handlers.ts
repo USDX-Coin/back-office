@@ -1,4 +1,6 @@
 import { http, HttpResponse } from 'msw'
+import { isAddress } from 'viem'
+import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
   Staff,
@@ -15,13 +17,21 @@ import {
   createMockRequests,
   createCustomer,
   createStaff,
+  createUserWallet,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
+  createBurnRequestFromSubmission,
   computeCustomerSummary,
   computeStaffSummary,
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  computeUserAnalytics,
+  computeUserRecentRequests,
+  computeDashboardStats,
+  customerToPhaseOneUser,
+  createMintFromRequest,
+  MANAGER_THRESHOLD_IDR,
 } from './data'
 
 // ─── Stores ───
@@ -239,6 +249,19 @@ function unauthorized(message = 'Invalid or missing token') {
   )
 }
 
+// sot/openapi.yaml § ErrorResponse declares only `error: { code, message }`.
+function phaseOneBadRequest(message: string, code = 'VALIDATION_ERROR') {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code, message },
+    },
+    { status: 400 }
+  )
+}
+
 function authenticatedStaff(request: Request): Staff | null {
   const header = request.headers.get('Authorization') ?? ''
   if (!header.startsWith('Bearer ')) return null
@@ -329,7 +352,8 @@ export const handlers = [
         (c) =>
           c.firstName.toLowerCase().includes(search) ||
           c.lastName.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search)
+          c.email.toLowerCase().includes(search) ||
+          c.wallets.some((w) => w.address.toLowerCase().includes(search))
       )
     }
     if (type) result = result.filter((c) => c.type === type)
@@ -341,12 +365,54 @@ export const handlers = [
 
   http.get('/api/customers/summary', () => HttpResponse.json(computeCustomerSummary(customerStore))),
 
+  http.get('/api/customers/:id', ({ params }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const analytics = computeUserAnalytics(customer.id, otcMintStore, otcRedeemStore)
+    const recentRequests = computeUserRecentRequests(customer.id, otcMintStore, otcRedeemStore)
+    return HttpResponse.json({ ...customer, analytics, recentRequests })
+  }),
+
+  http.post('/api/customers/:id/wallets', async ({ params, request }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const body = (await request.json()) as { chain?: string; address?: string }
+    if (!body.chain || !body.address) {
+      return badRequest('VALIDATION', 'Chain and address are required')
+    }
+    const duplicate = customer.wallets.some(
+      (w) => w.chain === body.chain && w.address.toLowerCase() === body.address!.toLowerCase()
+    )
+    if (duplicate) {
+      return HttpResponse.json(
+        { error: { code: 'CONFLICT', message: 'Wallet already exists for this user' } },
+        { status: 409 }
+      )
+    }
+    const wallet = createUserWallet({
+      chain: body.chain as Customer['wallets'][number]['chain'],
+      address: body.address,
+      createdAt: new Date().toISOString(),
+    })
+    customer.wallets.push(wallet)
+    return HttpResponse.json(wallet, { status: 201 })
+  }),
+
+  http.delete('/api/customers/:id/wallets/:walletId', ({ params }) => {
+    const customer = customerStore.find((c) => c.id === params.id)
+    if (!customer) return notFound()
+    const idx = customer.wallets.findIndex((w) => w.id === params.walletId)
+    if (idx < 0) return notFound()
+    customer.wallets.splice(idx, 1)
+    return new HttpResponse(null, { status: 204 })
+  }),
+
   http.post('/api/customers', async ({ request }) => {
     const body = (await request.json()) as Partial<Customer>
     if (!body.firstName || !body.lastName || !body.email || !body.type || !body.role) {
       return badRequest('VALIDATION', 'Missing required fields')
     }
-    const created = createCustomer(body as Partial<Customer>)
+    const created = createCustomer({ ...(body as Partial<Customer>), wallets: body.wallets ?? [] })
     customerStore.unshift(created)
     return HttpResponse.json(created, { status: 201 })
   }),
@@ -586,6 +652,15 @@ export const handlers = [
     })
   }),
 
+  // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
+  http.get('/api/v1/dashboard/stats', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: computeDashboardStats(requestList),
+    })
+  ),
+
   http.get('/api/v1/requests/:id', ({ params }) => {
     const detail = requestDetails.get(String(params.id))
     if (!detail) {
@@ -595,5 +670,211 @@ export const handlers = [
       )
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  // ─── Phase 1 Users (sot/openapi.yaml § /api/v1/users) ───
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Returns Phase-1 User entities for the userName autocomplete in the mint
+  // and burn request forms.
+  http.get('/api/v1/users', ({ request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+
+    let users = customerStore.map((c, i) => customerToPhaseOneUser(c, i + 1))
+    if (search) {
+      users = users.filter(
+        (u) =>
+          u.name.toLowerCase().includes(search) ||
+          u.wallets.some((w) => w.address.toLowerCase().includes(search))
+      )
+    }
+    const start = (page - 1) * limit
+    const data = users.slice(start, start + limit)
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: users.length },
+      data,
+    })
+  }),
+
+  // ─── Phase 1 Mint Submission (sot/openapi.yaml § POST /api/v1/mint) ───
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Validates body, computes IDR equivalent, picks Safe by threshold,
+  // persists as PENDING_APPROVAL, returns the fresh MintRequest detail.
+  // 403 (role insufficient) is intentionally not modeled in the mock — Linear
+  // AC #6 only verifies the FE displays the message; tests use server.use().
+  http.post('/api/v1/mint', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+
+    let body: Partial<{
+      userName: string
+      userAddress: string
+      amount: string
+      chain: string
+      notes: string
+    }>
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
+    }
+
+    // Validate per sot/openapi.yaml § CreateMintRequest required fields.
+    const userName = (body.userName ?? '').trim()
+    const userAddress = (body.userAddress ?? '').trim()
+    const amountRaw = (body.amount ?? '').trim()
+    const chain = (body.chain ?? '').trim()
+    if (!userName) return phaseOneBadRequest('userName is required')
+    if (!userAddress) return phaseOneBadRequest('userAddress is required')
+    if (!/^0x[0-9a-fA-F]{40}$/.test(userAddress)) {
+      return phaseOneBadRequest('userAddress must match ^0x[0-9a-fA-F]{40}$')
+    }
+    const amountNum = Number.parseFloat(amountRaw)
+    if (!amountRaw) return phaseOneBadRequest('amount is required')
+    if (Number.isNaN(amountNum) || amountNum <= 0) {
+      return phaseOneBadRequest('amount must be a positive decimal')
+    }
+    if (!chain) return phaseOneBadRequest('chain is required')
+
+    // Compute IDR equivalent + pick Safe by threshold (sot/phase-1.md L52-55).
+    const RATE_USD_IDR = 16250
+    const amountIdr = Math.round(amountNum * RATE_USD_IDR)
+    const safeType: 'STAFF' | 'MANAGER' =
+      amountIdr >= MANAGER_THRESHOLD_IDR ? 'MANAGER' : 'STAFF'
+
+    // Resolve user (lookup by exact name match, else create lightweight stub).
+    const matched = customerStore.find(
+      (c) => `${c.firstName} ${c.lastName}`.trim().toLowerCase() === userName.toLowerCase()
+    )
+    const user = matched
+      ? { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
+      : { id: `usr_adhoc_${Date.now()}`, name: userName }
+
+    const pair = createMintFromRequest(
+      user,
+      operator,
+      { userAddress, amount: amountRaw, chain, notes: body.notes },
+      amountIdr,
+      safeType
+    )
+    requestList.unshift(pair.list)
+    requestDetails.set(pair.list.id, pair.detail)
+
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: pair.detail },
+      { status: 201 }
+    )
+  }),
+
+  // sot/openapi.yaml § POST /api/v1/burn — submit burn request (OTC).
+  // Bearer auth (global `security: [bearerAuth]`); 400 on shape failures;
+  // 403 when submitter role can't handle the IDR amount; 201 returns the
+  // strict BurnRequest shape (no display extras).
+  http.post('/api/v1/burn', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+
+    let body: Partial<{
+      userName: string
+      userAddress: string
+      amount: string
+      chain: string
+      depositTxHash: string
+      bankName: string
+      bankAccount: string
+      notes: string
+    }>
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
+    }
+
+    const required = ['userName', 'userAddress', 'amount', 'chain', 'depositTxHash', 'bankName', 'bankAccount'] as const
+    for (const key of required) {
+      const value = body[key]
+      if (typeof value !== 'string' || !value.trim()) {
+        return phaseOneBadRequest(`${key} is required`)
+      }
+    }
+
+    const userAddress = String(body.userAddress).trim()
+    const depositTxHash = String(body.depositTxHash).trim()
+    const amount = String(body.amount).trim()
+    const chain = String(body.chain) as RequestListItem['chain']
+
+    if (!isAddress(userAddress)) {
+      return phaseOneBadRequest('Invalid userAddress')
+    }
+
+    if (!/^0x[a-fA-F0-9]{64}$/.test(depositTxHash)) {
+      return phaseOneBadRequest(
+        'Invalid depositTxHash (expected 0x + 64 hex chars)'
+      )
+    }
+
+    const amountNum = Number(amount)
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return phaseOneBadRequest('amount must be greater than 0')
+    }
+
+    // Phase 1 ships polygon-only (sot/phase-1.md § Smart Contract deliverables).
+    if (chain !== 'polygon') {
+      return phaseOneBadRequest(
+        'Unsupported chain (only polygon is enabled in Phase 1)'
+      )
+    }
+
+    const matchedUser = customerStore.find(
+      (c) => `${c.firstName} ${c.lastName}`.toLowerCase() === String(body.userName).trim().toLowerCase()
+    )
+
+    const { list, detail } = createBurnRequestFromSubmission(
+      {
+        userName: String(body.userName),
+        userAddress,
+        amount,
+        chain: 'polygon',
+        depositTxHash,
+        bankName: String(body.bankName),
+        bankAccount: String(body.bankAccount),
+        notes: typeof body.notes === 'string' ? body.notes : undefined,
+      },
+      staff,
+      matchedUser
+    )
+
+    // sot/openapi.yaml L143 — 403 when submitter role is insufficient for
+    // the computed IDR amount. Threshold + role mapping live in roleAuth.
+    if (!canHandleAmountIdr(staff.role, Number(detail.amountIdr))) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Insufficient role for this amount' },
+        },
+        { status: 403 }
+      )
+    }
+
+    requestList.unshift(list)
+    requestDetails.set(detail.id, detail)
+
+    // Strip code-side discriminator (`type`) and display-only extras
+    // (`userName`) so the POST response matches sot/openapi.yaml §
+    // BurnRequest exactly.
+    const { userName: _name, type: _type, ...burnRequest } = detail
+    void _name
+    void _type
+
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: burnRequest },
+      { status: 201 }
+    )
   }),
 ]

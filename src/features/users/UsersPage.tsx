@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
 import { useCustomers, useCustomerSummary } from './hooks'
+import { canManageUsers, useAuth } from '@/lib/auth'
 import type { Customer } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,9 @@ const TYPE_PILL: Record<Customer['type'], string> = {
 }
 
 export default function UsersPage() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const canManage = canManageUsers(user)
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
   const type = params.searchParams.get('type') ?? ''
@@ -82,10 +87,18 @@ export default function UsersPage() {
         const c = row.original
         const fullName = `${c.firstName} ${c.lastName}`.trim()
         return (
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/users/${c.id}`)
+            }}
+            className="flex items-center gap-2.5 text-left hover:text-primary"
+            aria-label={`Open ${fullName}`}
+          >
             <Avatar name={fullName} size="sm" />
-            <span className="font-medium text-foreground">{fullName}</span>
-          </div>
+            <span className="font-medium">{fullName}</span>
+          </button>
         )
       },
     },
@@ -142,32 +155,36 @@ export default function UsersPage() {
         )
       },
     },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.firstName}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.firstName}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
-    },
+    ...(canManage
+      ? [
+          {
+            id: 'actions',
+            header: '',
+            cell: ({ row }: { row: { original: Customer } }) => (
+              <div className="flex items-center justify-end gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openEdit(row.original)}
+                  aria-label={`Edit ${row.original.firstName}`}
+                  className="h-7 w-7"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openDelete(row.original)}
+                  aria-label={`Delete ${row.original.firstName}`}
+                  className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ),
+          } satisfies ColumnDef<Customer>,
+        ]
+      : []),
   ]
 
   const noDataState = (
@@ -180,12 +197,18 @@ export default function UsersPage() {
         />
       }
       title="No users yet"
-      description="Add your first customer to get started."
+      description={
+        canManage
+          ? 'Add your first customer to get started.'
+          : 'No users to show.'
+      }
       cta={
-        <Button onClick={openAdd} className="mt-2">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add User
-        </Button>
+        canManage ? (
+          <Button onClick={openAdd} className="mt-2">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add User
+          </Button>
+        ) : undefined
       }
     />
   )
@@ -198,10 +221,12 @@ export default function UsersPage() {
         italicAccent="directory"
         subtitle={`Customer directory · ${summary.data?.total ?? '…'} total`}
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Add User
-          </Button>
+          canManage ? (
+            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add User
+            </Button>
+          ) : undefined
         }
       />
 
