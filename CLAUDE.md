@@ -208,3 +208,34 @@ No approval gate. No "Under Review". Settlement is async and simulated in mock m
 5. Add mock data factory in `src/mocks/data.ts`
 6. Write unit tests colocated in `__tests__/` for business logic and page integration
 7. If the feature adds a critical flow, extend `e2e/smoke.spec.ts`
+
+# Source of Truth
+
+Folder `sot/` contains the project spec. Read before coding. Never edit `sot/`.
+
+**If spec is unclear — ask the PM, don't assume.**
+
+## Key files for this repo:
+
+- `sot/phase-1.md` — backoffice pages, role system, mint/burn flows
+- `sot/conventions.md` — API response format, naming conventions, status enums
+- `sot/openapi.yaml` — API contract (all endpoints + request/response shapes)
+
+## Critical rules:
+
+- API responses follow `{ status, metadata, data, error }` format — handle accordingly
+- Role-based UI: hide/show elements based on staff role from `/api/v1/auth/me`
+- Address validation: checksummed EVM format (use viem)
+- Status enums for requests: see `sot/conventions.md` § Status Enums
+- SOT is authoritative — if your implementation differs from SOT, your code adjusts (not SOT)
+
+## PR Description
+
+Saat buat PR, generate description mengikuti format di `sot/templates/pr-template.md`. Ini wajib — PM review berdasarkan structure ini.
+
+Key points:
+- Selalu include "PM Action Items" section (bisa "None")
+- Selalu include "SoT Alignment" table — cross-check setiap field/endpoint vs SOT
+- Jika implement sesuatu yang TIDAK ada di SOT → masukkan ke "Known Drift > Needs PM Action" dengan category ❓ Decision
+- Jika ada AC yang belum bisa dicapai → mark ⏳ Deferred dengan reason
+- Jika ada action yang harus dilakukan SETELAH merge → masukkan "Post-Merge Actions"
