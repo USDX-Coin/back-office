@@ -433,11 +433,12 @@ function decimalIdr(amount: string): string {
 }
 
 function amountWei(amount: string): string {
-  // 6 decimals (USDX) — strip the dot, append zeros to reach 6 decimal places
+  // sot/conventions.md L30: USDX uses 6 decimals (like USDC/USDT).
+  //   1 USDX = 1_000_000 wei
+  //   "100.50" → "100500000"
   const [whole, fraction = ''] = amount.split('.')
   const padded = (fraction + '000000').slice(0, 6)
-  // multiply by 1e12 to reach 18 decimals (uint256 representation)
-  return `${whole}${padded}000000000000`.replace(/^0+(?!$)/, '')
+  return (BigInt(whole + padded)).toString()
 }
 
 interface CreateRequestOpts {
@@ -625,5 +626,82 @@ export function createMockRequests(
   }
   list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   return { list, details }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Burn submission factory — used by POST /api/v1/burn handler.
+// Persists to the same requestList + details store so /requests reflects it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BurnSubmissionInput {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
+export function createBurnRequestFromSubmission(
+  input: BurnSubmissionInput,
+  createdBy: Staff,
+  matchedUser?: Customer
+): { list: RequestListItem; detail: BurnRequestDetail } {
+  const seed = requestIdCounter++ + 50_000
+  const id = uuidLike(seed)
+  const idempotencyKey = bytes32(seed + 100)
+  const amountIdrValue = decimalIdr(input.amount)
+  const amountWeiValue = amountWei(input.amount)
+  // Per sot/phase-1.md flow: backend computes IDR, checks role vs threshold,
+  // then routes to STAFF or MANAGER Safe. Mock heuristic: route to MANAGER
+  // when amountIDR is at or above 1B (approximate threshold from phase-1.md).
+  const safeType: SafeType =
+    Number(amountIdrValue) >= 1_000_000_000 ? 'MANAGER' : 'STAFF'
+  const createdAt = new Date().toISOString()
+  const userId = matchedUser?.id ?? `usr_burn_${seed}`
+
+  const list: RequestListItem = {
+    id,
+    type: 'burn',
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountIdr: amountIdrValue,
+    chain: input.chain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    createdBy: createdBy.id,
+    createdAt,
+  }
+
+  const detail: BurnRequestDetail = {
+    id,
+    type: 'burn',
+    status: 'PENDING_APPROVAL',
+    idempotencyKey,
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountWei: amountWeiValue,
+    amountIdr: amountIdrValue,
+    rateUsed: RATE_USED,
+    chain: input.chain,
+    notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
+    safeType,
+    safeTxHash: null,
+    onChainTxHash: null,
+    depositTxHash: input.depositTxHash.trim(),
+    bankName: input.bankName.trim(),
+    bankAccount: input.bankAccount.trim(),
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  return { list, detail }
 }
 

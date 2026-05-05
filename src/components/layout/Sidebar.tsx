@@ -5,6 +5,7 @@ import {
   UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
+  Flame,
   BarChart3,
   Inbox,
   Coins,
@@ -37,6 +38,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: '/otc/mint', label: 'Mint', icon: ArrowUpFromLine },
       { to: '/otc/redeem', label: 'Redeem', icon: ArrowDownToLine },
+      { to: '/burn', label: 'Burn', icon: Flame },
     ],
   },
   {

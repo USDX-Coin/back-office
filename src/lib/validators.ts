@@ -1,5 +1,5 @@
-import { getAddress } from 'viem'
-import type { CustomerRole, CustomerType, Network, StaffRole } from './types'
+import { getAddress, isAddress } from 'viem'
+import type { CustomerRole, CustomerType, Network, RequestChain, StaffRole } from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -131,6 +131,58 @@ export function validateOtcRedeemForm(input: {
   } else if (amt > input.availableBalance) {
     errors.amount = 'Amount exceeds available balance'
   }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/openapi.yaml § CreateBurnRequest — patterns and required fields are the
+// contract for POST /api/v1/burn. Keep error keys aligned with form field IDs.
+export const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/
+
+export function validateBurnRequestForm(input: {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain | ''
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (!input.userName.trim()) errors.userName = 'User name is required'
+
+  // sot/conventions.md L114 mandates address validation; we use viem
+  // (per CLAUDE.md.backoffice template L18) in non-strict mode so that
+  // operators can paste lowercase or correctly-checksummed mixed-case
+  // addresses, but mixed-case-with-wrong-checksum still gets rejected.
+  if (!input.userAddress.trim()) {
+    errors.userAddress = 'User wallet address is required'
+  } else if (!isAddress(input.userAddress.trim())) {
+    errors.userAddress = 'Invalid wallet address'
+  }
+
+  const amountStr = input.amount.trim()
+  if (!amountStr) {
+    errors.amount = 'Amount is required'
+  } else {
+    const amt = Number(amountStr)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      errors.amount = 'Amount must be greater than 0'
+    }
+  }
+
+  if (!input.chain) errors.chain = 'Chain is required'
+
+  if (!input.depositTxHash.trim()) {
+    errors.depositTxHash = 'Deposit TX hash is required'
+  } else if (!TX_HASH_RE.test(input.depositTxHash.trim())) {
+    errors.depositTxHash = 'Invalid TX hash (expected 0x + 64 hex chars)'
+  }
+
+  if (!input.bankName.trim()) errors.bankName = 'Bank name is required'
+  if (!input.bankAccount.trim()) errors.bankAccount = 'Bank account is required'
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

@@ -1,4 +1,6 @@
 import { http, HttpResponse } from 'msw'
+import { isAddress } from 'viem'
+import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
   Staff,
@@ -17,6 +19,7 @@ import {
   createStaff,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
+  createBurnRequestFromSubmission,
   computeCustomerSummary,
   computeStaffSummary,
   computeReportRows,
@@ -690,6 +693,114 @@ export const handlers = [
 
     return HttpResponse.json(
       { status: 'success', metadata: null, data: pair.detail },
+      { status: 201 }
+    )
+  }),
+
+  // sot/openapi.yaml § POST /api/v1/burn — submit burn request (OTC).
+  // Bearer auth (global `security: [bearerAuth]`); 400 on shape failures;
+  // 403 when submitter role can't handle the IDR amount; 201 returns the
+  // strict BurnRequest shape (no display extras).
+  http.post('/api/v1/burn', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+
+    let body: Partial<{
+      userName: string
+      userAddress: string
+      amount: string
+      chain: string
+      depositTxHash: string
+      bankName: string
+      bankAccount: string
+      notes: string
+    }>
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
+    }
+
+    const required = ['userName', 'userAddress', 'amount', 'chain', 'depositTxHash', 'bankName', 'bankAccount'] as const
+    for (const key of required) {
+      const value = body[key]
+      if (typeof value !== 'string' || !value.trim()) {
+        return phaseOneBadRequest(`${key} is required`)
+      }
+    }
+
+    const userAddress = String(body.userAddress).trim()
+    const depositTxHash = String(body.depositTxHash).trim()
+    const amount = String(body.amount).trim()
+    const chain = String(body.chain) as RequestListItem['chain']
+
+    if (!isAddress(userAddress)) {
+      return phaseOneBadRequest('Invalid userAddress')
+    }
+
+    if (!/^0x[a-fA-F0-9]{64}$/.test(depositTxHash)) {
+      return phaseOneBadRequest(
+        'Invalid depositTxHash (expected 0x + 64 hex chars)'
+      )
+    }
+
+    const amountNum = Number(amount)
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return phaseOneBadRequest('amount must be greater than 0')
+    }
+
+    // Phase 1 ships polygon-only (sot/phase-1.md § Smart Contract deliverables).
+    if (chain !== 'polygon') {
+      return phaseOneBadRequest(
+        'Unsupported chain (only polygon is enabled in Phase 1)'
+      )
+    }
+
+    const matchedUser = customerStore.find(
+      (c) => `${c.firstName} ${c.lastName}`.toLowerCase() === String(body.userName).trim().toLowerCase()
+    )
+
+    const { list, detail } = createBurnRequestFromSubmission(
+      {
+        userName: String(body.userName),
+        userAddress,
+        amount,
+        chain: 'polygon',
+        depositTxHash,
+        bankName: String(body.bankName),
+        bankAccount: String(body.bankAccount),
+        notes: typeof body.notes === 'string' ? body.notes : undefined,
+      },
+      staff,
+      matchedUser
+    )
+
+    // sot/openapi.yaml L143 — 403 when submitter role is insufficient for
+    // the computed IDR amount. Threshold + role mapping live in roleAuth.
+    if (!canHandleAmountIdr(staff.role, Number(detail.amountIdr))) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Insufficient role for this amount' },
+        },
+        { status: 403 }
+      )
+    }
+
+    requestList.unshift(list)
+    requestDetails.set(detail.id, detail)
+
+    // Strip code-side discriminator (`type`) and display-only extras
+    // (`userName`) so the POST response matches sot/openapi.yaml §
+    // BurnRequest exactly.
+    const { userName: _name, type: _type, ...burnRequest } = detail
+    void _name
+    void _type
+
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: burnRequest },
       { status: 201 }
     )
   }),

@@ -219,6 +219,44 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
+// sot/openapi.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
+export interface CreateBurnRequest {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
+// sot/openapi.yaml § BurnRequest (L866-917) — exact response shape for
+// POST /api/v1/burn. Strict — does NOT include userName / display extras
+// that BurnRequestDetail carries for the /requests detail dialog.
+export interface BurnRequest {
+  id: string
+  idempotencyKey: string
+  userId: string
+  userAddress: string
+  amount: string
+  amountWei: string
+  amountIdr: string
+  rateUsed: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes: string | null
+  safeType: SafeType
+  status: BurnRequestStatus
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Phase-1 API envelope (matches openapi.yaml — `metadata` + `limit`)
 export interface PhaseOnePaginatedResponse<T> {
   status: 'success'

@@ -30,6 +30,8 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
       const staff = getDefaultStaff()
       if (staff) {
         // Match the v3 schema AuthProvider expects (staffId + JWT bearer token).
+        // Use issueMockJwt so the strict-bearer handlers (mint/burn) accept
+        // the session.
         localStorage.setItem(
           'usdx_auth_user',
           JSON.stringify({
