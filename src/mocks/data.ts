@@ -23,6 +23,8 @@ import type {
   BurnRequestDetail,
   MintRequestStatus,
   BurnRequestStatus,
+  PhaseOneUser,
+  PhaseOneUserWallet,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -432,11 +434,12 @@ function decimalIdr(amount: string): string {
 }
 
 function amountWei(amount: string): string {
-  // 6 decimals (USDX) — strip the dot, append zeros to reach 6 decimal places
+  // sot/conventions.md L30: USDX uses 6 decimals (like USDC/USDT).
+  //   1 USDX = 1_000_000 wei
+  //   "100.50" → "100500000"
   const [whole, fraction = ''] = amount.split('.')
   const padded = (fraction + '000000').slice(0, 6)
-  // multiply by 1e12 to reach 18 decimals (uint256 representation)
-  return `${whole}${padded}000000000000`.replace(/^0+(?!$)/, '')
+  return (BigInt(whole + padded)).toString()
 }
 
 interface CreateRequestOpts {
@@ -519,6 +522,91 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
   return { list, detail }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — user directory derived from existing Customer store.
+// Customers carry first/last name; Phase-1 User has a single `name` field
+// plus on-chain wallets. We synthesize one wallet per Customer (deterministic).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phase-1 IDR threshold for the Safe split.
+ * sot/phase-1.md L52-55: amounts ≥ this go to the Manager Safe; below to Staff.
+ * The role-vs-amount gate is intentionally not enforced in the mock (see
+ * /api/v1/mint handler comment) — backend will be authoritative.
+ */
+export const MANAGER_THRESHOLD_IDR = 1_000_000_000
+
+/**
+ * Build a Phase-1 mint request pair (list item + detail) from a submission.
+ * Uses the latest counter seed so freshly created requests get unique ids.
+ */
+export function createMintFromRequest(
+  user: { id: string; name: string },
+  createdBy: Staff,
+  body: { userAddress: string; amount: string; chain: string; notes?: string },
+  amountIdrValue: number,
+  safeType: SafeType
+): { list: RequestListItem; detail: MintRequestDetail } {
+  const seed = ++requestIdCounter + 100_000
+  const id = uuidLike(seed + 9000)
+  const idempotencyKey = bytes32(seed + 11000)
+  const createdAt = new Date().toISOString()
+  const list: RequestListItem = {
+    id,
+    type: 'mint',
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountIdr: amountIdrValue.toString(),
+    chain: body.chain as RequestChain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    createdBy: createdBy.id,
+    createdAt,
+  }
+  const detail: MintRequestDetail = {
+    id,
+    type: 'mint',
+    idempotencyKey,
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountWei: amountWei(body.amount),
+    amountIdr: amountIdrValue.toString(),
+    rateUsed: RATE_USED,
+    chain: body.chain as RequestChain,
+    notes: body.notes && body.notes.length > 0 ? body.notes : null,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    safeTxHash: null,
+    onChainTxHash: null,
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+  return { list, detail }
+}
+
+export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseOneUser {
+  const fullName = `${customer.firstName} ${customer.lastName}`.trim()
+  const wallet: PhaseOneUserWallet = {
+    id: uuidLike(seed + 23000),
+    chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
+    address: bytes20(seed + 25000),
+    createdAt: customer.createdAt,
+  }
+  return {
+    id: customer.id,
+    name: fullName,
+    notes: customer.organization ?? null,
+    wallets: [wallet],
+    createdAt: customer.createdAt,
+    updatedAt: customer.createdAt,
+  }
+}
+
 export function createMockRequests(
   customers: Customer[],
   staff: Staff[],
@@ -539,6 +627,82 @@ export function createMockRequests(
   }
   list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
   return { list, details }
+}
+
+// Burn submission factory — used by POST /api/v1/burn handler.
+// Persists to the same requestList + details store so /requests reflects it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BurnSubmissionInput {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
+export function createBurnRequestFromSubmission(
+  input: BurnSubmissionInput,
+  createdBy: Staff,
+  matchedUser?: Customer
+): { list: RequestListItem; detail: BurnRequestDetail } {
+  const seed = requestIdCounter++ + 50_000
+  const id = uuidLike(seed)
+  const idempotencyKey = bytes32(seed + 100)
+  const amountIdrValue = decimalIdr(input.amount)
+  const amountWeiValue = amountWei(input.amount)
+  // Per sot/phase-1.md flow: backend computes IDR, checks role vs threshold,
+  // then routes to STAFF or MANAGER Safe. Mock heuristic: route to MANAGER
+  // when amountIDR is at or above 1B (approximate threshold from phase-1.md).
+  const safeType: SafeType =
+    Number(amountIdrValue) >= 1_000_000_000 ? 'MANAGER' : 'STAFF'
+  const createdAt = new Date().toISOString()
+  const userId = matchedUser?.id ?? `usr_burn_${seed}`
+
+  const list: RequestListItem = {
+    id,
+    type: 'burn',
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountIdr: amountIdrValue,
+    chain: input.chain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    createdBy: createdBy.id,
+    createdAt,
+  }
+
+  const detail: BurnRequestDetail = {
+    id,
+    type: 'burn',
+    status: 'PENDING_APPROVAL',
+    idempotencyKey,
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountWei: amountWeiValue,
+    amountIdr: amountIdrValue,
+    rateUsed: RATE_USED,
+    chain: input.chain,
+    notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
+    safeType,
+    safeTxHash: null,
+    onChainTxHash: null,
+    depositTxHash: input.depositTxHash.trim(),
+    bankName: input.bankName.trim(),
+    bankAccount: input.bankAccount.trim(),
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  return { list, detail }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

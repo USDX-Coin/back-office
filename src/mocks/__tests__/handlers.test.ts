@@ -1,6 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { server } from '@/mocks/server'
-import { resetMockData, flushSettlement } from '@/mocks/handlers'
+import {
+  resetMockData,
+  flushSettlement,
+  issueMockJwt,
+  getDefaultStaff,
+  findStaffById,
+} from '@/mocks/handlers'
+import type { Staff } from '@/lib/types'
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -269,5 +276,256 @@ describe('Report endpoint', () => {
     expect(data.totalVolume).toBeTypeOf('number')
     expect(data.activeMinters).toBeTypeOf('number')
     expect(data.flagged).toBeTypeOf('number')
+  })
+})
+
+describe('POST /api/v1/burn @ sot/openapi.yaml + sot/conventions.md', () => {
+  const validBody = {
+    userName: 'Alice User',
+    userAddress: '0x' + 'a'.repeat(40),
+    amount: '500.00',
+    chain: 'polygon',
+    depositTxHash: '0x' + 'b'.repeat(64),
+    bankName: 'BCA',
+    bankAccount: '1234567890',
+    notes: 'IDR via BCA',
+  }
+
+  function bearerHeaders(staff: Staff) {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${issueMockJwt(staff)}`,
+    }
+  }
+
+  function defaultHeaders() {
+    return bearerHeaders(getDefaultStaff()!)
+  }
+
+  describe('positive', () => {
+    test('returns 201 with SoT SuccessResponse envelope wrapping BurnRequest', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(201)
+      const payload = await res.json()
+      expect(payload.status).toBe('success')
+      expect(payload.metadata).toBeNull()
+      expect(payload.data).toMatchObject({
+        status: 'PENDING_APPROVAL',
+        userAddress: validBody.userAddress,
+        depositTxHash: validBody.depositTxHash,
+        bankName: 'BCA',
+        bankAccount: '1234567890',
+        chain: 'polygon',
+        amount: '500.00',
+        rateUsed: '16250',
+        notes: 'IDR via BCA',
+        safeTxHash: null,
+        onChainTxHash: null,
+      })
+    })
+
+    test('response shape matches sot/openapi.yaml § BurnRequest exactly (no userName / display extras)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      const sotFields = [
+        'id',
+        'idempotencyKey',
+        'userId',
+        'userAddress',
+        'amount',
+        'amountWei',
+        'amountIdr',
+        'rateUsed',
+        'chain',
+        'depositTxHash',
+        'bankName',
+        'bankAccount',
+        'notes',
+        'safeType',
+        'status',
+        'safeTxHash',
+        'onChainTxHash',
+        'createdBy',
+        'createdAt',
+        'updatedAt',
+      ]
+      for (const f of sotFields) {
+        expect(payload.data).toHaveProperty(f)
+      }
+      expect(payload.data).not.toHaveProperty('userName')
+      expect(payload.data).not.toHaveProperty('type')
+    })
+
+    test('idempotencyKey is a 0x-prefixed bytes32 (66 chars)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.idempotencyKey).toMatch(/^0x[0-9a-fA-F]{64}$/)
+      expect(payload.data.idempotencyKey).toHaveLength(66)
+    })
+
+    test('amountWei follows USDX 6-decimal convention (sot/conventions.md L30)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '500.00' }),
+      })
+      const payload = await res.json()
+      // 500.00 USDX × 1_000_000 wei/USDX = 500_000_000 wei
+      expect(payload.data.amountWei).toBe('500000000')
+    })
+
+    test('amountWei handles fractional amount per 6-decimal convention', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '100.50' }),
+      })
+      const payload = await res.json()
+      // 100.50 USDX → 100_500_000 wei
+      expect(payload.data.amountWei).toBe('100500000')
+    })
+
+    test('safeType routes to STAFF below 1B IDR threshold (phase-1.md L17)', async () => {
+      // amount 500 USDX × rate 16250 = 8,125,000 IDR (well under 1B)
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('STAFF')
+    })
+
+    test('safeType routes to MANAGER at or above 1B IDR threshold', async () => {
+      // 100_000 USDX × 16_250 = 1,625,000,000 IDR ≥ 1B; super_admin staff
+      // can authorize the Manager-level routing.
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '100000' }),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('MANAGER')
+    })
+
+    test('newly created burn appears in /api/v1/requests list', async () => {
+      const before = await (await fetch('/api/v1/requests?type=burn')).json()
+      const beforeTotal = before.metadata.total
+
+      await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+
+      const after = await (await fetch('/api/v1/requests?type=burn')).json()
+      expect(after.metadata.total).toBe(beforeTotal + 1)
+    })
+  })
+
+  describe('negative', () => {
+    test('returns 401 when Authorization header is missing (sot/openapi.yaml security)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(401)
+      const payload = await res.json()
+      expect(payload.error.code).toBe('UNAUTHORIZED')
+    })
+
+    test('returns 401 when bearer token is invalid', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer not-a-real-jwt',
+        },
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(401)
+    })
+
+    test('returns 403 FORBIDDEN when role cannot handle the IDR amount (sot/openapi.yaml L143)', async () => {
+      // Pick any non-super_admin staff — per the interim role mapping in
+      // src/lib/roleAuth.ts only super_admin maps to Manager-equivalent.
+      const staffStaff = findStaffById('stf_3')
+      expect(staffStaff?.role).not.toBe('super_admin')
+
+      // 100_000 USDX × 16_250 = 1.625B IDR ≥ 1B threshold → role check fails.
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: bearerHeaders(staffStaff!),
+        body: JSON.stringify({ ...validBody, amount: '100000' }),
+      })
+      expect(res.status).toBe(403)
+      const payload = await res.json()
+      expect(payload.error.code).toBe('FORBIDDEN')
+    })
+
+    test('does NOT 403 when same Staff-role submits below the threshold', async () => {
+      const staffStaff = findStaffById('stf_3')
+      expect(staffStaff?.role).not.toBe('super_admin')
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: bearerHeaders(staffStaff!),
+        body: JSON.stringify(validBody), // ~8M IDR
+      })
+      expect(res.status).toBe(201)
+    })
+
+    test('returns 400 VALIDATION_ERROR when a required field is missing', async () => {
+      const { bankAccount: _o, ...missing } = validBody
+      void _o
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(missing),
+      })
+      expect(res.status).toBe(400)
+      const payload = await res.json()
+      expect(payload.status).toBe('error')
+      expect(payload.error.code).toBe('VALIDATION_ERROR')
+    })
+
+    test('returns 400 when userAddress is not a valid EVM address (viem)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, userAddress: '0xnope' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when depositTxHash fails the 0x+64 hex pattern', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, depositTxHash: '0x' + 'a'.repeat(63) }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when chain is anything other than polygon (Phase 1 scope)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, chain: 'ethereum' }),
+      })
+      expect(res.status).toBe(400)
+    })
   })
 })

@@ -219,6 +219,44 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
+// sot/openapi.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
+export interface CreateBurnRequest {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
+// sot/openapi.yaml § BurnRequest (L866-917) — exact response shape for
+// POST /api/v1/burn. Strict — does NOT include userName / display extras
+// that BurnRequestDetail carries for the /requests detail dialog.
+export interface BurnRequest {
+  id: string
+  idempotencyKey: string
+  userId: string
+  userAddress: string
+  amount: string
+  amountWei: string
+  amountIdr: string
+  rateUsed: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes: string | null
+  safeType: SafeType
+  status: BurnRequestStatus
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 // Phase-1 API envelope (matches openapi.yaml — `metadata` + `limit`)
 export interface PhaseOnePaginatedResponse<T> {
   status: 'success'
@@ -234,6 +272,48 @@ export interface PhaseOneSuccessResponse<T> {
   status: 'success'
   metadata: Record<string, unknown> | null
   data: T
+}
+
+// Phase-1 error envelope (sot/openapi.yaml § ErrorResponse)
+export interface PhaseOneErrorResponse {
+  status: 'error'
+  metadata: null
+  data: null
+  error: {
+    code: string
+    message: string
+    details?: Record<string, string>
+  }
+}
+
+// ─── Phase 1 — User directory (sot/openapi.yaml § /api/v1/users) ───
+// Distinct from Customer: Phase-1 users carry one or more on-chain wallets
+// rather than the Customer fields (firstName/lastName/type/role).
+
+export interface PhaseOneUserWallet {
+  id: string
+  chain: string
+  address: string
+  createdAt: string
+}
+
+export interface PhaseOneUser {
+  id: string
+  name: string
+  notes: string | null
+  wallets: PhaseOneUserWallet[]
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Phase 1 — Create mint/burn request (sot/openapi.yaml) ───
+
+export interface CreateMintRequestBody {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: string
+  notes?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
