@@ -1,3 +1,4 @@
+import { isAddress } from 'viem'
 import type { CustomerRole, CustomerType, Network, RequestChain, StaffRole } from './types'
 
 export interface ValidationResult {
@@ -151,10 +152,14 @@ export function validateBurnRequestForm(input: {
 
   if (!input.userName.trim()) errors.userName = 'User name is required'
 
+  // sot/conventions.md L114 mandates address validation; we use viem
+  // (per CLAUDE.md.backoffice template L18) in non-strict mode so that
+  // operators can paste lowercase or correctly-checksummed mixed-case
+  // addresses, but mixed-case-with-wrong-checksum still gets rejected.
   if (!input.userAddress.trim()) {
     errors.userAddress = 'User wallet address is required'
-  } else if (!EVM_ADDRESS_RE.test(input.userAddress.trim())) {
-    errors.userAddress = 'Invalid wallet address (expected 0x + 40 hex chars)'
+  } else if (!isAddress(input.userAddress.trim())) {
+    errors.userAddress = 'Invalid wallet address'
   }
 
   const amountStr = input.amount.trim()

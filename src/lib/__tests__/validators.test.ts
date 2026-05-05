@@ -307,9 +307,25 @@ describe('validateBurnRequestForm', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '' })
       expect(r.errors.userAddress).toBe('User wallet address is required')
     })
-    test('should fail when userAddress fails 0x+40 hex pattern', () => {
+    test('should fail when userAddress is too short', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '0xnope' })
-      expect(r.errors.userAddress).toMatch(/Invalid wallet address/)
+      expect(r.errors.userAddress).toBe('Invalid wallet address')
+    })
+    test('should fail when userAddress has correct length but bad EIP-55 mixed-case checksum', () => {
+      // viem.isAddress rejects mixed-case strings whose checksum is wrong.
+      // (All-lowercase is accepted because EIP-55 treats it as unchecksummed.)
+      const r = validateBurnRequestForm({
+        ...valid,
+        userAddress: '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa',
+      })
+      expect(r.errors.userAddress).toBe('Invalid wallet address')
+    })
+    test('should accept valid EIP-55-correct mixed-case userAddress', () => {
+      const r = validateBurnRequestForm({
+        ...valid,
+        userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      })
+      expect(r.valid).toBe(true)
     })
     test('should fail when amount is empty', () => {
       const r = validateBurnRequestForm({ ...valid, amount: '' })
