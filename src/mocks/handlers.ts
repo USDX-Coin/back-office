@@ -24,7 +24,6 @@ import {
   computeDashboardSnapshot,
   customerToPhaseOneUser,
   createMintFromRequest,
-  operatorCanSubmitManagerAmount,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -223,23 +222,8 @@ function unauthorized(message = 'Invalid or missing token') {
   )
 }
 
-function phaseOneBadRequest(
-  message: string,
-  details?: Record<string, string>,
-  code = 'VALIDATION_ERROR'
-) {
-  return HttpResponse.json(
-    {
-      status: 'error',
-      metadata: null,
-      data: null,
-      error: { code, message, details },
-    },
-    { status: 400 }
-  )
-}
-
-function phaseOneForbidden(message: string, code = 'ROLE_INSUFFICIENT') {
+// sot/openapi.yaml § ErrorResponse declares only `error: { code, message }`.
+function phaseOneBadRequest(message: string, code = 'VALIDATION_ERROR') {
   return HttpResponse.json(
     {
       status: 'error',
@@ -247,7 +231,7 @@ function phaseOneForbidden(message: string, code = 'ROLE_INSUFFICIENT') {
       data: null,
       error: { code, message },
     },
-    { status: 403 }
+    { status: 400 }
   )
 }
 
@@ -613,9 +597,11 @@ export const handlers = [
   }),
 
   // ─── Phase 1 Users (sot/openapi.yaml § /api/v1/users) ───
-  // Returns Phase-1 User entities synthesized from the existing customer store.
-  // Used by the mint/burn forms for userName autocomplete + wallet auto-fill.
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Returns Phase-1 User entities for the userName autocomplete in the mint
+  // and burn request forms.
   http.get('/api/v1/users', ({ request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
     const url = new URL(request.url)
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
@@ -639,10 +625,15 @@ export const handlers = [
   }),
 
   // ─── Phase 1 Mint Submission (sot/openapi.yaml § POST /api/v1/mint) ───
-  // Validates body, computes IDR equivalent, picks Safe by threshold, enforces
-  // role gate, generates idempotencyKey, persists as PENDING_APPROVAL, returns
-  // the fresh MintRequest detail. No on-chain TX is actually proposed.
+  // Strict bearer auth (sot/openapi.yaml L13-14 global security).
+  // Validates body, computes IDR equivalent, picks Safe by threshold,
+  // persists as PENDING_APPROVAL, returns the fresh MintRequest detail.
+  // 403 (role insufficient) is intentionally not modeled in the mock — Linear
+  // AC #6 only verifies the FE displays the message; tests use server.use().
   http.post('/api/v1/mint', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+
     let body: Partial<{
       userName: string
       userAddress: string
@@ -653,51 +644,33 @@ export const handlers = [
     try {
       body = (await request.json()) as typeof body
     } catch {
-      return phaseOneBadRequest('Request body must be valid JSON', undefined, 'BAD_REQUEST')
+      return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
     }
 
-    // 1. Field validation (mirrors sot/openapi.yaml CreateMintRequest required fields)
-    const details: Record<string, string> = {}
+    // Validate per sot/openapi.yaml § CreateMintRequest required fields.
     const userName = (body.userName ?? '').trim()
     const userAddress = (body.userAddress ?? '').trim()
     const amountRaw = (body.amount ?? '').trim()
     const chain = (body.chain ?? '').trim()
-    if (!userName) details.userName = 'userName is required'
-    if (!userAddress) {
-      details.userAddress = 'userAddress is required'
-    } else if (!/^0x[0-9a-fA-F]{40}$/.test(userAddress)) {
-      details.userAddress = 'userAddress must match ^0x[0-9a-fA-F]{40}$'
+    if (!userName) return phaseOneBadRequest('userName is required')
+    if (!userAddress) return phaseOneBadRequest('userAddress is required')
+    if (!/^0x[0-9a-fA-F]{40}$/.test(userAddress)) {
+      return phaseOneBadRequest('userAddress must match ^0x[0-9a-fA-F]{40}$')
     }
     const amountNum = Number.parseFloat(amountRaw)
-    if (!amountRaw) {
-      details.amount = 'amount is required'
-    } else if (Number.isNaN(amountNum) || amountNum <= 0) {
-      details.amount = 'amount must be a positive decimal'
+    if (!amountRaw) return phaseOneBadRequest('amount is required')
+    if (Number.isNaN(amountNum) || amountNum <= 0) {
+      return phaseOneBadRequest('amount must be a positive decimal')
     }
-    if (!chain) details.chain = 'chain is required'
-    if (Object.keys(details).length > 0) {
-      return phaseOneBadRequest('Validation failed', details)
-    }
+    if (!chain) return phaseOneBadRequest('chain is required')
 
-    // 2. Compute IDR equivalent (mock rate); pick Safe by threshold
+    // Compute IDR equivalent + pick Safe by threshold (sot/phase-1.md L52-55).
     const RATE_USD_IDR = 16250
     const amountIdr = Math.round(amountNum * RATE_USD_IDR)
     const safeType: 'STAFF' | 'MANAGER' =
       amountIdr >= MANAGER_THRESHOLD_IDR ? 'MANAGER' : 'STAFF'
 
-    // 3. Resolve operator (Bearer JWT preferred, fall back to default mock staff
-    //    so /mint works during dev without an explicit auth header).
-    const operator = authenticatedStaff(request) ?? getDefaultStaff()
-    if (!operator) return unauthorized()
-
-    // 4. Role check: Manager Safe submissions require Manager/Admin.
-    if (safeType === 'MANAGER' && !operatorCanSubmitManagerAmount(operator.role)) {
-      return phaseOneForbidden(
-        `Role ${operator.role} cannot submit mint ≥ ${MANAGER_THRESHOLD_IDR.toLocaleString('en-US')} IDR`
-      )
-    }
-
-    // 5. Resolve user (lookup by exact name match, else create lightweight stub)
+    // Resolve user (lookup by exact name match, else create lightweight stub).
     const matched = customerStore.find(
       (c) => `${c.firstName} ${c.lastName}`.trim().toLowerCase() === userName.toLowerCase()
     )
@@ -705,7 +678,6 @@ export const handlers = [
       ? { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
       : { id: `usr_adhoc_${Date.now()}`, name: userName }
 
-    // 6. Persist as PENDING_APPROVAL — readable from /api/v1/requests immediately.
     const pair = createMintFromRequest(
       user,
       operator,

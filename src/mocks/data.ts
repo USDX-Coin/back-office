@@ -527,19 +527,12 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Phase-1 IDR threshold for the role split.
- * Submissions ≥ this amount must come from a Manager Safe — backend rejects
- * with 403 if the submitter is not a manager/admin.
- * (sot/phase-1.md § Mint - Backend API step 3)
+ * Phase-1 IDR threshold for the Safe split.
+ * sot/phase-1.md L52-55: amounts ≥ this go to the Manager Safe; below to Staff.
+ * The role-vs-amount gate is intentionally not enforced in the mock (see
+ * /api/v1/mint handler comment) — backend will be authoritative.
  */
 export const MANAGER_THRESHOLD_IDR = 1_000_000_000
-
-/**
- * Operator roles permitted to submit mint/burn ≥ MANAGER_THRESHOLD_IDR.
- */
-export function operatorCanSubmitManagerAmount(role: Staff['role']): boolean {
-  return role === 'super_admin'
-}
 
 /**
  * Build a Phase-1 mint request pair (list item + detail) from a submission.
