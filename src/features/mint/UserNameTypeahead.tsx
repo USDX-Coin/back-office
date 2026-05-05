@@ -107,32 +107,20 @@ export default function UserNameTypeahead({
           )}
           {!isFetching && !isError && data && data.length > 0 && (
             <ul className="max-h-72 overflow-auto py-1">
-              {data.map((u) => {
-                const primaryWallet = u.wallets[0]
-                return (
-                  <li key={u.id} role="option" aria-selected={false}>
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(u)}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
-                    >
-                      <Avatar name={u.name} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {u.name}
-                        </p>
-                        {primaryWallet && (
-                          <p className="truncate font-mono text-[11px] text-muted-foreground">
-                            {primaryWallet.chain} ·{' '}
-                            {primaryWallet.address.slice(0, 6)}…
-                            {primaryWallet.address.slice(-4)}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
+              {data.map((u) => (
+                <li key={u.id} role="option" aria-selected={false}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(u)}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                  >
+                    <Avatar name={u.name} size="sm" />
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {u.name}
+                    </p>
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
         </div>

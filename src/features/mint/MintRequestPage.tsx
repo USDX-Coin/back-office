@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Wallet } from 'lucide-react'
+import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,13 +28,10 @@ import type { PhaseOneUser } from '@/lib/types'
 import UserNameTypeahead from './UserNameTypeahead'
 import { useCreateMintRequest } from './hooks'
 
-// sot/openapi.yaml uses string `chain` (e.g. "polygon"). Keep this list aligned
-// with the chains the SoT seeds requests against (see RequestChain in types.ts).
+// sot/phase-1.md mint flow + openapi.yaml § /api/v1/mint use "polygon" as the
+// only chain example. Keep dropdown to the explicitly-specified chain.
 const CHAINS: { value: string; label: string }[] = [
   { value: 'polygon', label: 'Polygon' },
-  { value: 'ethereum', label: 'Ethereum' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-  { value: 'base', label: 'Base' },
 ]
 
 interface FormState {
@@ -71,21 +69,13 @@ export default function MintRequestPage() {
   }
 
   function handleUserSelect(user: PhaseOneUser) {
-    // Auto-fill the address + chain from the user's first wallet that matches
-    // the currently selected chain (else fall back to the first wallet).
-    const chainPick =
-      user.wallets.find((w) => w.chain === form.chain) ?? user.wallets[0]
-    setForm((prev) => ({
-      ...prev,
-      userName: user.name,
-      userAddress: chainPick?.address ?? prev.userAddress,
-      chain: chainPick?.chain ?? prev.chain,
-    }))
+    // Linear AC #2 only specifies that the autocomplete *appears*; SoT does
+    // not couple the user selection to userAddress/chain. Fill name only —
+    // operator enters the wallet address explicitly.
+    setForm((prev) => ({ ...prev, userName: user.name }))
     setErrors((prev) => {
       const next = { ...prev }
       delete next.userName
-      delete next.userAddress
-      delete next.chain
       return next
     })
   }
@@ -105,9 +95,13 @@ export default function MintRequestPage() {
     }
 
     try {
+      // sot/conventions.md L114: simpan dalam checksummed format. Validator
+      // already accepted the input; getAddress here normalizes all-lowercase /
+      // all-uppercase / mixed-case-correct → canonical EIP-55 form.
+      const normalizedAddress = getAddress(form.userAddress.trim())
       await create.mutateAsync({
         userName: form.userName.trim(),
-        userAddress: form.userAddress.trim(),
+        userAddress: normalizedAddress,
         amount: form.amount.trim(),
         chain: form.chain,
         notes: form.notes.trim() || undefined,
@@ -115,11 +109,8 @@ export default function MintRequestPage() {
       navigate('/requests')
     } catch (err) {
       if (err instanceof ApiError) {
+        // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
         setApiError(err.message)
-        // Surface server-side per-field errors when the API returns details.
-        if (err.details && Object.keys(err.details).length > 0) {
-          setErrors((prev) => ({ ...prev, ...err.details! }))
-        }
       } else {
         setApiError(err instanceof Error ? err.message : 'Submission failed')
       }
@@ -190,9 +181,9 @@ export default function MintRequestPage() {
                     <div className="relative">
                       <Input
                         id="amount"
-                        type="number"
-                        step="any"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
                         value={form.amount}
                         onChange={(e) => set('amount', e.target.value)}
                         placeholder="0"
