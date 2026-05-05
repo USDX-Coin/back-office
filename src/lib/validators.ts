@@ -1,3 +1,4 @@
+import { getAddress } from 'viem'
 import type { CustomerRole, CustomerType, Network, StaffRole } from './types'
 
 export interface ValidationResult {
@@ -147,10 +148,29 @@ export function validateMintRequestForm(input: {
   if (!input.userName.trim()) {
     errors.userName = 'User name is required'
   }
-  if (!input.userAddress.trim()) {
+  // sot/conventions.md L114-115: simpan dalam checksummed format + validasi
+  // checksum saat input. Lenient: all-lowercase atau all-uppercase = format-
+  // only check (no checksum to verify). Mixed-case = harus match EIP-55
+  // checksum (viem.getAddress normalisasi → bandingkan ke input).
+  const trimmedAddress = input.userAddress.trim()
+  if (!trimmedAddress) {
     errors.userAddress = 'Wallet address is required'
-  } else if (!EVM_ADDRESS_RE.test(input.userAddress.trim())) {
+  } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
     errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+  } else {
+    // Skip the `0x` prefix when checking case-uniformity (the `x` is always lowercase).
+    const hex = trimmedAddress.slice(2)
+    const isAllLower = hex === hex.toLowerCase()
+    const isAllUpper = hex === hex.toUpperCase()
+    if (!isAllLower && !isAllUpper) {
+      try {
+        if (getAddress(trimmedAddress) !== trimmedAddress) {
+          errors.userAddress = 'Address checksum is invalid (EIP-55)'
+        }
+      } catch {
+        errors.userAddress = 'Address checksum is invalid (EIP-55)'
+      }
+    }
   }
   const amountTrimmed = input.amount.trim()
   const amt = Number.parseFloat(amountTrimmed)

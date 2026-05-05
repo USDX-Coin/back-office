@@ -257,17 +257,29 @@ describe('validateMintRequestForm', () => {
       expect(r.errors).toEqual({})
     })
 
-    test('should accept lowercase and mixed-case hex addresses', () => {
+    test('should accept all-lowercase address (no checksum)', () => {
       expect(
         validateMintRequestForm({
           ...valid,
-          userAddress: '0x' + 'a'.repeat(40),
+          userAddress: '0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed',
         }).valid
       ).toBe(true)
+    })
+
+    test('should accept all-uppercase address (no checksum)', () => {
       expect(
         validateMintRequestForm({
           ...valid,
-          userAddress: '0xAbCdEf1234567890aBcDeF1234567890AbCdEf12',
+          userAddress: '0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED',
+        }).valid
+      ).toBe(true)
+    })
+
+    test('should accept correctly-checksummed mixed-case address (EIP-55)', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
         }).valid
       ).toBe(true)
     })
@@ -313,6 +325,16 @@ describe('validateMintRequestForm', () => {
       })
       expect(r.valid).toBe(false)
       expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject mixed-case address with wrong EIP-55 checksum', () => {
+      // Last char case flipped from the canonical checksum below
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/checksum/i)
     })
 
     test('should reject zero amount', () => {
