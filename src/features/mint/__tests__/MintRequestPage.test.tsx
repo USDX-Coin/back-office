@@ -82,6 +82,32 @@ describe('MintRequestPage', () => {
       ).toBe(true)
     })
 
+    test('should hit GET /api/v1/users with the typed search param', async () => {
+      const user = userEvent.setup()
+      // Spy: capture every URL hit by the autocomplete fetch loop.
+      const calls: string[] = []
+      server.use(
+        http.get('/api/v1/users', ({ request }) => {
+          calls.push(request.url)
+          return HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 8, total: 0 },
+            data: [],
+          })
+        })
+      )
+
+      setup()
+      await user.type(screen.getByLabelText(/user name/i), 'Bruce')
+
+      await waitFor(
+        () => {
+          expect(calls.some((url) => url.includes('search=Bruce'))).toBe(true)
+        },
+        { timeout: 3000 }
+      )
+    })
+
     test('should fill userName but leave userAddress untouched on selection', async () => {
       const user = userEvent.setup()
       setup()
@@ -163,6 +189,41 @@ describe('MintRequestPage', () => {
       ).toBeInTheDocument()
       expect(postCalled).toBe(false)
     })
+
+    test('should also gate mixed-case wrong-checksum addresses', async () => {
+      const user = userEvent.setup()
+
+      let postCalled = false
+      server.use(
+        http.post('/api/v1/mint', () => {
+          postCalled = true
+          return HttpResponse.json(
+            { status: 'success', metadata: null, data: {} },
+            { status: 201 }
+          )
+        })
+      )
+
+      setup()
+      await user.type(screen.getByLabelText(/user name/i), 'Manual Entry')
+      // sot/conventions.md L114-115: validate checksum at input. Last char's
+      // case is flipped from the canonical EIP-55 form below.
+      await user.type(
+        screen.getByLabelText(/user wallet address/i),
+        '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD'
+      )
+      await user.type(screen.getByLabelText(/^amount$/i), '100')
+      await user.click(screen.getByRole('combobox', { name: /chain/i }))
+      await user.click(await screen.findByRole('option', { name: /polygon/i }))
+      await user.click(
+        screen.getByRole('button', { name: /submit mint request/i })
+      )
+
+      expect(
+        await screen.findByText(/checksum/i)
+      ).toBeInTheDocument()
+      expect(postCalled).toBe(false)
+    })
   })
 
   describe('AC5: valid submit', () => {
@@ -220,6 +281,64 @@ describe('MintRequestPage', () => {
 
       // Then we end up on /requests
       expect(await screen.findByTestId('requests-page')).toBeInTheDocument()
+    })
+
+    test('should send a body matching sot/openapi.yaml CreateMintRequest', async () => {
+      const user = userEvent.setup()
+      let capturedBody: Record<string, unknown> | null = null
+      server.use(
+        http.post('/api/v1/mint', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>
+          return HttpResponse.json(
+            {
+              status: 'success',
+              metadata: null,
+              data: {
+                id: 'mint_test_2',
+                type: 'mint',
+                idempotencyKey: '0x' + 'b'.repeat(64),
+                userId: 'usr_1',
+                userName: 'Manual Entry',
+                userAddress: VALID_ADDRESS,
+                amount: '100',
+                amountWei: '100000000',
+                amountIdr: '1625000',
+                rateUsed: '16250',
+                chain: 'polygon',
+                notes: null,
+                safeType: 'STAFF',
+                status: 'PENDING_APPROVAL',
+                safeTxHash: null,
+                onChainTxHash: null,
+                createdBy: 'stf_1',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+            { status: 201 }
+          )
+        })
+      )
+
+      setup()
+      await fillValidForm(user)
+      await user.click(
+        screen.getByRole('button', { name: /submit mint request/i })
+      )
+
+      await waitFor(() => {
+        expect(capturedBody).not.toBeNull()
+      })
+      // sot/openapi.yaml § CreateMintRequest required: userName, userAddress,
+      // amount (string), chain. notes optional.
+      expect(capturedBody).toMatchObject({
+        userName: 'Manual Entry',
+        userAddress: VALID_ADDRESS,
+        amount: '100',
+        chain: 'polygon',
+      })
+      // amount must be a string per SoT spec, not a number
+      expect(typeof capturedBody!.amount).toBe('string')
     })
   })
 
