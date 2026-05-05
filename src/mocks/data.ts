@@ -8,12 +8,15 @@ import type {
   OtcStatus,
   Network,
   DashboardSnapshot,
+  DashboardStats,
   ReportRow,
   CustomerSummary,
   StaffSummary,
   ReportInsights,
   RateConfig,
   RateInfo,
+  UserAnalytics,
+  UserWallet,
   RequestChain,
   RequestDetail,
   RequestListItem,
@@ -24,6 +27,8 @@ import type {
   BurnRequestDetail,
   MintRequestStatus,
   BurnRequestStatus,
+  PhaseOneUser,
+  PhaseOneUserWallet,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -103,6 +108,19 @@ function customerEmail(first: string, last: string, n: number): string {
 let customerIdCounter = 1
 let staffIdCounter = 1
 let txIdCounter = 1
+let walletIdCounter = 1
+
+export function createUserWallet(overrides: Partial<UserWallet> = {}): UserWallet {
+  const id = `wal_${walletIdCounter++}`
+  const n = walletIdCounter
+  return {
+    id,
+    chain: NETWORKS[n % NETWORKS.length]!,
+    address: `0x${seededHex(40, n + 5000)}`,
+    createdAt: pastDateRecent((n * 2) % 60),
+    ...overrides,
+  }
+}
 
 export function createCustomer(overrides: Partial<Customer> = {}): Customer {
   const id = `cus_${customerIdCounter++}`
@@ -111,6 +129,8 @@ export function createCustomer(overrides: Partial<Customer> = {}): Customer {
   const [firstName, lastName] = splitName(fullName)
   const type: CustomerType = n % 3 === 0 ? 'personal' : 'organization'
   const role: CustomerRole = (['admin', 'editor', 'member'] as const)[n % 3]!
+  const walletCount = (n % 3) + 1
+  const wallets: UserWallet[] = Array.from({ length: walletCount }, () => createUserWallet())
   return {
     id,
     firstName,
@@ -120,6 +140,8 @@ export function createCustomer(overrides: Partial<Customer> = {}): Customer {
     type,
     organization: type === 'organization' ? ORGANIZATIONS[n % ORGANIZATIONS.length]! : undefined,
     role,
+    notes: undefined,
+    wallets,
     createdAt: pastDateRecent((n * 3) % 90),
     ...overrides,
   }
@@ -203,7 +225,40 @@ export function createOtcRedeemTransaction(
 
 export function createMockCustomerList(count = 30): Customer[] {
   customerIdCounter = 1
+  walletIdCounter = 1
   return Array.from({ length: count }, () => createCustomer())
+}
+
+export function computeUserAnalytics(
+  customerId: string,
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[]
+): UserAnalytics {
+  const userMints = mints.filter((m) => m.customerId === customerId && m.status === 'completed')
+  const userRedeems = redeems.filter((r) => r.customerId === customerId && r.status === 'completed')
+  const totalMinted = userMints.reduce((sum, m) => sum + m.amount, 0)
+  const totalBurned = userRedeems.reduce((sum, r) => sum + r.amount, 0)
+  const totalTransactions =
+    mints.filter((m) => m.customerId === customerId).length +
+    redeems.filter((r) => r.customerId === customerId).length
+  return { totalMinted, totalBurned, totalTransactions }
+}
+
+export function computeUserRecentRequests(
+  customerId: string,
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[],
+  limit = 5
+): ReportRow[] {
+  const all: ReportRow[] = [
+    ...mints
+      .filter((m) => m.customerId === customerId)
+      .map((m) => txToReportRow(m, 'mint')),
+    ...redeems
+      .filter((r) => r.customerId === customerId)
+      .map((r) => txToReportRow(r, 'redeem')),
+  ]
+  return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, limit)
 }
 
 export function createMockStaffList(): Staff[] {
@@ -500,11 +555,12 @@ function decimalIdr(amount: string): string {
 }
 
 function amountWei(amount: string): string {
-  // 6 decimals (USDX) — strip the dot, append zeros to reach 6 decimal places
+  // sot/conventions.md L30: USDX uses 6 decimals (like USDC/USDT).
+  //   1 USDX = 1_000_000 wei
+  //   "100.50" → "100500000"
   const [whole, fraction = ''] = amount.split('.')
   const padded = (fraction + '000000').slice(0, 6)
-  // multiply by 1e12 to reach 18 decimals (uint256 representation)
-  return `${whole}${padded}000000000000`.replace(/^0+(?!$)/, '')
+  return (BigInt(whole + padded)).toString()
 }
 
 interface CreateRequestOpts {
@@ -534,7 +590,10 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
   const userName = `${opts.user.firstName} ${opts.user.lastName}`.trim()
   const isExecutedOrLater =
     status === 'EXECUTED' || status === 'IDR_TRANSFERRED'
-  const safeTxHash = status !== 'PENDING_APPROVAL' ? bytes32(seed + 15000) : null
+  // safe_tx_hash is populated as soon as the backend proposes the Safe TX
+  // (sot/phase-1.md § Mint flow steps 6–8). REJECTED rows may have been
+  // rejected before propose, so leave them null.
+  const safeTxHash = status === 'REJECTED' ? null : bytes32(seed + 15000)
   const onChainTxHash = isExecutedOrLater ? bytes32(seed + 17000) : null
 
   const list: RequestListItem = {
@@ -548,6 +607,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     chain,
     safeType,
     status,
+    safeTxHash,
     createdBy: opts.createdBy.id,
     createdAt,
   }
@@ -587,6 +647,97 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
   return { list, detail }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — user directory derived from existing Customer store.
+// Customers carry first/last name; Phase-1 User has a single `name` field
+// plus on-chain wallets. We synthesize one wallet per Customer (deterministic).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phase-1 IDR threshold for the Safe split.
+ * sot/phase-1.md L52-55: amounts ≥ this go to the Manager Safe; below to Staff.
+ * The role-vs-amount gate is intentionally not enforced in the mock (see
+ * /api/v1/mint handler comment) — backend will be authoritative.
+ */
+export const MANAGER_THRESHOLD_IDR = 1_000_000_000
+
+/**
+ * Build a Phase-1 mint request pair (list item + detail) from a submission.
+ * Uses the latest counter seed so freshly created requests get unique ids.
+ */
+export function createMintFromRequest(
+  user: { id: string; name: string },
+  createdBy: Staff,
+  body: { userAddress: string; amount: string; chain: string; notes?: string },
+  amountIdrValue: number,
+  safeType: SafeType
+): { list: RequestListItem; detail: MintRequestDetail } {
+  const seed = ++requestIdCounter + 100_000
+  const id = uuidLike(seed + 9000)
+  const idempotencyKey = bytes32(seed + 11000)
+  // Per sot/phase-1.md § Mint flow steps 6–8, the backend proposes the Safe
+  // TX (and auto-signs) as part of submission, so a freshly minted
+  // PENDING_APPROVAL row already carries a safeTxHash. The Notifications
+  // page (USDX-19) consumes this to deep-link to the Safe UI.
+  const safeTxHash = bytes32(seed + 15000)
+  const createdAt = new Date().toISOString()
+  const list: RequestListItem = {
+    id,
+    type: 'mint',
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountIdr: amountIdrValue.toString(),
+    chain: body.chain as RequestChain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    safeTxHash,
+    createdBy: createdBy.id,
+    createdAt,
+  }
+  const detail: MintRequestDetail = {
+    id,
+    type: 'mint',
+    idempotencyKey,
+    userId: user.id,
+    userName: user.name,
+    userAddress: body.userAddress,
+    amount: body.amount,
+    amountWei: amountWei(body.amount),
+    amountIdr: amountIdrValue.toString(),
+    rateUsed: RATE_USED,
+    chain: body.chain as RequestChain,
+    notes: body.notes && body.notes.length > 0 ? body.notes : null,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    safeTxHash,
+    onChainTxHash: null,
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+  return { list, detail }
+}
+
+export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseOneUser {
+  const fullName = `${customer.firstName} ${customer.lastName}`.trim()
+  const wallet: PhaseOneUserWallet = {
+    id: uuidLike(seed + 23000),
+    chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
+    address: bytes20(seed + 25000),
+    createdAt: customer.createdAt,
+  }
+  return {
+    id: customer.id,
+    name: fullName,
+    notes: customer.organization ?? null,
+    wallets: [wallet],
+    createdAt: customer.createdAt,
+    updatedAt: customer.createdAt,
+  }
+}
+
 export function createMockRequests(
   customers: Customer[],
   staff: Staff[],
@@ -609,3 +760,168 @@ export function createMockRequests(
   return { list, details }
 }
 
+// Burn submission factory — used by POST /api/v1/burn handler.
+// Persists to the same requestList + details store so /requests reflects it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BurnSubmissionInput {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: RequestChain
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}
+
+export function createBurnRequestFromSubmission(
+  input: BurnSubmissionInput,
+  createdBy: Staff,
+  matchedUser?: Customer
+): { list: RequestListItem; detail: BurnRequestDetail } {
+  const seed = requestIdCounter++ + 50_000
+  const id = uuidLike(seed)
+  const idempotencyKey = bytes32(seed + 100)
+  const amountIdrValue = decimalIdr(input.amount)
+  const amountWeiValue = amountWei(input.amount)
+  // Per sot/phase-1.md flow: backend computes IDR, checks role vs threshold,
+  // then routes to STAFF or MANAGER Safe. Mock heuristic: route to MANAGER
+  // when amountIDR is at or above 1B (approximate threshold from phase-1.md).
+  const safeType: SafeType =
+    Number(amountIdrValue) >= 1_000_000_000 ? 'MANAGER' : 'STAFF'
+  const createdAt = new Date().toISOString()
+  const userId = matchedUser?.id ?? `usr_burn_${seed}`
+  // Per sot/phase-1.md § Burn flow steps 5–8, the backend proposes the Safe
+  // TX (and auto-signs) as part of submission, so a freshly minted
+  // PENDING_APPROVAL row already carries a safeTxHash. Consumed by the
+  // Notifications page (USDX-19).
+  const safeTxHash = bytes32(seed + 200)
+
+  const list: RequestListItem = {
+    id,
+    type: 'burn',
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountIdr: amountIdrValue,
+    chain: input.chain,
+    safeType,
+    status: 'PENDING_APPROVAL',
+    safeTxHash,
+    createdBy: createdBy.id,
+    createdAt,
+  }
+
+  const detail: BurnRequestDetail = {
+    id,
+    type: 'burn',
+    status: 'PENDING_APPROVAL',
+    idempotencyKey,
+    userId,
+    userName: input.userName.trim(),
+    userAddress: input.userAddress.trim(),
+    amount: input.amount,
+    amountWei: amountWeiValue,
+    amountIdr: amountIdrValue,
+    rateUsed: RATE_USED,
+    chain: input.chain,
+    notes: input.notes && input.notes.trim() ? input.notes.trim() : null,
+    safeType,
+    safeTxHash,
+    onChainTxHash: null,
+    depositTxHash: input.depositTxHash.trim(),
+    bankName: input.bankName.trim(),
+    bankAccount: input.bankAccount.trim(),
+    createdBy: createdBy.id,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  return { list, detail }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard stats (sot/openapi.yaml § /api/v1/dashboard/stats)
+// Derives totalMinted/Burned + status breakdown from the request list so that
+// stats stay consistent with whatever rows the requests endpoint is serving.
+// Supply, Safe balances, and the active rate use stable mock values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function decimalToCents(value: string): number {
+  // Returns signed integer cents. Inputs are always 2-decimal strings produced
+  // by `decimalAmount()`, so we never have to round.
+  const negative = value.startsWith('-')
+  const abs = negative ? value.slice(1) : value
+  const [whole = '0', fraction = ''] = abs.split('.')
+  const cents = (fraction + '00').slice(0, 2).padEnd(2, '0')
+  const total = Number.parseInt(whole, 10) * 100 + Number.parseInt(cents, 10)
+  return negative ? -total : total
+}
+
+function centsToDecimal(totalCents: number): string {
+  const negative = totalCents < 0
+  const abs = Math.abs(totalCents)
+  const whole = Math.trunc(abs / 100).toString()
+  const cents = (abs % 100).toString().padStart(2, '0')
+  return `${negative ? '-' : ''}${whole}.${cents}`
+}
+
+function sumDecimals(values: string[]): string {
+  let totalCents = 0
+  for (const v of values) totalCents += decimalToCents(v)
+  return centsToDecimal(totalCents)
+}
+
+const SAFE_BALANCE_STAFF = '750000.00'
+const SAFE_BALANCE_MANAGER = '5250000.00'
+
+export function computeDashboardStats(
+  requests: RequestListItem[]
+): DashboardStats {
+  const mintExecuted = requests.filter(
+    (r) => r.type === 'mint' && r.status === 'EXECUTED'
+  )
+  const burnExecuted = requests.filter(
+    (r) => r.type === 'burn' &&
+      (r.status === 'EXECUTED' || r.status === 'IDR_TRANSFERRED')
+  )
+
+  const totalMinted = sumDecimals(mintExecuted.map((r) => r.amount))
+  const totalBurned = sumDecimals(burnExecuted.map((r) => r.amount))
+  // Supply on-chain = total ever minted − total ever burned + Safe holdings
+  const totalSupply = centsToDecimal(
+    decimalToCents(totalMinted) -
+      decimalToCents(totalBurned) +
+      decimalToCents(SAFE_BALANCE_STAFF) +
+      decimalToCents(SAFE_BALANCE_MANAGER)
+  )
+
+  const requestsByStatus = {
+    PENDING_APPROVAL: 0,
+    APPROVED: 0,
+    EXECUTED: 0,
+    REJECTED: 0,
+  }
+  for (const r of requests) {
+    if (r.status === 'PENDING_APPROVAL') requestsByStatus.PENDING_APPROVAL++
+    else if (r.status === 'APPROVED') requestsByStatus.APPROVED++
+    else if (r.status === 'EXECUTED' || r.status === 'IDR_TRANSFERRED') {
+      requestsByStatus.EXECUTED++
+    } else if (r.status === 'REJECTED') requestsByStatus.REJECTED++
+  }
+
+  return {
+    totalSupply,
+    totalMinted,
+    totalBurned,
+    pendingRequests: requestsByStatus.PENDING_APPROVAL,
+    requestsByStatus,
+    safeBalances: {
+      staff: SAFE_BALANCE_STAFF,
+      manager: SAFE_BALANCE_MANAGER,
+    },
+    currentRate: RATE_USED,
+  }
+}

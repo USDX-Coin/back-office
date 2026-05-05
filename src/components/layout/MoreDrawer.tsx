@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, UserCog, UserRound, TrendingUp, LogOut, Inbox } from 'lucide-react'
+import { Bell, Flame, Inbox, TrendingUp, Users, UserCog, UserRound, LogOut } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/sheet'
 import Avatar from '@/components/Avatar'
 import { useAuth } from '@/lib/auth'
+import { useNotificationsCount } from '@/features/notifications/hooks'
 
 interface MoreDrawerProps {
   open: boolean
@@ -16,6 +17,8 @@ interface MoreDrawerProps {
 }
 
 const ITEMS = [
+  { to: '/notifications', label: 'Notifications', icon: Bell, description: 'Pending Safe approvals', badgeKey: 'notifications' as const },
+  { to: '/burn', label: 'Burn', icon: Flame, description: 'Submit OTC burn request' },
   { to: '/requests', label: 'Requests', icon: Inbox, description: 'Mint & burn lifecycle' },
   { to: '/users', label: 'User', icon: Users, description: 'Customer directory' },
   { to: '/staff', label: 'Staf', icon: UserCog, description: 'Internal team' },
@@ -26,6 +29,8 @@ const ITEMS = [
 export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { data: notifData } = useNotificationsCount()
+  const notificationsCount = notifData?.count ?? 0
 
   function go(to: string) {
     onOpenChange(false)
@@ -61,6 +66,8 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
         <div className="mt-4 grid gap-2">
           {ITEMS.map((item) => {
             const Icon = item.icon
+            const badge =
+              'badgeKey' in item && item.badgeKey === 'notifications' ? notificationsCount : 0
             return (
               <button
                 key={item.to}
@@ -69,10 +76,18 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
                 className="flex items-center gap-3 rounded-xl p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <Icon className="h-5 w-5 text-muted-foreground" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">{item.label}</p>
                   <p className="text-xs text-muted-foreground">{item.description}</p>
                 </div>
+                {badge > 0 && (
+                  <span
+                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10.5px] font-semibold leading-none text-primary-foreground"
+                    aria-label={`${badge} pending`}
+                  >
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </button>
             )
           })}

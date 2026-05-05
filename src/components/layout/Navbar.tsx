@@ -12,6 +12,8 @@ const BREADCRUMB_MAP: Record<string, [string, string]> = {
   '/otc': ['OTC Desk', 'Overview'],
   '/otc/mint': ['OTC Desk', 'Mint'],
   '/otc/redeem': ['OTC Desk', 'Redeem'],
+  '/burn': ['OTC Desk', 'Burn'],
+  '/requests': ['Insights', 'Requests'],
   '/report': ['Insights', 'Report'],
   '/profile': ['Account', 'Profile'],
 }
