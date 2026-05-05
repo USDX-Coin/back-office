@@ -22,11 +22,11 @@ if (typeof Element.prototype.hasPointerCapture === 'undefined') {
     return false
   }
 }
-if (typeof Element.prototype.releasePointerCapture === 'undefined') {
-  Element.prototype.releasePointerCapture = function () {}
-}
 if (typeof Element.prototype.setPointerCapture === 'undefined') {
   Element.prototype.setPointerCapture = function () {}
+}
+if (typeof Element.prototype.releasePointerCapture === 'undefined') {
+  Element.prototype.releasePointerCapture = function () {}
 }
 
 if (typeof globalThis.matchMedia === 'undefined') {

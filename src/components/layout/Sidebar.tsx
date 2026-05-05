@@ -8,6 +8,7 @@ import {
   Flame,
   BarChart3,
   Inbox,
+  Coins,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -43,6 +44,7 @@ const SECTIONS: NavSection[] = [
   {
     label: 'Insights',
     items: [
+      { to: '/mint', label: 'Mint request', icon: Coins },
       { to: '/requests', label: 'Requests', icon: Inbox },
       { to: '/report', label: 'Report', icon: BarChart3 },
     ],

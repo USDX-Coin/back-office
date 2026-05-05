@@ -8,6 +8,7 @@ import {
   validateOtcMintForm,
   validateOtcRedeemForm,
   validateBurnRequestForm,
+  validateMintRequestForm,
   TX_HASH_RE,
 } from '@/lib/validators'
 
@@ -386,6 +387,157 @@ describe('validateBurnRequestForm', () => {
         depositTxHash: '  0x' + 'a'.repeat(64) + '  ',
       })
       expect(r.valid).toBe(true)
+    })
+  })
+})
+
+describe('validateMintRequestForm', () => {
+  const valid = {
+    userName: 'Bruce Wayne',
+    userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+    amount: '1000.50',
+    chain: 'polygon',
+  }
+
+  describe('positive', () => {
+    test('should pass with all fields valid', () => {
+      const r = validateMintRequestForm(valid)
+      expect(r.valid).toBe(true)
+      expect(r.errors).toEqual({})
+    })
+
+    test('should accept all-lowercase address (no checksum)', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed',
+        }).valid
+      ).toBe(true)
+    })
+
+    test('should accept all-uppercase address (no checksum)', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED',
+        }).valid
+      ).toBe(true)
+    })
+
+    test('should accept correctly-checksummed mixed-case address (EIP-55)', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+        }).valid
+      ).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('should report all empty fields when all blank', () => {
+      const r = validateMintRequestForm({
+        userName: '',
+        userAddress: '',
+        amount: '',
+        chain: '',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userName).toMatch(/required/i)
+      expect(r.errors.userAddress).toMatch(/required/i)
+      expect(r.errors.amount).toMatch(/required/i)
+      expect(r.errors.chain).toMatch(/required/i)
+    })
+
+    test('should reject address missing 0x prefix', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject address with wrong length', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x123',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject address containing non-hex characters', () => {
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x' + 'g'.repeat(40),
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/invalid/i)
+    })
+
+    test('should reject mixed-case address with wrong EIP-55 checksum', () => {
+      // Last char case flipped from the canonical checksum below
+      const r = validateMintRequestForm({
+        ...valid,
+        userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD',
+      })
+      expect(r.valid).toBe(false)
+      expect(r.errors.userAddress).toMatch(/checksum/i)
+    })
+
+    test('should reject zero amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '0' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+
+    test('should reject negative amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+
+    test('should reject non-numeric amount', () => {
+      const r = validateMintRequestForm({ ...valid, amount: 'abc' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/greater than 0/i)
+    })
+
+    test('should reject amount with more than 6 decimal places', () => {
+      const r = validateMintRequestForm({ ...valid, amount: '1.1234567' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.amount).toMatch(/6 decimal places/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should accept decimal amounts up to 6 places', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '0.000001' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept exactly 6 decimal places (boundary)', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '12.123456' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept integer amounts (no fraction)', () => {
+      expect(
+        validateMintRequestForm({ ...valid, amount: '1000' }).valid
+      ).toBe(true)
+    })
+
+    test('should accept whitespace-padded fields and trim before validating', () => {
+      expect(
+        validateMintRequestForm({
+          ...valid,
+          userName: '  Bruce Wayne  ',
+          userAddress: `  ${valid.userAddress}  `,
+        }).valid
+      ).toBe(true)
     })
   })
 })

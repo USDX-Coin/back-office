@@ -273,3 +273,45 @@ export interface PhaseOneSuccessResponse<T> {
   metadata: Record<string, unknown> | null
   data: T
 }
+
+// Phase-1 error envelope (sot/openapi.yaml § ErrorResponse)
+export interface PhaseOneErrorResponse {
+  status: 'error'
+  metadata: null
+  data: null
+  error: {
+    code: string
+    message: string
+    details?: Record<string, string>
+  }
+}
+
+// ─── Phase 1 — User directory (sot/openapi.yaml § /api/v1/users) ───
+// Distinct from Customer: Phase-1 users carry one or more on-chain wallets
+// rather than the Customer fields (firstName/lastName/type/role).
+
+export interface PhaseOneUserWallet {
+  id: string
+  chain: string
+  address: string
+  createdAt: string
+}
+
+export interface PhaseOneUser {
+  id: string
+  name: string
+  notes: string | null
+  wallets: PhaseOneUserWallet[]
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Phase 1 — Create mint/burn request (sot/openapi.yaml) ───
+
+export interface CreateMintRequestBody {
+  userName: string
+  userAddress: string
+  amount: string
+  chain: string
+  notes?: string
+}
