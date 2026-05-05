@@ -21,16 +21,15 @@ import type { Customer, RequestChain } from '@/lib/types'
 import { ApiError } from '@/lib/apiFetch'
 import { useCreateBurn } from './hooks'
 
+// Phase 1 deploys to Polygon Amoy + Polygon mainnet only (sot/phase-1.md
+// § Smart Contract deliverables); other chains will land via separate
+// tickets once backend confirms availability.
 const CHAINS: { value: RequestChain; label: string }[] = [
-  { value: 'ethereum', label: 'Ethereum' },
   { value: 'polygon', label: 'Polygon' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-  { value: 'base', label: 'Base' },
 ]
 
 interface FormState {
   customer: Customer | null
-  userName: string
   userAddress: string
   amount: string
   chain: RequestChain | ''
@@ -42,10 +41,10 @@ interface FormState {
 
 const EMPTY: FormState = {
   customer: null,
-  userName: '',
   userAddress: '',
   amount: '',
-  chain: '',
+  // Polygon-only in v1; preselected so operator can't accidentally clear it.
+  chain: 'polygon',
   depositTxHash: '',
   bankName: '',
   bankAccount: '',
@@ -71,16 +70,13 @@ export default function BurnRequestForm() {
   }
 
   function selectCustomer(c: Customer | null) {
-    if (c) {
-      const fullName = `${c.firstName} ${c.lastName}`.trim()
-      setForm((prev) => ({ ...prev, customer: c, userName: fullName }))
+    setForm((prev) => ({ ...prev, customer: c }))
+    if (c && errors.userName) {
       setErrors((prev) => {
         const next = { ...prev }
         delete next.userName
         return next
       })
-    } else {
-      setForm((prev) => ({ ...prev, customer: null }))
     }
   }
 
@@ -88,8 +84,16 @@ export default function BurnRequestForm() {
     e.preventDefault()
     setSubmitError(null)
 
+    // sot/phase-1.md L271-281 + Linear scope "userName (autocomplete)" —
+    // operator must select a user from the directory; free-text input is
+    // not supported. If the customer doesn't exist yet, the operator
+    // creates them via the Users page first.
+    const userName = form.customer
+      ? `${form.customer.firstName} ${form.customer.lastName}`.trim()
+      : ''
+
     const validation = validateBurnRequestForm({
-      userName: form.userName,
+      userName,
       userAddress: form.userAddress,
       amount: form.amount,
       chain: form.chain,
@@ -105,7 +109,7 @@ export default function BurnRequestForm() {
 
     try {
       await create.mutateAsync({
-        userName: form.userName.trim(),
+        userName,
         userAddress: form.userAddress.trim(),
         amount: form.amount.trim(),
         chain: form.chain as RequestChain,
@@ -145,13 +149,6 @@ export default function BurnRequestForm() {
               value={form.customer}
               onSelect={selectCustomer}
               placeholder="Search customer by name or email…"
-            />
-            <Input
-              id="burnUserName"
-              value={form.userName}
-              onChange={(e) => set('userName', e.target.value)}
-              placeholder="Or type the user's full name"
-              autoComplete="off"
             />
             <FieldError message={errors.userName} />
           </div>
