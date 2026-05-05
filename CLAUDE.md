@@ -229,3 +229,15 @@ Folder `sot/` contains the project spec. Read before coding. Never edit `sot/`.
 - Role-based UI: hide/show elements based on staff role from `/api/v1/auth/me`
 - Address validation: checksummed EVM format (use viem)
 - Status enums for requests: see `sot/conventions.md` § Status Enums
+- SOT is authoritative — if your implementation differs from SOT, your code adjusts (not SOT)
+
+## PR Description
+
+Saat buat PR, generate description mengikuti format di `sot/templates/pr-template.md`. Ini wajib — PM review berdasarkan structure ini.
+
+Key points:
+- Selalu include "PM Action Items" section (bisa "None")
+- Selalu include "SoT Alignment" table — cross-check setiap field/endpoint vs SOT
+- Jika implement sesuatu yang TIDAK ada di SOT → masukkan ke "Known Drift > Needs PM Action" dengan category ❓ Decision
+- Jika ada AC yang belum bisa dicapai → mark ⏳ Deferred dengan reason
+- Jika ada action yang harus dilakukan SETELAH merge → masukkan "Post-Merge Actions"
