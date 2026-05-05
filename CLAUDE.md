@@ -210,7 +210,6 @@ No approval gate. No "Under Review". Settlement is async and simulated in mock m
 6. Write unit tests colocated in `__tests__/` for business logic and page integration
 7. If the feature adds a critical flow, extend `e2e/smoke.spec.ts`
 
-
 # Source of Truth
 
 Folder `sot/` contains the project spec. Read before coding. Never edit `sot/`.

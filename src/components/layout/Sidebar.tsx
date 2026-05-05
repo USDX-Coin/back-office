@@ -10,6 +10,7 @@ import {
   Bell,
   Inbox,
   Coins,
+  TrendingUp,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useNotificationsCount } from '@/features/notifications/hooks'
@@ -52,6 +53,13 @@ const SECTIONS: NavSection[] = [
       { to: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
       { to: '/report', label: 'Report', icon: BarChart3 },
     ],
+  },
+  {
+    // Sidebar item is visible to every authenticated role; the rate page
+    // itself renders read-only for STAFF/DEVELOPER. See
+    // docs/notes/usdx-20-decisions.md § 1.
+    label: 'Configuration',
+    items: [{ to: '/rate', label: 'Rate', icon: TrendingUp }],
   },
 ]
 

@@ -16,7 +16,8 @@ if (typeof Element.prototype.scrollIntoView === 'undefined') {
   Element.prototype.scrollIntoView = function () {}
 }
 
-// Radix UI uses Pointer Events APIs that JSDOM does not implement.
+// Radix UI's Select uses Pointer Events APIs that JSDOM does not implement.
+// Stub the missing methods so tests can interact with `<Select>` triggers.
 if (typeof Element.prototype.hasPointerCapture === 'undefined') {
   Element.prototype.hasPointerCapture = function () {
     return false

@@ -1,5 +1,12 @@
 import { describe, test, expect } from 'vitest'
-import { formatAmount, formatDate, formatShortDate, formatRelativeTime } from '@/lib/format'
+import {
+  formatAmount,
+  formatDate,
+  formatShortDate,
+  formatRelativeTime,
+  formatRate,
+  formatSpreadPct,
+} from '@/lib/format'
 
 describe('formatAmount', () => {
   describe('positive', () => {
@@ -99,6 +106,43 @@ describe('formatRelativeTime', () => {
   describe('edge cases', () => {
     test('should handle future timestamps gracefully', () => {
       expect(formatRelativeTime('2026-04-17T12:00:00.000Z', now)).toBe('just now')
+    })
+  })
+})
+
+describe('formatRate', () => {
+  describe('positive', () => {
+    test('should format SoT example with 2 decimals + unit', () => {
+      expect(formatRate('16250.00')).toBe('16,250.00 IDR/USD')
+    })
+    test('should format integer string', () => {
+      expect(formatRate('16500')).toBe('16,500.00 IDR/USD')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should fall back to raw input when not parseable', () => {
+      expect(formatRate('abc')).toBe('abc')
+    })
+  })
+})
+
+describe('formatSpreadPct', () => {
+  describe('positive', () => {
+    test('should format SoT example as literal percent', () => {
+      expect(formatSpreadPct('0.5')).toBe('0.5%')
+    })
+    test('should format zero', () => {
+      expect(formatSpreadPct('0')).toBe('0%')
+    })
+    test('should drop trailing zeros up to 2 decimals', () => {
+      expect(formatSpreadPct('1.50')).toBe('1.5%')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should fall back gracefully when input is junk', () => {
+      expect(formatSpreadPct('abc')).toBe('abc%')
     })
   })
 })

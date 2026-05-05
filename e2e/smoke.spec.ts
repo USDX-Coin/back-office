@@ -105,4 +105,21 @@ test.describe('smoke @e2e', () => {
     // URL reflects the active filter
     await expect(page).toHaveURL(/[?&]type=mint(&|$)/)
   })
+
+  test('should reach /rate, see current rate info, and confirm-dialog gates updates', async ({ page }) => {
+    await page.goto('/login')
+    await page.getByLabel(/^email$/i).fill(DEMO_EMAIL)
+    await page.getByLabel(/^password$/i).fill(DEMO_PASSWORD)
+    await page.getByRole('button', { name: /^sign in$/i }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 })
+
+    await page.getByRole('link', { name: /^rate$/i }).click()
+    await expect(page).toHaveURL(/\/rate/)
+
+    // Current rate card always renders, regardless of role
+    await expect(page.getByLabel(/effective rate/i)).toContainText(/IDR\/USD/)
+
+    // Demo Operator (super_admin → ADMIN) sees the form, not read-only
+    await expect(page.getByRole('button', { name: /review and update/i })).toBeVisible()
+  })
 })

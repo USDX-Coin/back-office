@@ -34,9 +34,10 @@ function createWrapper({
     if (authenticated || staffId) {
       const staff = staffId ? findStaffById(staffId) : getDefaultStaff()
       if (staff) {
-        // Match the v3 schema AuthProvider expects (staffId + JWT bearer token).
-        // Use issueMockJwt so the strict-bearer handlers (mint/burn) accept
-        // the session.
+        // v3 session shape — auth.tsx requires a Bearer token to mark the
+        // session authenticated and drive apiFetch's Authorization header.
+        // issueMockJwt mints the same JWT the login handler does, so
+        // strict-bearer handlers (mint/burn/rate POST) accept the session.
         localStorage.setItem(
           'usdx_auth_user',
           JSON.stringify({

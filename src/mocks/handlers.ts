@@ -7,9 +7,13 @@ import type {
   OtcMintTransaction,
   OtcRedeemTransaction,
   OtcStatus,
+  RateConfig,
+  RateMode,
+  UpdateRateConfig,
   RequestDetail,
   RequestListItem,
 } from '@/lib/types'
+import { canManageRate } from '@/lib/types'
 import {
   createMockCustomerList,
   createMockStaffList,
@@ -26,6 +30,9 @@ import {
   computeReportRows,
   computeReportInsights,
   computeDashboardSnapshot,
+  createInitialRateHistory,
+  createRateConfig,
+  computeRateInfo,
   computeUserAnalytics,
   computeUserRecentRequests,
   computeDashboardStats,
@@ -40,6 +47,7 @@ let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
+let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
@@ -50,6 +58,7 @@ export function resetMockData() {
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
+  rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
@@ -622,6 +631,79 @@ export const handlers = [
       staff.displayName = `${staff.firstName} ${staff.lastName}`.trim()
     }
     return HttpResponse.json(staff)
+  }),
+
+  // ─── Rate (sot/openapi.yaml § /api/v1/rate) ───
+  // GET is intentionally not Bearer-gated in the mock: the production endpoint
+  // requires auth, but enforcing it here would 401 React Query's first fetch
+  // when child-component effects fire before AuthProvider has wired apiFetch
+  // bindings. Real backend reads JWT and returns 401 — UI handles that path
+  // already via apiFetch.onUnauthorized.
+  http.get('/api/v1/rate', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: computeRateInfo(rateHistory),
+    })
+  ),
+
+  http.post('/api/v1/rate', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageRate(operator.role)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' },
+        },
+        { status: 403 }
+      )
+    }
+
+    const body = (await request.json()) as UpdateRateConfig
+
+    function rateBadRequest(message: string) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION', message },
+        },
+        { status: 400 }
+      )
+    }
+
+    if (body.mode !== 'MANUAL' && body.mode !== 'DYNAMIC') {
+      return rateBadRequest('mode must be MANUAL or DYNAMIC')
+    }
+    if (body.mode === 'MANUAL') {
+      const n = Number(body.manualRate)
+      if (!body.manualRate || !Number.isFinite(n) || n <= 0) {
+        return rateBadRequest('manualRate is required when mode is MANUAL')
+      }
+    }
+    if (body.spreadPct != null) {
+      const n = Number(body.spreadPct)
+      if (!Number.isFinite(n) || n < 0) {
+        return rateBadRequest('spreadPct must be a non-negative number')
+      }
+    }
+
+    const created = createRateConfig({
+      mode: body.mode as RateMode,
+      manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
+      spreadPct: body.spreadPct ?? '0',
+      updatedBy: operator.id,
+      createdAt: new Date().toISOString(),
+    })
+    rateHistory.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
   }),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
