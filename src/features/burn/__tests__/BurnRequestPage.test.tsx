@@ -175,6 +175,49 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         expect(screen.getByTestId('requests-route')).toBeInTheDocument()
       })
     })
+
+    test('should send a request body matching sot/openapi.yaml § CreateBurnRequest exactly', async () => {
+      let capturedBody: Record<string, unknown> | null = null
+      server.use(
+        http.post('/api/v1/burn', async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>
+          return HttpResponse.json(
+            {
+              status: 'success',
+              metadata: null,
+              data: { id: 'captured', status: 'PENDING_APPROVAL' },
+            },
+            { status: 201 }
+          )
+        })
+      )
+
+      const user = userEvent.setup()
+      renderBurnRoute()
+
+      await pickFirstCustomer(user)
+      await fillRequiredNonUserName(user)
+      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('requests-route')).toBeInTheDocument()
+      })
+
+      // SoT CreateBurnRequest required fields (sot/openapi.yaml L835).
+      // `amount` is a string per SoT; the type="number" input strips trailing
+      // zeros so "500.00" → "500" — both are valid decimal USDX amounts.
+      expect(capturedBody).toMatchObject({
+        userName: expect.stringMatching(/Julian Anderson/i),
+        userAddress: VALID_ADDRESS,
+        amount: expect.stringMatching(/^500(\.0+)?$/),
+        chain: 'polygon',
+        depositTxHash: VALID_TX,
+        bankName: 'BCA',
+        bankAccount: '1234567890',
+      })
+      // Body must not include client-only fields.
+      expect(capturedBody).not.toHaveProperty('customer')
+    })
   })
 
   // ─── AC4: API returns error → error message displayed ───
