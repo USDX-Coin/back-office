@@ -125,6 +125,60 @@ describe('UserDetailPage — remove wallet (acceptance criteria)', () => {
       expect(updatedCount).toBeLessThan(initialItems.length)
     })
   })
+
+  test('cancel on the remove dialog keeps the wallet', async () => {
+    const user = userEvent.setup()
+    renderDetail()
+
+    const list = await screen.findByRole('list', { name: /wallets/i })
+    const initialCount = list.querySelectorAll('li').length
+
+    await user.click(screen.getAllByRole('button', { name: /remove wallet/i })[0]!)
+    expect(await screen.findByText(/remove wallet\?/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+
+    // Wallet count must NOT change after cancel
+    await waitFor(() => {
+      expect(screen.queryByText(/remove wallet\?/i)).not.toBeInTheDocument()
+    })
+    expect(
+      screen.getByRole('list', { name: /wallets/i }).querySelectorAll('li').length
+    ).toBe(initialCount)
+  })
+})
+
+describe('UserDetailPage — duplicate wallet (SOT openapi 409 Conflict)', () => {
+  test('adding a wallet that already exists for this user does not duplicate the entry', async () => {
+    const user = userEvent.setup()
+
+    // Discover a wallet that is already attached to cus_1, and snapshot count
+    const before = await (await fetch(`/api/customers/${SEEDED_USER_ID}`)).json()
+    const existingWallet = before.wallets[0] as { chain: string; address: string }
+    const initialCount = before.wallets.length
+
+    renderDetail()
+    await screen.findByRole('list', { name: /wallets/i })
+
+    await user.click(screen.getByRole('button', { name: /add wallet/i }))
+
+    await user.click(screen.getByRole('combobox', { name: /network/i }))
+    const chainCapitalized =
+      existingWallet.chain.charAt(0).toUpperCase() + existingWallet.chain.slice(1)
+    await user.click(await screen.findByRole('option', { name: new RegExp(chainCapitalized, 'i') }))
+
+    await user.type(screen.getByLabelText(/wallet address/i), existingWallet.address)
+    await user.click(screen.getByRole('button', { name: /^add wallet$/i }))
+
+    // The 409 path keeps the dialog open (mutation rejected per SOT UQ(chain, address))
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /add wallet/i })).toBeInTheDocument()
+    })
+
+    // And the server-side wallet count must NOT increase
+    const after = await (await fetch(`/api/customers/${SEEDED_USER_ID}`)).json()
+    expect(after.wallets.length).toBe(initialCount)
+  })
 })
 
 describe('UserDetailPage — RBAC (acceptance criteria)', () => {

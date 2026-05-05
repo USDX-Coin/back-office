@@ -86,7 +86,7 @@ describe('UsersPage — RBAC (acceptance criteria)', () => {
 })
 
 describe('UsersPage — navigation to detail (acceptance criteria)', () => {
-  test('clicking a user row navigates to /users/:id detail page', async () => {
+  test('clicking a user row navigates to detail page with analytics + wallets + recent requests', async () => {
     const user = userEvent.setup()
     renderWithProviders(
       <Routes>
@@ -103,13 +103,92 @@ describe('UsersPage — navigation to detail (acceptance criteria)', () => {
     const trigger = screen.getByRole('button', { name: /open sarah mitchell/i })
     await user.click(trigger)
 
+    // AC: detail page must surface analytics, wallet list, AND recent requests
     await waitFor(() => {
       expect(
         screen.getByRole('heading', { name: /sarah mitchell/i })
       ).toBeInTheDocument()
-      expect(screen.getByText(/total minted/i)).toBeInTheDocument()
-      expect(screen.getByText(/total burned/i)).toBeInTheDocument()
-      expect(screen.getByText(/^transactions$/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/total minted/i)).toBeInTheDocument()
+    expect(screen.getByText(/total burned/i)).toBeInTheDocument()
+    expect(screen.getByText(/^transactions$/i)).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: /wallets/i })).toBeInTheDocument()
+    expect(screen.getByText(/recent requests/i)).toBeInTheDocument()
+  })
+})
+
+describe('UsersPage — search by wallet address (SOT phase-1.md § User List)', () => {
+  test('searching by a wallet address fragment narrows the list', async () => {
+    // Discover a real seeded wallet address via the API so the test stays
+    // deterministic against future changes in the wallet seed function.
+    const detailRes = await fetch('/api/customers/cus_5')
+    const customer = await detailRes.json()
+    const fullAddress = customer.wallets[0].address as string
+    const addressFragment = fullAddress.slice(0, 12)
+    const customerName = `${customer.firstName} ${customer.lastName}`
+
+    const user = userEvent.setup()
+    renderWithProviders(<UsersPage />, { authenticated: true })
+
+    await waitFor(() => {
+      expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
+    })
+
+    const searchInput = screen.getByLabelText(/search users/i)
+    await user.type(searchInput, `${addressFragment}{Enter}`)
+
+    // The user owning that wallet must remain; an unrelated user must drop.
+    await waitFor(() => {
+      expect(screen.getByText(customerName)).toBeInTheDocument()
+    })
+  })
+})
+
+describe('UsersPage — edit user (Linear scope CRUD)', () => {
+  test('admin can edit an existing user and see updates in the list', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<UsersPage />, { authenticated: true })
+
+    await waitFor(() => {
+      expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
+    })
+
+    // Open edit on Sarah Mitchell
+    const editBtn = screen.getByRole('button', { name: /edit sarah/i })
+    await user.click(editBtn)
+
+    expect(await screen.findByRole('heading', { name: /edit user/i })).toBeInTheDocument()
+
+    const firstNameInput = screen.getByLabelText(/first name/i) as HTMLInputElement
+    await user.clear(firstNameInput)
+    await user.type(firstNameInput, 'Sarahed')
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/sarahed mitchell/i)).toBeInTheDocument()
+    })
+  })
+})
+
+describe('UsersPage — delete user (Linear scope CRUD)', () => {
+  test('admin can delete a user via the confirm dialog', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<UsersPage />, { authenticated: true })
+
+    await waitFor(() => {
+      expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
+    })
+
+    const deleteBtn = screen.getByRole('button', { name: /delete sarah/i })
+    await user.click(deleteBtn)
+
+    expect(await screen.findByRole('heading', { name: /delete user/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/sarah mitchell/i)).not.toBeInTheDocument()
     })
   })
 })
