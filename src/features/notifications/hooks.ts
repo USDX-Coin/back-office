@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/apiFetch'
 import type { PhaseOnePaginatedResponse, RequestListItem } from '@/lib/types'
 
 const POLL_INTERVAL_MS = 5000
@@ -15,10 +14,9 @@ interface NotificationsQueryResult {
   total: number
 }
 
+// Uses raw fetch (matches src/features/requests/hooks.ts) because the page
+// needs `metadata.total` from the SoT envelope, which apiFetch unwraps away.
 async function fetchPendingApprovals(): Promise<NotificationsQueryResult> {
-  // apiFetch unwraps the SoT envelope `{ status, metadata, data }`.
-  // We need access to `metadata.total`, so request the full envelope by
-  // calling the underlying fetch directly.
   const response = await fetch(
     `/api/v1/requests?status=PENDING_APPROVAL&limit=${PENDING_APPROVAL_LIMIT}`
   )
@@ -45,5 +43,3 @@ export function useNotificationsCount() {
     refetchInterval: POLL_INTERVAL_MS,
   })
 }
-
-export { apiFetch }
