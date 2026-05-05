@@ -3,12 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
-import { getDefaultStaff, issueMockJwt } from '@/mocks/handlers'
+import { getDefaultStaff, findStaffById, issueMockJwt } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
 
 interface WrapperOptions {
   initialEntries?: string[]
   authenticated?: boolean
+  staffId?: string
 }
 
 export function createTestQueryClient() {
@@ -22,12 +23,16 @@ export function createTestQueryClient() {
   })
 }
 
-function createWrapper({ initialEntries = ['/'], authenticated = false }: WrapperOptions = {}) {
+function createWrapper({
+  initialEntries = ['/'],
+  authenticated = false,
+  staffId,
+}: WrapperOptions = {}) {
   return function Wrapper({ children }: { children: ReactNode }) {
     const queryClient = createTestQueryClient()
 
-    if (authenticated) {
-      const staff = getDefaultStaff()
+    if (authenticated || staffId) {
+      const staff = staffId ? findStaffById(staffId) : getDefaultStaff()
       if (staff) {
         // Match the v3 schema AuthProvider expects (staffId + JWT bearer token).
         // Use issueMockJwt so the strict-bearer handlers (mint/burn) accept
@@ -60,9 +65,9 @@ export function renderWithProviders(
   ui: React.ReactElement,
   options?: WrapperOptions & Omit<RenderOptions, 'wrapper'>
 ) {
-  const { initialEntries, authenticated, ...renderOptions } = options || {}
+  const { initialEntries, authenticated, staffId, ...renderOptions } = options || {}
   return render(ui, {
-    wrapper: createWrapper({ initialEntries, authenticated }),
+    wrapper: createWrapper({ initialEntries, authenticated, staffId }),
     ...renderOptions,
   })
 }

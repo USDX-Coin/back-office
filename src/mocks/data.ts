@@ -13,6 +13,8 @@ import type {
   CustomerSummary,
   StaffSummary,
   ReportInsights,
+  UserAnalytics,
+  UserWallet,
   RequestChain,
   RequestDetail,
   RequestListItem,
@@ -104,6 +106,19 @@ function customerEmail(first: string, last: string, n: number): string {
 let customerIdCounter = 1
 let staffIdCounter = 1
 let txIdCounter = 1
+let walletIdCounter = 1
+
+export function createUserWallet(overrides: Partial<UserWallet> = {}): UserWallet {
+  const id = `wal_${walletIdCounter++}`
+  const n = walletIdCounter
+  return {
+    id,
+    chain: NETWORKS[n % NETWORKS.length]!,
+    address: `0x${seededHex(40, n + 5000)}`,
+    createdAt: pastDateRecent((n * 2) % 60),
+    ...overrides,
+  }
+}
 
 export function createCustomer(overrides: Partial<Customer> = {}): Customer {
   const id = `cus_${customerIdCounter++}`
@@ -112,6 +127,8 @@ export function createCustomer(overrides: Partial<Customer> = {}): Customer {
   const [firstName, lastName] = splitName(fullName)
   const type: CustomerType = n % 3 === 0 ? 'personal' : 'organization'
   const role: CustomerRole = (['admin', 'editor', 'member'] as const)[n % 3]!
+  const walletCount = (n % 3) + 1
+  const wallets: UserWallet[] = Array.from({ length: walletCount }, () => createUserWallet())
   return {
     id,
     firstName,
@@ -121,6 +138,8 @@ export function createCustomer(overrides: Partial<Customer> = {}): Customer {
     type,
     organization: type === 'organization' ? ORGANIZATIONS[n % ORGANIZATIONS.length]! : undefined,
     role,
+    notes: undefined,
+    wallets,
     createdAt: pastDateRecent((n * 3) % 90),
     ...overrides,
   }
@@ -204,7 +223,40 @@ export function createOtcRedeemTransaction(
 
 export function createMockCustomerList(count = 30): Customer[] {
   customerIdCounter = 1
+  walletIdCounter = 1
   return Array.from({ length: count }, () => createCustomer())
+}
+
+export function computeUserAnalytics(
+  customerId: string,
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[]
+): UserAnalytics {
+  const userMints = mints.filter((m) => m.customerId === customerId && m.status === 'completed')
+  const userRedeems = redeems.filter((r) => r.customerId === customerId && r.status === 'completed')
+  const totalMinted = userMints.reduce((sum, m) => sum + m.amount, 0)
+  const totalBurned = userRedeems.reduce((sum, r) => sum + r.amount, 0)
+  const totalTransactions =
+    mints.filter((m) => m.customerId === customerId).length +
+    redeems.filter((r) => r.customerId === customerId).length
+  return { totalMinted, totalBurned, totalTransactions }
+}
+
+export function computeUserRecentRequests(
+  customerId: string,
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[],
+  limit = 5
+): ReportRow[] {
+  const all: ReportRow[] = [
+    ...mints
+      .filter((m) => m.customerId === customerId)
+      .map((m) => txToReportRow(m, 'mint')),
+    ...redeems
+      .filter((r) => r.customerId === customerId)
+      .map((r) => txToReportRow(r, 'redeem')),
+  ]
+  return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, limit)
 }
 
 export function createMockStaffList(): Staff[] {

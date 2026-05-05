@@ -27,6 +27,19 @@ export interface Staff {
   createdAt: string
 }
 
+export interface UserWallet {
+  id: string
+  chain: Network
+  address: string
+  createdAt: string
+}
+
+export interface UserAnalytics {
+  totalMinted: number
+  totalBurned: number
+  totalTransactions: number
+}
+
 export interface Customer {
   id: string
   firstName: string
@@ -36,7 +49,14 @@ export interface Customer {
   type: CustomerType
   organization?: string
   role: CustomerRole
+  notes?: string
+  wallets: UserWallet[]
   createdAt: string
+}
+
+export interface CustomerDetail extends Customer {
+  analytics: UserAnalytics
+  recentRequests: ReportRow[]
 }
 
 export interface OtcMintTransaction {
