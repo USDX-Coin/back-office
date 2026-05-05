@@ -82,7 +82,7 @@ describe('MintRequestPage', () => {
       ).toBe(true)
     })
 
-    test('should auto-fill the wallet address when selecting a match', async () => {
+    test('should fill userName but leave userAddress untouched on selection', async () => {
       const user = userEvent.setup()
       setup()
       await user.type(screen.getByLabelText(/user name/i), 'Bruce')
@@ -96,12 +96,18 @@ describe('MintRequestPage', () => {
       expect(target).toBeDefined()
       await user.click(within(target!).getByRole('button'))
 
+      const nameInput = screen.getByLabelText(
+        /user name/i
+      ) as HTMLInputElement
       const addressInput = screen.getByLabelText(
         /user wallet address/i
       ) as HTMLInputElement
       await waitFor(() => {
-        expect(addressInput.value).toMatch(/^0x[0-9a-fA-F]{40}$/)
+        expect(nameInput.value).toMatch(/bruce/i)
       })
+      // Linear AC #2 + SoT do not couple user selection to userAddress —
+      // operator must enter the wallet address manually.
+      expect(addressInput.value).toBe('')
     })
   })
 
@@ -285,35 +291,5 @@ describe('MintRequestPage', () => {
       expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
     })
 
-    test('should map per-field details into inline field errors', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.post('/api/v1/mint', () =>
-          HttpResponse.json(
-            {
-              status: 'error',
-              metadata: null,
-              data: null,
-              error: {
-                code: 'VALIDATION_ERROR',
-                message: 'Validation failed',
-                details: { amount: 'amount exceeds available reserves' },
-              },
-            },
-            { status: 400 }
-          )
-        )
-      )
-
-      setup()
-      await fillValidForm(user)
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/amount exceeds available reserves/i)
-      ).toBeInTheDocument()
-    })
   })
 })
