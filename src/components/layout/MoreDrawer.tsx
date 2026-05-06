@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, UserCog, UserRound, LogOut } from 'lucide-react'
+import { Users, UserRound, LogOut } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -16,8 +16,7 @@ interface MoreDrawerProps {
 }
 
 const ITEMS = [
-  { to: '/users', label: 'User', icon: Users, description: 'Customer directory' },
-  { to: '/staff', label: 'Staf', icon: UserCog, description: 'Internal team' },
+  { to: '/users', label: 'Users', icon: Users, description: 'Customer directory' },
   { to: '/profile', label: 'Profile', icon: UserRound, description: 'Your account' },
 ] as const
 
@@ -48,9 +47,9 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
 
         {user && (
           <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted/40 p-3">
-            <Avatar name={user.displayName} size="lg" />
+            <Avatar name={user.name} size="lg" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{user.displayName}</p>
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
               <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
           </div>

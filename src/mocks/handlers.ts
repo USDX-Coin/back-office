@@ -11,13 +11,9 @@ import {
   createMockStaffList,
   createMockOtcTransactions,
   createCustomer,
-  createStaff,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
   computeCustomerSummary,
-  computeStaffSummary,
-  computeReportRows,
-  computeReportInsights,
   computeDashboardSnapshot,
 } from './data'
 
@@ -205,55 +201,7 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
-  // ─── Staff ───
-  http.get('/api/staff', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const search = url.searchParams.get('search')?.toLowerCase()
-    const role = url.searchParams.get('role')
-
-    let result = [...staffStore]
-    if (search) {
-      result = result.filter(
-        (s) =>
-          s.firstName.toLowerCase().includes(search) ||
-          s.lastName.toLowerCase().includes(search) ||
-          s.email.toLowerCase().includes(search)
-      )
-    }
-    if (role) result = result.filter((s) => s.role === role)
-    result = applyCommonFilters(result, url.searchParams)
-
-    return HttpResponse.json(paginate(result, page, pageSize))
-  }),
-
-  http.get('/api/staff/summary', () => HttpResponse.json(computeStaffSummary(staffStore))),
-
-  http.post('/api/staff', async ({ request }) => {
-    const body = (await request.json()) as Partial<Staff>
-    if (!body.firstName || !body.lastName || !body.email || !body.role) {
-      return badRequest('VALIDATION', 'Missing required fields')
-    }
-    const created = createStaff(body as Partial<Staff>)
-    staffStore.unshift(created)
-    return HttpResponse.json(created, { status: 201 })
-  }),
-
-  http.patch('/api/staff/:id', async ({ params, request }) => {
-    const tx = staffStore.find((s) => s.id === params.id)
-    if (!tx) return notFound()
-    const body = (await request.json()) as Partial<Staff>
-    Object.assign(tx, body, { id: tx.id })
-    return HttpResponse.json(tx)
-  }),
-
-  http.delete('/api/staff/:id', ({ params }) => {
-    const idx = staffStore.findIndex((s) => s.id === params.id)
-    if (idx < 0) return notFound()
-    staffStore.splice(idx, 1)
-    return new HttpResponse(null, { status: 204 })
-  }),
+  // USDX-41: /api/staff/* mock removed. StaffPage now hits real GET /api/v1/staff.
 
   // ─── OTC Mint ───
   http.get('/api/otc/mint', ({ request }) => {
@@ -328,75 +276,12 @@ export const handlers = [
     HttpResponse.json(computeDashboardSnapshot(customerStore, otcMintStore, otcRedeemStore))
   ),
 
-  // ─── Report (derived union) ───
-  http.get('/api/report', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const type = url.searchParams.get('type')
-    const status = url.searchParams.get('status')
-    const customerId = url.searchParams.get('customerId')
-    const search = url.searchParams.get('search')?.toLowerCase()
-    const startDate = url.searchParams.get('startDate')
-    const endDate = url.searchParams.get('endDate')
-
-    let rows = computeReportRows(otcMintStore, otcRedeemStore)
-    if (type === 'mint' || type === 'redeem') rows = rows.filter((r) => r.kind === type)
-    if (status) rows = rows.filter((r) => r.status === status)
-    if (customerId) rows = rows.filter((r) => r.customerId === customerId)
-    if (search) {
-      rows = rows.filter(
-        (r) =>
-          r.txHash.toLowerCase().includes(search) ||
-          r.customerName.toLowerCase().includes(search)
-      )
-    }
-    if (startDate) rows = rows.filter((r) => r.createdAt >= startDate)
-    if (endDate) rows = rows.filter((r) => r.createdAt <= endDate)
-
-    return HttpResponse.json(paginate(rows, page, pageSize))
-  }),
-
-  http.get('/api/report/insights', ({ request }) => {
-    const url = new URL(request.url)
-    const type = url.searchParams.get('type')
-    const status = url.searchParams.get('status')
-    const customerId = url.searchParams.get('customerId')
-    const startDate = url.searchParams.get('startDate')
-    const endDate = url.searchParams.get('endDate')
-
-    let rows = computeReportRows(otcMintStore, otcRedeemStore)
-    if (type === 'mint' || type === 'redeem') rows = rows.filter((r) => r.kind === type)
-    if (status) rows = rows.filter((r) => r.status === status)
-    if (customerId) rows = rows.filter((r) => r.customerId === customerId)
-    if (startDate) rows = rows.filter((r) => r.createdAt >= startDate)
-    if (endDate) rows = rows.filter((r) => r.createdAt <= endDate)
-
-    return HttpResponse.json(computeReportInsights(rows))
-  }),
-
-  // ─── Profile (returns the demo "logged-in" staff + recent activity) ───
-  http.get('/api/profile/:id', ({ params }) => {
-    const staff = staffStore.find((s) => s.id === params.id)
-    if (!staff) return notFound()
-    const all = [...otcMintStore, ...otcRedeemStore]
-      .filter((t) => t.operatorStaffId === staff.id)
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-      .slice(0, 3)
-    return HttpResponse.json({ staff, recentActivity: all })
-  }),
-
-  http.patch('/api/profile/:id', async ({ params, request }) => {
-    const staff = staffStore.find((s) => s.id === params.id)
-    if (!staff) return notFound()
-    const body = (await request.json()) as Partial<Staff>
-    Object.assign(staff, body, { id: staff.id, email: staff.email })
-    if (body.firstName || body.lastName) {
-      staff.displayName = `${staff.firstName} ${staff.lastName}`.trim()
-    }
-    return HttpResponse.json(staff)
-  }),
+  // USDX-41: /api/profile/* mock removed. ProfilePage now uses useAuth().user
+  // (sourced from real GET /api/v1/auth/me).
 
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
+
+  // USDX-39: NO MSW handlers for /api/v1/* — this feature is integration-only,
+  // dev/prod/tests must all hit the real BE.
 ]

@@ -1,22 +1,32 @@
 import { Navigate, Outlet } from 'react-router'
 import { useAuth } from '@/lib/auth'
 
-export function ProtectedRoute() {
-  const { isAuthenticated } = useAuth()
+function BootstrapSplash() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground"
+    >
+      Loading…
+    </div>
+  )
+}
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
-  }
+export function ProtectedRoute() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) return <BootstrapSplash />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
 
   return <Outlet />
 }
 
 export function PublicRoute() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
+  if (isLoading) return <BootstrapSplash />
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
   return <Outlet />
 }

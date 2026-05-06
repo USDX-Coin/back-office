@@ -1,78 +1,131 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from 'react'
 import type { ReactNode } from 'react'
-import type { Staff } from './types'
-import { findStaffByEmail, findStaffById, getDefaultStaff } from '@/mocks/handlers'
+import type { Staff, AuthToken } from './types'
+import {
+  apiFetch,
+  setAuthToken,
+  getAuthToken,
+  ApiError,
+  UNAUTHORIZED_EVENT,
+} from './api'
 
 interface AuthContextType {
   user: Staff | null
   isAuthenticated: boolean
+  isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-const STORAGE_KEY = 'usdx_auth_user'
+const STAFF_CACHE_KEY = 'usdx_auth_staff'
 
-interface PersistedSession {
-  version: 2
-  staffId: string
-}
-
-function readPersistedStaff(): Staff | null {
-  const raw = localStorage.getItem(STORAGE_KEY)
+function readCachedStaff(): Staff | null {
+  const raw = localStorage.getItem(STAFF_CACHE_KEY)
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as Partial<PersistedSession> & { email?: string }
-    if (parsed.version === 2 && parsed.staffId) {
-      return findStaffById(parsed.staffId) ?? null
-    }
-    // Legacy v1 → v2 migration: old shape was the full User object {id, name, email, role}
-    if (parsed.email) {
-      const matched = findStaffByEmail(parsed.email)
-      if (matched) {
-        const next: PersistedSession = { version: 2, staffId: matched.id }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-        return matched
-      }
+    const parsed = JSON.parse(raw) as Staff
+    if (parsed && typeof parsed.id === 'string' && typeof parsed.role === 'string') {
+      return parsed
     }
   } catch {
-    // fall through
+    /* fall through */
   }
-  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(STAFF_CACHE_KEY)
   return null
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Staff | null>(() => readPersistedStaff())
+function writeCachedStaff(staff: Staff | null): void {
+  if (staff) localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(staff))
+  else localStorage.removeItem(STAFF_CACHE_KEY)
+}
 
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<Staff | null>(() => {
+    // Hydrate from cache only when we also still have a token.
+    return getAuthToken() ? readCachedStaff() : null
+  })
+  const [isLoading, setIsLoading] = useState<boolean>(() => !!getAuthToken())
+
+  const clearSession = useCallback(() => {
+    setAuthToken(null)
+    writeCachedStaff(null)
+    setUser(null)
+  }, [])
+
+  // Bootstrap: if a token exists at mount, verify it via /auth/me.
+  // No mount-once guard — under StrictMode the effect runs twice; the
+  // `cancelled` flag drops the first run and the second run wins.
   useEffect(() => {
-    if (user) {
-      const session: PersistedSession = { version: 2, staffId: user.id }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
+    const token = getAuthToken()
+    if (!token) {
+      setIsLoading(false)
+      return
     }
-  }, [user])
+
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data } = await apiFetch<Staff>('/api/v1/auth/me')
+        if (cancelled) return
+        writeCachedStaff(data)
+        setUser(data)
+      } catch (err) {
+        if (cancelled) return
+        // Any error during bootstrap → drop the session. apiFetch already
+        // cleared the token on 401; clearSession is idempotent.
+        if (!(err instanceof ApiError) || err.code !== 'NETWORK_ERROR') {
+          clearSession()
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clearSession])
+
+  // Global 401 listener: if any request returns 401, clear the session so
+  // the next render redirects to /login.
+  useEffect(() => {
+    function handleUnauthorized() {
+      writeCachedStaff(null)
+      setUser(null)
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
+  }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    if (!email.trim() || !password) {
-      throw new Error('Email and password are required')
-    }
-    const matched = findStaffByEmail(email) ?? getDefaultStaff()
-    if (!matched) throw new Error('No staff record available')
-    setUser(matched)
+    const { data } = await apiFetch<AuthToken>('/api/v1/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      skipAuth: true,
+    })
+    setAuthToken(data.accessToken)
+    writeCachedStaff(data.staff)
+    setUser(data.staff)
   }, [])
 
   const logout = useCallback(() => {
-    setUser(null)
-  }, [])
+    clearSession()
+  }, [clearSession])
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isAuthenticated: !!user,
+        isLoading,
         login,
         logout,
       }}
