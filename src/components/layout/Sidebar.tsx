@@ -2,9 +2,10 @@ import { NavLink } from 'react-router'
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
-  ListChecks,
+  BarChart3,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -20,15 +21,13 @@ interface NavSection {
   items: NavItem[]
 }
 
-// SoT phase-1.md sidebar list: Dashboard, Mint, Burn, Requests, Users, Rate.
-// Burn label + Rate entry deferred until USDX-40 (Mint/Burn integration) and a
-// Rate page integration ticket land — see USDX-43.
 const SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'Users', icon: Users },
+      { to: '/users', label: 'User', icon: Users },
+      { to: '/staff', label: 'Staf', icon: UserCog },
     ],
   },
   {
@@ -40,7 +39,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     label: 'Insights',
-    items: [{ to: '/requests', label: 'Requests', icon: ListChecks }],
+    items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
   },
 ]
 
@@ -52,11 +51,7 @@ function getInitials(name: string): string {
 }
 
 function formatRole(role: string): string {
-  // SoT enum is upper-case (STAFF/MANAGER/DEVELOPER/ADMIN). Render title-case.
-  return role
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export default function Sidebar() {
@@ -93,16 +88,13 @@ export default function Sidebar() {
         <div className="border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
-              {getInitials(user.name)}
+              {getInitials(user.displayName)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-[12.5px] font-medium">
-                {user.name}
+                {user.displayName}
               </span>
-              <span
-                className="truncate text-[11px] text-muted-foreground"
-                data-testid="staff-role"
-              >
+              <span className="truncate text-[11px] text-muted-foreground">
                 {formatRole(user.role)}
               </span>
             </div>

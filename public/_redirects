@@ -1,3 +1,2 @@
-/api/*                 https://backend-production-9740.up.railway.app/api/:splat  200
 /mockServiceWorker.js  /mockServiceWorker.js  200
 /*                     /index.html            200

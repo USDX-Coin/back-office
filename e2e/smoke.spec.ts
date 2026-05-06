@@ -3,13 +3,7 @@ import { test, expect } from '@playwright/test'
 const DEMO_EMAIL = 'demo@usdx.io'
 const DEMO_PASSWORD = 'anything'
 
-// USDX-39: this smoke spec was written against the legacy mock-auth flow.
-// Real BE login no longer accepts `demo@usdx.io / anything`, so these flows
-// are skipped here — `usdx-39.spec.ts` is the active integration smoke.
 test.describe('smoke @e2e', () => {
-  test.beforeEach(() => {
-    test.fixme(true, 'Legacy mock-auth smoke; superseded by usdx-39.spec.ts.')
-  })
   test('should load login page', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()
