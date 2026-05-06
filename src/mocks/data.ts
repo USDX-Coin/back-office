@@ -10,6 +10,8 @@ import type {
   DashboardSnapshot,
   ReportRow,
   CustomerSummary,
+  StaffSummary,
+  ReportInsights,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -47,14 +49,14 @@ const CUSTOMER_NAMES = [
 ]
 
 const STAFF_NAMES = [
-  { name: 'Demo Operator', role: 'ADMIN' as const, email: 'demo@usdx.io' },
-  { name: 'Marcus Thorne', role: 'ADMIN' as const, email: 'marcus.t@usdx.io' },
-  { name: 'Linda Chen', role: 'MANAGER' as const, email: 'linda.c@usdx.io' },
-  { name: 'Marcus Aurelius', role: 'DEVELOPER' as const, email: 'marcus.a@usdx.io' },
-  { name: 'Sarah King', role: 'STAFF' as const, email: 'sking@usdx.io' },
-  { name: 'James Reed', role: 'MANAGER' as const, email: 'j.reed@usdx.io' },
-  { name: 'Priya Khan', role: 'DEVELOPER' as const, email: 'p.khan@usdx.io' },
-  { name: 'Tom Walters', role: 'STAFF' as const, email: 't.walters@usdx.io' },
+  { firstName: 'Demo', lastName: 'Operator', role: 'super_admin' as const, email: 'demo@usdx.io' },
+  { firstName: 'Marcus', lastName: 'Thorne', role: 'super_admin' as const, email: 'marcus.t@usdx.io' },
+  { firstName: 'Linda', lastName: 'Chen', role: 'operations' as const, email: 'linda.c@usdx.io' },
+  { firstName: 'Marcus', lastName: 'Aurelius', role: 'compliance' as const, email: 'marcus.a@usdx.io' },
+  { firstName: 'Sarah', lastName: 'King', role: 'support' as const, email: 'sking@usdx.io' },
+  { firstName: 'James', lastName: 'Reed', role: 'operations' as const, email: 'j.reed@usdx.io' },
+  { firstName: 'Priya', lastName: 'Khan', role: 'compliance' as const, email: 'p.khan@usdx.io' },
+  { firstName: 'Tom', lastName: 'Walters', role: 'support' as const, email: 't.walters@usdx.io' },
 ]
 
 const ORGANIZATIONS = [
@@ -115,15 +117,15 @@ export function createStaff(overrides: Partial<Staff> = {}): Staff {
   const id = `stf_${staffIdCounter++}`
   const n = staffIdCounter
   const seed = STAFF_NAMES[(n - 1) % STAFF_NAMES.length]!
-  const created = pastDateRecent((n * 5) % 60)
   return {
     id,
-    name: seed.name,
+    firstName: seed.firstName,
+    lastName: seed.lastName,
     email: seed.email,
+    phone: `+1${seededBankAccount(n + 200).slice(0, 10)}`,
     role: seed.role,
-    isActive: true,
-    createdAt: created,
-    updatedAt: created,
+    displayName: `${seed.firstName} ${seed.lastName}`,
+    createdAt: pastDateRecent((n * 5) % 60),
     ...overrides,
   }
 }
@@ -150,7 +152,7 @@ export function createOtcMintTransaction(
     customerId: customer.id,
     customerName: `${customer.firstName} ${customer.lastName}`.trim(),
     operatorStaffId: operator.id,
-    operatorName: operator.name,
+    operatorName: operator.displayName,
     network: NETWORKS[n % NETWORKS.length]!,
     amount: OTC_AMOUNTS_MINT[n % OTC_AMOUNTS_MINT.length]!,
     destinationAddress: `0x${seededHex(40, n + 2000)}`,
@@ -177,7 +179,7 @@ export function createOtcRedeemTransaction(
     customerId: customer.id,
     customerName: `${customer.firstName} ${customer.lastName}`.trim(),
     operatorStaffId: operator.id,
-    operatorName: operator.name,
+    operatorName: operator.displayName,
     network: NETWORKS[n % NETWORKS.length]!,
     amount: OTC_AMOUNTS_REDEEM[n % OTC_AMOUNTS_REDEEM.length]!,
     status,
@@ -225,6 +227,14 @@ export function computeCustomerSummary(customers: Customer[]): CustomerSummary {
   }
 }
 
+export function computeStaffSummary(staff: Staff[]): StaffSummary {
+  return {
+    total: staff.length,
+    admins: staff.filter((s) => s.role === 'super_admin').length,
+    activeNow: staff.length,
+  }
+}
+
 function txToReportRow(
   tx: OtcMintTransaction | OtcRedeemTransaction,
   kind: 'mint' | 'redeem'
@@ -239,6 +249,33 @@ function txToReportRow(
     amount: tx.amount,
     status: tx.status,
     createdAt: tx.createdAt,
+  }
+}
+
+export function computeReportRows(
+  mints: OtcMintTransaction[],
+  redeems: OtcRedeemTransaction[]
+): ReportRow[] {
+  const rows: ReportRow[] = [
+    ...mints.map((t) => txToReportRow(t, 'mint')),
+    ...redeems.map((t) => txToReportRow(t, 'redeem')),
+  ]
+  return rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+}
+
+export function computeReportInsights(rows: ReportRow[]): ReportInsights {
+  const completed = rows.filter((r) => r.status === 'completed')
+  const totalVolume = completed.reduce((sum, r) => sum + r.amount, 0)
+  const activeMinters = new Set(rows.filter((r) => r.kind === 'mint').map((r) => r.customerId)).size
+  const flagged = rows.filter((r) => r.status === 'failed').length
+  return {
+    totalVolume,
+    activeMinters,
+    flagged,
+    trends: {
+      volume: { direction: 'up', percentChange: 12.5 },
+      minters: { direction: 'up', percentChange: 4.2 },
+    },
   }
 }
 

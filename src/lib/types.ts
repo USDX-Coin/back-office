@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Domain glossary
+// Domain glossary (see docs/brainstorms/2026-04-16-azure-horizon-redesign-requirements.md)
 //
-//   Staff    = back-office operator. Shape per sot/openapi.yaml § Staff.
+//   Staff    = logged-in back-office operator (admin/ops/compliance/support)
 //   Customer = end-customer whose wallet receives USDX on mint / releases on redeem
+//   Operator = the current Staff (runtime identity, typed as Staff)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type OtcStatus = 'pending' | 'completed' | 'failed'
@@ -13,23 +14,17 @@ export type CustomerType = 'personal' | 'organization'
 
 export type CustomerRole = 'admin' | 'editor' | 'member'
 
-// SoT openapi.yaml L744-L746
-export type StaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
+export type StaffRole = 'support' | 'operations' | 'compliance' | 'super_admin'
 
-// SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
-  name: string
+  firstName: string
+  lastName: string
   email: string
+  phone: string
   role: StaffRole
-  isActive: boolean
+  displayName: string
   createdAt: string
-  updatedAt: string
-}
-
-export interface AuthToken {
-  accessToken: string
-  staff: Staff
 }
 
 export interface Customer {
@@ -111,6 +106,22 @@ export interface CustomerSummary {
   organizations: number
 }
 
+export interface StaffSummary {
+  total: number
+  admins: number
+  activeNow: number
+}
+
+export interface ReportInsights {
+  totalVolume: number
+  activeMinters: number
+  flagged: number
+  trends: {
+    volume: { direction: 'up' | 'down'; percentChange: number }
+    minters: { direction: 'up' | 'down'; percentChange: number }
+  }
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   meta: {
@@ -122,58 +133,6 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ApiError {
-  error: {
-    code: string
-    message: string
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SoT-shape Request types (sot/openapi.yaml § Requests, USDX-39)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type RequestType = 'mint' | 'burn'
-
-export type RequestStatus =
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'EXECUTED'
-  | 'IDR_TRANSFERRED'
-  | 'REJECTED'
-
-export type SafeType = 'STAFF' | 'MANAGER'
-
-export interface RequestListItem {
-  id: string
-  type: RequestType
-  userId: string
-  userName: string
-  userAddress: string
-  amount: string
-  amountIdr: string
-  chain: string
-  safeType: SafeType
-  status: RequestStatus
-  createdBy: string
-  createdAt: string
-}
-
-export interface ApiEnvelope<T> {
-  status: 'success'
-  metadata: PaginationMeta | null
-  data: T
-}
-
-export interface PaginationMeta {
-  page: number
-  limit: number
-  total: number
-}
-
-export interface ApiErrorEnvelope {
-  status: 'error'
-  metadata: null
-  data: null
   error: {
     code: string
     message: string

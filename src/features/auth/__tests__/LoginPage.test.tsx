@@ -3,10 +3,6 @@ import { screen, fireEvent, waitFor } from '@testing-library/react'
 import LoginPage from '@/features/auth/LoginPage'
 import { renderWithProviders } from '@/test/test-utils'
 
-// USDX-39: integration flow (real-cred login → /dashboard, wrong creds → error)
-// is verified end-to-end via Playwright (`e2e/usdx-39.spec.ts`). This file only
-// covers FE-only LoginPage behavior that does not require an HTTP round-trip.
-
 describe('LoginPage', () => {
   describe('positive', () => {
     test('should render the Sign in heading and required fields', () => {
