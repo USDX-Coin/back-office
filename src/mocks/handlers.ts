@@ -104,7 +104,7 @@ function requireBearer(request: Request) {
   return true
 }
 
-const v1Handlers = [
+export const v1Handlers = [
   http.post('*/api/v1/auth/login', async ({ request }) => {
     const body = (await request.json()) as { email?: string; password?: string }
     if (!body?.email || body.password !== TEST_VALID_PASSWORD) {
@@ -561,6 +561,7 @@ export const handlers = [
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
 
-  // ─── USDX-39: SoT v1 handlers (test-only; runtime hits real Railway BE) ───
-  ...v1Handlers,
+  // NOTE: v1Handlers are NOT included in the browser worker — runtime calls
+  // to /api/v1/* must hit the real Railway BE per USDX-39. Tests register
+  // v1Handlers explicitly via `server.use(...v1Handlers)` (see server.ts).
 ]
