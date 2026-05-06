@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
+import { describe, test, expect } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { Routes, Route } from 'react-router'
 import LoginPage from '@/features/auth/LoginPage'
 import { renderWithProviders } from '@/test/test-utils'
-import { server } from '@/mocks/server'
-import { TEST_VALID_PASSWORD } from '@/mocks/handlers'
+
+// USDX-39: integration flow (real-cred login → /dashboard, wrong creds → error)
+// is verified end-to-end via Playwright (`e2e/usdx-39.spec.ts`). This file only
+// covers FE-only LoginPage behavior that does not require an HTTP round-trip.
 
 describe('LoginPage', () => {
   describe('positive', () => {
@@ -55,52 +55,6 @@ describe('LoginPage', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
       expect(screen.queryByRole('link', { name: /register/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /sign up/i })).not.toBeInTheDocument()
-    })
-  })
-
-  describe('USDX-39 integration', () => {
-    function DashboardStub() {
-      return <div data-testid="dashboard-stub">Dashboard Mock</div>
-    }
-    function AppShell() {
-      return (
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<DashboardStub />} />
-        </Routes>
-      )
-    }
-
-    beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-    afterEach(() => server.resetHandlers())
-    afterAll(() => server.close())
-    beforeEach(() => localStorage.clear())
-
-    describe('AC #1: real credentials → /dashboard', () => {
-      test('should redirect to /dashboard on successful login', async () => {
-        const user = userEvent.setup()
-        renderWithProviders(<AppShell />, { initialEntries: ['/login'] })
-        await user.type(screen.getByLabelText(/^email$/i), 'demo@usdx.io')
-        await user.type(screen.getByLabelText(/^password$/i), TEST_VALID_PASSWORD)
-        await user.click(screen.getByRole('button', { name: /^sign in$/i }))
-        await waitFor(() =>
-          expect(screen.getByTestId('dashboard-stub')).toBeInTheDocument(),
-        )
-        expect(localStorage.getItem('usdx_auth_token')).toBeTruthy()
-      })
-    })
-
-    describe('AC #2: wrong credentials → error message', () => {
-      test('should render BE error message in alert region', async () => {
-        const user = userEvent.setup()
-        renderWithProviders(<AppShell />, { initialEntries: ['/login'] })
-        await user.type(screen.getByLabelText(/^email$/i), 'demo@usdx.io')
-        await user.type(screen.getByLabelText(/^password$/i), 'wrong-password')
-        await user.click(screen.getByRole('button', { name: /^sign in$/i }))
-        const alert = await screen.findByRole('alert')
-        expect(alert).toHaveTextContent(/invalid credentials/i)
-        expect(screen.queryByTestId('dashboard-stub')).not.toBeInTheDocument()
-      })
     })
   })
 })

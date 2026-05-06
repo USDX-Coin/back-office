@@ -1,12 +1,10 @@
 import { http, HttpResponse } from 'msw'
 import type {
-  AuthStaff,
   Customer,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
   OtcStatus,
-  RequestListItem,
 } from '@/lib/types'
 import {
   createMockCustomerList,
@@ -22,165 +20,6 @@ import {
   computeReportInsights,
   computeDashboardSnapshot,
 } from './data'
-
-// ─── USDX-39: SoT v1 fixtures + helpers (test-only) ───
-
-const TEST_AUTH_STAFF: AuthStaff = {
-  id: '00000000-0000-7000-8000-000000000001',
-  name: 'Demo Operator',
-  email: 'demo@usdx.io',
-  role: 'ADMIN',
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-}
-
-export const TEST_VALID_PASSWORD = 'password123'
-export const TEST_AUTH_TOKEN = 'test-jwt-token'
-
-export function getTestAuthStaff(): AuthStaff {
-  return TEST_AUTH_STAFF
-}
-
-const TEST_REQUESTS: RequestListItem[] = [
-  {
-    id: '00000000-0000-7100-8000-000000000010',
-    type: 'mint',
-    userId: '00000000-0000-7100-8000-000000000aaa',
-    userName: 'Alice',
-    userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
-    amount: '1000.00',
-    amountIdr: '16250000.00',
-    chain: 'polygon',
-    safeType: 'STAFF',
-    status: 'PENDING_APPROVAL',
-    createdBy: TEST_AUTH_STAFF.id,
-    createdAt: '2026-05-01T10:00:00.000Z',
-  },
-  {
-    id: '00000000-0000-7100-8000-000000000011',
-    type: 'mint',
-    userId: '00000000-0000-7100-8000-000000000aab',
-    userName: 'Bob',
-    userAddress: '0x000000000000000000000000000000000000dEaD',
-    amount: '5000.00',
-    amountIdr: '81250000.00',
-    chain: 'polygon',
-    safeType: 'STAFF',
-    status: 'EXECUTED',
-    createdBy: TEST_AUTH_STAFF.id,
-    createdAt: '2026-05-02T11:00:00.000Z',
-  },
-  {
-    id: '00000000-0000-7100-8000-000000000012',
-    type: 'burn',
-    userId: '00000000-0000-7100-8000-000000000aac',
-    userName: 'Carol',
-    userAddress: '0x1111111111111111111111111111111111111111',
-    amount: '500.00',
-    amountIdr: '8125000.00',
-    chain: 'polygon',
-    safeType: 'STAFF',
-    status: 'EXECUTED',
-    createdBy: TEST_AUTH_STAFF.id,
-    createdAt: '2026-05-03T12:00:00.000Z',
-  },
-]
-
-export function getTestRequests(): RequestListItem[] {
-  return TEST_REQUESTS
-}
-
-function v1ErrorResponse(code: string, message: string, status: number) {
-  return HttpResponse.json(
-    { status: 'error', metadata: null, data: null, error: { code, message } },
-    { status },
-  )
-}
-
-function requireBearer(request: Request) {
-  const auth = request.headers.get('Authorization')
-  if (!auth || !auth.startsWith('Bearer ')) return false
-  return true
-}
-
-export const v1Handlers = [
-  http.post('*/api/v1/auth/login', async ({ request }) => {
-    const body = (await request.json()) as { email?: string; password?: string }
-    if (!body?.email || body.password !== TEST_VALID_PASSWORD) {
-      return v1ErrorResponse('UNAUTHORIZED', 'Invalid credentials', 401)
-    }
-    return HttpResponse.json({
-      status: 'success',
-      metadata: null,
-      data: { accessToken: TEST_AUTH_TOKEN, staff: TEST_AUTH_STAFF },
-    })
-  }),
-
-  http.get('*/api/v1/auth/me', ({ request }) => {
-    if (!requireBearer(request))
-      return v1ErrorResponse('UNAUTHORIZED', 'Missing token', 401)
-    return HttpResponse.json({
-      status: 'success',
-      metadata: null,
-      data: TEST_AUTH_STAFF,
-    })
-  }),
-
-  http.get('*/api/v1/requests', ({ request }) => {
-    if (!requireBearer(request))
-      return v1ErrorResponse('UNAUTHORIZED', 'Missing token', 401)
-    const url = new URL(request.url)
-    const type = url.searchParams.get('type')
-    const status = url.searchParams.get('status')
-    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
-    const limit = Math.max(
-      1,
-      Math.min(100, Number(url.searchParams.get('limit') ?? '10') || 10),
-    )
-    let rows = TEST_REQUESTS
-    if (type) rows = rows.filter((r) => r.type === type)
-    if (status) rows = rows.filter((r) => r.status === status)
-    const total = rows.length
-    const start = (page - 1) * limit
-    const slice = rows.slice(start, start + limit)
-    return HttpResponse.json({
-      status: 'success',
-      metadata: { page, limit, total },
-      data: slice,
-    })
-  }),
-
-  http.get('*/api/v1/requests/:id', ({ params, request }) => {
-    if (!requireBearer(request))
-      return v1ErrorResponse('UNAUTHORIZED', 'Missing token', 401)
-    const item = TEST_REQUESTS.find((r) => r.id === params.id)
-    if (!item) return v1ErrorResponse('NOT_FOUND', 'Resource not found', 404)
-    const detail = {
-      ...item,
-      idempotencyKey:
-        '0x0000000000000000000000000000000001902a3b4c5d7e6f8a9b0c1d2e3f4a5b',
-      amountWei: '1000000000',
-      rateUsed: '16250.00',
-      notes: null,
-      safeTxHash: null,
-      onChainTxHash: null,
-      updatedAt: item.createdAt,
-      ...(item.type === 'burn'
-        ? {
-            depositTxHash: '0xabc123' + '0'.repeat(58),
-            bankName: 'BCA',
-            bankAccount: '1234567890',
-          }
-        : {}),
-    }
-    return HttpResponse.json({
-      status: 'success',
-      metadata: null,
-      data: detail,
-    })
-  }),
-]
 
 // ─── Stores ───
 let customerStore: Customer[] = createMockCustomerList()
@@ -561,7 +400,6 @@ export const handlers = [
   // ─── Notifications (cosmetic-only, static count per Q4 plan decision) ───
   http.get('/api/notifications/count', () => HttpResponse.json({ count: 3 })),
 
-  // NOTE: v1Handlers are NOT included in the browser worker — runtime calls
-  // to /api/v1/* must hit the real Railway BE per USDX-39. Tests register
-  // v1Handlers explicitly via `server.use(...v1Handlers)` (see server.ts).
+  // USDX-39: NO MSW handlers for /api/v1/* — this feature is integration-only,
+  // dev/prod/tests must all hit the real BE.
 ]
