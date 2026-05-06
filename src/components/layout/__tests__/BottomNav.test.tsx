@@ -5,19 +5,18 @@ import { renderWithProviders } from '@/test/test-utils'
 
 describe('BottomNav', () => {
   describe('positive', () => {
-    test('should render 4 items: Dashboard, OTC, Report, More', () => {
+    test('should render 4 items: Dashboard, OTC, Requests, More', () => {
       renderWithProviders(<BottomNav />, { initialEntries: ['/dashboard'], authenticated: true })
       expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^otc$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^report$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^requests$/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /more menu/i })).toBeInTheDocument()
     })
 
-    test('should open the More drawer with User/Staf/Profile/Logout', () => {
+    test('should open the More drawer with Users/Profile/Logout', () => {
       renderWithProviders(<BottomNav />, { initialEntries: ['/dashboard'], authenticated: true })
       fireEvent.click(screen.getByRole('button', { name: /more menu/i }))
-      expect(screen.getByRole('button', { name: /user.*customer directory/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /staf.*internal team/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /users.*customer directory/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /profile.*your account/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
     })

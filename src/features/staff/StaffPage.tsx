@@ -1,228 +1,135 @@
-import { useState } from 'react'
-import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, UserCog } from 'lucide-react'
+import { useSearchParams } from 'react-router'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import DataTable from '@/components/DataTable'
-import { useDataTableParams } from '@/components/useDataTableParams'
-import Avatar from '@/components/Avatar'
-import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
-import TableEmptyState from '@/components/TableEmptyState'
-import StaffModal from './StaffModal'
-import StaffDeleteDialog from './StaffDeleteDialog'
-import StaffFilterToolbar, { type StaffFilterValues } from './StaffFilterToolbar'
-import { useStaff, useStaffSummary } from './hooks'
-import type { Staff } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useStaff } from './hooks'
 
-const ROLE_LABEL: Record<Staff['role'], string> = {
-  support: 'Support Agent',
-  operations: 'Operations Manager',
-  compliance: 'Compliance Officer',
-  super_admin: 'Super Admin',
+const PAGE_SIZE = 10
+
+function formatRole(role: string): string {
+  return role
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-const ROLE_PILL: Record<Staff['role'], string> = {
-  support: 'bg-muted text-muted-foreground',
-  operations: 'bg-muted text-foreground',
-  compliance: 'bg-warning/10 text-warning',
-  super_admin: 'bg-primary/10 text-primary',
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString()
 }
 
 export default function StaffPage() {
-  const params = useDataTableParams()
-  const search = params.searchParams.get('search') ?? ''
-  const role = params.searchParams.get('role') ?? ''
+  const [params, setParams] = useSearchParams()
+  const pageParam = Math.max(1, Number(params.get('page') ?? '1') || 1)
 
-  const list = useStaff({
-    page: params.page,
-    pageSize: 10,
-    search,
-    role,
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
+  const { data, isLoading, isError, error } = useStaff({
+    page: pageParam,
+    limit: PAGE_SIZE,
   })
-  const summary = useStaffSummary()
+  const rows = data?.data ?? []
+  const total = data?.metadata?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
-  const [activeStaff, setActiveStaff] = useState<Staff | null>(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-
-  function openAdd() {
-    setModalMode('add')
-    setActiveStaff(null)
-    setModalOpen(true)
+  function setPage(n: number) {
+    const next = new URLSearchParams(params)
+    if (n <= 1) next.delete('page')
+    else next.set('page', String(n))
+    setParams(next, { replace: true })
   }
-
-  function openEdit(s: Staff) {
-    setModalMode('edit')
-    setActiveStaff(s)
-    setModalOpen(true)
-  }
-
-  function openDelete(s: Staff) {
-    setActiveStaff(s)
-    setDeleteOpen(true)
-  }
-
-  function handleFilterChange(next: StaffFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      role: next.role || null,
-      page: '1',
-    })
-  }
-
-  const columns: ColumnDef<Staff>[] = [
-    {
-      id: 'name',
-      header: 'Name',
-      cell: ({ row }) => {
-        const s = row.original
-        return (
-          <div className="flex items-center gap-2.5">
-            <Avatar name={s.displayName} size="sm" />
-            <span className="font-medium text-foreground">{s.displayName}</span>
-          </div>
-        )
-      },
-    },
-    { accessorKey: 'email', header: 'Email' },
-    {
-      accessorKey: 'phone',
-      header: 'Phone',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
-          {getValue() as string}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'role',
-      header: 'Role',
-      cell: ({ getValue }) => {
-        const r = getValue() as Staff['role']
-        return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {ROLE_LABEL[r]}
-          </span>
-        )
-      },
-    },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.firstName}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.firstName}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ]
-
-  const noDataState = (
-    <TableEmptyState
-      mode="no-data"
-      icon={
-        <UserCog
-          className="h-10 w-10 text-muted-foreground/40"
-          strokeWidth={1.5}
-        />
-      }
-      title="No staff members yet"
-      description="Invite your first operator to get started."
-      cta={
-        <Button onClick={openAdd} className="mt-2">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Staff
-        </Button>
-      }
-    />
-  )
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Workspace"
-        title="Staf"
-        italicAccent="directory"
-        subtitle={`Internal team directory · ${summary.data?.total ?? '…'} members`}
-        actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Add Staff
-          </Button>
-        }
-      />
+    <div className="space-y-4">
+      <header className="space-y-1">
+        <h1 className="text-[20px] font-semibold tracking-tight">Staff</h1>
+        <p className="text-[13px] text-muted-foreground">
+          Internal back-office operators.
+        </p>
+      </header>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total staff"
-          value={summary.data?.total ?? '…'}
-          hint="all roles"
-        />
-        <SummaryStat
-          label="Admins"
-          value={summary.data?.admins ?? '…'}
-          hint="super admins"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.activeNow ?? '…'}
-          hint="last 30 days"
-        />
+      <div className="rounded-md border border-border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Active</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={`s-${i}`}>
+                  {Array.from({ length: 5 }).map((__, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-destructive">
+                  {error instanceof Error ? error.message : 'Failed to load staff'}
+                </TableCell>
+              </TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  No staff yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.email}</TableCell>
+                  <TableCell>{formatRole(s.role)}</TableCell>
+                  <TableCell>{s.isActive ? 'Yes' : 'No'}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatDate(s.createdAt)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={list.data?.data ?? []}
-        rowCount={list.data?.meta.total ?? 0}
-        isLoading={list.isLoading}
-        filterToolbar={
-          <StaffFilterToolbar
-            values={{ search, role }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
-          />
-        }
-        hasFilters={Boolean(search || role)}
-        emptyState={noDataState}
-      />
-
-      <StaffModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        mode={modalMode}
-        staff={activeStaff}
-      />
-      <StaffDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        staff={activeStaff}
-      />
+      {!isLoading && !isError && total > 0 && (
+        <div className="flex items-center justify-between text-[12.5px] text-muted-foreground">
+          <span>
+            Page {pageParam} of {totalPages} · {total} total
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(pageParam - 1)}
+              disabled={pageParam <= 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(pageParam + 1)}
+              disabled={pageParam >= totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

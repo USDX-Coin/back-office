@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Users, UserCog, UserRound, LogOut } from 'lucide-react'
+import { Users, UserRound, LogOut } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -16,8 +16,7 @@ interface MoreDrawerProps {
 }
 
 const ITEMS = [
-  { to: '/users', label: 'User', icon: Users, description: 'Customer directory' },
-  { to: '/staff', label: 'Staf', icon: UserCog, description: 'Internal team' },
+  { to: '/users', label: 'Users', icon: Users, description: 'Customer directory' },
   { to: '/profile', label: 'Profile', icon: UserRound, description: 'Your account' },
 ] as const
 

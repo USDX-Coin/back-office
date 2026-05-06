@@ -2,10 +2,8 @@ import { NavLink } from 'react-router'
 import {
   LayoutDashboard,
   Users,
-  UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
-  BarChart3,
   ListChecks,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
@@ -22,13 +20,15 @@ interface NavSection {
   items: NavItem[]
 }
 
+// SoT phase-1.md sidebar list: Dashboard, Mint, Burn, Requests, Users, Rate.
+// Burn label + Rate entry deferred until USDX-40 (Mint/Burn integration) and a
+// Rate page integration ticket land — see USDX-43.
 const SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'User', icon: Users },
-      { to: '/staff', label: 'Staf', icon: UserCog },
+      { to: '/users', label: 'Users', icon: Users },
     ],
   },
   {
@@ -40,10 +40,7 @@ const SECTIONS: NavSection[] = [
   },
   {
     label: 'Insights',
-    items: [
-      { to: '/requests', label: 'Requests', icon: ListChecks },
-      { to: '/report', label: 'Report', icon: BarChart3 },
-    ],
+    items: [{ to: '/requests', label: 'Requests', icon: ListChecks }],
   },
 ]
 

@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Domain glossary (see docs/brainstorms/2026-04-16-azure-horizon-redesign-requirements.md)
+// Domain glossary
 //
-//   Staff    = logged-in back-office operator (admin/ops/compliance/support)
+//   Staff    = back-office operator. Shape per sot/openapi.yaml § Staff.
 //   Customer = end-customer whose wallet receives USDX on mint / releases on redeem
-//   Operator = the current Staff (runtime identity, typed as Staff)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type OtcStatus = 'pending' | 'completed' | 'failed'
@@ -14,17 +13,23 @@ export type CustomerType = 'personal' | 'organization'
 
 export type CustomerRole = 'admin' | 'editor' | 'member'
 
-export type StaffRole = 'support' | 'operations' | 'compliance' | 'super_admin'
+// SoT openapi.yaml L744-L746
+export type StaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
 
+// SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
-  firstName: string
-  lastName: string
+  name: string
   email: string
-  phone: string
   role: StaffRole
-  displayName: string
+  isActive: boolean
   createdAt: string
+  updatedAt: string
+}
+
+export interface AuthToken {
+  accessToken: string
+  staff: Staff
 }
 
 export interface Customer {
@@ -106,22 +111,6 @@ export interface CustomerSummary {
   organizations: number
 }
 
-export interface StaffSummary {
-  total: number
-  admins: number
-  activeNow: number
-}
-
-export interface ReportInsights {
-  totalVolume: number
-  activeMinters: number
-  flagged: number
-  trends: {
-    volume: { direction: 'up' | 'down'; percentChange: number }
-    minters: { direction: 'up' | 'down'; percentChange: number }
-  }
-}
-
 export interface PaginatedResponse<T> {
   data: T[]
   meta: {
@@ -140,27 +129,8 @@ export interface ApiError {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SoT-shape types (sot/openapi.yaml § Auth, Requests). Used by USDX-39
-// integration code only. Legacy `Staff` above is consumed by Profile/Staff
-// directory pages and mock handlers — kept untouched for those tickets.
+// SoT-shape Request types (sot/openapi.yaml § Requests, USDX-39)
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type AuthStaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
-
-export interface AuthStaff {
-  id: string
-  name: string
-  email: string
-  role: AuthStaffRole
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-export interface AuthToken {
-  accessToken: string
-  staff: AuthStaff
-}
 
 export type RequestType = 'mint' | 'burn'
 

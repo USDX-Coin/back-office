@@ -6,7 +6,7 @@ import {
   useEffect,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { AuthStaff, AuthToken } from './types'
+import type { Staff, AuthToken } from './types'
 import {
   apiFetch,
   setAuthToken,
@@ -16,7 +16,7 @@ import {
 } from './api'
 
 interface AuthContextType {
-  user: AuthStaff | null
+  user: Staff | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
@@ -27,11 +27,11 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 const STAFF_CACHE_KEY = 'usdx_auth_staff'
 
-function readCachedStaff(): AuthStaff | null {
+function readCachedStaff(): Staff | null {
   const raw = localStorage.getItem(STAFF_CACHE_KEY)
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as AuthStaff
+    const parsed = JSON.parse(raw) as Staff
     if (parsed && typeof parsed.id === 'string' && typeof parsed.role === 'string') {
       return parsed
     }
@@ -42,13 +42,13 @@ function readCachedStaff(): AuthStaff | null {
   return null
 }
 
-function writeCachedStaff(staff: AuthStaff | null): void {
+function writeCachedStaff(staff: Staff | null): void {
   if (staff) localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(staff))
   else localStorage.removeItem(STAFF_CACHE_KEY)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthStaff | null>(() => {
+  const [user, setUser] = useState<Staff | null>(() => {
     // Hydrate from cache only when we also still have a token.
     return getAuthToken() ? readCachedStaff() : null
   })
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void (async () => {
       try {
-        const { data } = await apiFetch<AuthStaff>('/api/v1/auth/me')
+        const { data } = await apiFetch<Staff>('/api/v1/auth/me')
         if (cancelled) return
         writeCachedStaff(data)
         setUser(data)

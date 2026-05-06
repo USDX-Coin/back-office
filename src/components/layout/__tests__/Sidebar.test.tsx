@@ -12,11 +12,14 @@ describe('Sidebar', () => {
     test('should render the top-level workspace, OTC, and insights items', () => {
       renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
       expect(screen.getByRole('link', { name: /^dashboard$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^user$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^staf$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^redeem$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^report$/i })).toBeInTheDocument()
+    })
+
+    test('should NOT render legacy Staf entry (USDX-43)', () => {
+      renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
+      expect(screen.queryByRole('link', { name: /^staf$/i })).not.toBeInTheDocument()
     })
 
     test('should render Requests entry pointing to /requests (USDX-39)', () => {

@@ -3,13 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
-import type { AuthStaff } from '@/lib/types'
+import type { Staff } from '@/lib/types'
 import type { ReactNode } from 'react'
 
 interface WrapperOptions {
   initialEntries?: string[]
   /**
-   * Seeds an authenticated `AuthStaff` into localStorage so AuthProvider
+   * Seeds an authenticated `Staff` into localStorage so AuthProvider
    * hydrates synchronously. The bootstrap fetch to `/api/v1/auth/me` will
    * fail in jsdom (no network), but `AuthProvider` keeps the cached session
    * intact on NETWORK_ERROR, so the test sees a logged-in state.
@@ -20,7 +20,7 @@ interface WrapperOptions {
   authenticated?: boolean
 }
 
-const TEST_STAFF: AuthStaff = {
+const TEST_STAFF: Staff = {
   id: '00000000-0000-7000-8000-000000000001',
   name: 'Demo Operator',
   email: 'demo@usdx.io',
