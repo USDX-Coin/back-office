@@ -45,7 +45,12 @@ export interface ApiResult<T> {
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${BASE_URL}${cleanPath}`)
+  // Empty BASE_URL = same-origin (Vite/Netlify proxies forward to the BE).
+  // Non-empty BASE_URL = direct call to that absolute origin.
+  const base =
+    BASE_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+  const url = new URL(`${base}${cleanPath}`)
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined || v === null || v === '') continue

@@ -4,7 +4,6 @@ import {
   useState,
   useCallback,
   useEffect,
-  useRef,
 } from 'react'
 import type { ReactNode } from 'react'
 import type { AuthStaff, AuthToken } from './types'
@@ -54,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getAuthToken() ? readCachedStaff() : null
   })
   const [isLoading, setIsLoading] = useState<boolean>(() => !!getAuthToken())
-  const bootstrapped = useRef(false)
 
   const clearSession = useCallback(() => {
     setAuthToken(null)
@@ -63,10 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Bootstrap: if a token exists at mount, verify it via /auth/me.
+  // No mount-once guard — under StrictMode the effect runs twice; the
+  // `cancelled` flag drops the first run and the second run wins.
   useEffect(() => {
-    if (bootstrapped.current) return
-    bootstrapped.current = true
-
     const token = getAuthToken()
     if (!token) {
       setIsLoading(false)

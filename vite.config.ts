@@ -17,6 +17,15 @@ export default defineConfig({
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
     },
+    // Same-origin proxy so dev fetch to /api/* doesn't hit cross-origin CORS.
+    // Mirrors the Netlify _redirects rule for production deploys.
+    proxy: {
+      '/api': {
+        target: 'https://backend-production-9740.up.railway.app',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   test: {
     globals: true,

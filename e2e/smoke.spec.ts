@@ -4,17 +4,11 @@ const DEMO_EMAIL = 'demo@usdx.io'
 const DEMO_PASSWORD = 'anything'
 
 // USDX-39: this smoke spec was written against the legacy mock-auth flow.
-// Real BE login now requires valid credentials AND CORS, neither of which
-// holds for these tests. Gated until BE CORS is configured. See PR description
-// "Backend Integration Notes". `usdx-39.spec.ts` is the active integration smoke.
-const BE_CORS_CONFIGURED = process.env.USDX_BE_CORS_OK === '1'
-
+// Real BE login no longer accepts `demo@usdx.io / anything`, so these flows
+// are skipped here — `usdx-39.spec.ts` is the active integration smoke.
 test.describe('smoke @e2e', () => {
   test.beforeEach(() => {
-    test.fixme(
-      !BE_CORS_CONFIGURED,
-      'Legacy mock-auth smoke; superseded by usdx-39.spec.ts until BE CORS lands.',
-    )
+    test.fixme(true, 'Legacy mock-auth smoke; superseded by usdx-39.spec.ts.')
   })
   test('should load login page', async ({ page }) => {
     await page.goto('/')
