@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
 import PageHeader from '@/components/PageHeader'
+import CurrentRateCard from '@/components/CurrentRateCard'
 import { ApiError } from '@/lib/apiFetch'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { PhaseOneUser } from '@/lib/types'
@@ -244,7 +245,8 @@ export default function MintRequestPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-4 space-y-4">
+          <CurrentRateCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-[14px] font-semibold tracking-tight">

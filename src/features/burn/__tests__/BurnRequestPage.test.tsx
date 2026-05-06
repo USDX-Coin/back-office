@@ -65,10 +65,12 @@ function renderBurnRoute(initialPath = '/burn') {
 const VALID_ADDRESS = '0x' + 'a'.repeat(40)
 const VALID_TX = '0x' + 'b'.repeat(64)
 
-async function pickFirstCustomer(user: ReturnType<typeof userEvent.setup>) {
-  const search = screen.getByPlaceholderText(/search customer/i)
+// USDX-40: burn form now uses UserNameTypeahead → GET /api/v1/users
+// (mirrors mint form). MSW seeds users from customerStore via
+// customerToPhaseOneUser, so "Julian Anderson" still resolves.
+async function pickFirstUser(user: ReturnType<typeof userEvent.setup>) {
+  const search = screen.getByPlaceholderText(/search by name/i)
   await user.type(search, 'Julian')
-  // Mock data seeds "Julian Anderson" as the first customer.
   const result = await screen.findByText(/Julian Anderson/i)
   await user.click(result)
 }
@@ -92,11 +94,11 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         screen.getByRole('heading', { name: /burn.*redeem.*usdx/i })
       ).toBeInTheDocument()
 
-      // userName surface = customer typeahead (sot/phase-1.md L271 users
-      // table is the source of truth — no free-text input).
+      // USDX-40: userName surface = UserNameTypeahead → /api/v1/users (per
+      // sot/openapi.yaml § /api/v1/users + phase-1.md L271 users table).
       expect(screen.getByText(/^user name$/i)).toBeInTheDocument()
       expect(
-        screen.getByPlaceholderText(/search customer/i)
+        screen.getByPlaceholderText(/search by name/i)
       ).toBeInTheDocument()
 
       expect(screen.getByLabelText(/user wallet address/i)).toBeInTheDocument()
@@ -129,7 +131,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await pickFirstCustomer(user)
+      await pickFirstUser(user)
       await fillRequiredNonUserName(user)
       const txInput = screen.getByLabelText(/deposit tx hash/i)
       await user.clear(txInput)
@@ -147,7 +149,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await pickFirstCustomer(user)
+      await pickFirstUser(user)
       await fillRequiredNonUserName(user)
       const txInput = screen.getByLabelText(/deposit tx hash/i)
       await user.clear(txInput)
@@ -167,7 +169,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await pickFirstCustomer(user)
+      await pickFirstUser(user)
       await fillRequiredNonUserName(user)
       await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
@@ -195,7 +197,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await pickFirstCustomer(user)
+      await pickFirstUser(user)
       await fillRequiredNonUserName(user)
       await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
@@ -246,7 +248,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const user = userEvent.setup()
       renderBurnRoute()
 
-      await pickFirstCustomer(user)
+      await pickFirstUser(user)
       await fillRequiredNonUserName(user)
       await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
