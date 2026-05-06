@@ -48,24 +48,24 @@ describe('useAuth', () => {
       expect(result.current.user?.id).toBe(fallback?.id)
     })
 
-    test('should persist v3 session shape (staffId + token) in localStorage after login', async () => {
+    test('should persist v4 session shape (staff + token) in localStorage after login', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper })
       await act(async () => {
         await result.current.login('demo@usdx.io', 'pw')
       })
       const stored = JSON.parse(localStorage.getItem('usdx_auth_user')!)
-      expect(stored.version).toBe(3)
-      expect(stored.staffId).toBe(result.current.user?.id)
+      expect(stored.version).toBe(4)
+      expect(stored.staff.id).toBe(result.current.user?.id)
       expect(stored.token).toBe(result.current.token)
       expect(typeof stored.issuedAt).toBe('number')
     })
 
-    test('should restore Staff + token from v3 localStorage payload (valid JWT)', async () => {
+    test('should restore Staff + token from v4 localStorage payload (valid JWT)', async () => {
       const seed = getDefaultStaff()!
       const token = issueMockJwt(seed)
       localStorage.setItem(
         'usdx_auth_user',
-        JSON.stringify({ version: 3, staffId: seed.id, token, issuedAt: Date.now() })
+        JSON.stringify({ version: 4, staff: seed, token, issuedAt: Date.now() })
       )
       const { result } = renderHook(() => useAuth(), { wrapper })
       // /auth/me runs in a useEffect; isAuthenticated stays true throughout.
@@ -104,7 +104,7 @@ describe('useAuth', () => {
       )
       localStorage.setItem(
         'usdx_auth_user',
-        JSON.stringify({ version: 3, staffId: seed.id, token, issuedAt: Date.now() })
+        JSON.stringify({ version: 4, staff: seed, token, issuedAt: Date.now() })
       )
       renderHook(() => useAuth(), { wrapper })
       await waitFor(() => expect(captured).toBe(`Bearer ${token}`))
@@ -113,7 +113,7 @@ describe('useAuth', () => {
     test('should refresh user record from /auth/me response (server is source of truth)', async () => {
       const seed = getDefaultStaff()!
       const token = issueMockJwt(seed)
-      const refreshed = { ...seed, firstName: 'Refreshed' }
+      const refreshed = { ...seed, name: 'Refreshed' }
       server.use(
         http.get('/api/v1/auth/me', () =>
           HttpResponse.json({ status: 'success', metadata: null, data: refreshed })
@@ -121,21 +121,21 @@ describe('useAuth', () => {
       )
       localStorage.setItem(
         'usdx_auth_user',
-        JSON.stringify({ version: 3, staffId: seed.id, token, issuedAt: Date.now() })
+        JSON.stringify({ version: 4, staff: seed, token, issuedAt: Date.now() })
       )
       const { result } = renderHook(() => useAuth(), { wrapper })
-      await waitFor(() => expect(result.current.user?.firstName).toBe('Refreshed'))
+      await waitFor(() => expect(result.current.user?.name).toBe('Refreshed'))
     })
 
     test('should clear session when /auth/me returns 401 (token invalid/expired)', async () => {
       const seed = getDefaultStaff()!
-      // Persist a structurally-valid v3 record but with a bogus signature so
+      // Persist a structurally-valid v4 record but with a bogus signature so
       // the server rejects the token on /auth/me.
       localStorage.setItem(
         'usdx_auth_user',
         JSON.stringify({
-          version: 3,
-          staffId: seed.id,
+          version: 4,
+          staff: seed,
           token: 'header.body.tampered',
           issuedAt: Date.now(),
         })
@@ -154,7 +154,7 @@ describe('useAuth', () => {
       server.use(http.get('/api/v1/auth/me', () => HttpResponse.error()))
       localStorage.setItem(
         'usdx_auth_user',
-        JSON.stringify({ version: 3, staffId: seed.id, token, issuedAt: Date.now() })
+        JSON.stringify({ version: 4, staff: seed, token, issuedAt: Date.now() })
       )
       const { result } = renderHook(() => useAuth(), { wrapper })
       // Wait long enough for the promise to settle, then assert no logout.
@@ -251,7 +251,7 @@ describe('useAuth', () => {
       expect(result.current.isAuthenticated).toBe(false)
     })
 
-    test('should drop v3 payload whose staffId no longer exists', () => {
+    test('should drop legacy v3 payload (pre-v4 staff-inline schema)', () => {
       localStorage.setItem(
         'usdx_auth_user',
         JSON.stringify({ version: 3, staffId: 'ghost', token: 'a.b.c', issuedAt: Date.now() })

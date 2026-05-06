@@ -42,10 +42,10 @@ export default function RecentActivityList({ items }: RecentActivityListProps) {
             Recent activity
           </CardTitle>
           <Link
-            to="/report"
+            to="/requests"
             className="font-mono text-[11.5px] text-muted-foreground hover:text-foreground"
           >
-            View report →
+            View all →
           </Link>
         </div>
       </CardHeader>

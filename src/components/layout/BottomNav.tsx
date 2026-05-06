@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, ArrowRightLeft, BarChart3, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, ArrowRightLeft, Inbox, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MoreDrawer from './MoreDrawer'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/otc', label: 'OTC', icon: ArrowRightLeft, matchPrefix: '/otc' },
-  { to: '/report', label: 'Report', icon: BarChart3 },
+  { to: '/requests', label: 'Requests', icon: Inbox },
 ] as const
 
 export default function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false)
   const { pathname } = useLocation()
-  const moreActive = ['/users', '/staff', '/rate', '/profile', '/requests'].some((p) =>
+  const moreActive = ['/users', '/rate', '/profile'].some((p) =>
     pathname.startsWith(p)
   )
 

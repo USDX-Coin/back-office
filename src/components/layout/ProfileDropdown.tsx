@@ -27,16 +27,16 @@ export default function ProfileDropdown() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-        <Avatar name={user.displayName} size="sm" />
+        <Avatar name={user.name} size="sm" />
         <span className="hidden text-sm font-medium text-foreground sm:inline">
-          {user.displayName}
+          {user.name}
         </span>
         <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <span className="sr-only">Open profile menu</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 bg-card shadow-sm">
         <DropdownMenuLabel className="px-3 py-2">
-          <p className="text-sm font-medium text-foreground">{user.displayName}</p>
+          <p className="text-sm font-medium text-foreground">{user.name}</p>
           <p className="text-xs text-muted-foreground">{roleLabel}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
