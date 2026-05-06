@@ -48,9 +48,9 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
 
         {user && (
           <div className="mt-3 flex items-center gap-3 rounded-xl bg-muted/40 p-3">
-            <Avatar name={user.displayName} size="lg" />
+            <Avatar name={user.name} size="lg" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{user.displayName}</p>
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
               <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
           </div>

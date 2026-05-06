@@ -1,144 +1,132 @@
-import { describe, test, expect, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/lib/auth'
-import { getDefaultStaff, resetMockData } from '@/mocks/handlers'
+import { server } from '@/mocks/server'
+import { TEST_VALID_PASSWORD, TEST_AUTH_TOKEN, getTestAuthStaff } from '@/mocks/handlers'
+import { ApiError } from '@/lib/api'
 import type { ReactNode } from 'react'
 
 function wrapper({ children }: { children: ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>
 }
 
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
 beforeEach(() => {
   localStorage.clear()
-  resetMockData()
 })
 
-describe('useAuth', () => {
-  describe('positive', () => {
-    test('should start unauthenticated', () => {
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      expect(result.current.isAuthenticated).toBe(false)
-      expect(result.current.user).toBeNull()
-    })
-
-    test('should login with any non-empty credentials and resolve to a Staff', async () => {
+describe('useAuth (USDX-39)', () => {
+  describe('AC #1: login with real credentials', () => {
+    test('should authenticate, store JWT and staff on success', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper })
       await act(async () => {
-        await result.current.login('demo@usdx.io', 'anything')
+        await result.current.login('demo@usdx.io', TEST_VALID_PASSWORD)
       })
       expect(result.current.isAuthenticated).toBe(true)
       expect(result.current.user?.email).toBe('demo@usdx.io')
-      expect(result.current.user?.role).toBeDefined()
-    })
-
-    test('should fall back to seeded default Staff when email does not match', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      const fallback = getDefaultStaff()
-      await act(async () => {
-        await result.current.login('unknown@example.com', 'pw')
-      })
-      expect(result.current.user?.id).toBe(fallback?.id)
-    })
-
-    test('should persist v2 session shape in localStorage after login', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      await act(async () => {
-        await result.current.login('demo@usdx.io', 'pw')
-      })
-      const stored = JSON.parse(localStorage.getItem('usdx_auth_user')!)
-      expect(stored.version).toBe(2)
-      expect(stored.staffId).toBeDefined()
-    })
-
-    test('should restore Staff from v2 localStorage payload', () => {
-      const seed = getDefaultStaff()!
-      localStorage.setItem('usdx_auth_user', JSON.stringify({ version: 2, staffId: seed.id }))
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      expect(result.current.isAuthenticated).toBe(true)
-      expect(result.current.user?.id).toBe(seed.id)
-    })
-
-    test('should logout and clear localStorage', async () => {
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      await act(async () => {
-        await result.current.login('demo@usdx.io', 'pw')
-      })
-      expect(result.current.isAuthenticated).toBe(true)
-
-      act(() => {
-        result.current.logout()
-      })
-      expect(result.current.isAuthenticated).toBe(false)
-      expect(result.current.user).toBeNull()
-      expect(localStorage.getItem('usdx_auth_user')).toBeNull()
+      expect(result.current.user?.role).toBe('ADMIN')
+      expect(localStorage.getItem('usdx_auth_token')).toBe(TEST_AUTH_TOKEN)
+      expect(localStorage.getItem('usdx_auth_staff')).toContain('Demo Operator')
     })
   })
 
-  describe('v1 → v2 migration', () => {
-    test('should migrate legacy {id,name,email,role} payload by email lookup', () => {
-      localStorage.setItem(
-        'usdx_auth_user',
-        JSON.stringify({ id: 'old-1', name: 'Demo Operator', email: 'demo@usdx.io', role: 'Admin' })
-      )
+  describe('AC #2: login with wrong credentials', () => {
+    test('should throw ApiError with the message from BE error envelope', async () => {
       const { result } = renderHook(() => useAuth(), { wrapper })
-      expect(result.current.isAuthenticated).toBe(true)
-      // After migration, the storage shape should be v2
-      const stored = JSON.parse(localStorage.getItem('usdx_auth_user')!)
-      expect(stored.version).toBe(2)
-      expect(stored.staffId).toBe(result.current.user?.id)
-    })
-
-    test('should clear localStorage and render unauthenticated when v1 email has no Staff match', () => {
-      localStorage.setItem(
-        'usdx_auth_user',
-        JSON.stringify({ id: 'x', name: 'Ghost', email: 'ghost@nowhere.invalid', role: 'X' })
-      )
-      const { result } = renderHook(() => useAuth(), { wrapper })
+      let captured: unknown = null
+      await act(async () => {
+        try {
+          await result.current.login('demo@usdx.io', 'wrong-password')
+        } catch (err) {
+          captured = err
+        }
+      })
+      expect(captured).toBeInstanceOf(ApiError)
+      expect((captured as ApiError).code).toBe('UNAUTHORIZED')
+      expect((captured as ApiError).message).toBe('Invalid credentials')
       expect(result.current.isAuthenticated).toBe(false)
-      expect(localStorage.getItem('usdx_auth_user')).toBeNull()
+      expect(localStorage.getItem('usdx_auth_token')).toBeNull()
     })
   })
 
-  describe('negative', () => {
-    test('should reject login with empty email', async () => {
+  describe('AC #3: /auth/me bootstrap', () => {
+    test('should hydrate AuthStaff from cache then revalidate via /auth/me', async () => {
+      localStorage.setItem('usdx_auth_token', TEST_AUTH_TOKEN)
+      localStorage.setItem(
+        'usdx_auth_staff',
+        JSON.stringify(getTestAuthStaff()),
+      )
       const { result } = renderHook(() => useAuth(), { wrapper })
-      await expect(
-        act(async () => {
-          await result.current.login('', 'pw')
-        })
-      ).rejects.toThrow()
-      expect(result.current.user).toBeNull()
+      // Synchronous: cached
+      expect(result.current.user?.id).toBe(getTestAuthStaff().id)
+      expect(result.current.isLoading).toBe(true)
+      // After bootstrap settles
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+      expect(result.current.isAuthenticated).toBe(true)
+      expect(result.current.user?.role).toBe('ADMIN')
     })
 
-    test('should reject login with empty password', async () => {
+    test('should clear session when /auth/me returns 401 (expired token)', async () => {
+      // Token without proper "Bearer " prefix would 401 — simulate by setting
+      // a token, then the /auth/me handler returns 401 only when Authorization
+      // header is missing. Force the 401 via override.
+      localStorage.setItem('usdx_auth_token', TEST_AUTH_TOKEN)
+      localStorage.setItem(
+        'usdx_auth_staff',
+        JSON.stringify(getTestAuthStaff()),
+      )
+      const { http, HttpResponse } = await import('msw')
+      server.use(
+        http.get('*/api/v1/auth/me', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'UNAUTHORIZED', message: 'Token expired' },
+            },
+            { status: 401 },
+          ),
+        ),
+      )
       const { result } = renderHook(() => useAuth(), { wrapper })
-      await expect(
-        act(async () => {
-          await result.current.login('demo@usdx.io', '')
-        })
-      ).rejects.toThrow()
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+      expect(result.current.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('usdx_auth_token')).toBeNull()
+      expect(localStorage.getItem('usdx_auth_staff')).toBeNull()
+    })
+  })
+
+  describe('AC #6: logout', () => {
+    test('should clear token, cached staff, and user state', async () => {
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await act(async () => {
+        await result.current.login('demo@usdx.io', TEST_VALID_PASSWORD)
+      })
+      expect(result.current.isAuthenticated).toBe(true)
+      act(() => result.current.logout())
+      expect(result.current.isAuthenticated).toBe(false)
       expect(result.current.user).toBeNull()
+      expect(localStorage.getItem('usdx_auth_token')).toBeNull()
+      expect(localStorage.getItem('usdx_auth_staff')).toBeNull()
     })
   })
 
   describe('edge cases', () => {
-    test('should throw when useAuth is used outside AuthProvider', () => {
-      expect(() => {
-        renderHook(() => useAuth())
-      }).toThrow('useAuth must be used within an AuthProvider')
+    test('should throw when used outside AuthProvider', () => {
+      expect(() => renderHook(() => useAuth())).toThrow(
+        'useAuth must be used within an AuthProvider',
+      )
     })
 
-    test('should handle corrupted localStorage gracefully', () => {
-      localStorage.setItem('usdx_auth_user', 'invalid-json')
+    test('should ignore corrupted cached staff JSON', () => {
+      localStorage.setItem('usdx_auth_token', TEST_AUTH_TOKEN)
+      localStorage.setItem('usdx_auth_staff', 'not-json')
       const { result } = renderHook(() => useAuth(), { wrapper })
-      expect(result.current.isAuthenticated).toBe(false)
-      expect(localStorage.getItem('usdx_auth_user')).toBeNull()
-    })
-
-    test('should ignore unknown version field', () => {
-      localStorage.setItem('usdx_auth_user', JSON.stringify({ version: 99, staffId: 'whatever' }))
-      const { result } = renderHook(() => useAuth(), { wrapper })
-      expect(result.current.isAuthenticated).toBe(false)
+      // Cached value rejected → user null until /auth/me resolves
+      expect(result.current.user).toBeNull()
     })
   })
 })

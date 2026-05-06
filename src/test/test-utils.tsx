@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
-import { getDefaultStaff } from '@/mocks/handlers'
+import { getTestAuthStaff, TEST_AUTH_TOKEN } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
 
 interface WrapperOptions {
@@ -27,13 +27,10 @@ function createWrapper({ initialEntries = ['/'], authenticated = false }: Wrappe
     const queryClient = createTestQueryClient()
 
     if (authenticated) {
-      const staff = getDefaultStaff()
-      if (staff) {
-        localStorage.setItem(
-          'usdx_auth_user',
-          JSON.stringify({ version: 2, staffId: staff.id })
-        )
-      }
+      // USDX-39: AuthProvider hydrates synchronously from localStorage cache,
+      // then revalidates via /api/v1/auth/me (handled by msw v1Handlers).
+      localStorage.setItem('usdx_auth_token', TEST_AUTH_TOKEN)
+      localStorage.setItem('usdx_auth_staff', JSON.stringify(getTestAuthStaff()))
     }
 
     return (

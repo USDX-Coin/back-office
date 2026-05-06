@@ -13,6 +13,8 @@ import OtcMintPage from '@/features/otc/mint/OtcMintPage'
 import OtcRedeemPage from '@/features/otc/redeem/OtcRedeemPage'
 import ReportPage from '@/features/report/ReportPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+import RequestsPage from '@/features/requests/RequestsPage'
+import RequestDetailPage from '@/features/requests/RequestDetailPage'
 import { Toaster } from '@/components/ui/sonner'
 
 const queryClient = new QueryClient({
@@ -43,6 +45,8 @@ const router = createBrowserRouter([
           { path: '/otc', element: <OtcSplashPage /> },
           { path: '/otc/mint', element: <OtcMintPage /> },
           { path: '/otc/redeem', element: <OtcRedeemPage /> },
+          { path: '/requests', element: <RequestsPage /> },
+          { path: '/requests/:id', element: <RequestDetailPage /> },
           { path: '/report', element: <ReportPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],

@@ -27,7 +27,18 @@ export default function ProfilePage() {
   }
 
   if (!user) return null
-  const staff = profile.data?.staff ?? user
+  // USDX-39: useAuth() now returns AuthStaff (SoT shape). Profile data still
+  // uses the legacy Staff shape, so we only render once the profile fetch
+  // resolves. Cleanup tracked under separate ticket.
+  const staff = profile.data?.staff
+  if (!staff) {
+    return (
+      <div className="space-y-3 p-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+    )
+  }
 
   return (
     <div>

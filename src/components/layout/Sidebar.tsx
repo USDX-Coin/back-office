@@ -6,6 +6,7 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   BarChart3,
+  ListChecks,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -39,7 +40,10 @@ const SECTIONS: NavSection[] = [
   },
   {
     label: 'Insights',
-    items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
+    items: [
+      { to: '/requests', label: 'Requests', icon: ListChecks },
+      { to: '/report', label: 'Report', icon: BarChart3 },
+    ],
   },
 ]
 
@@ -51,7 +55,11 @@ function getInitials(name: string): string {
 }
 
 function formatRole(role: string): string {
-  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  // SoT enum is upper-case (STAFF/MANAGER/DEVELOPER/ADMIN). Render title-case.
+  return role
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export default function Sidebar() {
@@ -88,13 +96,16 @@ export default function Sidebar() {
         <div className="border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
-              {getInitials(user.displayName)}
+              {getInitials(user.name)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-[12.5px] font-medium">
-                {user.displayName}
+                {user.name}
               </span>
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span
+                className="truncate text-[11px] text-muted-foreground"
+                data-testid="staff-role"
+              >
                 {formatRole(user.role)}
               </span>
             </div>

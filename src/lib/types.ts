@@ -138,3 +138,108 @@ export interface ApiError {
     message: string
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SoT-shape types (sot/openapi.yaml § Auth, Requests). Used by USDX-39
+// integration code only. Legacy `Staff` above is consumed by Profile/Staff
+// directory pages and mock handlers — kept untouched for those tickets.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AuthStaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
+
+export interface AuthStaff {
+  id: string
+  name: string
+  email: string
+  role: AuthStaffRole
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AuthToken {
+  accessToken: string
+  staff: AuthStaff
+}
+
+export type RequestType = 'mint' | 'burn'
+
+export type RequestStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'IDR_TRANSFERRED'
+  | 'REJECTED'
+
+export type SafeType = 'STAFF' | 'MANAGER'
+
+export interface RequestListItem {
+  id: string
+  type: RequestType
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string
+  amountIdr: string
+  chain: string
+  safeType: SafeType
+  status: RequestStatus
+  createdBy: string
+  createdAt: string
+}
+
+interface RequestBase {
+  id: string
+  idempotencyKey: string
+  userId: string
+  userAddress: string
+  amount: string
+  amountWei: string
+  amountIdr: string
+  rateUsed: string
+  chain: string
+  notes: string | null
+  safeType: SafeType
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MintRequest extends RequestBase {
+  status: Exclude<RequestStatus, 'IDR_TRANSFERRED'>
+}
+
+export interface BurnRequest extends RequestBase {
+  status: RequestStatus
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+}
+
+export type RequestDetail =
+  | ({ type: 'mint' } & MintRequest)
+  | ({ type: 'burn' } & BurnRequest)
+
+export interface ApiEnvelope<T> {
+  status: 'success'
+  metadata: PaginationMeta | null
+  data: T
+}
+
+export interface PaginationMeta {
+  page: number
+  limit: number
+  total: number
+}
+
+export interface ApiErrorEnvelope {
+  status: 'error'
+  metadata: null
+  data: null
+  error: {
+    code: string
+    message: string
+  }
+}
