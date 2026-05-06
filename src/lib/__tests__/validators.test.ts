@@ -4,7 +4,6 @@ import {
   validatePhone,
   validateWalletAddress,
   validateCustomerForm,
-  validateStaffForm,
   validateOtcMintForm,
   validateOtcRedeemForm,
   validateBurnRequestForm,
@@ -170,31 +169,6 @@ describe('validateCustomerForm', () => {
       const r = validateCustomerForm({ ...valid, firstName: 'A'.repeat(200) })
       expect(r.valid).toBe(false)
       expect(r.errors.firstName).toContain('under')
-    })
-  })
-})
-
-describe('validateStaffForm', () => {
-  const valid = {
-    firstName: 'John',
-    lastName: 'Smith',
-    email: 'john@stablecore.io',
-    phone: '+15551234567',
-    role: 'operations' as const,
-  }
-
-  describe('positive', () => {
-    test('should pass with all valid fields', () => {
-      expect(validateStaffForm(valid).valid).toBe(true)
-    })
-  })
-
-  describe('negative', () => {
-    test('should fail with missing email', () => {
-      expect(validateStaffForm({ ...valid, email: '' }).valid).toBe(false)
-    })
-    test('should fail with missing role', () => {
-      expect(validateStaffForm({ ...valid, role: '' }).valid).toBe(false)
     })
   })
 })

@@ -9,14 +9,13 @@ describe('Sidebar', () => {
       renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
       // Workspace section
       expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^user$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^staf$/i })).toBeInTheDocument()
-      // OTC Desk section — Mint and Redeem are flat links (no collapsible group)
+      expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
+      // OTC Desk section
       expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^redeem$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^burn$/i })).toBeInTheDocument()
       // Insights section
       expect(screen.getByRole('link', { name: /^requests$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^report$/i })).toBeInTheDocument()
     })
 
     test('should render section headers (Workspace / OTC Desk / Insights)', () => {
@@ -33,9 +32,14 @@ describe('Sidebar', () => {
       expect(screen.queryByRole('link', { name: /profile/i })).not.toBeInTheDocument()
     })
 
-    test('should NOT render Minting/Redeem as top-level items (replaced by OTC)', () => {
+    test('should NOT render legacy Staf entry (USDX-43)', () => {
       renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
-      expect(screen.queryByRole('link', { name: /^minting$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^staf$/i })).not.toBeInTheDocument()
+    })
+
+    test('should NOT render Report entry (USDX-42)', () => {
+      renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'] })
+      expect(screen.queryByRole('link', { name: /^report$/i })).not.toBeInTheDocument()
     })
   })
 })

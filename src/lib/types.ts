@@ -14,42 +14,24 @@ export type CustomerType = 'personal' | 'organization'
 
 export type CustomerRole = 'admin' | 'editor' | 'member'
 
-export type StaffRole = 'support' | 'operations' | 'compliance' | 'super_admin'
-
-// SoT-defined role enum (sot/openapi.yaml § StaffRole). Used by features that
-// must mirror backend authorization exactly (e.g. POST /api/v1/rate gates on
-// ADMIN/MANAGER). Existing StaffRole values are mapped via mapStaffRoleToSoT.
-export type SoTRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
-
-const STAFF_TO_SOT_ROLE: Record<StaffRole, SoTRole> = {
-  super_admin: 'ADMIN',
-  operations: 'MANAGER',
-  compliance: 'STAFF',
-  support: 'STAFF',
-}
-
-export function mapStaffRoleToSoT(role: StaffRole): SoTRole {
-  return STAFF_TO_SOT_ROLE[role]
-}
+// SoT openapi.yaml L744-L746
+export type StaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
 
 // Roles allowed to write rate config per sot/phase-1.md § Rate Management
 // ("admin/manager only") and openapi.yaml /api/v1/rate POST 403 response.
-export function canManageRate(role: StaffRole | SoTRole): boolean {
-  const sot = (role === 'STAFF' || role === 'MANAGER' || role === 'DEVELOPER' || role === 'ADMIN')
-    ? role
-    : mapStaffRoleToSoT(role)
-  return sot === 'ADMIN' || sot === 'MANAGER'
+export function canManageRate(role: StaffRole): boolean {
+  return role === 'ADMIN' || role === 'MANAGER'
 }
 
+// SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
-  firstName: string
-  lastName: string
+  name: string
   email: string
-  phone: string
   role: StaffRole
-  displayName: string
+  isActive: boolean
   createdAt: string
+  updatedAt: string
 }
 
 export interface UserWallet {
@@ -155,16 +137,6 @@ export interface StaffSummary {
   total: number
   admins: number
   activeNow: number
-}
-
-export interface ReportInsights {
-  totalVolume: number
-  activeMinters: number
-  flagged: number
-  trends: {
-    volume: { direction: 'up' | 'down'; percentChange: number }
-    minters: { direction: 'up' | 'down'; percentChange: number }
-  }
 }
 
 export interface PaginatedResponse<T> {

@@ -34,15 +34,13 @@ function createWrapper({
     if (authenticated || staffId) {
       const staff = staffId ? findStaffById(staffId) : getDefaultStaff()
       if (staff) {
-        // v3 session shape — auth.tsx requires a Bearer token to mark the
-        // session authenticated and drive apiFetch's Authorization header.
-        // issueMockJwt mints the same JWT the login handler does, so
-        // strict-bearer handlers (mint/burn/rate POST) accept the session.
+        // v4 session shape (USDX-41): inline the full Staff record so
+        // restore is independent of the mock staff lookup.
         localStorage.setItem(
           'usdx_auth_user',
           JSON.stringify({
-            version: 3,
-            staffId: staff.id,
+            version: 4,
+            staff,
             token: issueMockJwt(staff),
             issuedAt: Date.now(),
           })

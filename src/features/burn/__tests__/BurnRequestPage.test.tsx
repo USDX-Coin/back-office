@@ -34,8 +34,8 @@ function renderBurnRoute(initialPath = '/burn') {
   localStorage.setItem(
     'usdx_auth_user',
     JSON.stringify({
-      version: 3,
-      staffId: staff.id,
+      version: 4,
+      staff,
       token: issueMockJwt(staff),
       issuedAt: Date.now(),
     })

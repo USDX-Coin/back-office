@@ -79,48 +79,12 @@ describe('Customer endpoints', () => {
   })
 })
 
-describe('Staff endpoints', () => {
-  describe('positive', () => {
-    test('GET /api/staff returns staff list with summary', async () => {
-      const list = await (await fetch('/api/staff?pageSize=100')).json()
-      expect(list.data.length).toBeGreaterThan(0)
-      const summary = await (await fetch('/api/staff/summary')).json()
-      expect(summary.total).toBe(list.data.length)
-    })
-
-    test('POST /api/staff creates staff and increments summary', async () => {
-      const before = await (await fetch('/api/staff/summary')).json()
-      const res = await fetch('/api/staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: 'New',
-          lastName: 'Member',
-          email: 'new.member@usdx.io',
-          phone: '+15551234567',
-          role: 'support',
-        }),
-      })
-      expect(res.status).toBe(201)
-      const after = await (await fetch('/api/staff/summary')).json()
-      expect(after.total).toBe(before.total + 1)
-    })
-  })
-
-  describe('filter by role', () => {
-    test('returns only super_admin staff', async () => {
-      const res = await fetch('/api/staff?role=super_admin&pageSize=100')
-      const data = await res.json()
-      expect(data.data.every((s: { role: string }) => s.role === 'super_admin')).toBe(true)
-    })
-  })
-})
+// USDX-41: /api/staff/* mock endpoints removed; staff list now hits real BE.
 
 describe('OTC endpoints', () => {
   async function newCustomerAndOperator(): Promise<{ customerId: string; operatorStaffId: string }> {
     const customers = await (await fetch('/api/customers?pageSize=1')).json()
-    const staff = await (await fetch('/api/staff?pageSize=1')).json()
-    return { customerId: customers.data[0].id, operatorStaffId: staff.data[0].id }
+    return { customerId: customers.data[0].id, operatorStaffId: 'stf_1' }
   }
 
   describe('positive', () => {
@@ -247,35 +211,6 @@ describe('Dashboard stats endpoint (USDX-16)', () => {
       expect(data.safeBalances.staff).toMatch(decimal)
       expect(data.safeBalances.manager).toMatch(decimal)
     })
-  })
-})
-
-describe('Report endpoint', () => {
-  test('returns paginated report rows', async () => {
-    const res = await fetch('/api/report?pageSize=10')
-    const data = await res.json()
-    expect(data.data.length).toBe(10)
-    expect(data.meta.total).toBeGreaterThan(0)
-  })
-
-  test('filters by type=mint', async () => {
-    const res = await fetch('/api/report?type=mint&pageSize=100')
-    const data = await res.json()
-    expect(data.data.every((r: { kind: string }) => r.kind === 'mint')).toBe(true)
-  })
-
-  test('filters by status=failed', async () => {
-    const res = await fetch('/api/report?status=failed&pageSize=100')
-    const data = await res.json()
-    expect(data.data.every((r: { status: string }) => r.status === 'failed')).toBe(true)
-  })
-
-  test('insights endpoint returns derived metrics', async () => {
-    const res = await fetch('/api/report/insights')
-    const data = await res.json()
-    expect(data.totalVolume).toBeTypeOf('number')
-    expect(data.activeMinters).toBeTypeOf('number')
-    expect(data.flagged).toBeTypeOf('number')
   })
 })
 

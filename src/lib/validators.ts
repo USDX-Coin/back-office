@@ -1,5 +1,5 @@
 import { getAddress, isAddress } from 'viem'
-import type { CustomerRole, CustomerType, Network, RateMode, RequestChain, StaffRole } from './types'
+import type { CustomerRole, CustomerType, Network, RateMode, RequestChain } from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -77,23 +77,6 @@ export function validateCustomerForm(input: {
   if (input.type === 'organization' && !(input.organization ?? '').trim()) {
     errors.organization = 'Organization is required'
   }
-  if (!input.role) errors.role = 'Role is required'
-  return { valid: Object.keys(errors).length === 0, errors }
-}
-
-export function validateStaffForm(input: {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  role: StaffRole | ''
-}): ValidationResult {
-  const errors: Record<string, string> = {}
-  validateName(input.firstName, 'firstName', 'First name', errors)
-  validateName(input.lastName, 'lastName', 'Last name', errors)
-  validateEmail(input.email, errors)
-  const phoneErr = validatePhone(input.phone)
-  if (phoneErr) errors.phone = phoneErr
   if (!input.role) errors.role = 'Role is required'
   return { valid: Object.keys(errors).length === 0, errors }
 }

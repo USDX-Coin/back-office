@@ -4,6 +4,10 @@ const DEMO_EMAIL = 'demo@usdx.io'
 const DEMO_PASSWORD = 'anything'
 
 test.describe('smoke @e2e', () => {
+  test.beforeEach(() => {
+    test.fixme(true, "Legacy mock-auth smoke; superseded by usdx-39.spec.ts")
+  })
+
   test('should load login page', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()

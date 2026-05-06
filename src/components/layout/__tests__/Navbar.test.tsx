@@ -17,10 +17,10 @@ describe('Navbar', () => {
       expect(screen.getByText('Mint')).toBeInTheDocument()
     })
 
-    test('should render Workspace / User for /users', () => {
+    test('should render Workspace / Users for /users', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/users'], authenticated: true })
       expect(screen.getByText('Workspace')).toBeInTheDocument()
-      expect(screen.getByText('User')).toBeInTheDocument()
+      expect(screen.getByText('Users')).toBeInTheDocument()
     })
 
     test('should fall back to raw path segments for unknown routes', () => {

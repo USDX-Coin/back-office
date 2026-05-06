@@ -2,11 +2,9 @@ import { NavLink } from 'react-router'
 import {
   LayoutDashboard,
   Users,
-  UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
   Flame,
-  BarChart3,
   Bell,
   Inbox,
   Coins,
@@ -28,13 +26,15 @@ interface NavSection {
   items: NavItem[]
 }
 
+// Sidebar layout per sot/phase-1.md § Backoffice Web App pages list.
+// Legacy "Staf" entry dropped per USDX-43 (not in SoT). "Report" removed per
+// USDX-42 (sunsetted, superseded by /requests).
 const SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'User', icon: Users },
-      { to: '/staff', label: 'Staf', icon: UserCog },
+      { to: '/users', label: 'Users', icon: Users },
     ],
   },
   {
@@ -51,7 +51,6 @@ const SECTIONS: NavSection[] = [
       { to: '/mint', label: 'Mint request', icon: Coins },
       { to: '/requests', label: 'Requests', icon: Inbox },
       { to: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
-      { to: '/report', label: 'Report', icon: BarChart3 },
     ],
   },
   {
@@ -114,11 +113,11 @@ export default function Sidebar() {
         <div className="border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
-              {getInitials(user.displayName)}
+              {getInitials(user.name)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-[12.5px] font-medium">
-                {user.displayName}
+                {user.name}
               </span>
               <span className="truncate text-[11px] text-muted-foreground">
                 {formatRole(user.role)}

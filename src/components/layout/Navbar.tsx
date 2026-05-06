@@ -7,14 +7,13 @@ import { cn } from '@/lib/utils'
 
 const BREADCRUMB_MAP: Record<string, [string, string]> = {
   '/dashboard': ['Workspace', 'Dashboard'],
-  '/users': ['Workspace', 'User'],
-  '/staff': ['Workspace', 'Staf'],
+  '/users': ['Workspace', 'Users'],
+  '/staff': ['Workspace', 'Staff'],
   '/otc': ['OTC Desk', 'Overview'],
   '/otc/mint': ['OTC Desk', 'Mint'],
   '/otc/redeem': ['OTC Desk', 'Redeem'],
   '/burn': ['OTC Desk', 'Burn'],
   '/requests': ['Insights', 'Requests'],
-  '/report': ['Insights', 'Report'],
   '/profile': ['Account', 'Profile'],
 }
 

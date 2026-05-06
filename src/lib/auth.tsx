@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
-import { findStaffById } from '@/mocks/handlers'
 import { apiFetch, ApiError, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
@@ -19,8 +18,8 @@ const LOGIN_ENDPOINT = '/api/v1/auth/login'
 const ME_ENDPOINT = '/api/v1/auth/me'
 
 interface PersistedSession {
-  version: 3
-  staffId: string
+  version: 4
+  staff: Staff
   token: string
   issuedAt: number
 }
@@ -35,16 +34,16 @@ function readPersistedSession(): RestoredSession | null {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedSession>
-    if (parsed.version === 3 && parsed.staffId && parsed.token) {
-      const matched = findStaffById(parsed.staffId)
-      if (matched) return { user: matched, token: parsed.token }
+    if (parsed.version === 4 && parsed.staff && parsed.token) {
+      // Trust the cached Staff record synchronously; /auth/me below
+      // re-validates and refreshes from the server.
+      return { user: parsed.staff, token: parsed.token }
     }
   } catch {
     // fall through
   }
-  // v1 (legacy {id,name,email,role}) and v2 ({version:2,staffId}) sessions
-  // pre-date JWT issuance; clear them so the user re-authenticates and we
-  // mint a real token via /api/v1/auth/login.
+  // Legacy versions (v1/v2/v3) pre-date the SoT-aligned Staff shape; clear
+  // so the user re-authenticates and we restore a clean v4 record.
   localStorage.removeItem(STORAGE_KEY)
   return null
 }
@@ -59,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (session) {
       const persisted: PersistedSession = {
-        version: 3,
-        staffId: session.user.id,
+        version: 4,
+        staff: session.user,
         token: session.token,
         issuedAt: Date.now(),
       }
@@ -150,9 +149,7 @@ export function useAuth() {
   return context
 }
 
-// SOT phase-1.md § Roles: only Admin has CRUD on User Management. In this
-// mock-only codebase the closest analogue to ADMIN is `super_admin`; all
-// other staff roles are read-only on /users.
+// SoT phase-1.md § Roles: only Admin has CRUD on User Management.
 export function canManageUsers(staff: Staff | null): boolean {
-  return staff?.role === 'super_admin'
+  return staff?.role === 'ADMIN'
 }
