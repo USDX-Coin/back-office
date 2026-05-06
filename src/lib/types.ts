@@ -188,40 +188,6 @@ export interface RequestListItem {
   createdAt: string
 }
 
-interface RequestBase {
-  id: string
-  idempotencyKey: string
-  userId: string
-  userAddress: string
-  amount: string
-  amountWei: string
-  amountIdr: string
-  rateUsed: string
-  chain: string
-  notes: string | null
-  safeType: SafeType
-  safeTxHash: string | null
-  onChainTxHash: string | null
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface MintRequest extends RequestBase {
-  status: Exclude<RequestStatus, 'IDR_TRANSFERRED'>
-}
-
-export interface BurnRequest extends RequestBase {
-  status: RequestStatus
-  depositTxHash: string
-  bankName: string
-  bankAccount: string
-}
-
-export type RequestDetail =
-  | ({ type: 'mint' } & MintRequest)
-  | ({ type: 'burn' } & BurnRequest)
-
 export interface ApiEnvelope<T> {
   status: 'success'
   metadata: PaginationMeta | null

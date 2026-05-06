@@ -1,4 +1,4 @@
-import { useSearchParams, Link } from 'react-router'
+import { useSearchParams } from 'react-router'
 import {
   Table,
   TableBody,
@@ -156,14 +156,13 @@ export default function RequestsPage() {
               <TableHead>Safe</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={`s-${i}`}>
-                  {Array.from({ length: 10 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -172,14 +171,14 @@ export default function RequestsPage() {
               ))
             ) : isError ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-destructive">
+                <TableCell colSpan={9} className="text-center text-destructive">
                   {error instanceof Error ? error.message : 'Failed to load requests'}
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={9}
                   className="text-center text-muted-foreground"
                 >
                   {hasFilters
@@ -202,14 +201,6 @@ export default function RequestsPage() {
                   <TableCell>{r.status}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(r.createdAt)}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      to={`/requests/${r.id}`}
-                      className="text-primary hover:underline text-xs"
-                    >
-                      View
-                    </Link>
                   </TableCell>
                 </TableRow>
               ))
