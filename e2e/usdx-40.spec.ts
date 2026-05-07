@@ -142,7 +142,9 @@ test.describe('USDX-40 mint + burn integration @e2e', () => {
     await expect(page).not.toHaveURL(/\/requests/, { timeout: 5000 })
   })
 
-  test('AC #2: submit valid burn → 201 + redirect to /requests', async ({ page }) => {
+  test('AC #2: submit valid burn → 201 + new request visible in /requests', async ({
+    page,
+  }) => {
     test.skip(!HAS_CREDS || !HAS_BURN_FIXTURE, 'creds + burn fixture required')
 
     await loginAndGoTo(page, '/burn')
@@ -170,5 +172,12 @@ test.describe('USDX-40 mint + burn integration @e2e', () => {
     const burnRes = await burnPromise
     expect(burnRes.status()).toBe(201)
     await expect(page).toHaveURL(/\/requests/, { timeout: 10000 })
+    // AC #2 literal: "request muncul di request list". BurnStatus enum
+    // (sot/openapi.yaml § BurnStatus) starts at PENDING_APPROVAL — verifying
+    // the text is visible proves the new burn record is rendered, not just
+    // that the URL changed. Mirrors the AC #1 mint assertion pattern.
+    await expect(page.getByText(/PENDING_APPROVAL/i).first()).toBeVisible({
+      timeout: 10000,
+    })
   })
 })

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -123,6 +123,125 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       const options = await screen.findAllByRole('option')
       expect(options).toHaveLength(1)
       expect(options[0]).toHaveTextContent(/polygon/i)
+    })
+  })
+
+  // ─── USDX-40 AC #4: typeahead direct coverage (mirror of mint AC2) ───
+  // Burn previously exercised typeahead implicitly via pickFirstUser flow
+  // tests. Mint AC2 has dedicated typeahead tests; for parity we add the
+  // same shape here so AC #4 has direct evidence on both forms.
+  describe('USDX-40 AC #4 — userName typeahead direct coverage', () => {
+    test('should fetch and show matches when typing in user name', async () => {
+      const user = userEvent.setup()
+      // Deterministic seed so the listbox content does not depend on
+      // customerStore ordering.
+      server.use(
+        http.get('/api/v1/users', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 8, total: 1 },
+            data: [
+              {
+                id: 'usr_typeahead',
+                name: 'Bruce Wayne',
+                notes: null,
+                wallets: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          })
+        )
+      )
+      renderBurnRoute()
+      await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce')
+      const listbox = await screen.findByRole(
+        'listbox',
+        { name: /matching users/i },
+        { timeout: 3000 }
+      )
+      const options = await within(listbox).findAllByRole('option')
+      expect(options.length).toBeGreaterThan(0)
+      expect(
+        options.some((o) => /bruce/i.test(o.textContent ?? ''))
+      ).toBe(true)
+    })
+
+    test('should hit GET /api/v1/users with the typed search param', async () => {
+      const user = userEvent.setup()
+      const calls: string[] = []
+      server.use(
+        http.get('/api/v1/users', ({ request }) => {
+          calls.push(request.url)
+          return HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 8, total: 0 },
+            data: [],
+          })
+        })
+      )
+      renderBurnRoute()
+      await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce')
+      await waitFor(
+        () => {
+          expect(calls.some((url) => url.includes('search=Bruce'))).toBe(true)
+        },
+        { timeout: 3000 }
+      )
+    })
+
+    test('should fill userName but leave userAddress untouched on selection', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/users', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 8, total: 1 },
+            data: [
+              {
+                id: 'usr_typeahead',
+                name: 'Bruce Wayne',
+                notes: null,
+                wallets: [
+                  {
+                    id: 'wlt_1',
+                    chain: 'polygon',
+                    address: VALID_ADDRESS,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          })
+        )
+      )
+      renderBurnRoute()
+      await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce')
+      const listbox = await screen.findByRole(
+        'listbox',
+        { name: /matching users/i },
+        { timeout: 3000 }
+      )
+      const options = await within(listbox).findAllByRole('option')
+      const target = options.find((o) => /bruce/i.test(o.textContent ?? ''))
+      expect(target).toBeDefined()
+      await user.click(within(target!).getByRole('button'))
+
+      const nameInput = screen.getByPlaceholderText(
+        /search by name/i
+      ) as HTMLInputElement
+      const addressInput = screen.getByLabelText(
+        /user wallet address/i
+      ) as HTMLInputElement
+      await waitFor(() => {
+        expect(nameInput.value).toMatch(/bruce/i)
+      })
+      // Per BurnRequestForm policy (mirror of mint): selection sets name only;
+      // operator must enter the wallet address explicitly even if the user
+      // record has wallets attached.
+      expect(addressInput.value).toBe('')
     })
   })
 
@@ -266,5 +385,94 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         VALID_ADDRESS
       )
     })
+
+    // USDX-40 AC #5 literal "Amount validation → API rejects invalid
+    // amounts" — covers the API path on burn (mint AC7 already covers
+    // this via amount-cap example). Without it, burn only proves the
+    // client-side gate (validators.test.ts) for amount.
+    //
+    // Bypasses pickFirstUser (typeahead-suggestion flow) by typing the
+    // userName directly — BurnRequestForm accepts free-text userName
+    // (post-d881aa0); the typeahead is just a helper. This keeps the test
+    // deterministic and unaffected by /api/v1/users mock seeding flakiness.
+    test(
+      'should display the API error message when BE rejects a valid-format amount',
+      async () => {
+        server.use(
+          http.post('/api/v1/burn', () =>
+            HttpResponse.json(
+              {
+                status: 'error',
+                metadata: null,
+                data: null,
+                error: {
+                  code: 'VALIDATION_ERROR',
+                  message: 'amount exceeds the daily backend cap',
+                },
+              },
+              { status: 400 }
+            )
+          )
+        )
+
+        // delay:0 → skip per-keystroke pacing so the long form fill stays
+        // well under the 10s timeout when jsdom is loaded by the full suite.
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
+
+        await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce Wayne')
+        await fillRequiredNonUserName(user)
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+
+        expect(
+          await screen.findByText(/amount exceeds the daily backend cap/i, {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+        expect(screen.queryByTestId('requests-route')).toBeNull()
+      },
+      15000
+    )
+
+    // USDX-40 AC #3 literal "Invalid address → error message dari API" —
+    // mirror of mint's BE-rejects-address test. Burn's existing AC4 test
+    // covers the deposit-TX rejection path; this adds the address rejection
+    // path so AC #3 is proven on both forms.
+    //
+    // Bypasses pickFirstUser (see AC #5 amount-rejection test above) by
+    // typing userName directly so this test is independent of the typeahead
+    // mock seeding flakiness.
+    test(
+      'should display the API error message when BE rejects a valid-format address',
+      async () => {
+        server.use(
+          http.post('/api/v1/burn', () =>
+            HttpResponse.json(
+              {
+                status: 'error',
+                metadata: null,
+                data: null,
+                error: {
+                  code: 'INVALID_ADDRESS',
+                  message: 'User address is not a valid EVM address',
+                },
+              },
+              { status: 400 }
+            )
+          )
+        )
+
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
+
+        await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce Wayne')
+        await fillRequiredNonUserName(user)
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+
+        expect(
+          await screen.findByText(/user address is not a valid evm address/i, {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+        expect(screen.queryByTestId('requests-route')).toBeNull()
+      },
+      15000
+    )
   })
 })
