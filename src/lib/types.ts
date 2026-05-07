@@ -41,9 +41,11 @@ export interface UserWallet {
   createdAt: string
 }
 
+// SoT openapi.yaml § UserAnalytics — totals are decimal strings to preserve
+// precision; only the transaction count is integer.
 export interface UserAnalytics {
-  totalMinted: number
-  totalBurned: number
+  totalMinted: string
+  totalBurned: string
   totalTransactions: number
 }
 
@@ -110,22 +112,8 @@ export interface ReportRow {
   createdAt: string
 }
 
-export interface DashboardSnapshot {
-  kpis: {
-    totalMintVolume30d: number
-    totalRedeemVolume30d: number
-    activeUsers: number
-    pendingTransactions: number
-    trends: {
-      mintVolume: { direction: 'up' | 'down'; percentChange: number }
-      redeemVolume: { direction: 'up' | 'down'; percentChange: number }
-      activeUsers: { direction: 'up' | 'down'; percentChange: number }
-    }
-  }
-  volumeTrend: Array<{ date: string; mint: number; redeem: number }>
-  recentActivity: Array<ReportRow>
-  networkDistribution: Array<{ network: Network; count: number; share: number }>
-}
+// USDX-37: DashboardSnapshot mock-shape removed. Dashboard now consumes
+// `DashboardStats` from sot/openapi.yaml § /api/v1/dashboard/stats.
 
 export interface CustomerSummary {
   total: number
@@ -354,6 +342,33 @@ export interface PhaseOneUser {
   wallets: PhaseOneUserWallet[]
   createdAt: string
   updatedAt: string
+}
+
+// SoT openapi.yaml § UserDetail — extends User with analytics + recent
+// mint/burn requests. Returned by GET /api/v1/users/:id.
+export interface PhaseOneUserDetail extends PhaseOneUser {
+  analytics: UserAnalytics
+  recentRequests: RequestListItem[]
+}
+
+// SoT openapi.yaml § CreateUser — only `name` is required.
+export interface PhaseOneCreateUser {
+  name: string
+  notes?: string
+  wallets?: PhaseOneCreateUserWallet[]
+}
+
+// SoT openapi.yaml § UpdateUser — only name and notes are mutable via PATCH.
+// Wallet management goes through POST/DELETE /api/v1/users/:id/wallets.
+export interface PhaseOneUpdateUser {
+  name?: string
+  notes?: string
+}
+
+// SoT openapi.yaml § CreateUserWallet — both fields required.
+export interface PhaseOneCreateUserWallet {
+  chain: string
+  address: string
 }
 
 // ─── Phase 1 — Create mint/burn request (sot/openapi.yaml) ───

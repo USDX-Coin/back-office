@@ -7,7 +7,6 @@ import type {
   OtcRedeemTransaction,
   OtcStatus,
   Network,
-  DashboardSnapshot,
   DashboardStats,
   ReportRow,
   CustomerSummary,
@@ -240,7 +239,12 @@ export function computeUserAnalytics(
   const totalTransactions =
     mints.filter((m) => m.customerId === customerId).length +
     redeems.filter((r) => r.customerId === customerId).length
-  return { totalMinted, totalBurned, totalTransactions }
+  // sot/openapi.yaml § UserAnalytics — totalMinted/Burned are decimal strings.
+  return {
+    totalMinted: String(totalMinted),
+    totalBurned: String(totalBurned),
+    totalTransactions,
+  }
 }
 
 export function computeUserRecentRequests(
@@ -283,8 +287,6 @@ export function createMockOtcTransactions(
 
 // ─── Derived computations (consumed by handlers) ───
 
-const THIRTY_DAYS_MS = 30 * 86_400_000
-
 export function computeCustomerSummary(customers: Customer[]): CustomerSummary {
   return {
     total: customers.length,
@@ -318,87 +320,8 @@ function txToReportRow(
   }
 }
 
-export function computeDashboardSnapshot(
-  customers: Customer[],
-  mints: OtcMintTransaction[],
-  redeems: OtcRedeemTransaction[]
-): DashboardSnapshot {
-  const now = Date.now()
-  const cutoff = now - THIRTY_DAYS_MS
-
-  const recent = [...mints, ...redeems].filter((tx) => new Date(tx.createdAt).getTime() >= cutoff)
-  const recentMints = recent.filter((tx): tx is OtcMintTransaction => 'destinationAddress' in tx)
-  const recentRedeems = recent.filter((tx): tx is OtcRedeemTransaction => !('destinationAddress' in tx))
-
-  const totalMintVolume30d = recentMints
-    .filter((t) => t.status === 'completed')
-    .reduce((s, t) => s + t.amount, 0)
-  const totalRedeemVolume30d = recentRedeems
-    .filter((t) => t.status === 'completed')
-    .reduce((s, t) => s + t.amount, 0)
-  const pendingTransactions = recent.filter((t) => t.status === 'pending').length
-
-  // 30-day daily trend (zero-fill)
-  const trendByDay = new Map<string, { mint: number; redeem: number }>()
-  for (let d = 29; d >= 0; d--) {
-    const dt = new Date(now - d * 86_400_000)
-    const key = dt.toISOString().slice(0, 10)
-    trendByDay.set(key, { mint: 0, redeem: 0 })
-  }
-  for (const tx of recentMints) {
-    const key = tx.createdAt.slice(0, 10)
-    const slot = trendByDay.get(key)
-    if (slot && tx.status === 'completed') slot.mint += tx.amount
-  }
-  for (const tx of recentRedeems) {
-    const key = tx.createdAt.slice(0, 10)
-    const slot = trendByDay.get(key)
-    if (slot && tx.status === 'completed') slot.redeem += tx.amount
-  }
-
-  const allTxs = [...mints, ...redeems].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-  const recentActivity: ReportRow[] = allTxs
-    .slice(0, 8)
-    .map((tx) =>
-      'destinationAddress' in tx
-        ? txToReportRow(tx, 'mint')
-        : txToReportRow(tx, 'redeem')
-    )
-
-  const networkCounts = new Map<Network, number>()
-  for (const tx of recent) {
-    networkCounts.set(tx.network, (networkCounts.get(tx.network) ?? 0) + 1)
-  }
-  const totalNetworkTx = Array.from(networkCounts.values()).reduce((a, b) => a + b, 0) || 1
-  const networkDistribution = Array.from(networkCounts.entries())
-    .map(([network, count]) => ({
-      network,
-      count,
-      share: Math.round((count / totalNetworkTx) * 1000) / 10,
-    }))
-    .sort((a, b) => b.count - a.count)
-
-  return {
-    kpis: {
-      totalMintVolume30d,
-      totalRedeemVolume30d,
-      activeUsers: customers.length,
-      pendingTransactions,
-      trends: {
-        mintVolume: { direction: 'up', percentChange: 12.5 },
-        redeemVolume: { direction: 'up', percentChange: 4.2 },
-        activeUsers: { direction: 'up', percentChange: 8.1 },
-      },
-    },
-    volumeTrend: Array.from(trendByDay.entries()).map(([date, v]) => ({
-      date,
-      mint: v.mint,
-      redeem: v.redeem,
-    })),
-    recentActivity,
-    networkDistribution,
-  }
-}
+// USDX-37: computeDashboardSnapshot removed — Dashboard now consumes the
+// SoT /api/v1/dashboard/stats response (computeDashboardStats below).
 
 // ─── Rate config (sot/openapi.yaml § /api/v1/rate) ───────────────────────────
 //
@@ -694,17 +617,29 @@ export function createMintFromRequest(
 
 export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseOneUser {
   const fullName = `${customer.firstName} ${customer.lastName}`.trim()
-  const wallet: PhaseOneUserWallet = {
-    id: uuidLike(seed + 23000),
-    chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
-    address: bytes20(seed + 25000),
-    createdAt: customer.createdAt,
-  }
+  // Reflect the actual customer.wallets so that POST/DELETE /api/v1/users/:id/wallets
+  // mutations show up in subsequent /api/v1/users[:id] reads. Falls back to a
+  // single synthesized wallet when the customer has none.
+  const wallets: PhaseOneUserWallet[] = customer.wallets.length > 0
+    ? customer.wallets.map((w) => ({
+        id: w.id,
+        chain: w.chain,
+        address: w.address,
+        createdAt: w.createdAt,
+      }))
+    : [
+        {
+          id: uuidLike(seed + 23000),
+          chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
+          address: bytes20(seed + 25000),
+          createdAt: customer.createdAt,
+        },
+      ]
   return {
     id: customer.id,
     name: fullName,
     notes: customer.organization ?? null,
-    wallets: [wallet],
+    wallets,
     createdAt: customer.createdAt,
     updatedAt: customer.createdAt,
   }

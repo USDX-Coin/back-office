@@ -18,27 +18,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
-import { validateWalletAddress } from '@/lib/validators'
-import type { Network } from '@/lib/types'
+import { validateUserWalletForm } from '@/lib/validators'
 import { useAddWallet } from './hooks'
 
 interface AddWalletModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  customerId: string
+  userId: string
 }
 
-const NETWORK_OPTIONS: { value: Network; label: string }[] = [
-  { value: 'ethereum', label: 'Ethereum' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-  { value: 'base', label: 'Base' },
-  { value: 'solana', label: 'Solana' },
-]
+// sot/phase-1.md ChainConfig — Phase-1 supported chains.
+const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
 
-export default function AddWalletModal({ open, onOpenChange, customerId }: AddWalletModalProps) {
-  const add = useAddWallet(customerId)
-  const [chain, setChain] = useState<Network | ''>('')
+export default function AddWalletModal({ open, onOpenChange, userId }: AddWalletModalProps) {
+  const add = useAddWallet(userId)
+  const [chain, setChain] = useState('')
   const [address, setAddress] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -52,24 +46,15 @@ export default function AddWalletModal({ open, onOpenChange, customerId }: AddWa
   }, [open])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function validate(): boolean {
-    const next: Record<string, string> = {}
-    if (!chain) next.chain = 'Network is required'
-    if (chain) {
-      const err = validateWalletAddress(address, chain as Network)
-      if (err) next.address = err
-    } else if (!address.trim()) {
-      next.address = 'Wallet address is required'
-    }
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!validate()) return
+    const result = validateUserWalletForm({ chain, address })
+    if (!result.valid) {
+      setErrors(result.errors)
+      return
+    }
     try {
-      await add.mutateAsync({ chain: chain as Network, address })
+      await add.mutateAsync({ chain, address: address.trim() })
       toast.success('Wallet added')
       onOpenChange(false)
     } catch (err) {
@@ -97,21 +82,21 @@ export default function AddWalletModal({ open, onOpenChange, customerId }: AddWa
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
-            <Label htmlFor="chain">Network</Label>
+            <Label htmlFor="chain">Chain</Label>
             <Select
               value={chain}
               onValueChange={(val) => {
-                setChain(val as Network)
+                setChain(val)
                 if (errors.chain) setErrors((p) => ({ ...p, chain: '' }))
               }}
             >
               <SelectTrigger id="chain" className="mt-1.5">
-                <SelectValue placeholder="Choose network" />
+                <SelectValue placeholder="Choose chain" />
               </SelectTrigger>
               <SelectContent>
-                {NETWORK_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {CHAIN_OPTIONS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
                   </SelectItem>
                 ))}
               </SelectContent>

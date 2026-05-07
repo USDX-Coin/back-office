@@ -17,7 +17,10 @@ afterAll(() => server.close())
 const NON_ADMIN_STAFF_ID = 'stf_3'
 const SEEDED_USER_ID = 'cus_1'
 
-function renderDetail(initialPath = `/users/${SEEDED_USER_ID}`, options: { authenticated?: boolean; staffId?: string } = { authenticated: true }) {
+function renderDetail(
+  initialPath = `/users/${SEEDED_USER_ID}`,
+  options: { authenticated?: boolean; staffId?: string } = { authenticated: true }
+) {
   return renderWithProviders(
     <Routes>
       <Route path="/users/:id" element={<UserDetailPage />} />
@@ -26,9 +29,9 @@ function renderDetail(initialPath = `/users/${SEEDED_USER_ID}`, options: { authe
   )
 }
 
-describe('UserDetailPage — analytics + wallets + recent requests', () => {
+describe('UserDetailPage — analytics + wallets + recent requests (USDX-37 AC)', () => {
   describe('positive', () => {
-    test('renders analytics tiles', async () => {
+    test('renders SoT analytics tiles (totalMinted/totalBurned/totalTransactions)', async () => {
       renderDetail()
       await waitFor(() => {
         expect(screen.getByText(/total minted/i)).toBeInTheDocument()
@@ -37,14 +40,15 @@ describe('UserDetailPage — analytics + wallets + recent requests', () => {
       })
     })
 
-    test('renders the wallets list', async () => {
+    test('renders the wallets list from real BE response', async () => {
       renderDetail()
       const list = await screen.findByRole('list', { name: /wallets/i })
-      // Seeded customer has 1-3 wallets via createCustomer factory
       expect(list).toBeInTheDocument()
+      // Seeded customer has at least one wallet
+      expect(list.querySelectorAll('li').length).toBeGreaterThan(0)
     })
 
-    test('renders the recent requests list', async () => {
+    test('renders the recent requests heading', async () => {
       renderDetail()
       await waitFor(() => {
         expect(screen.getByText(/recent requests/i)).toBeInTheDocument()
@@ -62,19 +66,19 @@ describe('UserDetailPage — analytics + wallets + recent requests', () => {
   })
 })
 
-describe('UserDetailPage — add wallet (acceptance criteria)', () => {
-  test('admin can open Add Wallet, submit a valid address, and see it in the list', async () => {
+describe('UserDetailPage — add wallet (sot/openapi.yaml § POST /api/v1/users/:id/wallets)', () => {
+  test('admin can open Add Wallet, submit a valid EIP-55 address, and see it in the list', async () => {
     const user = userEvent.setup()
     renderDetail()
 
     await screen.findByRole('list', { name: /wallets/i })
-
     await user.click(screen.getByRole('button', { name: /add wallet/i }))
 
-    await user.click(screen.getByRole('combobox', { name: /network/i }))
+    await user.click(screen.getByRole('combobox', { name: /chain/i }))
     await user.click(await screen.findByRole('option', { name: /ethereum/i }))
 
-    const newAddress = '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01'
+    // Lowercased EVM address — passes EIP-55 lenient check
+    const newAddress = '0xabcdef0123456789abcdef0123456789abcdef01'
     await user.type(screen.getByLabelText(/wallet address/i), newAddress)
     await user.click(screen.getByRole('button', { name: /^add wallet$/i }))
 
@@ -83,25 +87,24 @@ describe('UserDetailPage — add wallet (acceptance criteria)', () => {
     })
   })
 
-  test('shows validation error for an invalid wallet address', async () => {
+  test('shows validation error for an invalid wallet address (client-side EIP-55 check)', async () => {
     const user = userEvent.setup()
     renderDetail()
 
     await screen.findByRole('list', { name: /wallets/i })
-
     await user.click(screen.getByRole('button', { name: /add wallet/i }))
 
-    await user.click(screen.getByRole('combobox', { name: /network/i }))
+    await user.click(screen.getByRole('combobox', { name: /chain/i }))
     await user.click(await screen.findByRole('option', { name: /ethereum/i }))
 
     await user.type(screen.getByLabelText(/wallet address/i), 'not-a-real-address')
     await user.click(screen.getByRole('button', { name: /^add wallet$/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid wallet address/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid evm address/i)
   })
 })
 
-describe('UserDetailPage — remove wallet (acceptance criteria)', () => {
+describe('UserDetailPage — remove wallet (sot/openapi.yaml § DELETE /api/v1/users/:id/wallets/:walletId)', () => {
   test('admin can remove a wallet via the confirm dialog', async () => {
     const user = userEvent.setup()
     renderDetail()
@@ -113,11 +116,8 @@ describe('UserDetailPage — remove wallet (acceptance criteria)', () => {
     const removeBtn = screen.getAllByRole('button', { name: /remove wallet/i })[0]!
     await user.click(removeBtn)
 
-    // Confirm dialog appears
     expect(await screen.findByText(/remove wallet\?/i)).toBeInTheDocument()
-    // Click the destructive Remove button (not the row icon)
-    const confirmBtn = screen.getByRole('button', { name: /^remove$/i })
-    await user.click(confirmBtn)
+    await user.click(screen.getByRole('button', { name: /^remove$/i }))
 
     await waitFor(() => {
       const updatedList = screen.queryByRole('list', { name: /wallets/i })
@@ -135,10 +135,8 @@ describe('UserDetailPage — remove wallet (acceptance criteria)', () => {
 
     await user.click(screen.getAllByRole('button', { name: /remove wallet/i })[0]!)
     expect(await screen.findByText(/remove wallet\?/i)).toBeInTheDocument()
-
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
-    // Wallet count must NOT change after cancel
     await waitFor(() => {
       expect(screen.queryByText(/remove wallet\?/i)).not.toBeInTheDocument()
     })
@@ -148,40 +146,38 @@ describe('UserDetailPage — remove wallet (acceptance criteria)', () => {
   })
 })
 
-describe('UserDetailPage — duplicate wallet (SOT openapi 409 Conflict)', () => {
-  test('adding a wallet that already exists for this user does not duplicate the entry', async () => {
+describe('UserDetailPage — duplicate wallet (sot/openapi.yaml 409 Conflict)', () => {
+  test('adding a wallet that already exists for this user keeps the dialog open', async () => {
     const user = userEvent.setup()
 
-    // Discover a wallet that is already attached to cus_1, and snapshot count
-    const before = await (await fetch(`/api/customers/${SEEDED_USER_ID}`)).json()
-    const existingWallet = before.wallets[0] as { chain: string; address: string }
-    const initialCount = before.wallets.length
+    // Discover a wallet already attached to the seeded user via SoT detail endpoint.
+    const before = await (await fetch(`/api/v1/users/${SEEDED_USER_ID}`)).json()
+    const existingWallet = before.data.wallets[0] as { chain: string; address: string }
+    const initialCount = before.data.wallets.length
 
     renderDetail()
     await screen.findByRole('list', { name: /wallets/i })
 
     await user.click(screen.getByRole('button', { name: /add wallet/i }))
-
-    await user.click(screen.getByRole('combobox', { name: /network/i }))
-    const chainCapitalized =
-      existingWallet.chain.charAt(0).toUpperCase() + existingWallet.chain.slice(1)
-    await user.click(await screen.findByRole('option', { name: new RegExp(chainCapitalized, 'i') }))
+    await user.click(screen.getByRole('combobox', { name: /chain/i }))
+    await user.click(
+      await screen.findByRole('option', { name: new RegExp(existingWallet.chain, 'i') })
+    )
 
     await user.type(screen.getByLabelText(/wallet address/i), existingWallet.address)
     await user.click(screen.getByRole('button', { name: /^add wallet$/i }))
 
-    // The 409 path keeps the dialog open (mutation rejected per SOT UQ(chain, address))
+    // The 409 path keeps the dialog open (mutation rejected per UQ(chain,address)).
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: /add wallet/i })).toBeInTheDocument()
     })
 
-    // And the server-side wallet count must NOT increase
-    const after = await (await fetch(`/api/customers/${SEEDED_USER_ID}`)).json()
-    expect(after.wallets.length).toBe(initialCount)
+    const after = await (await fetch(`/api/v1/users/${SEEDED_USER_ID}`)).json()
+    expect(after.data.wallets.length).toBe(initialCount)
   })
 })
 
-describe('UserDetailPage — RBAC (acceptance criteria)', () => {
+describe('UserDetailPage — RBAC (USDX-15 AC)', () => {
   test('non-admin staff cannot see Add Wallet or remove buttons', async () => {
     renderDetail(`/users/${SEEDED_USER_ID}`, { staffId: NON_ADMIN_STAFF_ID })
 

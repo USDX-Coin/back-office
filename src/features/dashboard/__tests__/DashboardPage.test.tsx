@@ -23,45 +23,21 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
+// USDX-37: legacy mock-domain DashboardPage tests removed (KPI cards, Volume
+// Trend, Network split, Recent Activity). Those components are gone — see
+// USDX-37 PR description § Out of SoT for the rationale. SoT-aligned coverage
+// continues in `USDX-16 acceptance criteria` below.
+
 describe('DashboardPage', () => {
-  describe('positive', () => {
-    test('should render header + 4 KPI cards + Volume Trend', () => {
-      renderWithProviders(<DashboardPage />, { authenticated: true })
-      expect(
-        screen.getByRole('heading', { name: /dashboard.*overview/i })
-      ).toBeInTheDocument()
-      expect(screen.getByText(/mint volume \/ 30d/i)).toBeInTheDocument()
-      expect(screen.getByText(/redeem volume \/ 30d/i)).toBeInTheDocument()
-      expect(screen.getByText(/active customers/i)).toBeInTheDocument()
-      expect(screen.getByText(/pending otc/i)).toBeInTheDocument()
-      expect(screen.getByText(/^volume trend$/i)).toBeInTheDocument()
-    })
-
-    test('should render Network split once data loads', async () => {
-      renderWithProviders(<DashboardPage />, { authenticated: true })
-      await waitFor(
-        () => {
-          expect(screen.getByText(/network split/i)).toBeInTheDocument()
-        },
-        { timeout: 3000 }
-      )
-    })
-
-    test('should populate KPI values from /api/dashboard/snapshot', async () => {
-      renderWithProviders(<DashboardPage />, { authenticated: true })
-      // Wait until the em-dash placeholders are replaced with real values
-      await waitFor(() => {
-        const emDashes = screen.queryAllByText('—')
-        expect(emDashes.length).toBeLessThan(4)
-      }, { timeout: 3000 })
-    })
-
-    test('should render Recent Activity list once data loads', async () => {
-      renderWithProviders(<DashboardPage />, { authenticated: true })
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /recent activity/i })).toBeInTheDocument()
-      })
-    })
+  test('renders header + Phase1Stats panel', async () => {
+    renderWithProviders(<DashboardPage />, { authenticated: true })
+    expect(
+      screen.getByRole('heading', { name: /dashboard.*overview/i })
+    ).toBeInTheDocument()
+    await waitFor(
+      () => expect(screen.getByTestId('dashboard-phase1-stats')).toBeInTheDocument(),
+      { timeout: 3000 }
+    )
   })
 })
 
