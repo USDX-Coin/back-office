@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { getAddress } from 'viem'
 import { Hash, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -101,9 +102,14 @@ export default function BurnRequestForm() {
     }
 
     try {
+      // sot/conventions.md L114 — store addresses in checksummed form. The
+      // validator already accepted the input; getAddress() canonicalizes
+      // all-lowercase / all-uppercase / valid-mixed-case to EIP-55 form.
+      // Mirrors MintRequestPage so both forms hand the BE the same shape.
+      const normalizedAddress = getAddress(form.userAddress.trim())
       await create.mutateAsync({
         userName: form.userName.trim(),
-        userAddress: form.userAddress.trim(),
+        userAddress: normalizedAddress,
         amount: form.amount.trim(),
         chain: form.chain as RequestChain,
         depositTxHash: form.depositTxHash.trim(),
@@ -171,13 +177,14 @@ export default function BurnRequestForm() {
               <div className="relative">
                 <Input
                   id="burnAmount"
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={form.amount}
                   onChange={(e) => set('amount', e.target.value)}
                   placeholder="0"
                   className="pr-16"
+                  aria-invalid={Boolean(errors.amount)}
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   USDX

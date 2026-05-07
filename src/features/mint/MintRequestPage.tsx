@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 import { Wallet } from 'lucide-react'
 import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
@@ -107,14 +108,22 @@ export default function MintRequestPage() {
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
+      // Mirror BurnRequestForm post-submit UX: confirm via toast + reset
+      // local state so a quick back-nav lands on a clean form.
+      toast.success('Mint request submitted')
+      setForm(EMPTY)
+      setErrors({})
       navigate('/requests')
     } catch (err) {
-      if (err instanceof ApiError) {
-        // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
-        setApiError(err.message)
-      } else {
-        setApiError(err instanceof Error ? err.message : 'Submission failed')
-      }
+      const message =
+        err instanceof ApiError
+          ? // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
+            err.message
+          : err instanceof Error
+            ? err.message
+            : 'Submission failed'
+      setApiError(message)
+      toast.error(message)
     }
   }
 

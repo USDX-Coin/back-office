@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
+import { getAddress } from 'viem'
 import { server } from '@/mocks/server'
 import {
   resetMockData,
@@ -206,12 +207,14 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
       })
 
       // SoT CreateBurnRequest required fields (sot/openapi.yaml L835).
-      // `amount` is a string per SoT; the type="number" input strips trailing
-      // zeros so "500.00" → "500" — both are valid decimal USDX amounts.
+      // `amount` is a string per SoT; with `type="text" inputMode="decimal"`
+      // the user input survives 1:1, so "500.00" reaches the body verbatim.
+      // userAddress is normalized to canonical EIP-55 form before submit
+      // (sot/conventions.md L114), mirroring MintRequestPage.
       expect(capturedBody).toMatchObject({
         userName: expect.stringMatching(/Julian Anderson/i),
-        userAddress: VALID_ADDRESS,
-        amount: expect.stringMatching(/^500(\.0+)?$/),
+        userAddress: getAddress(VALID_ADDRESS),
+        amount: '500.00',
         chain: 'polygon',
         depositTxHash: VALID_TX,
         bankName: 'BCA',
