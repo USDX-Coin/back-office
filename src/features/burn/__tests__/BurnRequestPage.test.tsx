@@ -69,11 +69,22 @@ const VALID_TX = '0x' + 'b'.repeat(64)
 // USDX-40: burn form now uses UserNameTypeahead → GET /api/v1/users
 // (mirrors mint form). MSW seeds users from customerStore via
 // customerToPhaseOneUser, so "Julian Anderson" still resolves.
+//
+// Stability: typeahead chain = type-debounce(300ms)-fetch-render. Under
+// Windows full-suite jsdom parallelism the default 1000ms findByText
+// timeout was too tight (typing 5 chars × 50ms + 300ms debounce + render
+// can overshoot 1s). Helper uses targeted listbox query + 5s timeout to
+// stay deterministic. Mirrors the pattern in MintRequestPage.test.tsx AC2.
 async function pickFirstUser(user: ReturnType<typeof userEvent.setup>) {
   const search = screen.getByPlaceholderText(/search by name/i)
   await user.type(search, 'Julian')
-  const result = await screen.findByText(/Julian Anderson/i)
-  await user.click(result)
+  const listbox = await screen.findByRole(
+    'listbox',
+    { name: /matching users/i },
+    { timeout: 5000 }
+  )
+  const option = await within(listbox).findByText(/Julian Anderson/i)
+  await user.click(option)
 }
 
 async function fillRequiredNonUserName(user: ReturnType<typeof userEvent.setup>) {
@@ -116,7 +127,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
     })
 
     test('should show only polygon as the chain option (Phase 1 scope)', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: 0 })
       renderBurnRoute()
       // Chain is preset; opening the dropdown should expose exactly one option.
       await user.click(screen.getByLabelText(/^chain$/i))
@@ -132,7 +143,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
   // same shape here so AC #4 has direct evidence on both forms.
   describe('USDX-40 AC #4 — userName typeahead direct coverage', () => {
     test('should fetch and show matches when typing in user name', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: 0 })
       // Deterministic seed so the listbox content does not depend on
       // customerStore ordering.
       server.use(
@@ -168,7 +179,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
     })
 
     test('should hit GET /api/v1/users with the typed search param', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: 0 })
       const calls: string[] = []
       server.use(
         http.get('/api/v1/users', ({ request }) => {
@@ -191,7 +202,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
     })
 
     test('should fill userName but leave userAddress untouched on selection', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: 0 })
       server.use(
         http.get('/api/v1/users', () =>
           HttpResponse.json({
@@ -246,155 +257,173 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
   })
 
   // ─── AC2: depositTxHash validation: must be 0x + 64 hex chars ───
+  // Per-test timeout bumped to 15s: chain = pickFirstUser typeahead +
+  // fillRequiredNonUserName (5 fields) + 63-char tx hash typing easily
+  // exceeds default 5s under Windows full-suite jsdom parallelism.
   describe('AC2 — depositTxHash 0x+64 hex validation', () => {
-    test('should show an inline error when the hash is shorter than 64 hex chars', async () => {
-      const user = userEvent.setup()
-      renderBurnRoute()
+    test(
+      'should show an inline error when the hash is shorter than 64 hex chars',
+      async () => {
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
 
-      await pickFirstUser(user)
-      await fillRequiredNonUserName(user)
-      const txInput = screen.getByLabelText(/deposit tx hash/i)
-      await user.clear(txInput)
-      await user.type(txInput, '0x' + 'a'.repeat(63))
+        await pickFirstUser(user)
+        await fillRequiredNonUserName(user)
+        const txInput = screen.getByLabelText(/deposit tx hash/i)
+        await user.clear(txInput)
+        await user.type(txInput, '0x' + 'a'.repeat(63))
 
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
-      await waitFor(() => {
-        expect(screen.getByText(/invalid tx hash/i)).toBeInTheDocument()
-      })
-      expect(screen.queryByTestId('requests-route')).toBeNull()
-    })
+        expect(
+          await screen.findByText(/invalid tx hash/i, {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+        expect(screen.queryByTestId('requests-route')).toBeNull()
+      },
+      15000
+    )
 
-    test('should show an inline error when the hash is missing the 0x prefix', async () => {
-      const user = userEvent.setup()
-      renderBurnRoute()
+    test(
+      'should show an inline error when the hash is missing the 0x prefix',
+      async () => {
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
 
-      await pickFirstUser(user)
-      await fillRequiredNonUserName(user)
-      const txInput = screen.getByLabelText(/deposit tx hash/i)
-      await user.clear(txInput)
-      await user.type(txInput, 'a'.repeat(64))
+        await pickFirstUser(user)
+        await fillRequiredNonUserName(user)
+        const txInput = screen.getByLabelText(/deposit tx hash/i)
+        await user.clear(txInput)
+        await user.type(txInput, 'a'.repeat(64))
 
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
-      await waitFor(() => {
-        expect(screen.getByText(/invalid tx hash/i)).toBeInTheDocument()
-      })
-    })
+        expect(
+          await screen.findByText(/invalid tx hash/i, {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+      },
+      15000
+    )
   })
 
   // ─── AC3: Submit valid → redirect to /requests ───
+  // Per-test timeout 15s: full submit chain (typeahead + 5-field fill +
+  // submit + navigate) overshoots default 5s under Windows full-suite jsdom.
   describe('AC3 — valid submit redirects to /requests', () => {
-    test('should POST to /api/v1/burn and navigate to /requests on success', async () => {
-      const user = userEvent.setup()
-      renderBurnRoute()
+    test(
+      'should POST to /api/v1/burn and navigate to /requests on success',
+      async () => {
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
 
-      await pickFirstUser(user)
-      await fillRequiredNonUserName(user)
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+        await pickFirstUser(user)
+        await fillRequiredNonUserName(user)
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
-      await waitFor(() => {
-        expect(screen.getByTestId('requests-route')).toBeInTheDocument()
-      })
-    })
+        expect(
+          await screen.findByTestId('requests-route', {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+      },
+      15000
+    )
 
-    test('should send a request body matching sot/openapi.yaml § CreateBurnRequest exactly', async () => {
-      let capturedBody: Record<string, unknown> | null = null
-      server.use(
-        http.post('/api/v1/burn', async ({ request }) => {
-          capturedBody = (await request.json()) as Record<string, unknown>
-          return HttpResponse.json(
-            {
-              status: 'success',
-              metadata: null,
-              data: { id: 'captured', status: 'PENDING_APPROVAL' },
-            },
-            { status: 201 }
-          )
+    test(
+      'should send a request body matching sot/openapi.yaml § CreateBurnRequest exactly',
+      async () => {
+        let capturedBody: Record<string, unknown> | null = null
+        server.use(
+          http.post('/api/v1/burn', async ({ request }) => {
+            capturedBody = (await request.json()) as Record<string, unknown>
+            return HttpResponse.json(
+              {
+                status: 'success',
+                metadata: null,
+                data: { id: 'captured', status: 'PENDING_APPROVAL' },
+              },
+              { status: 201 }
+            )
+          })
+        )
+
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
+
+        await pickFirstUser(user)
+        await fillRequiredNonUserName(user)
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+
+        expect(
+          await screen.findByTestId('requests-route', {}, { timeout: 5000 })
+        ).toBeInTheDocument()
+
+        // SoT CreateBurnRequest required fields (sot/openapi.yaml L835).
+        // `amount` is a string per SoT; with `type="text" inputMode="decimal"`
+        // the user input survives 1:1, so "500.00" reaches the body verbatim.
+        // userAddress is normalized to canonical EIP-55 form before submit
+        // (sot/conventions.md L114), mirroring MintRequestPage.
+        expect(capturedBody).toMatchObject({
+          userName: expect.stringMatching(/Julian Anderson/i),
+          userAddress: getAddress(VALID_ADDRESS),
+          amount: '500.00',
+          chain: 'polygon',
+          depositTxHash: VALID_TX,
+          bankName: 'BCA',
+          bankAccount: '1234567890',
         })
-      )
-
-      const user = userEvent.setup()
-      renderBurnRoute()
-
-      await pickFirstUser(user)
-      await fillRequiredNonUserName(user)
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
-
-      await waitFor(() => {
-        expect(screen.getByTestId('requests-route')).toBeInTheDocument()
-      })
-
-      // SoT CreateBurnRequest required fields (sot/openapi.yaml L835).
-      // `amount` is a string per SoT; with `type="text" inputMode="decimal"`
-      // the user input survives 1:1, so "500.00" reaches the body verbatim.
-      // userAddress is normalized to canonical EIP-55 form before submit
-      // (sot/conventions.md L114), mirroring MintRequestPage.
-      expect(capturedBody).toMatchObject({
-        userName: expect.stringMatching(/Julian Anderson/i),
-        userAddress: getAddress(VALID_ADDRESS),
-        amount: '500.00',
-        chain: 'polygon',
-        depositTxHash: VALID_TX,
-        bankName: 'BCA',
-        bankAccount: '1234567890',
-      })
-      // Body must not include client-only fields.
-      expect(capturedBody).not.toHaveProperty('customer')
-    })
+        // Body must not include client-only fields.
+        expect(capturedBody).not.toHaveProperty('customer')
+      },
+      15000
+    )
   })
 
   // ─── AC4: API returns error → error message displayed ───
   describe('AC4 — backend error surfaces in the form', () => {
-    test('should display the backend error message and stay on /burn', async () => {
-      // Override the burn handler to simulate a backend rejection
-      // (e.g. on-chain verification failure, amount mismatch — sot/phase-1.md
-      // L236). The form must surface the message and stay put.
-      server.use(
-        http.post('/api/v1/burn', () =>
-          HttpResponse.json(
-            {
-              status: 'error',
-              metadata: null,
-              data: null,
-              error: {
-                code: 'VALIDATION_ERROR',
-                message: 'Deposit TX could not be verified on-chain',
+    test(
+      'should display the backend error message and stay on /burn',
+      async () => {
+        // Override the burn handler to simulate a backend rejection
+        // (e.g. on-chain verification failure, amount mismatch — sot/phase-1.md
+        // L236). The form must surface the message and stay put.
+        server.use(
+          http.post('/api/v1/burn', () =>
+            HttpResponse.json(
+              {
+                status: 'error',
+                metadata: null,
+                data: null,
+                error: {
+                  code: 'VALIDATION_ERROR',
+                  message: 'Deposit TX could not be verified on-chain',
+                },
               },
-            },
-            { status: 400 }
+              { status: 400 }
+            )
           )
         )
-      )
 
-      const user = userEvent.setup()
-      renderBurnRoute()
+        const user = userEvent.setup({ delay: 0 })
+        renderBurnRoute()
 
-      await pickFirstUser(user)
-      await fillRequiredNonUserName(user)
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+        await pickFirstUser(user)
+        await fillRequiredNonUserName(user)
+        await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
-      await waitFor(() => {
         expect(
-          screen.getByText(/deposit tx could not be verified on-chain/i)
+          await screen.findByText(/deposit tx could not be verified on-chain/i, {}, { timeout: 5000 })
         ).toBeInTheDocument()
-      })
-      // Did NOT navigate; values preserved.
-      expect(screen.queryByTestId('requests-route')).toBeNull()
-      expect(screen.getByLabelText(/user wallet address/i)).toHaveValue(
-        VALID_ADDRESS
-      )
-    })
+        // Did NOT navigate; values preserved.
+        expect(screen.queryByTestId('requests-route')).toBeNull()
+        expect(screen.getByLabelText(/user wallet address/i)).toHaveValue(
+          VALID_ADDRESS
+        )
+      },
+      15000
+    )
 
     // USDX-40 AC #5 literal "Amount validation → API rejects invalid
     // amounts" — covers the API path on burn (mint AC7 already covers
     // this via amount-cap example). Without it, burn only proves the
     // client-side gate (validators.test.ts) for amount.
-    //
-    // Bypasses pickFirstUser (typeahead-suggestion flow) by typing the
-    // userName directly — BurnRequestForm accepts free-text userName
-    // (post-d881aa0); the typeahead is just a helper. This keeps the test
-    // deterministic and unaffected by /api/v1/users mock seeding flakiness.
     test(
       'should display the API error message when BE rejects a valid-format amount',
       async () => {
@@ -415,12 +444,10 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
           )
         )
 
-        // delay:0 → skip per-keystroke pacing so the long form fill stays
-        // well under the 10s timeout when jsdom is loaded by the full suite.
         const user = userEvent.setup({ delay: 0 })
         renderBurnRoute()
 
-        await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce Wayne')
+        await pickFirstUser(user)
         await fillRequiredNonUserName(user)
         await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
@@ -436,10 +463,6 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
     // mirror of mint's BE-rejects-address test. Burn's existing AC4 test
     // covers the deposit-TX rejection path; this adds the address rejection
     // path so AC #3 is proven on both forms.
-    //
-    // Bypasses pickFirstUser (see AC #5 amount-rejection test above) by
-    // typing userName directly so this test is independent of the typeahead
-    // mock seeding flakiness.
     test(
       'should display the API error message when BE rejects a valid-format address',
       async () => {
@@ -463,7 +486,7 @@ describe('BurnRequestPage @ USDX-12 acceptance', () => {
         const user = userEvent.setup({ delay: 0 })
         renderBurnRoute()
 
-        await user.type(screen.getByPlaceholderText(/search by name/i), 'Bruce Wayne')
+        await pickFirstUser(user)
         await fillRequiredNonUserName(user)
         await user.click(screen.getByRole('button', { name: /submit burn request/i }))
 
