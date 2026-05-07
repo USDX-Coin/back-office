@@ -22,14 +22,12 @@ export function configureApiFetch(next: AuthBindings) {
 export class ApiError extends Error {
   status: number
   code: string
-  details?: Record<string, string>
 
-  constructor(status: number, code: string, message: string, details?: Record<string, string>) {
+  constructor(status: number, code: string, message: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
-    this.details = details
   }
 }
 
@@ -39,9 +37,12 @@ interface SoTSuccessEnvelope<T> {
   data: T
 }
 
+// sot/openapi.yaml § ErrorResponse defines `error: { code, message }` only.
+// We intentionally don't model a `details` field — adding one would invite
+// callers to depend on a shape the contract doesn't promise.
 interface SoTErrorEnvelope {
   status?: 'error'
-  error?: { code?: string; message?: string; details?: Record<string, string> }
+  error?: { code?: string; message?: string }
 }
 
 export interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
@@ -87,8 +88,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed',
-      err.error?.details
+      err.error?.message ?? response.statusText ?? 'Request failed'
     )
   }
 

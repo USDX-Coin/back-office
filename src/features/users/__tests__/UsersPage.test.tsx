@@ -194,32 +194,39 @@ describe('UsersPage — delete user (Linear scope CRUD)', () => {
 })
 
 describe('UsersPage — create user flow (acceptance criteria)', () => {
-  test('admin can open the Add User modal and submit a new user', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<UsersPage />, { authenticated: true })
+  // Per-test timeout 15s + delay:0 — long chain (initial load + open modal +
+  // 4 typed fields + Radix combobox + create + waitFor) overshoots default
+  // 5s under Windows full-suite jsdom parallelism.
+  test(
+    'admin can open the Add User modal and submit a new user',
+    async () => {
+      const user = userEvent.setup({ delay: 0 })
+      renderWithProviders(<UsersPage />, { authenticated: true })
 
-    await waitFor(() => {
-      expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
-    })
+      expect(
+        await screen.findByText(/sarah mitchell/i, {}, { timeout: 5000 })
+      ).toBeInTheDocument()
 
-    // Click the header Add User
-    const addButtons = screen.getAllByRole('button', { name: /add user/i })
-    await user.click(addButtons[0]!)
+      // Click the header Add User
+      const addButtons = screen.getAllByRole('button', { name: /add user/i })
+      await user.click(addButtons[0]!)
 
-    // Fill required fields
-    await user.type(screen.getByLabelText(/first name/i), 'Acceptance')
-    await user.type(screen.getByLabelText(/last name/i), 'Tester')
-    await user.type(screen.getByLabelText(/email/i), 'acceptance.tester@example.com')
-    await user.type(screen.getByLabelText(/phone/i), '+15551234567')
+      // Fill required fields
+      await user.type(screen.getByLabelText(/first name/i), 'Acceptance')
+      await user.type(screen.getByLabelText(/last name/i), 'Tester')
+      await user.type(screen.getByLabelText(/email/i), 'acceptance.tester@example.com')
+      await user.type(screen.getByLabelText(/phone/i), '+15551234567')
 
-    // Choose type=personal via the Select (Radix uses aria-haspopup)
-    await user.click(screen.getByRole('combobox', { name: /type/i }))
-    await user.click(await screen.findByRole('option', { name: /personal/i }))
+      // Choose type=personal via the Select (Radix uses aria-haspopup)
+      await user.click(screen.getByRole('combobox', { name: /type/i }))
+      await user.click(await screen.findByRole('option', { name: /personal/i }))
 
-    await user.click(screen.getByRole('button', { name: /create user/i }))
+      await user.click(screen.getByRole('button', { name: /create user/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText(/acceptance tester/i)).toBeInTheDocument()
-    })
-  })
+      expect(
+        await screen.findByText(/acceptance tester/i, {}, { timeout: 5000 })
+      ).toBeInTheDocument()
+    },
+    15000
+  )
 })

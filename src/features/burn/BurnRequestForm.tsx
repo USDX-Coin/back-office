@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { getAddress } from 'viem'
 import { Hash, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,9 +16,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
-import CustomerTypeahead from '@/components/CustomerTypeahead'
+import UserNameTypeahead from '@/features/mint/UserNameTypeahead'
 import { validateBurnRequestForm } from '@/lib/validators'
-import type { Customer, RequestChain } from '@/lib/types'
+import type { PhaseOneUser, RequestChain } from '@/lib/types'
 import { ApiError } from '@/lib/apiFetch'
 import { useCreateBurn } from './hooks'
 
@@ -29,7 +30,7 @@ const CHAINS: { value: RequestChain; label: string }[] = [
 ]
 
 interface FormState {
-  customer: Customer | null
+  userName: string
   userAddress: string
   amount: string
   chain: RequestChain | ''
@@ -40,7 +41,7 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  customer: null,
+  userName: '',
   userAddress: '',
   amount: '',
   // Polygon-only in v1; preselected so operator can't accidentally clear it.
@@ -69,31 +70,24 @@ export default function BurnRequestForm() {
     }
   }
 
-  function selectCustomer(c: Customer | null) {
-    setForm((prev) => ({ ...prev, customer: c }))
-    if (c && errors.userName) {
-      setErrors((prev) => {
-        const next = { ...prev }
-        delete next.userName
-        return next
-      })
-    }
+  // USDX-40 AC #4: autocomplete dari real `/api/v1/users` data.
+  // MintRequestPage policy: name only — operator enters wallet address
+  // explicitly. Same approach for burn.
+  function handleUserSelect(user: PhaseOneUser) {
+    setForm((prev) => ({ ...prev, userName: user.name }))
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next.userName
+      return next
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitError(null)
 
-    // sot/phase-1.md L271-281 + Linear scope "userName (autocomplete)" —
-    // operator must select a user from the directory; free-text input is
-    // not supported. If the customer doesn't exist yet, the operator
-    // creates them via the Users page first.
-    const userName = form.customer
-      ? `${form.customer.firstName} ${form.customer.lastName}`.trim()
-      : ''
-
     const validation = validateBurnRequestForm({
-      userName,
+      userName: form.userName,
       userAddress: form.userAddress,
       amount: form.amount,
       chain: form.chain,
@@ -108,9 +102,14 @@ export default function BurnRequestForm() {
     }
 
     try {
+      // sot/conventions.md L114 — store addresses in checksummed form. The
+      // validator already accepted the input; getAddress() canonicalizes
+      // all-lowercase / all-uppercase / valid-mixed-case to EIP-55 form.
+      // Mirrors MintRequestPage so both forms hand the BE the same shape.
+      const normalizedAddress = getAddress(form.userAddress.trim())
       await create.mutateAsync({
-        userName,
-        userAddress: form.userAddress.trim(),
+        userName: form.userName.trim(),
+        userAddress: normalizedAddress,
         amount: form.amount.trim(),
         chain: form.chain as RequestChain,
         depositTxHash: form.depositTxHash.trim(),
@@ -144,11 +143,15 @@ export default function BurnRequestForm() {
       <form onSubmit={handleSubmit} noValidate id="burn-form">
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label>User name</Label>
-            <CustomerTypeahead
-              value={form.customer}
-              onSelect={selectCustomer}
-              placeholder="Search customer by name or email…"
+            <Label htmlFor="burnUserName">User name</Label>
+            <UserNameTypeahead
+              id="burnUserName"
+              value={form.userName}
+              onChange={(v) => set('userName', v)}
+              onSelect={handleUserSelect}
+              placeholder="Search by name…"
+              ariaInvalid={Boolean(errors.userName)}
+              ariaDescribedBy={errors.userName ? 'burnUserName-error' : undefined}
             />
             <FieldError message={errors.userName} />
           </div>
@@ -174,13 +177,14 @@ export default function BurnRequestForm() {
               <div className="relative">
                 <Input
                   id="burnAmount"
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={form.amount}
                   onChange={(e) => set('amount', e.target.value)}
                   placeholder="0"
                   className="pr-16"
+                  aria-invalid={Boolean(errors.amount)}
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   USDX
