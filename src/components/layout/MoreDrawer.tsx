@@ -1,5 +1,14 @@
 import { useNavigate } from 'react-router'
-import { Bell, Flame, Inbox, TrendingUp, Users, UserRound, LogOut } from 'lucide-react'
+import {
+  Bell,
+  Flame,
+  Inbox,
+  TrendingUp,
+  Users,
+  UserCog,
+  UserRound,
+  LogOut,
+} from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -8,7 +17,7 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import Avatar from '@/components/Avatar'
-import { useAuth } from '@/lib/auth'
+import { canManageStaff, useAuth } from '@/lib/auth'
 import { useNotificationsCount } from '@/features/notifications/hooks'
 
 interface MoreDrawerProps {
@@ -16,18 +25,30 @@ interface MoreDrawerProps {
   onOpenChange: (open: boolean) => void
 }
 
-const ITEMS = [
-  { to: '/notifications', label: 'Notifications', icon: Bell, description: 'Pending Safe approvals', badgeKey: 'notifications' as const },
+interface DrawerItem {
+  to: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  badgeKey?: 'notifications'
+  requireAdmin?: boolean
+}
+
+const ITEMS: DrawerItem[] = [
+  { to: '/notifications', label: 'Notifications', icon: Bell, description: 'Pending Safe approvals', badgeKey: 'notifications' },
   { to: '/burn', label: 'Burn', icon: Flame, description: 'Submit OTC burn request' },
   { to: '/requests', label: 'Requests', icon: Inbox, description: 'Mint & burn lifecycle' },
   { to: '/users', label: 'Users', icon: Users, description: 'Customer directory' },
+  { to: '/staff', label: 'Staff', icon: UserCog, description: 'Internal back-office team', requireAdmin: true },
   { to: '/rate', label: 'Rate', icon: TrendingUp, description: 'USD/IDR rate config' },
   { to: '/profile', label: 'Profile', icon: UserRound, description: 'Your account' },
-] as const
+]
 
 export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const isAdmin = canManageStaff(user)
+  const visibleItems = ITEMS.filter((item) => !item.requireAdmin || isAdmin)
   const { data: notifData } = useNotificationsCount()
   const notificationsCount = notifData?.count ?? 0
 
@@ -63,10 +84,9 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
         )}
 
         <div className="mt-4 grid gap-2">
-          {ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon
-            const badge =
-              'badgeKey' in item && item.badgeKey === 'notifications' ? notificationsCount : 0
+            const badge = item.badgeKey === 'notifications' ? notificationsCount : 0
             return (
               <button
                 key={item.to}

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router'
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   ArrowUpFromLine,
   ArrowDownToLine,
   Flame,
@@ -10,7 +11,7 @@ import {
   Coins,
   TrendingUp,
 } from 'lucide-react'
-import { useAuth } from '@/lib/auth'
+import { canManageStaff, useAuth } from '@/lib/auth'
 import { useNotificationsCount } from '@/features/notifications/hooks'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,7 @@ interface NavItem {
   label: string
   icon: React.ComponentType<{ className?: string }>
   badgeKey?: 'notifications'
+  requireAdmin?: boolean
 }
 
 interface NavSection {
@@ -27,14 +29,16 @@ interface NavSection {
 }
 
 // Sidebar layout per sot/phase-1.md § Backoffice Web App pages list.
-// Legacy "Staf" entry dropped per USDX-43 (not in SoT). "Report" removed per
-// USDX-42 (sunsetted, superseded by /requests).
+// "Report" removed per USDX-42 (sunsetted, superseded by /requests).
+// "Staff" re-added (admin-only) per USDX-48 — Staff CRUD page is admin-gated
+// upstream by sot/api/staff.yaml § POST/PATCH/DELETE 403 for non-admin.
 const SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/users', label: 'Users', icon: Users },
+      { to: '/staff', label: 'Staff', icon: UserCog, requireAdmin: true },
     ],
   },
   {
@@ -75,8 +79,14 @@ function formatRole(role: string): string {
 
 export default function Sidebar() {
   const { user } = useAuth()
+  const isAdmin = canManageStaff(user)
   const { data: notifData } = useNotificationsCount()
   const notificationsCount = notifData?.count ?? 0
+
+  const visibleSections = SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => !item.requireAdmin || isAdmin),
+  })).filter((section) => section.items.length > 0)
 
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
@@ -93,7 +103,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col px-2 pb-2 pt-1">
-        {SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.label} className="flex flex-col">
             <div className="px-2 pt-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
               {section.label}

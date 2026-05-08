@@ -153,3 +153,9 @@ export function useAuth() {
 export function canManageUsers(staff: Staff | null): boolean {
   return staff?.role === 'ADMIN'
 }
+
+// SoT phase-1.md § Backoffice Role System ("Role Management") +
+// sot/api/staff.yaml — only ADMIN can POST/PATCH/DELETE /api/v1/staff.
+export function canManageStaff(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN'
+}
