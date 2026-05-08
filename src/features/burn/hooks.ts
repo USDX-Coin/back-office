@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/apiFetch'
+import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import type {
   BurnRequest,
   CreateBurnRequest,
@@ -40,13 +40,11 @@ function buildQuery(params: BurnListFilters & { type: 'burn' }): string {
   return sp.toString()
 }
 
-async function fetchBurnList(
+function fetchBurnList(
   filters: BurnListFilters
 ): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
   const qs = buildQuery({ ...filters, type: 'burn' })
-  const res = await fetch(`/api/v1/requests?${qs}`)
-  if (!res.ok) throw new Error('Failed to fetch burn list')
-  return res.json()
+  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(`/api/v1/requests?${qs}`)
 }
 
 export function useBurnList(filters: BurnListFilters) {
@@ -62,9 +60,9 @@ export function usePendingBurnCount() {
   return useQuery({
     queryKey: ['burn', 'pending-count'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/requests?type=burn&status=PENDING_APPROVAL&limit=1')
-      if (!res.ok) throw new Error('Failed to fetch pending burn count')
-      const json = (await res.json()) as PhaseOnePaginatedResponse<RequestListItem>
+      const json = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
+        '/api/v1/requests?type=burn&status=PENDING_APPROVAL&limit=1'
+      )
       return json.metadata.total
     },
     staleTime: 30 * 1000,

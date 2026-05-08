@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { apiFetchRaw } from '@/lib/apiFetch'
 import { formatDate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
 import type {
@@ -24,12 +25,10 @@ interface RequestDetailModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-async function fetchRequestDetail(
+function fetchRequestDetail(
   id: string
 ): Promise<PhaseOneSuccessResponse<RequestDetail>> {
-  const res = await fetch(`/api/v1/requests/${id}`)
-  if (!res.ok) throw new Error('Failed to fetch request')
-  return res.json()
+  return apiFetchRaw<PhaseOneSuccessResponse<RequestDetail>>(`/api/v1/requests/${id}`)
 }
 
 function useRequestDetail(id: string | null) {

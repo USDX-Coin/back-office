@@ -144,22 +144,17 @@ function buildLegacyQuery(params: LegacyListParams): string {
 export function useCustomers(params: LegacyListParams = {}) {
   return useQuery({
     queryKey: ['customers', params],
-    queryFn: async (): Promise<PaginatedResponse<Customer>> => {
-      const res = await fetch(`/api/customers?${buildLegacyQuery(params)}`)
-      if (!res.ok) throw new Error('Failed to fetch customers')
-      return res.json()
-    },
+    queryFn: () =>
+      apiFetchRaw<PaginatedResponse<Customer>>(
+        `/api/customers?${buildLegacyQuery(params)}`
+      ),
   })
 }
 
 export function useCustomerSummary() {
   return useQuery({
     queryKey: ['customers', 'summary'],
-    queryFn: async (): Promise<CustomerSummary> => {
-      const res = await fetch('/api/customers/summary')
-      if (!res.ok) throw new Error('Failed to fetch customer summary')
-      return res.json()
-    },
+    queryFn: () => apiFetch<CustomerSummary>('/api/customers/summary'),
   })
 }
 
@@ -168,18 +163,10 @@ export function useLegacyAddWallet(customerId: string | undefined) {
   return useMutation({
     mutationFn: async (input: { chain: Network; address: string }) => {
       if (!customerId) throw new Error('Missing user id')
-      const res = await fetch(`/api/customers/${customerId}/wallets`, {
+      return apiFetch<UserWallet>(`/api/customers/${customerId}/wallets`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
+        body: input,
       })
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as
-          | { error?: { message?: string } }
-          | null
-        throw new Error(err?.error?.message ?? 'Failed to add wallet')
-      }
-      return res.json() as Promise<UserWallet>
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
   })
@@ -190,11 +177,9 @@ export function useLegacyRemoveWallet(customerId: string | undefined) {
   return useMutation({
     mutationFn: async (walletId: string) => {
       if (!customerId) throw new Error('Missing user id')
-      const res = await fetch(
-        `/api/customers/${customerId}/wallets/${walletId}`,
-        { method: 'DELETE' }
-      )
-      if (!res.ok) throw new Error('Failed to remove wallet')
+      await apiFetch<void>(`/api/customers/${customerId}/wallets/${walletId}`, {
+        method: 'DELETE',
+      })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
   })
