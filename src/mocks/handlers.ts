@@ -647,14 +647,21 @@ export const handlers = [
   http.get('/api/v1/users', ({ request }) => {
     const url = new URL(request.url)
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
+    const kycStatus = url.searchParams.get('kycStatus')
+    const entityType = url.searchParams.get('entityType')
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
     const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
 
     let users = customerStore.map((c, i) => customerToPhaseOneUser(c, i + 1))
+    // sot/api/users.yaml § GET /users — server-side filters: kycStatus, entityType.
+    if (kycStatus) users = users.filter((u) => u.kycStatus === kycStatus)
+    if (entityType) users = users.filter((u) => u.entityType === entityType)
+    // sot/api/users.yaml L9: search by name, email, or wallet address.
     if (search) {
       users = users.filter(
         (u) =>
           u.name.toLowerCase().includes(search) ||
+          u.email.toLowerCase().includes(search) ||
           u.wallets.some((w) => w.address.toLowerCase().includes(search))
       )
     }
@@ -830,9 +837,10 @@ export const handlers = [
     if (!operator) return unauthorized()
 
     let body: Partial<{
-      userName: string
+      userId: string
       userAddress: string
       amount: string
+      amountCurrency: 'USD' | 'IDR'
       chain: string
       notes: string
     }>
@@ -842,12 +850,13 @@ export const handlers = [
       return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
     }
 
-    // Validate per sot/openapi.yaml § CreateMintRequest required fields.
-    const userName = (body.userName ?? '').trim()
+    // sot/api/mint.yaml § CreateMintRequest — required fields.
+    const userId = (body.userId ?? '').trim()
     const userAddress = (body.userAddress ?? '').trim()
     const amountRaw = (body.amount ?? '').trim()
+    const amountCurrency = body.amountCurrency
     const chain = (body.chain ?? '').trim()
-    if (!userName) return phaseOneBadRequest('userName is required')
+    if (!userId) return phaseOneBadRequest('userId is required')
     if (!userAddress) return phaseOneBadRequest('userAddress is required')
     if (!/^0x[0-9a-fA-F]{40}$/.test(userAddress)) {
       return phaseOneBadRequest('userAddress must match ^0x[0-9a-fA-F]{40}$')
@@ -857,27 +866,54 @@ export const handlers = [
     if (Number.isNaN(amountNum) || amountNum <= 0) {
       return phaseOneBadRequest('amount must be a positive decimal')
     }
+    if (amountCurrency !== 'USD' && amountCurrency !== 'IDR') {
+      return phaseOneBadRequest('amountCurrency must be USD or IDR')
+    }
     if (!chain) return phaseOneBadRequest('chain is required')
 
-    // Compute IDR equivalent + pick Safe by threshold (sot/phase-1.md L52-55).
+    // sot/api/mint.yaml L8: validate user (kyc_status = VERIFIED, suspended = false).
+    const matchedIdx = customerStore.findIndex((c) => c.id === userId)
+    if (matchedIdx === -1) {
+      return phaseOneBadRequest('User not found', 'NOT_FOUND')
+    }
+    const matched = customerStore[matchedIdx]!
+    const phaseOneUser = customerToPhaseOneUser(matched, matchedIdx + 1)
+    if (phaseOneUser.kycStatus !== 'VERIFIED' || phaseOneUser.suspended) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'User must be VERIFIED and not suspended',
+          },
+        },
+        { status: 403 }
+      )
+    }
+
+    // sot/phase-1.md L149-154: USD = 1:1 USDX, IDR → divide by rate.
     const RATE_USD_IDR = 16250
-    const amountIdr = Math.round(amountNum * RATE_USD_IDR)
+    const amountUsdx =
+      amountCurrency === 'USD'
+        ? amountRaw
+        : (amountNum / RATE_USD_IDR).toFixed(6)
+    const amountIdr =
+      amountCurrency === 'IDR'
+        ? Math.round(amountNum)
+        : Math.round(amountNum * RATE_USD_IDR)
     const safeType: 'STAFF' | 'MANAGER' =
       amountIdr >= MANAGER_THRESHOLD_IDR ? 'MANAGER' : 'STAFF'
 
-    // Resolve user (lookup by exact name match, else create lightweight stub).
-    const matched = customerStore.find(
-      (c) => `${c.firstName} ${c.lastName}`.trim().toLowerCase() === userName.toLowerCase()
-    )
-    const user = matched
-      ? { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
-      : { id: `usr_adhoc_${Date.now()}`, name: userName }
+    const user = { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
 
     const pair = createMintFromRequest(
       user,
       operator,
-      { userAddress, amount: amountRaw, chain, notes: body.notes },
+      { userAddress, amount: amountRaw, amountCurrency, chain, notes: body.notes },
       amountIdr,
+      amountUsdx,
       safeType
     )
     requestList.unshift(pair.list)
@@ -898,9 +934,10 @@ export const handlers = [
     if (!staff) return unauthorized()
 
     let body: Partial<{
-      userName: string
+      userId: string
       userAddress: string
       amount: string
+      amountCurrency: 'USD' | 'IDR'
       chain: string
       depositTxHash: string
       bankName: string
@@ -913,7 +950,8 @@ export const handlers = [
       return phaseOneBadRequest('Request body must be valid JSON', 'BAD_REQUEST')
     }
 
-    const required = ['userName', 'userAddress', 'amount', 'chain', 'depositTxHash', 'bankName', 'bankAccount'] as const
+    // sot/api/burn.yaml § CreateBurnRequest — required fields.
+    const required = ['userId', 'userAddress', 'amount', 'chain', 'depositTxHash', 'bankName', 'bankAccount'] as const
     for (const key of required) {
       const value = body[key]
       if (typeof value !== 'string' || !value.trim()) {
@@ -921,10 +959,16 @@ export const handlers = [
       }
     }
 
+    const userId = String(body.userId).trim()
     const userAddress = String(body.userAddress).trim()
     const depositTxHash = String(body.depositTxHash).trim()
     const amount = String(body.amount).trim()
+    const amountCurrency = body.amountCurrency
     const chain = String(body.chain) as RequestListItem['chain']
+
+    if (amountCurrency !== 'USD' && amountCurrency !== 'IDR') {
+      return phaseOneBadRequest('amountCurrency must be USD or IDR')
+    }
 
     if (!isAddress(userAddress)) {
       return phaseOneBadRequest('Invalid userAddress')
@@ -948,15 +992,34 @@ export const handlers = [
       )
     }
 
-    const matchedUser = customerStore.find(
-      (c) => `${c.firstName} ${c.lastName}`.toLowerCase() === String(body.userName).trim().toLowerCase()
-    )
+    // sot/api/burn.yaml L8: validate user (kyc_status = VERIFIED, suspended = false).
+    const matchedIdx = customerStore.findIndex((c) => c.id === userId)
+    if (matchedIdx === -1) {
+      return phaseOneBadRequest('User not found', 'NOT_FOUND')
+    }
+    const matchedUser = customerStore[matchedIdx]!
+    const phaseOneUser = customerToPhaseOneUser(matchedUser, matchedIdx + 1)
+    if (phaseOneUser.kycStatus !== 'VERIFIED' || phaseOneUser.suspended) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'User must be VERIFIED and not suspended',
+          },
+        },
+        { status: 403 }
+      )
+    }
 
     const { list, detail } = createBurnRequestFromSubmission(
       {
-        userName: String(body.userName),
+        userName: phaseOneUser.name,
         userAddress,
         amount,
+        amountCurrency,
         chain: 'polygon',
         depositTxHash,
         bankName: String(body.bankName),
@@ -985,7 +1048,7 @@ export const handlers = [
     requestDetails.set(detail.id, detail)
 
     // Strip code-side discriminator (`type`) and display-only extras
-    // (`userName`) so the POST response matches sot/openapi.yaml §
+    // (`userName`) so the POST response matches sot/api/burn.yaml §
     // BurnRequest exactly.
     const { userName: _name, type: _type, ...burnRequest } = detail
     void _name

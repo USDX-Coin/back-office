@@ -7,6 +7,32 @@ export function formatAmount(amount: number): string {
   }).format(amount)
 }
 
+// USDX-46 — preview helpers for the currency-aware amount input.
+//
+// sot/conventions.md § Decimals:
+// - USDX uses 6 decimals (like USDC/USDT) — display up to 6.
+// - IDR uses 2 decimals + locale format `Rp 16.250.000,00`.
+
+const USDX_FORMATTER = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 6,
+})
+
+const IDR_FORMATTER = new Intl.NumberFormat('id-ID', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+export function formatUsdxAmount(usdx: number): string {
+  if (!Number.isFinite(usdx)) return '—'
+  return `${USDX_FORMATTER.format(usdx)} USDX`
+}
+
+export function formatIdrAmount(idr: number): string {
+  if (!Number.isFinite(idr)) return '—'
+  return `Rp ${IDR_FORMATTER.format(idr)}`
+}
+
 export function formatDate(dateString: string): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',

@@ -33,3 +33,4 @@ sot/
 .env
 .env.*
 !.env.example
+sot/

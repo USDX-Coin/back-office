@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { getAddress } from 'viem'
-import { Hash, Wallet } from 'lucide-react'
+import { Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,9 +16,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
-import UserNameTypeahead from '@/features/mint/UserNameTypeahead'
+import UserPicker from '@/components/UserPicker'
+import WalletPicker from '@/components/WalletPicker'
+import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import { validateBurnRequestForm } from '@/lib/validators'
-import type { PhaseOneUser, RequestChain } from '@/lib/types'
+import type { AmountCurrency, PhaseOneUser, RequestChain } from '@/lib/types'
 import { ApiError } from '@/lib/apiFetch'
 import { useCreateBurn } from './hooks'
 
@@ -30,10 +32,12 @@ const CHAINS: { value: RequestChain; label: string }[] = [
 ]
 
 interface FormState {
-  userName: string
-  userAddress: string
-  amount: string
+  user: PhaseOneUser | null
   chain: RequestChain | ''
+  walletAddress: string
+  walletIsOther: boolean
+  amount: string
+  amountCurrency: AmountCurrency
   depositTxHash: string
   bankName: string
   bankAccount: string
@@ -41,11 +45,13 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  userName: '',
-  userAddress: '',
-  amount: '',
+  user: null,
   // Polygon-only in v1; preselected so operator can't accidentally clear it.
   chain: 'polygon',
+  walletAddress: '',
+  walletIsOther: false,
+  amount: '',
+  amountCurrency: 'USD',
   depositTxHash: '',
   bankName: '',
   bankAccount: '',
@@ -59,37 +65,81 @@ export default function BurnRequestForm() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    if (errors[key as string]) {
+  function clearError(key: string) {
+    if (errors[key]) {
       setErrors((prev) => {
         const next = { ...prev }
-        delete next[key as string]
+        delete next[key]
         return next
       })
     }
   }
 
-  // USDX-40 AC #4: autocomplete dari real `/api/v1/users` data.
-  // MintRequestPage policy: name only — operator enters wallet address
-  // explicitly. Same approach for burn.
-  function handleUserSelect(user: PhaseOneUser) {
-    setForm((prev) => ({ ...prev, userName: user.name }))
-    setErrors((prev) => {
-      const next = { ...prev }
-      delete next.userName
-      return next
-    })
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+    clearError(key as string)
   }
+
+  function handleUserSelect(user: PhaseOneUser | null) {
+    setForm((prev) => ({
+      ...prev,
+      user,
+      walletAddress: '',
+      walletIsOther: false,
+    }))
+    clearError('userId')
+    clearError('userAddress')
+  }
+
+  function handleChainChange(chain: string) {
+    setForm((prev) => ({
+      ...prev,
+      chain: chain as RequestChain,
+      walletAddress: '',
+      walletIsOther: false,
+    }))
+    clearError('chain')
+    clearError('userAddress')
+  }
+
+  function handlePickExistingWallet(address: string) {
+    setForm((prev) => ({ ...prev, walletAddress: address, walletIsOther: false }))
+    clearError('userAddress')
+  }
+
+  function handlePickOther() {
+    setForm((prev) => ({ ...prev, walletAddress: '', walletIsOther: true }))
+  }
+
+  function handleAddressChange(address: string) {
+    setForm((prev) => ({ ...prev, walletAddress: address }))
+    clearError('userAddress')
+  }
+
+  function handleAmountChange(amount: string) {
+    setForm((prev) => ({ ...prev, amount }))
+    clearError('amount')
+  }
+
+  function handleCurrencyChange(amountCurrency: AmountCurrency) {
+    setForm((prev) => ({ ...prev, amountCurrency }))
+    clearError('amountCurrency')
+  }
+
+  const walletsForChain =
+    form.user && form.chain
+      ? form.user.wallets.filter((w) => w.chain === form.chain)
+      : []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitError(null)
 
     const validation = validateBurnRequestForm({
-      userName: form.userName,
-      userAddress: form.userAddress,
+      userId: form.user?.id ?? '',
+      userAddress: form.walletAddress,
       amount: form.amount,
+      amountCurrency: form.amountCurrency,
       chain: form.chain,
       depositTxHash: form.depositTxHash,
       bankName: form.bankName,
@@ -102,15 +152,12 @@ export default function BurnRequestForm() {
     }
 
     try {
-      // sot/conventions.md L114 — store addresses in checksummed form. The
-      // validator already accepted the input; getAddress() canonicalizes
-      // all-lowercase / all-uppercase / valid-mixed-case to EIP-55 form.
-      // Mirrors MintRequestPage so both forms hand the BE the same shape.
-      const normalizedAddress = getAddress(form.userAddress.trim())
+      const normalizedAddress = getAddress(form.walletAddress.trim())
       await create.mutateAsync({
-        userName: form.userName.trim(),
+        userId: form.user!.id,
         userAddress: normalizedAddress,
         amount: form.amount.trim(),
+        amountCurrency: form.amountCurrency,
         chain: form.chain as RequestChain,
         depositTxHash: form.depositTxHash.trim(),
         bankName: form.bankName.trim(),
@@ -143,75 +190,68 @@ export default function BurnRequestForm() {
       <form onSubmit={handleSubmit} noValidate id="burn-form">
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="burnUserName">User name</Label>
-            <UserNameTypeahead
-              id="burnUserName"
-              value={form.userName}
-              onChange={(v) => set('userName', v)}
+            <Label htmlFor="burnUserPicker">User</Label>
+            <UserPicker
+              id="burnUserPicker"
+              value={form.user}
               onSelect={handleUserSelect}
-              placeholder="Search by name…"
-              ariaInvalid={Boolean(errors.userName)}
-              ariaDescribedBy={errors.userName ? 'burnUserName-error' : undefined}
+              placeholder="Search by name or email…"
+              ariaInvalid={Boolean(errors.userId)}
+              ariaDescribedBy={errors.userId ? 'burnUserPicker-error' : undefined}
             />
-            <FieldError message={errors.userName} />
+            <FieldError message={errors.userId} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnUserAddress">User wallet address</Label>
-            <div className="relative">
-              <Wallet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="burnUserAddress"
-                value={form.userAddress}
-                onChange={(e) => set('userAddress', e.target.value)}
-                placeholder="0x…"
-                className="pl-9 font-mono text-sm"
-              />
-            </div>
+            <Label htmlFor="burnChain">Chain</Label>
+            <Select
+              value={form.chain}
+              onValueChange={handleChainChange}
+            >
+              <SelectTrigger id="burnChain" aria-invalid={Boolean(errors.chain)}>
+                <SelectValue placeholder="Choose chain" />
+              </SelectTrigger>
+              <SelectContent>
+                {CHAINS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError message={errors.chain} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="burnWallet">User wallet address</Label>
+            <WalletPicker
+              id="burnWallet"
+              wallets={walletsForChain}
+              address={form.walletAddress}
+              isOtherMode={form.walletIsOther}
+              onPickExisting={handlePickExistingWallet}
+              onPickOther={handlePickOther}
+              onAddressChange={handleAddressChange}
+              chainSelected={Boolean(form.chain) && Boolean(form.user)}
+              ariaInvalid={Boolean(errors.userAddress)}
+            />
             <FieldError message={errors.userAddress} />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="burnAmount">Amount</Label>
-              <div className="relative">
-                <Input
-                  id="burnAmount"
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  value={form.amount}
-                  onChange={(e) => set('amount', e.target.value)}
-                  placeholder="0"
-                  className="pr-16"
-                  aria-invalid={Boolean(errors.amount)}
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  USDX
-                </span>
-              </div>
-              <FieldError message={errors.amount} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="burnChain">Chain</Label>
-              <Select
-                value={form.chain}
-                onValueChange={(val) => set('chain', val as RequestChain)}
-              >
-                <SelectTrigger id="burnChain">
-                  <SelectValue placeholder="Choose chain" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHAINS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.chain} />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="burnAmount">Amount</Label>
+            <AmountWithCurrencyInput
+              amountId="burnAmount"
+              currencyId="burnCurrency"
+              amount={form.amount}
+              currency={form.amountCurrency}
+              onAmountChange={handleAmountChange}
+              onCurrencyChange={handleCurrencyChange}
+              amountError={errors.amount}
+              currencyError={errors.amountCurrency}
+            />
+            <FieldError message={errors.amount} />
+            <FieldError message={errors.amountCurrency} />
           </div>
 
           <div className="space-y-1.5">
