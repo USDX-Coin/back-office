@@ -221,6 +221,14 @@ export function validateBurnRequestForm(input: {
     const amt = Number(amountStr)
     if (!Number.isFinite(amt) || amt <= 0) {
       errors.amount = 'Amount must be greater than 0'
+    } else {
+      // sot/openapi.yaml § CreateBurnRequest.amount — "decimal USDX amount"
+      // with the same 6-decimal precision documented for mint
+      // (sot/conventions.md § Decimals: USDX uses 6 decimals).
+      const [, fraction = ''] = amountStr.split('.')
+      if (fraction.length > 6) {
+        errors.amount = 'Amount supports at most 6 decimal places'
+      }
     }
   }
 

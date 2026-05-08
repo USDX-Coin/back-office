@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 import { Wallet } from 'lucide-react'
 import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
 import PageHeader from '@/components/PageHeader'
+import CurrentRateCard from '@/components/CurrentRateCard'
 import { ApiError } from '@/lib/apiFetch'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { PhaseOneUser } from '@/lib/types'
@@ -106,14 +108,22 @@ export default function MintRequestPage() {
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
+      // Mirror BurnRequestForm post-submit UX: confirm via toast + reset
+      // local state so a quick back-nav lands on a clean form.
+      toast.success('Mint request submitted')
+      setForm(EMPTY)
+      setErrors({})
       navigate('/requests')
     } catch (err) {
-      if (err instanceof ApiError) {
-        // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
-        setApiError(err.message)
-      } else {
-        setApiError(err instanceof Error ? err.message : 'Submission failed')
-      }
+      const message =
+        err instanceof ApiError
+          ? // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
+            err.message
+          : err instanceof Error
+            ? err.message
+            : 'Submission failed'
+      setApiError(message)
+      toast.error(message)
     }
   }
 
@@ -244,7 +254,8 @@ export default function MintRequestPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-4 space-y-4">
+          <CurrentRateCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-[14px] font-semibold tracking-tight">

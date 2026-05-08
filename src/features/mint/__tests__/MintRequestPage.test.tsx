@@ -410,5 +410,41 @@ describe('MintRequestPage', () => {
       expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
     })
 
+    // USDX-40 AC #3 literal "Invalid address → error message dari API" —
+    // covers the API path (USDX-11 AC #7) for an address that is *valid*
+    // EIP-55 but the BE rejects (e.g. denylist, mismatch with seeded user).
+    // Without this, the only address-error coverage is the client-side gate
+    // (AC4 above), and the literal "from API" wording is unproven.
+    test('should display the API error message when BE rejects a valid-format address', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'INVALID_ADDRESS',
+                message: 'User address is not a valid EVM address',
+              },
+            },
+            { status: 400 }
+          )
+        )
+      )
+
+      setup()
+      await fillValidForm(user)
+      await user.click(
+        screen.getByRole('button', { name: /submit mint request/i })
+      )
+
+      expect(
+        await screen.findByText(/user address is not a valid evm address/i)
+      ).toBeInTheDocument()
+      // Stays on /mint, no redirect
+      expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
+    })
   })
 })
