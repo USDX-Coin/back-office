@@ -181,25 +181,32 @@ describe('UsersPage — delete user (sot/openapi.yaml § DELETE /api/v1/users/:i
 })
 
 describe('UsersPage — create user (sot/openapi.yaml § POST /api/v1/users)', () => {
-  test('admin can open the Add User modal and submit a new SoT-shaped user', async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<UsersPage />, { authenticated: true })
+  // Per-test timeout 15s + delay:0 — long chain (initial load + open modal +
+  // typed fields + create + waitFor) overshoots default 5s under Windows
+  // full-suite jsdom parallelism.
+  test(
+    'admin can open the Add User modal and submit a new SoT-shaped user',
+    async () => {
+      const user = userEvent.setup({ delay: 0 })
+      renderWithProviders(<UsersPage />, { authenticated: true })
 
-    await waitFor(() => {
-      expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
-    })
+      expect(
+        await screen.findByText(/sarah mitchell/i, {}, { timeout: 5000 })
+      ).toBeInTheDocument()
 
-    const addButtons = screen.getAllByRole('button', { name: /add user/i })
-    await user.click(addButtons[0]!)
+      const addButtons = screen.getAllByRole('button', { name: /add user/i })
+      await user.click(addButtons[0]!)
 
-    // SoT CreateUser only requires `name`; `notes` is optional and wallets
-    // are managed separately on the detail page.
-    await user.type(screen.getByLabelText(/^name$/i), 'Acceptance Tester')
+      // SoT CreateUser only requires `name`; `notes` is optional and wallets
+      // are managed separately on the detail page.
+      await user.type(screen.getByLabelText(/^name$/i), 'Acceptance Tester')
 
-    await user.click(screen.getByRole('button', { name: /create user/i }))
+      await user.click(screen.getByRole('button', { name: /create user/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText(/acceptance tester/i)).toBeInTheDocument()
-    })
-  })
+      expect(
+        await screen.findByText(/acceptance tester/i, {}, { timeout: 5000 })
+      ).toBeInTheDocument()
+    },
+    15000
+  )
 })
