@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/apiFetch'
+import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import type {
   CreateMintRequestBody,
   MintRequestDetail,
@@ -66,13 +66,11 @@ function buildQuery(params: MintListFilters & { type: 'mint' }): string {
   return sp.toString()
 }
 
-async function fetchMintList(
+function fetchMintList(
   filters: MintListFilters
 ): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
   const qs = buildQuery({ ...filters, type: 'mint' })
-  const res = await fetch(`/api/v1/requests?${qs}`)
-  if (!res.ok) throw new Error('Failed to fetch mint list')
-  return res.json()
+  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(`/api/v1/requests?${qs}`)
 }
 
 export function useMintList(filters: MintListFilters) {
@@ -89,9 +87,9 @@ export function usePendingMintCount() {
   return useQuery({
     queryKey: ['mint', 'pending-count'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/requests?type=mint&status=PENDING_APPROVAL&limit=1')
-      if (!res.ok) throw new Error('Failed to fetch pending mint count')
-      const json = (await res.json()) as PhaseOnePaginatedResponse<RequestListItem>
+      const json = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
+        '/api/v1/requests?type=mint&status=PENDING_APPROVAL&limit=1'
+      )
       return json.metadata.total
     },
     staleTime: 30 * 1000,
