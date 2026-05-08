@@ -14,12 +14,17 @@ import { handlers } from './handlers'
 // USDX-47: /api/v1/users.* handlers were removed from handlers.ts entirely
 // (no MSW fallback). The path entries below are kept as documentation that
 // these endpoints are real-BE-only in both browser and Vitest.
+//
+// USDX-53: /api/v1/threshold handlers removed from handlers.ts. BE endpoint
+// is currently 404 on dev — listed here to document FE intent (real-BE-only)
+// and to surface the BE gap as a Post-Merge Action in the PR description.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/me',
   '/api/v1/mint',
   '/api/v1/burn',
   '/api/v1/rate',
+  '/api/v1/threshold',
   '/api/v1/users',
   '/api/v1/users/:id',
   '/api/v1/users/:id/wallets',

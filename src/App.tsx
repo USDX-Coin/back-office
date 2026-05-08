@@ -2,7 +2,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
-import { ProtectedRoute, PublicRoute } from '@/components/layout/AuthGuard'
+import { ProtectedRoute, PublicRoute, RoleGuard } from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
@@ -56,7 +56,14 @@ const router = createBrowserRouter([
           { path: '/burn', element: <BurnListPage /> },
           { path: '/burn/new', element: <BurnFormPage /> },
           { path: '/settings/rate', element: <RatePage /> },
-          { path: '/settings/threshold', element: <ThresholdPage /> },
+          {
+            // sot/phase-1.md L516 "Threshold Management — admin only" +
+            // Linear USDX-53 AC3: non-ADMIN must redirect/403.
+            element: <RoleGuard allowed={['ADMIN']} />,
+            children: [
+              { path: '/settings/threshold', element: <ThresholdPage /> },
+            ],
+          },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },
