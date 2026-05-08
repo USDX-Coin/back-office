@@ -56,6 +56,7 @@ export interface MintListFilters {
   status?: string
   chain?: string
   safeType?: string
+  search?: string
 }
 
 function buildQuery(params: MintListFilters & { type: 'mint' }): string {

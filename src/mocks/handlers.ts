@@ -675,6 +675,9 @@ export const handlers = [
   }),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
+  // USDX-51: `?search=` filters by user name / address substring (case-insensitive)
+  // to back the search input in MintBurnFilterToolbar. Mirrors the /api/v1/users
+  // search shape; real BE support against `sot/api/requests.yaml` to be confirmed.
   http.get('/api/v1/requests', ({ request }) => {
     const url = new URL(request.url)
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
@@ -683,6 +686,7 @@ export const handlers = [
     const status = url.searchParams.get('status')
     const chain = url.searchParams.get('chain')
     const safeType = url.searchParams.get('safeType')
+    const search = url.searchParams.get('search')?.trim().toLowerCase()
 
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
@@ -690,6 +694,13 @@ export const handlers = [
     if (chain) rows = rows.filter((r) => r.chain === chain)
     if (safeType === 'STAFF' || safeType === 'MANAGER') {
       rows = rows.filter((r) => r.safeType === safeType)
+    }
+    if (search) {
+      rows = rows.filter(
+        (r) =>
+          r.userName.toLowerCase().includes(search) ||
+          r.userAddress.toLowerCase().includes(search)
+      )
     }
 
     const start = (page - 1) * limit
