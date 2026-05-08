@@ -250,6 +250,53 @@ export function validateBurnRequestForm(input: {
 // Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// sot/openapi.yaml § CreateUser / UpdateUser — only `name` is required.
+// Wallet sub-entries (create-only) are validated via validateUserWalletForm.
+export function validateUserForm(input: {
+  name: string
+  notes?: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.name.trim()) {
+    errors.name = 'Name is required'
+  } else if (input.name.length > MAX_NAME_LEN) {
+    errors.name = `Name must be under ${MAX_NAME_LEN} characters`
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/openapi.yaml § CreateUserWallet — both fields required; address must
+// pass the same EIP-55 checksum check used for mint requests.
+export function validateUserWalletForm(input: {
+  chain: string
+  address: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.chain.trim()) {
+    errors.chain = 'Chain is required'
+  }
+  const trimmedAddress = input.address.trim()
+  if (!trimmedAddress) {
+    errors.address = 'Wallet address is required'
+  } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
+    errors.address = 'Invalid EVM address (expect 0x + 40 hex)'
+  } else {
+    const hex = trimmedAddress.slice(2)
+    const isAllLower = hex === hex.toLowerCase()
+    const isAllUpper = hex === hex.toUpperCase()
+    if (!isAllLower && !isAllUpper) {
+      try {
+        if (getAddress(trimmedAddress) !== trimmedAddress) {
+          errors.address = 'Address checksum is invalid (EIP-55)'
+        }
+      } catch {
+        errors.address = 'Address checksum is invalid (EIP-55)'
+      }
+    }
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
 export function validateMintRequestForm(input: {
   userName: string
   userAddress: string

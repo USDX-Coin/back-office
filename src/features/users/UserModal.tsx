@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -18,86 +19,65 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import FieldError from '@/components/FieldError'
-import { validateCustomerForm } from '@/lib/validators'
-import type { Customer, CustomerRole, CustomerType } from '@/lib/types'
-import { useCreateCustomer, useUpdateCustomer } from './hooks'
-import { cn } from '@/lib/utils'
+import {
+  validateUserForm,
+  validateUserWalletForm,
+} from '@/lib/validators'
+import type {
+  PhaseOneCreateUserWallet,
+  PhaseOneUser,
+} from '@/lib/types'
+import { useCreateUser, useUpdateUser } from './hooks'
 
 interface UserModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
-  customer?: Customer | null
+  user?: PhaseOneUser | null
+}
+
+interface WalletDraft {
+  chain: string
+  address: string
 }
 
 interface FormState {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  type: CustomerType | ''
-  organization: string
-  role: CustomerRole | ''
+  name: string
   notes: string
+  // Only used in `add` mode. SoT UpdateUser has no wallets field; per-wallet
+  // edits go through POST/DELETE /api/v1/users/:id/wallets after creation.
+  wallets: WalletDraft[]
 }
 
-const EMPTY: FormState = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phone: '',
-  type: '',
-  organization: '',
-  role: 'member',
-  notes: '',
-}
+const EMPTY: FormState = { name: '', notes: '', wallets: [] }
 
-const ROLE_CARDS: { value: CustomerRole; title: string; description: string }[] = [
-  { value: 'admin', title: 'Admin', description: 'Full system access' },
-  { value: 'editor', title: 'Editor', description: 'Manage content & users' },
-  { value: 'member', title: 'Member', description: 'Read-only permissions' },
-]
+// sot/phase-1.md ChainConfig + sot/openapi.yaml § CreateUserWallet example.
+const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
 
-export default function UserModal({ open, onOpenChange, mode, customer }: UserModalProps) {
-  const create = useCreateCustomer()
-  const update = useUpdateCustomer()
+export default function UserModal({ open, onOpenChange, mode, user }: UserModalProps) {
+  const create = useCreateUser()
+  const update = useUpdateUser()
   const isPending = create.isPending || update.isPending
 
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  // Reset form state when dialog opens — intentional pattern, not a perf concern.
   useEffect(() => {
     if (open) {
-      if (mode === 'edit' && customer) {
-        setForm({
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          type: customer.type,
-          organization: customer.organization ?? '',
-          role: customer.role,
-          notes: customer.notes ?? '',
-        })
+      if (mode === 'edit' && user) {
+        setForm({ name: user.name, notes: user.notes ?? '', wallets: [] })
       } else {
         setForm(EMPTY)
       }
       setErrors({})
     }
-  }, [open, mode, customer])
+  }, [open, mode, user])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value }
-      // Clear organization on type switch to personal
-      if (key === 'type' && value === 'personal') next.organization = ''
-      return next
-    })
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
     if (errors[key as string]) {
       setErrors((prev) => {
         const next = { ...prev }
@@ -107,30 +87,71 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
     }
   }
 
+  function setWallet(index: number, patch: Partial<WalletDraft>) {
+    setForm((prev) => ({
+      ...prev,
+      wallets: prev.wallets.map((w, i) => (i === index ? { ...w, ...patch } : w)),
+    }))
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next[`wallets.${index}.chain`]
+      delete next[`wallets.${index}.address`]
+      return next
+    })
+  }
+
+  function addWalletRow() {
+    setForm((prev) => ({
+      ...prev,
+      wallets: [...prev.wallets, { chain: 'polygon', address: '' }],
+    }))
+  }
+
+  function removeWalletRow(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      wallets: prev.wallets.filter((_, i) => i !== index),
+    }))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const v = validateCustomerForm(form)
-    if (!v.valid) {
-      setErrors(v.errors)
+    const baseResult = validateUserForm({ name: form.name, notes: form.notes })
+    const walletErrors: Record<string, string> = {}
+    if (mode === 'add') {
+      form.wallets.forEach((w, i) => {
+        const r = validateUserWalletForm(w)
+        if (r.errors.chain) walletErrors[`wallets.${i}.chain`] = r.errors.chain
+        if (r.errors.address) walletErrors[`wallets.${i}.address`] = r.errors.address
+      })
+    }
+    const merged = { ...baseResult.errors, ...walletErrors }
+    if (Object.keys(merged).length > 0) {
+      setErrors(merged)
       return
     }
+
     try {
-      const payload = {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone,
-        type: form.type as CustomerType,
-        organization: form.type === 'organization' ? form.organization : undefined,
-        role: form.role as CustomerRole,
-        notes: form.notes.trim() || undefined,
-      }
       if (mode === 'add') {
-        await create.mutateAsync(payload)
-        toast.success('Customer added')
-      } else if (customer) {
-        await update.mutateAsync({ id: customer.id, patch: payload })
-        toast.success('Customer updated')
+        const wallets: PhaseOneCreateUserWallet[] = form.wallets.map((w) => ({
+          chain: w.chain,
+          address: w.address.trim(),
+        }))
+        await create.mutateAsync({
+          name: form.name.trim(),
+          notes: form.notes.trim() || undefined,
+          wallets: wallets.length > 0 ? wallets : undefined,
+        })
+        toast.success('User created')
+      } else if (user) {
+        await update.mutateAsync({
+          id: user.id,
+          patch: {
+            name: form.name.trim(),
+            notes: form.notes.trim() || undefined,
+          },
+        })
+        toast.success('User updated')
       }
       onOpenChange(false)
     } catch (err) {
@@ -151,100 +172,25 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'add' ? 'Add new user' : 'Edit user'}
-          </DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Customer details for the end-user directory.'
-              : 'Update the customer record.'}
+              ? 'Create a Phase-1 user. Wallets can also be added later from the user detail page.'
+              : 'Update name or notes. Wallets are managed from the detail page.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="firstName">First name</Label>
-              <Input
-                id="firstName"
-                value={form.firstName}
-                onChange={(e) => set('firstName', e.target.value)}
-                placeholder="Jane"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.firstName} />
-            </div>
-            <div>
-              <Label htmlFor="lastName">Last name</Label>
-              <Input
-                id="lastName"
-                value={form.lastName}
-                onChange={(e) => set('lastName', e.target.value)}
-                placeholder="Doe"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.lastName} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => set('email', e.target.value)}
-                placeholder="jane.doe@example.com"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.email} />
-            </div>
-            <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                placeholder="+1 415 555 0123"
-                onChange={(e) => set('phone', e.target.value)}
-                className="mt-1.5"
-              />
-              <FieldError message={errors.phone} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="type">Type</Label>
-              <Select
-                value={form.type}
-                onValueChange={(val) => set('type', val as CustomerType)}
-              >
-                <SelectTrigger id="type" className="mt-1.5">
-                  <SelectValue placeholder="Choose type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="personal">Personal</SelectItem>
-                  <SelectItem value="organization">Organization</SelectItem>
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.type} />
-            </div>
-            <div>
-              <Label htmlFor="organization">Organization</Label>
-              <Input
-                id="organization"
-                value={form.organization}
-                onChange={(e) => set('organization', e.target.value)}
-                disabled={form.type !== 'organization'}
-                placeholder={form.type === 'organization' ? 'Acme Corp' : 'Personal customer'}
-                className={cn(
-                  'mt-1.5',
-                  form.type !== 'organization' && 'opacity-50'
-                )}
-              />
-              <FieldError message={errors.organization} />
-            </div>
+          <div>
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={form.name}
+              onChange={(e) => setField('name', e.target.value)}
+              placeholder="Jane Doe"
+              className="mt-1.5"
+            />
+            <FieldError message={errors.name} />
           </div>
 
           <div>
@@ -252,40 +198,81 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
             <Textarea
               id="notes"
               value={form.notes}
-              onChange={(e) => set('notes', e.target.value)}
+              onChange={(e) => setField('notes', e.target.value)}
               placeholder="Optional notes (visible to staff only)"
               className="mt-1.5 min-h-[72px]"
             />
+            <FieldError message={errors.notes} />
           </div>
 
-          <div>
-            <Label>Role</Label>
-            <RadioGroup
-              value={form.role}
-              onValueChange={(val) => set('role', val as CustomerRole)}
-              className="mt-2 grid gap-3 sm:grid-cols-3"
-            >
-              {ROLE_CARDS.map((card) => (
-                <Label
-                  key={card.value}
-                  htmlFor={`role-${card.value}`}
-                  className={cn(
-                    'cursor-pointer rounded-md border p-3 transition-colors',
-                    form.role === card.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-transparent bg-secondary hover:bg-muted'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value={card.value} id={`role-${card.value}`} />
-                    <span className="text-[13px] font-medium text-foreground">{card.title}</span>
-                  </div>
-                  <p className="mt-1 pl-6 text-[11.5px] text-muted-foreground">{card.description}</p>
-                </Label>
-              ))}
-            </RadioGroup>
-            <FieldError message={errors.role} />
-          </div>
+          {mode === 'add' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Wallets</Label>
+                <Button type="button" size="sm" variant="outline" onClick={addWalletRow}>
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add wallet
+                </Button>
+              </div>
+              {form.wallets.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No wallets yet. Optional — you can add them after creation.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {form.wallets.map((w, i) => (
+                    <li
+                      key={i}
+                      className="grid gap-2 rounded-md bg-secondary/40 p-3 sm:grid-cols-[140px_1fr_auto]"
+                    >
+                      <div>
+                        <Label htmlFor={`wallet-chain-${i}`} className="sr-only">
+                          Chain
+                        </Label>
+                        <Select
+                          value={w.chain}
+                          onValueChange={(val) => setWallet(i, { chain: val })}
+                        >
+                          <SelectTrigger id={`wallet-chain-${i}`}>
+                            <SelectValue placeholder="Chain" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CHAIN_OPTIONS.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldError message={errors[`wallets.${i}.chain`]} />
+                      </div>
+                      <div>
+                        <Label htmlFor={`wallet-address-${i}`} className="sr-only">
+                          Address
+                        </Label>
+                        <Input
+                          id={`wallet-address-${i}`}
+                          value={w.address}
+                          onChange={(e) => setWallet(i, { address: e.target.value })}
+                          placeholder="0x..."
+                        />
+                        <FieldError message={errors[`wallets.${i}.address`]} />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeWalletRow(i)}
+                        aria-label={`Remove wallet ${i + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -296,15 +283,8 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-            >
-              {isPending
-                ? 'Submitting…'
-                : mode === 'add'
-                ? 'Create user'
-                : 'Save changes'}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? 'Submitting…' : mode === 'add' ? 'Create user' : 'Save changes'}
             </Button>
           </div>
         </form>

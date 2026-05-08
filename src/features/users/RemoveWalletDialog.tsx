@@ -9,22 +9,22 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useRemoveWallet } from './hooks'
-import type { UserWallet } from '@/lib/types'
+import type { PhaseOneUserWallet } from '@/lib/types'
 
 interface RemoveWalletDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  customerId: string
-  wallet: UserWallet | null
+  userId: string
+  wallet: PhaseOneUserWallet | null
 }
 
 export default function RemoveWalletDialog({
   open,
   onOpenChange,
-  customerId,
+  userId,
   wallet,
 }: RemoveWalletDialogProps) {
-  const remove = useRemoveWallet(customerId)
+  const remove = useRemoveWallet(userId)
 
   async function handleConfirm() {
     if (!wallet) return

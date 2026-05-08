@@ -25,7 +25,6 @@ import {
   createOtcRedeemTransaction,
   createBurnRequestFromSubmission,
   computeCustomerSummary,
-  computeDashboardSnapshot,
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
@@ -507,10 +506,9 @@ export const handlers = [
     return HttpResponse.json(created, { status: 201 })
   }),
 
-  // ─── Dashboard (derived OTC snapshot — used by redesigned DashboardPage in Unit 13) ───
-  http.get('/api/dashboard/snapshot', () =>
-    HttpResponse.json(computeDashboardSnapshot(customerStore, otcMintStore, otcRedeemStore))
-  ),
+  // USDX-37: /api/dashboard/snapshot mock removed — superseded by SoT
+  // /api/v1/dashboard/stats (real BE per mocks/browser.ts § INTEGRATION_PATHS;
+  // tests still hit the in-process /api/v1/dashboard/stats handler below).
 
   // USDX-42: /report mock removed — superseded by /requests.
 
@@ -642,8 +640,11 @@ export const handlers = [
   // Strict bearer auth (sot/openapi.yaml L13-14 global security).
   // Returns Phase-1 User entities for the userName autocomplete in the mint
   // and burn request forms.
+  // Bearer is not enforced in the mock (matches the /api/v1/rate convention)
+  // so React Query's first fetch from a freshly mounted page doesn't 401
+  // before AuthProvider wires bindings. Real BE enforces auth — UI handles
+  // that path via apiFetch.onUnauthorized.
   http.get('/api/v1/users', ({ request }) => {
-    if (!authenticatedStaff(request)) return unauthorized()
     const url = new URL(request.url)
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? ''
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
@@ -664,6 +665,158 @@ export const handlers = [
       metadata: { page, limit, total: users.length },
       data,
     })
+  }),
+
+  // GET /api/v1/users/:id — user detail with analytics + recent requests
+  // (sot/openapi.yaml § UserDetail). Browser bypasses via INTEGRATION_PATHS;
+  // this handler exists only to back vitest-driven UI tests. Bearer is not
+  // enforced in the mock (matches the /api/v1/rate convention) so that React
+  // Query's first fetch doesn't 401 before AuthProvider wires bindings.
+  http.get('/api/v1/users/:id', ({ params }) => {
+    const customerIndex = customerStore.findIndex((c) => c.id === String(params.id))
+    if (customerIndex === -1) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'User not found' } },
+        { status: 404 }
+      )
+    }
+    const customer = customerStore[customerIndex]!
+    const user = customerToPhaseOneUser(customer, customerIndex + 1)
+    const analytics = computeUserAnalytics(customer.id, otcMintStore, otcRedeemStore)
+    const recentRequests = requestList
+      .filter((r) => r.userName === user.name)
+      .slice(0, 5)
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { ...user, analytics, recentRequests },
+    })
+  }),
+
+  // POST /api/v1/users — create user (sot/openapi.yaml § CreateUser).
+  http.post('/api/v1/users', async ({ request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const body = (await request.json()) as { name?: string; notes?: string; wallets?: Array<{ chain: string; address: string }> }
+    if (!body.name?.trim()) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'INVALID_INPUT', message: 'Name is required' } },
+        { status: 400 }
+      )
+    }
+    const created = createCustomer({
+      firstName: body.name.split(' ')[0] ?? body.name,
+      lastName: body.name.split(' ').slice(1).join(' '),
+      notes: body.notes,
+      wallets: (body.wallets ?? []).map((w) =>
+        createUserWallet({ chain: w.chain as Customer['wallets'][number]['chain'], address: w.address })
+      ),
+    })
+    customerStore.unshift(created)
+    const user = customerToPhaseOneUser(created, customerStore.length)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: user },
+      { status: 201 }
+    )
+  }),
+
+  // PATCH /api/v1/users/:id — update user (sot/openapi.yaml § UpdateUser:
+  // only `name` and `notes` are mutable).
+  http.patch('/api/v1/users/:id', async ({ params, request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const idx = customerStore.findIndex((c) => c.id === String(params.id))
+    if (idx === -1) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'User not found' } },
+        { status: 404 }
+      )
+    }
+    const patch = (await request.json()) as { name?: string; notes?: string }
+    const customer = customerStore[idx]!
+    if (typeof patch.name === 'string' && patch.name.trim()) {
+      const [first, ...rest] = patch.name.trim().split(/\s+/)
+      customer.firstName = first ?? customer.firstName
+      customer.lastName = rest.join(' ')
+    }
+    if (typeof patch.notes !== 'undefined') {
+      customer.notes = patch.notes
+    }
+    const user = customerToPhaseOneUser(customer, idx + 1)
+    return HttpResponse.json({ status: 'success', metadata: null, data: user })
+  }),
+
+  // DELETE /api/v1/users/:id
+  http.delete('/api/v1/users/:id', ({ params, request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const idx = customerStore.findIndex((c) => c.id === String(params.id))
+    if (idx === -1) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'User not found' } },
+        { status: 404 }
+      )
+    }
+    customerStore.splice(idx, 1)
+    return HttpResponse.json({ status: 'success', metadata: null, data: null })
+  }),
+
+  // POST /api/v1/users/:id/wallets — add wallet (sot/openapi.yaml).
+  // 409 returned when (chain, address) already exists for this user.
+  http.post('/api/v1/users/:id/wallets', async ({ params, request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const idx = customerStore.findIndex((c) => c.id === String(params.id))
+    if (idx === -1) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'User not found' } },
+        { status: 404 }
+      )
+    }
+    const body = (await request.json()) as { chain?: string; address?: string }
+    if (!body.chain || !body.address) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'INVALID_INPUT', message: 'chain and address are required' } },
+        { status: 400 }
+      )
+    }
+    const customer = customerStore[idx]!
+    const duplicate = customer.wallets.find(
+      (w) => w.chain === body.chain && w.address.toLowerCase() === body.address!.toLowerCase()
+    )
+    if (duplicate) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'CONFLICT', message: 'Wallet already exists' } },
+        { status: 409 }
+      )
+    }
+    const wallet = createUserWallet({
+      chain: body.chain as Customer['wallets'][number]['chain'],
+      address: body.address,
+    })
+    customer.wallets.push(wallet)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: wallet },
+      { status: 201 }
+    )
+  }),
+
+  // DELETE /api/v1/users/:id/wallets/:walletId
+  http.delete('/api/v1/users/:id/wallets/:walletId', ({ params, request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const idx = customerStore.findIndex((c) => c.id === String(params.id))
+    if (idx === -1) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'User not found' } },
+        { status: 404 }
+      )
+    }
+    const customer = customerStore[idx]!
+    const before = customer.wallets.length
+    customer.wallets = customer.wallets.filter((w) => w.id !== String(params.walletId))
+    if (customer.wallets.length === before) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Wallet not found' } },
+        { status: 404 }
+      )
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: null })
   }),
 
   // ─── Phase 1 Mint Submission (sot/openapi.yaml § POST /api/v1/mint) ───

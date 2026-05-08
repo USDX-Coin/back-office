@@ -153,18 +153,8 @@ describe('OTC endpoints', () => {
   })
 })
 
-describe('Dashboard snapshot endpoint', () => {
-  test('returns OTC-derived KPIs and 30d trend', async () => {
-    const res = await fetch('/api/dashboard/snapshot')
-    const data = await res.json()
-    expect(data.kpis).toBeDefined()
-    expect(data.kpis.totalMintVolume30d).toBeTypeOf('number')
-    expect(data.volumeTrend).toBeInstanceOf(Array)
-    expect(data.volumeTrend.length).toBe(30)
-    expect(data.recentActivity).toBeInstanceOf(Array)
-    expect(data.networkDistribution).toBeInstanceOf(Array)
-  })
-})
+// USDX-37: removed `Dashboard snapshot endpoint` describe — /api/dashboard/snapshot
+// is gone. Coverage now lives in `Dashboard stats endpoint (USDX-16)` below.
 
 describe('Dashboard stats endpoint (USDX-16)', () => {
   describe('positive', () => {

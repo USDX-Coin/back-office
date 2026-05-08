@@ -8,12 +8,12 @@ import SummaryStat from '@/components/SummaryStat'
 import Avatar from '@/components/Avatar'
 import { canManageUsers, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
-import { getOtcStatusConfig } from '@/lib/status'
+import { getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
-import { useCustomerDetail } from './hooks'
+import { useUserDetail } from './hooks'
 import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
-import type { UserWallet } from '@/lib/types'
+import type { PhaseOneUserWallet } from '@/lib/types'
 
 function shortAddress(address: string): string {
   if (address.length <= 10) return address
@@ -25,10 +25,10 @@ export default function UserDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const canManage = canManageUsers(user)
-  const { data, isLoading, isError, error } = useCustomerDetail(id)
+  const { data, isLoading, isError, error } = useUserDetail(id)
 
   const [walletModalOpen, setWalletModalOpen] = useState(false)
-  const [walletToRemove, setWalletToRemove] = useState<UserWallet | null>(null)
+  const [walletToRemove, setWalletToRemove] = useState<PhaseOneUserWallet | null>(null)
 
   if (isLoading) {
     return (
@@ -55,8 +55,6 @@ export default function UserDetailPage() {
     )
   }
 
-  const fullName = `${data.firstName} ${data.lastName}`.trim()
-
   return (
     <div>
       <Button
@@ -71,20 +69,20 @@ export default function UserDetailPage() {
 
       <PageHeader
         eyebrow="Workspace · User"
-        title={fullName}
-        subtitle={`${data.email} · joined ${formatShortDate(data.createdAt)}`}
+        title={data.name}
+        subtitle={`Joined ${formatShortDate(data.createdAt)}`}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <SummaryStat
           label="Total minted"
-          value={`${data.analytics.totalMinted.toLocaleString()} USDX`}
-          hint="completed mints"
+          value={`${data.analytics.totalMinted} USDX`}
+          hint="executed mints"
         />
         <SummaryStat
           label="Total burned"
-          value={`${data.analytics.totalBurned.toLocaleString()} USDX`}
-          hint="completed redeems"
+          value={`${data.analytics.totalBurned} USDX`}
+          hint="executed burns"
         />
         <SummaryStat
           label="Transactions"
@@ -100,32 +98,14 @@ export default function UserDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-[12.5px]">
             <div className="flex items-center gap-2.5">
-              <Avatar name={fullName} size="md" />
+              <Avatar name={data.name} size="md" />
               <div className="min-w-0">
-                <p className="font-medium text-foreground">{fullName}</p>
-                <p className="truncate text-muted-foreground">{data.email}</p>
+                <p className="font-medium text-foreground">{data.name}</p>
+                <p className="truncate text-muted-foreground">
+                  {data.wallets.length} wallet{data.wallets.length === 1 ? '' : 's'}
+                </p>
               </div>
             </div>
-            <dl className="grid gap-1.5">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Phone</dt>
-                <dd className="font-mono tabular-nums">{data.phone}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Type</dt>
-                <dd>{data.type === 'personal' ? 'Personal' : 'Organization'}</dd>
-              </div>
-              {data.organization && (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Organization</dt>
-                  <dd>{data.organization}</dd>
-                </div>
-              )}
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Role</dt>
-                <dd className="capitalize">{data.role}</dd>
-              </div>
-            </dl>
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
                 <p className="mb-1 text-[11px] uppercase tracking-wide">Notes</p>
@@ -203,7 +183,7 @@ export default function UserDetailPage() {
           ) : (
             <ul className="divide-y" aria-label="Recent requests">
               {data.recentRequests.map((r) => {
-                const status = getOtcStatusConfig(r.status)
+                const status = getRequestStatusConfig(r.status)
                 return (
                   <li
                     key={r.id}
@@ -211,10 +191,10 @@ export default function UserDetailPage() {
                   >
                     <div className="min-w-0">
                       <p className="font-medium capitalize">
-                        {r.kind} · {r.amount.toLocaleString()} USDX
+                        {r.type} · {r.amount} USDX
                       </p>
                       <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">
-                        {r.network} · {formatShortDate(r.createdAt)}
+                        {r.chain} · {formatShortDate(r.createdAt)}
                       </p>
                     </div>
                     <span
@@ -236,14 +216,14 @@ export default function UserDetailPage() {
       <AddWalletModal
         open={walletModalOpen}
         onOpenChange={setWalletModalOpen}
-        customerId={data.id}
+        userId={data.id}
       />
       <RemoveWalletDialog
         open={Boolean(walletToRemove)}
         onOpenChange={(open) => {
           if (!open) setWalletToRemove(null)
         }}
-        customerId={data.id}
+        userId={data.id}
         wallet={walletToRemove}
       />
     </div>

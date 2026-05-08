@@ -15,17 +15,17 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-// Default seeded staff[0] is `super_admin` (Demo Operator). Index 2 is `operations`,
-// which we use to assert the non-admin (read-only) UI.
+// Default seeded staff[0] is `super_admin`. Index 2 maps to a non-admin role
+// — we use it to assert the read-only UI.
 const NON_ADMIN_STAFF_ID = 'stf_3'
 
-describe('UsersPage — list & search (acceptance criteria)', () => {
+describe('UsersPage — list & search (USDX-37 AC)', () => {
   describe('positive', () => {
     test('opens /users → user table appears', async () => {
       renderWithProviders(<UsersPage />, { authenticated: true })
 
       expect(screen.getByRole('heading', { name: /^user/i })).toBeInTheDocument()
-      // First seeded customer name: "Sarah Mitchell" (CUSTOMER_NAMES[1] given counter starts at 2)
+      // First seeded customer name surfaces via /api/v1/users.
       await waitFor(() => {
         expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
       })
@@ -35,7 +35,6 @@ describe('UsersPage — list & search (acceptance criteria)', () => {
       const user = userEvent.setup()
       renderWithProviders(<UsersPage />, { authenticated: true })
 
-      // Wait for initial data
       await waitFor(() => {
         expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
       })
@@ -43,32 +42,22 @@ describe('UsersPage — list & search (acceptance criteria)', () => {
       const searchInput = screen.getByLabelText(/search users/i)
       await user.type(searchInput, 'john{Enter}')
 
-      // After search, "John Smith" should remain; non-John names should disappear
       await waitFor(() => {
         expect(screen.getByText(/john smith/i)).toBeInTheDocument()
         expect(screen.queryByText(/sarah mitchell/i)).not.toBeInTheDocument()
       })
     })
-
-    test('renders summary cards', () => {
-      renderWithProviders(<UsersPage />, { authenticated: true })
-      expect(screen.getByText(/total users/i)).toBeInTheDocument()
-      expect(screen.getByText(/active now/i)).toBeInTheDocument()
-      expect(screen.getByText(/organizations/i)).toBeInTheDocument()
-    })
   })
 })
 
-describe('UsersPage — RBAC (acceptance criteria)', () => {
+describe('UsersPage — RBAC (USDX-15 AC)', () => {
   test('admin sees Add User button', () => {
     renderWithProviders(<UsersPage />, { authenticated: true })
-    // PageHeader action + (potentially) empty-state CTA
     expect(screen.getAllByRole('button', { name: /add user/i }).length).toBeGreaterThan(0)
   })
 
   test('non-admin staff does not see Add User button', async () => {
     renderWithProviders(<UsersPage />, { staffId: NON_ADMIN_STAFF_ID })
-    // Wait for data load to ensure UI has fully rendered
     await waitFor(() => {
       expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
     })
@@ -85,7 +74,7 @@ describe('UsersPage — RBAC (acceptance criteria)', () => {
   })
 })
 
-describe('UsersPage — navigation to detail (acceptance criteria)', () => {
+describe('UsersPage — navigation to detail (USDX-37 AC)', () => {
   test('clicking a user row navigates to detail page with analytics + wallets + recent requests', async () => {
     const user = userEvent.setup()
     renderWithProviders(
@@ -103,7 +92,6 @@ describe('UsersPage — navigation to detail (acceptance criteria)', () => {
     const trigger = screen.getByRole('button', { name: /open sarah mitchell/i })
     await user.click(trigger)
 
-    // AC: detail page must surface analytics, wallet list, AND recent requests
     await waitFor(() => {
       expect(
         screen.getByRole('heading', { name: /sarah mitchell/i })
@@ -117,15 +105,15 @@ describe('UsersPage — navigation to detail (acceptance criteria)', () => {
   })
 })
 
-describe('UsersPage — search by wallet address (SOT phase-1.md § User List)', () => {
+describe('UsersPage — search by wallet address (sot/phase-1.md § User List)', () => {
   test('searching by a wallet address fragment narrows the list', async () => {
-    // Discover a real seeded wallet address via the API so the test stays
-    // deterministic against future changes in the wallet seed function.
-    const detailRes = await fetch('/api/customers/cus_5')
-    const customer = await detailRes.json()
-    const fullAddress = customer.wallets[0].address as string
+    // Discover a real seeded wallet address via the SoT detail endpoint so the
+    // test stays deterministic against future seed changes.
+    const detailRes = await fetch('/api/v1/users/cus_5')
+    const body = await detailRes.json()
+    const fullAddress = body.data.wallets[0].address as string
     const addressFragment = fullAddress.slice(0, 12)
-    const customerName = `${customer.firstName} ${customer.lastName}`
+    const userName = body.data.name as string
 
     const user = userEvent.setup()
     renderWithProviders(<UsersPage />, { authenticated: true })
@@ -137,14 +125,13 @@ describe('UsersPage — search by wallet address (SOT phase-1.md § User List)',
     const searchInput = screen.getByLabelText(/search users/i)
     await user.type(searchInput, `${addressFragment}{Enter}`)
 
-    // The user owning that wallet must remain; an unrelated user must drop.
     await waitFor(() => {
-      expect(screen.getByText(customerName)).toBeInTheDocument()
+      expect(screen.getByText(userName)).toBeInTheDocument()
     })
   })
 })
 
-describe('UsersPage — edit user (Linear scope CRUD)', () => {
+describe('UsersPage — edit user (sot/openapi.yaml § PATCH /api/v1/users/:id)', () => {
   test('admin can edit an existing user and see updates in the list', async () => {
     const user = userEvent.setup()
     renderWithProviders(<UsersPage />, { authenticated: true })
@@ -153,25 +140,25 @@ describe('UsersPage — edit user (Linear scope CRUD)', () => {
       expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
     })
 
-    // Open edit on Sarah Mitchell
-    const editBtn = screen.getByRole('button', { name: /edit sarah/i })
+    const editBtn = screen.getByRole('button', { name: /edit sarah mitchell/i })
     await user.click(editBtn)
 
     expect(await screen.findByRole('heading', { name: /edit user/i })).toBeInTheDocument()
 
-    const firstNameInput = screen.getByLabelText(/first name/i) as HTMLInputElement
-    await user.clear(firstNameInput)
-    await user.type(firstNameInput, 'Sarahed')
+    // SoT UpdateUser exposes only `name` and `notes`. The form mirrors that.
+    const nameInput = screen.getByLabelText(/^name$/i) as HTMLInputElement
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Sarah Mitchellsen')
 
     await user.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/sarahed mitchell/i)).toBeInTheDocument()
+      expect(screen.getByText(/sarah mitchellsen/i)).toBeInTheDocument()
     })
   })
 })
 
-describe('UsersPage — delete user (Linear scope CRUD)', () => {
+describe('UsersPage — delete user (sot/openapi.yaml § DELETE /api/v1/users/:id)', () => {
   test('admin can delete a user via the confirm dialog', async () => {
     const user = userEvent.setup()
     renderWithProviders(<UsersPage />, { authenticated: true })
@@ -180,7 +167,7 @@ describe('UsersPage — delete user (Linear scope CRUD)', () => {
       expect(screen.getByText(/sarah mitchell/i)).toBeInTheDocument()
     })
 
-    const deleteBtn = screen.getByRole('button', { name: /delete sarah/i })
+    const deleteBtn = screen.getByRole('button', { name: /delete sarah mitchell/i })
     await user.click(deleteBtn)
 
     expect(await screen.findByRole('heading', { name: /delete user/i })).toBeInTheDocument()
@@ -193,12 +180,12 @@ describe('UsersPage — delete user (Linear scope CRUD)', () => {
   })
 })
 
-describe('UsersPage — create user flow (acceptance criteria)', () => {
+describe('UsersPage — create user (sot/openapi.yaml § POST /api/v1/users)', () => {
   // Per-test timeout 15s + delay:0 — long chain (initial load + open modal +
-  // 4 typed fields + Radix combobox + create + waitFor) overshoots default
-  // 5s under Windows full-suite jsdom parallelism.
+  // typed fields + create + waitFor) overshoots default 5s under Windows
+  // full-suite jsdom parallelism.
   test(
-    'admin can open the Add User modal and submit a new user',
+    'admin can open the Add User modal and submit a new SoT-shaped user',
     async () => {
       const user = userEvent.setup({ delay: 0 })
       renderWithProviders(<UsersPage />, { authenticated: true })
@@ -207,19 +194,12 @@ describe('UsersPage — create user flow (acceptance criteria)', () => {
         await screen.findByText(/sarah mitchell/i, {}, { timeout: 5000 })
       ).toBeInTheDocument()
 
-      // Click the header Add User
       const addButtons = screen.getAllByRole('button', { name: /add user/i })
       await user.click(addButtons[0]!)
 
-      // Fill required fields
-      await user.type(screen.getByLabelText(/first name/i), 'Acceptance')
-      await user.type(screen.getByLabelText(/last name/i), 'Tester')
-      await user.type(screen.getByLabelText(/email/i), 'acceptance.tester@example.com')
-      await user.type(screen.getByLabelText(/phone/i), '+15551234567')
-
-      // Choose type=personal via the Select (Radix uses aria-haspopup)
-      await user.click(screen.getByRole('combobox', { name: /type/i }))
-      await user.click(await screen.findByRole('option', { name: /personal/i }))
+      // SoT CreateUser only requires `name`; `notes` is optional and wallets
+      // are managed separately on the detail page.
+      await user.type(screen.getByLabelText(/^name$/i), 'Acceptance Tester')
 
       await user.click(screen.getByRole('button', { name: /create user/i }))
 

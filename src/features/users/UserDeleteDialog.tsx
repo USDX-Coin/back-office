@@ -8,23 +8,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { useDeleteCustomer } from './hooks'
-import type { Customer } from '@/lib/types'
+import { useDeleteUser } from './hooks'
+import type { PhaseOneUser } from '@/lib/types'
 
 interface UserDeleteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  customer: Customer | null
+  user: PhaseOneUser | null
 }
 
-export default function UserDeleteDialog({ open, onOpenChange, customer }: UserDeleteDialogProps) {
-  const del = useDeleteCustomer()
+export default function UserDeleteDialog({ open, onOpenChange, user }: UserDeleteDialogProps) {
+  const del = useDeleteUser()
 
   async function handleConfirm() {
-    if (!customer) return
+    if (!user) return
     try {
-      await del.mutateAsync(customer.id)
-      toast.success(`Removed ${customer.firstName} ${customer.lastName}`)
+      await del.mutateAsync(user.id)
+      toast.success(`Removed ${user.name}`)
       onOpenChange(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed')
@@ -46,8 +46,8 @@ export default function UserDeleteDialog({ open, onOpenChange, customer }: UserD
         <DialogHeader>
           <DialogTitle>Delete user?</DialogTitle>
           <DialogDescription>
-            {customer
-              ? `Delete user ${customer.firstName} ${customer.lastName}? This cannot be undone.`
+            {user
+              ? `Delete user ${user.name}? This cannot be undone.`
               : 'No user selected.'}
           </DialogDescription>
         </DialogHeader>

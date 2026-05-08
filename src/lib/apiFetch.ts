@@ -99,3 +99,48 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   }
   return payload as T
 }
+
+// Variant of apiFetch that returns the full SoT envelope payload as-is
+// instead of unwrapping `data`. Use for paginated endpoints where the
+// caller also needs `metadata` (page/limit/total) — sot/openapi.yaml
+// § PaginatedResponse.
+export async function apiFetchRaw<TEnvelope>(
+  path: string,
+  options: ApiFetchOptions = {}
+): Promise<TEnvelope> {
+  const { body, headers, skipAuth, ...rest } = options
+  const finalHeaders = new Headers(headers)
+  if (body !== undefined && !finalHeaders.has('Content-Type')) {
+    finalHeaders.set('Content-Type', 'application/json')
+  }
+  if (!skipAuth) {
+    const token = bindings.getToken()
+    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(path, {
+    ...rest,
+    headers: finalHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  if (response.status === 401) bindings.onUnauthorized()
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+
+  if (!response.ok) {
+    const err = (payload ?? {}) as SoTErrorEnvelope
+    throw new ApiError(
+      response.status,
+      err.error?.code ?? 'UNKNOWN',
+      err.error?.message ?? response.statusText ?? 'Request failed'
+    )
+  }
+
+  return payload as TEnvelope
+}
