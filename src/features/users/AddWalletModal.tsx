@@ -18,19 +18,31 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
-import { validateUserWalletForm } from '@/lib/validators'
+import {
+  USER_LIMITS,
+  validateUserWalletForm,
+  validateUserWalletsLimit,
+} from '@/lib/validators'
 import { useAddWallet } from './hooks'
 
 interface AddWalletModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
+  // USDX-47 S8 + AC10: pre-check before POST so the limit error shows up
+  // immediately. BE 422 is the safety net for race conditions.
+  currentWalletCount: number
 }
 
 // sot/phase-1.md ChainConfig — Phase-1 supported chains.
 const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
 
-export default function AddWalletModal({ open, onOpenChange, userId }: AddWalletModalProps) {
+export default function AddWalletModal({
+  open,
+  onOpenChange,
+  userId,
+  currentWalletCount,
+}: AddWalletModalProps) {
   const add = useAddWallet(userId)
   const [chain, setChain] = useState('')
   const [address, setAddress] = useState('')
@@ -46,8 +58,14 @@ export default function AddWalletModal({ open, onOpenChange, userId }: AddWallet
   }, [open])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const limitError = validateUserWalletsLimit(currentWalletCount)
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (limitError) {
+      setErrors({ form: limitError })
+      return
+    }
     const result = validateUserWalletForm({ chain, address })
     if (!result.valid) {
       setErrors(result.errors)
@@ -77,9 +95,15 @@ export default function AddWalletModal({ open, onOpenChange, userId }: AddWallet
         <DialogHeader>
           <DialogTitle>Add wallet</DialogTitle>
           <DialogDescription>
-            Attach a new wallet address to this user.
+            Attach a new wallet address to this user. {currentWalletCount} /{' '}
+            {USER_LIMITS.MAX_WALLETS} used.
           </DialogDescription>
         </DialogHeader>
+        {limitError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[12.5px] text-destructive">
+            {limitError}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <Label htmlFor="chain">Chain</Label>
@@ -128,7 +152,7 @@ export default function AddWalletModal({ open, onOpenChange, userId }: AddWallet
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={add.isPending}>
+            <Button type="submit" disabled={add.isPending || Boolean(limitError)}>
               {add.isPending ? 'Submitting…' : 'Add wallet'}
             </Button>
           </div>

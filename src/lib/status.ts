@@ -1,4 +1,4 @@
-import type { OtcStatus, RequestStatus } from './types'
+import type { KycStatus, OtcStatus, RequestStatus } from './types'
 
 export interface StatusConfig {
   label: string
@@ -92,5 +92,46 @@ export function isRequestTerminal(status: RequestStatus): boolean {
     status === 'EXECUTED' ||
     status === 'IDR_TRANSFERRED' ||
     status === 'REJECTED'
+  )
+}
+
+// USDX-47 + sot/conventions.md § User KYC Status: state machine
+// UNVERIFIED → PENDING → VERIFIED|REJECTED. Color mapping mirrors the
+// request-status convention so the user list reads consistently with mint/burn.
+const kycStatusMap: Record<KycStatus, StatusConfig> = {
+  VERIFIED: {
+    label: 'Verified',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  PENDING: {
+    label: 'Pending',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+  UNVERIFIED: {
+    label: 'Unverified',
+    variant: 'outline',
+    className: 'bg-muted text-muted-foreground',
+    dotClass: 'bg-muted-foreground',
+  },
+}
+
+export function getKycStatusConfig(status: KycStatus): StatusConfig {
+  return (
+    kycStatusMap[status] ?? {
+      label: String(status),
+      variant: 'outline',
+      className: '',
+      dotClass: 'bg-muted-foreground',
+    }
   )
 }

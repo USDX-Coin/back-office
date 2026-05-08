@@ -11,11 +11,19 @@ import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
 import UserFilterToolbar from './UserFilterToolbar'
+import PasswordRevealDialog from './PasswordRevealDialog'
 import { useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
-import type { PhaseOneUser } from '@/lib/types'
+import { getKycStatusConfig } from '@/lib/status'
+import { cn } from '@/lib/utils'
+import type { EntityType, KycStatus, PhaseOneUser } from '@/lib/types'
 
 const PAGE_SIZE = 10
+
+const ENTITY_LABEL: Record<EntityType, string> = {
+  INDIVIDUAL: 'Individual',
+  LEGAL_ENTITY: 'Legal Entity',
+}
 
 export default function UsersPage() {
   const navigate = useNavigate()
@@ -23,17 +31,23 @@ export default function UsersPage() {
   const canManage = canManageUsers(user)
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
+  const kycStatusParam = (params.searchParams.get('kycStatus') ?? '') as KycStatus | ''
+  const entityTypeParam = (params.searchParams.get('entityType') ?? '') as EntityType | ''
 
   const list = useUsers({
     page: params.page,
     limit: PAGE_SIZE,
     search: search || undefined,
+    kycStatus: kycStatusParam || undefined,
+    entityType: entityTypeParam || undefined,
   })
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // USDX-47 AC5: temporary password surfaced once after create.
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
 
   function openAdd() {
     setModalMode('add')
@@ -52,9 +66,15 @@ export default function UsersPage() {
     setDeleteOpen(true)
   }
 
-  function handleFilterChange(next: { search: string }) {
+  function handleFilterChange(next: {
+    search: string
+    kycStatus: KycStatus | ''
+    entityType: EntityType | ''
+  }) {
     params.updateParams({
       search: next.search || null,
+      kycStatus: next.kycStatus || null,
+      entityType: next.entityType || null,
       page: '1',
     })
   }
@@ -82,29 +102,49 @@ export default function UsersPage() {
       },
     },
     {
-      id: 'wallets',
-      header: 'Wallets',
+      id: 'email',
+      header: 'Email',
+      cell: ({ row }) => (
+        <span className="text-[12.5px] text-muted-foreground">
+          {row.original.email || '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'entityType',
+      header: 'Entity',
+      cell: ({ row }) => (
+        <span className="text-[12.5px]">
+          {ENTITY_LABEL[row.original.entityType] ?? row.original.entityType}
+        </span>
+      ),
+    },
+    {
+      id: 'kycStatus',
+      header: 'KYC',
       cell: ({ row }) => {
-        const wallets = row.original.wallets
-        if (wallets.length === 0) {
-          return <span className="text-muted-foreground">—</span>
-        }
-        const first = wallets[0]!
-        const more = wallets.length > 1 ? ` +${wallets.length - 1}` : ''
+        const cfg = getKycStatusConfig(row.original.kycStatus)
         return (
-          <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
-            {first.chain} · {first.address.slice(0, 6)}…{first.address.slice(-4)}
-            {more}
+          <span
+            className={cn(
+              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              cfg.className
+            )}
+          >
+            {cfg.label}
           </span>
         )
       },
     },
     {
-      id: 'notes',
-      header: 'Notes',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.notes ?? '—'}</span>
-      ),
+      id: 'suspended',
+      header: 'Status',
+      cell: ({ row }) =>
+        row.original.suspended ? (
+          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
+            Suspended
+          </span>
+        ) : null,
     },
     ...(canManage
       ? [
@@ -166,6 +206,7 @@ export default function UsersPage() {
 
   // SoT openapi.yaml § PaginatedResponse — total lives at metadata.total.
   const total = list.data?.metadata?.total ?? 0
+  const hasFilters = Boolean(search || kycStatusParam || entityTypeParam)
 
   return (
     <div>
@@ -192,12 +233,16 @@ export default function UsersPage() {
         pageSize={PAGE_SIZE}
         filterToolbar={
           <UserFilterToolbar
-            values={{ search }}
+            values={{
+              search,
+              kycStatus: kycStatusParam,
+              entityType: entityTypeParam,
+            }}
             onChange={handleFilterChange}
             onClear={params.clearAll}
           />
         }
-        hasFilters={Boolean(search)}
+        hasFilters={hasFilters}
         emptyState={noDataState}
       />
 
@@ -206,11 +251,19 @@ export default function UsersPage() {
         onOpenChange={setModalOpen}
         mode={modalMode}
         user={activeUser}
+        onCreated={(password) => {
+          if (password) setRevealedPassword(password)
+        }}
       />
       <UserDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         user={activeUser}
+      />
+      <PasswordRevealDialog
+        open={revealedPassword !== null}
+        password={revealedPassword ?? ''}
+        onClose={() => setRevealedPassword(null)}
       />
     </div>
   )

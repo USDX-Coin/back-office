@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -21,11 +22,14 @@ import {
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
 import {
+  USER_LIMITS,
   validateUserForm,
   validateUserWalletForm,
+  validateUserWalletsLimit,
 } from '@/lib/validators'
 import type {
   EntityType,
+  KycStatus,
   PhaseOneCreateUserWallet,
   PhaseOneUser,
 } from '@/lib/types'
@@ -36,6 +40,9 @@ interface UserModalProps {
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
   user?: PhaseOneUser | null
+  // USDX-47 AC5: surfaces the one-time password from POST response so the
+  // parent can open PasswordRevealDialog after this modal closes.
+  onCreated?: (password: string | undefined) => void
 }
 
 interface WalletDraft {
@@ -47,8 +54,10 @@ interface FormState {
   name: string
   email: string
   entityType: EntityType
+  kycStatus: KycStatus
+  suspended: boolean
   notes: string
-  // Only used in `add` mode. SoT UpdateUser has no wallets field; per-wallet
+  // Only used in `add` mode. UpdateUser SoT has no wallets field; per-wallet
   // edits go through POST/DELETE /api/v1/users/:id/wallets after creation.
   wallets: WalletDraft[]
 }
@@ -57,6 +66,8 @@ const EMPTY: FormState = {
   name: '',
   email: '',
   entityType: 'INDIVIDUAL',
+  kycStatus: 'UNVERIFIED',
+  suspended: false,
   notes: '',
   wallets: [],
 }
@@ -64,7 +75,13 @@ const EMPTY: FormState = {
 // sot/phase-1.md ChainConfig + sot/openapi.yaml § CreateUserWallet example.
 const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
 
-export default function UserModal({ open, onOpenChange, mode, user }: UserModalProps) {
+export default function UserModal({
+  open,
+  onOpenChange,
+  mode,
+  user,
+  onCreated,
+}: UserModalProps) {
   const create = useCreateUser()
   const update = useUpdateUser()
   const isPending = create.isPending || update.isPending
@@ -80,6 +97,8 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           name: user.name,
           email: user.email,
           entityType: user.entityType,
+          kycStatus: user.kycStatus,
+          suspended: user.suspended,
           notes: user.notes ?? '',
           wallets: [],
         })
@@ -116,10 +135,14 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
   }
 
   function addWalletRow() {
-    setForm((prev) => ({
-      ...prev,
-      wallets: [...prev.wallets, { chain: 'polygon', address: '' }],
-    }))
+    setForm((prev) => {
+      // USDX-47 S8/AC10: cap at 50 wallets in the draft itself.
+      if (prev.wallets.length >= USER_LIMITS.MAX_WALLETS) return prev
+      return {
+        ...prev,
+        wallets: [...prev.wallets, { chain: 'polygon', address: '' }],
+      }
+    })
   }
 
   function removeWalletRow(index: number) {
@@ -131,9 +154,17 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const baseResult = validateUserForm({ name: form.name, notes: form.notes })
+    const baseResult = validateUserForm({
+      name: form.name,
+      email: form.email,
+      entityType: form.entityType,
+      notes: form.notes,
+    })
     const walletErrors: Record<string, string> = {}
     if (mode === 'add') {
+      // Pre-check wallet limit before per-row validation so we never POST 51+.
+      const limitError = validateUserWalletsLimit(0, form.wallets.length)
+      if (limitError) walletErrors['wallets'] = limitError
       form.wallets.forEach((w, i) => {
         const r = validateUserWalletForm(w)
         if (r.errors.chain) walletErrors[`wallets.${i}.chain`] = r.errors.chain
@@ -152,7 +183,7 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           chain: w.chain,
           address: w.address.trim(),
         }))
-        await create.mutateAsync({
+        const created = await create.mutateAsync({
           name: form.name.trim(),
           email: form.email.trim(),
           entityType: form.entityType,
@@ -160,23 +191,41 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           wallets: wallets.length > 0 ? wallets : undefined,
         })
         toast.success('User created')
-      } else if (user) {
+        onOpenChange(false)
+        // AC5: hand the one-time password back to the parent. If BE didn't
+        // return it (e.g., Day-1 BE without reveal support), surface a soft
+        // warning so the operator knows to reset via Forgot Password later.
+        if (created.password) {
+          onCreated?.(created.password)
+        } else {
+          toast.warning('User created, but no temporary password was returned')
+          onCreated?.(undefined)
+        }
+        return
+      }
+
+      if (user) {
         await update.mutateAsync({
           id: user.id,
           patch: {
             name: form.name.trim(),
-            email: form.email.trim() || undefined,
+            email: form.email.trim(),
             entityType: form.entityType,
+            kycStatus: form.kycStatus,
+            suspended: form.suspended,
             notes: form.notes.trim() || undefined,
           },
         })
         toast.success('User updated')
+        onOpenChange(false)
       }
-      onOpenChange(false)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Operation failed')
     }
   }
+
+  const walletCount = form.wallets.length
+  const walletLimitReached = walletCount >= USER_LIMITS.MAX_WALLETS
 
   return (
     <Dialog
@@ -194,8 +243,8 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Create a Phase-1 user. Wallets can also be added later from the user detail page.'
-              : 'Update name or notes. Wallets are managed from the detail page.'}
+              ? 'Create a Phase-1 user. A temporary password will be generated and shown once after creation.'
+              : 'Update user profile, KYC status, and suspension state.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -207,6 +256,7 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
               placeholder="Jane Doe"
+              maxLength={USER_LIMITS.MAX_NAME_LEN + 50}
               className="mt-1.5"
             />
             <FieldError message={errors.name} />
@@ -236,15 +286,58 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="INDIVIDUAL">Individual</SelectItem>
-                  <SelectItem value="LEGAL_ENTITY">Legal entity</SelectItem>
+                  <SelectItem value="LEGAL_ENTITY">Legal Entity</SelectItem>
                 </SelectContent>
               </Select>
               <FieldError message={errors.entityType} />
             </div>
           </div>
 
+          {mode === 'edit' && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="kycStatus">KYC status</Label>
+                <Select
+                  value={form.kycStatus}
+                  onValueChange={(val) => setField('kycStatus', val as KycStatus)}
+                >
+                  <SelectTrigger id="kycStatus" className="mt-1.5">
+                    <SelectValue placeholder="KYC status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNVERIFIED">Unverified</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="VERIFIED">Verified</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldError message={errors.kycStatus} />
+              </div>
+              <div className="flex flex-col">
+                <Label htmlFor="suspended">Suspended</Label>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Switch
+                    id="suspended"
+                    checked={form.suspended}
+                    onCheckedChange={(val) => setField('suspended', val)}
+                  />
+                  <span className="text-[12px] text-muted-foreground">
+                    {form.suspended
+                      ? 'User cannot mint or burn'
+                      : 'User can transact (subject to KYC)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">
+              Notes
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                {form.notes.length} / {USER_LIMITS.MAX_NOTES_LEN}
+              </span>
+            </Label>
             <Textarea
               id="notes"
               value={form.notes}
@@ -258,12 +351,24 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           {mode === 'add' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Wallets</Label>
-                <Button type="button" size="sm" variant="outline" onClick={addWalletRow}>
+                <Label>
+                  Wallets
+                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                    {walletCount} / {USER_LIMITS.MAX_WALLETS}
+                  </span>
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addWalletRow}
+                  disabled={walletLimitReached}
+                >
                   <Plus className="mr-1 h-3.5 w-3.5" />
                   Add wallet
                 </Button>
               </div>
+              <FieldError message={errors.wallets} />
               {form.wallets.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No wallets yet. Optional — you can add them after creation.
