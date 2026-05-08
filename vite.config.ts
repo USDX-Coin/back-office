@@ -21,7 +21,7 @@ export default defineConfig({
     // Mirrors the Netlify _redirects rule for production deploys.
     proxy: {
       '/api': {
-        target: 'https://backend-production-9740.up.railway.app',
+        target: 'https://backend-dev-c526.up.railway.app',
         changeOrigin: true,
         secure: true,
       },
