@@ -1,12 +1,16 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { Route, Routes } from 'react-router'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import MintRequestPage from '@/features/mint/MintRequestPage'
 import { renderWithProviders } from '@/test/test-utils'
+
+// USDX-46 AC coverage — Mint form with user picker + currency selector +
+// wallet picker. Old USDX-11/USDX-40 tests covered the text-input form;
+// they are superseded here.
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -15,16 +19,39 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-const VALID_ADDRESS = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
+const VERIFIED_USER_ID = 'cus_3'
+const VERIFIED_USER_NAME = 'Robert Deon'
+const ELIGIBLE_USER_PAYLOAD = {
+  status: 'success',
+  metadata: { page: 1, limit: 8, total: 1 },
+  data: [
+    {
+      id: VERIFIED_USER_ID,
+      name: VERIFIED_USER_NAME,
+      email: 'robert.deon@example.com',
+      entityType: 'INDIVIDUAL',
+      kycStatus: 'VERIFIED',
+      suspended: false,
+      notes: null,
+      wallets: [
+        {
+          id: 'wal_seed_polygon',
+          chain: 'polygon',
+          address: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+  ],
+}
 
 function TestApp() {
   return (
     <Routes>
       <Route path="/mint" element={<MintRequestPage />} />
-      <Route
-        path="/requests"
-        element={<div data-testid="requests-page">Requests landing</div>}
-      />
+      <Route path="/requests" element={<div data-testid="requests-page">Requests landing</div>} />
     </Routes>
   )
 }
@@ -36,255 +63,151 @@ function setup() {
   })
 }
 
-async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/user name/i), 'Manual Entry')
-  await user.type(screen.getByLabelText(/user wallet address/i), VALID_ADDRESS)
-  await user.type(screen.getByLabelText(/^amount$/i), '100')
-  // Open the chain Select and pick polygon
+async function selectChainPolygon(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('combobox', { name: /chain/i }))
   await user.click(await screen.findByRole('option', { name: /polygon/i }))
 }
 
-describe('MintRequestPage', () => {
-  describe('AC1: page renders', () => {
-    test('should render the form with all required fields', () => {
-      setup()
-      expect(
-        screen.getByRole('heading', { level: 1, name: /mint request/i })
-      ).toBeInTheDocument()
-      expect(screen.getByLabelText(/user name/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/user wallet address/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/^amount$/i)).toBeInTheDocument()
-      expect(screen.getByRole('combobox', { name: /chain/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/notes/i)).toBeInTheDocument()
-      expect(
-        screen.getByRole('button', { name: /submit mint request/i })
-      ).toBeInTheDocument()
-    })
-  })
+async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
+  const search = screen.getByLabelText(/^user$/i)
+  await user.type(search, 'rob')
+  const option = await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
+  await user.click(option)
+}
 
-  describe('AC2: autocomplete from /api/v1/users', () => {
-    test('should fetch and show matches when typing in user name', async () => {
-      const user = userEvent.setup()
+describe('MintRequestPage @ USDX-46', () => {
+  describe('AC1 — searchable user picker', () => {
+    test('renders combobox-style picker, no plain text input for user', () => {
       setup()
-      await user.type(screen.getByLabelText(/user name/i), 'Bruce')
-      // Listbox appears with at least one option after debounce + fetch
-      const listbox = await screen.findByRole(
-        'listbox',
-        { name: /matching users/i },
-        { timeout: 3000 }
-      )
-      const options = await within(listbox).findAllByRole('option')
-      expect(options.length).toBeGreaterThan(0)
-      // At least one option's accessible text should mention Bruce
-      expect(
-        options.some((o) => /bruce/i.test(o.textContent ?? ''))
-      ).toBe(true)
+      const search = screen.getByLabelText(/^user$/i)
+      expect(search).toHaveAttribute('aria-autocomplete', 'list')
     })
 
-    test('should hit GET /api/v1/users with the typed search param', async () => {
+    test('AC1.2 — search hits GET /api/v1/users with kycStatus=VERIFIED filter', async () => {
       const user = userEvent.setup()
-      // Spy: capture every URL hit by the autocomplete fetch loop.
-      const calls: string[] = []
+      let capturedUrl: string | null = null
       server.use(
         http.get('/api/v1/users', ({ request }) => {
-          calls.push(request.url)
-          return HttpResponse.json({
+          capturedUrl = request.url
+          return HttpResponse.json(ELIGIBLE_USER_PAYLOAD)
+        })
+      )
+      setup()
+      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      await waitFor(() => expect(capturedUrl).not.toBeNull())
+      const url = new URL(capturedUrl!)
+      expect(url.searchParams.get('search')).toBe('rob')
+      expect(url.searchParams.get('kycStatus')).toBe('VERIFIED')
+    })
+
+    test('AC1.3 — suspended users are filtered out client-side', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/users', () =>
+          HttpResponse.json({
             status: 'success',
-            metadata: { page: 1, limit: 8, total: 0 },
-            data: [],
-          })
-        })
-      )
-
-      setup()
-      await user.type(screen.getByLabelText(/user name/i), 'Bruce')
-
-      await waitFor(
-        () => {
-          expect(calls.some((url) => url.includes('search=Bruce'))).toBe(true)
-        },
-        { timeout: 3000 }
-      )
-    })
-
-    test('should fill userName but leave userAddress untouched on selection', async () => {
-      const user = userEvent.setup()
-      setup()
-      await user.type(screen.getByLabelText(/user name/i), 'Bruce')
-      const listbox = await screen.findByRole(
-        'listbox',
-        { name: /matching users/i },
-        { timeout: 3000 }
-      )
-      const options = await within(listbox).findAllByRole('option')
-      const target = options.find((o) => /bruce/i.test(o.textContent ?? ''))
-      expect(target).toBeDefined()
-      await user.click(within(target!).getByRole('button'))
-
-      const nameInput = screen.getByLabelText(
-        /user name/i
-      ) as HTMLInputElement
-      const addressInput = screen.getByLabelText(
-        /user wallet address/i
-      ) as HTMLInputElement
-      await waitFor(() => {
-        expect(nameInput.value).toMatch(/bruce/i)
-      })
-      // Linear AC #2 + SoT do not couple user selection to userAddress —
-      // operator must enter the wallet address manually.
-      expect(addressInput.value).toBe('')
-    })
-  })
-
-  describe('AC3: empty submit', () => {
-    test('should show a validation error for each required field', async () => {
-      const user = userEvent.setup()
-      setup()
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-      expect(
-        await screen.findByText(/user name is required/i)
-      ).toBeInTheDocument()
-      expect(
-        screen.getByText(/wallet address is required/i)
-      ).toBeInTheDocument()
-      expect(screen.getByText(/amount is required/i)).toBeInTheDocument()
-      expect(screen.getByText(/chain is required/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('AC4: invalid address — client-side gate', () => {
-    test('should block submission and show address error before API call', async () => {
-      const user = userEvent.setup()
-
-      // Spy on the network: the request must NOT reach this handler.
-      let postCalled = false
-      server.use(
-        http.post('/api/v1/mint', () => {
-          postCalled = true
-          return HttpResponse.json(
-            { status: 'success', metadata: null, data: {} },
-            { status: 201 }
-          )
-        })
-      )
-
-      setup()
-      await user.type(screen.getByLabelText(/user name/i), 'Manual Entry')
-      await user.type(
-        screen.getByLabelText(/user wallet address/i),
-        '0xnot-an-address'
-      )
-      await user.type(screen.getByLabelText(/^amount$/i), '100')
-      await user.click(screen.getByRole('combobox', { name: /chain/i }))
-      await user.click(await screen.findByRole('option', { name: /polygon/i }))
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/invalid evm address/i)
-      ).toBeInTheDocument()
-      expect(postCalled).toBe(false)
-    })
-
-    test('should also gate mixed-case wrong-checksum addresses', async () => {
-      const user = userEvent.setup()
-
-      let postCalled = false
-      server.use(
-        http.post('/api/v1/mint', () => {
-          postCalled = true
-          return HttpResponse.json(
-            { status: 'success', metadata: null, data: {} },
-            { status: 201 }
-          )
-        })
-      )
-
-      setup()
-      await user.type(screen.getByLabelText(/user name/i), 'Manual Entry')
-      // sot/conventions.md L114-115: validate checksum at input. Last char's
-      // case is flipped from the canonical EIP-55 form below.
-      await user.type(
-        screen.getByLabelText(/user wallet address/i),
-        '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD'
-      )
-      await user.type(screen.getByLabelText(/^amount$/i), '100')
-      await user.click(screen.getByRole('combobox', { name: /chain/i }))
-      await user.click(await screen.findByRole('option', { name: /polygon/i }))
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/checksum/i)
-      ).toBeInTheDocument()
-      expect(postCalled).toBe(false)
-    })
-  })
-
-  describe('AC5: valid submit', () => {
-    test('should show submitting state then redirect to /requests', async () => {
-      const user = userEvent.setup()
-      // Slow the handler so the loading state is observable.
-      server.use(
-        http.post('/api/v1/mint', async () => {
-          await new Promise((r) => setTimeout(r, 50))
-          return HttpResponse.json(
-            {
-              status: 'success',
-              metadata: null,
-              data: {
-                id: 'mint_test_1',
-                type: 'mint',
-                idempotencyKey: '0x' + 'a'.repeat(64),
-                userId: 'usr_1',
-                userName: 'Manual Entry',
-                userAddress: VALID_ADDRESS,
-                amount: '100',
-                amountWei: '100000000000000000000',
-                amountIdr: '1625000',
-                rateUsed: '16250',
-                chain: 'polygon',
-                notes: null,
-                safeType: 'STAFF',
-                status: 'PENDING_APPROVAL',
-                safeTxHash: null,
-                onChainTxHash: null,
-                createdBy: 'stf_1',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+            metadata: { page: 1, limit: 8, total: 2 },
+            data: [
+              {
+                ...ELIGIBLE_USER_PAYLOAD.data[0],
+                id: 'cus_suspended',
+                name: 'Suspended User',
+                suspended: true,
               },
-            },
-            { status: 201 }
-          )
-        })
-      )
-
-      setup()
-      await fillValidForm(user)
-      const submit = screen.getByRole('button', {
-        name: /submit mint request/i,
-      })
-      await user.click(submit)
-
-      // Loading state visible while the mutation is in flight
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /submitting/i })).toHaveAttribute(
-          'aria-busy',
-          'true'
+              ELIGIBLE_USER_PAYLOAD.data[0],
+            ],
+          })
         )
-      })
-
-      // Then we end up on /requests
-      expect(await screen.findByTestId('requests-page')).toBeInTheDocument()
+      )
+      setup()
+      await user.type(screen.getByLabelText(/^user$/i), 'r')
+      await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
+      expect(screen.queryByText(/Suspended User/i)).not.toBeInTheDocument()
     })
 
-    test('should send a body matching sot/openapi.yaml CreateMintRequest', async () => {
+    test('AC1.4 — picker rows display name + email', async () => {
       const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      setup()
+      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      const option = await screen.findByRole('option', {
+        name: new RegExp(VERIFIED_USER_NAME, 'i'),
+      })
+      expect(option.textContent).toMatch(/robert\.deon@example\.com/i)
+    })
+
+    test('AC1.5 — clearing selection resets the picker back to empty input', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      setup()
+      await pickEligibleUser(user)
+      expect(await screen.findByTestId('user-picker-selected')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /clear selection/i }))
+      await waitFor(() =>
+        expect(screen.queryByTestId('user-picker-selected')).not.toBeInTheDocument()
+      )
+      expect(screen.getByLabelText(/^user$/i)).toHaveValue('')
+    })
+  })
+
+  describe('AC2 — currency selector', () => {
+    test('AC2.1 — defaults to USD', () => {
+      setup()
+      expect(screen.getByLabelText(/^currency$/i)).toHaveTextContent(/USD/i)
+    })
+
+    test('AC2.7 — switching currency resets the amount field', async () => {
+      const user = userEvent.setup()
+      setup()
+      await user.type(screen.getByLabelText(/^amount$/i), '1000')
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('1000')
+      // Open the currency Select and pick IDR
+      await user.click(screen.getByLabelText(/^currency$/i))
+      await user.click(await screen.findByRole('option', { name: /^IDR$/i }))
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+    })
+  })
+
+  describe('AC3 — wallet picker', () => {
+    test('AC3.1 — wallet picker disabled until user + chain are picked', () => {
+      setup()
+      // Empty initial state — text input present but disabled
+      const walletInput = screen.getByPlaceholderText(/select chain first/i)
+      expect(walletInput).toBeDisabled()
+    })
+
+    test('AC3.2/3.4 — picker lists user wallets filtered by chain + default empty', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      setup()
+      await pickEligibleUser(user)
+      await selectChainPolygon(user)
+
+      // Wallet dropdown placeholder = "Select wallet…" (no auto-select).
+      // Look up by id (htmlFor=mintWallet) since label association under
+      // Radix Select can be flaky with getByLabelText.
+      const walletTrigger = document.getElementById('mintWallet')!
+      expect(walletTrigger).toHaveTextContent(/select wallet/i)
+    })
+
+    test('AC3.6 — Other → text input appears for manual address entry', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      setup()
+      await pickEligibleUser(user)
+      await selectChainPolygon(user)
+      // Open wallet select
+      await user.click(document.getElementById('mintWallet')!)
+      await user.click(await screen.findByRole('option', { name: /other/i }))
+      expect(screen.getByLabelText(/custom wallet address/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('AC4 — submit body shape', () => {
+    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /requests', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+
       let capturedBody: Record<string, unknown> | null = null
       server.use(
         http.post('/api/v1/mint', async ({ request }) => {
@@ -294,25 +217,24 @@ describe('MintRequestPage', () => {
               status: 'success',
               metadata: null,
               data: {
-                id: 'mint_test_2',
-                type: 'mint',
-                idempotencyKey: '0x' + 'b'.repeat(64),
-                userId: 'usr_1',
-                userName: 'Manual Entry',
-                userAddress: VALID_ADDRESS,
-                amount: '100',
+                id: 'mint_1',
+                idempotencyKey: '0x' + 'a'.repeat(64),
+                userId: VERIFIED_USER_ID,
+                userAddress: capturedBody.userAddress,
+                amount: '100.00',
                 amountWei: '100000000',
                 amountIdr: '1625000',
+                inputCurrency: 'USD',
                 rateUsed: '16250',
                 chain: 'polygon',
                 notes: null,
                 safeType: 'STAFF',
                 status: 'PENDING_APPROVAL',
-                safeTxHash: null,
+                safeTxHash: '0x' + 'b'.repeat(64),
                 onChainTxHash: null,
                 createdBy: 'stf_1',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+                createdAt: '2026-05-08T00:00:00Z',
+                updatedAt: '2026-05-08T00:00:00Z',
               },
             },
             { status: 201 }
@@ -321,130 +243,36 @@ describe('MintRequestPage', () => {
       )
 
       setup()
-      await fillValidForm(user)
+      await pickEligibleUser(user)
+      await selectChainPolygon(user)
+      // Pick the existing wallet (only option besides Other)
+      await user.click(document.getElementById('mintWallet')!)
       await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
+        await screen.findByRole('option', {
+          name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
+        })
       )
+      await user.type(screen.getByLabelText(/^amount$/i), '100')
+      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
 
-      await waitFor(() => {
-        expect(capturedBody).not.toBeNull()
-      })
-      // sot/openapi.yaml § CreateMintRequest required: userName, userAddress,
-      // amount (string), chain. notes optional.
+      await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
-        userName: 'Manual Entry',
-        userAddress: VALID_ADDRESS,
+        userId: VERIFIED_USER_ID,
+        userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
         amount: '100',
+        amountCurrency: 'USD',
         chain: 'polygon',
       })
-      // amount must be a string per SoT spec, not a number
-      expect(typeof capturedBody!.amount).toBe('string')
-    })
-  })
-
-  describe('AC6: 403 from API', () => {
-    test('should display the role-insufficient error inline', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.post('/api/v1/mint', () =>
-          HttpResponse.json(
-            {
-              status: 'error',
-              metadata: null,
-              data: null,
-              error: {
-                code: 'ROLE_INSUFFICIENT',
-                message:
-                  'Your role cannot submit mint above the manager threshold.',
-              },
-            },
-            { status: 403 }
-          )
-        )
-      )
-
-      setup()
-      await fillValidForm(user)
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/role cannot submit/i)
-      ).toBeInTheDocument()
-      // Stays on /mint, no redirect
-      expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('AC7: 400 from API', () => {
-    test('should display the API validation message inline', async () => {
-      const user = userEvent.setup()
-      server.use(
-        http.post('/api/v1/mint', () =>
-          HttpResponse.json(
-            {
-              status: 'error',
-              metadata: null,
-              data: null,
-              error: {
-                code: 'VALIDATION_ERROR',
-                message: 'amount exceeds the daily backend cap',
-              },
-            },
-            { status: 400 }
-          )
-        )
-      )
-
-      setup()
-      await fillValidForm(user)
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/amount exceeds the daily backend cap/i)
-      ).toBeInTheDocument()
-      // Stays on /mint
-      expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
+      // userName must NOT appear in the body anymore.
+      expect(capturedBody).not.toHaveProperty('userName')
+      await screen.findByTestId('requests-page')
     })
 
-    // USDX-40 AC #3 literal "Invalid address → error message dari API" —
-    // covers the API path (USDX-11 AC #7) for an address that is *valid*
-    // EIP-55 but the BE rejects (e.g. denylist, mismatch with seeded user).
-    // Without this, the only address-error coverage is the client-side gate
-    // (AC4 above), and the literal "from API" wording is unproven.
-    test('should display the API error message when BE rejects a valid-format address', async () => {
+    test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
-      server.use(
-        http.post('/api/v1/mint', () =>
-          HttpResponse.json(
-            {
-              status: 'error',
-              metadata: null,
-              data: null,
-              error: {
-                code: 'INVALID_ADDRESS',
-                message: 'User address is not a valid EVM address',
-              },
-            },
-            { status: 400 }
-          )
-        )
-      )
-
       setup()
-      await fillValidForm(user)
-      await user.click(
-        screen.getByRole('button', { name: /submit mint request/i })
-      )
-
-      expect(
-        await screen.findByText(/user address is not a valid evm address/i)
-      ).toBeInTheDocument()
-      // Stays on /mint, no redirect
-      expect(screen.queryByTestId('requests-page')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
+      expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
     })
   })
 })

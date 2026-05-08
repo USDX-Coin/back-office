@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { Wallet } from 'lucide-react'
 import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -24,31 +22,37 @@ import {
 import FieldError from '@/components/FieldError'
 import PageHeader from '@/components/PageHeader'
 import CurrentRateCard from '@/components/CurrentRateCard'
+import UserPicker from '@/components/UserPicker'
+import WalletPicker from '@/components/WalletPicker'
+import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import { ApiError } from '@/lib/apiFetch'
 import { validateMintRequestForm } from '@/lib/validators'
-import type { PhaseOneUser } from '@/lib/types'
-import UserNameTypeahead from './UserNameTypeahead'
+import type { AmountCurrency, PhaseOneUser } from '@/lib/types'
 import { useCreateMintRequest } from './hooks'
 
-// sot/phase-1.md mint flow + openapi.yaml § /api/v1/mint use "polygon" as the
-// only chain example. Keep dropdown to the explicitly-specified chain.
+// Phase 1 ships polygon-only (sot/phase-1.md § Smart Contract deliverables).
+// Other chains land via separate tickets once backend confirms availability.
 const CHAINS: { value: string; label: string }[] = [
   { value: 'polygon', label: 'Polygon' },
 ]
 
 interface FormState {
-  userName: string
-  userAddress: string
-  amount: string
+  user: PhaseOneUser | null
   chain: string
+  walletAddress: string
+  walletIsOther: boolean
+  amount: string
+  amountCurrency: AmountCurrency
   notes: string
 }
 
 const EMPTY: FormState = {
-  userName: '',
-  userAddress: '',
-  amount: '',
+  user: null,
   chain: '',
+  walletAddress: '',
+  walletIsOther: false,
+  amount: '',
+  amountCurrency: 'USD',
   notes: '',
 }
 
@@ -59,8 +63,7 @@ export default function MintRequestPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+  function clearError(key: string) {
     if (errors[key]) {
       setErrors((prev) => {
         const next = { ...prev }
@@ -70,25 +73,70 @@ export default function MintRequestPage() {
     }
   }
 
-  function handleUserSelect(user: PhaseOneUser) {
-    // Linear AC #2 only specifies that the autocomplete *appears*; SoT does
-    // not couple the user selection to userAddress/chain. Fill name only —
-    // operator enters the wallet address explicitly.
-    setForm((prev) => ({ ...prev, userName: user.name }))
-    setErrors((prev) => {
-      const next = { ...prev }
-      delete next.userName
-      return next
-    })
+  function handleUserSelect(user: PhaseOneUser | null) {
+    // USDX-46 AC1.5/1.6: ganti user → reset wallet pilihan supaya operator
+    // tidak salah submit address user lama.
+    setForm((prev) => ({
+      ...prev,
+      user,
+      walletAddress: '',
+      walletIsOther: false,
+    }))
+    clearError('userId')
+    clearError('userAddress')
   }
+
+  function handleChainChange(chain: string) {
+    // USDX-46 AC3.8: ganti chain → reset wallet pilihan (wallets di chain
+    // baru beda).
+    setForm((prev) => ({
+      ...prev,
+      chain,
+      walletAddress: '',
+      walletIsOther: false,
+    }))
+    clearError('chain')
+    clearError('userAddress')
+  }
+
+  function handlePickExistingWallet(address: string) {
+    setForm((prev) => ({ ...prev, walletAddress: address, walletIsOther: false }))
+    clearError('userAddress')
+  }
+
+  function handlePickOther() {
+    setForm((prev) => ({ ...prev, walletAddress: '', walletIsOther: true }))
+  }
+
+  function handleAddressChange(address: string) {
+    setForm((prev) => ({ ...prev, walletAddress: address }))
+    clearError('userAddress')
+  }
+
+  function handleAmountChange(amount: string) {
+    setForm((prev) => ({ ...prev, amount }))
+    clearError('amount')
+  }
+
+  function handleCurrencyChange(amountCurrency: AmountCurrency) {
+    setForm((prev) => ({ ...prev, amountCurrency }))
+    clearError('amountCurrency')
+  }
+
+  // Wallets to show in the picker = user's wallets filtered by chain.
+  const walletsForChain =
+    form.user && form.chain
+      ? form.user.wallets.filter((w) => w.chain === form.chain)
+      : []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setApiError(null)
     const validation = validateMintRequestForm({
-      userName: form.userName,
-      userAddress: form.userAddress,
+      userId: form.user?.id ?? '',
+      userAddress: form.walletAddress,
       amount: form.amount,
+      amountCurrency: form.amountCurrency,
       chain: form.chain,
     })
     if (!validation.valid) {
@@ -98,18 +146,16 @@ export default function MintRequestPage() {
 
     try {
       // sot/conventions.md L114: simpan dalam checksummed format. Validator
-      // already accepted the input; getAddress here normalizes all-lowercase /
-      // all-uppercase / mixed-case-correct → canonical EIP-55 form.
-      const normalizedAddress = getAddress(form.userAddress.trim())
+      // already accepted the input; getAddress() canonicalizes all forms.
+      const normalizedAddress = getAddress(form.walletAddress.trim())
       await create.mutateAsync({
-        userName: form.userName.trim(),
+        userId: form.user!.id,
         userAddress: normalizedAddress,
         amount: form.amount.trim(),
+        amountCurrency: form.amountCurrency,
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
-      // Mirror BurnRequestForm post-submit UX: confirm via toast + reset
-      // local state so a quick back-nav lands on a clean form.
       toast.success('Mint request submitted')
       setForm(EMPTY)
       setErrors({})
@@ -117,8 +163,7 @@ export default function MintRequestPage() {
     } catch (err) {
       const message =
         err instanceof ApiError
-          ? // sot/openapi.yaml § ErrorResponse defines only `code` + `message`.
-            err.message
+          ? err.message
           : err instanceof Error
             ? err.message
             : 'Submission failed'
@@ -156,84 +201,78 @@ export default function MintRequestPage() {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="userName">User name</Label>
-                  <UserNameTypeahead
-                    id="userName"
-                    value={form.userName}
-                    onChange={(v) => set('userName', v)}
+                  <Label htmlFor="mintUserPicker">User</Label>
+                  <UserPicker
+                    id="mintUserPicker"
+                    value={form.user}
                     onSelect={handleUserSelect}
-                    placeholder="Search by name…"
-                    ariaInvalid={Boolean(errors.userName)}
-                    ariaDescribedBy={errors.userName ? 'userName-error' : undefined}
+                    placeholder="Search by name or email…"
+                    ariaInvalid={Boolean(errors.userId)}
+                    ariaDescribedBy={errors.userId ? 'mintUserPicker-error' : undefined}
                   />
-                  <FieldError message={errors.userName} />
+                  <FieldError message={errors.userId} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="userAddress">User wallet address</Label>
-                  <div className="relative">
-                    <Wallet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="userAddress"
-                      value={form.userAddress}
-                      onChange={(e) => set('userAddress', e.target.value)}
-                      placeholder="0x…"
-                      className="pl-9 font-mono text-sm"
-                      aria-invalid={Boolean(errors.userAddress)}
-                    />
-                  </div>
+                  <Label htmlFor="mintChain">Chain</Label>
+                  <Select
+                    value={form.chain}
+                    onValueChange={handleChainChange}
+                  >
+                    <SelectTrigger id="mintChain" aria-invalid={Boolean(errors.chain)}>
+                      <SelectValue placeholder="Select chain" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CHAINS.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError message={errors.chain} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="mintWallet">User wallet address</Label>
+                  <WalletPicker
+                    id="mintWallet"
+                    wallets={walletsForChain}
+                    address={form.walletAddress}
+                    isOtherMode={form.walletIsOther}
+                    onPickExisting={handlePickExistingWallet}
+                    onPickOther={handlePickOther}
+                    onAddressChange={handleAddressChange}
+                    chainSelected={Boolean(form.chain) && Boolean(form.user)}
+                    ariaInvalid={Boolean(errors.userAddress)}
+                  />
                   <FieldError message={errors.userAddress} />
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="amount">Amount</Label>
-                    <div className="relative">
-                      <Input
-                        id="amount"
-                        type="text"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        value={form.amount}
-                        onChange={(e) => set('amount', e.target.value)}
-                        placeholder="0"
-                        className="pr-16"
-                        aria-invalid={Boolean(errors.amount)}
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        USDX
-                      </span>
-                    </div>
-                    <FieldError message={errors.amount} />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="chain">Chain</Label>
-                    <Select
-                      value={form.chain}
-                      onValueChange={(val) => set('chain', val)}
-                    >
-                      <SelectTrigger id="chain" aria-invalid={Boolean(errors.chain)}>
-                        <SelectValue placeholder="Select chain" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CHAINS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldError message={errors.chain} />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="mintAmount">Amount</Label>
+                  <AmountWithCurrencyInput
+                    amountId="mintAmount"
+                    currencyId="mintCurrency"
+                    amount={form.amount}
+                    currency={form.amountCurrency}
+                    onAmountChange={handleAmountChange}
+                    onCurrencyChange={handleCurrencyChange}
+                    amountError={errors.amount}
+                    currencyError={errors.amountCurrency}
+                  />
+                  <FieldError message={errors.amount} />
+                  <FieldError message={errors.amountCurrency} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="mintNotes">Notes</Label>
                   <Textarea
-                    id="notes"
+                    id="mintNotes"
                     value={form.notes}
-                    onChange={(e) => set('notes', e.target.value)}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
                     placeholder="Sender bank account, internal reference, etc."
                     className="min-h-[80px]"
                   />

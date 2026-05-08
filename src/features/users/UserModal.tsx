@@ -25,6 +25,7 @@ import {
   validateUserWalletForm,
 } from '@/lib/validators'
 import type {
+  EntityType,
   PhaseOneCreateUserWallet,
   PhaseOneUser,
 } from '@/lib/types'
@@ -44,13 +45,21 @@ interface WalletDraft {
 
 interface FormState {
   name: string
+  email: string
+  entityType: EntityType
   notes: string
   // Only used in `add` mode. SoT UpdateUser has no wallets field; per-wallet
   // edits go through POST/DELETE /api/v1/users/:id/wallets after creation.
   wallets: WalletDraft[]
 }
 
-const EMPTY: FormState = { name: '', notes: '', wallets: [] }
+const EMPTY: FormState = {
+  name: '',
+  email: '',
+  entityType: 'INDIVIDUAL',
+  notes: '',
+  wallets: [],
+}
 
 // sot/phase-1.md ChainConfig + sot/openapi.yaml § CreateUserWallet example.
 const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
@@ -67,7 +76,13 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
   useEffect(() => {
     if (open) {
       if (mode === 'edit' && user) {
-        setForm({ name: user.name, notes: user.notes ?? '', wallets: [] })
+        setForm({
+          name: user.name,
+          email: user.email,
+          entityType: user.entityType,
+          notes: user.notes ?? '',
+          wallets: [],
+        })
       } else {
         setForm(EMPTY)
       }
@@ -139,6 +154,8 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
         }))
         await create.mutateAsync({
           name: form.name.trim(),
+          email: form.email.trim(),
+          entityType: form.entityType,
           notes: form.notes.trim() || undefined,
           wallets: wallets.length > 0 ? wallets : undefined,
         })
@@ -148,6 +165,8 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
           id: user.id,
           patch: {
             name: form.name.trim(),
+            email: form.email.trim() || undefined,
+            entityType: form.entityType,
             notes: form.notes.trim() || undefined,
           },
         })
@@ -191,6 +210,37 @@ export default function UserModal({ open, onOpenChange, mode, user }: UserModalP
               className="mt-1.5"
             />
             <FieldError message={errors.name} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="jane@example.com"
+                className="mt-1.5"
+              />
+              <FieldError message={errors.email} />
+            </div>
+            <div>
+              <Label htmlFor="entityType">Entity type</Label>
+              <Select
+                value={form.entityType}
+                onValueChange={(val) => setField('entityType', val as EntityType)}
+              >
+                <SelectTrigger id="entityType" className="mt-1.5">
+                  <SelectValue placeholder="Entity type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                  <SelectItem value="LEGAL_ENTITY">Legal entity</SelectItem>
+                </SelectContent>
+              </Select>
+              <FieldError message={errors.entityType} />
+            </div>
           </div>
 
           <div>

@@ -204,11 +204,16 @@ describe('Dashboard stats endpoint (USDX-16)', () => {
   })
 })
 
-describe('POST /api/v1/burn @ sot/openapi.yaml + sot/conventions.md', () => {
+describe('POST /api/v1/burn @ sot/api/burn.yaml + sot/conventions.md', () => {
+  // USDX-46: form submits userId (uuid) + amountCurrency. cus_3 is seeded
+  // in `customerStore` with kycStatus=VERIFIED + suspended=false (see
+  // deriveKycStatus / deriveSuspended in src/mocks/data.ts).
+  const VERIFIED_USER_ID = 'cus_3'
   const validBody = {
-    userName: 'Alice User',
+    userId: VERIFIED_USER_ID,
     userAddress: '0x' + 'a'.repeat(40),
     amount: '500.00',
+    amountCurrency: 'USD' as const,
     chain: 'polygon',
     depositTxHash: '0x' + 'b'.repeat(64),
     bankName: 'BCA',

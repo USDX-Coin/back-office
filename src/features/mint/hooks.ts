@@ -7,24 +7,24 @@ import type {
   PhaseOneUser,
 } from '@/lib/types'
 
-// GET /api/v1/users?search= — Phase-1 user lookup for autocomplete.
-async function fetchPhaseOneUsers(search: string): Promise<PhaseOneUser[]> {
-  // apiFetch unwraps SuccessResponse and returns `data`. Since the SoT envelope
-  // for paginated lists is { status, metadata, data: [...] }, calling with the
-  // paginated generic returns the array directly.
+// USDX-46: server filters by kycStatus=VERIFIED. Suspended is filtered FE-side
+// because sot/api/users.yaml does not yet expose `?suspended=` query param.
+async function fetchEligibleUsers(search: string): Promise<PhaseOneUser[]> {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
+  params.set('kycStatus', 'VERIFIED')
   params.set('limit', '8')
   const path = `/api/v1/users?${params.toString()}`
-  // The generic must match the *full* envelope so apiFetch returns `.data`.
   const data = await apiFetch<PhaseOnePaginatedResponse<PhaseOneUser>['data']>(path)
-  return data
+  return data.filter((u) => !u.suspended)
 }
 
-export function usePhaseOneUsers(search: string, enabled: boolean) {
+// Public hook used by UserPicker on Mint + Burn forms. Returns only users
+// who pass the BE eligibility check (KYC VERIFIED + not suspended).
+export function useEligibleUsers(search: string, enabled: boolean) {
   return useQuery({
-    queryKey: ['phase-one-users', search],
-    queryFn: () => fetchPhaseOneUsers(search),
+    queryKey: ['phase-one-users', 'eligible', search],
+    queryFn: () => fetchEligibleUsers(search),
     enabled: enabled && search.length > 0,
     staleTime: 30 * 1000,
   })
