@@ -1,9 +1,13 @@
 // Thin fetch wrapper that follows sot/openapi.yaml conventions:
+// - Prepends `env.apiUrl` (VITE_API_URL) so requests hit the configured backend
+//   directly instead of the FE origin (sot/project-overview.md § Infrastructure).
 // - Attaches `Authorization: Bearer <token>` (global `security: [bearerAuth]`).
 // - Unwraps SuccessResponse `{ status, metadata, data }` envelope and returns `data`.
 // - Throws ApiError for non-2xx responses with the SoT ErrorResponse shape.
 // - Notifies a registered "unauthorized" callback on 401 so AuthProvider can
 //   clear the session without this module taking a React dependency.
+
+import { env } from './env'
 
 interface AuthBindings {
   getToken: () => string | null
@@ -62,7 +66,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(`${env.apiUrl}${path}`, {
     ...rest,
     headers: finalHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -118,7 +122,7 @@ export async function apiFetchRaw<TEnvelope>(
     if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(`${env.apiUrl}${path}`, {
     ...rest,
     headers: finalHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
