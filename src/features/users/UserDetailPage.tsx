@@ -1,19 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/PageHeader'
 import SummaryStat from '@/components/SummaryStat'
 import Avatar from '@/components/Avatar'
 import { canManageUsers, useAuth } from '@/lib/auth'
+import { ApiError } from '@/lib/apiFetch'
 import { formatShortDate } from '@/lib/format'
-import { getRequestStatusConfig } from '@/lib/status'
+import { getKycStatusConfig, getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import { useUserDetail } from './hooks'
 import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
-import type { PhaseOneUserWallet } from '@/lib/types'
+import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
+
+const ENTITY_LABEL: Record<EntityType, string> = {
+  INDIVIDUAL: 'Individual',
+  LEGAL_ENTITY: 'Legal Entity',
+}
 
 function shortAddress(address: string): string {
   if (address.length <= 10) return address
@@ -29,6 +36,16 @@ export default function UserDetailPage() {
 
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const [walletToRemove, setWalletToRemove] = useState<PhaseOneUserWallet | null>(null)
+
+  // USDX-47 S6 + judgement #10: when BE returns 404 (user soft-deleted or
+  // never existed), redirect to /users with a toast — there is no edit/restore
+  // flow for deleted users in Phase 1.
+  useEffect(() => {
+    if (isError && error instanceof ApiError && error.status === 404) {
+      toast.error('User not found or has been deleted')
+      navigate('/users', { replace: true })
+    }
+  }, [isError, error, navigate])
 
   if (isLoading) {
     return (
@@ -54,6 +71,8 @@ export default function UserDetailPage() {
       </div>
     )
   }
+
+  const kycCfg = getKycStatusConfig(data.kycStatus)
 
   return (
     <div>
@@ -101,15 +120,49 @@ export default function UserDetailPage() {
               <Avatar name={data.name} size="md" />
               <div className="min-w-0">
                 <p className="font-medium text-foreground">{data.name}</p>
-                <p className="truncate text-muted-foreground">
-                  {data.wallets.length} wallet{data.wallets.length === 1 ? '' : 's'}
-                </p>
+                <p className="truncate text-muted-foreground">{data.email}</p>
               </div>
             </div>
+
+            {/* USDX-47 S6: surface entityType, kycStatus, suspended in detail. */}
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 border-t pt-3">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Entity
+              </span>
+              <span>{ENTITY_LABEL[data.entityType] ?? data.entityType}</span>
+
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                KYC
+              </span>
+              <span>
+                <span
+                  className={cn(
+                    'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                    kycCfg.className
+                  )}
+                >
+                  {kycCfg.label}
+                </span>
+              </span>
+
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Status
+              </span>
+              <span>
+                {data.suspended ? (
+                  <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
+                    Suspended
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Active</span>
+                )}
+              </span>
+            </div>
+
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
                 <p className="mb-1 text-[11px] uppercase tracking-wide">Notes</p>
-                <p>{data.notes}</p>
+                <p className="whitespace-pre-wrap">{data.notes}</p>
               </div>
             )}
           </CardContent>
@@ -217,6 +270,7 @@ export default function UserDetailPage() {
         open={walletModalOpen}
         onOpenChange={setWalletModalOpen}
         userId={data.id}
+        currentWalletCount={data.wallets.length}
       />
       <RemoveWalletDialog
         open={Boolean(walletToRemove)}

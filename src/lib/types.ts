@@ -409,6 +409,15 @@ export interface PhaseOneCreateUser {
   wallets?: PhaseOneCreateUserWallet[]
 }
 
+// USDX-47 S4 + AC5: POST /api/v1/users returns User + auto-generated password
+// (one-time, plain). USDX-13 BE module spec: "auto-generated password (random
+// 16 char), hashed, returned plain in response (one-time)". Field is optional
+// at the type level so the FE degrades gracefully when BE hasn't shipped the
+// reveal yet (verified empirically against backend-dev-c526 — currently absent).
+export interface PhaseOneCreateUserResponse extends PhaseOneUser {
+  password?: string
+}
+
 // sot/api/users.yaml § UpdateUser — admin can mutate name/email/entityType
 // plus kycStatus and suspended. Wallet management goes through POST/DELETE
 // /api/v1/users/:id/wallets.

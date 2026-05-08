@@ -18,6 +18,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^\+?[0-9]{10,15}$/
 const MAX_NAME_LEN = 100
 
+// USDX-47 + sot/api/users.yaml § CreateUser/UpdateUser. Phase-1 user constraints
+// are larger than the legacy customer/staff cap so they live in their own
+// constants — staff/customer keep MAX_NAME_LEN=100 (their SoT is silent on max).
+const MAX_USER_NAME_LEN = 255
+const MAX_USER_NOTES_LEN = 2000
+const MAX_USER_WALLETS = 50
+
 function validateEmail(email: string, errors: Record<string, string>) {
   if (!email.trim()) {
     errors.email = 'Email is required'
@@ -324,25 +331,53 @@ export function validateStaffEditForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
-// sot/api/users.yaml § CreateUser — name + email + entityType required.
-// USDX-46 note: callers may omit email/entityType (e.g., edit-mode notes-only
-// updates) — the validator only flags fields that are *present* but invalid.
+// sot/api/users.yaml § CreateUser/UpdateUser. USDX-47 enforces:
+// - name required, max 255 chars (AC6)
+// - email required + format check (S4 + S5: required in create AND edit per
+//   judgement — empty email would break Phase-2 login at sot/phase-1.md L341)
+// - entityType required when explicitly provided as null/empty (S4 + S5)
+// - notes max 2000 chars (AC7)
+// - wallets max 50 enforced separately by validateUserWalletsLimit
 export function validateUserForm(input: {
   name: string
-  email?: string
+  email: string
+  entityType?: string
   notes?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.name.trim()) {
     errors.name = 'Name is required'
-  } else if (input.name.length > MAX_NAME_LEN) {
-    errors.name = `Name must be under ${MAX_NAME_LEN} characters`
+  } else if (input.name.length > MAX_USER_NAME_LEN) {
+    errors.name = `Name must be under ${MAX_USER_NAME_LEN} characters`
   }
-  if (input.email !== undefined && input.email.trim()) {
-    if (!EMAIL_RE.test(input.email)) errors.email = 'Invalid email format'
+  if (!input.email.trim()) {
+    errors.email = 'Email is required'
+  } else if (!EMAIL_RE.test(input.email)) {
+    errors.email = 'Invalid email format'
+  }
+  if (input.entityType !== undefined && !input.entityType) {
+    errors.entityType = 'Entity type is required'
+  }
+  if (input.notes !== undefined && input.notes.length > MAX_USER_NOTES_LEN) {
+    errors.notes = `Notes must be under ${MAX_USER_NOTES_LEN} characters`
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
+
+// USDX-47 S8 + AC10: wallets max 50 per user. FE pre-check before POST so the
+// operator sees the limit immediately; BE 422 is the safety net for races.
+export function validateUserWalletsLimit(currentCount: number, addingCount = 1): string | null {
+  if (currentCount + addingCount > MAX_USER_WALLETS) {
+    return `Maximum ${MAX_USER_WALLETS} wallets per user`
+  }
+  return null
+}
+
+export const USER_LIMITS = {
+  MAX_NAME_LEN: MAX_USER_NAME_LEN,
+  MAX_NOTES_LEN: MAX_USER_NOTES_LEN,
+  MAX_WALLETS: MAX_USER_WALLETS,
+} as const
 
 // sot/openapi.yaml § CreateUserWallet — both fields required; address must
 // pass the same EIP-55 checksum check used for mint requests.

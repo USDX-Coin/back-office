@@ -6,9 +6,12 @@ import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import type {
   Customer,
   CustomerSummary,
+  EntityType,
+  KycStatus,
   Network,
   PaginatedResponse,
   PhaseOneCreateUser,
+  PhaseOneCreateUserResponse,
   PhaseOneCreateUserWallet,
   PhaseOnePaginatedResponse,
   PhaseOneUpdateUser,
@@ -18,10 +21,14 @@ import type {
   UserWallet,
 } from '@/lib/types'
 
+// USDX-47 S3: filter by kycStatus and entityType. sot/api/users.yaml § GET
+// /users — both single-value enums.
 export interface UsersListParams {
   page?: number
   limit?: number
   search?: string
+  kycStatus?: KycStatus
+  entityType?: EntityType
 }
 
 function buildQuery(params: UsersListParams): string {
@@ -52,11 +59,16 @@ export function useUserDetail(id: string | undefined) {
   })
 }
 
+// USDX-47 AC5: POST returns user + one-time password. Caller (UserModal) uses
+// the `password` field to open PasswordRevealDialog after success.
 export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: PhaseOneCreateUser) =>
-      apiFetch<PhaseOneUser>('/api/v1/users', { method: 'POST', body: input }),
+      apiFetch<PhaseOneCreateUserResponse>('/api/v1/users', {
+        method: 'POST',
+        body: input,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
 }
