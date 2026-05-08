@@ -167,7 +167,7 @@ export default function BurnRequestForm() {
       toast.success('Burn request submitted')
       setForm(EMPTY)
       setErrors({})
-      navigate('/requests')
+      navigate('/burn')
     } catch (err) {
       const message =
         err instanceof ApiError

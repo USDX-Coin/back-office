@@ -11,10 +11,22 @@ describe('Navbar', () => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
 
-    test('should render OTC Desk / Mint for /otc/mint', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/otc/mint'], authenticated: true })
-      expect(screen.getByText('OTC Desk')).toBeInTheDocument()
+    test('should render OTC / Mint for /mint', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/mint'], authenticated: true })
+      expect(screen.getByText('OTC')).toBeInTheDocument()
       expect(screen.getByText('Mint')).toBeInTheDocument()
+    })
+
+    test('should render OTC / New mint OTC for /mint/new', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/mint/new'], authenticated: true })
+      expect(screen.getByText('OTC')).toBeInTheDocument()
+      expect(screen.getByText('New mint OTC')).toBeInTheDocument()
+    })
+
+    test('should render Settings / Threshold for /settings/threshold', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/settings/threshold'], authenticated: true })
+      expect(screen.getByText('Settings')).toBeInTheDocument()
+      expect(screen.getByText('Threshold')).toBeInTheDocument()
     })
 
     test('should render Workspace / Users for /users', () => {
@@ -30,12 +42,6 @@ describe('Navbar', () => {
   })
 
   describe('chrome', () => {
-    test('should render notifications button with unread badge', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      const bell = screen.getByRole('button', { name: /notifications/i })
-      expect(bell).toBeInTheDocument()
-    })
-
     test('should render the cmd-k search affordance', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
       // Static affordance, not an input — text + keyboard hint visible

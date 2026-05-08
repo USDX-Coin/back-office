@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
-import BurnRequestPage from '@/features/burn/BurnRequestPage'
+import BurnFormPage from '@/features/burn/BurnFormPage'
 import { renderWithProviders } from '@/test/test-utils'
 
 // USDX-46 AC coverage — Burn form parity with mint (user picker, currency
@@ -51,15 +51,15 @@ const VALID_TX = '0x' + 'b'.repeat(64)
 function TestApp() {
   return (
     <Routes>
-      <Route path="/burn" element={<BurnRequestPage />} />
-      <Route path="/requests" element={<div data-testid="requests-page">Requests landing</div>} />
+      <Route path="/burn/new" element={<BurnFormPage />} />
+      <Route path="/burn" element={<div data-testid="burn-list-page">Burn list landing</div>} />
     </Routes>
   )
 }
 
 function setup() {
   return renderWithProviders(<TestApp />, {
-    initialEntries: ['/burn'],
+    initialEntries: ['/burn/new'],
     authenticated: true,
   })
 }
@@ -71,7 +71,7 @@ async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
   await user.click(option)
 }
 
-describe('BurnRequestPage @ USDX-46', () => {
+describe('BurnFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
     test('renders combobox-style picker (selection-required)', () => {
       setup()
@@ -170,7 +170,7 @@ describe('BurnRequestPage @ USDX-46', () => {
         bankAccount: '1234567890',
       })
       expect(capturedBody).not.toHaveProperty('userName')
-      await screen.findByTestId('requests-page')
+      await screen.findByTestId('burn-list-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {

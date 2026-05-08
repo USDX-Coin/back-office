@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
-import MintRequestPage from '@/features/mint/MintRequestPage'
+import MintFormPage from '@/features/mint/MintFormPage'
 import { renderWithProviders } from '@/test/test-utils'
 
 // USDX-46 AC coverage — Mint form with user picker + currency selector +
@@ -50,15 +50,15 @@ const ELIGIBLE_USER_PAYLOAD = {
 function TestApp() {
   return (
     <Routes>
-      <Route path="/mint" element={<MintRequestPage />} />
-      <Route path="/requests" element={<div data-testid="requests-page">Requests landing</div>} />
+      <Route path="/mint/new" element={<MintFormPage />} />
+      <Route path="/mint" element={<div data-testid="mint-list-page">Mint list landing</div>} />
     </Routes>
   )
 }
 
 function setup() {
   return renderWithProviders(<TestApp />, {
-    initialEntries: ['/mint'],
+    initialEntries: ['/mint/new'],
     authenticated: true,
   })
 }
@@ -75,7 +75,7 @@ async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
   await user.click(option)
 }
 
-describe('MintRequestPage @ USDX-46', () => {
+describe('MintFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
     test('renders combobox-style picker, no plain text input for user', () => {
       setup()
@@ -204,7 +204,7 @@ describe('MintRequestPage @ USDX-46', () => {
   })
 
   describe('AC4 — submit body shape', () => {
-    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /requests', async () => {
+    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /mint', async () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
 
@@ -265,7 +265,7 @@ describe('MintRequestPage @ USDX-46', () => {
       })
       // userName must NOT appear in the body anymore.
       expect(capturedBody).not.toHaveProperty('userName')
-      await screen.findByTestId('requests-page')
+      await screen.findByTestId('mint-list-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {

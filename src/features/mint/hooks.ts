@@ -5,6 +5,7 @@ import type {
   MintRequestDetail,
   PhaseOnePaginatedResponse,
   PhaseOneUser,
+  RequestListItem,
 } from '@/lib/types'
 
 // USDX-46: server filters by kycStatus=VERIFIED. Suspended is filtered FE-side
@@ -44,6 +45,55 @@ export function useCreateMintRequest() {
     mutationFn: postMintRequest,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['requests'] })
+      qc.invalidateQueries({ queryKey: ['mint'] })
     },
+  })
+}
+
+export interface MintListFilters {
+  page?: number
+  limit?: number
+  status?: string
+  chain?: string
+  safeType?: string
+}
+
+function buildQuery(params: MintListFilters & { type: 'mint' }): string {
+  const sp = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
+  })
+  return sp.toString()
+}
+
+async function fetchMintList(
+  filters: MintListFilters
+): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
+  const qs = buildQuery({ ...filters, type: 'mint' })
+  const res = await fetch(`/api/v1/requests?${qs}`)
+  if (!res.ok) throw new Error('Failed to fetch mint list')
+  return res.json()
+}
+
+export function useMintList(filters: MintListFilters) {
+  return useQuery({
+    queryKey: ['mint', 'list', filters],
+    queryFn: () => fetchMintList(filters),
+  })
+}
+
+// Sidebar badge count: PENDING_APPROVAL mint requests. SoT phase-1.md line 179
+// sets PENDING_APPROVAL as the initial DB status; SoT § Sidebar uses (N) as
+// "jumlah request dengan status PENDING_APPROVAL" — query metadata.total.
+export function usePendingMintCount() {
+  return useQuery({
+    queryKey: ['mint', 'pending-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/requests?type=mint&status=PENDING_APPROVAL&limit=1')
+      if (!res.ok) throw new Error('Failed to fetch pending mint count')
+      const json = (await res.json()) as PhaseOnePaginatedResponse<RequestListItem>
+      return json.metadata.total
+    },
+    staleTime: 30 * 1000,
   })
 }

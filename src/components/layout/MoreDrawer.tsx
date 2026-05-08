@@ -1,9 +1,7 @@
 import { useNavigate } from 'react-router'
 import {
-  Bell,
-  Flame,
-  Inbox,
   TrendingUp,
+  Sliders,
   Users,
   UserCog,
   UserRound,
@@ -17,8 +15,12 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import Avatar from '@/components/Avatar'
-import { canManageStaff, useAuth } from '@/lib/auth'
-import { useNotificationsCount } from '@/features/notifications/hooks'
+import {
+  canManageSettings,
+  canManageStaff,
+  useAuth,
+} from '@/lib/auth'
+import type { Staff } from '@/lib/types'
 
 interface MoreDrawerProps {
   open: boolean
@@ -30,27 +32,24 @@ interface DrawerItem {
   label: string
   icon: React.ComponentType<{ className?: string }>
   description: string
-  badgeKey?: 'notifications'
-  requireAdmin?: boolean
+  visibleWhen?: (user: Staff | null) => boolean
 }
 
+// Mobile More drawer mirrors the desktop sidebar minus the items already
+// in the BottomNav (Dashboard / Mint / Burn). Visibility uses the same
+// helpers as the sidebar to keep gating consistent.
 const ITEMS: DrawerItem[] = [
-  { to: '/notifications', label: 'Notifications', icon: Bell, description: 'Pending Safe approvals', badgeKey: 'notifications' },
-  { to: '/burn', label: 'Burn', icon: Flame, description: 'Submit OTC burn request' },
-  { to: '/requests', label: 'Requests', icon: Inbox, description: 'Mint & burn lifecycle' },
   { to: '/users', label: 'Users', icon: Users, description: 'Customer directory' },
-  { to: '/staff', label: 'Staff', icon: UserCog, description: 'Internal back-office team', requireAdmin: true },
-  { to: '/rate', label: 'Rate', icon: TrendingUp, description: 'USD/IDR rate config' },
+  { to: '/staff', label: 'Staff', icon: UserCog, description: 'Internal team', visibleWhen: canManageStaff },
+  { to: '/settings/rate', label: 'Rate', icon: TrendingUp, description: 'USD/IDR rate config', visibleWhen: canManageSettings },
+  { to: '/settings/threshold', label: 'Threshold', icon: Sliders, description: 'Safe routing threshold', visibleWhen: canManageSettings },
   { to: '/profile', label: 'Profile', icon: UserRound, description: 'Your account' },
 ]
 
 export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const isAdmin = canManageStaff(user)
-  const visibleItems = ITEMS.filter((item) => !item.requireAdmin || isAdmin)
-  const { data: notifData } = useNotificationsCount()
-  const notificationsCount = notifData?.count ?? 0
+  const visibleItems = ITEMS.filter((item) => !item.visibleWhen || item.visibleWhen(user))
 
   function go(to: string) {
     onOpenChange(false)
@@ -86,7 +85,6 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
         <div className="mt-4 grid gap-2">
           {visibleItems.map((item) => {
             const Icon = item.icon
-            const badge = item.badgeKey === 'notifications' ? notificationsCount : 0
             return (
               <button
                 key={item.to}
@@ -99,14 +97,6 @@ export default function MoreDrawer({ open, onOpenChange }: MoreDrawerProps) {
                   <p className="text-sm font-medium text-foreground">{item.label}</p>
                   <p className="text-xs text-muted-foreground">{item.description}</p>
                 </div>
-                {badge > 0 && (
-                  <span
-                    className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10.5px] font-semibold leading-none text-primary-foreground"
-                    aria-label={`${badge} pending`}
-                  >
-                    {badge > 99 ? '99+' : badge}
-                  </span>
-                )}
               </button>
             )
           })}

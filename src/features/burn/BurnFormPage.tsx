@@ -3,14 +3,14 @@ import CurrentRateCard from '@/components/CurrentRateCard'
 import BurnRequestForm from './BurnRequestForm'
 import BurnRequestInfoPanel from './BurnRequestInfoPanel'
 
-export default function BurnRequestPage() {
+export default function BurnFormPage() {
   return (
     <div>
       <PageHeader
         eyebrow="Operations"
         title="Burn"
         italicAccent="redeem USDX"
-        subtitle="Submit an OTC burn after the user has deposited USDX to the Safe wallet. The request enters the approval lifecycle and appears on Requests."
+        subtitle="Submit an OTC burn after the user has deposited USDX to the Safe wallet. The request enters the approval lifecycle and appears on the Burn list."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">

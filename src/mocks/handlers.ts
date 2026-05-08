@@ -12,6 +12,9 @@ import type {
   UpdateRateConfig,
   RequestDetail,
   RequestListItem,
+  ThresholdConfig,
+  ThresholdMode,
+  UpdateThresholdConfig,
 } from '@/lib/types'
 import { canManageRate } from '@/lib/types'
 import {
@@ -43,6 +46,16 @@ let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+// SoT phase-1.md § Threshold Configuration L81: default mode=IDR, amount=1B IDR.
+let thresholdHistory: ThresholdConfig[] = [
+  {
+    id: 'thr_seed_1',
+    mode: 'IDR',
+    amount: '1000000000.00',
+    updatedBy: staffStore[0]?.id ?? 'seed',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+]
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
@@ -54,6 +67,15 @@ export function resetMockData() {
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+  thresholdHistory = [
+    {
+      id: 'thr_seed_1',
+      mode: 'IDR',
+      amount: '1000000000.00',
+      updatedBy: staffStore[0]?.id ?? 'seed',
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  ]
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
@@ -582,6 +604,70 @@ export const handlers = [
       createdAt: new Date().toISOString(),
     })
     rateHistory.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ───
+  // GET intentionally not Bearer-gated for the same reason as /api/v1/rate
+  // (avoids 401 on AuthProvider boot before apiFetch is wired).
+  http.get('/api/v1/threshold', () => {
+    const current = thresholdHistory[thresholdHistory.length - 1]
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: current,
+    })
+  }),
+
+  http.post('/api/v1/threshold', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    // SoT phase-1.md § Threshold Configuration L78 — only Admin can update.
+    if (operator.role !== 'ADMIN') {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN can update threshold' },
+        },
+        { status: 403 }
+      )
+    }
+
+    const body = (await request.json()) as UpdateThresholdConfig
+
+    function thresholdBadRequest(message: string) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION', message },
+        },
+        { status: 400 }
+      )
+    }
+
+    if (body.mode !== 'USD' && body.mode !== 'IDR') {
+      return thresholdBadRequest('mode must be USD or IDR')
+    }
+    const amountNum = Number(body.amount)
+    if (!body.amount || !Number.isFinite(amountNum) || amountNum <= 0) {
+      return thresholdBadRequest('amount must be a positive number')
+    }
+
+    const created: ThresholdConfig = {
+      id: `thr_${Date.now()}`,
+      mode: body.mode as ThresholdMode,
+      amount: body.amount,
+      updatedBy: operator.id,
+      createdAt: new Date().toISOString(),
+    }
+    thresholdHistory.push(created)
     return HttpResponse.json(
       { status: 'success', metadata: null, data: created },
       { status: 201 }
