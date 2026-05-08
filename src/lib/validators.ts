@@ -1,5 +1,5 @@
 import { getAddress, isAddress } from 'viem'
-import type { CustomerRole, CustomerType, Network, RateMode, RequestChain } from './types'
+import type { AmountCurrency, CustomerRole, CustomerType, Network, RateMode, RequestChain } from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -186,14 +186,64 @@ export function validateOtcRedeemForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
-// sot/openapi.yaml § CreateBurnRequest — patterns and required fields are the
-// contract for POST /api/v1/burn. Keep error keys aligned with form field IDs.
+// sot/api/burn.yaml § CreateBurnRequest — patterns and required fields are
+// the contract for POST /api/v1/burn. Keep error keys aligned with form
+// field IDs. USDX-46: userName→userId, +amountCurrency.
 export const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/
 
+function validateAmountField(amountStr: string, errors: Record<string, string>) {
+  if (!amountStr) {
+    errors.amount = 'Amount is required'
+    return
+  }
+  const amt = Number(amountStr)
+  if (!Number.isFinite(amt) || amt <= 0) {
+    errors.amount = 'Amount must be greater than 0'
+    return
+  }
+  // sot/conventions.md § Decimals: USDX uses 6 decimals; IDR uses 2.
+  // We accept up to 6 decimals here (the BE will normalize for IDR input).
+  const [, fraction = ''] = amountStr.split('.')
+  if (fraction.length > 6) {
+    errors.amount = 'Amount supports at most 6 decimal places'
+  }
+}
+
+function validateUserAddressField(
+  userAddress: string,
+  errors: Record<string, string>
+) {
+  // sot/conventions.md L114-115: store in checksummed format, validate at input.
+  // Lenient: all-lowercase atau all-uppercase = format-only check (no checksum
+  // to verify). Mixed-case = harus match EIP-55 (viem.getAddress canonical form).
+  const trimmed = userAddress.trim()
+  if (!trimmed) {
+    errors.userAddress = 'Wallet address is required'
+    return
+  }
+  if (!EVM_ADDRESS_RE.test(trimmed)) {
+    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+    return
+  }
+  const hex = trimmed.slice(2)
+  const isAllLower = hex === hex.toLowerCase()
+  const isAllUpper = hex === hex.toUpperCase()
+  if (!isAllLower && !isAllUpper) {
+    try {
+      if (getAddress(trimmed) !== trimmed) {
+        errors.userAddress = 'Address checksum is invalid (EIP-55)'
+      }
+    } catch {
+      errors.userAddress = 'Address checksum is invalid (EIP-55)'
+    }
+  }
+}
+
 export function validateBurnRequestForm(input: {
-  userName: string
+  userId: string
   userAddress: string
   amount: string
+  amountCurrency: AmountCurrency | ''
   chain: RequestChain | ''
   depositTxHash: string
   bankName: string
@@ -202,35 +252,16 @@ export function validateBurnRequestForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!input.userName.trim()) errors.userName = 'User name is required'
+  if (!input.userId.trim()) errors.userId = 'User is required'
 
-  // sot/conventions.md L114 mandates address validation; we use viem
-  // (per CLAUDE.md.backoffice template L18) in non-strict mode so that
-  // operators can paste lowercase or correctly-checksummed mixed-case
-  // addresses, but mixed-case-with-wrong-checksum still gets rejected.
   if (!input.userAddress.trim()) {
     errors.userAddress = 'User wallet address is required'
   } else if (!isAddress(input.userAddress.trim())) {
     errors.userAddress = 'Invalid wallet address'
   }
 
-  const amountStr = input.amount.trim()
-  if (!amountStr) {
-    errors.amount = 'Amount is required'
-  } else {
-    const amt = Number(amountStr)
-    if (!Number.isFinite(amt) || amt <= 0) {
-      errors.amount = 'Amount must be greater than 0'
-    } else {
-      // sot/openapi.yaml § CreateBurnRequest.amount — "decimal USDX amount"
-      // with the same 6-decimal precision documented for mint
-      // (sot/conventions.md § Decimals: USDX uses 6 decimals).
-      const [, fraction = ''] = amountStr.split('.')
-      if (fraction.length > 6) {
-        errors.amount = 'Amount supports at most 6 decimal places'
-      }
-    }
-  }
+  validateAmountField(input.amount.trim(), errors)
+  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
 
   if (!input.chain) errors.chain = 'Chain is required'
 
@@ -250,10 +281,12 @@ export function validateBurnRequestForm(input: {
 // Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// sot/openapi.yaml § CreateUser / UpdateUser — only `name` is required.
-// Wallet sub-entries (create-only) are validated via validateUserWalletForm.
+// sot/api/users.yaml § CreateUser — name + email + entityType required.
+// USDX-46 note: callers may omit email/entityType (e.g., edit-mode notes-only
+// updates) — the validator only flags fields that are *present* but invalid.
 export function validateUserForm(input: {
   name: string
+  email?: string
   notes?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
@@ -261,6 +294,9 @@ export function validateUserForm(input: {
     errors.name = 'Name is required'
   } else if (input.name.length > MAX_NAME_LEN) {
     errors.name = `Name must be under ${MAX_NAME_LEN} characters`
+  }
+  if (input.email !== undefined && input.email.trim()) {
+    if (!EMAIL_RE.test(input.email)) errors.email = 'Invalid email format'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -298,52 +334,19 @@ export function validateUserWalletForm(input: {
 }
 
 export function validateMintRequestForm(input: {
-  userName: string
+  userId: string
   userAddress: string
   amount: string
+  amountCurrency: AmountCurrency | ''
   chain: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  if (!input.userName.trim()) {
-    errors.userName = 'User name is required'
+  if (!input.userId.trim()) {
+    errors.userId = 'User is required'
   }
-  // sot/conventions.md L114-115: simpan dalam checksummed format + validasi
-  // checksum saat input. Lenient: all-lowercase atau all-uppercase = format-
-  // only check (no checksum to verify). Mixed-case = harus match EIP-55
-  // checksum (viem.getAddress normalisasi → bandingkan ke input).
-  const trimmedAddress = input.userAddress.trim()
-  if (!trimmedAddress) {
-    errors.userAddress = 'Wallet address is required'
-  } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
-    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
-  } else {
-    // Skip the `0x` prefix when checking case-uniformity (the `x` is always lowercase).
-    const hex = trimmedAddress.slice(2)
-    const isAllLower = hex === hex.toLowerCase()
-    const isAllUpper = hex === hex.toUpperCase()
-    if (!isAllLower && !isAllUpper) {
-      try {
-        if (getAddress(trimmedAddress) !== trimmedAddress) {
-          errors.userAddress = 'Address checksum is invalid (EIP-55)'
-        }
-      } catch {
-        errors.userAddress = 'Address checksum is invalid (EIP-55)'
-      }
-    }
-  }
-  const amountTrimmed = input.amount.trim()
-  const amt = Number.parseFloat(amountTrimmed)
-  if (!amountTrimmed) {
-    errors.amount = 'Amount is required'
-  } else if (Number.isNaN(amt) || amt <= 0) {
-    errors.amount = 'Amount must be greater than 0'
-  } else {
-    // sot/openapi.yaml § CreateMintRequest.amount — "decimal USDX, 6 decimals max"
-    const [, fraction = ''] = amountTrimmed.split('.')
-    if (fraction.length > 6) {
-      errors.amount = 'Amount supports at most 6 decimal places'
-    }
-  }
+  validateUserAddressField(input.userAddress, errors)
+  validateAmountField(input.amount.trim(), errors)
+  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
   if (!input.chain.trim()) {
     errors.chain = 'Chain is required'
   }

@@ -1,7 +1,10 @@
 import type {
+  AmountCurrency,
   Customer,
   CustomerRole,
   CustomerType,
+  EntityType,
+  KycStatus,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -563,8 +566,15 @@ export const MANAGER_THRESHOLD_IDR = 1_000_000_000
 export function createMintFromRequest(
   user: { id: string; name: string },
   createdBy: Staff,
-  body: { userAddress: string; amount: string; chain: string; notes?: string },
+  body: {
+    userAddress: string
+    amount: string
+    amountCurrency: AmountCurrency
+    chain: string
+    notes?: string
+  },
   amountIdrValue: number,
+  amountUsdx: string,
   safeType: SafeType
 ): { list: RequestListItem; detail: MintRequestDetail } {
   const seed = ++requestIdCounter + 100_000
@@ -582,7 +592,7 @@ export function createMintFromRequest(
     userId: user.id,
     userName: user.name,
     userAddress: body.userAddress,
-    amount: body.amount,
+    amount: amountUsdx,
     amountIdr: amountIdrValue.toString(),
     chain: body.chain as RequestChain,
     safeType,
@@ -598,8 +608,8 @@ export function createMintFromRequest(
     userId: user.id,
     userName: user.name,
     userAddress: body.userAddress,
-    amount: body.amount,
-    amountWei: amountWei(body.amount),
+    amount: amountUsdx,
+    amountWei: amountWei(amountUsdx),
     amountIdr: amountIdrValue.toString(),
     rateUsed: RATE_USED,
     chain: body.chain as RequestChain,
@@ -612,14 +622,39 @@ export function createMintFromRequest(
     createdAt,
     updatedAt: createdAt,
   }
+  // sot/api/mint.yaml § MintRequest now includes inputCurrency. We carry it
+  // on the detail object — the type doesn't surface it yet, so cast through.
+  ;(detail as MintRequestDetail & { inputCurrency: AmountCurrency }).inputCurrency =
+    body.amountCurrency
   return { list, detail }
+}
+
+// USDX-46: deterministic seed → kycStatus + suspended distribution.
+// Most users VERIFIED (so the picker has rich data), with a non-trivial
+// minority of UNVERIFIED/PENDING/REJECTED + a few suspended for FE filter
+// edge-case coverage (sot/api/users.yaml § KycStatus enum).
+function deriveKycStatus(seed: number): KycStatus {
+  const mod = seed % 10
+  if (mod === 0) return 'UNVERIFIED'
+  if (mod === 1) return 'PENDING'
+  if (mod === 2) return 'REJECTED'
+  return 'VERIFIED'
+}
+function deriveSuspended(seed: number): boolean {
+  // Roughly 1/8 of users suspended.
+  return seed % 8 === 0
+}
+function deriveEntityType(seed: number): EntityType {
+  return seed % 4 === 0 ? 'LEGAL_ENTITY' : 'INDIVIDUAL'
 }
 
 export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseOneUser {
   const fullName = `${customer.firstName} ${customer.lastName}`.trim()
   // Reflect the actual customer.wallets so that POST/DELETE /api/v1/users/:id/wallets
   // mutations show up in subsequent /api/v1/users[:id] reads. Falls back to a
-  // single synthesized wallet when the customer has none.
+  // single synthesized wallet when the customer has none. The synthesized
+  // wallet uses `polygon` so that USDX-46 wallet picker has at least one
+  // wallet on the polygon-only chain in v1.
   const wallets: PhaseOneUserWallet[] = customer.wallets.length > 0
     ? customer.wallets.map((w) => ({
         id: w.id,
@@ -630,7 +665,7 @@ export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseO
     : [
         {
           id: uuidLike(seed + 23000),
-          chain: REQUEST_CHAINS[seed % REQUEST_CHAINS.length]!,
+          chain: 'polygon',
           address: bytes20(seed + 25000),
           createdAt: customer.createdAt,
         },
@@ -638,6 +673,10 @@ export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseO
   return {
     id: customer.id,
     name: fullName,
+    email: customer.email,
+    entityType: deriveEntityType(seed),
+    kycStatus: deriveKycStatus(seed),
+    suspended: deriveSuspended(seed),
     notes: customer.organization ?? null,
     wallets,
     createdAt: customer.createdAt,
@@ -675,6 +714,7 @@ interface BurnSubmissionInput {
   userName: string
   userAddress: string
   amount: string
+  amountCurrency: AmountCurrency
   chain: RequestChain
   depositTxHash: string
   bankName: string
@@ -690,8 +730,16 @@ export function createBurnRequestFromSubmission(
   const seed = requestIdCounter++ + 50_000
   const id = uuidLike(seed)
   const idempotencyKey = bytes32(seed + 100)
-  const amountIdrValue = decimalIdr(input.amount)
-  const amountWeiValue = amountWei(input.amount)
+  // sot/phase-1.md L154: USD = 1:1 USDX, IDR → divide by rate.
+  const amountUsdx =
+    input.amountCurrency === 'USD'
+      ? input.amount
+      : (Number.parseFloat(input.amount) / Number.parseFloat(RATE_USED)).toFixed(6)
+  const amountIdrValue =
+    input.amountCurrency === 'IDR'
+      ? Math.round(Number.parseFloat(input.amount)).toString()
+      : decimalIdr(amountUsdx)
+  const amountWeiValue = amountWei(amountUsdx)
   // Per sot/phase-1.md flow: backend computes IDR, checks role vs threshold,
   // then routes to STAFF or MANAGER Safe. Mock heuristic: route to MANAGER
   // when amountIDR is at or above 1B (approximate threshold from phase-1.md).
@@ -711,7 +759,7 @@ export function createBurnRequestFromSubmission(
     userId,
     userName: input.userName.trim(),
     userAddress: input.userAddress.trim(),
-    amount: input.amount,
+    amount: amountUsdx,
     amountIdr: amountIdrValue,
     chain: input.chain,
     safeType,
@@ -729,7 +777,7 @@ export function createBurnRequestFromSubmission(
     userId,
     userName: input.userName.trim(),
     userAddress: input.userAddress.trim(),
-    amount: input.amount,
+    amount: amountUsdx,
     amountWei: amountWeiValue,
     amountIdr: amountIdrValue,
     rateUsed: RATE_USED,
@@ -745,6 +793,8 @@ export function createBurnRequestFromSubmission(
     createdAt,
     updatedAt: createdAt,
   }
+  ;(detail as BurnRequestDetail & { inputCurrency: AmountCurrency }).inputCurrency =
+    input.amountCurrency
 
   return { list, detail }
 }

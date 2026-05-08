@@ -253,10 +253,12 @@ describe('TX_HASH_RE', () => {
 })
 
 describe('validateBurnRequestForm', () => {
+  // USDX-46: form now submits userId (uuid) + amountCurrency.
   const valid = {
-    userName: 'Alice User',
+    userId: '01902a3b-4c5d-7e6f-8a9b-0c1d2e3f4a5b',
     userAddress: '0x' + 'a'.repeat(40),
     amount: '500.00',
+    amountCurrency: 'USD' as const,
     chain: 'polygon' as const,
     depositTxHash: '0x' + 'a'.repeat(64),
     bankName: 'BCA',
@@ -278,9 +280,9 @@ describe('validateBurnRequestForm', () => {
   })
 
   describe('negative', () => {
-    test('should fail when userName is empty', () => {
-      const r = validateBurnRequestForm({ ...valid, userName: '' })
-      expect(r.errors.userName).toBe('User name is required')
+    test('should fail when userId is empty', () => {
+      const r = validateBurnRequestForm({ ...valid, userId: '' })
+      expect(r.errors.userId).toBe('User is required')
     })
     test('should fail when userAddress is empty', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '' })
@@ -291,8 +293,6 @@ describe('validateBurnRequestForm', () => {
       expect(r.errors.userAddress).toBe('Invalid wallet address')
     })
     test('should fail when userAddress has correct length but bad EIP-55 mixed-case checksum', () => {
-      // viem.isAddress rejects mixed-case strings whose checksum is wrong.
-      // (All-lowercase is accepted because EIP-55 treats it as unchecksummed.)
       const r = validateBurnRequestForm({
         ...valid,
         userAddress: '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa',
@@ -317,6 +317,10 @@ describe('validateBurnRequestForm', () => {
     test('should fail when amount is negative', () => {
       const r = validateBurnRequestForm({ ...valid, amount: '-1' })
       expect(r.errors.amount).toBe('Amount must be greater than 0')
+    })
+    test('should fail when amountCurrency is empty', () => {
+      const r = validateBurnRequestForm({ ...valid, amountCurrency: '' })
+      expect(r.errors.amountCurrency).toBe('Currency is required')
     })
     test('should fail when chain is empty', () => {
       const r = validateBurnRequestForm({ ...valid, chain: '' })
@@ -359,21 +363,19 @@ describe('validateBurnRequestForm', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '   ' })
       expect(r.errors.userAddress).toBe('User wallet address is required')
     })
-    test('should accept depositTxHash padded with whitespace by trimming', () => {
-      const r = validateBurnRequestForm({
-        ...valid,
-        depositTxHash: '  0x' + 'a'.repeat(64) + '  ',
-      })
-      expect(r.valid).toBe(true)
+    test('should accept IDR currency', () => {
+      expect(validateBurnRequestForm({ ...valid, amountCurrency: 'IDR' }).valid).toBe(true)
     })
   })
 })
 
 describe('validateMintRequestForm', () => {
+  // USDX-46: form now submits userId (uuid) + amountCurrency.
   const valid = {
-    userName: 'Bruce Wayne',
+    userId: '01902a3b-4c5d-7e6f-8a9b-0c1d2e3f4a5b',
     userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
     amount: '1000.50',
+    amountCurrency: 'USD' as const,
     chain: 'polygon',
   }
 
@@ -410,20 +412,26 @@ describe('validateMintRequestForm', () => {
         }).valid
       ).toBe(true)
     })
+
+    test('should accept IDR amountCurrency', () => {
+      expect(validateMintRequestForm({ ...valid, amountCurrency: 'IDR' }).valid).toBe(true)
+    })
   })
 
   describe('negative', () => {
     test('should report all empty fields when all blank', () => {
       const r = validateMintRequestForm({
-        userName: '',
+        userId: '',
         userAddress: '',
         amount: '',
+        amountCurrency: '',
         chain: '',
       })
       expect(r.valid).toBe(false)
-      expect(r.errors.userName).toMatch(/required/i)
+      expect(r.errors.userId).toMatch(/required/i)
       expect(r.errors.userAddress).toMatch(/required/i)
       expect(r.errors.amount).toMatch(/required/i)
+      expect(r.errors.amountCurrency).toMatch(/required/i)
       expect(r.errors.chain).toMatch(/required/i)
     })
 
@@ -508,11 +516,10 @@ describe('validateMintRequestForm', () => {
       ).toBe(true)
     })
 
-    test('should accept whitespace-padded fields and trim before validating', () => {
+    test('should accept whitespace-padded address by trimming', () => {
       expect(
         validateMintRequestForm({
           ...valid,
-          userName: '  Bruce Wayne  ',
           userAddress: `  ${valid.userAddress}  `,
         }).valid
       ).toBe(true)

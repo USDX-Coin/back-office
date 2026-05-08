@@ -257,11 +257,13 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
-// sot/openapi.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
+// sot/api/burn.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
+// USDX-46: userName → userId, add amountCurrency.
 export interface CreateBurnRequest {
-  userName: string
+  userId: string
   userAddress: string
   amount: string
+  amountCurrency: AmountCurrency
   chain: RequestChain
   depositTxHash: string
   bankName: string
@@ -269,9 +271,9 @@ export interface CreateBurnRequest {
   notes?: string
 }
 
-// sot/openapi.yaml § BurnRequest (L866-917) — exact response shape for
-// POST /api/v1/burn. Strict — does NOT include userName / display extras
-// that BurnRequestDetail carries for the /requests detail dialog.
+// sot/api/burn.yaml § BurnRequest — exact response shape for POST /api/v1/burn.
+// Strict — does NOT include userName / display extras that BurnRequestDetail
+// carries for the /requests detail dialog.
 export interface BurnRequest {
   id: string
   idempotencyKey: string
@@ -280,6 +282,7 @@ export interface BurnRequest {
   amount: string
   amountWei: string
   amountIdr: string
+  inputCurrency: AmountCurrency
   rateUsed: string
   chain: RequestChain
   depositTxHash: string
@@ -324,9 +327,17 @@ export interface PhaseOneErrorResponse {
   }
 }
 
-// ─── Phase 1 — User directory (sot/openapi.yaml § /api/v1/users) ───
-// Distinct from Customer: Phase-1 users carry one or more on-chain wallets
-// rather than the Customer fields (firstName/lastName/type/role).
+// ─── Phase 1 — User directory (sot/api/users.yaml + sot/api/common.yaml) ───
+// USDX-46: User schema extended with email + KYC/suspension fields per the
+// updated SoT. Eligibility for mint/burn = `kycStatus === 'VERIFIED' &&
+// suspended === false` (sot/phase-1.md L307 — backend wajib cek both).
+
+export type KycStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED'
+export type EntityType = 'INDIVIDUAL' | 'LEGAL_ENTITY'
+
+// sot/api/common.yaml § AmountCurrency — input currency. USD = USDX (1:1),
+// IDR = backend converts using current rate at submission time.
+export type AmountCurrency = 'USD' | 'IDR'
 
 export interface PhaseOneUserWallet {
   id: string
@@ -338,6 +349,10 @@ export interface PhaseOneUserWallet {
 export interface PhaseOneUser {
   id: string
   name: string
+  email: string
+  entityType: EntityType
+  kycStatus: KycStatus
+  suspended: boolean
   notes: string | null
   wallets: PhaseOneUserWallet[]
   createdAt: string
@@ -351,17 +366,24 @@ export interface PhaseOneUserDetail extends PhaseOneUser {
   recentRequests: RequestListItem[]
 }
 
-// SoT openapi.yaml § CreateUser — only `name` is required.
+// sot/api/users.yaml § CreateUser — name + email + entityType required.
 export interface PhaseOneCreateUser {
   name: string
+  email: string
+  entityType: EntityType
   notes?: string
   wallets?: PhaseOneCreateUserWallet[]
 }
 
-// SoT openapi.yaml § UpdateUser — only name and notes are mutable via PATCH.
-// Wallet management goes through POST/DELETE /api/v1/users/:id/wallets.
+// sot/api/users.yaml § UpdateUser — admin can mutate name/email/entityType
+// plus kycStatus and suspended. Wallet management goes through POST/DELETE
+// /api/v1/users/:id/wallets.
 export interface PhaseOneUpdateUser {
   name?: string
+  email?: string
+  entityType?: EntityType
+  kycStatus?: KycStatus
+  suspended?: boolean
   notes?: string
 }
 
@@ -371,12 +393,15 @@ export interface PhaseOneCreateUserWallet {
   address: string
 }
 
-// ─── Phase 1 — Create mint/burn request (sot/openapi.yaml) ───
+// ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
+// USDX-46: forms now submit `userId` (operator picks from existing users)
+// + `amountCurrency` (USD/IDR — BE converts IDR using current rate).
 
 export interface CreateMintRequestBody {
-  userName: string
+  userId: string
   userAddress: string
   amount: string
+  amountCurrency: AmountCurrency
   chain: string
   notes?: string
 }
