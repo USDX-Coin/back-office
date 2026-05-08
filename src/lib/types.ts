@@ -34,6 +34,22 @@ export interface Staff {
   updatedAt: string
 }
 
+// SoT api/staff.yaml § CreateStaff — admin-only POST /api/v1/staff.
+export interface CreateStaff {
+  name: string
+  email: string
+  password: string
+  role: StaffRole
+}
+
+// SoT api/staff.yaml § UpdateStaff — admin-only PATCH /api/v1/staff/:id.
+// All fields optional; email and password are not mutable here.
+export interface UpdateStaff {
+  name?: string
+  role?: StaffRole
+  isActive?: boolean
+}
+
 export interface UserWallet {
   id: string
   chain: Network

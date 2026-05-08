@@ -1,5 +1,12 @@
 import { getAddress, isAddress } from 'viem'
-import type { CustomerRole, CustomerType, Network, RateMode, RequestChain } from './types'
+import type {
+  CustomerRole,
+  CustomerType,
+  Network,
+  RateMode,
+  RequestChain,
+  StaffRole,
+} from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -249,6 +256,41 @@ export function validateBurnRequestForm(input: {
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// sot/api/staff.yaml § CreateStaff — name + email + password (>=8) + role
+// all required. Admin-only endpoint (BE returns 403 otherwise).
+const PASSWORD_MIN_LEN = 8
+
+export function validateStaffCreateForm(input: {
+  name: string
+  email: string
+  password: string
+  role: StaffRole | ''
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  validateName(input.name, 'name', 'Name', errors)
+  validateEmail(input.email, errors)
+  if (!input.password) {
+    errors.password = 'Password is required'
+  } else if (input.password.length < PASSWORD_MIN_LEN) {
+    errors.password = `Password must be at least ${PASSWORD_MIN_LEN} characters`
+  }
+  if (!input.role) errors.role = 'Role is required'
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/api/staff.yaml § UpdateStaff — all fields optional, but the form
+// always sends name + role + isActive together so we validate them as
+// required at the form layer.
+export function validateStaffEditForm(input: {
+  name: string
+  role: StaffRole | ''
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  validateName(input.name, 'name', 'Name', errors)
+  if (!input.role) errors.role = 'Role is required'
+  return { valid: Object.keys(errors).length === 0, errors }
+}
 
 // sot/openapi.yaml § CreateUser / UpdateUser — only `name` is required.
 // Wallet sub-entries (create-only) are validated via validateUserWalletForm.
