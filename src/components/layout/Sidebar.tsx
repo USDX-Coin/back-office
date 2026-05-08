@@ -3,66 +3,72 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
-  ArrowUpFromLine,
-  ArrowDownToLine,
-  Flame,
-  Bell,
-  Inbox,
   Coins,
+  Flame,
   TrendingUp,
+  Sliders,
 } from 'lucide-react'
-import { canManageStaff, useAuth } from '@/lib/auth'
-import { useNotificationsCount } from '@/features/notifications/hooks'
+import {
+  canManageSettings,
+  canManageStaff,
+  useAuth,
+} from '@/lib/auth'
+import { usePendingMintCount } from '@/features/mint/hooks'
+import { usePendingBurnCount } from '@/features/burn/hooks'
+import type { Staff } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+type BadgeKey = 'mint' | 'burn'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  badgeKey?: 'notifications'
-  requireAdmin?: boolean
+  badgeKey?: BadgeKey
+  visibleWhen?: (user: Staff | null) => boolean
 }
 
 interface NavSection {
   label: string
   items: NavItem[]
+  visibleWhen?: (user: Staff | null) => boolean
 }
 
-// Sidebar layout per sot/phase-1.md § Backoffice Web App pages list.
-// "Report" removed per USDX-42 (sunsetted, superseded by /requests).
-// "Staff" re-added (admin-only) per USDX-48 — Staff CRUD page is admin-gated
-// upstream by sot/api/staff.yaml § POST/PATCH/DELETE 403 for non-admin.
+// Sidebar layout per Linear USDX-50 + sot/phase-1.md § Sidebar L452-467.
+//
+// Role gating:
+//   - Staff entry         → ADMIN only (Linear AC; SoT § Pages #8 says non-admin
+//                           read-only — Linear takes precedence at the menu
+//                           level, see PR Flag-A).
+//   - SETTINGS section    → ADMIN + DEVELOPER (SoT § Backoffice Role System
+//                           grants `System Config = Ya` to both; Linear writes
+//                           "admin only" — see PR Flag-B).
+//   - Mint/Burn lists     → visible to all roles. DEVELOPER cannot submit
+//                           mint/burn (SoT role table) — the "Add Mint/Burn
+//                           OTC" button is hidden inside the page (Flag-E).
 const SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/users', label: 'Users', icon: Users },
-      { to: '/staff', label: 'Staff', icon: UserCog, requireAdmin: true },
+      { to: '/staff', label: 'Staff', icon: UserCog, visibleWhen: canManageStaff },
     ],
   },
   {
-    label: 'OTC Desk',
+    label: 'OTC',
     items: [
-      { to: '/otc/mint', label: 'Mint', icon: ArrowUpFromLine },
-      { to: '/otc/redeem', label: 'Redeem', icon: ArrowDownToLine },
-      { to: '/burn', label: 'Burn', icon: Flame },
+      { to: '/mint', label: 'Mint', icon: Coins, badgeKey: 'mint' },
+      { to: '/burn', label: 'Burn', icon: Flame, badgeKey: 'burn' },
     ],
   },
   {
-    label: 'Insights',
+    label: 'Settings',
+    visibleWhen: canManageSettings,
     items: [
-      { to: '/mint', label: 'Mint request', icon: Coins },
-      { to: '/requests', label: 'Requests', icon: Inbox },
-      { to: '/notifications', label: 'Notifications', icon: Bell, badgeKey: 'notifications' },
+      { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
+      { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
     ],
-  },
-  {
-    // Sidebar item is visible to every authenticated role; the rate page
-    // itself renders read-only for STAFF/DEVELOPER. See
-    // docs/notes/usdx-20-decisions.md § 1.
-    label: 'Configuration',
-    items: [{ to: '/rate', label: 'Rate', icon: TrendingUp }],
   },
 ]
 
@@ -79,14 +85,23 @@ function formatRole(role: string): string {
 
 export default function Sidebar() {
   const { user } = useAuth()
-  const isAdmin = canManageStaff(user)
-  const { data: notifData } = useNotificationsCount()
-  const notificationsCount = notifData?.count ?? 0
+  const mintPending = usePendingMintCount()
+  const burnPending = usePendingBurnCount()
 
-  const visibleSections = SECTIONS.map((section) => ({
-    ...section,
-    items: section.items.filter((item) => !item.requireAdmin || isAdmin),
-  })).filter((section) => section.items.length > 0)
+  const visibleSections = SECTIONS.flatMap((section) => {
+    if (section.visibleWhen && !section.visibleWhen(user)) return []
+    const items = section.items.filter(
+      (item) => !item.visibleWhen || item.visibleWhen(user)
+    )
+    if (items.length === 0) return []
+    return [{ ...section, items }]
+  })
+
+  function badgeFor(key?: BadgeKey): number {
+    if (key === 'mint') return mintPending.data ?? 0
+    if (key === 'burn') return burnPending.data ?? 0
+    return 0
+  }
 
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
@@ -112,7 +127,7 @@ export default function Sidebar() {
               <SidebarLink
                 key={item.to}
                 {...item}
-                badgeCount={item.badgeKey === 'notifications' ? notificationsCount : 0}
+                badgeCount={badgeFor(item.badgeKey)}
               />
             ))}
           </div>
@@ -164,7 +179,7 @@ function SidebarLink({
         <span
           className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
           aria-label={`${badgeCount} pending`}
-          data-testid={`nav-badge-${to.replace(/^\//, '')}`}
+          data-testid={`nav-badge-${to.replace(/^\//, '').replace(/\//g, '-')}`}
         >
           {badgeCount > 99 ? '99+' : badgeCount}
         </span>

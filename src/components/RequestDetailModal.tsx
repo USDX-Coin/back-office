@@ -1,5 +1,6 @@
 import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -10,14 +11,33 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
-import type { BurnRequestDetail, RequestDetail } from '@/lib/types'
+import type {
+  BurnRequestDetail,
+  PhaseOneSuccessResponse,
+  RequestDetail,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { useRequestDetail } from './hooks'
 
 interface RequestDetailModalProps {
   requestId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+async function fetchRequestDetail(
+  id: string
+): Promise<PhaseOneSuccessResponse<RequestDetail>> {
+  const res = await fetch(`/api/v1/requests/${id}`)
+  if (!res.ok) throw new Error('Failed to fetch request')
+  return res.json()
+}
+
+function useRequestDetail(id: string | null) {
+  return useQuery({
+    queryKey: ['requests', 'detail', id],
+    queryFn: () => fetchRequestDetail(id as string),
+    enabled: Boolean(id),
+  })
 }
 
 function shortHash(hash: string, head = 10, tail = 6): string {

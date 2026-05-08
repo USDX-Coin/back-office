@@ -1,20 +1,23 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, Inbox } from 'lucide-react'
+import { Plus, Flame } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
+import { Button } from '@/components/ui/button'
+import RequestDetailModal from '@/components/RequestDetailModal'
+import MintBurnFilterToolbar, {
+  type MintBurnFilterValues,
+} from '@/components/MintBurnFilterToolbar'
+import { canSubmitOtc, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
 import type { RequestChain, RequestListItem, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import RequestDetailModal from './RequestDetailModal'
-import RequestFilterToolbar, {
-  type RequestFilterValues,
-} from './RequestFilterToolbar'
-import { useRequests } from './hooks'
+import { useBurnList } from './hooks'
 
 const CHAIN_LABEL: Record<RequestChain, string> = {
   ethereum: 'Ethereum',
@@ -35,19 +38,22 @@ const SAFE_LABEL: Record<SafeType, string> = {
   MANAGER: 'Manager',
 }
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 20
 
-export default function RequestsPage() {
+export default function BurnListPage() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const canCreate = canSubmitOtc(user)
+
   const params = useDataTableParams()
-  const type = params.searchParams.get('type') ?? ''
+  const search = params.searchParams.get('search') ?? ''
   const status = params.searchParams.get('status') ?? ''
   const chain = params.searchParams.get('chain') ?? ''
   const safeType = params.searchParams.get('safeType') ?? ''
 
-  const list = useRequests({
+  const list = useBurnList({
     page: params.page,
     limit: PAGE_SIZE,
-    type: type || undefined,
     status: status || undefined,
     chain: chain || undefined,
     safeType: safeType || undefined,
@@ -55,9 +61,9 @@ export default function RequestsPage() {
 
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  function handleFilterChange(next: RequestFilterValues) {
+  function handleFilterChange(next: MintBurnFilterValues) {
     params.updateParams({
-      type: next.type || null,
+      search: next.search || null,
       status: next.status || null,
       chain: next.chain || null,
       safeType: next.safeType || null,
@@ -65,7 +71,7 @@ export default function RequestsPage() {
     })
   }
 
-  const hasFilters = Boolean(type || status || chain || safeType)
+  const hasFilters = Boolean(search || status || chain || safeType)
 
   const columns: ColumnDef<RequestListItem>[] = [
     {
@@ -76,28 +82,6 @@ export default function RequestsPage() {
           {formatShortDate(getValue() as string)}
         </span>
       ),
-    },
-    {
-      accessorKey: 'type',
-      header: 'Type',
-      cell: ({ getValue }) => {
-        const t = getValue() as 'mint' | 'burn'
-        return (
-          <span
-            className={cn(
-              'inline-flex items-center gap-1 text-[11.5px]',
-              t === 'mint' ? 'text-primary' : 'text-muted-foreground'
-            )}
-          >
-            {t === 'mint' ? (
-              <ArrowUp className="h-3 w-3" />
-            ) : (
-              <ArrowDown className="h-3 w-3" />
-            )}
-            {t === 'mint' ? 'Mint' : 'Burn'}
-          </span>
-        )
-      },
     },
     {
       id: 'user',
@@ -176,27 +160,42 @@ export default function RequestsPage() {
     },
   ]
 
-  // Bridge phase-1 envelope ({ metadata, data }) into the DataTable's expected shape
   const rows = list.data?.data ?? []
   const total = list.data?.metadata.total ?? 0
 
   const noDataState = (
     <TableEmptyState
       mode="no-data"
-      icon={<Inbox className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No requests yet"
-      description="Mint and burn requests appear here as operators submit them."
+      icon={<Flame className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
+      title="No burn requests yet"
+      description="Submit a new burn OTC to populate this list."
+      cta={
+        canCreate ? (
+          <Button onClick={() => navigate('/burn/new')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Burn OTC
+          </Button>
+        ) : null
+      }
     />
   )
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Operations"
-        title="Requests"
-        italicAccent="mint & burn"
-        subtitle="Track every mint and burn request across its approval lifecycle."
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <PageHeader
+          eyebrow="Operations"
+          title="Burn"
+          italicAccent="OTC requests"
+          subtitle="Track every burn request across its approval lifecycle."
+        />
+        {canCreate && (
+          <Button onClick={() => navigate('/burn/new')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Burn OTC
+          </Button>
+        )}
+      </div>
 
       <DataTable<RequestListItem>
         columns={columns}
@@ -205,8 +204,8 @@ export default function RequestsPage() {
         isLoading={list.isLoading}
         pageSize={PAGE_SIZE}
         filterToolbar={
-          <RequestFilterToolbar
-            values={{ type, status, chain, safeType }}
+          <MintBurnFilterToolbar
+            values={{ search, status, chain, safeType }}
             onChange={handleFilterChange}
             onClear={params.clearAll}
           />
@@ -215,7 +214,7 @@ export default function RequestsPage() {
         emptyState={noDataState}
         onRowClick={(r) => setActiveId(r.id)}
         rowAriaLabel={(r) =>
-          `Open ${r.type} request for ${r.userName}, ${r.amount} USDX`
+          `Open burn request for ${r.userName}, ${r.amount} USDX`
         }
       />
 

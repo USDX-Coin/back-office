@@ -187,6 +187,24 @@ export interface RateConfig {
   createdAt: string
 }
 
+// ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
+// Decimal string to preserve precision (Rp value can exceed JS Number safe int).
+
+export type ThresholdMode = 'USD' | 'IDR'
+
+export interface ThresholdConfig {
+  id: string
+  mode: ThresholdMode
+  amount: string
+  updatedBy: string
+  createdAt: string
+}
+
+export interface UpdateThresholdConfig {
+  mode: ThresholdMode
+  amount: string
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 1 — mint/burn request lifecycle (see sot/openapi.yaml § /api/v1/requests)
 //

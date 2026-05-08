@@ -30,18 +30,15 @@ feature-name/
 
 | Feature | Pages | Auth Required | Description |
 |---------|-------|---------------|-------------|
-| `auth/` | LoginPage | No (PublicRoute) | Split-screen login (gradient hero panel + form). Mock auth accepts any non-empty email + password. |
-| `dashboard/` | DashboardPage | Yes | 4 KPI cards, Recharts trend chart (lazy-loaded), Recent Activity, Network Distribution |
-| `users/` | UsersPage + UserModal + UserDeleteDialog | Yes | End-customer directory CRUD with type/role filters |
-| `staff/` | StaffPage + StaffModal + StaffDeleteDialog | Yes | Internal team directory CRUD; create fires "Invitation sent" toast |
-| `otc/mint/` | OtcMintPage + OtcMintForm + OtcMintInfoPanel + RecentRequestsList | Yes | Single-shot mint submission with async settlement |
-| `otc/redeem/` | OtcRedeemPage + OtcRedeemForm + OtcRedeemInfoPanel + RecentRedemptionsTable | Yes | Single-shot redeem with MAX helper |
-| `otc/` | OtcSplashPage | Yes | Mobile BottomNav landing for OTC submenu |
-| `report/` | ReportPage + ReportFilterToolbar + ReportInsightsBento | Yes | Filterable union of OTC transactions + CSV export |
-| `profile/` | ProfilePage + PersonalDetailsForm + SecurityAccessSection + RecentActivityTimeline | Yes | Operator profile (reachable only via navbar dropdown) |
-
-Shared `usePendingSettlementPolling` lives in `src/features/otc/hooks.ts` —
-both Mint and Redeem consume it for 5s polling + toast dedup.
+| `auth/` | LoginPage | No (PublicRoute) | Split-screen login (gradient hero panel + form). |
+| `dashboard/` | DashboardPage | Yes | KPIs + recent activity. |
+| `users/` | UsersPage + UserDetailPage | Yes | Customer directory + per-user detail. |
+| `staff/` | StaffPage + StaffModal + StaffDeleteDialog | Yes | Internal team CRUD (admin-gated server-side). |
+| `mint/` | MintListPage + MintFormPage | Yes | `/mint` data table of mint requests; `/mint/new` mint OTC form. |
+| `burn/` | BurnListPage + BurnFormPage + BurnRequestForm + BurnRequestInfoPanel | Yes | `/burn` data table of burn requests; `/burn/new` burn OTC form. |
+| `rate/` | RatePage + CurrentRateCard + RateUpdateForm + RateConfirmDialog | Yes | `/settings/rate` view + update USD/IDR rate (admin/manager only). |
+| `threshold/` | ThresholdPage + CurrentThresholdCard + ThresholdUpdateForm | Yes | `/settings/threshold` view + update Safe routing threshold (admin only). |
+| `profile/` | ProfilePage + PersonalDetailsForm + SecurityAccessSection + RecentActivityTimeline | Yes | Operator profile (reachable only via navbar dropdown). |
 
 ## Adding a Feature
 

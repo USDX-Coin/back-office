@@ -1,19 +1,22 @@
 import { useLocation } from 'react-router'
-import { Bell, Search, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Search, ChevronRight } from 'lucide-react'
 import ProfileDropdown from './ProfileDropdown'
 import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 
+// Breadcrumb mapping mirrors the sidebar groupings per Linear USDX-50.
+// Form pages use a verbose tail so operators see "Mint OTC / New" while
+// editing rather than a bare "/mint/new".
 const BREADCRUMB_MAP: Record<string, [string, string]> = {
   '/dashboard': ['Workspace', 'Dashboard'],
   '/users': ['Workspace', 'Users'],
   '/staff': ['Workspace', 'Staff'],
-  '/otc': ['OTC Desk', 'Overview'],
-  '/otc/mint': ['OTC Desk', 'Mint'],
-  '/otc/redeem': ['OTC Desk', 'Redeem'],
-  '/burn': ['OTC Desk', 'Burn'],
-  '/requests': ['Insights', 'Requests'],
+  '/mint': ['OTC', 'Mint'],
+  '/mint/new': ['OTC', 'New mint OTC'],
+  '/burn': ['OTC', 'Burn'],
+  '/burn/new': ['OTC', 'New burn OTC'],
+  '/settings/rate': ['Settings', 'Rate'],
+  '/settings/threshold': ['Settings', 'Threshold'],
   '/profile': ['Account', 'Profile'],
 }
 
@@ -70,17 +73,6 @@ export default function Navbar() {
         </div>
 
         <ThemeToggle />
-
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Notifications"
-          className="relative h-8 w-8"
-        >
-          <Bell className="h-3.5 w-3.5" />
-          <span className="absolute right-1.5 top-1.5 inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
-          <span className="sr-only">Unread notifications</span>
-        </Button>
 
         <div className="ml-1">
           <ProfileDropdown />

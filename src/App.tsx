@@ -9,14 +9,12 @@ import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
-import OtcSplashPage from '@/features/otc/OtcSplashPage'
-import OtcMintPage from '@/features/otc/mint/OtcMintPage'
-import OtcRedeemPage from '@/features/otc/redeem/OtcRedeemPage'
-import MintRequestPage from '@/features/mint/MintRequestPage'
-import RequestsPage from '@/features/requests/RequestsPage'
-import BurnRequestPage from '@/features/burn/BurnRequestPage'
+import MintListPage from '@/features/mint/MintListPage'
+import MintFormPage from '@/features/mint/MintFormPage'
+import BurnListPage from '@/features/burn/BurnListPage'
+import BurnFormPage from '@/features/burn/BurnFormPage'
 import RatePage from '@/features/rate/RatePage'
-import NotificationsPage from '@/features/notifications/NotificationsPage'
+import ThresholdPage from '@/features/threshold/ThresholdPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -29,12 +27,19 @@ const queryClient = new QueryClient({
   },
 })
 
+// Routing per Linear USDX-50 + sot/phase-1.md § Backoffice Web App.
+//   /dashboard          → Dashboard
+//   /users, /users/:id  → User management
+//   /staff              → Staff management (admin sidebar gate)
+//   /mint               → Mint list (table)  •  /mint/new → Mint form
+//   /burn               → Burn list (table)  •  /burn/new → Burn form
+//   /settings/rate      → Rate management
+//   /settings/threshold → Threshold management
+//   /profile            → Operator profile (no sidebar entry; navbar dropdown)
 const router = createBrowserRouter([
   {
     element: <PublicRoute />,
-    children: [
-      { path: '/login', element: <LoginPage /> },
-    ],
+    children: [{ path: '/login', element: <LoginPage /> }],
   },
   {
     element: <ProtectedRoute />,
@@ -46,14 +51,12 @@ const router = createBrowserRouter([
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
-          { path: '/otc', element: <OtcSplashPage /> },
-          { path: '/otc/mint', element: <OtcMintPage /> },
-          { path: '/otc/redeem', element: <OtcRedeemPage /> },
-          { path: '/mint', element: <MintRequestPage /> },
-          { path: '/burn', element: <BurnRequestPage /> },
-          { path: '/requests', element: <RequestsPage /> },
-          { path: '/rate', element: <RatePage /> },
-          { path: '/notifications', element: <NotificationsPage /> },
+          { path: '/mint', element: <MintListPage /> },
+          { path: '/mint/new', element: <MintFormPage /> },
+          { path: '/burn', element: <BurnListPage /> },
+          { path: '/burn/new', element: <BurnFormPage /> },
+          { path: '/settings/rate', element: <RatePage /> },
+          { path: '/settings/threshold', element: <ThresholdPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

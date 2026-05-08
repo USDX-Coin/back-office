@@ -56,7 +56,7 @@ const EMPTY: FormState = {
   notes: '',
 }
 
-export default function MintRequestPage() {
+export default function MintFormPage() {
   const navigate = useNavigate()
   const create = useCreateMintRequest()
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -159,7 +159,7 @@ export default function MintRequestPage() {
       toast.success('Mint request submitted')
       setForm(EMPTY)
       setErrors({})
-      navigate('/requests')
+      navigate('/mint')
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -308,8 +308,8 @@ export default function MintRequestPage() {
                 transaction.
               </p>
               <p>
-                The request appears on{' '}
-                <span className="font-medium text-foreground">/requests</span>{' '}
+                The request appears on the{' '}
+                <span className="font-medium text-foreground">Mint</span> list
                 immediately as <code>PENDING_APPROVAL</code>.
               </p>
               <p>

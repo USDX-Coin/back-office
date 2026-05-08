@@ -159,3 +159,18 @@ export function canManageUsers(staff: Staff | null): boolean {
 export function canManageStaff(staff: Staff | null): boolean {
   return staff?.role === 'ADMIN'
 }
+
+// SoT phase-1.md § Backoffice Role System: System Config = Ya untuk ADMIN dan
+// DEVELOPER. USDX-50 Linear AC menulis "SETTINGS (admin only)" — kami
+// expand ke ADMIN+DEVELOPER mengikuti capability table SoT (Flag-B di PR).
+export function canManageSettings(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN' || staff?.role === 'DEVELOPER'
+}
+
+// SoT phase-1.md § Backoffice Role System: DEVELOPER tidak boleh execute
+// Mint/Burn (kolom Mint/Burn = Tidak). USDX-50 Flag-E: list page tetap
+// visible untuk DEVELOPER (read-only), tapi tombol "Add Mint/Burn OTC"
+// disembunyikan.
+export function canSubmitOtc(staff: Staff | null): boolean {
+  return staff?.role !== 'DEVELOPER' && staff !== null
+}
