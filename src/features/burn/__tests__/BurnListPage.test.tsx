@@ -178,6 +178,41 @@ describe('BurnListPage @ USDX-52', () => {
     })
   })
 
+  describe('USDX-35 AC6 — input currency badge in Amount column', () => {
+    test('USD-input row shows badge attached to the USDX line', async () => {
+      server.use(
+        http.get('/api/v1/requests', () =>
+          ok([baseRow({ id: 'req_usd', userName: 'USD Row', inputCurrency: 'USD' })])
+        )
+      )
+      setup()
+      await screen.findByText('USD Row')
+      const badges = screen.getAllByTestId('input-currency-badge')
+      expect(badges).toHaveLength(1)
+      expect(badges[0]).toHaveAttribute('data-currency', 'USD')
+    })
+
+    test('IDR-input row shows badge attached to the IDR line', async () => {
+      server.use(
+        http.get('/api/v1/requests', () =>
+          ok([baseRow({ id: 'req_idr', userName: 'IDR Row', inputCurrency: 'IDR' })])
+        )
+      )
+      setup()
+      await screen.findByText('IDR Row')
+      const badges = screen.getAllByTestId('input-currency-badge')
+      expect(badges).toHaveLength(1)
+      expect(badges[0]).toHaveAttribute('data-currency', 'IDR')
+    })
+
+    test('row without inputCurrency renders no badge (graceful degrade if BE omits)', async () => {
+      server.use(http.get('/api/v1/requests', () => ok([baseRow({})])))
+      setup()
+      await screen.findByText('Alice Anderson')
+      expect(screen.queryByTestId('input-currency-badge')).not.toBeInTheDocument()
+    })
+  })
+
   describe('negative', () => {
     test('DEVELOPER role does not see "Add Burn OTC" header button', async () => {
       server.use(http.get('/api/v1/requests', () => ok([baseRow({})])))

@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
+import InputCurrencyBadge from '@/components/InputCurrencyBadge'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
 import MintBurnFilterToolbar, {
@@ -103,20 +104,25 @@ export default function MintListPage() {
     {
       accessorKey: 'amount',
       header: 'Amount',
-      cell: ({ row }) => (
-        <div className="flex flex-col leading-tight">
-          <span className="font-mono font-medium tabular-nums">
-            {Number(row.original.amount).toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-            <span className="ml-1 text-[10.5px] text-muted-foreground">USDX</span>
-          </span>
-          <span className="font-mono text-[10.5px] text-muted-foreground tabular-nums">
-            Rp {Number(row.original.amountIdr).toLocaleString('id-ID')}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const input = row.original.inputCurrency
+        return (
+          <div className="flex flex-col leading-tight">
+            <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
+              {Number(row.original.amount).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+              <span className="text-[10.5px] text-muted-foreground">USDX</span>
+              {input === 'USD' && <InputCurrencyBadge currency="USD" />}
+            </span>
+            <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground tabular-nums">
+              <span>Rp {Number(row.original.amountIdr).toLocaleString('id-ID')}</span>
+              {input === 'IDR' && <InputCurrencyBadge currency="IDR" />}
+            </span>
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'chain',

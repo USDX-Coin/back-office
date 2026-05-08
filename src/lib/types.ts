@@ -243,6 +243,12 @@ export interface RequestListItem {
   userAddress: string
   amount: string
   amountIdr: string
+  // USDX-35 AC6: badge in the Amount column shows which currency the
+  // operator originally typed. Detail responses (MintRequest/BurnRequest)
+  // already carry inputCurrency in SoT; the list schema does not yet —
+  // optional here so the FE degrades gracefully when BE omits it. Flagged
+  // as a proposed openapi extension to sot/api/requests.yaml § RequestListItem.
+  inputCurrency?: AmountCurrency
   chain: RequestChain
   safeType: SafeType
   status: RequestStatus

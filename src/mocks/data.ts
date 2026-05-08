@@ -494,6 +494,10 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
   const safeTxHash = status === 'REJECTED' ? null : bytes32(seed + 15000)
   const onChainTxHash = isExecutedOrLater ? bytes32(seed + 17000) : null
 
+  // USDX-35 AC6: alternate USD/IDR across the seeded list so the badge column
+  // shows both states without needing live submissions.
+  const inputCurrency: AmountCurrency = seed % 2 === 0 ? 'USD' : 'IDR'
+
   const list: RequestListItem = {
     id,
     type: opts.type,
@@ -502,6 +506,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     userAddress,
     amount,
     amountIdr: amountIdrValue,
+    inputCurrency,
     chain,
     safeType,
     status,
@@ -594,6 +599,7 @@ export function createMintFromRequest(
     userAddress: body.userAddress,
     amount: amountUsdx,
     amountIdr: amountIdrValue.toString(),
+    inputCurrency: body.amountCurrency,
     chain: body.chain as RequestChain,
     safeType,
     status: 'PENDING_APPROVAL',
@@ -761,6 +767,7 @@ export function createBurnRequestFromSubmission(
     userAddress: input.userAddress.trim(),
     amount: amountUsdx,
     amountIdr: amountIdrValue,
+    inputCurrency: input.amountCurrency,
     chain: input.chain,
     safeType,
     status: 'PENDING_APPROVAL',
