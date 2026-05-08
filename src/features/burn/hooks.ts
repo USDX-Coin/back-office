@@ -30,6 +30,7 @@ export interface BurnListFilters {
   status?: string
   chain?: string
   safeType?: string
+  search?: string
 }
 
 function buildQuery(params: BurnListFilters & { type: 'burn' }): string {
