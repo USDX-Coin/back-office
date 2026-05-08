@@ -57,6 +57,7 @@ export default function MintListPage() {
     status: status || undefined,
     chain: chain || undefined,
     safeType: safeType || undefined,
+    search: search || undefined,
   })
 
   const [activeId, setActiveId] = useState<string | null>(null)
