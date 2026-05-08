@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { apiFetchRaw } from '@/lib/apiFetch'
 import type { PhaseOnePaginatedResponse, RequestListItem } from '@/lib/types'
 
 const POLL_INTERVAL_MS = 5000
@@ -14,14 +15,10 @@ interface NotificationsQueryResult {
   total: number
 }
 
-// Uses raw fetch (matches src/features/requests/hooks.ts) because the page
-// needs `metadata.total` from the SoT envelope, which apiFetch unwraps away.
 async function fetchPendingApprovals(): Promise<NotificationsQueryResult> {
-  const response = await fetch(
+  const payload = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
     `/api/v1/requests?status=PENDING_APPROVAL&limit=${PENDING_APPROVAL_LIMIT}`
   )
-  if (!response.ok) throw new Error('Failed to fetch notifications')
-  const payload = (await response.json()) as PhaseOnePaginatedResponse<RequestListItem>
   return { data: payload.data, total: payload.metadata.total }
 }
 

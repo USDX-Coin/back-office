@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { apiFetchRaw } from '@/lib/apiFetch'
 import type {
   PhaseOnePaginatedResponse,
   PhaseOneSuccessResponse,
@@ -23,20 +24,18 @@ function buildQuery(params: RequestListFilters): string {
   return sp.toString()
 }
 
-async function fetchRequests(
+function fetchRequests(
   filters: RequestListFilters
 ): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
-  const res = await fetch(`/api/v1/requests?${buildQuery(filters)}`)
-  if (!res.ok) throw new Error('Failed to fetch requests')
-  return res.json()
+  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
+    `/api/v1/requests?${buildQuery(filters)}`
+  )
 }
 
-async function fetchRequestDetail(
+function fetchRequestDetail(
   id: string
 ): Promise<PhaseOneSuccessResponse<RequestDetail>> {
-  const res = await fetch(`/api/v1/requests/${id}`)
-  if (!res.ok) throw new Error('Failed to fetch request')
-  return res.json()
+  return apiFetchRaw<PhaseOneSuccessResponse<RequestDetail>>(`/api/v1/requests/${id}`)
 }
 
 export function useRequests(filters: RequestListFilters) {
