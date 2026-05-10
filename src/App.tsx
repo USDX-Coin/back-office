@@ -15,6 +15,7 @@ import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import RatePage from '@/features/rate/RatePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
+import NotificationsPage from '@/features/notifications/NotificationsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -64,6 +65,11 @@ const router = createBrowserRouter([
               { path: '/settings/threshold', element: <ThresholdPage /> },
             ],
           },
+          // USDX-38: Notifications surface for pending Safe approvals.
+          // Reachable via the navbar bell — not in the sidebar
+          // (sot/phase-1.md § Sidebar lists no Notifications entry; tracked
+          // as Decision-D in the PR).
+          { path: '/notifications', element: <NotificationsPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react'
+import { Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -11,11 +11,14 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { formatDate } from '@/lib/format'
+import { buildSafeUrl } from '@/lib/safeUrl'
+import { chainToChainId, resolveSafeAddress } from '@/lib/safeWallet'
 import { getRequestStatusConfig } from '@/lib/status'
 import type {
   BurnRequestDetail,
   PhaseOneSuccessResponse,
   RequestDetail,
+  SafeType,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -87,6 +90,29 @@ function Field({
 
 function isBurn(detail: RequestDetail): detail is BurnRequestDetail {
   return detail.type === 'burn'
+}
+
+// USDX-38: build the Safe UI deep-link from the response. Returns null when
+// `safeAddress` resolution fails (env not set or unsupported chain) so the
+// "Open in Safe" CTA stays hidden instead of rendering a broken link.
+function safeUiUrl(input: {
+  safeType: SafeType
+  chain: string
+  safeTxHash: string
+}): string | null {
+  try {
+    const safeAddress = resolveSafeAddress({
+      safeType: input.safeType,
+      chain: input.chain,
+    })
+    return buildSafeUrl({
+      chainId: chainToChainId(input.chain),
+      safeAddress,
+      safeTxHash: input.safeTxHash,
+    })
+  } catch {
+    return null
+  }
 }
 
 export default function RequestDetailModal({
@@ -178,7 +204,27 @@ export default function RequestDetailModal({
               </Field>
               <Field label="Safe tx hash">
                 {detail.safeTxHash ? (
-                  <CopyableMono value={detail.safeTxHash} label="Safe tx hash" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CopyableMono value={detail.safeTxHash} label="Safe tx hash" />
+                    {(() => {
+                      const url = safeUiUrl({
+                        safeType: detail.safeType,
+                        chain: detail.chain,
+                        safeTxHash: detail.safeTxHash,
+                      })
+                      return url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-primary hover:text-primary"
+                        >
+                          Open in Safe
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : null
+                    })()}
+                  </div>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}

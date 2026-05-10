@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router'
 import { Search, ChevronRight } from 'lucide-react'
+import NotificationBell from './NotificationBell'
 import ProfileDropdown from './ProfileDropdown'
 import ThemeToggle from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ const BREADCRUMB_MAP: Record<string, [string, string]> = {
   '/burn/new': ['OTC', 'New burn OTC'],
   '/settings/rate': ['Settings', 'Rate'],
   '/settings/threshold': ['Settings', 'Threshold'],
+  '/notifications': ['Approvals', 'Notifications'],
   '/profile': ['Account', 'Profile'],
 }
 
@@ -73,6 +75,8 @@ export default function Navbar() {
         </div>
 
         <ThemeToggle />
+
+        <NotificationBell />
 
         <div className="ml-1">
           <ProfileDropdown />
