@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
 import { apiFetch, ApiError, configureApiFetch } from './apiFetch'
@@ -29,31 +29,49 @@ interface RestoredSession {
   token: string
 }
 
-function readPersistedSession(): RestoredSession | null {
+function parsePersistedSession(): Partial<PersistedSession> | null {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as Partial<PersistedSession>
-    if (parsed.version === 4 && parsed.staff && parsed.token) {
-      // Trust the cached Staff record synchronously; /auth/me below
-      // re-validates and refreshes from the server.
-      return { user: parsed.staff, token: parsed.token }
-    }
+    return JSON.parse(raw) as Partial<PersistedSession>
   } catch {
-    // fall through
+    return null
+  }
+}
+
+function readPersistedSession(): RestoredSession | null {
+  const parsed = parsePersistedSession()
+  if (parsed && parsed.version === 4 && parsed.staff && parsed.token) {
+    // Trust the cached Staff record synchronously; /auth/me below
+    // re-validates and refreshes from the server.
+    return { user: parsed.staff, token: parsed.token }
   }
   // Legacy versions (v1/v2/v3) pre-date the SoT-aligned Staff shape; clear
   // so the user re-authenticates and we restore a clean v4 record.
-  localStorage.removeItem(STORAGE_KEY)
+  if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(STORAGE_KEY)
   return null
 }
 
+// USDX-58: bind apiFetch at module-load time, not inside a useEffect. React
+// runs effects bottom-up, so child useQuery hooks would fire apiFetch before
+// AuthProvider's effect had a chance to configure the bindings — the request
+// went out with no Authorization header, the server replied 401, and by the
+// time the 401 came back the onUnauthorized handler had been wired up to
+// setSession(null), forcing a logout on every reload. Reading the token
+// straight from localStorage on each call sidesteps the effect ordering
+// entirely; AuthProvider just registers the logout setter.
+let authSessionSetter: ((session: RestoredSession | null) => void) | null = null
+
+configureApiFetch({
+  getToken: () => {
+    const parsed = parsePersistedSession()
+    return parsed?.version === 4 && parsed.token ? parsed.token : null
+  },
+  onUnauthorized: () => authSessionSetter?.(null),
+})
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<RestoredSession | null>(() => readPersistedSession())
-  // Mirror session in a ref so the configureApiFetch bindings always see the
-  // freshest token without re-registering on every render.
-  const sessionRef = useRef(session)
-  sessionRef.current = session
 
   useEffect(() => {
     if (session) {
@@ -70,10 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session])
 
   useEffect(() => {
-    configureApiFetch({
-      getToken: () => sessionRef.current?.token ?? null,
-      onUnauthorized: () => setSession(null),
-    })
+    authSessionSetter = setSession
+    return () => {
+      authSessionSetter = null
+    }
   }, [])
 
   // Boot validation: when restored from localStorage, verify the token by
