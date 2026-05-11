@@ -18,9 +18,10 @@ export type CustomerRole = 'admin' | 'editor' | 'member'
 export type StaffRole = 'STAFF' | 'MANAGER' | 'DEVELOPER' | 'ADMIN'
 
 // Roles allowed to write rate config per sot/phase-1.md § Rate Management
-// ("admin/manager only") and openapi.yaml /api/v1/rate POST 403 response.
+// ("admin only") and sot/api/rate.yaml POST 403 response. USDX-62 reverts
+// the prior ADMIN+MANAGER allowance after PM decision on USDX-23 drift.
 export function canManageRate(role: StaffRole): boolean {
-  return role === 'ADMIN' || role === 'MANAGER'
+  return role === 'ADMIN'
 }
 
 // SoT openapi.yaml L697-L717
