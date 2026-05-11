@@ -2,6 +2,7 @@ import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } fr
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { apiFetch } from '@/lib/apiFetch'
 import { server } from '@/mocks/server'
 import { getDefaultStaff, issueMockJwt, resetMockData } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
@@ -160,6 +161,29 @@ describe('useAuth', () => {
       // Wait long enough for the promise to settle, then assert no logout.
       await new Promise((r) => setTimeout(r, 30))
       expect(result.current.isAuthenticated).toBe(true)
+    })
+  })
+
+  describe('reload race condition (USDX-58)', () => {
+    test('should attach Authorization on apiFetch even before AuthProvider mounts', async () => {
+      // Reproduces the bottom-up useEffect race: a child useQuery fires
+      // apiFetch on mount, before any AuthProvider effect would have configured
+      // the bindings. Token must be read straight from localStorage.
+      const seed = getDefaultStaff()!
+      const token = issueMockJwt(seed)
+      localStorage.setItem(
+        'usdx_auth_user',
+        JSON.stringify({ version: 4, staff: seed, token, issuedAt: Date.now() })
+      )
+      let captured = ''
+      server.use(
+        http.get('/api/v1/probe', ({ request }) => {
+          captured = request.headers.get('Authorization') ?? ''
+          return HttpResponse.json({ status: 'success', metadata: null, data: { ok: true } })
+        })
+      )
+      await apiFetch('/api/v1/probe')
+      expect(captured).toBe(`Bearer ${token}`)
     })
   })
 
