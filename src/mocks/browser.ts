@@ -6,7 +6,7 @@ import { handlers } from './handlers'
 // not yet implemented stay registered with MSW so the FE keeps working
 // against a contract-shaped mock until BE catches up.
 //
-// BE readiness audited live on https://backend-dev-c526.up.railway.app
+// BE readiness audited live on https://usdx-backend-api.up.railway.app
 // (see PR description for the per-endpoint result table). Update this set
 // as endpoints ship — anything that becomes 200/4xx (not 404 "Cannot ...")
 // belongs here.

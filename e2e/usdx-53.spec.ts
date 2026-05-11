@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test'
 //   AC3: STAFF opens /settings/threshold → redirect / 403
 //
 // AC1 + AC2 require BE GET/POST /api/v1/threshold which is currently 404 on
-// backend-dev-c526 — they are marked test.fixme until BE ships the endpoint.
+// usdx-backend-api — they are marked test.fixme until BE ships the endpoint.
 // AC3 is FE-only (RoleGuard at App.tsx) and is fully verifiable here when a
 // non-ADMIN credential is provided via USDX_TEST_STAFF_EMAIL/PASSWORD.
 
@@ -35,7 +35,7 @@ test.describe('USDX-53 threshold management @e2e', () => {
     }) => {
       test.fixme(
         true,
-        'BE GET /api/v1/threshold returns 404 on backend-dev-c526 — pending BE implementation',
+        'BE GET /api/v1/threshold returns 404 on usdx-backend-api — pending BE implementation',
       )
       test.skip(!HAS_ADMIN_CREDS, 'admin credentials not provided')
       await login(page, ADMIN_EMAIL, ADMIN_PASSWORD)

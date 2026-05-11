@@ -426,7 +426,7 @@ export interface PhaseOneCreateUser {
 // (one-time, plain). USDX-13 BE module spec: "auto-generated password (random
 // 16 char), hashed, returned plain in response (one-time)". Field is optional
 // at the type level so the FE degrades gracefully when BE hasn't shipped the
-// reveal yet (verified empirically against backend-dev-c526 — currently absent).
+// reveal yet (verified empirically against usdx-backend-api — currently absent).
 export interface PhaseOneCreateUserResponse extends PhaseOneUser {
   password?: string
 }
