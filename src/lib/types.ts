@@ -252,12 +252,10 @@ export interface RequestListItem {
   chain: RequestChain
   safeType: SafeType
   status: RequestStatus
-  // Safe transaction hash (nullable). Present once the backend has proposed
-  // the Safe multisig transaction (sot/phase-1.md § Mint / Burn flow steps
-  // 6–8). The Notifications page needs this on the list response to deep-link
-  // each pending row to the Safe UI without an extra fetch — flagged as a
-  // proposed openapi extension on USDX-19.
-  safeTxHash: string | null
+  // USDX-23: BE list response currently omits safeTxHash. Originally proposed
+  // for the Notifications page (removed in USDX-50) — no list consumer reads
+  // it today. Kept optional so we don't lie about the wire shape.
+  safeTxHash?: string | null
   createdBy: string
   createdAt: string
 }
@@ -266,7 +264,9 @@ interface RequestDetailBase {
   id: string
   idempotencyKey: string
   userId: string
-  userName: string
+  // USDX-23: BE detail response currently omits userName. The modal falls
+  // back to the list row's userName via the `listItem` prop.
+  userName?: string
   userAddress: string
   amount: string
   amountWei: string
@@ -282,17 +282,23 @@ interface RequestDetailBase {
   updatedAt: string
 }
 
+// USDX-23: BE detail response currently omits `type` (mint/burn discriminator).
+// The modal infers type from the list row's `listItem.type` instead. The
+// FE-side type union below stays as documentation of the *intended* shape.
 export interface MintRequestDetail extends RequestDetailBase {
-  type: 'mint'
+  type?: 'mint'
   status: MintRequestStatus
 }
 
 export interface BurnRequestDetail extends RequestDetailBase {
-  type: 'burn'
+  type?: 'burn'
   status: BurnRequestStatus
-  depositTxHash: string
-  bankName: string
-  bankAccount: string
+  // USDX-23: BE detail response untested for burn-specific fields (no burn
+  // requests in dev DB at time of integration). Marked optional defensively;
+  // the modal renders the burn panel only when at least one is present.
+  depositTxHash?: string
+  bankName?: string
+  bankAccount?: string
 }
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail

@@ -52,9 +52,19 @@ const router = createBrowserRouter([
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
           { path: '/mint', element: <MintListPage /> },
-          { path: '/mint/new', element: <MintFormPage /> },
           { path: '/burn', element: <BurnListPage /> },
-          { path: '/burn/new', element: <BurnFormPage /> },
+          {
+            // USDX-23 + sot/phase-1.md § Backoffice Role System:
+            // DEVELOPER kolom Mint/Burn = Tidak. List pages tetap visible
+            // (read-only), tapi form submit di-gate. BE juga akan reject
+            // 403; route-level gate mencegah DEVELOPER ngisi form lengkap
+            // baru tau di-tolak.
+            element: <RoleGuard allowed={['STAFF', 'MANAGER', 'ADMIN']} />,
+            children: [
+              { path: '/mint/new', element: <MintFormPage /> },
+              { path: '/burn/new', element: <BurnFormPage /> },
+            ],
+          },
           { path: '/settings/rate', element: <RatePage /> },
           {
             // sot/phase-1.md L516 "Threshold Management — admin only" +
