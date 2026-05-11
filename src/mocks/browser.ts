@@ -16,8 +16,14 @@ import { handlers } from './handlers'
 // these endpoints are real-BE-only in both browser and Vitest.
 //
 // USDX-53: /api/v1/threshold handlers removed from handlers.ts. BE endpoint
-// is currently 404 on dev — listed here to document FE intent (real-BE-only)
-// and to surface the BE gap as a Post-Merge Action in the PR description.
+// has since shipped (200 on dev as of USDX-23 audit).
+//
+// USDX-23: final integration pass — /api/v1/dashboard/stats and
+// /api/v1/requests (list + detail) now flow to the real BE in the browser.
+// Handlers remain in handlers.ts so Vitest keeps the MSW-backed coverage
+// for the existing unit tests; the worker filter below drops them at runtime.
+// /api/v1/staff was already real-BE-only in the browser (handler removed
+// in USDX-41); listed here as documentation only.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/me',
@@ -29,6 +35,11 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/users/:id',
   '/api/v1/users/:id/wallets',
   '/api/v1/users/:id/wallets/:walletId',
+  '/api/v1/dashboard/stats',
+  '/api/v1/staff',
+  '/api/v1/staff/:id',
+  '/api/v1/requests',
+  '/api/v1/requests/:id',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

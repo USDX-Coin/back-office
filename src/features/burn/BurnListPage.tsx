@@ -61,7 +61,7 @@ export default function BurnListPage() {
     search: search || undefined,
   })
 
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeRow, setActiveRow] = useState<RequestListItem | null>(null)
 
   function handleFilterChange(next: MintBurnFilterValues) {
     params.updateParams({
@@ -219,17 +219,18 @@ export default function BurnListPage() {
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
-        onRowClick={(r) => setActiveId(r.id)}
+        onRowClick={(r) => setActiveRow(r)}
         rowAriaLabel={(r) =>
           `Open burn request for ${r.userName}, ${r.amount} USDX`
         }
       />
 
       <RequestDetailModal
-        requestId={activeId}
-        open={Boolean(activeId)}
+        requestId={activeRow?.id ?? null}
+        listItem={activeRow}
+        open={Boolean(activeRow)}
         onOpenChange={(o) => {
-          if (!o) setActiveId(null)
+          if (!o) setActiveRow(null)
         }}
       />
     </div>

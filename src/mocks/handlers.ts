@@ -19,17 +19,12 @@ import {
   createMockStaffList,
   createMockOtcTransactions,
   createMockRequests,
-  createCustomer,
-  createUserWallet,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
   createBurnRequestFromSubmission,
-  computeCustomerSummary,
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
-  computeUserAnalytics,
-  computeUserRecentRequests,
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
@@ -154,41 +149,8 @@ function paginate<T>(items: T[], page: number, pageSize: number) {
   }
 }
 
-function applyCommonFilters<T extends { createdAt: string }>(
-  items: T[],
-  params: URLSearchParams
-): T[] {
-  let result = [...items]
-  const startDate = params.get('startDate')
-  const endDate = params.get('endDate')
-  const sortBy = params.get('sortBy')
-  const sortOrder = params.get('sortOrder') || 'desc'
-
-  if (startDate) result = result.filter((i) => i.createdAt >= startDate)
-  if (endDate) result = result.filter((i) => i.createdAt <= endDate)
-
-  if (sortBy) {
-    result.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sortBy]
-      const bVal = (b as Record<string, unknown>)[sortBy]
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-      }
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
-      }
-      return 0
-    })
-  }
-  return result
-}
-
 function badRequest(code: string, message: string, details?: Record<string, string>) {
   return HttpResponse.json({ error: { code, message, details } }, { status: 400 })
-}
-
-function notFound() {
-  return new HttpResponse(null, { status: 404 })
 }
 
 // ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
@@ -341,101 +303,9 @@ export const handlers = [
     })
   }),
 
-  // ─── Customers (User menu) ───
-  http.get('/api/customers', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const search = url.searchParams.get('search')?.toLowerCase()
-    const type = url.searchParams.get('type')
-    const role = url.searchParams.get('role')
-
-    let result = [...customerStore]
-    if (search) {
-      result = result.filter(
-        (c) =>
-          c.firstName.toLowerCase().includes(search) ||
-          c.lastName.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search) ||
-          c.wallets.some((w) => w.address.toLowerCase().includes(search))
-      )
-    }
-    if (type) result = result.filter((c) => c.type === type)
-    if (role) result = result.filter((c) => c.role === role)
-    result = applyCommonFilters(result, url.searchParams)
-
-    return HttpResponse.json(paginate(result, page, pageSize))
-  }),
-
-  http.get('/api/customers/summary', () => HttpResponse.json(computeCustomerSummary(customerStore))),
-
-  http.get('/api/customers/:id', ({ params }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const analytics = computeUserAnalytics(customer.id, otcMintStore, otcRedeemStore)
-    const recentRequests = computeUserRecentRequests(customer.id, otcMintStore, otcRedeemStore)
-    return HttpResponse.json({ ...customer, analytics, recentRequests })
-  }),
-
-  http.post('/api/customers/:id/wallets', async ({ params, request }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const body = (await request.json()) as { chain?: string; address?: string }
-    if (!body.chain || !body.address) {
-      return badRequest('VALIDATION', 'Chain and address are required')
-    }
-    const duplicate = customer.wallets.some(
-      (w) => w.chain === body.chain && w.address.toLowerCase() === body.address!.toLowerCase()
-    )
-    if (duplicate) {
-      return HttpResponse.json(
-        { error: { code: 'CONFLICT', message: 'Wallet already exists for this user' } },
-        { status: 409 }
-      )
-    }
-    const wallet = createUserWallet({
-      chain: body.chain as Customer['wallets'][number]['chain'],
-      address: body.address,
-      createdAt: new Date().toISOString(),
-    })
-    customer.wallets.push(wallet)
-    return HttpResponse.json(wallet, { status: 201 })
-  }),
-
-  http.delete('/api/customers/:id/wallets/:walletId', ({ params }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const idx = customer.wallets.findIndex((w) => w.id === params.walletId)
-    if (idx < 0) return notFound()
-    customer.wallets.splice(idx, 1)
-    return new HttpResponse(null, { status: 204 })
-  }),
-
-  http.post('/api/customers', async ({ request }) => {
-    const body = (await request.json()) as Partial<Customer>
-    if (!body.firstName || !body.lastName || !body.email || !body.type || !body.role) {
-      return badRequest('VALIDATION', 'Missing required fields')
-    }
-    const created = createCustomer({ ...(body as Partial<Customer>), wallets: body.wallets ?? [] })
-    customerStore.unshift(created)
-    return HttpResponse.json(created, { status: 201 })
-  }),
-
-  http.patch('/api/customers/:id', async ({ params, request }) => {
-    const tx = customerStore.find((c) => c.id === params.id)
-    if (!tx) return notFound()
-    const body = (await request.json()) as Partial<Customer>
-    Object.assign(tx, body, { id: tx.id })
-    return HttpResponse.json(tx)
-  }),
-
-  http.delete('/api/customers/:id', ({ params }) => {
-    const idx = customerStore.findIndex((c) => c.id === params.id)
-    if (idx < 0) return notFound()
-    customerStore.splice(idx, 1)
-    return new HttpResponse(null, { status: 204 })
-  }),
-
+  // USDX-23: /api/customers/* handlers removed — legacy mock domain replaced
+  // by the SoT `/api/v1/users` flow (USDX-37 + USDX-47). No remaining consumer.
+  //
   // USDX-41: /api/staff/* mock removed — StaffPage now hits real GET /api/v1/staff.
 
   // ─── OTC Mint ───

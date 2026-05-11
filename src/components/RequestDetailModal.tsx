@@ -16,6 +16,8 @@ import type {
   BurnRequestDetail,
   PhaseOneSuccessResponse,
   RequestDetail,
+  RequestListItem,
+  RequestType,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +25,11 @@ interface RequestDetailModalProps {
   requestId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  // USDX-23: BE /requests/:id detail omits `type` + `userName`. The list-page
+  // caller passes the row it just clicked so we can render the title + user
+  // name without an extra fetch. Optional so the prop can be omitted in
+  // contexts that don't have the row (none today).
+  listItem?: RequestListItem | null
 }
 
 function fetchRequestDetail(
@@ -85,26 +92,33 @@ function Field({
   )
 }
 
-function isBurn(detail: RequestDetail): detail is BurnRequestDetail {
-  return detail.type === 'burn'
+function isBurn(
+  detail: RequestDetail,
+  fallbackType?: RequestType
+): detail is BurnRequestDetail {
+  return (detail.type ?? fallbackType) === 'burn'
 }
 
 export default function RequestDetailModal({
   requestId,
   open,
   onOpenChange,
+  listItem,
 }: RequestDetailModalProps) {
   const query = useRequestDetail(open ? requestId : null)
   const detail = query.data?.data
   const cfg = detail ? getRequestStatusConfig(detail.status) : null
+  // USDX-23: BE detail omits `type` + `userName` — fall back to the list row.
+  const resolvedType = detail?.type ?? listItem?.type
+  const resolvedUserName = detail?.userName ?? listItem?.userName
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card">
         <DialogHeader>
           <DialogTitle>
-            {detail
-              ? `${detail.type === 'mint' ? 'Mint' : 'Burn'} request`
+            {resolvedType
+              ? `${resolvedType === 'mint' ? 'Mint' : 'Burn'} request`
               : 'Request detail'}
           </DialogTitle>
           <DialogDescription>
@@ -147,7 +161,11 @@ export default function RequestDetailModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="User name">{detail.userName}</Field>
+              <Field label="User name">
+                {resolvedUserName ?? (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </Field>
               <Field label="User wallet">
                 <CopyableMono value={detail.userAddress} label="User address" />
               </Field>
@@ -195,16 +213,31 @@ export default function RequestDetailModal({
               </Field>
             </div>
 
-            {isBurn(detail) && (
+            {isBurn(detail, resolvedType) && (
               <div className="grid gap-4 rounded-md bg-muted/40 p-3 sm:grid-cols-2">
                 <Field label="Deposit tx hash">
-                  <CopyableMono value={detail.depositTxHash} label="Deposit tx" />
+                  {detail.depositTxHash ? (
+                    <CopyableMono
+                      value={detail.depositTxHash}
+                      label="Deposit tx"
+                    />
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </Field>
                 <Field label="Bank">
-                  <span>{detail.bankName}</span>
+                  <span>
+                    {detail.bankName ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
                 </Field>
                 <Field label="Bank account">
-                  <span className="font-mono tabular-nums">{detail.bankAccount}</span>
+                  <span className="font-mono tabular-nums">
+                    {detail.bankAccount ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
                 </Field>
               </div>
             )}
