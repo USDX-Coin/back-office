@@ -19,7 +19,7 @@ export default function RatePage() {
         subtitle={
           canEdit
             ? 'Update the active rate. Changes apply immediately to every subsequent mint and redeem.'
-            : 'View the active rate. Updates are restricted to admin and manager roles.'
+            : 'View the active rate. Updates are restricted to the admin role.'
         }
       />
 
@@ -48,7 +48,7 @@ function ReadOnlyNotice() {
       <p className="font-medium text-foreground">Read-only</p>
       <p className="mt-1">
         Your role does not have permission to update the rate. Contact an admin
-        or manager if a change is needed.
+        if a change is needed.
       </p>
     </div>
   )
