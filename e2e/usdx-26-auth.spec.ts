@@ -87,7 +87,10 @@ test.describe('USDX-26 auth @e2e', () => {
   })
 
   test.describe('edge cases / access control', () => {
-    for (const path of ['/dashboard', '/users', '/staff', '/mint', '/mint/new', '/burn', '/requests', '/settings/rate', '/profile']) {
+    for (const path of [
+      '/dashboard', '/users', '/staff', '/mint', '/mint/new', '/burn', '/burn/new',
+      '/requests', '/settings/rate', '/settings/threshold', '/profile',
+    ]) {
       test(`unauthenticated ${path} → /login`, async ({ page }) => {
         await installMockApi(page)
         await page.goto(path)

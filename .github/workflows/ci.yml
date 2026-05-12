@@ -33,12 +33,11 @@ jobs:
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
-      # Run the hermetic USDX-26 suite (mocked API — no backend, no credentials,
-      # no on-chain side effects). The legacy per-ticket specs (usdx-39/47/51/...)
-      # talk to the real BE via the Vite proxy and self-skip without creds; run
-      # them separately with `pnpm test:e2e` once USDX_TEST_* secrets exist.
-      - name: E2E tests (Playwright, hermetic)
-        run: pnpm exec playwright test usdx-26
+      # Frontend-only E2E: the API is mocked in-test (no backend, no credentials,
+      # no on-chain side effects). Backend behaviour is covered by the `backend`
+      # repo's own test suite.
+      - name: E2E tests (Playwright)
+        run: pnpm test:e2e
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
