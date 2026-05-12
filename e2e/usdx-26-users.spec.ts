@@ -18,7 +18,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('the directory renders Name / Email / Entity / KYC / Status columns', async ({ page }) => {
+    test('should render the Name / Email / Entity / KYC / Status columns', async ({ page }) => {
       const head = page.locator('thead')
       await expect(head.getByText('Name')).toBeVisible()
       await expect(head.getByText('Email')).toBeVisible()
@@ -28,7 +28,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByText('Robert Deon')).toBeVisible()
     })
 
-    test('create user → temporary-password modal → user appears in the list', async ({ page }) => {
+    test('should create a user, show the temporary-password modal, and list the user', async ({ page }) => {
       const name = `E2E Probe ${Math.random().toString(36).slice(2, 6)}`
       await page.getByRole('button', { name: /add user/i }).first().click()
       await page.getByLabel(/^name$/i).fill(name)
@@ -45,7 +45,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible({ timeout: 10000 })
     })
 
-    test('edit a user\'s KYC status → save → confirmation toast', async ({ page }) => {
+    test('should save a KYC-status edit and show a confirmation toast', async ({ page }) => {
       await page.getByRole('button', { name: /^edit /i }).first().click()
       await expect(page.getByRole('dialog', { name: /edit user/i })).toBeVisible()
       // Radix Select trigger isn't reliably label-associated — target it by id.
@@ -55,7 +55,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByText(/user updated/i)).toBeVisible({ timeout: 10000 })
     })
 
-    test('delete a user → confirm → row removed', async ({ page }) => {
+    test('should delete a user after confirmation and remove the row', async ({ page }) => {
       // create a disposable user first so the test is non-destructive
       const name = `Delete Probe ${Math.random().toString(36).slice(2, 6)}`
       await page.getByRole('button', { name: /add user/i }).first().click()
@@ -75,7 +75,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('name over 255 chars → client-side validation error, no request sent', async ({ page }) => {
+    test('should show a client-side validation error and send no request for a name over 255 chars', async ({ page }) => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/users')) posted = true })
       await page.getByRole('button', { name: /add user/i }).first().click()
@@ -86,7 +86,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       expect(posted).toBe(false)
     })
 
-    test('notes over 2000 chars → client-side validation error', async ({ page }) => {
+    test('should show a client-side validation error for notes over 2000 chars', async ({ page }) => {
       await page.getByRole('button', { name: /add user/i }).first().click()
       await page.getByLabel(/^name$/i).fill('Notes Probe')
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
@@ -95,7 +95,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByText(/under 2000 characters/i)).toBeVisible()
     })
 
-    test('duplicate email → backend 409 surfaced in the modal', async ({ page }) => {
+    test('should surface a backend 409 in the modal for a duplicate email', async ({ page }) => {
       await page.getByRole('button', { name: /add user/i }).first().click()
       await page.getByLabel(/^name$/i).fill('Dup Email Probe')
       await page.getByLabel(/^email$/i).fill('robert.deon@example.com') // already in the seeded directory
@@ -107,19 +107,19 @@ test.describe('USDX-26 user CRUD @e2e', () => {
   })
 
   test.describe('edge cases', () => {
-    test('filter by KYC status reflects in the URL', async ({ page }) => {
+    test('should reflect a KYC-status filter in the URL', async ({ page }) => {
       await page.getByLabel(/filter by kyc status/i).click()
       await page.getByRole('option', { name: /^verified$/i }).click()
       await expect(page).toHaveURL(/kycStatus=VERIFIED/)
     })
 
-    test('filter by entity type reflects in the URL', async ({ page }) => {
+    test('should reflect an entity-type filter in the URL', async ({ page }) => {
       await page.getByLabel(/filter by entity type/i).click()
       await page.getByRole('option', { name: /^individual$/i }).click()
       await expect(page).toHaveURL(/entityType=INDIVIDUAL/)
     })
 
-    test('cancelling the create modal adds no user', async ({ page }) => {
+    test('should add no user when the create modal is cancelled', async ({ page }) => {
       const before = await page.getByRole('row').count()
       await page.getByRole('button', { name: /add user/i }).first().click()
       await page.getByLabel(/^name$/i).fill('Cancelled Probe')

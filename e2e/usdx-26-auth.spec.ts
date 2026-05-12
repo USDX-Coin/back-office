@@ -2,16 +2,15 @@ import { test, expect } from '@playwright/test'
 import { installMockApi } from './support/mock-api'
 import { loginViaForm, seedAuthenticatedSession } from './support/auth'
 
-// USDX-26 — Critical flow #1: login (valid + invalid), plus the auth flow's
-// access-control / session negative paths (unauthenticated routes redirect to
-// /login, logout clears the session). Hermetic: API is mocked (see
+// USDX-26 — Critical flow #1: login (valid + invalid), session lifecycle, and
+// access control on protected routes. Hermetic: API is mocked (see
 // support/mock-api.ts), so this runs in CI with no backend.
 
 const STORAGE_KEY = 'usdx_auth_user'
 
 test.describe('USDX-26 auth @e2e', () => {
   test.describe('positive', () => {
-    test('valid credentials → dashboard, session persisted', async ({ page }) => {
+    test('should sign in with valid credentials and persist the session', async ({ page }) => {
       await installMockApi(page)
       await loginViaForm(page)
       await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible()
@@ -20,7 +19,7 @@ test.describe('USDX-26 auth @e2e', () => {
       expect(JSON.parse(stored!)).toMatchObject({ version: 4, token: expect.any(String) })
     })
 
-    test('session restored on reload — no re-login needed', async ({ page }) => {
+    test('should restore the session on reload without re-login', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
@@ -30,7 +29,7 @@ test.describe('USDX-26 auth @e2e', () => {
       await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible()
     })
 
-    test('logout clears the session and returns to /login', async ({ page }) => {
+    test('should clear the session and return to /login on logout', async ({ page }) => {
       await installMockApi(page)
       await loginViaForm(page)
       await page.getByRole('button', { name: /open profile menu/i }).click()
@@ -38,14 +37,14 @@ test.describe('USDX-26 auth @e2e', () => {
       await expect(page).toHaveURL(/\/login/)
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeNull()
-      // Going back to a protected route must bounce to /login again
+      // going back to a protected route must bounce to /login again
       await page.goto('/dashboard')
       await expect(page).toHaveURL(/\/login/)
     })
   })
 
   test.describe('negative', () => {
-    test('wrong password → inline error from the API, stays on /login', async ({ page }) => {
+    test('should show an inline API error and stay on /login for a wrong password', async ({ page }) => {
       await installMockApi(page)
       await page.goto('/login')
       await page.getByLabel(/^email$/i).fill('admin@usdx.io')
@@ -57,7 +56,7 @@ test.describe('USDX-26 auth @e2e', () => {
       expect(stored).toBeNull()
     })
 
-    test('empty fields → client-side validation, no request sent', async ({ page }) => {
+    test('should run client-side validation and send no request for empty fields', async ({ page }) => {
       await installMockApi(page)
       let loginCalled = false
       page.on('request', (r) => { if (r.url().includes('/api/v1/auth/login')) loginCalled = true })
@@ -69,7 +68,7 @@ test.describe('USDX-26 auth @e2e', () => {
       expect(loginCalled).toBe(false)
     })
 
-    test('stale/invalid token in storage → /auth/me 401 → bounced to /login', async ({ page }) => {
+    test('should bounce to /login when the stored token is rejected by /auth/me', async ({ page }) => {
       await installMockApi(page, {
         routes: {
           'GET /api/v1/auth/me': (route) => {
@@ -84,22 +83,22 @@ test.describe('USDX-26 auth @e2e', () => {
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeNull()
     })
-  })
 
-  test.describe('edge cases / access control', () => {
     for (const path of [
       '/dashboard', '/users', '/staff', '/mint', '/mint/new', '/burn', '/burn/new',
       '/requests', '/settings/rate', '/settings/threshold', '/profile',
     ]) {
-      test(`unauthenticated ${path} → /login`, async ({ page }) => {
+      test(`should redirect an unauthenticated visit to ${path} to /login`, async ({ page }) => {
         await installMockApi(page)
         await page.goto(path)
         await expect(page).toHaveURL(/\/login/)
         await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible()
       })
     }
+  })
 
-    test('"remember this device" checkbox is toggleable', async ({ page }) => {
+  test.describe('edge cases', () => {
+    test('should toggle the "remember this device" checkbox', async ({ page }) => {
       await installMockApi(page)
       await page.goto('/login')
       const remember = page.getByRole('checkbox', { name: /remember this device/i })
@@ -108,7 +107,7 @@ test.describe('USDX-26 auth @e2e', () => {
       expect(await remember.isChecked()).toBe(!wasChecked)
     })
 
-    test('show/hide password toggle reveals the entered password', async ({ page }) => {
+    test('should reveal the entered password via the show/hide toggle', async ({ page }) => {
       await installMockApi(page)
       await page.goto('/login')
       const pw = page.getByLabel(/^password$/i)

@@ -44,7 +44,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('fills the form, submits, lands on /mint with the new request listed', async ({ page }) => {
+    test('should submit the form and list the new request on /mint', async ({ page }) => {
       await page.goto('/mint/new')
       await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '777')
@@ -57,7 +57,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       ).toBeVisible({ timeout: 10000 })
     })
 
-    test('IDR-currency submission is converted and shown in the list', async ({ page }) => {
+    test('should convert an IDR-currency submission and show it in the list', async ({ page }) => {
       await page.goto('/mint/new')
       await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
@@ -79,7 +79,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('submitting with no user picked shows a field error and sends no request', async ({ page }) => {
+    test('should show a field error and send no request when no user is picked', async ({ page }) => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/mint')) posted = true })
       await page.goto('/mint/new')
@@ -89,7 +89,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       expect(posted).toBe(false)
     })
 
-    test('backend 400 → inline API error, stays on the form', async ({ page }) => {
+    test('should show an inline API error and stay on the form on a 400', async ({ page }) => {
       await installMockApi(page, {
         routes: {
           'POST /api/v1/mint': (route) => {
@@ -107,7 +107,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       await expect(page).toHaveURL(/\/mint\/new/)
     })
 
-    test('backend 403 (manager-only threshold) → inline API error', async ({ page }) => {
+    test('should show an inline API error on a 403 (manager-only threshold)', async ({ page }) => {
       await installMockApi(page, {
         routes: {
           'POST /api/v1/mint': (route) => {
@@ -126,7 +126,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 
   test.describe('edge cases', () => {
-    test('switching currency clears the amount field', async ({ page }) => {
+    test('should clear the amount field when switching currency', async ({ page }) => {
       await page.goto('/mint/new')
       await page.getByLabel(/^amount$/i).fill('1234')
       await expect(page.getByLabel(/^amount$/i)).toHaveValue('1234')
@@ -135,7 +135,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       await expect(page.getByLabel(/^amount$/i)).toHaveValue('')
     })
 
-    test('"Other" wallet option reveals a manual address input', async ({ page }) => {
+    test('should reveal a manual address input for the "Other" wallet option', async ({ page }) => {
       await page.goto('/mint/new')
       await pickUser(page)
       await page.getByRole('combobox', { name: /chain/i }).click()
@@ -154,7 +154,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('fills the burn form (deposit + bank), submits, lands on /burn with the new request listed', async ({ page }) => {
+    test('should submit the burn form (deposit + bank) and list the new request on /burn', async ({ page }) => {
       await page.goto('/burn/new')
       await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillBurnForm(page, '321')
@@ -169,7 +169,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('missing deposit tx hash → field validation error, no request sent', async ({ page }) => {
+    test('should show a field validation error and send no request when the deposit tx hash is missing', async ({ page }) => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/burn')) posted = true })
       await page.goto('/burn/new')
@@ -189,7 +189,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
       expect(posted).toBe(false)
     })
 
-    test('invalid deposit tx hash format → field validation error', async ({ page }) => {
+    test('should show a field validation error for an invalid deposit tx hash format', async ({ page }) => {
       await page.goto('/burn/new')
       await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
@@ -206,7 +206,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
       await expect(page).toHaveURL(/\/burn\/new/)
     })
 
-    test('backend 500 → inline API error, stays on the form', async ({ page }) => {
+    test('should show an inline API error and stay on the form on a 500', async ({ page }) => {
       await installMockApi(page, {
         routes: {
           'POST /api/v1/burn': (route) => {

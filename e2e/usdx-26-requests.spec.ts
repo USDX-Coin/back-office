@@ -13,14 +13,14 @@ test.describe('USDX-26 request list filters @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('/mint renders seeded mint requests in a table', async ({ page }) => {
+    test('should render the mint requests in a table', async ({ page }) => {
       await page.goto('/mint')
       await expect(page.getByRole('heading', { name: /^mint/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await expect(page.locator('table')).toBeVisible()
       await expect(page.getByRole('button', { name: /^Open mint request for/i }).first()).toBeVisible({ timeout: 10000 })
     })
 
-    test('status filter narrows the list and reflects in the URL', async ({ page }) => {
+    test('should narrow the list and reflect the status filter in the URL', async ({ page }) => {
       await page.goto('/mint')
       await expect(page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ })).toBeVisible({ timeout: 10000 })
 
@@ -34,7 +34,7 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await expect(page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ })).toHaveCount(0)
     })
 
-    test('safe filter works on the burn list', async ({ page }) => {
+    test('should apply the safe filter on the burn list', async ({ page }) => {
       await page.goto('/burn')
       await expect(page.getByRole('button', { name: /^Open burn request for/i }).first()).toBeVisible({ timeout: 10000 })
 
@@ -48,14 +48,14 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await expect(page.getByRole('button', { name: /Open burn request for .* 10\.000000 USDX/ })).toHaveCount(0)
     })
 
-    test('search box writes ?search= to the URL', async ({ page }) => {
+    test('should write ?search= to the URL from the search box', async ({ page }) => {
       await page.goto('/mint')
       await page.getByLabel(/^search$/i).fill('robert')
       await expect(page).toHaveURL(/[?&]search=robert(&|$)/, { timeout: 5000 })
       await expect(page.getByRole('button', { name: /^Open mint request for Robert Deon/i }).first()).toBeVisible()
     })
 
-    test('clicking a row opens the detail modal with on-chain links', async ({ page }) => {
+    test('should open the detail modal with on-chain links when a row is clicked', async ({ page }) => {
       await page.goto('/mint')
       await page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ }).click()
       const dialog = page.getByRole('dialog')
@@ -66,7 +66,7 @@ test.describe('USDX-26 request list filters @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('a filter that matches nothing shows the no-results state', async ({ page }) => {
+    test('should show the no-results state when a filter matches nothing', async ({ page }) => {
       // No seeded mint request has status APPROVED.
       await page.goto('/mint?status=APPROVED')
       await expect(page.getByRole('heading', { name: /^mint/i, level: 1 })).toBeVisible({ timeout: 15000 })
@@ -74,7 +74,7 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await expect(page.getByRole('button', { name: /^Open mint request for/i })).toHaveCount(0)
     })
 
-    test('Clear resets the filters and the URL', async ({ page }) => {
+    test('should reset the filters and the URL via Clear', async ({ page }) => {
       await page.goto('/mint?status=PENDING_APPROVAL')
       await expect(page.getByRole('button', { name: /Open mint request for .* 100\.000000 USDX/ })).toBeVisible({ timeout: 10000 })
       await page.getByRole('button', { name: /^clear$/i }).click()
@@ -84,7 +84,7 @@ test.describe('USDX-26 request list filters @e2e', () => {
   })
 
   test.describe('edge cases', () => {
-    test('combining status + safe filters reflects both in the URL', async ({ page }) => {
+    test('should reflect both status and safe filters in the URL', async ({ page }) => {
       // start with status pre-applied via the URL, then add the safe filter via the toolbar
       await page.goto('/mint?status=EXECUTED')
       await expect(page.getByRole('button', { name: /^Open mint request for/i }).first()).toBeVisible({ timeout: 10000 })
@@ -94,13 +94,13 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await expect(page).toHaveURL(/safeType=STAFF/)
     })
 
-    test('deep-linking with a filter applies it on load', async ({ page }) => {
+    test('should apply a filter on load when deep-linked', async ({ page }) => {
       await page.goto('/burn?status=IDR_TRANSFERRED')
       await expect(page.getByRole('button', { name: /Open burn request for .* 50\.000000 USDX/ })).toBeVisible({ timeout: 10000 })
       await expect(page.getByRole('button', { name: /Open burn request for .* 10\.000000 USDX/ })).toHaveCount(0)
     })
 
-    test('detail modal closes on Escape and the list stays put', async ({ page }) => {
+    test('should close the detail modal on Escape and keep the list in place', async ({ page }) => {
       await page.goto('/mint')
       await page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ }).click()
       await expect(page.getByRole('dialog')).toBeVisible()
