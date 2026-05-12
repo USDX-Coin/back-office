@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test'
 import { installMockApi } from './support/mock-api'
 import { loginViaForm, seedAuthenticatedSession } from './support/auth'
 
-// USDX-26 — Critical flow #1: login (valid + invalid) + access control / session.
-// Hermetic: API is mocked (see support/mock-api.ts), so this runs in CI with no
-// backend. Access-control / session cases double as light OWASP WSTG coverage
-// (WSTG-ATHN / WSTG-SESS); full security testing lives in USDX-69.
+// USDX-26 — Critical flow #1: login (valid + invalid), plus the auth flow's
+// access-control / session negative paths (unauthenticated routes redirect to
+// /login, logout clears the session). Hermetic: API is mocked (see
+// support/mock-api.ts), so this runs in CI with no backend.
 
 const STORAGE_KEY = 'usdx_auth_user'
 
