@@ -1,67 +1,43 @@
-import { ExternalLink, ShieldCheck } from 'lucide-react'
-import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { safeTxUrl } from '@/lib/safeUrl'
-import { findChainConfig } from '@/features/chains/hooks'
-import type { ChainConfig, RequestListItem } from '@/lib/types'
+import { ExternalLink } from 'lucide-react'
+import { shortHash } from '@/lib/format'
 
-function IconLink({
+/**
+ * Table cell: a short tx hash that links out (block explorer / Safe UI) — the
+ * same affordance as the request detail modal, surfaced directly in the list.
+ * Renders `—` when there's no hash, and plain dim text when there's a hash but
+ * no resolvable link. Clicks stop propagation so they don't open the row modal.
+ *
+ * Link resolution lives in `@/lib/chainLinks` (`resolveOnChainLinks`).
+ */
+export function TxHashLink({
+  hash,
   href,
   label,
-  children,
 }: {
-  href: string
+  hash: string | null | undefined
+  href: string | null
   label: string
-  children: React.ReactNode
 }) {
+  if (!hash) return <span className="text-muted-foreground/40">—</span>
+  if (!href) {
+    return (
+      <span className="font-mono text-[11px] tabular-nums text-muted-foreground" title={hash}>
+        {shortHash(hash)}
+      </span>
+    )
+  }
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      title={label}
-      aria-label={label}
-      className="text-muted-foreground transition-colors hover:text-primary"
+      title={`${label}: ${hash}`}
+      aria-label={`${label} ${hash}`}
+      className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums text-primary transition-colors hover:underline"
     >
-      {children}
+      {shortHash(hash)}
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
     </a>
-  )
-}
-
-/**
- * Compact on-chain link affordance for a Mint/Burn list row:
- *   - Block explorer link from `onChainTxHash` (present once EXECUTED / IDR_TRANSFERRED)
- *   - Safe UI link from `safeTxHash`
- * Each link stops row-click propagation so it doesn't open the detail modal.
- * Renders an em dash when neither hash (or the chain config) is available.
- */
-export default function OnChainLinks({
-  row,
-  chains,
-}: {
-  row: RequestListItem
-  chains: ChainConfig[] | undefined
-}) {
-  const cfg = findChainConfig(chains, row.chain)
-  const explorerHref =
-    row.onChainTxHash && cfg ? buildTxExplorerUrl(cfg.blockExplorerUrl, row.onChainTxHash) : null
-  const safeHref = safeTxUrl({ chain: cfg, safeType: row.safeType, safeTxHash: row.safeTxHash })
-
-  if (!explorerHref && !safeHref) {
-    return <span className="text-muted-foreground/40">—</span>
-  }
-  return (
-    <span className="inline-flex items-center gap-2.5">
-      {explorerHref && (
-        <IconLink href={explorerHref} label="View transaction on block explorer">
-          <ExternalLink className="h-3.5 w-3.5" />
-        </IconLink>
-      )}
-      {safeHref && (
-        <IconLink href={safeHref} label="View in Safe">
-          <ShieldCheck className="h-3.5 w-3.5" />
-        </IconLink>
-      )}
-    </span>
   )
 }

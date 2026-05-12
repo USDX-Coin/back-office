@@ -12,9 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
-import { formatDate } from '@/lib/format'
+import { formatDate, shortHash } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
-import { useChainConfig, findChainConfig } from '@/features/chains/hooks'
+import { findChainConfig } from '@/lib/chainLinks'
+import { useChainConfig } from '@/features/chains/hooks'
 import type {
   BurnRequestDetail,
   PhaseOneSuccessResponse,
@@ -47,11 +48,6 @@ function useRequestDetail(id: string | null) {
     queryFn: () => fetchRequestDetail(id as string),
     enabled: Boolean(id),
   })
-}
-
-function shortHash(hash: string, head = 10, tail = 6): string {
-  if (hash.length < head + tail + 2) return hash
-  return `${hash.slice(0, head)}…${hash.slice(-tail)}`
 }
 
 async function copy(value: string, label: string) {

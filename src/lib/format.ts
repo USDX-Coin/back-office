@@ -33,6 +33,13 @@ export function formatIdrAmount(idr: number): string {
   return `Rp ${IDR_FORMATTER.format(idr)}`
 }
 
+// Truncate an 0x hash for display: `0x3d84b05e…d4587f`. Returns the hash
+// unchanged when it's already short enough.
+export function shortHash(hash: string, head = 10, tail = 6): string {
+  if (hash.length <= head + tail) return hash
+  return `${hash.slice(0, head)}…${hash.slice(-tail)}`
+}
+
 export function formatDate(dateString: string): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',

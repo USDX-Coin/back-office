@@ -80,7 +80,7 @@ describe('MintListPage @ USDX-51', () => {
       await screen.findByText('Alice Anderson')
     })
 
-    test('USDX-71 — rows expose Polygonscan + Safe links only when the tx hashes are present', async () => {
+    test('USDX-71 — "On-chain tx" + "Safe tx" columns render clickable short hashes only when present', async () => {
       const onChainTx = '0x' + 'a'.repeat(64)
       server.use(
         http.get('/api/v1/requests', () =>
@@ -101,6 +101,9 @@ describe('MintListPage @ USDX-51', () => {
       setup()
       await screen.findByText('Has Links')
       await screen.findByText('No Links')
+      // two dedicated columns
+      expect(screen.getByRole('columnheader', { name: /on-chain tx/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /safe tx/i })).toBeInTheDocument()
       await waitFor(() => {
         expect(
           document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)
@@ -114,6 +117,9 @@ describe('MintListPage @ USDX-51', () => {
       const link = document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)!
       expect(link.getAttribute('target')).toBe('_blank')
       expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+      // cell shows a truncated hash, not the full string
+      expect(link.textContent).toContain('0xaaaaaaaa')
+      expect(link.textContent).not.toContain(onChainTx)
     })
 
     test('AC #2 — "Add Mint OTC" button visible top-right for ADMIN operator', async () => {

@@ -13,6 +13,9 @@ async function fetchChains(): Promise<ChainConfig[]> {
  * list rows and the request detail modal to build on-chain deep-links. Config
  * changes rarely → long staleTime. Consumers must degrade gracefully when this
  * is unavailable (links hidden / fallback to copyable text).
+ *
+ * Pure helpers that operate on the result live in `@/lib/chainLinks`
+ * (`findChainConfig`, `resolveOnChainLinks`).
  */
 export function useChainConfig() {
   return useQuery({
@@ -21,14 +24,4 @@ export function useChainConfig() {
     staleTime: 60 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
   })
-}
-
-/** Find the config for a given chain identifier (case-insensitive). */
-export function findChainConfig(
-  configs: ChainConfig[] | undefined,
-  chain: string | undefined
-): ChainConfig | undefined {
-  if (!configs || !chain) return undefined
-  const needle = chain.toLowerCase()
-  return configs.find((c) => c.chain.toLowerCase() === needle)
 }

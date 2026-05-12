@@ -10,10 +10,11 @@ import Avatar from '@/components/Avatar'
 import InputCurrencyBadge from '@/components/InputCurrencyBadge'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
-import OnChainLinks from '@/components/OnChainLinks'
+import { TxHashLink } from '@/components/OnChainLinks'
 import MintBurnFilterToolbar, {
   type MintBurnFilterValues,
 } from '@/components/MintBurnFilterToolbar'
+import { resolveOnChainLinks } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
@@ -169,9 +170,26 @@ export default function MintListPage() {
       },
     },
     {
-      id: 'onchain',
-      header: 'On-chain',
-      cell: ({ row }) => <OnChainLinks row={row.original} chains={chains} />,
+      id: 'onchainTx',
+      header: 'On-chain tx',
+      cell: ({ row }) => (
+        <TxHashLink
+          hash={row.original.onChainTxHash}
+          href={resolveOnChainLinks(row.original, chains).explorerHref}
+          label="View transaction on block explorer"
+        />
+      ),
+    },
+    {
+      id: 'safeTx',
+      header: 'Safe tx',
+      cell: ({ row }) => (
+        <TxHashLink
+          hash={row.original.safeTxHash}
+          href={resolveOnChainLinks(row.original, chains).safeHref}
+          label="View transaction in Safe"
+        />
+      ),
     },
   ]
 

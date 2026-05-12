@@ -6,7 +6,30 @@ import {
   formatRelativeTime,
   formatRate,
   formatSpreadPct,
+  shortHash,
 } from '@/lib/format'
+
+describe('shortHash', () => {
+  describe('positive', () => {
+    test('truncates a 0x tx hash to head…tail', () => {
+      expect(shortHash('0x3d84b05efcf0b6c3fab84cadadb36baca3c9c3febbda05573e74d0c373d4587f')).toBe(
+        '0x3d84b05e…d4587f'
+      )
+    })
+
+    test('honours custom head/tail lengths', () => {
+      expect(shortHash('0x' + '1'.repeat(64), 6, 4)).toBe('0x1111…1111')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('returns the input unchanged when already short enough', () => {
+      expect(shortHash('0xabc')).toBe('0xabc')
+      // exactly head + tail (10 + 6 = 16 chars) → no truncation
+      expect(shortHash('0x12345678abcdef')).toBe('0x12345678abcdef')
+    })
+  })
+})
 
 describe('formatAmount', () => {
   describe('positive', () => {
