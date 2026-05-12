@@ -253,12 +253,32 @@ export interface RequestListItem {
   chain: RequestChain
   safeType: SafeType
   status: RequestStatus
-  // USDX-23: BE list response currently omits safeTxHash. Originally proposed
-  // for the Notifications page (removed in USDX-50) — no list consumer reads
-  // it today. Kept optional so we don't lie about the wire shape.
-  safeTxHash?: string | null
+  // USDX-71: BE (sot/api/requests.yaml § RequestListItem) returns both — list
+  // rows deep-link to the block explorer (onChainTxHash) and the Safe UI
+  // (safeTxHash). `safeTxHash` is null on requests rejected before the Safe TX
+  // was proposed; `onChainTxHash` is null until status reaches EXECUTED /
+  // IDR_TRANSFERRED.
+  safeTxHash: string | null
+  onChainTxHash: string | null
   createdBy: string
   createdAt: string
+}
+
+// sot/api/chains.yaml § ChainConfig — GET /api/v1/chains. FE-facing subset of
+// the backend ChainConfig: enough to deep-link to the block explorer (tx hash)
+// and the Safe UI (safe tx hash). Sensitive fields (rpcUrl, safeServiceUrl,
+// signer key) are not exposed.
+export interface ChainConfig {
+  /** Chain identifier — matches the `chain` field on mint/burn requests, e.g. "polygon". */
+  chain: string
+  chainId: number
+  /** Display name, e.g. "Polygon" / "Polygon Amoy". */
+  name: string
+  /** Block explorer base URL, no trailing slash. Tx link = `{blockExplorerUrl}/tx/{hash}`. */
+  blockExplorerUrl: string
+  staffSafeAddress: string
+  managerSafeAddress: string
+  usdxAddress: string
 }
 
 interface RequestDetailBase {

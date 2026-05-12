@@ -18,6 +18,7 @@ import type {
   RateInfo,
   UserAnalytics,
   UserWallet,
+  ChainConfig,
   RequestChain,
   RequestDetail,
   RequestListItem,
@@ -511,6 +512,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     safeType,
     status,
     safeTxHash,
+    onChainTxHash,
     createdBy: opts.createdBy.id,
     createdAt,
   }
@@ -604,6 +606,7 @@ export function createMintFromRequest(
     safeType,
     status: 'PENDING_APPROVAL',
     safeTxHash,
+    onChainTxHash: null,
     createdBy: createdBy.id,
     createdAt,
   }
@@ -690,6 +693,23 @@ export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseO
   }
 }
 
+// sot/api/chains.yaml § ChainConfig — mock for GET /api/v1/chains. Dev + prod
+// run on Polygon mainnet, so the mock mirrors that (chainId 137 / polygonscan).
+// Addresses are deterministic placeholders — checksum is not validated FE-side.
+export function createMockChainConfigs(): ChainConfig[] {
+  return [
+    {
+      chain: 'polygon',
+      chainId: 137,
+      name: 'Polygon',
+      blockExplorerUrl: 'https://polygonscan.com',
+      staffSafeAddress: bytes20(910001),
+      managerSafeAddress: bytes20(910002),
+      usdxAddress: bytes20(910003),
+    },
+  ]
+}
+
 export function createMockRequests(
   customers: Customer[],
   staff: Staff[],
@@ -772,6 +792,7 @@ export function createBurnRequestFromSubmission(
     safeType,
     status: 'PENDING_APPROVAL',
     safeTxHash,
+    onChainTxHash: null,
     createdBy: createdBy.id,
     createdAt,
   }

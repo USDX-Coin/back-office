@@ -18,6 +18,7 @@ import {
   createMockCustomerList,
   createMockStaffList,
   createMockOtcTransactions,
+  createMockChainConfigs,
   createMockRequests,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
@@ -457,6 +458,19 @@ export const handlers = [
       { status: 201 }
     )
   }),
+
+  // ─── Chain config — sot/api/chains.yaml § GET /api/v1/chains ───
+  // FE-facing chain metadata (block explorer + Safe addresses) used to build
+  // on-chain deep-links. Real-BE-backed in the browser (see browser.ts §
+  // INTEGRATION_PATHS); this handler keeps Vitest coverage. Not Bearer-gated in
+  // the mock for the same reason as /api/v1/rate above.
+  http.get('/api/v1/chains', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: createMockChainConfigs(),
+    })
+  ),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
   // USDX-51: `?search=` filters by user name / address substring (case-insensitive)
