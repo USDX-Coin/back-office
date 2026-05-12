@@ -13,6 +13,8 @@ except `auth.tsx`) and independently testable.
 | `format.ts` | Number/date formatting: formatAmount, formatDate, formatShortDate, formatRelativeTime | `__tests__/format.test.ts` |
 | `status.ts` | OTC status → UI mapping: getOtcStatusConfig, isOtcTerminal | — |
 | `csv.ts` | CSV generation: exportToCsv, buildCsvContent — escapeCsvCell prefixes formula chars (`=`, `+`, `-`, `@`) with a single quote to prevent injection | `__tests__/csv.test.ts` |
+| `explorerUrl.ts` | Block explorer deep-links: buildTxExplorerUrl(blockExplorerUrl, hash), buildAddressExplorerUrl — base URL comes from GET /api/v1/chains, never hardcoded | `__tests__/explorerUrl.test.ts` |
+| `safeUrl.ts` | Safe Wallet UI deep-links: buildSafeUrl({chainId, safeAddress, safeTxHash}), safeTxUrl({chain, safeType, safeTxHash}) (resolves the address by safeType, returns null when unbuildable), CHAIN_PREFIX_BY_ID | `__tests__/safeUrl.test.ts` |
 | `utils.ts` | cn() — Tailwind class name merge utility (clsx + tailwind-merge) | `__tests__/utils.test.ts` |
 
 ## Rules

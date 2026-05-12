@@ -40,6 +40,9 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/staff/:id',
   '/api/v1/requests',
   '/api/v1/requests/:id',
+  // USDX-71: GET /api/v1/chains shipped on the backend (USDX-70). Real-BE in the
+  // browser; the handler stays in handlers.ts for Vitest coverage.
+  '/api/v1/chains',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

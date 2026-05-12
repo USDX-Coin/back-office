@@ -10,9 +10,11 @@ import Avatar from '@/components/Avatar'
 import InputCurrencyBadge from '@/components/InputCurrencyBadge'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
+import OnChainLinks from '@/components/OnChainLinks'
 import MintBurnFilterToolbar, {
   type MintBurnFilterValues,
 } from '@/components/MintBurnFilterToolbar'
+import { useChainConfig } from '@/features/chains/hooks'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
@@ -60,6 +62,7 @@ export default function BurnListPage() {
     safeType: safeType || undefined,
     search: search || undefined,
   })
+  const { data: chains } = useChainConfig()
 
   const [activeRow, setActiveRow] = useState<RequestListItem | null>(null)
 
@@ -164,6 +167,11 @@ export default function BurnListPage() {
           </span>
         )
       },
+    },
+    {
+      id: 'onchain',
+      header: 'On-chain',
+      cell: ({ row }) => <OnChainLinks row={row.original} chains={chains} />,
     },
   ]
 

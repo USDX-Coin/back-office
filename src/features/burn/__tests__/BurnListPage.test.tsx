@@ -32,6 +32,7 @@ const baseRow = (overrides: Partial<RequestListItem>): RequestListItem => ({
   safeType: 'STAFF',
   status: 'PENDING_APPROVAL',
   safeTxHash: null,
+  onChainTxHash: null,
   createdBy: 'stf_1',
   createdAt: '2026-05-01T00:00:00Z',
   ...overrides,
@@ -77,6 +78,41 @@ describe('BurnListPage @ USDX-52', () => {
       )
       setup()
       await screen.findByText('Alice Anderson')
+    })
+
+    test('USDX-71 — rows expose Polygonscan + Safe links only when the tx hashes are present', async () => {
+      const onChainTx = '0x' + 'a'.repeat(64)
+      server.use(
+        http.get('/api/v1/requests', () =>
+          ok([
+            baseRow({
+              id: 'with_links',
+              userName: 'Has Links',
+              chain: 'polygon',
+              safeType: 'STAFF',
+              status: 'EXECUTED',
+              safeTxHash: '0x' + 'b'.repeat(64),
+              onChainTxHash: onChainTx,
+            }),
+            baseRow({ id: 'no_links', userName: 'No Links', safeTxHash: null, onChainTxHash: null }),
+          ])
+        )
+      )
+      setup()
+      await screen.findByText('Has Links')
+      await screen.findByText('No Links')
+      await waitFor(() => {
+        expect(
+          document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)
+        ).not.toBeNull()
+      })
+      expect(document.querySelectorAll('a[href^="https://polygonscan.com/tx/"]').length).toBe(1)
+      expect(
+        document.querySelectorAll('a[href^="https://app.safe.global/transactions/tx"]').length
+      ).toBe(1)
+      const link = document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)!
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer')
     })
 
     test('AC #2 — "Add Burn OTC" button visible top-right for ADMIN operator', async () => {

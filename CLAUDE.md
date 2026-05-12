@@ -62,6 +62,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── FieldError.tsx # Inline form error primitive
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
 │   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
+│   │   ├── OnChainLinks.tsx  # Mint/Burn row affordance: explorer + Safe deep-links
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
 │   │   ├── auth/          # LoginPage
@@ -72,6 +73,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
+│   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
 │   │   └── profile/       # ProfilePage
 │   ├── lib/               # Shared utilities
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook
@@ -80,6 +82,8 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime
 │   │   ├── status.ts      # OTC status config + helpers
 │   │   ├── csv.ts         # CSV export (with formula-injection guard)
+│   │   ├── explorerUrl.ts # Block explorer deep-links (base URL from /api/v1/chains)
+│   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
 │   │   ├── handlers.ts    # REST handlers + inline settlement simulator
