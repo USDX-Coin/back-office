@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
-import CurrentRateCard from '@/components/CurrentRateCard'
+import RateSnapshotCard from '@/components/RateSnapshotCard'
 import { renderWithProviders } from '@/test/test-utils'
 
 // USDX-40 AC #6: rate displayed must match `GET /api/v1/rate`. The card is
@@ -18,10 +18,10 @@ afterEach(() => {
 afterAll(() => server.close())
 
 function setup() {
-  return renderWithProviders(<CurrentRateCard />, { authenticated: true })
+  return renderWithProviders(<RateSnapshotCard />, { authenticated: true })
 }
 
-describe('CurrentRateCard', () => {
+describe('RateSnapshotCard', () => {
   describe('loading state', () => {
     test('should render the skeleton placeholder while the rate query is in flight', async () => {
       // Hold the response so the loading state is observable.
