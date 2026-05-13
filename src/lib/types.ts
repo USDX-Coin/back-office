@@ -507,3 +507,53 @@ export interface DashboardStats {
   }
   currentRate: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reporting (sot/phase-1.md § Reporting, sot/api/reporting.yaml)
+//
+// Aggregate read-only reports over mint/burn. All four endpoints accept
+// `?format=csv` for direct file download — JSON response shape is the
+// SuccessResponse envelope with `data` = the row array below.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ReportKind = 'mint-daily' | 'mint-by-user' | 'burn-daily' | 'burn-by-user'
+
+export interface ReportFilter {
+  startDate: string // YYYY-MM-DD, Asia/Jakarta (inclusive)
+  endDate: string // YYYY-MM-DD, Asia/Jakarta (inclusive)
+  chain?: string
+  status?: string
+  userId?: string // only meaningful for *-by-user reports
+}
+
+export interface DailyMintRow {
+  date: string
+  totalCount: number
+  totalAmountUsdx: string
+  totalAmountIdr: string
+  countPendingApproval: number
+  countApproved: number
+  countExecuted: number
+  countRejected: number
+}
+
+export interface DailyBurnRow {
+  date: string
+  totalCount: number
+  totalAmountUsdx: string
+  totalAmountIdr: string
+  countPendingApproval: number
+  countApproved: number
+  countExecuted: number
+  countIdrTransferred: number
+  countRejected: number
+}
+
+export interface ByUserRow {
+  userId: string
+  userName: string
+  userEmail: string
+  totalCount: number
+  totalAmountUsdx: string
+  totalAmountIdr: string
+}

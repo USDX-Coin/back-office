@@ -6,6 +6,8 @@ import {
   UserCog,
   UserRound,
   LogOut,
+  CalendarDays,
+  UsersRound,
 } from 'lucide-react'
 import {
   Sheet,
@@ -16,6 +18,7 @@ import {
 } from '@/components/ui/sheet'
 import Avatar from '@/components/Avatar'
 import {
+  canAccessReports,
   canManageSettings,
   canManageStaff,
   useAuth,
@@ -41,6 +44,11 @@ interface DrawerItem {
 const ITEMS: DrawerItem[] = [
   { to: '/users', label: 'Users', icon: Users, description: 'Customer directory' },
   { to: '/staff', label: 'Staff', icon: UserCog, description: 'Internal team', visibleWhen: canManageStaff },
+  // USDX-81: reporting entries mirror the desktop sidebar gate (canAccessReports).
+  { to: '/reports/mint/daily', label: 'Daily Mint', icon: CalendarDays, description: 'Per-day mint aggregate', visibleWhen: canAccessReports },
+  { to: '/reports/mint/by-user', label: 'Mint By User', icon: UsersRound, description: 'Mint aggregate per user', visibleWhen: canAccessReports },
+  { to: '/reports/burn/daily', label: 'Daily Burn', icon: CalendarDays, description: 'Per-day burn aggregate', visibleWhen: canAccessReports },
+  { to: '/reports/burn/by-user', label: 'Burn By User', icon: UsersRound, description: 'Burn aggregate per user', visibleWhen: canAccessReports },
   { to: '/settings/rate', label: 'Rate', icon: TrendingUp, description: 'USD/IDR rate config', visibleWhen: canManageSettings },
   { to: '/settings/threshold', label: 'Threshold', icon: Sliders, description: 'Safe routing threshold', visibleWhen: canManageSettings },
   { to: '/profile', label: 'Profile', icon: UserRound, description: 'Your account' },

@@ -148,3 +148,73 @@ export async function apiFetchRaw<TEnvelope>(
 
   return payload as TEnvelope
 }
+
+// Variant of apiFetch for file downloads (CSV reports per sot/api/reporting.yaml).
+// Returns the raw Blob + filename parsed from `Content-Disposition`. Errors are
+// still routed through ApiError; on 401 the unauthorized callback fires so the
+// session clears like with the JSON variants.
+export interface BlobResponse {
+  blob: Blob
+  filename: string | null
+}
+
+// RFC 6266 §4.1 — supports both `filename=...` and the RFC 5987 `filename*=UTF-8''...`
+// form. We try the extended form first because spec'd UTF-8 filenames live there.
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null
+  const ext = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header)
+  if (ext?.[1]) {
+    try {
+      return decodeURIComponent(ext[1].trim())
+    } catch {
+      // fall through to the plain form
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)
+  return plain?.[1]?.trim() ?? null
+}
+
+export async function apiFetchBlob(
+  path: string,
+  options: ApiFetchOptions = {}
+): Promise<BlobResponse> {
+  const { body, headers, skipAuth, ...rest } = options
+  const finalHeaders = new Headers(headers)
+  if (body !== undefined && !finalHeaders.has('Content-Type')) {
+    finalHeaders.set('Content-Type', 'application/json')
+  }
+  if (!skipAuth) {
+    const token = bindings.getToken()
+    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(`${env.apiUrl}${path}`, {
+    ...rest,
+    headers: finalHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  if (response.status === 401) bindings.onUnauthorized()
+
+  if (!response.ok) {
+    // Error responses still follow SoT ErrorResponse JSON shape — try to parse.
+    let payload: unknown = null
+    try {
+      payload = await response.json()
+    } catch {
+      // non-JSON error body — stay generic
+    }
+    const err = (payload ?? {}) as SoTErrorEnvelope
+    throw new ApiError(
+      response.status,
+      err.error?.code ?? 'UNKNOWN',
+      err.error?.message ?? response.statusText ?? 'Request failed'
+    )
+  }
+
+  const blob = await response.blob()
+  const filename = parseContentDispositionFilename(
+    response.headers.get('Content-Disposition')
+  )
+  return { blob, filename }
+}

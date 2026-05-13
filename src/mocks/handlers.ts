@@ -12,8 +12,10 @@ import type {
   UpdateRateConfig,
   RequestDetail,
   RequestListItem,
+  ReportFilter,
 } from '@/lib/types'
 import { canManageRate } from '@/lib/types'
+import { buildCsvContent } from '@/lib/csv'
 import {
   createMockCustomerList,
   createMockStaffList,
@@ -30,6 +32,9 @@ import {
   customerToPhaseOneUser,
   createMintFromRequest,
   MANAGER_THRESHOLD_IDR,
+  aggregateDailyMint,
+  aggregateDailyBurn,
+  aggregateByUser,
 } from './data'
 
 // ─── Stores ───
@@ -235,6 +240,123 @@ function authenticatedStaff(request: Request): Staff | null {
   const claims = verifyMockJwt(header.slice('Bearer '.length).trim())
   if (!claims) return null
   return findStaffById(claims.sub) ?? null
+}
+
+// ─── Reporting helpers (sot/api/reporting.yaml) ───
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+type ReportKind = 'mint-daily' | 'mint-by-user' | 'burn-daily' | 'burn-by-user'
+
+// Column order = SoT schema field order. CSV header row uses these field names
+// per sot/phase-1.md § Reporting "Header row mengikuti field name dari row schema".
+const REPORT_COLUMNS: Record<ReportKind, { key: string; header: string }[]> = {
+  'mint-daily': [
+    { key: 'date', header: 'date' },
+    { key: 'totalCount', header: 'totalCount' },
+    { key: 'totalAmountUsdx', header: 'totalAmountUsdx' },
+    { key: 'totalAmountIdr', header: 'totalAmountIdr' },
+    { key: 'countPendingApproval', header: 'countPendingApproval' },
+    { key: 'countApproved', header: 'countApproved' },
+    { key: 'countExecuted', header: 'countExecuted' },
+    { key: 'countRejected', header: 'countRejected' },
+  ],
+  'burn-daily': [
+    { key: 'date', header: 'date' },
+    { key: 'totalCount', header: 'totalCount' },
+    { key: 'totalAmountUsdx', header: 'totalAmountUsdx' },
+    { key: 'totalAmountIdr', header: 'totalAmountIdr' },
+    { key: 'countPendingApproval', header: 'countPendingApproval' },
+    { key: 'countApproved', header: 'countApproved' },
+    { key: 'countExecuted', header: 'countExecuted' },
+    { key: 'countIdrTransferred', header: 'countIdrTransferred' },
+    { key: 'countRejected', header: 'countRejected' },
+  ],
+  'mint-by-user': [
+    { key: 'userId', header: 'userId' },
+    { key: 'userName', header: 'userName' },
+    { key: 'userEmail', header: 'userEmail' },
+    { key: 'totalCount', header: 'totalCount' },
+    { key: 'totalAmountUsdx', header: 'totalAmountUsdx' },
+    { key: 'totalAmountIdr', header: 'totalAmountIdr' },
+  ],
+  'burn-by-user': [
+    { key: 'userId', header: 'userId' },
+    { key: 'userName', header: 'userName' },
+    { key: 'userEmail', header: 'userEmail' },
+    { key: 'totalCount', header: 'totalCount' },
+    { key: 'totalAmountUsdx', header: 'totalAmountUsdx' },
+    { key: 'totalAmountIdr', header: 'totalAmountIdr' },
+  ],
+}
+
+const REPORT_FILENAME_PREFIX: Record<ReportKind, string> = {
+  'mint-daily': 'mint-daily',
+  'mint-by-user': 'mint-by-user',
+  'burn-daily': 'burn-daily',
+  'burn-by-user': 'burn-by-user',
+}
+
+function handleReport(request: Request, kind: ReportKind) {
+  const staff = authenticatedStaff(request)
+  if (!staff) return unauthorized()
+  if (staff.role === 'STAFF') {
+    return HttpResponse.json(
+      {
+        status: 'error',
+        metadata: null,
+        data: null,
+        error: { code: 'FORBIDDEN', message: 'Reporting is not available for STAFF role.' },
+      },
+      { status: 403 }
+    )
+  }
+
+  const url = new URL(request.url)
+  const startDate = url.searchParams.get('startDate') ?? ''
+  const endDate = url.searchParams.get('endDate') ?? ''
+  if (!ISO_DATE.test(startDate)) {
+    return phaseOneBadRequest('startDate is required (YYYY-MM-DD)', 'VALIDATION_ERROR')
+  }
+  if (!ISO_DATE.test(endDate)) {
+    return phaseOneBadRequest('endDate is required (YYYY-MM-DD)', 'VALIDATION_ERROR')
+  }
+  if (startDate > endDate) {
+    return phaseOneBadRequest('startDate must be <= endDate', 'VALIDATION_ERROR')
+  }
+  const filter: ReportFilter = {
+    startDate,
+    endDate,
+    chain: url.searchParams.get('chain') ?? undefined,
+    status: url.searchParams.get('status') ?? undefined,
+    userId: url.searchParams.get('userId') ?? undefined,
+  }
+
+  const rawRows =
+    kind === 'mint-daily'
+      ? aggregateDailyMint(requestList, filter)
+      : kind === 'burn-daily'
+        ? aggregateDailyBurn(requestList, filter)
+        : kind === 'mint-by-user'
+          ? aggregateByUser(requestList, customerStore, 'mint', filter)
+          : aggregateByUser(requestList, customerStore, 'burn', filter)
+  const rows = rawRows as unknown as Record<string, unknown>[]
+
+  const format = (url.searchParams.get('format') ?? 'json').toLowerCase()
+  if (format === 'csv') {
+    const columns = REPORT_COLUMNS[kind] as { key: string; header: string }[]
+    const csv = buildCsvContent(rows, columns)
+    const filename = `${REPORT_FILENAME_PREFIX[kind]}_${startDate}_${endDate}.csv`
+    return new HttpResponse(csv, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    })
+  }
+
+  return HttpResponse.json({ status: 'success', metadata: null, data: rows })
 }
 
 // ─── Handlers ───
@@ -470,6 +592,23 @@ export const handlers = [
       metadata: null,
       data: createMockChainConfigs(),
     })
+  ),
+
+  // ─── Reporting — sot/api/reporting.yaml (USDX-81) ───
+  // Aggregate read-only reports. JSON default, `?format=csv` returns text/csv
+  // with `Content-Disposition: attachment; filename=<kind>_<start>_<end>.csv`.
+  // BE enforces 403 for STAFF — mock mirrors that.
+  http.get('/api/v1/reports/mint/daily', ({ request }) =>
+    handleReport(request, 'mint-daily')
+  ),
+  http.get('/api/v1/reports/mint/by-user', ({ request }) =>
+    handleReport(request, 'mint-by-user')
+  ),
+  http.get('/api/v1/reports/burn/daily', ({ request }) =>
+    handleReport(request, 'burn-daily')
+  ),
+  http.get('/api/v1/reports/burn/by-user', ({ request }) =>
+    handleReport(request, 'burn-by-user')
   ),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
