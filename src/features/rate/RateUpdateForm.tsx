@@ -101,7 +101,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update rate')
+      toast.error(err instanceof Error ? err.message : "Couldn't update the rate. Please try again.")
     }
   }
 

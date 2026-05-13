@@ -5,6 +5,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -76,7 +78,7 @@ export default function AddWalletModal({
       toast.success('Wallet added')
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add wallet')
+      toast.error(err instanceof Error ? err.message : "Couldn't add the wallet. Please try again.")
     }
   }
 
@@ -99,12 +101,13 @@ export default function AddWalletModal({
             {USER_LIMITS.MAX_WALLETS} used.
           </DialogDescription>
         </DialogHeader>
-        {limitError && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[12.5px] text-destructive">
-            {limitError}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
+          {limitError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[12.5px] text-destructive">
+              {limitError}
+            </div>
+          )}
           <div>
             <Label htmlFor="chain">Chain</Label>
             <Select
@@ -143,7 +146,8 @@ export default function AddWalletModal({
             <FieldError message={errors.address} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          </DialogBody>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -155,7 +159,7 @@ export default function AddWalletModal({
             <Button type="submit" disabled={add.isPending || Boolean(limitError)}>
               {add.isPending ? 'Submitting…' : 'Add wallet'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

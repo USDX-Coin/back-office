@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -34,7 +35,7 @@ export default function StaffDeactivateDialog({
       toast.success(`${staff.name} deactivated`)
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Deactivation failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't deactivate the staff member. Please try again.")
     }
   }
 
@@ -54,12 +55,14 @@ export default function StaffDeactivateDialog({
       >
         <DialogHeader>
           <DialogTitle>Deactivate staff?</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
           <DialogDescription>
             {staff
               ? `Deactivate ${staff.name}? They will no longer be able to sign in. You can reactivate them later from the Edit form.`
               : 'No staff selected.'}
           </DialogDescription>
-        </DialogHeader>
+        </DialogBody>
         <DialogFooter>
           <Button
             type="button"

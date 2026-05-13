@@ -5,6 +5,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -141,7 +143,7 @@ export default function StaffModal({
       }
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Operation failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't save the staff member. Please try again.")
     }
   }
 
@@ -168,7 +170,8 @@ export default function StaffModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
           <div>
             <Label htmlFor="staff-name">Name</Label>
             <Input
@@ -256,7 +259,8 @@ export default function StaffModal({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          </DialogBody>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -272,7 +276,7 @@ export default function StaffModal({
                   ? 'Create staff'
                   : 'Save changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

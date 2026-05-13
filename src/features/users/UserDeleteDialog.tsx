@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -27,7 +28,7 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
       toast.success(`Removed ${user.name}`)
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't remove the user. Please try again.")
     }
   }
 
@@ -45,12 +46,14 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
       >
         <DialogHeader>
           <DialogTitle>Delete user?</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
           <DialogDescription>
             {user
               ? `Delete user ${user.name}? This cannot be undone.`
               : 'No user selected.'}
           </DialogDescription>
-        </DialogHeader>
+        </DialogBody>
         <DialogFooter>
           <Button
             type="button"
