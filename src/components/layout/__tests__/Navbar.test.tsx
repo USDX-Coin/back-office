@@ -1,7 +1,14 @@
-import { describe, test, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { screen, fireEvent } from '@testing-library/react'
 import Navbar from '@/components/layout/Navbar'
 import { renderWithProviders } from '@/test/test-utils'
+import { server } from '@/mocks/server'
+
+// Navbar renders the mobile MobileNavDrawer, whose pending-count hooks hit the
+// API — keep the mock server up so those queries resolve cleanly.
+beforeAll(() => server.listen())
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
 
 describe('Navbar', () => {
   describe('breadcrumb', () => {
@@ -53,6 +60,17 @@ describe('Navbar', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
       // Wordmark renders as a <span>USDX</span> next to a "U" tile (not an <img>)
       expect(screen.getByText('USDX')).toBeInTheDocument()
+    })
+
+    test('should render a hamburger that opens the mobile nav drawer (USDX-27)', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
+      const hamburger = screen.getByRole('button', { name: /open navigation menu/i })
+      expect(hamburger).toBeInTheDocument()
+      // Drawer is closed → no nav links yet.
+      expect(screen.queryByRole('link', { name: /^mint$/i })).not.toBeInTheDocument()
+      fireEvent.click(hamburger)
+      expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
     })
   })
 
