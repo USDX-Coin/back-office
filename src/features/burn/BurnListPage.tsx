@@ -8,12 +8,17 @@ import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import InputCurrencyBadge from '@/components/InputCurrencyBadge'
+import TruncatedHash from '@/components/TruncatedHash'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
 import { TxHashLink } from '@/components/OnChainLinks'
-import MintBurnFilterToolbar, {
-  type MintBurnFilterValues,
-} from '@/components/MintBurnFilterToolbar'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import {
+  REQUEST_FILTER_DEFS,
+  REQUEST_SORT_COLUMNS,
+  REQUEST_COLUMN_CONFIG,
+} from '@/features/mint/filterDefs'
 import { resolveOnChainLinks } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
@@ -54,6 +59,8 @@ export default function BurnListPage() {
   const status = params.searchParams.get('status') ?? ''
   const chain = params.searchParams.get('chain') ?? ''
   const safeType = params.searchParams.get('safeType') ?? ''
+  const sortBy = params.searchParams.get('sortBy') ?? ''
+  const sortOrder = (params.searchParams.get('sortOrder') ?? '') as 'asc' | 'desc' | ''
 
   const list = useBurnList({
     page: params.page,
@@ -66,17 +73,9 @@ export default function BurnListPage() {
   const { data: chains } = useChainConfig()
 
   const [activeRow, setActiveRow] = useState<RequestListItem | null>(null)
+  const [colVisibility, setColVisibility] = useColumnVisibility('burn', REQUEST_COLUMN_CONFIG)
 
-  function handleFilterChange(next: MintBurnFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      status: next.status || null,
-      chain: next.chain || null,
-      safeType: next.safeType || null,
-      page: '1',
-    })
-  }
-
+  const filterValues = { status, chain, safeType }
   const hasFilters = Boolean(search || status || chain || safeType)
 
   const columns: ColumnDef<RequestListItem>[] = [
@@ -98,8 +97,7 @@ export default function BurnListPage() {
           <div className="flex flex-col leading-tight">
             <span className="font-medium">{row.original.userName}</span>
             <span className="font-mono text-[10.5px] text-muted-foreground">
-              {row.original.userAddress.slice(0, 6)}…
-              {row.original.userAddress.slice(-4)}
+              <TruncatedHash value={row.original.userAddress} />
             </span>
           </div>
         </div>
@@ -215,32 +213,68 @@ export default function BurnListPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <PageHeader
-          eyebrow="Operations"
-          title="Burn"
-          italicAccent="OTC requests"
-          subtitle="Track every burn request across its approval lifecycle."
-        />
-        {canCreate && (
-          <Button onClick={() => navigate('/burn/new')} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Burn OTC
-          </Button>
-        )}
-      </div>
+      {/* USDX-27: align with Users/Staff — Add button lives in PageHeader's
+          `actions` slot (compact, top-right at ≥sm) instead of a separate
+          full-width button below the title. */}
+      <PageHeader
+        eyebrow="Operations"
+        title="Burn"
+        italicAccent="OTC requests"
+        subtitle="Track every burn request across its approval lifecycle."
+        actions={
+          canCreate ? (
+            <Button onClick={() => navigate('/burn/new')} size="sm" className="h-7 text-[12px]">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add Burn OTC
+            </Button>
+          ) : undefined
+        }
+      />
 
       <DataTable<RequestListItem>
         columns={columns}
         data={rows}
         rowCount={total}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <MintBurnFilterToolbar
-            values={{ search, status, chain, safeType }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search user, address, tx…',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
+            }}
+            sort={{
+              columns: REQUEST_SORT_COLUMNS,
+              sortBy,
+              sortOrder,
+              onChange: (nextBy, nextOrder) =>
+                params.updateParams({
+                  sortBy: nextBy || null,
+                  sortOrder: nextOrder || null,
+                  page: '1',
+                }),
+            }}
+            filter={{
+              defs: REQUEST_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  status: next.status || null,
+                  chain: next.chain || null,
+                  safeType: next.safeType || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: REQUEST_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
         hasFilters={hasFilters}
