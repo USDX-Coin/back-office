@@ -4,7 +4,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useRate } from '@/features/rate/hooks'
 import { formatIdrAmount, formatUsdxAmount } from '@/lib/format'
@@ -37,9 +36,9 @@ export interface AmountWithCurrencyInputProps {
   disabled?: boolean
 }
 
-const CURRENCIES: { value: AmountCurrency; label: string }[] = [
-  { value: 'USD', label: 'USD (USDX 1:1)' },
-  { value: 'IDR', label: 'IDR' },
+const CURRENCIES: { value: AmountCurrency; hint: string }[] = [
+  { value: 'USD', hint: 'USDX 1:1' },
+  { value: 'IDR', hint: 'auto-convert' },
 ]
 
 export default function AmountWithCurrencyInput({
@@ -80,52 +79,55 @@ export default function AmountWithCurrencyInput({
     onAmountChange('')
   }
 
-  const unitLabel = currency === 'USD' ? 'USD' : 'IDR'
-
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="sm:col-span-1">
-          <Select
-            value={currency}
-            onValueChange={handleCurrencyChange}
-            disabled={disabled}
+      {/* USDX-27 polish: rendered as a SINGLE bordered field — the amount
+          input takes the wide left side, the currency dropdown is a compact
+          segment on the right. The inner controls drop their own borders/rings
+          so it reads as one input with a code segment, not two fields jammed
+          together. */}
+      <div
+        className={cn(
+          'flex h-9 items-stretch rounded-md border border-input bg-secondary text-sm ring-offset-background',
+          'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+          disabled && 'cursor-not-allowed opacity-50'
+        )}
+      >
+        <Input
+          id={amountId}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          value={amount}
+          onChange={(e) => onAmountChange(e.target.value)}
+          placeholder="0"
+          disabled={disabled}
+          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          aria-invalid={Boolean(amountError)}
+        />
+        <span aria-hidden="true" className="my-1.5 w-px bg-border/70" />
+        <Select
+          value={currency}
+          onValueChange={handleCurrencyChange}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            id={currencyId}
+            aria-invalid={Boolean(currencyError)}
+            aria-label="Currency"
+            className="h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0"
           >
-            <SelectTrigger
-              id={currencyId}
-              aria-invalid={Boolean(currencyError)}
-              aria-label="Currency"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CURRENCIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="sm:col-span-2">
-          <div className="relative">
-            <Input
-              id={amountId}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={amount}
-              onChange={(e) => onAmountChange(e.target.value)}
-              placeholder="0"
-              disabled={disabled}
-              className="pr-16"
-              aria-invalid={Boolean(amountError)}
-            />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              {unitLabel}
-            </span>
-          </div>
-        </div>
+            <span>{currency}</span>
+          </SelectTrigger>
+          <SelectContent align="end">
+            {CURRENCIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                <span className="font-mono">{c.value}</span>
+                <span className="ml-2 text-muted-foreground">({c.hint})</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <p className="text-xs text-muted-foreground" data-testid="amount-conversion-preview">
         {preview}

@@ -163,7 +163,9 @@ describe('MintFormPage @ USDX-46', () => {
       expect(screen.getByLabelText(/^amount$/i)).toHaveValue('1000')
       // Open the currency Select and pick IDR
       await user.click(screen.getByLabelText(/^currency$/i))
-      await user.click(await screen.findByRole('option', { name: /^IDR$/i }))
+      // USDX-27: option label is now "IDR (auto-convert)" — match on the
+      // currency code prefix, not the full label.
+      await user.click(await screen.findByRole('option', { name: /^IDR\b/i }))
       expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
     })
   })
