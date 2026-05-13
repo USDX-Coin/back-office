@@ -24,8 +24,12 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await page.goto('/mint')
       await expect(page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ })).toBeVisible({ timeout: 10000 })
 
-      await page.getByRole('combobox', { name: 'Status filter' }).click()
+      // USDX-27: filters now live behind a "Filter" popover (TableToolbar).
+      // Open it → pick Status → Apply → URL updates.
+      await page.getByRole('button', { name: /^filter/i }).click()
+      await page.getByRole('combobox', { name: 'Status' }).click()
       await page.getByRole('option', { name: /pending approval/i }).click()
+      await page.getByRole('button', { name: /^apply$/i }).click()
 
       await expect(page).toHaveURL(/[?&]status=PENDING_APPROVAL(&|$)/)
       // exactly one PENDING_APPROVAL mint request remains (100 USDX); wait for the refetch
@@ -38,8 +42,11 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await page.goto('/burn')
       await expect(page.getByRole('button', { name: /^Open burn request for/i }).first()).toBeVisible({ timeout: 10000 })
 
-      await page.getByRole('combobox', { name: 'Safe filter' }).click()
+      // USDX-27: filter popover (open → pick → Apply).
+      await page.getByRole('button', { name: /^filter/i }).click()
+      await page.getByRole('combobox', { name: 'Safe' }).click()
       await page.getByRole('option', { name: /manager safe/i }).click()
+      await page.getByRole('button', { name: /^apply$/i }).click()
 
       await expect(page).toHaveURL(/[?&]safeType=MANAGER(&|$)/)
       // seeded burn data has exactly one MANAGER request (50 USDX, IDR_TRANSFERRED)
@@ -77,7 +84,9 @@ test.describe('USDX-26 request list filters @e2e', () => {
     test('should reset the filters and the URL via Clear', async ({ page }) => {
       await page.goto('/mint?status=PENDING_APPROVAL')
       await expect(page.getByRole('button', { name: /Open mint request for .* 100\.000000 USDX/ })).toBeVisible({ timeout: 10000 })
-      await page.getByRole('button', { name: /^clear$/i }).click()
+      // USDX-27: active filters render as removable chips below the toolbar.
+      // Each chip's × button is named `Remove ${label}` (per TableToolbar).
+      await page.getByRole('button', { name: /^Remove Status:/i }).click()
       await expect(page).not.toHaveURL(/status=/)
       await expect(page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ })).toBeVisible()
     })
@@ -88,8 +97,11 @@ test.describe('USDX-26 request list filters @e2e', () => {
       // start with status pre-applied via the URL, then add the safe filter via the toolbar
       await page.goto('/mint?status=EXECUTED')
       await expect(page.getByRole('button', { name: /^Open mint request for/i }).first()).toBeVisible({ timeout: 10000 })
-      await page.getByRole('combobox', { name: 'Safe filter' }).click()
+      // USDX-27: filter popover (open → pick → Apply); the existing ?status= survives.
+      await page.getByRole('button', { name: /^filter/i }).click()
+      await page.getByRole('combobox', { name: 'Safe' }).click()
       await page.getByRole('option', { name: /staff safe/i }).click()
+      await page.getByRole('button', { name: /^apply$/i }).click()
       await expect(page).toHaveURL(/status=EXECUTED/)
       await expect(page).toHaveURL(/safeType=STAFF/)
     })

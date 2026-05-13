@@ -66,7 +66,8 @@ test.describe('USDX-26 mint submit @e2e', () => {
       await page.locator('#mintWallet').click()
       await page.getByRole('option', { name: new RegExp(USER_ADDR.slice(2, 10), 'i') }).click()
       await page.getByLabel(/^currency$/i).click()
-      await page.getByRole('option', { name: /^IDR$/i }).click()
+      // USDX-27: option label is "IDR (auto-convert)" — anchor on code prefix.
+      await page.getByRole('option', { name: /^IDR\b/i }).click()
       await page.getByLabel(/^amount$/i).fill('16250')
       await page.getByRole('button', { name: /submit mint request/i }).click()
 
@@ -131,7 +132,8 @@ test.describe('USDX-26 mint submit @e2e', () => {
       await page.getByLabel(/^amount$/i).fill('1234')
       await expect(page.getByLabel(/^amount$/i)).toHaveValue('1234')
       await page.getByLabel(/^currency$/i).click()
-      await page.getByRole('option', { name: /^IDR$/i }).click()
+      // USDX-27: option label is "IDR (auto-convert)" — anchor on code prefix.
+      await page.getByRole('option', { name: /^IDR\b/i }).click()
       await expect(page.getByLabel(/^amount$/i)).toHaveValue('')
     })
 
