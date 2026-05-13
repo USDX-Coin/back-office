@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -54,7 +55,7 @@ export default function RateConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <DialogBody className="space-y-4">
           <DiffRow
             label="Mode"
             from={current?.mode ?? '—'}
@@ -74,7 +75,7 @@ export default function RateConfirmDialog({
             from={current ? formatSpreadPct(current.spreadPct) : '—'}
             to={formatSpreadPct(next.spreadPct || '0')}
           />
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button
