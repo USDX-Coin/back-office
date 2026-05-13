@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { isRequestTerminal } from '@/lib/status'
 import type {
   CreateMintRequestBody,
   MintRequestDetail,
@@ -78,6 +79,11 @@ export function useMintList(filters: MintListFilters) {
   return useQuery({
     queryKey: ['mint', 'list', filters],
     queryFn: () => fetchMintList(filters),
+    // USDX-27: keep statuses fresh without a manual refresh — poll only while
+    // some row is still in a non-terminal state, then stop.
+    refetchInterval: (query) =>
+      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status)) ? 20_000 : false,
+    refetchOnWindowFocus: true,
   })
 }
 
