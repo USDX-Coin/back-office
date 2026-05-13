@@ -7,7 +7,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { useAuth } from '@/lib/auth'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
@@ -29,8 +29,12 @@ interface MobileNavDrawerProps {
 export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const mintPending = usePendingMintCount()
-  const burnPending = usePendingBurnCount()
+  // USDX-78 — STAFF cannot access /api/v1/requests* (sot/phase-1.md L34); skip
+  // the count queries. visibleNavSections also rewrites Mint/Burn entries to
+  // /mint/new and /burn/new for STAFF.
+  const canViewLists = canAccessRequestList(user)
+  const mintPending = usePendingMintCount({ enabled: canViewLists })
+  const burnPending = usePendingBurnCount({ enabled: canViewLists })
   const sections = visibleNavSections(user)
 
   function badgeFor(key?: BadgeKey): number {

@@ -659,9 +659,10 @@ export const handlers = [
   ),
 
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
-  // USDX-51: `?search=` filters by user name / address substring (case-insensitive)
-  // to back the search input in MintBurnFilterToolbar. Mirrors the /api/v1/users
-  // search shape; real BE support against `sot/api/requests.yaml` to be confirmed.
+  // USDX-51: `?search=` filters by user name / address substring (case-insensitive).
+  // USDX-78: `?search=` also matches on request `id` (prefix / substring) — users
+  // typically paste the short form `019e1aa8` from the ID column. Per
+  // sot/api/requests.yaml § search L26-34.
   http.get('/api/v1/requests', ({ request }) => {
     const url = new URL(request.url)
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
@@ -683,7 +684,8 @@ export const handlers = [
       rows = rows.filter(
         (r) =>
           r.userName.toLowerCase().includes(search) ||
-          r.userAddress.toLowerCase().includes(search)
+          r.userAddress.toLowerCase().includes(search) ||
+          r.id.toLowerCase().includes(search)
       )
     }
 

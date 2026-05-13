@@ -518,6 +518,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     safeTxHash,
     onChainTxHash,
     createdBy: opts.createdBy.id,
+    createdByName: opts.createdBy.name,
     createdAt,
   }
 
@@ -537,6 +538,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     safeTxHash,
     onChainTxHash,
     createdBy: opts.createdBy.id,
+    createdByName: opts.createdBy.name,
     createdAt,
     updatedAt,
   } satisfies Omit<MintRequestDetail | BurnRequestDetail, 'type' | 'status' | 'depositTxHash' | 'bankName' | 'bankAccount'>
@@ -612,6 +614,7 @@ export function createMintFromRequest(
     safeTxHash,
     onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
   }
   const detail: MintRequestDetail = {
@@ -632,6 +635,7 @@ export function createMintFromRequest(
     safeTxHash,
     onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
     updatedAt: createdAt,
   }
@@ -798,6 +802,7 @@ export function createBurnRequestFromSubmission(
     safeTxHash,
     onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
   }
 
@@ -822,6 +827,7 @@ export function createBurnRequestFromSubmission(
     bankName: input.bankName.trim(),
     bankAccount: input.bankAccount.trim(),
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
     updatedAt: createdAt,
   }

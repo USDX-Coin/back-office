@@ -72,4 +72,23 @@ describe('MobileNavDrawer @ USDX-27', () => {
       expect(hrefs).not.toContain('/notifications')
     })
   })
+
+  // USDX-78 — STAFF on mobile mirrors the desktop sidebar (sot/phase-1.md
+  // L653-655): Mint/Burn target the form directly, no PENDING_APPROVAL badge.
+  describe('USDX-78 — STAFF nav', () => {
+    test('STAFF Mint and Burn target the form routes, no badge', () => {
+      renderWithProviders(<MobileNavDrawer open onOpenChange={vi.fn()} />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      expect(screen.getByRole('link', { name: /^mint$/i })).toHaveAttribute(
+        'href',
+        '/mint/new'
+      )
+      expect(screen.getByRole('link', { name: /^burn$/i })).toHaveAttribute(
+        'href',
+        '/burn/new'
+      )
+    })
+  })
 })

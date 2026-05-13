@@ -34,6 +34,7 @@ const baseRow = (overrides: Partial<RequestListItem>): RequestListItem => ({
   safeTxHash: null,
   onChainTxHash: null,
   createdBy: 'stf_1',
+  createdByName: 'Sam Operator',
   createdAt: '2026-05-01T00:00:00Z',
   ...overrides,
 })
@@ -50,6 +51,9 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/mint" element={<MintListPage />} />
+      {/* USDX-78: deep-link route renders the same page so the modal opens
+          from URL state (useParams) instead of React state. */}
+      <Route path="/mint/:id" element={<MintListPage />} />
       <Route
         path="/mint/new"
         element={<div data-testid="mint-form-landing">Mint form landing</div>}
@@ -279,6 +283,130 @@ describe('MintListPage @ USDX-51', () => {
       expect(
         screen.queryByRole('button', { name: /add mint otc/i })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  // USDX-78 — list rework: ID column (truncated + copy), Created By column,
+  // search by ID, URL-driven detail modal (/mint/:id deep-link).
+  describe('USDX-78 — list rework', () => {
+    test('renders ID column with truncated `prefix…suffix` (8 + 6)', async () => {
+      // 36-char UUID — head 8 + tail 6 per sot/phase-1.md L671.
+      const fullId = '019e1aa8-1111-2222-3333-444555c7fcd6'
+      server.use(http.get('/api/v1/requests', () => ok([baseRow({ id: fullId })])))
+      setup()
+      await screen.findByText('Alice Anderson')
+      // 8 prefix + ellipsis + 6 suffix
+      expect(screen.getByText('019e1aa8…c7fcd6')).toBeInTheDocument()
+    })
+
+    test('renders Created By column with createdByName from the API', async () => {
+      server.use(
+        http.get('/api/v1/requests', () =>
+          ok([baseRow({ createdByName: 'Jane Operator' })])
+        )
+      )
+      setup()
+      await screen.findByText('Jane Operator')
+    })
+
+    test('passes the typed search input to /api/v1/requests as `search` (covers ID match)', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/requests', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return ok([])
+        })
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+      await user.type(screen.getByLabelText(/^search$/i), '019e1aa8')
+      await waitFor(() =>
+        expect(captured.some((s) => s.includes('search=019e1aa8'))).toBe(true)
+      )
+    })
+
+    test('row click navigates to /mint/:id and opens the detail modal', async () => {
+      const user = userEvent.setup()
+      const row = baseRow({ id: 'req_open_78', userName: 'Deep Link' })
+      server.use(
+        http.get('/api/v1/requests', () => ok([row])),
+        http.get('/api/v1/requests/req_open_78', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              id: row.id,
+              type: 'mint',
+              status: 'PENDING_APPROVAL',
+              idempotencyKey: '0x' + 'a'.repeat(64),
+              userId: row.userId,
+              userName: row.userName,
+              userAddress: row.userAddress,
+              amount: row.amount,
+              amountWei: '100000000',
+              amountIdr: row.amountIdr,
+              rateUsed: '16250',
+              chain: row.chain,
+              notes: null,
+              safeType: row.safeType,
+              safeTxHash: null,
+              onChainTxHash: null,
+              createdBy: row.createdBy,
+              createdByName: 'Detail Owner',
+              createdAt: row.createdAt,
+              updatedAt: row.createdAt,
+            },
+          })
+        )
+      )
+      setup()
+      await user.click(await screen.findByText('Deep Link'))
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/mint request/i)).toBeInTheDocument()
+      // Created By field also visible in the modal (USDX-78 detail AC).
+      expect(within(dialog).getByText('Detail Owner')).toBeInTheDocument()
+    })
+
+    test('deep-link entry at /mint/:id auto-opens the modal on first render', async () => {
+      const row = baseRow({ id: 'req_deep', userName: 'Refresh Target' })
+      server.use(
+        http.get('/api/v1/requests', () => ok([row])),
+        http.get('/api/v1/requests/req_deep', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              id: row.id,
+              type: 'mint',
+              status: 'PENDING_APPROVAL',
+              idempotencyKey: '0x' + 'b'.repeat(64),
+              userId: row.userId,
+              userName: row.userName,
+              userAddress: row.userAddress,
+              amount: row.amount,
+              amountWei: '100000000',
+              amountIdr: row.amountIdr,
+              rateUsed: '16250',
+              chain: row.chain,
+              notes: null,
+              safeType: row.safeType,
+              safeTxHash: null,
+              onChainTxHash: null,
+              createdBy: row.createdBy,
+              createdByName: 'Refresh Owner',
+              createdAt: row.createdAt,
+              updatedAt: row.createdAt,
+            },
+          })
+        )
+      )
+      renderWithProviders(<TestApp />, {
+        initialEntries: ['/mint/req_deep'],
+        authenticated: true,
+      })
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/mint request/i)).toBeInTheDocument()
     })
   })
 })

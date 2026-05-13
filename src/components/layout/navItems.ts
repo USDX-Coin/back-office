@@ -10,7 +10,12 @@ import {
   UsersRound,
   Wrench,
 } from 'lucide-react'
-import { canAccessReports, canManageSettings, canManageStaff } from '@/lib/auth'
+import {
+  canAccessReports,
+  canAccessRequestList,
+  canManageSettings,
+  canManageStaff,
+} from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
 export type BadgeKey = 'mint' | 'burn'
@@ -42,9 +47,14 @@ export interface NavSection {
 //   - SETTINGS section    → ADMIN + DEVELOPER (SoT § Backoffice Role System
 //                           grants `System Config = Ya` to both; Linear writes
 //                           "admin only" — see PR Flag-B).
-//   - Mint/Burn lists     → visible to all roles. DEVELOPER cannot submit
-//                           mint/burn (SoT role table) — the "Add Mint/Burn
-//                           OTC" button is hidden inside the page (Flag-E).
+//   - Mint/Burn lists     → ADMIN / DEVELOPER / MANAGER navigate to the list
+//                           (`/mint`, `/burn`) with the (N) PENDING_APPROVAL
+//                           badge. STAFF navigates directly to the form
+//                           (`/mint/new`, `/burn/new`) with no badge —
+//                           sot/phase-1.md L34 + L653-655 (USDX-78). DEVELOPER
+//                           cannot submit mint/burn (SoT role table) — the
+//                           "Add Mint/Burn OTC" button is hidden inside the
+//                           page (Flag-E).
 export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Workspace',
@@ -95,9 +105,19 @@ export const NAV_SECTIONS: NavSection[] = [
 
 /** Sections + items filtered to what `user`'s role may see (empty sections dropped). */
 export function visibleNavSections(user: Staff | null): NavSection[] {
+  const canViewLists = canAccessRequestList(user)
   return NAV_SECTIONS.flatMap((section) => {
     if (section.visibleWhen && !section.visibleWhen(user)) return []
-    const items = section.items.filter((item) => !item.visibleWhen || item.visibleWhen(user))
+    const items = section.items
+      .filter((item) => !item.visibleWhen || item.visibleWhen(user))
+      .map((item) => {
+        // USDX-78: STAFF can't access /mint or /burn lists — redirect Mint/Burn
+        // nav entries to the form and drop the (N) badge.
+        if (canViewLists) return item
+        if (item.badgeKey === 'mint') return { ...item, to: '/mint/new', badgeKey: undefined }
+        if (item.badgeKey === 'burn') return { ...item, to: '/burn/new', badgeKey: undefined }
+        return item
+      })
     if (items.length === 0) return []
     return [{ ...section, items }]
   })

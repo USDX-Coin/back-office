@@ -22,6 +22,7 @@ function mintRow(
     safeTxHash: null,
     onChainTxHash: null,
     createdBy: 'staff-1',
+    createdByName: 'Operator',
     ...partial,
   }
 }

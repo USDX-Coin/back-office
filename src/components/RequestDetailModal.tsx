@@ -165,6 +165,9 @@ export default function RequestDetailModal({
   // USDX-23: BE detail omits `type` + `userName` — fall back to the list row.
   const resolvedType = detail?.type ?? listItem?.type
   const resolvedUserName = detail?.userName ?? listItem?.userName
+  // USDX-78: render "Created by" — prefer detail (SoT api/mint.yaml § MintRequest
+  // L134 / api/burn.yaml § BurnRequest L147) and fall back to the list row.
+  const resolvedCreatedByName = detail?.createdByName ?? listItem?.createdByName
   // USDX-71: resolve the chain's explorer/Safe config for on-chain deep-links.
   const chainCfg = findChainConfig(chains, detail?.chain ?? listItem?.chain)
   const explorerTx = (hash: string) =>
@@ -249,6 +252,11 @@ export default function RequestDetailModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Request ID">
                 <CopyableMono value={detail.id} label="Request ID" />
+              </Field>
+              <Field label="Created by">
+                {resolvedCreatedByName ?? (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </Field>
               <Field label="Idempotency key">
                 <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />

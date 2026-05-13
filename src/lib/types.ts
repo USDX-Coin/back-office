@@ -261,6 +261,10 @@ export interface RequestListItem {
   safeTxHash: string | null
   onChainTxHash: string | null
   createdBy: string
+  // USDX-78: denormalized staff name for the "Created By" column. SoT
+  // api/requests.yaml § RequestListItem L117 says BE always denormalizes
+  // this on read, so no list-time fetch of staff is needed.
+  createdByName: string
   createdAt: string
 }
 
@@ -299,6 +303,11 @@ interface RequestDetailBase {
   safeTxHash: string | null
   onChainTxHash: string | null
   createdBy: string
+  // USDX-78: SoT api/mint.yaml § MintRequest L134 + api/burn.yaml § BurnRequest
+  // L147 include createdByName in the detail shape. Optional defensively —
+  // mirrors the userName fallback pattern above; modal falls back to
+  // `listItem.createdByName` when the BE detail response omits it.
+  createdByName?: string
   createdAt: string
   updatedAt: string
 }
