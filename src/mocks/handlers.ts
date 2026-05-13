@@ -55,6 +55,24 @@ export function resetMockData() {
   pendingTimers.clear()
 }
 
+// USDX-84 — test helper. The seeded `createMockRequests` factory generates
+// multiple PENDING_APPROVAL/APPROVED entries per Safe (legacy demo data
+// useful for list/dashboard tests). That collides with the SoT § Safe
+// Propose Queue 1-pending-per-Safe invariant the POST handlers now enforce,
+// so submission tests need a clean queue before exercising the happy path.
+//
+// Not exported from the runtime API surface (no callers in src/, only tests).
+export function clearActiveRequestsForTests() {
+  for (const item of requestList) {
+    if (item.status === 'PENDING_APPROVAL' || item.status === 'APPROVED') {
+      requestDetails.delete(item.id)
+    }
+  }
+  requestList = requestList.filter(
+    (r) => r.status !== 'PENDING_APPROVAL' && r.status !== 'APPROVED'
+  )
+}
+
 // Exposed for AuthProvider: looks up Staff without going over HTTP
 export function findStaffByEmail(email: string): Staff | undefined {
   const needle = email.trim().toLowerCase()
@@ -226,6 +244,35 @@ function phaseOneBadRequest(message: string, code = 'VALIDATION_ERROR') {
       error: { code, message },
     },
     { status: 400 }
+  )
+}
+
+// sot/phase-1.md § Safe Propose Queue (1-pending-per-Safe): a Safe with an
+// active PENDING_APPROVAL / APPROVED request blocks new proposes. Returns the
+// blocking request, if any, sharing the supplied safeType. USDX-84.
+function findActiveRequestForSafe(safeType: 'STAFF' | 'MANAGER'): RequestListItem | undefined {
+  return requestList.find(
+    (r) =>
+      r.safeType === safeType &&
+      (r.status === 'PENDING_APPROVAL' || r.status === 'APPROVED')
+  )
+}
+
+// sot/api/mint.yaml L36-53 / sot/api/burn.yaml L36-53 — 409 envelope, including
+// `error.details.{safeType, blockingRequestId}`.
+function safeQueueOccupiedResponse(safeType: 'STAFF' | 'MANAGER', blockingRequestId: string) {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'SAFE_QUEUE_OCCUPIED',
+        message: `Safe ${safeType} sedang punya request lain yang belum executed. Selesaikan dulu request ${blockingRequestId}.`,
+        details: { safeType, blockingRequestId },
+      },
+    },
+    { status: 409 }
   )
 }
 
@@ -616,6 +663,14 @@ export const handlers = [
     const safeType: 'STAFF' | 'MANAGER' =
       amountIdr >= MANAGER_THRESHOLD_IDR ? 'MANAGER' : 'STAFF'
 
+    // sot/phase-1.md L72-85 Safe Propose Queue: reject if target Safe still
+    // has an active (PENDING_APPROVAL / APPROVED) request. Handled before
+    // persisting so the queue isn't accidentally extended in mock state.
+    const blocking = findActiveRequestForSafe(safeType)
+    if (blocking) {
+      return safeQueueOccupiedResponse(safeType, blocking.id)
+    }
+
     const user = { id: matched.id, name: `${matched.firstName} ${matched.lastName}`.trim() }
 
     const pair = createMintFromRequest(
@@ -752,6 +807,13 @@ export const handlers = [
         },
         { status: 403 }
       )
+    }
+
+    // sot/phase-1.md L72-85 Safe Propose Queue: same 1-pending-per-Safe rule
+    // applies to burn submissions. USDX-84.
+    const blocking = findActiveRequestForSafe(detail.safeType)
+    if (blocking) {
+      return safeQueueOccupiedResponse(detail.safeType, blocking.id)
     }
 
     requestList.unshift(list)

@@ -25,7 +25,9 @@ import CurrentRateCard from '@/components/CurrentRateCard'
 import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
+import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
 import { ApiError } from '@/lib/apiFetch'
+import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser } from '@/lib/types'
 import { useCreateMintRequest } from './hooks'
@@ -62,6 +64,13 @@ export default function MintFormPage() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
+  // USDX-84: dedicated state for 409 SAFE_QUEUE_OCCUPIED so the banner can
+  // render with its structured `details` payload (safeType, blockingRequestId)
+  // instead of being squashed into a flat error string.
+  const [queueBlock, setQueueBlock] = useState<{
+    safeType?: 'STAFF' | 'MANAGER'
+    blockingRequestId?: string
+  } | null>(null)
 
   function clearError(key: string) {
     if (errors[key]) {
@@ -132,6 +141,7 @@ export default function MintFormPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setApiError(null)
+    setQueueBlock(null)
     const validation = validateMintRequestForm({
       userId: form.user?.id ?? '',
       userAddress: form.walletAddress,
@@ -161,6 +171,15 @@ export default function MintFormPage() {
       setErrors({})
       navigate('/mint')
     } catch (err) {
+      // USDX-84 — Safe Propose Queue conflict: render a dedicated banner so the
+      // operator sees the blocking request ID + Manual Sync shortcut. Form
+      // state is intentionally preserved (no setForm(EMPTY)) so retry after
+      // the queue clears doesn't require re-entering the request.
+      const queueInfo = parseSafeQueueOccupied(err)
+      if (queueInfo) {
+        setQueueBlock(queueInfo)
+        return
+      }
       const message =
         err instanceof ApiError
           ? err.message
@@ -191,6 +210,12 @@ export default function MintFormPage() {
             </CardHeader>
             <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Mint request form">
               <CardContent className="space-y-5">
+                {queueBlock && (
+                  <SafeQueueOccupiedBanner
+                    safeType={queueBlock.safeType}
+                    blockingRequestId={queueBlock.blockingRequestId}
+                  />
+                )}
                 {apiError && (
                   <div
                     role="alert"

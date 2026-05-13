@@ -26,12 +26,18 @@ export function configureApiFetch(next: AuthBindings) {
 export class ApiError extends Error {
   status: number
   code: string
+  // `details` carries error-specific structured payload as defined by SoT
+  // per-endpoint (e.g. `SAFE_QUEUE_OCCUPIED` returns `{ safeType, blockingRequestId }`
+  // — sot/api/mint.yaml L36-53, sot/api/burn.yaml L36-53). Typed as `unknown`
+  // because the shape varies per `code`; callers narrow at the call site.
+  details: unknown
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details: unknown = undefined) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -41,12 +47,13 @@ interface SoTSuccessEnvelope<T> {
   data: T
 }
 
-// sot/openapi.yaml § ErrorResponse defines `error: { code, message }` only.
-// We intentionally don't model a `details` field — adding one would invite
-// callers to depend on a shape the contract doesn't promise.
+// sot/openapi.yaml § ErrorResponse. `details` is per-error-code structured
+// data; SoT introduced it for `409 SAFE_QUEUE_OCCUPIED` (mint.yaml, burn.yaml)
+// and may extend to other codes in the future. Kept as `unknown` here so this
+// module stays code-agnostic.
 interface SoTErrorEnvelope {
   status?: 'error'
-  error?: { code?: string; message?: string }
+  error?: { code?: string; message?: string; details?: unknown }
 }
 
 export interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
@@ -92,7 +99,8 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed'
+      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.details
     )
   }
 
@@ -142,7 +150,8 @@ export async function apiFetchRaw<TEnvelope>(
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed'
+      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.details
     )
   }
 
