@@ -8,6 +8,7 @@ import {
   Sliders,
   CalendarDays,
   UsersRound,
+  Wrench,
 } from 'lucide-react'
 import { canAccessReports, canManageSettings, canManageStaff } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
@@ -78,6 +79,16 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
       { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
+    ],
+  },
+  // USDX-87: Manual Sync — recovery tool for stuck PENDING_APPROVAL / APPROVED
+  // requests when auto Status Sync fails (sot/phase-1.md § Manual Sync). All
+  // roles can access; staff need it because Manual Sync is an on-call
+  // emergency surface (sot/phase-1.md L583+ "Akses: all roles").
+  {
+    label: 'Troubleshooting',
+    items: [
+      { to: '/manual-sync', label: 'Manual Sync', icon: Wrench },
     ],
   },
 ]

@@ -48,15 +48,12 @@ export function shortHash(hash: string, head = 10, tail = 6): string {
   return truncateMiddle(hash, head, tail)
 }
 
-// USDX-84: short form of a request UUID for compact display in error banners.
-// AC expects `019e1aa8-9c7c-7fcd-6abc-deadbeef0001` → `019e1aa8…f0001`
-// (first 8 chars = leading UUID segment, last 5 chars). Returns the input
-// unchanged when it's already short enough.
+// USDX-84 / USDX-87: short form of a request UUID for compact display in
+// banners + the Manual Sync list. AC expects
+// `019e1aa8-9c7c-7fcd-6abc-deadbeef0001` → `019e1aa8…f0001` (first UUID
+// segment + last 5 chars). Delegates to truncateMiddle.
 export function shortRequestId(id: string): string {
-  const head = 8
-  const tail = 5
-  if (id.length <= head + tail) return id
-  return `${id.slice(0, head)}…${id.slice(-tail)}`
+  return truncateMiddle(id, 8, 5)
 }
 
 export function formatDate(dateString: string): string {

@@ -14,7 +14,7 @@ afterAll(() => server.close())
 
 describe('Sidebar @ USDX-50', () => {
   describe('layout (admin)', () => {
-    test('renders 3 section headers: Workspace / OTC / Settings', () => {
+    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true,
@@ -22,6 +22,8 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.getByText(/workspace/i)).toBeInTheDocument()
       expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
       expect(screen.getByText(/settings/i)).toBeInTheDocument()
+      // USDX-87: Manual Sync lives in its own Troubleshooting section.
+      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
     })
 
     test('renders all admin nav links', () => {
@@ -39,6 +41,8 @@ describe('Sidebar @ USDX-50', () => {
       // SETTINGS
       expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      // TROUBLESHOOTING (USDX-87)
+      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
     })
   })
 
@@ -92,6 +96,17 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
       // Staff entry stays hidden (admin only) even for DEVELOPER per Flag-A.
       expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
+    })
+
+    // USDX-87: Manual Sync is an emergency recovery surface — every role
+    // (incl. STAFF who has no Settings access) must see it.
+    test('Troubleshooting > Manual Sync visible to STAFF role', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
+      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
     })
   })
 
