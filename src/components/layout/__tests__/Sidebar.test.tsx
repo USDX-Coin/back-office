@@ -160,4 +160,47 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
     })
   })
+
+  // USDX-78 — STAFF can't access /mint /burn lists (sot/phase-1.md L34 +
+  // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
+  // the (N) badge so STAFF doesn't see a counter they can't act on.
+  describe('USDX-78 — STAFF sidebar', () => {
+    test('STAFF Mint link targets /mint/new instead of /mint', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      const mintLink = screen.getByRole('link', { name: /^mint$/i })
+      expect(mintLink).toHaveAttribute('href', '/mint/new')
+    })
+
+    test('STAFF Burn link targets /burn/new instead of /burn', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4',
+      })
+      const burnLink = screen.getByRole('link', { name: /^burn$/i })
+      expect(burnLink).toHaveAttribute('href', '/burn/new')
+    })
+
+    test('STAFF never sees the Mint/Burn (N) badge', async () => {
+      // Even if a stale handler returned a count, the Sidebar disables the
+      // count query for STAFF and never renders a badge.
+      server.use(
+        http.get('/api/v1/requests', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 99 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4',
+      })
+      expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
+    })
+  })
 })

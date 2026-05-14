@@ -6,6 +6,7 @@
 import { Link } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import type { DashboardStats } from '@/lib/types'
 
@@ -89,9 +90,21 @@ interface Phase1StatsProps {
 }
 
 export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
+  const { user } = useAuth()
+  // USDX-78: STAFF doesn't have access to the mint/burn request list, so the
+  // "Pending requests" shortcut/widget is hidden — the link would just bounce
+  // them away. Non-STAFF see all four cards in a 4-col grid; STAFF gets a
+  // 3-col grid that fills cleanly.
+  const showPendingRequests = canAccessRequestList(user)
+
   return (
     <section data-testid="dashboard-phase1-stats" aria-label="USDX network statistics">
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={cn(
+          'mb-6 grid gap-3 sm:grid-cols-2',
+          showPendingRequests ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+        )}
+      >
         <StatCard
           label="Total supply"
           value={data ? formatDecimal(data.totalSupply) : '—'}
@@ -116,28 +129,30 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
           loading={isLoading}
           testId="stat-total-burned"
         />
-        <Card
-          className="rounded-md py-0 gap-0 shadow-none dark:border-0 transition-colors hover:bg-muted/40"
-          data-testid="stat-pending-requests"
-        >
-          <Link
-            to="/requests?status=PENDING_APPROVAL"
-            className="block px-4 py-3.5"
-            aria-label="View pending requests"
+        {showPendingRequests && (
+          <Card
+            className="rounded-md py-0 gap-0 shadow-none dark:border-0 transition-colors hover:bg-muted/40"
+            data-testid="stat-pending-requests"
           >
-            <p className="text-[11px] text-muted-foreground">Pending requests</p>
-            {isLoading ? (
-              <Skeleton className="mt-2 h-6 w-12" />
-            ) : (
-              <p className="mt-2 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-warning">
-                {data ? data.pendingRequests.toLocaleString() : '—'}
+            <Link
+              to="/requests?status=PENDING_APPROVAL"
+              className="block px-4 py-3.5"
+              aria-label="View pending requests"
+            >
+              <p className="text-[11px] text-muted-foreground">Pending requests</p>
+              {isLoading ? (
+                <Skeleton className="mt-2 h-6 w-12" />
+              ) : (
+                <p className="mt-2 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-warning">
+                  {data ? data.pendingRequests.toLocaleString() : '—'}
+                </p>
+              )}
+              <p className="mt-2.5 font-mono text-[11.5px] text-muted-foreground">
+                View pending → /requests
               </p>
-            )}
-            <p className="mt-2.5 font-mono text-[11.5px] text-muted-foreground">
-              View pending → /requests
-            </p>
-          </Link>
-        </Card>
+            </Link>
+          </Card>
+        )}
       </div>
 
       <div className="mb-6 grid gap-3 lg:grid-cols-3">

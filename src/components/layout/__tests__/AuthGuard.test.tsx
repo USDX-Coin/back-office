@@ -63,4 +63,45 @@ describe('RoleGuard @ USDX-53', () => {
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
+
+  // USDX-78 — RoleGuard accepts a `redirectTo` to send disallowed roles
+  // somewhere other than /dashboard. Used on /mint and /burn so STAFF lands
+  // on the form (sot/phase-1.md L34) instead of the dashboard.
+  describe('USDX-78 — custom redirectTo', () => {
+    function renderMintTree(initialEntry: string, staffId: string) {
+      return renderWithProviders(
+        <Routes>
+          <Route
+            element={
+              <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} redirectTo="/mint/new" />
+            }
+          >
+            <Route path="/mint" element={<div>MINT_LIST</div>} />
+            <Route path="/mint/:id" element={<div>MINT_LIST_DEEP</div>} />
+          </Route>
+          <Route path="/mint/new" element={<div>MINT_FORM</div>} />
+          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        </Routes>,
+        { initialEntries: [initialEntry], staffId },
+      )
+    }
+
+    test('STAFF on /mint is redirected to /mint/new (not /dashboard)', () => {
+      renderMintTree('/mint', 'stf_4') // STAFF
+      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expect(screen.queryByText('MINT_LIST')).not.toBeInTheDocument()
+      expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+    })
+
+    test('STAFF on /mint/:id is also redirected to /mint/new', () => {
+      renderMintTree('/mint/req_abc', 'stf_4')
+      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expect(screen.queryByText('MINT_LIST_DEEP')).not.toBeInTheDocument()
+    })
+
+    test('ADMIN can reach /mint list', () => {
+      renderMintTree('/mint', 'stf_1') // ADMIN
+      expect(screen.getByText('MINT_LIST')).toBeInTheDocument()
+    })
+  })
 })

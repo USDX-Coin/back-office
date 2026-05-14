@@ -64,6 +64,7 @@ const listRow: RequestListItem = {
   safeTxHash: SAFE_TX,
   onChainTxHash: ON_CHAIN_TX,
   createdBy: 's1',
+  createdByName: 'Sam Operator',
   createdAt: '2026-05-01T00:00:00Z',
 }
 
@@ -189,5 +190,27 @@ describe('RequestDetailModal — on-chain links', () => {
       expect(label.parentElement?.textContent).toContain('—')
       expect(document.querySelector(`a[href*="${ON_CHAIN_TX}"]`)).toBeNull()
     })
+  })
+})
+
+// USDX-78 — detail modal surfaces the "Created by" staff name.
+describe('RequestDetailModal — Created by (USDX-78)', () => {
+  test('renders Created by from the detail response when present', async () => {
+    server.use(
+      chainsOk(),
+      detailOk({ ...mintExecutedDetail, createdByName: 'Detail Owner' })
+    )
+    open()
+    const label = await screen.findByText('Created by')
+    // sibling div under the same <Field> wrapper renders the value.
+    expect(label.parentElement?.textContent).toContain('Detail Owner')
+  })
+
+  test('falls back to listItem.createdByName when the detail response omits it', async () => {
+    server.use(chainsOk(), detailOk(mintExecutedDetail))
+    // listRow fixture has createdByName = 'Sam Operator'.
+    open()
+    const label = await screen.findByText('Created by')
+    expect(label.parentElement?.textContent).toContain('Sam Operator')
   })
 })

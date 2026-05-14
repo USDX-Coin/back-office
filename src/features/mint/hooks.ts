@@ -90,7 +90,10 @@ export function useMintList(filters: MintListFilters) {
 // Sidebar badge count: PENDING_APPROVAL mint requests. SoT phase-1.md line 179
 // sets PENDING_APPROVAL as the initial DB status; SoT § Sidebar uses (N) as
 // "jumlah request dengan status PENDING_APPROVAL" — query metadata.total.
-export function usePendingMintCount() {
+// USDX-78: `enabled` lets the Sidebar / BottomNav skip the query for STAFF
+// (sot/phase-1.md L34 — STAFF can't access /api/v1/requests*, so firing would
+// produce noisy 403s).
+export function usePendingMintCount(opts: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['mint', 'pending-count'],
     queryFn: async () => {
@@ -99,6 +102,7 @@ export function usePendingMintCount() {
       )
       return json.metadata.total
     },
+    enabled: opts.enabled ?? true,
     staleTime: 30 * 1000,
   })
 }

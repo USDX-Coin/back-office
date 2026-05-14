@@ -204,3 +204,12 @@ export function canAccessReports(staff: Staff | null): boolean {
     staff?.role === 'MANAGER'
   )
 }
+
+// USDX-78 — SoT phase-1.md L34: List Mint/Burn (/mint, /burn, /mint/:id,
+// /burn/:id) "hanya bisa diakses Admin, Developer, dan Manager. Staff tidak
+// boleh akses list/detail." Drives: route guard redirect target, Sidebar /
+// MobileNavDrawer (STAFF → /mint/new instead of /mint, hide (N) badge), and
+// the Dashboard "Pending requests" widget visibility.
+export function canAccessRequestList(staff: Staff | null): boolean {
+  return staff !== null && staff.role !== 'STAFF'
+}

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router'
-import { useAuth } from '@/lib/auth'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
@@ -13,8 +13,12 @@ import {
 
 export default function Sidebar() {
   const { user } = useAuth()
-  const mintPending = usePendingMintCount()
-  const burnPending = usePendingBurnCount()
+  // USDX-78 — STAFF cannot access /api/v1/requests* (sot/phase-1.md L34) so
+  // skip the count queries; the badge is also hidden for STAFF via the
+  // mint/burn item rewrite in visibleNavSections().
+  const canViewLists = canAccessRequestList(user)
+  const mintPending = usePendingMintCount({ enabled: canViewLists })
+  const burnPending = usePendingBurnCount({ enabled: canViewLists })
 
   const sections = visibleNavSections(user)
 

@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Flame } from 'lucide-react'
+import { Plus, Flame, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -11,6 +10,7 @@ import InputCurrencyBadge from '@/components/InputCurrencyBadge'
 import TruncatedHash from '@/components/TruncatedHash'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
+import { RequestIdCell } from '@/components/RequestIdCell'
 import { TxHashLink } from '@/components/OnChainLinks'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
@@ -54,6 +54,10 @@ export default function BurnListPage() {
   const { user } = useAuth()
   const canCreate = canSubmitOtc(user)
 
+  // USDX-78: deep-link route `/burn/:id` — list page stays rendered in the
+  // background while the detail modal auto-opens for the URL param.
+  const { id: activeId } = useParams<{ id?: string }>()
+
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
   const status = params.searchParams.get('status') ?? ''
@@ -72,7 +76,6 @@ export default function BurnListPage() {
   })
   const { data: chains } = useChainConfig()
 
-  const [activeRow, setActiveRow] = useState<RequestListItem | null>(null)
   const [colVisibility, setColVisibility] = useColumnVisibility('burn', REQUEST_COLUMN_CONFIG)
 
   const filterValues = { status, chain, safeType }
@@ -87,6 +90,11 @@ export default function BurnListPage() {
           {formatShortDate(getValue() as string)}
         </span>
       ),
+    },
+    {
+      id: 'id',
+      header: 'ID',
+      cell: ({ row }) => <RequestIdCell id={row.original.id} />,
     },
     {
       id: 'user',
@@ -168,6 +176,15 @@ export default function BurnListPage() {
       },
     },
     {
+      id: 'createdByName',
+      header: 'Created by',
+      cell: ({ row }) => (
+        <span className="text-[12px] text-muted-foreground">
+          {row.original.createdByName || '—'}
+        </span>
+      ),
+    },
+    {
       id: 'onchainTx',
       header: 'On-chain tx',
       cell: ({ row }) => (
@@ -189,10 +206,30 @@ export default function BurnListPage() {
         />
       ),
     },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/burn/${row.original.id}`)
+          }}
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          aria-label={`View burn request for ${row.original.userName}`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          View
+        </button>
+      ),
+    },
   ]
 
   const rows = list.data?.data ?? []
   const total = list.data?.metadata.total ?? 0
+  const activeListItem =
+    activeId ? rows.find((r) => r.id === activeId) ?? null : null
 
   const noDataState = (
     <TableEmptyState
@@ -279,18 +316,18 @@ export default function BurnListPage() {
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
-        onRowClick={(r) => setActiveRow(r)}
+        onRowClick={(r) => navigate(`/burn/${r.id}`)}
         rowAriaLabel={(r) =>
           `Open burn request for ${r.userName}, ${r.amount} USDX`
         }
       />
 
       <RequestDetailModal
-        requestId={activeRow?.id ?? null}
-        listItem={activeRow}
-        open={Boolean(activeRow)}
+        requestId={activeId ?? null}
+        listItem={activeListItem}
+        open={Boolean(activeId)}
         onOpenChange={(o) => {
-          if (!o) setActiveRow(null)
+          if (!o) navigate('/burn', { replace: true })
         }}
       />
     </div>

@@ -33,6 +33,7 @@ function row(overrides: Partial<RequestListItem> = {}): RequestListItem {
     safeTxHash: SAFE_TX,
     onChainTxHash: ON_CHAIN,
     createdBy: 's1',
+    createdByName: 'Sam Operator',
     createdAt: '2026-05-01T00:00:00Z',
     ...overrides,
   }

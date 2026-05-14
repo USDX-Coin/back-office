@@ -36,8 +36,10 @@ const queryClient = new QueryClient({
 //   /dashboard          → Dashboard
 //   /users, /users/:id  → User management
 //   /staff              → Staff management (admin sidebar gate)
-//   /mint               → Mint list (table)  •  /mint/new → Mint form
-//   /burn               → Burn list (table)  •  /burn/new → Burn form
+//   /mint, /mint/:id    → Mint list + deep-link detail (admin/developer/manager)
+//   /mint/new           → Mint form
+//   /burn, /burn/:id    → Burn list + deep-link detail (admin/developer/manager)
+//   /burn/new           → Burn form
 //   /settings/rate      → Rate management
 //   /settings/threshold → Threshold management
 //   /profile            → Operator profile (no sidebar entry; navbar dropdown)
@@ -56,8 +58,36 @@ const router = createBrowserRouter([
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
-          { path: '/mint', element: <MintListPage /> },
-          { path: '/burn', element: <BurnListPage /> },
+          {
+            // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
+            // `/mint/:id`) is admin/developer/manager only — STAFF redirects
+            // to /mint/new.
+            element: (
+              <RoleGuard
+                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
+                redirectTo="/mint/new"
+              />
+            ),
+            children: [
+              { path: '/mint', element: <MintListPage /> },
+              { path: '/mint/:id', element: <MintListPage /> },
+            ],
+          },
+          {
+            // USDX-78 + sot/phase-1.md L34: list `/burn` (and deep-link
+            // `/burn/:id`) is admin/developer/manager only — STAFF redirects
+            // to /burn/new.
+            element: (
+              <RoleGuard
+                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
+                redirectTo="/burn/new"
+              />
+            ),
+            children: [
+              { path: '/burn', element: <BurnListPage /> },
+              { path: '/burn/:id', element: <BurnListPage /> },
+            ],
+          },
           {
             // USDX-23 + sot/phase-1.md § Backoffice Role System:
             // DEVELOPER kolom Mint/Burn = Tidak. List pages tetap visible
