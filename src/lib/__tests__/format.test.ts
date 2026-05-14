@@ -7,6 +7,7 @@ import {
   formatRate,
   formatSpreadPct,
   shortHash,
+  shortRequestId,
 } from '@/lib/format'
 
 describe('shortHash', () => {
@@ -27,6 +28,32 @@ describe('shortHash', () => {
       expect(shortHash('0xabc')).toBe('0xabc')
       // exactly head + tail (10 + 6 = 16 chars) → no truncation
       expect(shortHash('0x12345678abcdef')).toBe('0x12345678abcdef')
+    })
+  })
+})
+
+describe('shortRequestId', () => {
+  describe('positive', () => {
+    test('USDX-84 AC — formats UUID as first8…last5', () => {
+      expect(shortRequestId('019e1aa8-9c7c-7fcd-6abc-deadbeef0001')).toBe('019e1aa8…f0001')
+    })
+
+    test('first 8 chars = first UUID segment (canonical short ID)', () => {
+      // The first segment of a v7 UUID encodes the high-order timestamp bits;
+      // surfacing it as the head is what makes the short form scannable in
+      // a list of requests sorted by createdAt.
+      expect(shortRequestId('abcdef12-3456-7890-abcd-ef1234567890').startsWith('abcdef12')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('returns input unchanged when already short enough', () => {
+      expect(shortRequestId('short')).toBe('short')
+      expect(shortRequestId('1234567812345')).toBe('1234567812345') // exactly 13 chars (8+5)
+    })
+
+    test('handles empty string without throwing', () => {
+      expect(shortRequestId('')).toBe('')
     })
   })
 })

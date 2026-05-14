@@ -1,7 +1,8 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
 import { server } from '@/mocks/server'
 import {
   resetMockData,
+  clearActiveRequestsForTests,
   flushSettlement,
   issueMockJwt,
   getDefaultStaff,
@@ -146,6 +147,12 @@ describe('Dashboard stats endpoint (USDX-16)', () => {
 })
 
 describe('POST /api/v1/burn @ sot/api/burn.yaml + sot/conventions.md', () => {
+  // USDX-84: seed data carries demo PENDING_APPROVAL/APPROVED requests for
+  // both Safes which collide with the SoT § Safe Propose Queue invariant the
+  // POST handler now enforces. Clear before each test so the happy-path
+  // submissions in this block don't get rejected with 409.
+  beforeEach(() => clearActiveRequestsForTests())
+
   // USDX-46: form submits userId (uuid) + amountCurrency. cus_3 is seeded
   // in `customerStore` with kycStatus=VERIFIED + suspended=false (see
   // deriveKycStatus / deriveSuspended in src/mocks/data.ts).
