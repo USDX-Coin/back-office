@@ -28,6 +28,13 @@ import { handlers } from './handlers'
 // USDX-82: /api/v1/reports/* handlers were removed from handlers.ts entirely
 // (no Vitest coverage needed — production code just calls apiFetch). Path
 // entries below kept as documentation that these endpoints are real-BE-only.
+//
+// USDX-85: Manual Sync endpoints + the 409 SAFE_QUEUE_OCCUPIED branch inside
+// `/api/v1/mint` and `/api/v1/burn` were removed from handlers.ts. The
+// list/verify/execute paths join the real-BE-only set; the mint/burn paths
+// were already listed (USDX-23 final integration) — queue enforcement now
+// lives entirely in BE (USDX-83). Vitest tests scope their own
+// `server.use(...)` overrides per scenario so no defaults are needed.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/me',
@@ -52,6 +59,10 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/reports/mint/by-user',
   '/api/v1/reports/burn/daily',
   '/api/v1/reports/burn/by-user',
+  // USDX-85: Manual Sync — documentation only, handlers deleted.
+  '/api/v1/manual-sync',
+  '/api/v1/manual-sync/:id/verify',
+  '/api/v1/manual-sync/:id/execute',
 ])
 
 const browserHandlers = handlers.filter((handler) => {
