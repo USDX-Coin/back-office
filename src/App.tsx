@@ -15,6 +15,7 @@ import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import RatePage from '@/features/rate/RatePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
+import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import DailyMintReportPage from '@/features/reports/DailyMintPage'
 import MintByUserReportPage from '@/features/reports/MintByUserPage'
@@ -89,6 +90,9 @@ const router = createBrowserRouter([
               { path: '/reports/burn/by-user', element: <BurnByUserReportPage /> },
             ],
           },
+          // USDX-87 / sot/phase-1.md L583 — Manual Sync is reachable to every
+          // authenticated role (on-call emergency surface). No RoleGuard.
+          { path: '/manual-sync', element: <ManualSyncPage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

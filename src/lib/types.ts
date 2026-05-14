@@ -557,3 +557,62 @@ export interface ByUserRow {
   totalAmountUsdx: string
   totalAmountIdr: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — Manual Sync (sot/api/manual-sync.yaml, sot/phase-1.md § Manual Sync)
+//
+// Recovery surface for the case when the auto Status Sync job fails (Safe API
+// or indexer down) and a request stays stuck in PENDING_APPROVAL / APPROVED
+// even though the tx already executed on-chain. Manual Sync lets the operator
+// paste the tx hash, get a per-field on-chain vs DB comparison, and (if it
+// all matches) flip the row to EXECUTED — unblocking the 1-pending-per-Safe
+// queue (sot/phase-1.md § Safe Propose Queue).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// sot/api/manual-sync.yaml § ManualSyncItem — row shape for the list table.
+// Subset of MintRequestDetail / BurnRequestDetail; BE pre-resolves `safeAddress`
+// from `safeType` + chain config so the FE doesn't have to.
+export interface ManualSyncItem {
+  id: string
+  type: RequestType
+  chain: string
+  userId: string
+  userName: string
+  userAddress: string
+  amount: string // decimal USDX
+  amountWei: string
+  safeType: SafeType
+  safeAddress: string
+  status: 'PENDING_APPROVAL' | 'APPROVED'
+  safeTxHash: string | null
+  idempotencyKey: string // bytes32 hex
+  createdAt: string
+}
+
+// sot/api/manual-sync.yaml § MatchField — one row of the Data Comparison
+// table rendered in the Update Transaction Hash modal.
+export interface MatchField {
+  // Known values today: 'safeAddress' | 'amount' | 'destination' | 'idempotencyKey' | 'safeTxHash'
+  // Kept as `string` because the SoT schema doesn't lock it to an enum, and
+  // burn omits `destination` so the set is dynamic per request type.
+  field: string
+  requestData: string
+  blockchainData: string
+  match: boolean
+}
+
+// sot/api/manual-sync.yaml § MatchResult — verify endpoint response payload.
+// `allMatch === true` gates the Confirm button in the modal.
+export interface MatchResult {
+  requestId: string
+  requestType: RequestType
+  txHash: string
+  allMatch: boolean
+  fields: MatchField[]
+}
+
+// Request body for POST /api/v1/manual-sync/:id/{verify,execute}.
+// sot/api/manual-sync.yaml § VerifyRequest.
+export interface ManualSyncTxHashBody {
+  txHash: string
+}

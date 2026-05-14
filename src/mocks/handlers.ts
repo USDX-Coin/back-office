@@ -970,4 +970,210 @@ export const handlers = [
       { status: 201 }
     )
   }),
+
+  // ─── Manual Sync — sot/api/manual-sync.yaml ───
+  //
+  // GET /api/v1/manual-sync — list of all pending mint+burn requests
+  // (PENDING_APPROVAL / APPROVED) for the troubleshooting recovery surface.
+  // SoT: sort `createdAt` asc; optional `?chain`, `?type` filters; no pagination.
+  http.get('/api/v1/manual-sync', ({ request }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const url = new URL(request.url)
+    const chainFilter = url.searchParams.get('chain')?.trim() || null
+    const typeFilter = url.searchParams.get('type')?.trim() || null
+
+    let rows = requestList.filter(
+      (r) => r.status === 'PENDING_APPROVAL' || r.status === 'APPROVED'
+    )
+    if (chainFilter) rows = rows.filter((r) => r.chain === chainFilter)
+    if (typeFilter === 'mint' || typeFilter === 'burn') {
+      rows = rows.filter((r) => r.type === typeFilter)
+    }
+    rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+    // BE pre-resolves `safeAddress` from `safe_type` + chain config — we mimic
+    // that here so the FE doesn't need a second round-trip. Resolution uses
+    // the static chains seed so addresses are stable across reloads.
+    const chains = createMockChainConfigs()
+    const data = rows.map((row) => {
+      const detail = requestDetails.get(row.id)
+      const cfg = chains.find((c) => c.chain === row.chain)
+      const safeAddress =
+        row.safeType === 'STAFF'
+          ? (cfg?.staffSafeAddress ?? '0x')
+          : (cfg?.managerSafeAddress ?? '0x')
+      return {
+        id: row.id,
+        type: row.type,
+        chain: row.chain,
+        userId: row.userId,
+        userName: row.userName,
+        userAddress: row.userAddress,
+        amount: row.amount,
+        amountWei: detail?.amountWei ?? '0',
+        safeType: row.safeType,
+        safeAddress,
+        status: row.status,
+        safeTxHash: row.safeTxHash,
+        idempotencyKey: detail?.idempotencyKey ?? '0x',
+        createdAt: row.createdAt,
+      }
+    })
+
+    return HttpResponse.json({ status: 'success', metadata: null, data })
+  }),
+
+  // POST /api/v1/manual-sync/:id/verify — read-only per-field comparison.
+  // sot/api/manual-sync.yaml § verify returns a `MatchResult`. Mock heuristic:
+  // mismatch one field when the operator-supplied tx hash contains the marker
+  // substring `dead` (so dev/test can deterministically exercise the mismatch
+  // UX). Mint surfaces 5 fields, burn 4 (no `destination`) per SoT note.
+  http.post('/api/v1/manual-sync/:id/verify', async ({ request, params }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const id = String(params.id)
+    const detail = requestDetails.get(id)
+    if (!detail) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
+        { status: 404 }
+      )
+    }
+    const body = (await request.json().catch(() => null)) as { txHash?: unknown } | null
+    const txHash = typeof body?.txHash === 'string' ? body.txHash : ''
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+      return phaseOneBadRequest('Invalid txHash (expected 0x + 64 hex chars)')
+    }
+
+    const chains = createMockChainConfigs()
+    const cfg = chains.find((c) => c.chain === detail.chain)
+    const safeAddress =
+      detail.safeType === 'STAFF'
+        ? (cfg?.staffSafeAddress ?? '0x')
+        : (cfg?.managerSafeAddress ?? '0x')
+
+    // Deterministic mismatch trigger so the modal's mismatch state is testable
+    // without orchestrating cross-data drift in the mock store.
+    const forceMismatch = txHash.toLowerCase().includes('dead')
+
+    interface FieldOut { field: string; requestData: string; blockchainData: string; match: boolean }
+    const fields: FieldOut[] = [
+      {
+        field: 'safeAddress',
+        requestData: safeAddress,
+        blockchainData: safeAddress,
+        match: true,
+      },
+      {
+        field: 'amount',
+        requestData: detail.amountWei,
+        // The mock surfaces a different wei when the marker fires so the
+        // operator sees a concrete diff in the comparison table.
+        blockchainData: forceMismatch ? '0' : detail.amountWei,
+        match: !forceMismatch,
+      },
+    ]
+    if (detail.type === 'mint') {
+      fields.push({
+        field: 'destination',
+        requestData: detail.userAddress,
+        blockchainData: detail.userAddress,
+        match: true,
+      })
+    }
+    fields.push({
+      field: 'idempotencyKey',
+      requestData: detail.idempotencyKey,
+      blockchainData: detail.idempotencyKey,
+      match: true,
+    })
+    fields.push({
+      field: 'safeTxHash',
+      requestData: detail.safeTxHash ?? '',
+      blockchainData: detail.safeTxHash ?? '',
+      match: true,
+    })
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        requestId: id,
+        requestType: detail.type,
+        txHash,
+        allMatch: fields.every((f) => f.match),
+        fields,
+      },
+    })
+  }),
+
+  // POST /api/v1/manual-sync/:id/execute — re-verify (anti race) then flip
+  // status to EXECUTED. Idempotent per SoT: returns 200 with the same body
+  // when the request is already EXECUTED. Returns 409 when the request has
+  // already moved to a non-recoverable terminal state (e.g. REJECTED).
+  http.post('/api/v1/manual-sync/:id/execute', async ({ request, params }) => {
+    if (!authenticatedStaff(request)) return unauthorized()
+    const id = String(params.id)
+    const detail = requestDetails.get(id)
+    const listItem = requestList.find((r) => r.id === id)
+    if (!detail || !listItem) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
+        { status: 404 }
+      )
+    }
+    const body = (await request.json().catch(() => null)) as { txHash?: unknown } | null
+    const txHash = typeof body?.txHash === 'string' ? body.txHash : ''
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+      return phaseOneBadRequest('Invalid txHash (expected 0x + 64 hex chars)')
+    }
+
+    // Idempotency: SoT allows the FE to retry execute safely; treat already-
+    // EXECUTED as a no-op success.
+    if (detail.status === 'EXECUTED' || detail.status === 'IDR_TRANSFERRED') {
+      return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+    }
+    if (detail.status === 'REJECTED') {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'INVALID_STATE',
+            message: 'Request is REJECTED and cannot be executed via Manual Sync',
+          },
+        },
+        { status: 409 }
+      )
+    }
+
+    // Same mismatch trigger as `verify` for consistency. Returns 400 with
+    // `details.mismatchedFields` per sot/api/manual-sync.yaml § execute.
+    if (txHash.toLowerCase().includes('dead')) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'MISMATCH',
+            message: 'On-chain data does not match the request',
+            details: { mismatchedFields: ['amount'] },
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    // Flip both stores: list + detail. `IDR_TRANSFERRED` is reserved for
+    // burn's post-EXECUTED operator step (SoT § Manual Sync note), so we
+    // don't touch that here.
+    detail.status = 'EXECUTED'
+    detail.onChainTxHash = txHash
+    detail.updatedAt = new Date().toISOString()
+    listItem.status = 'EXECUTED'
+    listItem.onChainTxHash = txHash
+
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
 ]

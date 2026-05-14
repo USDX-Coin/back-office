@@ -24,16 +24,27 @@ function renderOpen(onOpenChange = vi.fn()) {
 
 describe('MobileNavDrawer @ USDX-27', () => {
   describe('layout (admin)', () => {
-    test('renders the 3 section headers: Workspace / OTC / Settings', () => {
+    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
       renderOpen()
       expect(screen.getByText(/workspace/i)).toBeInTheDocument()
       expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
       expect(screen.getByText(/settings/i)).toBeInTheDocument()
+      // USDX-87: Manual Sync lives in its own Troubleshooting section.
+      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
     })
 
     test('renders every admin nav link', () => {
       renderOpen()
-      for (const name of [/dashboard/i, /^users$/i, /^staff$/i, /^mint$/i, /^burn$/i, /^rate$/i, /^threshold$/i]) {
+      for (const name of [
+        /dashboard/i,
+        /^users$/i,
+        /^staff$/i,
+        /^mint$/i,
+        /^burn$/i,
+        /^rate$/i,
+        /^threshold$/i,
+        /manual sync/i,
+      ]) {
         expect(screen.getByRole('link', { name })).toBeInTheDocument()
       }
     })
