@@ -1,5 +1,10 @@
 import { ExternalLink } from 'lucide-react'
-import { shortHash } from '@/lib/format'
+import TruncatedHash from '@/components/TruncatedHash'
+
+// USDX-27: tx hashes are shown via <TruncatedHash> so they shorten on mobile
+// and lengthen on ≥md, staying proportional to the (narrow) table cell.
+const HASH_MOBILE = { head: 6, tail: 4 }
+const HASH_DESKTOP = { head: 10, tail: 6 }
 
 /**
  * Table cell: a short tx hash that links out (block explorer / Safe UI) — the
@@ -22,7 +27,7 @@ export function TxHashLink({
   if (!href) {
     return (
       <span className="font-mono text-[11px] tabular-nums text-muted-foreground" title={hash}>
-        {shortHash(hash)}
+        <TruncatedHash value={hash} mobile={HASH_MOBILE} desktop={HASH_DESKTOP} />
       </span>
     )
   }
@@ -36,7 +41,7 @@ export function TxHashLink({
       aria-label={`${label} ${hash}`}
       className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums text-primary transition-colors hover:underline"
     >
-      {shortHash(hash)}
+      <TruncatedHash value={hash} mobile={HASH_MOBILE} desktop={HASH_DESKTOP} />
       <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
     </a>
   )

@@ -108,14 +108,19 @@ test.describe('USDX-26 user CRUD @e2e', () => {
 
   test.describe('edge cases', () => {
     test('should reflect a KYC-status filter in the URL', async ({ page }) => {
-      await page.getByLabel(/filter by kyc status/i).click()
+      // USDX-27: filters now live behind a "Filter" popover (TableToolbar).
+      await page.getByRole('button', { name: /^filter/i }).click()
+      await page.getByRole('combobox', { name: 'KYC' }).click()
       await page.getByRole('option', { name: /^verified$/i }).click()
+      await page.getByRole('button', { name: /^apply$/i }).click()
       await expect(page).toHaveURL(/kycStatus=VERIFIED/)
     })
 
     test('should reflect an entity-type filter in the URL', async ({ page }) => {
-      await page.getByLabel(/filter by entity type/i).click()
+      await page.getByRole('button', { name: /^filter/i }).click()
+      await page.getByRole('combobox', { name: 'Entity' }).click()
       await page.getByRole('option', { name: /^individual$/i }).click()
+      await page.getByRole('button', { name: /^apply$/i }).click()
       await expect(page).toHaveURL(/entityType=INDIVIDUAL/)
     })
 

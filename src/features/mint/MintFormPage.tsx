@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
 import PageHeader from '@/components/PageHeader'
-import CurrentRateCard from '@/components/CurrentRateCard'
+import RateSnapshotCard from '@/components/RateSnapshotCard'
 import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
@@ -319,7 +319,7 @@ export default function MintFormPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-4">
-          <CurrentRateCard />
+          <RateSnapshotCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-[14px] font-semibold tracking-tight">

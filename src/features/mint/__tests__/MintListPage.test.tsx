@@ -152,8 +152,12 @@ describe('MintListPage @ USDX-51', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.click(screen.getByRole('combobox', { name: /status filter/i }))
+      // USDX-27: filters now live behind a "Filter" popover (TableToolbar).
+      // Open it → pick Status → Apply → URL param wires through.
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Status' }))
       await user.click(await screen.findByRole('option', { name: /pending approval/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING_APPROVAL'))).toBe(true)

@@ -81,7 +81,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update threshold')
+      toast.error(err instanceof Error ? err.message : "Couldn't update the threshold. Please try again.")
     }
   }
 

@@ -6,6 +6,8 @@ import { useRate } from '@/features/rate/hooks'
 // USDX-40 AC #6: rate displayed must match `GET /api/v1/rate`.
 // Rendered inside Mint and Burn request pages so operators see the live
 // snapshot before submitting (the BE captures `rateUsed` at submit time).
+// USDX-27: renamed from CurrentRateCard — the name clashed with the
+// props-based features/rate/CurrentRateCard; this one owns its own query.
 
 function formatIdr(rate: string): string {
   const n = Number(rate)
@@ -13,7 +15,7 @@ function formatIdr(rate: string): string {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n)
 }
 
-export default function CurrentRateCard() {
+export default function RateSnapshotCard() {
   const { data: rate, isLoading, isError } = useRate()
 
   return (

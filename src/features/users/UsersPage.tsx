@@ -10,8 +10,10 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
-import UserFilterToolbar from './UserFilterToolbar'
 import PasswordRevealDialog from './PasswordRevealDialog'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
 import { useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
 import { getKycStatusConfig } from '@/lib/status'
@@ -66,18 +68,8 @@ export default function UsersPage() {
     setDeleteOpen(true)
   }
 
-  function handleFilterChange(next: {
-    search: string
-    kycStatus: KycStatus | ''
-    entityType: EntityType | ''
-  }) {
-    params.updateParams({
-      search: next.search || null,
-      kycStatus: next.kycStatus || null,
-      entityType: next.entityType || null,
-      page: '1',
-    })
-  }
+  const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
+  const filterValues = { kycStatus: kycStatusParam, entityType: entityTypeParam }
 
   const columns: ColumnDef<PhaseOneUser>[] = [
     {
@@ -230,16 +222,33 @@ export default function UsersPage() {
         data={list.data?.data ?? []}
         rowCount={total}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <UserFilterToolbar
-            values={{
-              search,
-              kycStatus: kycStatusParam,
-              entityType: entityTypeParam,
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search by name, email, or wallet',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+            filter={{
+              defs: USERS_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  kycStatus: next.kycStatus || null,
+                  entityType: next.entityType || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: USERS_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
         hasFilters={hasFilters}

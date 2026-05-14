@@ -5,6 +5,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -68,7 +69,7 @@ export default function PasswordRevealDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <DialogBody className="space-y-3">
           <div className="rounded-md bg-muted px-3 py-2.5 font-mono text-[13px] tracking-wide select-all">
             {password}
           </div>
@@ -110,7 +111,7 @@ export default function PasswordRevealDialog({
             />
             <span>I have saved this password securely</span>
           </label>
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button
