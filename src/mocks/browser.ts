@@ -24,6 +24,10 @@ import { handlers } from './handlers'
 // for the existing unit tests; the worker filter below drops them at runtime.
 // /api/v1/staff was already real-BE-only in the browser (handler removed
 // in USDX-41); listed here as documentation only.
+//
+// USDX-82: /api/v1/reports/* handlers were removed from handlers.ts entirely
+// (no Vitest coverage needed — production code just calls apiFetch). Path
+// entries below kept as documentation that these endpoints are real-BE-only.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/me',
@@ -43,6 +47,11 @@ const INTEGRATION_PATHS = new Set([
   // USDX-71: GET /api/v1/chains shipped on the backend (USDX-70). Real-BE in the
   // browser; the handler stays in handlers.ts for Vitest coverage.
   '/api/v1/chains',
+  // USDX-82: reporting endpoints — documentation only, handlers deleted.
+  '/api/v1/reports/mint/daily',
+  '/api/v1/reports/mint/by-user',
+  '/api/v1/reports/burn/daily',
+  '/api/v1/reports/burn/by-user',
 ])
 
 const browserHandlers = handlers.filter((handler) => {
