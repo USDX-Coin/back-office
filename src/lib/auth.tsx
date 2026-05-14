@@ -192,3 +192,15 @@ export function canManageSettings(staff: Staff | null): boolean {
 export function canSubmitOtc(staff: Staff | null): boolean {
   return staff?.role !== 'DEVELOPER' && staff !== null
 }
+
+// SoT phase-1.md § Reporting + § Backoffice Role System ("Reporting access"):
+// Admin / Developer / Manager bisa akses report aggregate; Staff 403.
+// Backend juga enforce 403 di GET /api/v1/reports/* — gate ini cuma supaya
+// FE tidak render link/route ke role yang tidak berhak.
+export function canAccessReports(staff: Staff | null): boolean {
+  return (
+    staff?.role === 'ADMIN' ||
+    staff?.role === 'DEVELOPER' ||
+    staff?.role === 'MANAGER'
+  )
+}

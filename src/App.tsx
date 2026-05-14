@@ -16,6 +16,10 @@ import BurnFormPage from '@/features/burn/BurnFormPage'
 import RatePage from '@/features/rate/RatePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+import DailyMintReportPage from '@/features/reports/DailyMintPage'
+import MintByUserReportPage from '@/features/reports/MintByUserPage'
+import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
+import BurnByUserReportPage from '@/features/reports/BurnByUserPage'
 import { Toaster } from '@/components/ui/sonner'
 
 const queryClient = new QueryClient({
@@ -72,6 +76,17 @@ const router = createBrowserRouter([
             element: <RoleGuard allowed={['ADMIN']} />,
             children: [
               { path: '/settings/threshold', element: <ThresholdPage /> },
+            ],
+          },
+          {
+            // USDX-81 + sot/phase-1.md § Reporting access: ADMIN/DEVELOPER/MANAGER.
+            // STAFF redirect → /dashboard via RoleGuard.
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
+            children: [
+              { path: '/reports/mint/daily', element: <DailyMintReportPage /> },
+              { path: '/reports/mint/by-user', element: <MintByUserReportPage /> },
+              { path: '/reports/burn/daily', element: <DailyBurnReportPage /> },
+              { path: '/reports/burn/by-user', element: <BurnByUserReportPage /> },
             ],
           },
           { path: '/profile', element: <ProfilePage /> },

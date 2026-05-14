@@ -7,8 +7,11 @@ import {
   Flame,
   TrendingUp,
   Sliders,
+  CalendarDays,
+  UsersRound,
 } from 'lucide-react'
 import {
+  canAccessReports,
   canManageSettings,
   canManageStaff,
   useAuth,
@@ -60,6 +63,18 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: '/mint', label: 'Mint', icon: Coins, badgeKey: 'mint' },
       { to: '/burn', label: 'Burn', icon: Flame, badgeKey: 'burn' },
+    ],
+  },
+  {
+    // USDX-81 + sot/phase-1.md § Reporting access: ADMIN + DEVELOPER + MANAGER.
+    // STAFF never sees these entries; BE also enforces 403.
+    label: 'Reporting',
+    visibleWhen: canAccessReports,
+    items: [
+      { to: '/reports/mint/daily', label: 'Daily Mint', icon: CalendarDays },
+      { to: '/reports/mint/by-user', label: 'Mint By User', icon: UsersRound },
+      { to: '/reports/burn/daily', label: 'Daily Burn', icon: CalendarDays },
+      { to: '/reports/burn/by-user', label: 'Burn By User', icon: UsersRound },
     ],
   },
   {

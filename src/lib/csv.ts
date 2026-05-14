@@ -31,6 +31,18 @@ export function buildCsvContent<T extends object>(
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
 }
 
+// Trigger a browser save-as for an arbitrary Blob. Used by both the
+// FE-built CSV path (exportToCsv) and the BE-streamed CSV path (reporting
+// endpoints with `?format=csv` per sot/api/reporting.yaml).
+export function saveBlobAs(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export function exportToCsv<T extends object>(
   data: T[],
   columns: { key: keyof T; header: string }[],
@@ -40,10 +52,5 @@ export function exportToCsv<T extends object>(
   if (!csv) return
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${filename}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+  saveBlobAs(blob, `${filename}.csv`)
 }
