@@ -63,6 +63,8 @@ export default function BurnListPage() {
   const status = params.searchParams.get('status') ?? ''
   const chain = params.searchParams.get('chain') ?? ''
   const safeType = params.searchParams.get('safeType') ?? ''
+  const startDate = params.searchParams.get('startDate') ?? ''
+  const endDate = params.searchParams.get('endDate') ?? ''
   const sortBy = params.searchParams.get('sortBy') ?? ''
   const sortOrder = (params.searchParams.get('sortOrder') ?? '') as 'asc' | 'desc' | ''
 
@@ -73,13 +75,17 @@ export default function BurnListPage() {
     chain: chain || undefined,
     safeType: safeType || undefined,
     search: search || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   })
   const { data: chains } = useChainConfig()
 
   const [colVisibility, setColVisibility] = useColumnVisibility('burn', REQUEST_COLUMN_CONFIG)
 
-  const filterValues = { status, chain, safeType }
-  const hasFilters = Boolean(search || status || chain || safeType)
+  const filterValues = { status, chain, safeType, startDate, endDate }
+  const hasFilters = Boolean(
+    search || status || chain || safeType || startDate || endDate
+  )
 
   const columns: ColumnDef<RequestListItem>[] = [
     {
@@ -304,6 +310,8 @@ export default function BurnListPage() {
                   status: next.status || null,
                   chain: next.chain || null,
                   safeType: next.safeType || null,
+                  startDate: next.startDate || null,
+                  endDate: next.endDate || null,
                   page: '1',
                 }),
             }}

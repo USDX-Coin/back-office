@@ -537,6 +537,26 @@ export const handlers = [
     const chain = url.searchParams.get('chain')
     const safeType = url.searchParams.get('safeType')
     const search = url.searchParams.get('search')?.trim().toLowerCase()
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+
+    // Mirror backend USDX-98: date-only, reject datetime → 400; cross-field
+    // endDate >= startDate only when both present.
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    if (startDate !== null && !DATE_RE.test(startDate))
+      return phaseOneBadRequest('startDate must be YYYY-MM-DD')
+    if (endDate !== null && !DATE_RE.test(endDate))
+      return phaseOneBadRequest('endDate must be YYYY-MM-DD')
+    if (startDate && endDate && endDate < startDate)
+      return phaseOneBadRequest('endDate must be greater than or equal to startDate')
+
+    // Asia/Jakarta (UTC+7) date bucket of an ISO timestamp, mirrors BE
+    // `(created_at AT TIME ZONE 'Asia/Jakarta')::date`. Inclusive both bounds
+    // (equivalent to created_at < endDate + 1 day).
+    const jakartaDate = (iso: string): string =>
+      new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10)
 
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
@@ -545,6 +565,8 @@ export const handlers = [
     if (safeType === 'STAFF' || safeType === 'MANAGER') {
       rows = rows.filter((r) => r.safeType === safeType)
     }
+    if (startDate) rows = rows.filter((r) => jakartaDate(r.createdAt) >= startDate)
+    if (endDate) rows = rows.filter((r) => jakartaDate(r.createdAt) <= endDate)
     if (search) {
       rows = rows.filter(
         (r) =>
