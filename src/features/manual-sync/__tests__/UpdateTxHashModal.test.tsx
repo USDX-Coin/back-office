@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
@@ -195,6 +196,102 @@ describe('UpdateTxHashModal @ USDX-87', () => {
 
       await waitFor(() => expect(executeCalled).toBe(true))
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    })
+  })
+
+  describe('AC 409 INVALID_STATUS @ USDX-93', () => {
+    function arm409(currentStatus: string) {
+      server.use(
+        http.post('/api/v1/manual-sync/:id/verify', () =>
+          HttpResponse.json({ status: 'success', metadata: null, data: mintMatchResult(true) })
+        ),
+        http.post('/api/v1/manual-sync/:id/execute', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'INVALID_STATUS',
+                message: `Request cannot be executed via Manual Sync — current status: ${currentStatus}`,
+                details: { currentStatus, requestId: MINT_ITEM.id },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+    }
+
+    async function confirmThrough(user: ReturnType<typeof userEvent.setup>) {
+      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await screen.findByTestId('comparison-block')
+      const confirmBtn = screen.getByRole('button', { name: /^confirm$/i })
+      await waitFor(() => expect(confirmBtn).toBeEnabled())
+      await user.click(confirmBtn)
+    }
+
+    test('REJECTED → toast with currentStatus + auto-close modal (AC#1)', async () => {
+      const user = userEvent.setup()
+      const errSpy = vi.spyOn(toast, 'error')
+      arm409('REJECTED')
+      const { onOpenChange } = setupModal(MINT_ITEM)
+      await confirmThrough(user)
+
+      await waitFor(() =>
+        expect(errSpy).toHaveBeenCalledWith('Status sudah berubah ke REJECTED. Refresh list.')
+      )
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      errSpy.mockRestore()
+    })
+
+    test('currentStatus is read from details, not hardcoded (GAP-B)', async () => {
+      const user = userEvent.setup()
+      const errSpy = vi.spyOn(toast, 'error')
+      arm409('SOME_FUTURE_STATUS')
+      setupModal(MINT_ITEM)
+      await confirmThrough(user)
+
+      await waitFor(() =>
+        expect(errSpy).toHaveBeenCalledWith(
+          'Status sudah berubah ke SOME_FUTURE_STATUS. Refresh list.'
+        )
+      )
+      errSpy.mockRestore()
+    })
+
+    test('400 MISMATCH → modal stays open, generic toast (no auto-close)', async () => {
+      const user = userEvent.setup()
+      const errSpy = vi.spyOn(toast, 'error')
+      server.use(
+        http.post('/api/v1/manual-sync/:id/verify', () =>
+          HttpResponse.json({ status: 'success', metadata: null, data: mintMatchResult(true) })
+        ),
+        http.post('/api/v1/manual-sync/:id/execute', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'MISMATCH',
+                message: 'On-chain data does not match the request',
+                details: { mismatchedFields: ['amount'] },
+              },
+            },
+            { status: 400 }
+          )
+        )
+      )
+      const { onOpenChange } = setupModal(MINT_ITEM)
+      await confirmThrough(user)
+
+      await waitFor(() =>
+        expect(errSpy).toHaveBeenCalledWith("Couldn't confirm the update. Please verify again.")
+      )
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      errSpy.mockRestore()
     })
   })
 

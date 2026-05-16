@@ -1,7 +1,7 @@
 // USDX-87 — Manual Sync data hooks.
 // SoT: sot/api/manual-sync.yaml (list / verify / execute).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/apiFetch'
+import { ApiError, apiFetch } from '@/lib/apiFetch'
 import type {
   ManualSyncItem,
   ManualSyncTxHashBody,
@@ -80,18 +80,40 @@ async function postExecute(
   })
 }
 
+/**
+ * `INVALID_STATUS` is the canonical 409 the BE returns when the request is no
+ * longer in an executable state (concurrent sync, or auto-path already moved
+ * it). See backend PR USDX-93 (#60).
+ */
+export function isInvalidStatusError(
+  err: unknown
+): err is ApiError & { details: { currentStatus: string } } {
+  return (
+    err instanceof ApiError &&
+    err.status === 409 &&
+    err.code === 'INVALID_STATUS'
+  )
+}
+
 export function useExecuteSync(id: string | null) {
   const qc = useQueryClient()
+  // Row leaves the Manual Sync list once it's no longer PENDING_APPROVAL/
+  // APPROVED; also bust the mint/burn lists + sidebar pending badges that
+  // reference the same underlying request.
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['manual-sync'] })
+    qc.invalidateQueries({ queryKey: ['mint'] })
+    qc.invalidateQueries({ queryKey: ['burn'] })
+    qc.invalidateQueries({ queryKey: ['requests'] })
+  }
   return useMutation({
     mutationFn: (body: ManualSyncTxHashBody) => postExecute(id as string, body),
-    onSuccess: () => {
-      // Row leaves the Manual Sync list (status EXECUTED is not in the
-      // PENDING_APPROVAL/APPROVED set); also bust the mint/burn lists +
-      // sidebar pending badges that reference the same underlying request.
-      qc.invalidateQueries({ queryKey: ['manual-sync'] })
-      qc.invalidateQueries({ queryKey: ['mint'] })
-      qc.invalidateQueries({ queryKey: ['burn'] })
-      qc.invalidateQueries({ queryKey: ['requests'] })
+    onSuccess: invalidate,
+    onError: (err) => {
+      // 409 INVALID_STATUS means the row is stale — refresh the list so it
+      // drops out, same as a successful execute. Other errors (400 mismatch,
+      // tx not found) leave the list untouched; the modal handles them.
+      if (isInvalidStatusError(err)) invalidate()
     },
   })
 }
