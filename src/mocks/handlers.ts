@@ -974,9 +974,12 @@ export const handlers = [
   }),
 
   // POST /api/v1/manual-sync/:id/execute — re-verify (anti race) then flip
-  // status to EXECUTED. Idempotent per SoT: returns 200 with the same body
-  // when the request is already EXECUTED. Returns 409 when the request has
-  // already moved to a non-recoverable terminal state (e.g. REJECTED).
+  // status to EXECUTED. Idempotent: returns 200 with the same body when the
+  // request is already EXECUTED/IDR_TRANSFERRED. Returns canonical 409
+  // INVALID_STATUS with details.{currentStatus, requestId} when the request
+  // is not in an executable state ({PENDING_APPROVAL, APPROVED}) — mirrors
+  // backend PR USDX-93 (#60). Note: sot/api/manual-sync.yaml § execute 409
+  // defines no code/details schema (SoT silent — PM action, not edited).
   http.post('/api/v1/manual-sync/:id/execute', async ({ request, params }) => {
     if (!authenticatedStaff(request)) return unauthorized()
     const id = String(params.id)
@@ -999,15 +1002,20 @@ export const handlers = [
     if (detail.status === 'EXECUTED' || detail.status === 'IDR_TRANSFERRED') {
       return HttpResponse.json({ status: 'success', metadata: null, data: detail })
     }
-    if (detail.status === 'REJECTED') {
+    // Only PENDING_APPROVAL / APPROVED proceed. Anything else not handled
+    // idempotently above (REJECTED, or any unexpected/future status) →
+    // canonical 409 INVALID_STATUS, so the modal can render a status-changed
+    // banner from structured data. Mirrors backend GAP-A + GAP-B (PR #60).
+    if (detail.status !== 'PENDING_APPROVAL' && detail.status !== 'APPROVED') {
       return HttpResponse.json(
         {
           status: 'error',
           metadata: null,
           data: null,
           error: {
-            code: 'INVALID_STATE',
-            message: 'Request is REJECTED and cannot be executed via Manual Sync',
+            code: 'INVALID_STATUS',
+            message: `Request cannot be executed via Manual Sync — current status: ${detail.status}`,
+            details: { currentStatus: detail.status, requestId: id },
           },
         },
         { status: 409 }

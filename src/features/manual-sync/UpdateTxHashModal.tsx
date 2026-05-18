@@ -20,7 +20,7 @@ import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
 import { shortRequestId } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { ManualSyncItem } from '@/lib/types'
-import { useExecuteSync, useVerifyTxHash } from './hooks'
+import { isInvalidStatusError, useExecuteSync, useVerifyTxHash } from './hooks'
 
 // USDX-87 — Update Transaction Hash modal.
 //
@@ -114,11 +114,19 @@ export default function UpdateTxHashModal({
       await execute.mutateAsync({ txHash: trimmed })
       toast.success('Status updated to EXECUTED')
       onOpenChange(false)
-    } catch {
-      // sot/api/manual-sync.yaml execute returns 400 on mismatch (anti race);
-      // surface as a toast and keep the modal open so the operator can amend
-      // the tx hash. The list query stays accurate via react-query so the
-      // banner already-executed case will resolve on the next poll.
+    } catch (err) {
+      if (isInvalidStatusError(err)) {
+        // Canonical 409: the request moved on (concurrent sync, or auto-path
+        // already executed it). The list refresh is handled by the mutation's
+        // onError; surface the new status and auto-close — the row is gone, so
+        // keeping the modal open would only let the operator retry a no-op.
+        const currentStatus = err.details.currentStatus
+        toast.error(`Status sudah berubah ke ${currentStatus}. Refresh list.`)
+        onOpenChange(false)
+        return
+      }
+      // 400 mismatch / tx-not-found (anti race): surface as a toast and keep
+      // the modal open so the operator can amend the tx hash.
       toast.error("Couldn't confirm the update. Please verify again.")
     }
   }
