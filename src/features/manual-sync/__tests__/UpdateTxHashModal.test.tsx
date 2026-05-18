@@ -261,6 +261,39 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       errSpy.mockRestore()
     })
 
+    test('INVALID_STATUS without details → no crash, generic toast, modal stays open (PM nit)', async () => {
+      const user = userEvent.setup()
+      const errSpy = vi.spyOn(toast, 'error')
+      // Malformed 409: canonical code but no `details` object. The guard must
+      // not type-assert it as { details: { currentStatus } } — otherwise the
+      // modal reads err.details.currentStatus and TypeErrors (no toast/close).
+      server.use(
+        http.post('/api/v1/manual-sync/:id/verify', () =>
+          HttpResponse.json({ status: 'success', metadata: null, data: mintMatchResult(true) })
+        ),
+        http.post('/api/v1/manual-sync/:id/execute', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'INVALID_STATUS', message: 'stale' },
+            },
+            { status: 409 }
+          )
+        )
+      )
+      const { onOpenChange } = setupModal(MINT_ITEM)
+      await confirmThrough(user)
+
+      // Falls through to the generic error path instead of crashing.
+      await waitFor(() =>
+        expect(errSpy).toHaveBeenCalledWith("Couldn't confirm the update. Please verify again.")
+      )
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      errSpy.mockRestore()
+    })
+
     test('400 MISMATCH → modal stays open, generic toast (no auto-close)', async () => {
       const user = userEvent.setup()
       const errSpy = vi.spyOn(toast, 'error')

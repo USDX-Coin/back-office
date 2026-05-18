@@ -91,7 +91,9 @@ export function isInvalidStatusError(
   return (
     err instanceof ApiError &&
     err.status === 409 &&
-    err.code === 'INVALID_STATUS'
+    err.code === 'INVALID_STATUS' &&
+    typeof (err.details as { currentStatus?: unknown } | undefined)
+      ?.currentStatus === 'string'
   )
 }
 
