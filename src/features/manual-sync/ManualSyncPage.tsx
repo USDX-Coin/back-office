@@ -87,31 +87,49 @@ export default function ManualSyncPage() {
 
   const [activeItem, setActiveItem] = useState<ManualSyncItem | null>(null)
 
-  // USDX-87 — deep-link highlight. Picked up once on mount (or when the
-  // ?highlight= changes), then auto-clears after the fade so URL noise
-  // doesn't keep the row painted.
+  // USDX-87 deep-link highlight, hardened in USDX-101. The fade countdown
+  // must not start until the list query has actually settled: with a slow
+  // real-BE fetch (>3s) the old mount-time timer expired before rows
+  // rendered, so the `?highlight=<id>` row never got tinted.
   const highlightId = searchParams.get('highlight') ?? ''
-  const [activeHighlight, setActiveHighlight] = useState(highlightId)
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const listFetched = list.isFetched
 
+  // Reset the fade when the deep-link target changes — render-time reset
+  // (React-sanctioned) instead of a sync setState effect. Covers re-trigger
+  // of the same id too, since the fade strips `?highlight=` so the id always
+  // transitions through '' before reappearing.
+  const [prevHighlightId, setPrevHighlightId] = useState(highlightId)
+  const [faded, setFaded] = useState(false)
+  if (highlightId !== prevHighlightId) {
+    setPrevHighlightId(highlightId)
+    setFaded(false)
+  }
+  const activeHighlight = highlightId && !faded ? highlightId : ''
+
+  // Arm the 3s fade only once the list has settled. `isFetched` is true for
+  // success AND error (so a failed fetch still clears the URL) and stays
+  // true across background refetches (so a refetch can't reset/extend the
+  // fade). Re-runs — and re-arms — only when the deep-link target changes.
   useEffect(() => {
-    setActiveHighlight(highlightId)
-    if (!highlightId) return
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    if (!highlightId || !listFetched) return
     highlightTimerRef.current = setTimeout(() => {
-      setActiveHighlight('')
-      // Drop the param from the URL so the highlight doesn't re-fire on a
-      // back/forward navigation.
-      const next = new URLSearchParams(searchParams)
-      next.delete('highlight')
-      setSearchParams(next, { replace: true })
+      setFaded(true)
+      // Functional updater: drop only `highlight`, never clobber filter
+      // params the operator may have changed during the fade window.
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('highlight')
+          return next
+        },
+        { replace: true }
+      )
     }, HIGHLIGHT_DURATION_MS)
     return () => {
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
     }
-    // Intentional: only re-run when the URL highlight changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightId])
+  }, [highlightId, listFetched, setSearchParams])
 
   // Scroll the highlighted row into view once rows are rendered. The anchor
   // is rendered inside the first cell of the matching row (see id column).
