@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { Route, Routes } from 'react-router'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
@@ -166,6 +166,79 @@ describe('MintListPage @ USDX-51', () => {
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING_APPROVAL'))).toBe(true)
       )
+    })
+
+    test('USDX-98 — date range filter wires to ?startDate=&endDate=', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/requests', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return ok([])
+        })
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      // <input type="date"> — fireEvent.change is the reliable jsdom path.
+      fireEvent.change(await screen.findByLabelText('Date range start'), {
+        target: { value: '2026-05-01' },
+      })
+      fireEvent.change(screen.getByLabelText('Date range end'), {
+        target: { value: '2026-05-12' },
+      })
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() =>
+        expect(
+          captured.some(
+            (s) => s.includes('startDate=2026-05-01') && s.includes('endDate=2026-05-12')
+          )
+        ).toBe(true)
+      )
+    })
+
+    test('USDX-98 — clearing the date range removes startDate/endDate from the query', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/requests', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return ok([])
+        })
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      // Apply a range first…
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      fireEvent.change(await screen.findByLabelText('Date range start'), {
+        target: { value: '2026-05-01' },
+      })
+      fireEvent.change(screen.getByLabelText('Date range end'), {
+        target: { value: '2026-05-12' },
+      })
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await waitFor(() =>
+        expect(captured.some((s) => s.includes('startDate=2026-05-01'))).toBe(true)
+      )
+
+      // …then clear both and re-apply → params drop out of the URL.
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      fireEvent.change(await screen.findByLabelText('Date range start'), {
+        target: { value: '' },
+      })
+      fireEvent.change(screen.getByLabelText('Date range end'), {
+        target: { value: '' },
+      })
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() => {
+        const last = captured[captured.length - 1]
+        expect(last.includes('startDate')).toBe(false)
+        expect(last.includes('endDate')).toBe(false)
+      })
     })
 
     test('search input wires to ?search= (USDX-51 delta vs USDX-50)', async () => {

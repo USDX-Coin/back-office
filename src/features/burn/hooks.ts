@@ -32,6 +32,9 @@ export interface BurnListFilters {
   chain?: string
   safeType?: string
   search?: string
+  /** YYYY-MM-DD, Asia/Jakarta — BE filters created_at (USDX-98). */
+  startDate?: string
+  endDate?: string
 }
 
 function buildQuery(params: BurnListFilters & { type: 'burn' }): string {

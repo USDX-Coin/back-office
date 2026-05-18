@@ -40,6 +40,15 @@ export const REQUEST_FILTER_DEFS: FilterDef[] = [
       { value: 'MANAGER', label: 'Manager Safe' },
     ],
   },
+  // USDX-98: BE GET /api/v1/requests accepts startDate/endDate (YYYY-MM-DD,
+  // Asia/Jakarta). USDX-27 shipped the generic dateRange capability but never
+  // wired it into the request lists — this is that wiring.
+  {
+    kind: 'dateRange',
+    startKey: 'startDate',
+    endKey: 'endDate',
+    label: 'Date range',
+  },
 ]
 
 // Date column is the only field BE supports sorting by today (the requests
