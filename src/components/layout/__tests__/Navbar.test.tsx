@@ -1,24 +1,44 @@
-import { describe, test, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { screen, fireEvent } from '@testing-library/react'
 import Navbar from '@/components/layout/Navbar'
 import { renderWithProviders } from '@/test/test-utils'
+import { server } from '@/mocks/server'
+
+// Navbar renders the mobile MobileNavDrawer, whose pending-count hooks hit the
+// API — keep the mock server up so those queries resolve cleanly.
+beforeAll(() => server.listen())
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
 
 describe('Navbar', () => {
   describe('breadcrumb', () => {
-    test('should render Operations / Dashboard for /dashboard', () => {
+    test('should render Workspace / Dashboard for /dashboard', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByText('Operations')).toBeInTheDocument()
+      expect(screen.getByText('Workspace')).toBeInTheDocument()
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
 
-    test('should render Operations / OTC Minting for /otc/mint', () => {
-      renderWithProviders(<Navbar />, { initialEntries: ['/otc/mint'], authenticated: true })
-      expect(screen.getByText('OTC Minting')).toBeInTheDocument()
+    test('should render OTC / Mint for /mint', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/mint'], authenticated: true })
+      expect(screen.getByText('OTC')).toBeInTheDocument()
+      expect(screen.getByText('Mint')).toBeInTheDocument()
     })
 
-    test('should render Directory / Users for /users', () => {
+    test('should render OTC / New mint OTC for /mint/new', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/mint/new'], authenticated: true })
+      expect(screen.getByText('OTC')).toBeInTheDocument()
+      expect(screen.getByText('New mint OTC')).toBeInTheDocument()
+    })
+
+    test('should render Settings / Threshold for /settings/threshold', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/settings/threshold'], authenticated: true })
+      expect(screen.getByText('Settings')).toBeInTheDocument()
+      expect(screen.getByText('Threshold')).toBeInTheDocument()
+    })
+
+    test('should render Workspace / Users for /users', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/users'], authenticated: true })
-      expect(screen.getByText('Directory')).toBeInTheDocument()
+      expect(screen.getByText('Workspace')).toBeInTheDocument()
       expect(screen.getByText('Users')).toBeInTheDocument()
     })
 
@@ -29,20 +49,28 @@ describe('Navbar', () => {
   })
 
   describe('chrome', () => {
-    test('should render notifications button with unread badge', () => {
+    test('should render the cmd-k search affordance', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      const bell = screen.getByRole('button', { name: /notifications/i })
-      expect(bell).toBeInTheDocument()
+      // Static affordance, not an input — text + keyboard hint visible
+      expect(screen.getByText(/search/i)).toBeInTheDocument()
+      expect(screen.getByText('⌘K')).toBeInTheDocument()
     })
 
-    test('should render search input', () => {
+    test('should render USDX wordmark on mobile', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByRole('searchbox', { name: /search/i })).toBeInTheDocument()
+      // Wordmark renders as a <span>USDX</span> next to a "U" tile (not an <img>)
+      expect(screen.getByText('USDX')).toBeInTheDocument()
     })
 
-    test('should render USDX logo', () => {
+    test('should render a hamburger that opens the mobile nav drawer (USDX-27)', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByRole('img', { name: /usdx/i })).toBeInTheDocument()
+      const hamburger = screen.getByRole('button', { name: /open navigation menu/i })
+      expect(hamburger).toBeInTheDocument()
+      // Drawer is closed → no nav links yet.
+      expect(screen.queryByRole('link', { name: /^mint$/i })).not.toBeInTheDocument()
+      fireEvent.click(hamburger)
+      expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
     })
   })
 

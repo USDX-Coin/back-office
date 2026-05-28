@@ -1,6 +1,14 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
 import { server } from '@/mocks/server'
-import { resetMockData, flushSettlement } from '@/mocks/handlers'
+import {
+  resetMockData,
+  clearActiveRequestsForTests,
+  flushSettlement,
+  issueMockJwt,
+  getDefaultStaff,
+  findStaffById,
+} from '@/mocks/handlers'
+import type { Staff } from '@/lib/types'
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -9,116 +17,21 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-describe('Customer endpoints', () => {
-  describe('positive', () => {
-    test('GET /api/customers returns paginated list', async () => {
-      const res = await fetch('/api/customers?page=1&pageSize=5')
-      const data = await res.json()
-      expect(data.data).toHaveLength(5)
-      expect(data.meta.total).toBe(30)
-    })
-
-    test('POST /api/customers creates new customer', async () => {
-      const before = await (await fetch('/api/customers/summary')).json()
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: 'Test',
-          lastName: 'Customer',
-          email: 'test@example.com',
-          phone: '+15551234567',
-          type: 'personal',
-          role: 'member',
-        }),
-      })
-      expect(res.status).toBe(201)
-      const after = await (await fetch('/api/customers/summary')).json()
-      expect(after.total).toBe(before.total + 1)
-    })
-
-    test('DELETE /api/customers/:id removes customer', async () => {
-      const list = await (await fetch('/api/customers?pageSize=100')).json()
-      const target = list.data[0].id
-      const res = await fetch(`/api/customers/${target}`, { method: 'DELETE' })
-      expect(res.status).toBe(204)
-      const after = await (await fetch('/api/customers/summary')).json()
-      expect(after.total).toBe(list.meta.total - 1)
-    })
-  })
-
-  describe('negative', () => {
-    test('POST without required fields returns 400', async () => {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName: 'Solo' }),
-      })
-      expect(res.status).toBe(400)
-    })
-
-    test('DELETE non-existent returns 404', async () => {
-      const res = await fetch('/api/customers/cus_99999', { method: 'DELETE' })
-      expect(res.status).toBe(404)
-    })
-  })
-
-  describe('filter by type', () => {
-    test('returns only personal customers', async () => {
-      const res = await fetch('/api/customers?type=personal&pageSize=100')
-      const data = await res.json()
-      expect(data.data.every((c: { type: string }) => c.type === 'personal')).toBe(true)
-    })
-  })
-})
-
-describe('Staff endpoints', () => {
-  describe('positive', () => {
-    test('GET /api/staff returns staff list with summary', async () => {
-      const list = await (await fetch('/api/staff?pageSize=100')).json()
-      expect(list.data.length).toBeGreaterThan(0)
-      const summary = await (await fetch('/api/staff/summary')).json()
-      expect(summary.total).toBe(list.data.length)
-    })
-
-    test('POST /api/staff creates staff and increments summary', async () => {
-      const before = await (await fetch('/api/staff/summary')).json()
-      const res = await fetch('/api/staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: 'New',
-          lastName: 'Member',
-          email: 'new.member@usdx.io',
-          phone: '+15551234567',
-          role: 'support',
-        }),
-      })
-      expect(res.status).toBe(201)
-      const after = await (await fetch('/api/staff/summary')).json()
-      expect(after.total).toBe(before.total + 1)
-    })
-  })
-
-  describe('filter by role', () => {
-    test('returns only super_admin staff', async () => {
-      const res = await fetch('/api/staff?role=super_admin&pageSize=100')
-      const data = await res.json()
-      expect(data.data.every((s: { role: string }) => s.role === 'super_admin')).toBe(true)
-    })
-  })
-})
+// USDX-23: /api/customers/* tests removed — handlers gone (SoT /api/v1/users
+// replaced legacy mock domain in USDX-37 + USDX-47).
+// USDX-41: /api/staff/* mock endpoints removed; staff list now hits real BE.
 
 describe('OTC endpoints', () => {
-  async function newCustomerAndOperator(): Promise<{ customerId: string; operatorStaffId: string }> {
-    const customers = await (await fetch('/api/customers?pageSize=1')).json()
-    const staff = await (await fetch('/api/staff?pageSize=1')).json()
-    return { customerId: customers.data[0].id, operatorStaffId: staff.data[0].id }
+  // USDX-23: customer store is still seeded by createMockCustomerList(); the
+  // first seeded customer's id is stable (cus_1). Hardcoding avoids a
+  // round-trip through the removed /api/customers list endpoint.
+  function newCustomerAndOperator(): { customerId: string; operatorStaffId: string } {
+    return { customerId: 'cus_1', operatorStaffId: 'stf_1' }
   }
 
   describe('positive', () => {
     test('POST /api/otc/mint creates pending tx that flushes to completed', async () => {
-      const { customerId, operatorStaffId } = await newCustomerAndOperator()
+      const { customerId, operatorStaffId } = newCustomerAndOperator()
       const submit = await fetch('/api/otc/mint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,7 +54,7 @@ describe('OTC endpoints', () => {
     })
 
     test('POST /api/otc/redeem creates pending tx', async () => {
-      const { customerId, operatorStaffId } = await newCustomerAndOperator()
+      const { customerId, operatorStaffId } = newCustomerAndOperator()
       const submit = await fetch('/api/otc/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,44 +95,319 @@ describe('OTC endpoints', () => {
   })
 })
 
-describe('Dashboard snapshot endpoint', () => {
-  test('returns OTC-derived KPIs and 30d trend', async () => {
-    const res = await fetch('/api/dashboard/snapshot')
-    const data = await res.json()
-    expect(data.kpis).toBeDefined()
-    expect(data.kpis.totalMintVolume30d).toBeTypeOf('number')
-    expect(data.volumeTrend).toBeInstanceOf(Array)
-    expect(data.volumeTrend.length).toBe(30)
-    expect(data.recentActivity).toBeInstanceOf(Array)
-    expect(data.networkDistribution).toBeInstanceOf(Array)
+// USDX-37: removed `Dashboard snapshot endpoint` describe — /api/dashboard/snapshot
+// is gone. Coverage now lives in `Dashboard stats endpoint (USDX-16)` below.
+
+describe('Dashboard stats endpoint (USDX-16)', () => {
+  describe('positive', () => {
+    test('returns SoT envelope with all DashboardStats fields', async () => {
+      const res = await fetch('/api/v1/dashboard/stats')
+      const body = await res.json()
+      expect(body.status).toBe('success')
+      expect(body.data).toBeDefined()
+      const data = body.data
+      expect(typeof data.totalSupply).toBe('string')
+      expect(typeof data.totalMinted).toBe('string')
+      expect(typeof data.totalBurned).toBe('string')
+      expect(typeof data.pendingRequests).toBe('number')
+      expect(data.requestsByStatus).toEqual(
+        expect.objectContaining({
+          PENDING_APPROVAL: expect.any(Number),
+          APPROVED: expect.any(Number),
+          EXECUTED: expect.any(Number),
+          REJECTED: expect.any(Number),
+        })
+      )
+      expect(typeof data.safeBalances.staff).toBe('string')
+      expect(typeof data.safeBalances.manager).toBe('string')
+      expect(typeof data.currentRate).toBe('string')
+    })
+
+    test('pendingRequests matches /api/v1/requests?status=PENDING_APPROVAL count', async () => {
+      const stats = (await (await fetch('/api/v1/dashboard/stats')).json()).data
+      const list = await (
+        await fetch('/api/v1/requests?status=PENDING_APPROVAL&limit=100')
+      ).json()
+      expect(stats.pendingRequests).toBe(list.metadata.total)
+      expect(stats.requestsByStatus.PENDING_APPROVAL).toBe(list.metadata.total)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('decimal strings are well-formed (no NaN, two-decimal precision)', async () => {
+      const data = (await (await fetch('/api/v1/dashboard/stats')).json()).data
+      const decimal = /^-?\d+\.\d{2}$/
+      expect(data.totalSupply).toMatch(decimal)
+      expect(data.totalMinted).toMatch(decimal)
+      expect(data.totalBurned).toMatch(decimal)
+      expect(data.safeBalances.staff).toMatch(decimal)
+      expect(data.safeBalances.manager).toMatch(decimal)
+    })
   })
 })
 
-describe('Report endpoint', () => {
-  test('returns paginated report rows', async () => {
-    const res = await fetch('/api/report?pageSize=10')
-    const data = await res.json()
-    expect(data.data.length).toBe(10)
-    expect(data.meta.total).toBeGreaterThan(0)
+describe('POST /api/v1/burn @ sot/api/burn.yaml + sot/conventions.md', () => {
+  // USDX-84: seed data carries demo PENDING_APPROVAL/APPROVED requests for
+  // both Safes which collide with the SoT § Safe Propose Queue invariant the
+  // POST handler now enforces. Clear before each test so the happy-path
+  // submissions in this block don't get rejected with 409.
+  beforeEach(() => clearActiveRequestsForTests())
+
+  // USDX-46: form submits userId (uuid) + amountCurrency. cus_3 is seeded
+  // in `customerStore` with kycStatus=VERIFIED + suspended=false (see
+  // deriveKycStatus / deriveSuspended in src/mocks/data.ts).
+  const VERIFIED_USER_ID = 'cus_3'
+  const validBody = {
+    userId: VERIFIED_USER_ID,
+    userAddress: '0x' + 'a'.repeat(40),
+    amount: '500.00',
+    amountCurrency: 'USD' as const,
+    chain: 'polygon',
+    depositTxHash: '0x' + 'b'.repeat(64),
+    bankName: 'BCA',
+    bankAccount: '1234567890',
+    notes: 'IDR via BCA',
+  }
+
+  function bearerHeaders(staff: Staff) {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${issueMockJwt(staff)}`,
+    }
+  }
+
+  function defaultHeaders() {
+    return bearerHeaders(getDefaultStaff()!)
+  }
+
+  describe('positive', () => {
+    test('returns 201 with SoT SuccessResponse envelope wrapping BurnRequest', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(201)
+      const payload = await res.json()
+      expect(payload.status).toBe('success')
+      expect(payload.metadata).toBeNull()
+      expect(payload.data).toMatchObject({
+        status: 'PENDING_APPROVAL',
+        userAddress: validBody.userAddress,
+        depositTxHash: validBody.depositTxHash,
+        bankName: 'BCA',
+        bankAccount: '1234567890',
+        chain: 'polygon',
+        amount: '500.00',
+        rateUsed: '16250',
+        notes: 'IDR via BCA',
+        // safeTxHash is populated as soon as the backend proposes the Safe TX
+        // (sot/phase-1.md § Burn flow steps 5–8). USDX-19 surfaces this on
+        // the Notifications page, so the burn factory now sets it on
+        // creation rather than leaving it null.
+        onChainTxHash: null,
+      })
+      expect(payload.data.safeTxHash).toMatch(/^0x[0-9a-fA-F]+$/)
+    })
+
+    test('response shape matches sot/openapi.yaml § BurnRequest exactly (no userName / display extras)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      const sotFields = [
+        'id',
+        'idempotencyKey',
+        'userId',
+        'userAddress',
+        'amount',
+        'amountWei',
+        'amountIdr',
+        'rateUsed',
+        'chain',
+        'depositTxHash',
+        'bankName',
+        'bankAccount',
+        'notes',
+        'safeType',
+        'status',
+        'safeTxHash',
+        'onChainTxHash',
+        'createdBy',
+        'createdAt',
+        'updatedAt',
+      ]
+      for (const f of sotFields) {
+        expect(payload.data).toHaveProperty(f)
+      }
+      expect(payload.data).not.toHaveProperty('userName')
+      expect(payload.data).not.toHaveProperty('type')
+    })
+
+    test('idempotencyKey is a 0x-prefixed bytes32 (66 chars)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.idempotencyKey).toMatch(/^0x[0-9a-fA-F]{64}$/)
+      expect(payload.data.idempotencyKey).toHaveLength(66)
+    })
+
+    test('amountWei follows USDX 6-decimal convention (sot/conventions.md L30)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '500.00' }),
+      })
+      const payload = await res.json()
+      // 500.00 USDX × 1_000_000 wei/USDX = 500_000_000 wei
+      expect(payload.data.amountWei).toBe('500000000')
+    })
+
+    test('amountWei handles fractional amount per 6-decimal convention', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '100.50' }),
+      })
+      const payload = await res.json()
+      // 100.50 USDX → 100_500_000 wei
+      expect(payload.data.amountWei).toBe('100500000')
+    })
+
+    test('safeType routes to STAFF below 1B IDR threshold (phase-1.md L17)', async () => {
+      // amount 500 USDX × rate 16250 = 8,125,000 IDR (well under 1B)
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('STAFF')
+    })
+
+    test('safeType routes to MANAGER at or above 1B IDR threshold', async () => {
+      // 100_000 USDX × 16_250 = 1,625,000,000 IDR ≥ 1B; super_admin staff
+      // can authorize the Manager-level routing.
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, amount: '100000' }),
+      })
+      const payload = await res.json()
+      expect(payload.data.safeType).toBe('MANAGER')
+    })
+
+    test('newly created burn appears in /api/v1/requests list', async () => {
+      const before = await (await fetch('/api/v1/requests?type=burn')).json()
+      const beforeTotal = before.metadata.total
+
+      await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(validBody),
+      })
+
+      const after = await (await fetch('/api/v1/requests?type=burn')).json()
+      expect(after.metadata.total).toBe(beforeTotal + 1)
+    })
   })
 
-  test('filters by type=mint', async () => {
-    const res = await fetch('/api/report?type=mint&pageSize=100')
-    const data = await res.json()
-    expect(data.data.every((r: { kind: string }) => r.kind === 'mint')).toBe(true)
-  })
+  describe('negative', () => {
+    test('returns 401 when Authorization header is missing (sot/openapi.yaml security)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(401)
+      const payload = await res.json()
+      expect(payload.error.code).toBe('UNAUTHORIZED')
+    })
 
-  test('filters by status=failed', async () => {
-    const res = await fetch('/api/report?status=failed&pageSize=100')
-    const data = await res.json()
-    expect(data.data.every((r: { status: string }) => r.status === 'failed')).toBe(true)
-  })
+    test('returns 401 when bearer token is invalid', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer not-a-real-jwt',
+        },
+        body: JSON.stringify(validBody),
+      })
+      expect(res.status).toBe(401)
+    })
 
-  test('insights endpoint returns derived metrics', async () => {
-    const res = await fetch('/api/report/insights')
-    const data = await res.json()
-    expect(data.totalVolume).toBeTypeOf('number')
-    expect(data.activeMinters).toBeTypeOf('number')
-    expect(data.flagged).toBeTypeOf('number')
+    test('returns 403 FORBIDDEN when role cannot handle the IDR amount (sot/openapi.yaml L143)', async () => {
+      // Pick any non-super_admin staff — per the interim role mapping in
+      // src/lib/roleAuth.ts only super_admin maps to Manager-equivalent.
+      const staffStaff = findStaffById('stf_3')
+      expect(staffStaff?.role).not.toBe('super_admin')
+
+      // 100_000 USDX × 16_250 = 1.625B IDR ≥ 1B threshold → role check fails.
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: bearerHeaders(staffStaff!),
+        body: JSON.stringify({ ...validBody, amount: '100000' }),
+      })
+      expect(res.status).toBe(403)
+      const payload = await res.json()
+      expect(payload.error.code).toBe('FORBIDDEN')
+    })
+
+    test('does NOT 403 when same Staff-role submits below the threshold', async () => {
+      const staffStaff = findStaffById('stf_3')
+      expect(staffStaff?.role).not.toBe('super_admin')
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: bearerHeaders(staffStaff!),
+        body: JSON.stringify(validBody), // ~8M IDR
+      })
+      expect(res.status).toBe(201)
+    })
+
+    test('returns 400 VALIDATION_ERROR when a required field is missing', async () => {
+      const { bankAccount: _o, ...missing } = validBody
+      void _o
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify(missing),
+      })
+      expect(res.status).toBe(400)
+      const payload = await res.json()
+      expect(payload.status).toBe('error')
+      expect(payload.error.code).toBe('VALIDATION_ERROR')
+    })
+
+    test('returns 400 when userAddress is not a valid EVM address (viem)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, userAddress: '0xnope' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when depositTxHash fails the 0x+64 hex pattern', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, depositTxHash: '0x' + 'a'.repeat(63) }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    test('returns 400 when chain is anything other than polygon (Phase 1 scope)', async () => {
+      const res = await fetch('/api/v1/burn', {
+        method: 'POST',
+        headers: defaultHeaders(),
+        body: JSON.stringify({ ...validBody, chain: 'ethereum' }),
+      })
+      expect(res.status).toBe(400)
+    })
   })
 })

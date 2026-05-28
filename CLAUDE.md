@@ -2,7 +2,7 @@
 
 ## Overview
 
-Internal back office SPA for managing **OTC mint** and **redeem** operations on the USDX stablecoin, plus directory management for end-customers and internal staff. Operators submit single-shot OTC transactions that settle asynchronously on-chain; there is no approval workflow.
+Internal back office SPA for managing **OTC mint** and **burn** operations on the USDX stablecoin, plus directory management for end-customers and internal staff. Mint/burn requests follow the SoT phase-1 approval lifecycle (`PENDING_APPROVAL → APPROVED → EXECUTED`, plus `IDR_TRANSFERRED` for burn, terminal `REJECTED`).
 
 **Brand:** USDX | **Design system:** Azure Horizon (teal-anchored, Manrope + Inter, no-line tables) — see `back-office-usdx/azure_horizon/DESIGN.md` for the full spec.
 
@@ -20,19 +20,25 @@ Internal back office SPA for managing **OTC mint** and **redeem** operations on 
 - **Vitest** — unit tests
 - **Playwright** — E2E tests
 
-## Menu Structure
+## Menu Structure (per Linear USDX-50 + sot/phase-1.md § Sidebar)
 
-| Route | Menu label | Purpose |
-|-------|-----------|---------|
-| `/dashboard` | Dashboard | KPIs, volume trend chart, recent activity, network distribution |
-| `/users` | User | End-customer directory (table + add/edit/delete modal) |
-| `/staff` | Staf | Internal staff directory (table + invite modal) |
-| `/otc/mint` | OTC → Mint | Single-shot mint submission form + recent requests |
-| `/otc/redeem` | OTC → Redeem | Single-shot redeem submission form + recent redemptions |
-| `/report` | Report | Full transaction table with filters + CSV export |
-| `/profile` | *(navbar dropdown, not sidebar)* | Operator profile + personal details |
+Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 
-Mobile BottomNav: Dashboard / OTC / Report / More (drawer containing User / Staf / Profile).
+| Route | Section | Menu label | Visibility | Purpose |
+|-------|---------|------------|------------|---------|
+| `/dashboard` | WORKSPACE | Dashboard | All roles | KPIs, recent activity |
+| `/users` | WORKSPACE | Users | All roles | Customer directory |
+| `/users/:id` | — | — | All roles | Customer detail (deep link) |
+| `/staff` | WORKSPACE | Staff | ADMIN | Staff directory + CRUD |
+| `/mint` | OTC | Mint | All roles | Mint request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
+| `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
+| `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
+| `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
+| `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER | View / update USD/IDR rate |
+| `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
+| `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
+
+Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / Staff (ADMIN) / Rate (ADMIN+DEV) / Threshold (ADMIN+DEV) / Profile.
 
 ## Project Structure
 
@@ -56,25 +62,29 @@ Mobile BottomNav: Dashboard / OTC / Report / More (drawer containing User / Staf
 │   │   ├── FieldError.tsx # Inline form error primitive
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
 │   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
+│   │   ├── OnChainLinks.tsx  # TxHashLink cell (clickable short tx hash) + resolveOnChainLinks — On-chain tx / Safe tx columns
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
-│   │   ├── auth/          # LoginPage only (Register/Forgot removed)
+│   │   ├── auth/          # LoginPage
 │   │   ├── dashboard/     # DashboardPage + hooks
-│   │   ├── users/         # UsersPage + modal + hooks (Customer directory)
+│   │   ├── users/         # UsersPage + UserDetailPage + hooks
 │   │   ├── staff/         # StaffPage + modal + hooks
-│   │   ├── otc/
-│   │   │   ├── mint/      # OtcMintPage + form + info panel
-│   │   │   ├── redeem/    # OtcRedeemPage + form + table
-│   │   │   └── hooks.ts   # Shared pending-settlement polling
-│   │   ├── report/        # ReportPage + filter toolbar + CSV export
+│   │   ├── mint/          # MintListPage + MintFormPage + hooks
+│   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
+│   │   ├── rate/          # RatePage + cards/forms (settings/rate)
+│   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
+│   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
 │   │   └── profile/       # ProfilePage
 │   ├── lib/               # Shared utilities
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook
 │   │   ├── types.ts       # Staff, Customer, OTC types, DashboardSnapshot
 │   │   ├── validators.ts  # Pure form validators
-│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime
+│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime, shortHash
 │   │   ├── status.ts      # OTC status config + helpers
 │   │   ├── csv.ts         # CSV export (with formula-injection guard)
+│   │   ├── explorerUrl.ts # Block explorer deep-links (base URL from /api/v1/chains)
+│   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
+│   │   ├── chainLinks.ts  # findChainConfig + resolveOnChainLinks (composes explorer/safe URLs)
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
 │   │   ├── handlers.ts    # REST handlers + inline settlement simulator
@@ -167,19 +177,22 @@ Page → useMutation hook → fetch() → MSW handler / Real API
 
 Primary CTA uses a 135° gradient from `primary` to `primary-container` (`bg-blue-pulse` utility).
 
-### OTC Status Flow (single-shot)
+### Mint/Burn Request Lifecycle (sot/phase-1.md § Flow MINT/BURN OTC)
 
 ```
 operator submits form
       │
       ▼
-  [ Pending ]  ──── on-chain failure ───▶ [ Failed ]  (terminal)
+[ PENDING_APPROVAL ] ── reject ──▶ [ REJECTED ] (terminal)
       │
-      ▼  (network confirms, 8–15s)
- [ Completed ] (terminal)
+      ▼ (Safe approves + executes on-chain)
+[ APPROVED ] ──▶ [ EXECUTED ] (mint terminal)
+                       │
+                       ▼ (burn only — operator wires IDR to user bank)
+                 [ IDR_TRANSFERRED ] (burn terminal)
 ```
 
-No approval gate. No "Under Review". Settlement is async and simulated in mock mode via inline `setTimeout` inside the POST handler.
+Sidebar `(N)` badge counts requests with status `PENDING_APPROVAL`. Counts are queried per type (mint/burn) via `/api/v1/requests?type={kind}&status=PENDING_APPROVAL`.
 
 ## Security
 
@@ -208,3 +221,66 @@ No approval gate. No "Under Review". Settlement is async and simulated in mock m
 5. Add mock data factory in `src/mocks/data.ts`
 6. Write unit tests colocated in `__tests__/` for business logic and page integration
 7. If the feature adds a critical flow, extend `e2e/smoke.spec.ts`
+
+# Source of Truth
+
+Folder `sot/` contains the project spec. Read before coding. Never edit `sot/`.
+
+**If spec is unclear — ask the PM, don't assume.**
+
+## Key files for this repo:
+
+- `sot/phase-1.md` — backoffice pages, role system, mint/burn flows
+- `sot/conventions.md` — API response format, naming conventions, status enums
+- `sot/openapi.yaml` — API contract (all endpoints + request/response shapes)
+
+## Critical rules:
+
+- API responses follow `{ status, metadata, data, error }` format — handle accordingly
+- Role-based UI: hide/show elements based on staff role from `/api/v1/auth/me`
+- Address validation: checksummed EVM format (use viem)
+- Status enums for requests: see `sot/conventions.md` § Status Enums
+- SOT is authoritative — if your implementation differs from SOT, your code adjusts (not SOT)
+
+## PR Description
+
+Saat buat PR, generate description mengikuti format di `sot/templates/pr-template.md`. Ini wajib — PM review berdasarkan structure ini.
+
+Key points:
+- Selalu include "PM Action Items" section (bisa "None")
+- Selalu include "SoT Alignment" table — cross-check setiap field/endpoint vs SOT
+- Jika implement sesuatu yang TIDAK ada di SOT → masukkan ke "Known Drift > Needs PM Action" dengan category ❓ Decision
+- Jika ada AC yang belum bisa dicapai → mark ⏳ Deferred dengan reason
+- Jika ada action yang harus dilakukan SETELAH merge → masukkan "Post-Merge Actions"
+
+
+# Source of Truth
+
+Folder `sot/` contains the project spec. Read before coding. Never edit `sot/`.
+
+**If spec is unclear — ask the PM, don't assume.**
+
+## Key files for this repo:
+
+- `sot/phase-1.md` — backoffice pages, role system, mint/burn flows
+- `sot/conventions.md` — API response format, naming conventions, status enums
+- `sot/openapi.yaml` — API contract (all endpoints + request/response shapes)
+
+## Critical rules:
+
+- API responses follow `{ status, metadata, data, error }` format — handle accordingly
+- Role-based UI: hide/show elements based on staff role from `/api/v1/auth/me`
+- Address validation: checksummed EVM format (use viem)
+- Status enums for requests: see `sot/conventions.md` § Status Enums
+- SOT is authoritative — if your implementation differs from SOT, your code adjusts (not SOT)
+
+## PR Description
+
+Saat buat PR, generate description mengikuti format di `sot/templates/pr-template.md`. Ini wajib — PM review berdasarkan structure ini.
+
+Key points:
+- Selalu include "PM Action Items" section (bisa "None")
+- Selalu include "SoT Alignment" table — cross-check setiap field/endpoint vs SOT
+- Jika implement sesuatu yang TIDAK ada di SOT → masukkan ke "Known Drift > Needs PM Action" dengan category ❓ Decision
+- Jika ada AC yang belum bisa dicapai → mark ⏳ Deferred dengan reason
+- Jika ada action yang harus dilakukan SETELAH merge → masukkan "Post-Merge Actions"

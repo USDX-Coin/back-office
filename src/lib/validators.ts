@@ -1,4 +1,13 @@
-import type { CustomerRole, CustomerType, Network, StaffRole } from './types'
+import { getAddress, isAddress } from 'viem'
+import type {
+  AmountCurrency,
+  CustomerRole,
+  CustomerType,
+  Network,
+  RateMode,
+  RequestChain,
+  StaffRole,
+} from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -8,6 +17,13 @@ export interface ValidationResult {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^\+?[0-9]{10,15}$/
 const MAX_NAME_LEN = 100
+
+// USDX-47 + sot/api/users.yaml § CreateUser/UpdateUser. Phase-1 user constraints
+// are larger than the legacy customer/staff cap so they live in their own
+// constants — staff/customer keep MAX_NAME_LEN=100 (their SoT is silent on max).
+const MAX_USER_NAME_LEN = 255
+const MAX_USER_NOTES_LEN = 2000
+const MAX_USER_WALLETS = 50
 
 function validateEmail(email: string, errors: Record<string, string>) {
   if (!email.trim()) {
@@ -80,23 +96,6 @@ export function validateCustomerForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
-export function validateStaffForm(input: {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  role: StaffRole | ''
-}): ValidationResult {
-  const errors: Record<string, string> = {}
-  validateName(input.firstName, 'firstName', 'First name', errors)
-  validateName(input.lastName, 'lastName', 'Last name', errors)
-  validateEmail(input.email, errors)
-  const phoneErr = validatePhone(input.phone)
-  if (phoneErr) errors.phone = phoneErr
-  if (!input.role) errors.role = 'Role is required'
-  return { valid: Object.keys(errors).length === 0, errors }
-}
-
 export function validateOtcMintForm(input: {
   customerId: string
   network: Network | ''
@@ -117,6 +116,75 @@ export function validateOtcMintForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
+// Rate update form validators
+//
+// SoT (sot/phase-1.md § Rate Configuration, openapi.yaml § UpdateRateConfig)
+// defines required-when rules but no min/max. The bounds below are defensive
+// defaults — see docs/notes/usdx-20-decisions.md for why we picked these
+// numbers and how to revisit if the backend disagrees.
+
+const DECIMAL_RE = /^\d+(\.\d{1,4})?$/
+const SPREAD_RE = /^\d+(\.\d{1,2})?$/
+
+const RATE_MIN_EXCLUSIVE = 0
+const RATE_MAX_EXCLUSIVE = 100_000 // 6× current ~16k IDR/USD; blocks runaway typos
+const SPREAD_MIN_INCLUSIVE = 0
+const SPREAD_MAX_INCLUSIVE = 10 // 10% is already an extreme forex spread
+
+const RATE_SOFT_LOW = 5_000
+const RATE_SOFT_HIGH = 50_000
+
+export function validateManualRate(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Manual rate is required'
+  if (!DECIMAL_RE.test(trimmed)) return 'Rate must be a number (up to 4 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n <= RATE_MIN_EXCLUSIVE) return 'Rate must be greater than 0'
+  if (n >= RATE_MAX_EXCLUSIVE) return `Rate must be less than ${RATE_MAX_EXCLUSIVE.toLocaleString()}`
+  return null
+}
+
+export function validateSpreadPct(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null // optional in SoT
+  if (!SPREAD_RE.test(trimmed)) return 'Spread must be a number (up to 2 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < SPREAD_MIN_INCLUSIVE) return 'Spread cannot be negative'
+  if (n > SPREAD_MAX_INCLUSIVE) return `Spread must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  return null
+}
+
+// Soft warning bound — non-blocking; nudges users who likely typoed an extra
+// or missing zero. Validation handles hard-impossible values; this catches
+// the "syntactically valid but probably-wrong" case.
+export function isManualRateUnusual(raw: string): boolean {
+  const trimmed = raw.trim()
+  if (!trimmed || !DECIMAL_RE.test(trimmed)) return false
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return false
+  return n < RATE_SOFT_LOW || n > RATE_SOFT_HIGH
+}
+
+export function validateRateUpdateForm(input: {
+  mode: RateMode | ''
+  manualRate: string
+  spreadPct: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.mode) {
+    errors.mode = 'Mode is required'
+  }
+  if (input.mode === 'MANUAL') {
+    const err = validateManualRate(input.manualRate)
+    if (err) errors.manualRate = err
+  }
+  // DYNAMIC: manualRate intentionally not validated — UI disables the field
+  // and the payload omits it.
+  const spreadErr = validateSpreadPct(input.spreadPct)
+  if (spreadErr) errors.spreadPct = spreadErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
 export function validateOtcRedeemForm(input: {
   amount: number | ''
   network: Network | ''
@@ -129,6 +197,236 @@ export function validateOtcRedeemForm(input: {
     errors.amount = 'Amount must be greater than 0'
   } else if (amt > input.availableBalance) {
     errors.amount = 'Amount exceeds available balance'
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/api/burn.yaml § CreateBurnRequest — patterns and required fields are
+// the contract for POST /api/v1/burn. Keep error keys aligned with form
+// field IDs. USDX-46: userName→userId, +amountCurrency.
+export const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/
+
+function validateAmountField(amountStr: string, errors: Record<string, string>) {
+  if (!amountStr) {
+    errors.amount = 'Amount is required'
+    return
+  }
+  const amt = Number(amountStr)
+  if (!Number.isFinite(amt) || amt <= 0) {
+    errors.amount = 'Amount must be greater than 0'
+    return
+  }
+  // sot/conventions.md § Decimals: USDX uses 6 decimals; IDR uses 2.
+  // We accept up to 6 decimals here (the BE will normalize for IDR input).
+  const [, fraction = ''] = amountStr.split('.')
+  if (fraction.length > 6) {
+    errors.amount = 'Amount supports at most 6 decimal places'
+  }
+}
+
+function validateUserAddressField(
+  userAddress: string,
+  errors: Record<string, string>
+) {
+  // sot/conventions.md L114-115: store in checksummed format, validate at input.
+  // Lenient: all-lowercase atau all-uppercase = format-only check (no checksum
+  // to verify). Mixed-case = harus match EIP-55 (viem.getAddress canonical form).
+  const trimmed = userAddress.trim()
+  if (!trimmed) {
+    errors.userAddress = 'Wallet address is required'
+    return
+  }
+  if (!EVM_ADDRESS_RE.test(trimmed)) {
+    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+    return
+  }
+  const hex = trimmed.slice(2)
+  const isAllLower = hex === hex.toLowerCase()
+  const isAllUpper = hex === hex.toUpperCase()
+  if (!isAllLower && !isAllUpper) {
+    try {
+      if (getAddress(trimmed) !== trimmed) {
+        errors.userAddress = 'Address checksum is invalid (EIP-55)'
+      }
+    } catch {
+      errors.userAddress = 'Address checksum is invalid (EIP-55)'
+    }
+  }
+}
+
+export function validateBurnRequestForm(input: {
+  userId: string
+  userAddress: string
+  amount: string
+  amountCurrency: AmountCurrency | ''
+  chain: RequestChain | ''
+  depositTxHash: string
+  bankName: string
+  bankAccount: string
+  notes?: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (!input.userId.trim()) errors.userId = 'User is required'
+
+  if (!input.userAddress.trim()) {
+    errors.userAddress = 'User wallet address is required'
+  } else if (!isAddress(input.userAddress.trim())) {
+    errors.userAddress = 'Invalid wallet address'
+  }
+
+  validateAmountField(input.amount.trim(), errors)
+  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
+
+  if (!input.chain) errors.chain = 'Chain is required'
+
+  if (!input.depositTxHash.trim()) {
+    errors.depositTxHash = 'Deposit TX hash is required'
+  } else if (!TX_HASH_RE.test(input.depositTxHash.trim())) {
+    errors.depositTxHash = 'Invalid TX hash (expected 0x + 64 hex chars)'
+  }
+
+  if (!input.bankName.trim()) errors.bankName = 'Bank name is required'
+  if (!input.bankAccount.trim()) errors.bankAccount = 'Bank account is required'
+
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 — mint request form (sot/openapi.yaml § CreateMintRequest)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// sot/api/staff.yaml § CreateStaff — name + email + password (>=8) + role
+// all required. Admin-only endpoint (BE returns 403 otherwise).
+const PASSWORD_MIN_LEN = 8
+
+export function validateStaffCreateForm(input: {
+  name: string
+  email: string
+  password: string
+  role: StaffRole | ''
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  validateName(input.name, 'name', 'Name', errors)
+  validateEmail(input.email, errors)
+  if (!input.password) {
+    errors.password = 'Password is required'
+  } else if (input.password.length < PASSWORD_MIN_LEN) {
+    errors.password = `Password must be at least ${PASSWORD_MIN_LEN} characters`
+  }
+  if (!input.role) errors.role = 'Role is required'
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/api/staff.yaml § UpdateStaff — all fields optional, but the form
+// always sends name + role + isActive together so we validate them as
+// required at the form layer.
+export function validateStaffEditForm(input: {
+  name: string
+  role: StaffRole | ''
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  validateName(input.name, 'name', 'Name', errors)
+  if (!input.role) errors.role = 'Role is required'
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// sot/api/users.yaml § CreateUser/UpdateUser. USDX-47 enforces:
+// - name required, max 255 chars (AC6)
+// - email required + format check (S4 + S5: required in create AND edit per
+//   judgement — empty email would break Phase-2 login at sot/phase-1.md L341)
+// - entityType required when explicitly provided as null/empty (S4 + S5)
+// - notes max 2000 chars (AC7)
+// - wallets max 50 enforced separately by validateUserWalletsLimit
+export function validateUserForm(input: {
+  name: string
+  email: string
+  entityType?: string
+  notes?: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.name.trim()) {
+    errors.name = 'Name is required'
+  } else if (input.name.length > MAX_USER_NAME_LEN) {
+    errors.name = `Name must be under ${MAX_USER_NAME_LEN} characters`
+  }
+  if (!input.email.trim()) {
+    errors.email = 'Email is required'
+  } else if (!EMAIL_RE.test(input.email)) {
+    errors.email = 'Invalid email format'
+  }
+  if (input.entityType !== undefined && !input.entityType) {
+    errors.entityType = 'Entity type is required'
+  }
+  if (input.notes !== undefined && input.notes.length > MAX_USER_NOTES_LEN) {
+    errors.notes = `Notes must be under ${MAX_USER_NOTES_LEN} characters`
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// USDX-47 S8 + AC10: wallets max 50 per user. FE pre-check before POST so the
+// operator sees the limit immediately; BE 422 is the safety net for races.
+export function validateUserWalletsLimit(currentCount: number, addingCount = 1): string | null {
+  if (currentCount + addingCount > MAX_USER_WALLETS) {
+    return `Maximum ${MAX_USER_WALLETS} wallets per user`
+  }
+  return null
+}
+
+export const USER_LIMITS = {
+  MAX_NAME_LEN: MAX_USER_NAME_LEN,
+  MAX_NOTES_LEN: MAX_USER_NOTES_LEN,
+  MAX_WALLETS: MAX_USER_WALLETS,
+} as const
+
+// sot/openapi.yaml § CreateUserWallet — both fields required; address must
+// pass the same EIP-55 checksum check used for mint requests.
+export function validateUserWalletForm(input: {
+  chain: string
+  address: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.chain.trim()) {
+    errors.chain = 'Chain is required'
+  }
+  const trimmedAddress = input.address.trim()
+  if (!trimmedAddress) {
+    errors.address = 'Wallet address is required'
+  } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
+    errors.address = 'Invalid EVM address (expect 0x + 40 hex)'
+  } else {
+    const hex = trimmedAddress.slice(2)
+    const isAllLower = hex === hex.toLowerCase()
+    const isAllUpper = hex === hex.toUpperCase()
+    if (!isAllLower && !isAllUpper) {
+      try {
+        if (getAddress(trimmedAddress) !== trimmedAddress) {
+          errors.address = 'Address checksum is invalid (EIP-55)'
+        }
+      } catch {
+        errors.address = 'Address checksum is invalid (EIP-55)'
+      }
+    }
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+export function validateMintRequestForm(input: {
+  userId: string
+  userAddress: string
+  amount: string
+  amountCurrency: AmountCurrency | ''
+  chain: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  if (!input.userId.trim()) {
+    errors.userId = 'User is required'
+  }
+  validateUserAddressField(input.userAddress, errors)
+  validateAmountField(input.amount.trim(), errors)
+  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
+  if (!input.chain.trim()) {
+    errors.chain = 'Chain is required'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }

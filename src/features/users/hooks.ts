@@ -1,94 +1,126 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Customer, CustomerSummary, PaginatedResponse } from '@/lib/types'
+// USDX-37 — Wires the Users page to the real BE.
+// Endpoints: sot/openapi.yaml § /api/v1/users + /api/v1/users/:id/wallets
 
-interface ListParams {
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import type {
+  EntityType,
+  KycStatus,
+  PhaseOneCreateUser,
+  PhaseOneCreateUserResponse,
+  PhaseOneCreateUserWallet,
+  PhaseOnePaginatedResponse,
+  PhaseOneUpdateUser,
+  PhaseOneUser,
+  PhaseOneUserDetail,
+  PhaseOneUserWallet,
+} from '@/lib/types'
+
+// USDX-47 S3: filter by kycStatus and entityType. sot/api/users.yaml § GET
+// /users — both single-value enums.
+export interface UsersListParams {
   page?: number
-  pageSize?: number
+  limit?: number
   search?: string
-  type?: string
-  role?: string
-  sortBy?: string
-  sortOrder?: string
+  kycStatus?: KycStatus
+  entityType?: EntityType
 }
 
-function buildQuery(params: ListParams): string {
+function buildQuery(params: UsersListParams): string {
   const sp = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
   })
-  return sp.toString()
+  const qs = sp.toString()
+  return qs ? `?${qs}` : ''
 }
 
-async function fetchCustomers(params: ListParams): Promise<PaginatedResponse<Customer>> {
-  const res = await fetch(`/api/customers?${buildQuery(params)}`)
-  if (!res.ok) throw new Error('Failed to fetch customers')
-  return res.json()
-}
-
-async function fetchCustomerSummary(): Promise<CustomerSummary> {
-  const res = await fetch('/api/customers/summary')
-  if (!res.ok) throw new Error('Failed to fetch customer summary')
-  return res.json()
-}
-
-export function useCustomers(params: ListParams = {}) {
+// Returns the full envelope so consumers can paginate using `metadata.total`.
+export function useUsers(params: UsersListParams = {}) {
   return useQuery({
-    queryKey: ['customers', params],
-    queryFn: () => fetchCustomers(params),
+    queryKey: ['users', params],
+    queryFn: () =>
+      apiFetchRaw<PhaseOnePaginatedResponse<PhaseOneUser>>(
+        `/api/v1/users${buildQuery(params)}`
+      ),
   })
 }
 
-export function useCustomerSummary() {
+export function useUserDetail(id: string | undefined) {
   return useQuery({
-    queryKey: ['customers', 'summary'],
-    queryFn: fetchCustomerSummary,
+    queryKey: ['users', 'detail', id],
+    queryFn: () => apiFetch<PhaseOneUserDetail>(`/api/v1/users/${id}`),
+    enabled: Boolean(id),
   })
 }
 
-export function useCreateCustomer() {
+// USDX-47 AC5: POST returns user + one-time password. Caller (UserModal) uses
+// the `password` field to open PasswordRevealDialog after success.
+export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: Omit<Customer, 'id' | 'createdAt'>) => {
-      const res = await fetch('/api/customers', {
+    mutationFn: (input: PhaseOneCreateUser) =>
+      apiFetch<PhaseOneCreateUserResponse>('/api/v1/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      })
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
-        throw new Error(err?.error?.message ?? 'Failed to create customer')
-      }
-      return res.json() as Promise<Customer>
+        body: input,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: PhaseOneUpdateUser }) =>
+      apiFetch<PhaseOneUser>(`/api/v1/users/${id}`, {
+        method: 'PATCH',
+        body: patch,
+      }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['users', 'detail', variables.id] })
+    },
+  })
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+export function useAddWallet(userId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: PhaseOneCreateUserWallet) => {
+      if (!userId) throw new Error('Missing user id')
+      return apiFetch<PhaseOneUserWallet>(
+        `/api/v1/users/${userId}/wallets`,
+        { method: 'POST', body: input }
+      )
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customers'] })
+      qc.invalidateQueries({ queryKey: ['users'] })
     },
   })
 }
 
-export function useUpdateCustomer() {
+export function useRemoveWallet(userId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { id: string; patch: Partial<Customer> }) => {
-      const res = await fetch(`/api/customers/${input.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input.patch),
-      })
-      if (!res.ok) throw new Error('Failed to update customer')
-      return res.json() as Promise<Customer>
+    mutationFn: (walletId: string) => {
+      if (!userId) throw new Error('Missing user id')
+      return apiFetch<void>(
+        `/api/v1/users/${userId}/wallets/${walletId}`,
+        { method: 'DELETE' }
+      )
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+    },
   })
 }
 
-export function useDeleteCustomer() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete customer')
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
-  })
-}

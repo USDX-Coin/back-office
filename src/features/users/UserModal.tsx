@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -17,83 +22,98 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import FieldError from '@/components/FieldError'
-import { validateCustomerForm } from '@/lib/validators'
-import type { Customer, CustomerRole, CustomerType } from '@/lib/types'
-import { useCreateCustomer, useUpdateCustomer } from './hooks'
-import { cn } from '@/lib/utils'
+import {
+  USER_LIMITS,
+  validateUserForm,
+  validateUserWalletForm,
+  validateUserWalletsLimit,
+} from '@/lib/validators'
+import type {
+  EntityType,
+  KycStatus,
+  PhaseOneCreateUserWallet,
+  PhaseOneUser,
+} from '@/lib/types'
+import { useCreateUser, useUpdateUser } from './hooks'
 
 interface UserModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
-  customer?: Customer | null
+  user?: PhaseOneUser | null
+  // USDX-47 AC5: surfaces the one-time password from POST response so the
+  // parent can open PasswordRevealDialog after this modal closes.
+  onCreated?: (password: string | undefined) => void
+}
+
+interface WalletDraft {
+  chain: string
+  address: string
 }
 
 interface FormState {
-  firstName: string
-  lastName: string
+  name: string
   email: string
-  phone: string
-  type: CustomerType | ''
-  organization: string
-  role: CustomerRole | ''
+  entityType: EntityType
+  kycStatus: KycStatus
+  suspended: boolean
+  notes: string
+  // Only used in `add` mode. UpdateUser SoT has no wallets field; per-wallet
+  // edits go through POST/DELETE /api/v1/users/:id/wallets after creation.
+  wallets: WalletDraft[]
 }
 
 const EMPTY: FormState = {
-  firstName: '',
-  lastName: '',
+  name: '',
   email: '',
-  phone: '',
-  type: '',
-  organization: '',
-  role: 'member',
+  entityType: 'INDIVIDUAL',
+  kycStatus: 'UNVERIFIED',
+  suspended: false,
+  notes: '',
+  wallets: [],
 }
 
-const ROLE_CARDS: { value: CustomerRole; title: string; description: string }[] = [
-  { value: 'admin', title: 'Admin', description: 'Full system access' },
-  { value: 'editor', title: 'Editor', description: 'Manage content & users' },
-  { value: 'member', title: 'Member', description: 'Read-only permissions' },
-]
+// sot/phase-1.md ChainConfig + sot/openapi.yaml § CreateUserWallet example.
+const CHAIN_OPTIONS = ['polygon', 'ethereum', 'arbitrum', 'base'] as const
 
-export default function UserModal({ open, onOpenChange, mode, customer }: UserModalProps) {
-  const create = useCreateCustomer()
-  const update = useUpdateCustomer()
+export default function UserModal({
+  open,
+  onOpenChange,
+  mode,
+  user,
+  onCreated,
+}: UserModalProps) {
+  const create = useCreateUser()
+  const update = useUpdateUser()
   const isPending = create.isPending || update.isPending
 
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  // Reset form state when dialog opens — intentional pattern, not a perf concern.
   useEffect(() => {
     if (open) {
-      if (mode === 'edit' && customer) {
+      if (mode === 'edit' && user) {
         setForm({
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          type: customer.type,
-          organization: customer.organization ?? '',
-          role: customer.role,
+          name: user.name,
+          email: user.email,
+          entityType: user.entityType,
+          kycStatus: user.kycStatus,
+          suspended: user.suspended,
+          notes: user.notes ?? '',
+          wallets: [],
         })
       } else {
         setForm(EMPTY)
       }
       setErrors({})
     }
-  }, [open, mode, customer])
+  }, [open, mode, user])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value }
-      // Clear organization on type switch to personal
-      if (key === 'type' && value === 'personal') next.organization = ''
-      return next
-    })
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
     if (errors[key as string]) {
       setErrors((prev) => {
         const next = { ...prev }
@@ -103,35 +123,111 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
     }
   }
 
+  function setWallet(index: number, patch: Partial<WalletDraft>) {
+    setForm((prev) => ({
+      ...prev,
+      wallets: prev.wallets.map((w, i) => (i === index ? { ...w, ...patch } : w)),
+    }))
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next[`wallets.${index}.chain`]
+      delete next[`wallets.${index}.address`]
+      return next
+    })
+  }
+
+  function addWalletRow() {
+    setForm((prev) => {
+      // USDX-47 S8/AC10: cap at 50 wallets in the draft itself.
+      if (prev.wallets.length >= USER_LIMITS.MAX_WALLETS) return prev
+      return {
+        ...prev,
+        wallets: [...prev.wallets, { chain: 'polygon', address: '' }],
+      }
+    })
+  }
+
+  function removeWalletRow(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      wallets: prev.wallets.filter((_, i) => i !== index),
+    }))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const v = validateCustomerForm(form)
-    if (!v.valid) {
-      setErrors(v.errors)
+    const baseResult = validateUserForm({
+      name: form.name,
+      email: form.email,
+      entityType: form.entityType,
+      notes: form.notes,
+    })
+    const walletErrors: Record<string, string> = {}
+    if (mode === 'add') {
+      // Pre-check wallet limit before per-row validation so we never POST 51+.
+      const limitError = validateUserWalletsLimit(0, form.wallets.length)
+      if (limitError) walletErrors['wallets'] = limitError
+      form.wallets.forEach((w, i) => {
+        const r = validateUserWalletForm(w)
+        if (r.errors.chain) walletErrors[`wallets.${i}.chain`] = r.errors.chain
+        if (r.errors.address) walletErrors[`wallets.${i}.address`] = r.errors.address
+      })
+    }
+    const merged = { ...baseResult.errors, ...walletErrors }
+    if (Object.keys(merged).length > 0) {
+      setErrors(merged)
       return
     }
+
     try {
-      const payload = {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone,
-        type: form.type as CustomerType,
-        organization: form.type === 'organization' ? form.organization : undefined,
-        role: form.role as CustomerRole,
-      }
       if (mode === 'add') {
-        await create.mutateAsync(payload)
-        toast.success('Customer added')
-      } else if (customer) {
-        await update.mutateAsync({ id: customer.id, patch: payload })
-        toast.success('Customer updated')
+        const wallets: PhaseOneCreateUserWallet[] = form.wallets.map((w) => ({
+          chain: w.chain,
+          address: w.address.trim(),
+        }))
+        const created = await create.mutateAsync({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          entityType: form.entityType,
+          notes: form.notes.trim() || undefined,
+          wallets: wallets.length > 0 ? wallets : undefined,
+        })
+        toast.success('User created')
+        onOpenChange(false)
+        // AC5: hand the one-time password back to the parent. If BE didn't
+        // return it (e.g., Day-1 BE without reveal support), surface a soft
+        // warning so the operator knows to reset via Forgot Password later.
+        if (created.password) {
+          onCreated?.(created.password)
+        } else {
+          toast.warning('User created, but no temporary password was returned')
+          onCreated?.(undefined)
+        }
+        return
       }
-      onOpenChange(false)
+
+      if (user) {
+        await update.mutateAsync({
+          id: user.id,
+          patch: {
+            name: form.name.trim(),
+            email: form.email.trim(),
+            entityType: form.entityType,
+            kycStatus: form.kycStatus,
+            suspended: form.suspended,
+            notes: form.notes.trim() || undefined,
+          },
+        })
+        toast.success('User updated')
+        onOpenChange(false)
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Operation failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't save the user. Please try again.")
     }
   }
+
+  const walletCount = form.wallets.length
+  const walletLimitReached = walletCount >= USER_LIMITS.MAX_WALLETS
 
   return (
     <Dialog
@@ -146,40 +242,27 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'add' ? 'Add new user' : 'Edit user'}
-          </DialogTitle>
+          <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Customer details for the end-user directory.'
-              : 'Update the customer record.'}
+              ? 'Create a Phase-1 user. A temporary password will be generated and shown once after creation.'
+              : 'Update user profile, KYC status, and suspension state.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="firstName">First name</Label>
-              <Input
-                id="firstName"
-                value={form.firstName}
-                onChange={(e) => set('firstName', e.target.value)}
-                placeholder="Jane"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.firstName} />
-            </div>
-            <div>
-              <Label htmlFor="lastName">Last name</Label>
-              <Input
-                id="lastName"
-                value={form.lastName}
-                onChange={(e) => set('lastName', e.target.value)}
-                placeholder="Doe"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.lastName} />
-            </div>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
+          <div>
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={form.name}
+              onChange={(e) => setField('name', e.target.value)}
+              placeholder="Jane Doe"
+              maxLength={USER_LIMITS.MAX_NAME_LEN + 50}
+              className="mt-1.5"
+            />
+            <FieldError message={errors.name} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -189,89 +272,168 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
                 id="email"
                 type="email"
                 value={form.email}
-                onChange={(e) => set('email', e.target.value)}
-                placeholder="jane.doe@example.com"
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="jane@example.com"
                 className="mt-1.5"
               />
               <FieldError message={errors.email} />
             </div>
             <div>
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                placeholder="+1 415 555 0123"
-                onChange={(e) => set('phone', e.target.value)}
-                className="mt-1.5"
-              />
-              <FieldError message={errors.phone} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="type">Type</Label>
+              <Label htmlFor="entityType">Entity type</Label>
               <Select
-                value={form.type}
-                onValueChange={(val) => set('type', val as CustomerType)}
+                value={form.entityType}
+                onValueChange={(val) => setField('entityType', val as EntityType)}
               >
-                <SelectTrigger id="type" className="mt-1.5">
-                  <SelectValue placeholder="Choose type" />
+                <SelectTrigger id="entityType" className="mt-1.5">
+                  <SelectValue placeholder="Entity type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal</SelectItem>
-                  <SelectItem value="organization">Organization</SelectItem>
+                  <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                  <SelectItem value="LEGAL_ENTITY">Legal Entity</SelectItem>
                 </SelectContent>
               </Select>
-              <FieldError message={errors.type} />
-            </div>
-            <div>
-              <Label htmlFor="organization">Organization</Label>
-              <Input
-                id="organization"
-                value={form.organization}
-                onChange={(e) => set('organization', e.target.value)}
-                disabled={form.type !== 'organization'}
-                placeholder={form.type === 'organization' ? 'Acme Corp' : 'Personal customer'}
-                className={cn(
-                  'mt-1.5',
-                  form.type !== 'organization' && 'opacity-50'
-                )}
-              />
-              <FieldError message={errors.organization} />
+              <FieldError message={errors.entityType} />
             </div>
           </div>
+
+          {mode === 'edit' && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="kycStatus">KYC status</Label>
+                <Select
+                  value={form.kycStatus}
+                  onValueChange={(val) => setField('kycStatus', val as KycStatus)}
+                >
+                  <SelectTrigger id="kycStatus" className="mt-1.5">
+                    <SelectValue placeholder="KYC status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UNVERIFIED">Unverified</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="VERIFIED">Verified</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldError message={errors.kycStatus} />
+              </div>
+              <div className="flex flex-col">
+                <Label htmlFor="suspended">Suspended</Label>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Switch
+                    id="suspended"
+                    checked={form.suspended}
+                    onCheckedChange={(val) => setField('suspended', val)}
+                  />
+                  <span className="text-[12px] text-muted-foreground">
+                    {form.suspended
+                      ? 'User cannot mint or burn'
+                      : 'User can transact (subject to KYC)'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
-            <Label>Role</Label>
-            <RadioGroup
-              value={form.role}
-              onValueChange={(val) => set('role', val as CustomerRole)}
-              className="mt-2 grid gap-3 sm:grid-cols-3"
-            >
-              {ROLE_CARDS.map((card) => (
-                <Label
-                  key={card.value}
-                  htmlFor={`role-${card.value}`}
-                  className={cn(
-                    'cursor-pointer rounded-md border p-3 transition-colors',
-                    form.role === card.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-transparent bg-secondary hover:bg-muted'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value={card.value} id={`role-${card.value}`} />
-                    <span className="text-[13px] font-medium text-foreground">{card.title}</span>
-                  </div>
-                  <p className="mt-1 pl-6 text-[11.5px] text-muted-foreground">{card.description}</p>
-                </Label>
-              ))}
-            </RadioGroup>
-            <FieldError message={errors.role} />
+            <Label htmlFor="notes">
+              Notes
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                {form.notes.length} / {USER_LIMITS.MAX_NOTES_LEN}
+              </span>
+            </Label>
+            <Textarea
+              id="notes"
+              value={form.notes}
+              onChange={(e) => setField('notes', e.target.value)}
+              placeholder="Optional notes (visible to staff only)"
+              className="mt-1.5 min-h-[72px]"
+            />
+            <FieldError message={errors.notes} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {mode === 'add' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>
+                  Wallets
+                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                    {walletCount} / {USER_LIMITS.MAX_WALLETS}
+                  </span>
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addWalletRow}
+                  disabled={walletLimitReached}
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add wallet
+                </Button>
+              </div>
+              <FieldError message={errors.wallets} />
+              {form.wallets.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No wallets yet. Optional — you can add them after creation.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {form.wallets.map((w, i) => (
+                    <li
+                      key={i}
+                      className="grid gap-2 rounded-md bg-secondary/40 p-3 sm:grid-cols-[140px_1fr_auto]"
+                    >
+                      <div>
+                        <Label htmlFor={`wallet-chain-${i}`} className="sr-only">
+                          Chain
+                        </Label>
+                        <Select
+                          value={w.chain}
+                          onValueChange={(val) => setWallet(i, { chain: val })}
+                        >
+                          <SelectTrigger id={`wallet-chain-${i}`}>
+                            <SelectValue placeholder="Chain" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CHAIN_OPTIONS.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldError message={errors[`wallets.${i}.chain`]} />
+                      </div>
+                      <div>
+                        <Label htmlFor={`wallet-address-${i}`} className="sr-only">
+                          Address
+                        </Label>
+                        <Input
+                          id={`wallet-address-${i}`}
+                          value={w.address}
+                          onChange={(e) => setWallet(i, { address: e.target.value })}
+                          placeholder="0x..."
+                        />
+                        <FieldError message={errors[`wallets.${i}.address`]} />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeWalletRow(i)}
+                        aria-label={`Remove wallet ${i + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          </DialogBody>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -280,17 +442,10 @@ export default function UserModal({ open, onOpenChange, mode, customer }: UserMo
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-            >
-              {isPending
-                ? 'Submitting…'
-                : mode === 'add'
-                ? 'Create user'
-                : 'Save changes'}
+            <Button type="submit" disabled={isPending}>
+              {isPending ? 'Submitting…' : mode === 'add' ? 'Create user' : 'Save changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

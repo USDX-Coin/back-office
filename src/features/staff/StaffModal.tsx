@@ -5,6 +5,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -17,8 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import FieldError from '@/components/FieldError'
-import { validateStaffForm } from '@/lib/validators'
+import {
+  validateStaffCreateForm,
+  validateStaffEditForm,
+} from '@/lib/validators'
 import type { Staff, StaffRole } from '@/lib/types'
 import { useCreateStaff, useUpdateStaff } from './hooks'
 
@@ -30,29 +36,36 @@ interface StaffModalProps {
 }
 
 interface FormState {
-  firstName: string
-  lastName: string
+  name: string
   email: string
-  phone: string
+  password: string
   role: StaffRole | ''
+  isActive: boolean
 }
 
 const EMPTY: FormState = {
-  firstName: '',
-  lastName: '',
+  name: '',
   email: '',
-  phone: '',
-  role: '',
+  password: '',
+  role: 'STAFF',
+  isActive: true,
 }
 
-const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
-  { value: 'support', label: 'Support Agent' },
-  { value: 'operations', label: 'Operations Manager' },
-  { value: 'compliance', label: 'Compliance Officer' },
-  { value: 'super_admin', label: 'Super Admin' },
-]
+const ROLE_OPTIONS: StaffRole[] = ['STAFF', 'MANAGER', 'DEVELOPER', 'ADMIN']
 
-export default function StaffModal({ open, onOpenChange, mode, staff }: StaffModalProps) {
+function formatRole(role: string): string {
+  return role
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export default function StaffModal({
+  open,
+  onOpenChange,
+  mode,
+  staff,
+}: StaffModalProps) {
   const create = useCreateStaff()
   const update = useUpdateStaff()
   const isPending = create.isPending || update.isPending
@@ -61,16 +74,15 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  // Reset form state when dialog opens — intentional pattern.
   useEffect(() => {
     if (open) {
       if (mode === 'edit' && staff) {
         setForm({
-          firstName: staff.firstName,
-          lastName: staff.lastName,
+          name: staff.name,
           email: staff.email,
-          phone: staff.phone,
+          password: '',
           role: staff.role,
+          isActive: staff.isActive,
         })
       } else {
         setForm(EMPTY)
@@ -80,7 +92,7 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
   }, [open, mode, staff])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
     if (errors[key as string]) {
       setErrors((prev) => {
@@ -93,29 +105,45 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const v = validateStaffForm(form)
-    if (!v.valid) {
-      setErrors(v.errors)
+
+    const result =
+      mode === 'add'
+        ? validateStaffCreateForm({
+            name: form.name,
+            email: form.email,
+            password: form.password,
+            role: form.role,
+          })
+        : validateStaffEditForm({ name: form.name, role: form.role })
+
+    if (!result.valid) {
+      setErrors(result.errors)
       return
     }
-    const payload = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      role: form.role as StaffRole,
-    }
+
     try {
       if (mode === 'add') {
-        await create.mutateAsync(payload)
-        toast.success(`Invitation sent to ${form.email}`)
+        await create.mutateAsync({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          role: form.role as StaffRole,
+        })
+        toast.success('Staff created')
       } else if (staff) {
-        await update.mutateAsync({ id: staff.id, patch: payload })
+        await update.mutateAsync({
+          id: staff.id,
+          patch: {
+            name: form.name.trim(),
+            role: form.role as StaffRole,
+            isActive: form.isActive,
+          },
+        })
         toast.success('Staff updated')
       }
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Operation failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't save the staff member. Please try again.")
     }
   }
 
@@ -127,82 +155,82 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
       }}
     >
       <DialogContent
-        className="max-w-xl bg-card"
+        className="max-w-lg bg-card"
         onEscapeKeyDown={(e) => isPending && e.preventDefault()}
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === 'add' ? 'Add new staff member' : 'Edit staff member'}
+            {mode === 'add' ? 'Add new staff' : 'Edit staff'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Send an invitation to a new operator. No password is set here — the invite email will guide them through credential setup.'
-              : 'Update the staff record.'}
+              ? 'Create a back-office operator. They will sign in with the email and password you set here.'
+              : 'Update name, role, or active status. Email and password are not editable here.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="staffFirstName">First name</Label>
-              <Input
-                id="staffFirstName"
-                value={form.firstName}
-                onChange={(e) => set('firstName', e.target.value)}
-                placeholder="Marcus"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.firstName} />
-            </div>
-            <div>
-              <Label htmlFor="staffLastName">Last name</Label>
-              <Input
-                id="staffLastName"
-                value={form.lastName}
-                onChange={(e) => set('lastName', e.target.value)}
-                placeholder="Thorne"
-                className="mt-1.5"
-              />
-              <FieldError message={errors.lastName} />
-            </div>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
+          <div>
+            <Label htmlFor="staff-name">Name</Label>
+            <Input
+              id="staff-name"
+              value={form.name}
+              onChange={(e) => setField('name', e.target.value)}
+              placeholder="Jane Doe"
+              className="mt-1.5"
+            />
+            <FieldError message={errors.name} />
           </div>
 
           <div>
-            <Label htmlFor="staffEmail">Work email</Label>
+            <Label htmlFor="staff-email">Email</Label>
             <Input
-              id="staffEmail"
+              id="staff-email"
               type="email"
               value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              placeholder="marcus.t@usdx.io"
+              onChange={(e) => setField('email', e.target.value)}
+              placeholder="jane@usdx.io"
               className="mt-1.5"
+              disabled={mode === 'edit'}
+              readOnly={mode === 'edit'}
             />
             <FieldError message={errors.email} />
           </div>
 
-          <div>
-            <Label htmlFor="staffPhone">Phone</Label>
-            <Input
-              id="staffPhone"
-              value={form.phone}
-              placeholder="+1 415 555 0123"
-              onChange={(e) => set('phone', e.target.value)}
-              className="mt-1.5"
-            />
-            <FieldError message={errors.phone} />
-          </div>
+          {mode === 'add' && (
+            <div>
+              <Label htmlFor="staff-password">Password</Label>
+              <Input
+                id="staff-password"
+                type="password"
+                value={form.password}
+                onChange={(e) => setField('password', e.target.value)}
+                placeholder="At least 8 characters"
+                className="mt-1.5"
+                autoComplete="new-password"
+              />
+              <FieldError message={errors.password} />
+              <p className="mt-1 text-[11.5px] text-muted-foreground">
+                Minimum 8 characters.
+              </p>
+            </div>
+          )}
 
           <div>
-            <Label htmlFor="staffRole">Access role</Label>
-            <Select value={form.role} onValueChange={(val) => set('role', val as StaffRole)}>
-              <SelectTrigger id="staffRole" className="mt-1.5">
-                <SelectValue placeholder="Choose role" />
+            <Label htmlFor="staff-role">Role</Label>
+            <Select
+              value={form.role || undefined}
+              onValueChange={(val) => setField('role', val as StaffRole)}
+            >
+              <SelectTrigger id="staff-role" className="mt-1.5">
+                <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {ROLE_OPTIONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {formatRole(r)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -210,7 +238,29 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
             <FieldError message={errors.role} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {mode === 'edit' && (
+            <div className="flex items-center justify-between rounded-md border border-border bg-secondary/30 p-3">
+              <div>
+                <Label
+                  htmlFor="staff-active"
+                  className="text-[13px] font-medium"
+                >
+                  Active
+                </Label>
+                <p className="text-[11.5px] text-muted-foreground">
+                  Inactive staff cannot sign in.
+                </p>
+              </div>
+              <Switch
+                id="staff-active"
+                checked={form.isActive}
+                onCheckedChange={(checked) => setField('isActive', checked)}
+              />
+            </div>
+          )}
+
+          </DialogBody>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -219,17 +269,14 @@ export default function StaffModal({ open, onOpenChange, mode, staff }: StaffMod
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-            >
+            <Button type="submit" disabled={isPending}>
               {isPending
-                ? 'Sending…'
+                ? 'Submitting…'
                 : mode === 'add'
-                ? 'Send invitation'
-                : 'Save changes'}
+                  ? 'Create staff'
+                  : 'Save changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

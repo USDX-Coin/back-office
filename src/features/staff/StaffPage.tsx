@@ -1,53 +1,68 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, UserCog } from 'lucide-react'
+import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
-import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import StaffModal from './StaffModal'
-import StaffDeleteDialog from './StaffDeleteDialog'
-import StaffFilterToolbar, { type StaffFilterValues } from './StaffFilterToolbar'
-import { useStaff, useStaffSummary } from './hooks'
-import type { Staff } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import StaffDeactivateDialog from './StaffDeactivateDialog'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import {
+  STAFF_FILTER_DEFS,
+  STAFF_SORT_COLUMNS,
+  STAFF_COLUMN_CONFIG,
+} from './filterDefs'
+import { useStaff } from './hooks'
+import { canManageStaff, useAuth } from '@/lib/auth'
+import type { Staff, StaffRole } from '@/lib/types'
 
-const ROLE_LABEL: Record<Staff['role'], string> = {
-  support: 'Support Agent',
-  operations: 'Operations Manager',
-  compliance: 'Compliance Officer',
-  super_admin: 'Super Admin',
+const PAGE_SIZE = 10
+// Single fetch ceiling. SoT GET /api/v1/staff exposes only page+limit, so we
+// load a generous page once and run search / role / active / sort / paginate
+// client-side. Phase 1 staff is bounded (handful per org); revisit if it grows.
+const FETCH_LIMIT = 100
+
+function formatRole(role: string): string {
+  return role
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-const ROLE_PILL: Record<Staff['role'], string> = {
-  support: 'bg-muted text-muted-foreground',
-  operations: 'bg-muted text-foreground',
-  compliance: 'bg-warning/10 text-warning',
-  super_admin: 'bg-primary/10 text-primary',
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString()
 }
 
 export default function StaffPage() {
+  const { user } = useAuth()
+  const canManage = canManageStaff(user)
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
-  const role = params.searchParams.get('role') ?? ''
+  const role = (params.searchParams.get('role') ?? '') as StaffRole | ''
+  // USDX-27: active is now a select filter (URL: 'active' | 'inactive' | empty=all)
+  // matching the FilterDef in filterDefs.ts.
+  const activeFilter = (params.searchParams.get('active') ?? '') as
+    | ''
+    | 'active'
+    | 'inactive'
+  const sortBy = params.sortBy
+  const sortOrder = params.sortOrder
+  const filterValues = { role, active: activeFilter }
+  const [colVisibility, setColVisibility] = useColumnVisibility('staff', STAFF_COLUMN_CONFIG)
 
-  const list = useStaff({
-    page: params.page,
-    pageSize: 10,
-    search,
-    role,
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
-  })
-  const summary = useStaffSummary()
+  const list = useStaff({ page: 1, limit: FETCH_LIMIT })
+  const allStaff = useMemo<Staff[]>(() => list.data?.data ?? [], [list.data])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeStaff, setActiveStaff] = useState<Staff | null>(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deactivateOpen, setDeactivateOpen] = useState(false)
 
   function openAdd() {
     setModalMode('add')
@@ -61,154 +76,233 @@ export default function StaffPage() {
     setModalOpen(true)
   }
 
-  function openDelete(s: Staff) {
+  function openDeactivate(s: Staff) {
     setActiveStaff(s)
-    setDeleteOpen(true)
+    setDeactivateOpen(true)
   }
 
-  function handleFilterChange(next: StaffFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      role: next.role || null,
-      page: '1',
-    })
-  }
+  // Client-side filter pipeline (search → role → active → sort → paginate).
+  const filtered = useMemo(() => {
+    let rows = allStaff
+    if (search.trim()) {
+      const needle = search.trim().toLowerCase()
+      rows = rows.filter(
+        (s) =>
+          s.name.toLowerCase().includes(needle) ||
+          s.email.toLowerCase().includes(needle)
+      )
+    }
+    if (role) rows = rows.filter((s) => s.role === role)
+    if (activeFilter) {
+      const want = activeFilter === 'active'
+      rows = rows.filter((s) => s.isActive === want)
+    }
+    if (sortBy) {
+      const dir = sortOrder === 'asc' ? 1 : -1
+      rows = [...rows].sort((a, b) => {
+        const av = (a[sortBy as keyof Staff] ?? '') as string | boolean
+        const bv = (b[sortBy as keyof Staff] ?? '') as string | boolean
+        if (av < bv) return -1 * dir
+        if (av > bv) return 1 * dir
+        return 0
+      })
+    }
+    return rows
+  }, [allStaff, search, role, activeFilter, sortBy, sortOrder])
+
+  const totalFiltered = filtered.length
+  const pageRows = useMemo(() => {
+    const start = (params.page - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, params.page])
 
   const columns: ColumnDef<Staff>[] = [
     {
-      id: 'name',
+      accessorKey: 'name',
       header: 'Name',
-      cell: ({ row }) => {
-        const s = row.original
-        return (
-          <div className="flex items-center gap-2.5">
-            <Avatar name={s.displayName} size="sm" />
-            <span className="font-medium text-foreground">{s.displayName}</span>
-          </div>
-        )
-      },
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="font-medium">{row.original.name}</span>
+      ),
     },
-    { accessorKey: 'email', header: 'Email' },
     {
-      accessorKey: 'phone',
-      header: 'Phone',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
-          {getValue() as string}
-        </span>
+      accessorKey: 'email',
+      header: 'Email',
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.email}</span>
       ),
     },
     {
       accessorKey: 'role',
       header: 'Role',
-      cell: ({ getValue }) => {
-        const r = getValue() as Staff['role']
-        return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {ROLE_LABEL[r]}
-          </span>
-        )
-      },
+      enableSorting: true,
+      cell: ({ row }) => formatRole(row.original.role),
     },
     {
-      id: 'actions',
-      header: '',
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableSorting: true,
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">
+            Active
+          </Badge>
+        ) : (
+          <Badge variant="secondary">Inactive</Badge>
+        ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Created',
+      enableSorting: true,
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.firstName}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.firstName}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <span className="text-xs text-muted-foreground">
+          {formatDate(row.original.createdAt)}
+        </span>
       ),
     },
+    ...(canManage
+      ? [
+          {
+            id: 'actions',
+            header: '',
+            enableSorting: false,
+            cell: ({ row }: { row: { original: Staff } }) => {
+              const isSelf = user?.id === row.original.id
+              return (
+                <div className="flex items-center justify-end gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEdit(row.original)}
+                    aria-label={`Edit ${row.original.name}`}
+                    className="h-7 w-7"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openDeactivate(row.original)}
+                    aria-label={
+                      isSelf
+                        ? 'Cannot deactivate your own account'
+                        : `Deactivate ${row.original.name}`
+                    }
+                    disabled={isSelf || !row.original.isActive}
+                    title={
+                      isSelf
+                        ? 'You cannot deactivate your own account'
+                        : !row.original.isActive
+                          ? 'Already inactive'
+                          : undefined
+                    }
+                    className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )
+            },
+          } satisfies ColumnDef<Staff>,
+        ]
+      : []),
   ]
 
   const noDataState = (
     <TableEmptyState
       mode="no-data"
       icon={
-        <UserCog
+        <ShieldCheck
           className="h-10 w-10 text-muted-foreground/40"
           strokeWidth={1.5}
         />
       }
-      title="No staff members yet"
-      description="Invite your first operator to get started."
+      title="No staff yet"
+      description={
+        canManage
+          ? 'Add your first back-office operator to get started.'
+          : 'No staff to show.'
+      }
       cta={
-        <Button onClick={openAdd} className="mt-2">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Staff
-        </Button>
+        canManage ? (
+          <Button onClick={openAdd} className="mt-2">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add Staff
+          </Button>
+        ) : undefined
       }
     />
   )
+
+  const totalLoaded = list.data?.metadata?.total ?? allStaff.length
 
   return (
     <div>
       <PageHeader
         eyebrow="Workspace"
-        title="Staf"
+        title="Staff"
         italicAccent="directory"
-        subtitle={`Internal team directory · ${summary.data?.total ?? '…'} members`}
+        subtitle={`Internal back-office operators · ${
+          list.isLoading ? '…' : totalLoaded
+        } total`}
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Add Staff
-          </Button>
+          canManage ? (
+            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add Staff
+            </Button>
+          ) : undefined
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total staff"
-          value={summary.data?.total ?? '…'}
-          hint="all roles"
-        />
-        <SummaryStat
-          label="Admins"
-          value={summary.data?.admins ?? '…'}
-          hint="super admins"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.activeNow ?? '…'}
-          hint="last 30 days"
-        />
-      </div>
-
       <DataTable
         columns={columns}
-        data={list.data?.data ?? []}
-        rowCount={list.data?.meta.total ?? 0}
+        data={pageRows}
+        rowCount={totalFiltered}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
+        pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <StaffFilterToolbar
-            values={{ search, role }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search by name or email',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
+            }}
+            sort={{
+              columns: STAFF_SORT_COLUMNS,
+              sortBy,
+              sortOrder: (sortOrder ?? '') as 'asc' | 'desc' | '',
+              onChange: (nextBy, nextOrder) =>
+                params.updateParams({
+                  sortBy: nextBy || null,
+                  sortOrder: nextOrder || null,
+                  page: '1',
+                }),
+            }}
+            filter={{
+              defs: STAFF_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  role: next.role || null,
+                  active: next.active || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: STAFF_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
-        hasFilters={Boolean(search || role)}
+        hasFilters={Boolean(search || role || activeFilter)}
         emptyState={noDataState}
       />
 
@@ -218,9 +312,9 @@ export default function StaffPage() {
         mode={modalMode}
         staff={activeStaff}
       />
-      <StaffDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+      <StaffDeactivateDialog
+        open={deactivateOpen}
+        onOpenChange={setDeactivateOpen}
         staff={activeStaff}
       />
     </div>

@@ -1,61 +1,32 @@
 import { NavLink } from 'react-router'
-import {
-  LayoutDashboard,
-  Users,
-  UserCog,
-  ArrowUpFromLine,
-  ArrowDownToLine,
-  BarChart3,
-} from 'lucide-react'
-import { useAuth } from '@/lib/auth'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
+import { usePendingMintCount } from '@/features/mint/hooks'
+import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
-
-interface NavItem {
-  to: string
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-}
-
-interface NavSection {
-  label: string
-  items: NavItem[]
-}
-
-const SECTIONS: NavSection[] = [
-  {
-    label: 'Workspace',
-    items: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'User', icon: Users },
-      { to: '/staff', label: 'Staf', icon: UserCog },
-    ],
-  },
-  {
-    label: 'OTC Desk',
-    items: [
-      { to: '/otc/mint', label: 'Mint', icon: ArrowUpFromLine },
-      { to: '/otc/redeem', label: 'Redeem', icon: ArrowDownToLine },
-    ],
-  },
-  {
-    label: 'Insights',
-    items: [{ to: '/report', label: 'Report', icon: BarChart3 }],
-  },
-]
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0]![0]!.toUpperCase()
-  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase()
-}
-
-function formatRole(role: string): string {
-  return role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
+import {
+  visibleNavSections,
+  getInitials,
+  formatRole,
+  type BadgeKey,
+  type NavItem,
+} from './navItems'
 
 export default function Sidebar() {
   const { user } = useAuth()
+  // USDX-78 — STAFF cannot access /api/v1/requests* (sot/phase-1.md L34) so
+  // skip the count queries; the badge is also hidden for STAFF via the
+  // mint/burn item rewrite in visibleNavSections().
+  const canViewLists = canAccessRequestList(user)
+  const mintPending = usePendingMintCount({ enabled: canViewLists })
+  const burnPending = usePendingBurnCount({ enabled: canViewLists })
+
+  const sections = visibleNavSections(user)
+
+  function badgeFor(key?: BadgeKey): number {
+    if (key === 'mint') return mintPending.data ?? 0
+    if (key === 'burn') return burnPending.data ?? 0
+    return 0
+  }
 
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
@@ -72,13 +43,17 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col px-2 pb-2 pt-1">
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.label} className="flex flex-col">
             <div className="px-2 pt-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
               {section.label}
             </div>
             {section.items.map((item) => (
-              <SidebarLink key={item.to} {...item} />
+              <SidebarLink
+                key={item.to}
+                {...item}
+                badgeCount={badgeFor(item.badgeKey)}
+              />
             ))}
           </div>
         ))}
@@ -88,11 +63,11 @@ export default function Sidebar() {
         <div className="border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
-              {getInitials(user.displayName)}
+              {getInitials(user.name)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-[12.5px] font-medium">
-                {user.displayName}
+                {user.name}
               </span>
               <span className="truncate text-[11px] text-muted-foreground">
                 {formatRole(user.role)}
@@ -105,7 +80,12 @@ export default function Sidebar() {
   )
 }
 
-function SidebarLink({ to, label, icon: Icon }: NavItem) {
+function SidebarLink({
+  to,
+  label,
+  icon: Icon,
+  badgeCount = 0,
+}: NavItem & { badgeCount?: number }) {
   return (
     <NavLink
       to={to}
@@ -119,7 +99,16 @@ function SidebarLink({ to, label, icon: Icon }: NavItem) {
       }
     >
       <Icon className="h-3.5 w-3.5" />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badgeCount > 0 && (
+        <span
+          className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
+          aria-label={`${badgeCount} pending`}
+          data-testid={`nav-badge-${to.replace(/^\//, '').replace(/\//g, '-')}`}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
     </NavLink>
   )
 }

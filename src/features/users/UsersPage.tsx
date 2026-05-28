@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,168 +7,167 @@ import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
-import SummaryStat from '@/components/SummaryStat'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
-import UserFilterToolbar, { type UserFilterValues } from './UserFilterToolbar'
-import { useCustomers, useCustomerSummary } from './hooks'
-import type { Customer } from '@/lib/types'
+import PasswordRevealDialog from './PasswordRevealDialog'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
+import { useUsers } from './hooks'
+import { canManageUsers, useAuth } from '@/lib/auth'
+import { getKycStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
+import type { EntityType, KycStatus, PhaseOneUser } from '@/lib/types'
 
-const ROLE_PILL: Record<Customer['role'], string> = {
-  admin: 'bg-primary/10 text-primary',
-  editor: 'bg-muted text-foreground',
-  member: 'bg-muted text-muted-foreground',
-}
+const PAGE_SIZE = 10
 
-const TYPE_PILL: Record<Customer['type'], string> = {
-  personal: 'bg-success/10 text-success',
-  organization: 'bg-primary/10 text-primary',
+const ENTITY_LABEL: Record<EntityType, string> = {
+  INDIVIDUAL: 'Individual',
+  LEGAL_ENTITY: 'Legal Entity',
 }
 
 export default function UsersPage() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const canManage = canManageUsers(user)
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
-  const type = params.searchParams.get('type') ?? ''
-  const role = params.searchParams.get('role') ?? ''
+  const kycStatusParam = (params.searchParams.get('kycStatus') ?? '') as KycStatus | ''
+  const entityTypeParam = (params.searchParams.get('entityType') ?? '') as EntityType | ''
 
-  const list = useCustomers({
+  const list = useUsers({
     page: params.page,
-    pageSize: 10,
-    search,
-    type,
-    role,
-    sortBy: params.sortBy,
-    sortOrder: params.sortOrder,
+    limit: PAGE_SIZE,
+    search: search || undefined,
+    kycStatus: kycStatusParam || undefined,
+    entityType: entityTypeParam || undefined,
   })
-  const summary = useCustomerSummary()
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
-  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null)
+  const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // USDX-47 AC5: temporary password surfaced once after create.
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
 
   function openAdd() {
     setModalMode('add')
-    setActiveCustomer(null)
+    setActiveUser(null)
     setModalOpen(true)
   }
 
-  function openEdit(c: Customer) {
+  function openEdit(u: PhaseOneUser) {
     setModalMode('edit')
-    setActiveCustomer(c)
+    setActiveUser(u)
     setModalOpen(true)
   }
 
-  function openDelete(c: Customer) {
-    setActiveCustomer(c)
+  function openDelete(u: PhaseOneUser) {
+    setActiveUser(u)
     setDeleteOpen(true)
   }
 
-  function handleFilterChange(next: UserFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      type: next.type || null,
-      role: next.role || null,
-      page: '1',
-    })
-  }
+  const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
+  const filterValues = { kycStatus: kycStatusParam, entityType: entityTypeParam }
 
-  const columns: ColumnDef<Customer>[] = [
+  const columns: ColumnDef<PhaseOneUser>[] = [
     {
       id: 'name',
       header: 'Name',
       cell: ({ row }) => {
-        const c = row.original
-        const fullName = `${c.firstName} ${c.lastName}`.trim()
+        const u = row.original
         return (
-          <div className="flex items-center gap-2.5">
-            <Avatar name={fullName} size="sm" />
-            <span className="font-medium text-foreground">{fullName}</span>
-          </div>
-        )
-      },
-    },
-    { accessorKey: 'email', header: 'Email' },
-    {
-      accessorKey: 'phone',
-      header: 'Phone',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
-          {getValue() as string}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'type',
-      header: 'Type',
-      cell: ({ getValue }) => {
-        const t = getValue() as Customer['type']
-        return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              TYPE_PILL[t]
-            )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/users/${u.id}`)
+            }}
+            className="flex items-center gap-2.5 text-left hover:text-primary"
+            aria-label={`Open ${u.name}`}
           >
-            {t === 'personal' ? 'Personal' : 'Organization'}
-          </span>
+            <Avatar name={u.name} size="sm" />
+            <span className="font-medium">{u.name}</span>
+          </button>
         )
       },
     },
     {
-      accessorKey: 'organization',
-      header: 'Organization',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground">
-          {(getValue() as string | undefined) ?? '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'role',
-      header: 'Role',
-      cell: ({ getValue }) => {
-        const r = getValue() as Customer['role']
-        return (
-          <span
-            className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-              ROLE_PILL[r]
-            )}
-          >
-            {r.charAt(0).toUpperCase() + r.slice(1)}
-          </span>
-        )
-      },
-    },
-    {
-      id: 'actions',
-      header: '',
+      id: 'email',
+      header: 'Email',
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.firstName}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.firstName}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <span className="text-[12.5px] text-muted-foreground">
+          {row.original.email || '—'}
+        </span>
       ),
     },
+    {
+      id: 'entityType',
+      header: 'Entity',
+      cell: ({ row }) => (
+        <span className="text-[12.5px]">
+          {ENTITY_LABEL[row.original.entityType] ?? row.original.entityType}
+        </span>
+      ),
+    },
+    {
+      id: 'kycStatus',
+      header: 'KYC',
+      cell: ({ row }) => {
+        const cfg = getKycStatusConfig(row.original.kycStatus)
+        return (
+          <span
+            className={cn(
+              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              cfg.className
+            )}
+          >
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'suspended',
+      header: 'Status',
+      cell: ({ row }) =>
+        row.original.suspended ? (
+          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
+            Suspended
+          </span>
+        ) : null,
+    },
+    ...(canManage
+      ? [
+          {
+            id: 'actions',
+            header: '',
+            cell: ({ row }: { row: { original: PhaseOneUser } }) => (
+              <div className="flex items-center justify-end gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openEdit(row.original)}
+                  aria-label={`Edit ${row.original.name}`}
+                  className="h-7 w-7"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openDelete(row.original)}
+                  aria-label={`Delete ${row.original.name}`}
+                  className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ),
+          } satisfies ColumnDef<PhaseOneUser>,
+        ]
+      : []),
   ]
 
   const noDataState = (
@@ -180,15 +180,25 @@ export default function UsersPage() {
         />
       }
       title="No users yet"
-      description="Add your first customer to get started."
+      description={
+        canManage
+          ? 'Add your first user to get started.'
+          : 'No users to show.'
+      }
       cta={
-        <Button onClick={openAdd} className="mt-2">
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add User
-        </Button>
+        canManage ? (
+          <Button onClick={openAdd} className="mt-2">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add User
+          </Button>
+        ) : undefined
       }
     />
   )
+
+  // SoT openapi.yaml § PaginatedResponse — total lives at metadata.total.
+  const total = list.data?.metadata?.total ?? 0
+  const hasFilters = Boolean(search || kycStatusParam || entityTypeParam)
 
   return (
     <div>
@@ -196,46 +206,52 @@ export default function UsersPage() {
         eyebrow="Workspace"
         title="User"
         italicAccent="directory"
-        subtitle={`Customer directory · ${summary.data?.total ?? '…'} total`}
+        subtitle={`Phase-1 user directory · ${list.isLoading ? '…' : total} total`}
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Add User
-          </Button>
+          canManage ? (
+            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add User
+            </Button>
+          ) : undefined
         }
       />
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <SummaryStat
-          label="Total users"
-          value={summary.data?.total ?? '…'}
-          hint="all-time"
-        />
-        <SummaryStat
-          label="Active now"
-          value={summary.data?.active ?? '…'}
-          hint="last 30 days"
-        />
-        <SummaryStat
-          label="Organizations"
-          value={summary.data?.organizations ?? '…'}
-          hint="active orgs"
-        />
-      </div>
 
       <DataTable
         columns={columns}
         data={list.data?.data ?? []}
-        rowCount={list.data?.meta.total ?? 0}
+        rowCount={total}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
+        pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <UserFilterToolbar
-            values={{ search, type, role }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search by name, email, or wallet',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
+            }}
+            filter={{
+              defs: USERS_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  kycStatus: next.kycStatus || null,
+                  entityType: next.entityType || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: USERS_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
-        hasFilters={Boolean(search || type || role)}
+        hasFilters={hasFilters}
         emptyState={noDataState}
       />
 
@@ -243,12 +259,20 @@ export default function UsersPage() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         mode={modalMode}
-        customer={activeCustomer}
+        user={activeUser}
+        onCreated={(password) => {
+          if (password) setRevealedPassword(password)
+        }}
       />
       <UserDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        customer={activeCustomer}
+        user={activeUser}
+      />
+      <PasswordRevealDialog
+        open={revealedPassword !== null}
+        password={revealedPassword ?? ''}
+        onClose={() => setRevealedPassword(null)}
       />
     </div>
   )

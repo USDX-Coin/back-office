@@ -1,0 +1,27 @@
+# Netlify build + headers config.
+# SPA redirect rules live in public/_redirects so they ship with the bundle.
+# Auto-deploy from `develop` is configured at the site level in the Netlify dashboard.
+
+[build]
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10"
+
+# Mirror the security headers used in vite.config.ts (server.headers) so
+# parity holds between local dev and the deployed site.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# MSW worker must be served with the right scope and content type.
+[[headers]]
+  for = "/mockServiceWorker.js"
+  [headers.values]
+    Service-Worker-Allowed = "/"
+    Cache-Control = "no-cache"

@@ -1,5 +1,62 @@
 import { describe, test, expect } from 'vitest'
-import { formatAmount, formatDate, formatShortDate, formatRelativeTime } from '@/lib/format'
+import {
+  formatAmount,
+  formatDate,
+  formatShortDate,
+  formatRelativeTime,
+  formatRate,
+  formatSpreadPct,
+  shortHash,
+  shortRequestId,
+} from '@/lib/format'
+
+describe('shortHash', () => {
+  describe('positive', () => {
+    test('truncates a 0x tx hash to head…tail', () => {
+      expect(shortHash('0x3d84b05efcf0b6c3fab84cadadb36baca3c9c3febbda05573e74d0c373d4587f')).toBe(
+        '0x3d84b05e…d4587f'
+      )
+    })
+
+    test('honours custom head/tail lengths', () => {
+      expect(shortHash('0x' + '1'.repeat(64), 6, 4)).toBe('0x1111…1111')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('returns the input unchanged when already short enough', () => {
+      expect(shortHash('0xabc')).toBe('0xabc')
+      // exactly head + tail (10 + 6 = 16 chars) → no truncation
+      expect(shortHash('0x12345678abcdef')).toBe('0x12345678abcdef')
+    })
+  })
+})
+
+describe('shortRequestId', () => {
+  describe('positive', () => {
+    test('USDX-84 AC — formats UUID as first8…last5', () => {
+      expect(shortRequestId('019e1aa8-9c7c-7fcd-6abc-deadbeef0001')).toBe('019e1aa8…f0001')
+    })
+
+    test('first 8 chars = first UUID segment (canonical short ID)', () => {
+      // The first segment of a v7 UUID encodes the high-order timestamp bits;
+      // surfacing it as the head is what makes the short form scannable in
+      // a list of requests sorted by createdAt.
+      expect(shortRequestId('abcdef12-3456-7890-abcd-ef1234567890').startsWith('abcdef12')).toBe(true)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('returns input unchanged when already short enough', () => {
+      expect(shortRequestId('short')).toBe('short')
+      expect(shortRequestId('1234567812345')).toBe('1234567812345') // exactly 13 chars (8+5)
+    })
+
+    test('handles empty string without throwing', () => {
+      expect(shortRequestId('')).toBe('')
+    })
+  })
+})
 
 describe('formatAmount', () => {
   describe('positive', () => {
@@ -99,6 +156,43 @@ describe('formatRelativeTime', () => {
   describe('edge cases', () => {
     test('should handle future timestamps gracefully', () => {
       expect(formatRelativeTime('2026-04-17T12:00:00.000Z', now)).toBe('just now')
+    })
+  })
+})
+
+describe('formatRate', () => {
+  describe('positive', () => {
+    test('should format SoT example with 2 decimals + unit', () => {
+      expect(formatRate('16250.00')).toBe('16,250.00 IDR/USD')
+    })
+    test('should format integer string', () => {
+      expect(formatRate('16500')).toBe('16,500.00 IDR/USD')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should fall back to raw input when not parseable', () => {
+      expect(formatRate('abc')).toBe('abc')
+    })
+  })
+})
+
+describe('formatSpreadPct', () => {
+  describe('positive', () => {
+    test('should format SoT example as literal percent', () => {
+      expect(formatSpreadPct('0.5')).toBe('0.5%')
+    })
+    test('should format zero', () => {
+      expect(formatSpreadPct('0')).toBe('0%')
+    })
+    test('should drop trailing zeros up to 2 decimals', () => {
+      expect(formatSpreadPct('1.50')).toBe('1.5%')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should fall back gracefully when input is junk', () => {
+      expect(formatSpreadPct('abc')).toBe('abc%')
     })
   })
 })

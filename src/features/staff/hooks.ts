@@ -1,13 +1,18 @@
+// USDX-41 wired GET listing. USDX-48 added create/update/deactivate per
+// sot/api/staff.yaml — admin-only endpoints, BE returns 403 for non-admin.
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { PaginatedResponse, Staff, StaffSummary } from '@/lib/types'
+import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import type {
+  CreateStaff,
+  PhaseOnePaginatedResponse,
+  Staff,
+  UpdateStaff,
+} from '@/lib/types'
 
 interface ListParams {
   page?: number
-  pageSize?: number
-  search?: string
-  role?: string
-  sortBy?: string
-  sortOrder?: string
+  limit?: number
 }
 
 function buildQuery(params: ListParams): string {
@@ -15,46 +20,26 @@ function buildQuery(params: ListParams): string {
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
   })
-  return sp.toString()
+  const qs = sp.toString()
+  return qs ? `?${qs}` : ''
 }
 
+// Returns the full envelope so consumers can paginate via metadata.total.
 export function useStaff(params: ListParams = {}) {
   return useQuery({
     queryKey: ['staff', params],
-    queryFn: async () => {
-      const res = await fetch(`/api/staff?${buildQuery(params)}`)
-      if (!res.ok) throw new Error('Failed to fetch staff')
-      return res.json() as Promise<PaginatedResponse<Staff>>
-    },
-  })
-}
-
-export function useStaffSummary() {
-  return useQuery({
-    queryKey: ['staff', 'summary'],
-    queryFn: async () => {
-      const res = await fetch('/api/staff/summary')
-      if (!res.ok) throw new Error('Failed to fetch staff summary')
-      return res.json() as Promise<StaffSummary>
-    },
+    queryFn: () =>
+      apiFetchRaw<PhaseOnePaginatedResponse<Staff>>(
+        `/api/v1/staff${buildQuery(params)}`
+      ),
   })
 }
 
 export function useCreateStaff() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: Omit<Staff, 'id' | 'createdAt' | 'displayName'>) => {
-      const res = await fetch('/api/staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      })
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
-        throw new Error(err?.error?.message ?? 'Failed to create staff')
-      }
-      return res.json() as Promise<Staff>
-    },
+    mutationFn: (input: CreateStaff) =>
+      apiFetch<Staff>('/api/v1/staff', { method: 'POST', body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
   })
 }
@@ -62,26 +47,19 @@ export function useCreateStaff() {
 export function useUpdateStaff() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { id: string; patch: Partial<Staff> }) => {
-      const res = await fetch(`/api/staff/${input.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input.patch),
-      })
-      if (!res.ok) throw new Error('Failed to update staff')
-      return res.json() as Promise<Staff>
-    },
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateStaff }) =>
+      apiFetch<Staff>(`/api/v1/staff/${id}`, { method: 'PATCH', body: patch }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
   })
 }
 
-export function useDeleteStaff() {
+// Soft delete: server flips isActive to false (sot/api/staff.yaml — DELETE
+// 200, "Staff deactivated"). The row stays in the list with an Inactive badge.
+export function useDeactivateStaff() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/staff/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete staff')
-    },
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/api/v1/staff/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
   })
 }

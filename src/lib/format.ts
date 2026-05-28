@@ -7,6 +7,55 @@ export function formatAmount(amount: number): string {
   }).format(amount)
 }
 
+// USDX-46 — preview helpers for the currency-aware amount input.
+//
+// sot/conventions.md § Decimals:
+// - USDX uses 6 decimals (like USDC/USDT) — display up to 6.
+// - IDR uses 2 decimals + locale format `Rp 16.250.000,00`.
+
+const USDX_FORMATTER = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 6,
+})
+
+const IDR_FORMATTER = new Intl.NumberFormat('id-ID', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+export function formatUsdxAmount(usdx: number): string {
+  if (!Number.isFinite(usdx)) return '—'
+  return `${USDX_FORMATTER.format(usdx)} USDX`
+}
+
+export function formatIdrAmount(idr: number): string {
+  if (!Number.isFinite(idr)) return '—'
+  return `Rp ${IDR_FORMATTER.format(idr)}`
+}
+
+// Generic middle-truncation for a hex string (address / tx hash):
+// `0x1234…abcd`. Returns the value unchanged when it is already short enough.
+// USDX-27: used by <TruncatedHash> for the responsive (mobile vs desktop)
+// address/hash display.
+export function truncateMiddle(value: string, head: number, tail: number): string {
+  if (!value || value.length <= head + tail) return value
+  return `${value.slice(0, head)}…${value.slice(-tail)}`
+}
+
+// Truncate an 0x hash for display: `0x3d84b05e…d4587f`. Returns the hash
+// unchanged when it's already short enough.
+export function shortHash(hash: string, head = 10, tail = 6): string {
+  return truncateMiddle(hash, head, tail)
+}
+
+// USDX-84 / USDX-87: short form of a request UUID for compact display in
+// banners + the Manual Sync list. AC expects
+// `019e1aa8-9c7c-7fcd-6abc-deadbeef0001` → `019e1aa8…f0001` (first UUID
+// segment + last 5 chars). Delegates to truncateMiddle.
+export function shortRequestId(id: string): string {
+  return truncateMiddle(id, 8, 5)
+}
+
 export function formatDate(dateString: string): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -27,6 +76,30 @@ export function formatShortDate(dateString: string): string {
 
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+// Format a decimal rate string ("16250.00") as "16,250.00 IDR/USD".
+// Falls back to the raw string when input cannot be parsed, so we never
+// hide unexpected backend values behind a coercion artifact.
+export function formatRate(rate: string): string {
+  const n = Number(rate)
+  if (!Number.isFinite(n)) return rate
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)} IDR/USD`
+}
+
+// Format spread as a literal percentage. SoT example "0.5" means 0.5%
+// (sot/phase-1.md § Rate Configuration: "spread_pct ... markup % di atas rate").
+// See docs/notes/usdx-20-decisions.md for the literal-percent rationale.
+export function formatSpreadPct(pct: string): string {
+  const n = Number(pct)
+  if (!Number.isFinite(n)) return `${pct}%`
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n)}%`
+}
 
 export function formatRelativeTime(dateString: string, now: Date = new Date()): string {
   const then = new Date(dateString)

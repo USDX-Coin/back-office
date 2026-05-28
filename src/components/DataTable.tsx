@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import TableEmptyState from '@/components/TableEmptyState'
+import TableErrorState from '@/components/TableErrorState'
 import { cn } from '@/lib/utils'
 
 export interface DataTableProps<T> {
@@ -46,12 +47,26 @@ export interface DataTableProps<T> {
   data: T[]
   rowCount: number
   isLoading?: boolean
+  /** Query failed — renders an error row (with optional retry) instead of an empty state. */
+  isError?: boolean
+  /** Retry action shown in the error state, typically `query.refetch`. */
+  onRetry?: () => void
   statusOptions?: { value: string; label: string }[]
   onExportCsv?: () => void
   pageSize?: number
   filterToolbar?: ReactNode
   emptyState?: ReactNode
   hasFilters?: boolean
+  onRowClick?: (row: T) => void
+  rowAriaLabel?: (row: T) => string
+  // USDX-87: optional per-row className hook for transient visual states
+  // (e.g. deep-link highlight from Manual Sync `?highlight=<id>`). Stays
+  // generic so other features can reuse it.
+  rowClassName?: (row: T) => string | undefined
+  // USDX-27 (Columns popover): controlled column-visibility state. Pages own
+  // it via useColumnVisibility and pass it to both the toolbar and the table.
+  columnVisibility?: import('@tanstack/react-table').VisibilityState
+  onColumnVisibilityChange?: (next: import('@tanstack/react-table').VisibilityState) => void
 }
 
 export default function DataTable<T>({
@@ -59,12 +74,19 @@ export default function DataTable<T>({
   data,
   rowCount,
   isLoading = false,
+  isError = false,
+  onRetry,
   statusOptions,
   onExportCsv,
   pageSize: defaultPageSize = 10,
   filterToolbar,
   emptyState,
   hasFilters: hasFiltersProp,
+  onRowClick,
+  rowAriaLabel,
+  rowClassName,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: DataTableProps<T>) {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -102,7 +124,12 @@ export default function DataTable<T>({
     data,
     columns,
     rowCount,
-    state: { pagination, sorting },
+    state: { pagination, sorting, columnVisibility: columnVisibility ?? {} },
+    onColumnVisibilityChange: (updater) => {
+      if (!onColumnVisibilityChange) return
+      const next = typeof updater === 'function' ? updater(columnVisibility ?? {}) : updater
+      onColumnVisibilityChange(next)
+    },
     onPaginationChange: (updater) => {
       const next = typeof updater === 'function' ? updater(pagination) : updater
       updateParams({ page: String(next.pageIndex + 1) })
@@ -210,7 +237,15 @@ export default function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-md bg-card">
+      <div className="relative overflow-hidden rounded-md bg-card">
+        {/* USDX-27: mobile-only edge fade hints that the table scrolls sideways
+            (the list tables have more columns than fit a phone width). */}
+        {!isLoading && !isError && data.length > 0 && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-card to-transparent md:hidden"
+          />
+        )}
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -258,6 +293,12 @@ export default function DataTable<T>({
                   ))}
                 </TableRow>
               ))
+            ) : isError ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="p-0">
+                  <TableErrorState onRetry={onRetry} />
+                </TableCell>
+              </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="p-0">
@@ -271,15 +312,46 @@ export default function DataTable<T>({
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className="border-border hover:bg-muted/40">
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const clickable = Boolean(onRowClick)
+                return (
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      'border-border hover:bg-muted/40',
+                      clickable &&
+                        'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                      rowClassName?.(row.original)
+                    )}
+                    role={clickable ? 'button' : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    aria-label={
+                      clickable && rowAriaLabel
+                        ? rowAriaLabel(row.original)
+                        : undefined
+                    }
+                    onClick={
+                      clickable ? () => onRowClick!(row.original) : undefined
+                    }
+                    onKeyDown={
+                      clickable
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              onRowClick!(row.original)
+                            }
+                          }
+                        : undefined
+                    }
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>
