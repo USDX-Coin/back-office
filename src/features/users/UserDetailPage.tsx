@@ -88,7 +88,7 @@ export default function UserDetailPage() {
 
       <PageHeader
         eyebrow="Workspace · User"
-        title={data.name}
+        title={data.name ?? data.email}
         subtitle={`Joined ${formatShortDate(data.createdAt)}`}
       />
 
@@ -117,9 +117,10 @@ export default function UserDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-[12.5px]">
             <div className="flex items-center gap-2.5">
-              <Avatar name={data.name} size="md" />
+              {/* users.yaml § User.name nullable (self-signup pre-KYC) */}
+              <Avatar name={data.name ?? data.email} size="md" />
               <div className="min-w-0">
-                <p className="font-medium text-foreground">{data.name}</p>
+                <p className="font-medium text-foreground">{data.name ?? '—'}</p>
                 <p className="truncate text-muted-foreground">{data.email}</p>
               </div>
             </div>

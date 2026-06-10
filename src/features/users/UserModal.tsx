@@ -42,9 +42,6 @@ interface UserModalProps {
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
   user?: PhaseOneUser | null
-  // USDX-47 AC5: surfaces the one-time password from POST response so the
-  // parent can open PasswordRevealDialog after this modal closes.
-  onCreated?: (password: string | undefined) => void
 }
 
 interface WalletDraft {
@@ -82,7 +79,6 @@ export default function UserModal({
   onOpenChange,
   mode,
   user,
-  onCreated,
 }: UserModalProps) {
   const create = useCreateUser()
   const update = useUpdateUser()
@@ -96,7 +92,7 @@ export default function UserModal({
     if (open) {
       if (mode === 'edit' && user) {
         setForm({
-          name: user.name,
+          name: user.name ?? '',
           email: user.email,
           entityType: user.entityType,
           kycStatus: user.kycStatus,
@@ -185,24 +181,17 @@ export default function UserModal({
           chain: w.chain,
           address: w.address.trim(),
         }))
-        const created = await create.mutateAsync({
+        await create.mutateAsync({
           name: form.name.trim(),
           email: form.email.trim(),
           entityType: form.entityType,
           notes: form.notes.trim() || undefined,
           wallets: wallets.length > 0 ? wallets : undefined,
         })
-        toast.success('User created')
+        // USDX-156: no password round-trip anymore — BE queues the activation
+        // email (admin-created.html, link valid 7 days) on create.
+        toast.success('User created. Activation email sent.')
         onOpenChange(false)
-        // AC5: hand the one-time password back to the parent. If BE didn't
-        // return it (e.g., Day-1 BE without reveal support), surface a soft
-        // warning so the operator knows to reset via Forgot Password later.
-        if (created.password) {
-          onCreated?.(created.password)
-        } else {
-          toast.warning('User created, but no temporary password was returned')
-          onCreated?.(undefined)
-        }
         return
       }
 

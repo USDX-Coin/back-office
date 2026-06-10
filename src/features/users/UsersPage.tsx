@@ -10,7 +10,6 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
-import PasswordRevealDialog from './PasswordRevealDialog'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
@@ -48,8 +47,6 @@ export default function UsersPage() {
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  // USDX-47 AC5: temporary password surfaced once after create.
-  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
 
   function openAdd() {
     setModalMode('add')
@@ -85,10 +82,12 @@ export default function UsersPage() {
               navigate(`/users/${u.id}`)
             }}
             className="flex items-center gap-2.5 text-left hover:text-primary"
-            aria-label={`Open ${u.name}`}
+            aria-label={`Open ${u.name ?? u.email}`}
           >
-            <Avatar name={u.name} size="sm" />
-            <span className="font-medium">{u.name}</span>
+            {/* Self-signup users have no name until first KYC submit
+                (users.yaml § User.name nullable) — fall back to email. */}
+            <Avatar name={u.name ?? u.email} size="sm" />
+            <span className="font-medium">{u.name ?? '—'}</span>
           </button>
         )
       },
@@ -260,19 +259,11 @@ export default function UsersPage() {
         onOpenChange={setModalOpen}
         mode={modalMode}
         user={activeUser}
-        onCreated={(password) => {
-          if (password) setRevealedPassword(password)
-        }}
       />
       <UserDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         user={activeUser}
-      />
-      <PasswordRevealDialog
-        open={revealedPassword !== null}
-        password={revealedPassword ?? ''}
-        onClose={() => setRevealedPassword(null)}
       />
     </div>
   )
