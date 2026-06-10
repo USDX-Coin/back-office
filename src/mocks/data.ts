@@ -4,7 +4,9 @@ import type {
   CustomerRole,
   CustomerType,
   EntityType,
+  KycDetail,
   KycListItem,
+  KycReviewLog,
   KycStatus,
   Staff,
   OtcMintTransaction,
@@ -962,4 +964,123 @@ export function createMockKycList(count = 24): KycListItem[] {
       reviewedByName: reviewed ? KYC_REVIEWER_NAMES[seed % KYC_REVIEWER_NAMES.length]! : null,
     })
   })
+}
+
+// ─── USDX-155 — KYC detail + audit trail (sot/api/kyc.yaml § KycDetail/KycReviewLog) ───
+// Detail rows mirror the seeded list (same seed → same name/email as
+// createMockKycList). PII here is fake-but-plausible plaintext — the mock
+// stands in for what the real BE returns AFTER decryption. Photo URLs imitate
+// Railway Bucket presigned GETs (host per live BE: t3.storageapi.dev);
+// `urlExpiresAt` is stamped by the handler at serve time (TTL 5 min), not here.
+
+const BIRTH_PLACES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Yogyakarta']
+const STREETS = ['Jl. Sudirman', 'Jl. Gatot Subroto', 'Jl. Thamrin', 'Jl. Diponegoro', 'Jl. Asia Afrika']
+
+let kycReviewIdCounter = 1
+
+export function createKycReviewLog(overrides: Partial<KycReviewLog> = {}): KycReviewLog {
+  const n = kycReviewIdCounter++
+  return {
+    id: uuidLike(n + 80000),
+    action: 'SUBMITTED',
+    actorStaffId: null,
+    actorStaffName: null,
+    actorUserId: null,
+    reason: null,
+    ipAddress: `10.0.${n % 255}.${(n * 7) % 255}`,
+    createdAt: pastDateRecent(n % 30),
+    ...overrides,
+  }
+}
+
+function mockPresignedUrl(userId: string, docKind: 'ktp' | 'selfie', seed: number): string {
+  return `https://t3.storageapi.dev/usdx-kyc/kyc/${userId}/${docKind}/${uuidLike(seed)}.jpg?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`
+}
+
+export function createKycDetail(
+  item: KycListItem,
+  seed: number,
+  overrides: Partial<KycDetail> = {}
+): KycDetail {
+  const name = CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!
+  const [firstName, lastName] = splitName(name)
+  return {
+    id: item.id,
+    userId: item.userId,
+    userEmail: item.userEmail,
+    entityType: item.entityType,
+    status: item.status,
+    submissionCount: item.submissionCount,
+    firstName,
+    lastName: lastName || 'Wijaya',
+    dob: `19${70 + (seed % 30)}-${String(1 + (seed % 12)).padStart(2, '0')}-${String(1 + (seed % 28)).padStart(2, '0')}`,
+    birthPlace: BIRTH_PLACES[seed % BIRTH_PLACES.length]!,
+    identityType: 'KTP',
+    // 16-digit KTP number: '3171' province/city prefix + 12 seeded digits.
+    identityNumber: `3171${seededBankAccount(seed)}`,
+    country: 'ID',
+    addressLine1: `${STREETS[seed % STREETS.length]!} No. ${1 + (seed % 120)}`,
+    addressLine2: seed % 3 === 0 ? `RT ${1 + (seed % 9)}/RW ${1 + (seed % 5)}` : null,
+    ktpPhotoUrl: mockPresignedUrl(item.userId, 'ktp', seed + 75000),
+    selfiePhotoUrl: mockPresignedUrl(item.userId, 'selfie', seed + 76000),
+    urlExpiresAt: null,
+    rejectionReason:
+      item.status === 'REJECTED'
+        ? 'Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas'
+        : null,
+    submittedAt: item.submittedAt,
+    reviewedBy: item.reviewedByName ? uuidLike(seed + 77000) : null,
+    reviewedByName: item.reviewedByName,
+    reviewedAt: item.reviewedAt,
+    createdAt: item.submittedAt ?? pastDateRecent(seed % 40),
+    updatedAt: item.reviewedAt ?? item.submittedAt ?? pastDateRecent(seed % 40),
+    ...overrides,
+  }
+}
+
+/** Seeded audit trail per detail row, newest-first (contract order). */
+export function createMockKycReviews(detail: KycDetail): KycReviewLog[] {
+  const rows: KycReviewLog[] = [
+    createKycReviewLog({
+      action: 'SUBMITTED',
+      actorUserId: detail.userId,
+      createdAt: detail.createdAt,
+    }),
+  ]
+  for (let i = 1; i < detail.submissionCount; i++) {
+    rows.push(
+      createKycReviewLog({
+        action: 'RESUBMITTED',
+        actorUserId: detail.userId,
+        createdAt: detail.submittedAt ?? detail.createdAt,
+      })
+    )
+  }
+  if (detail.status === 'VERIFIED' || detail.status === 'REJECTED') {
+    rows.push(
+      createKycReviewLog({
+        action: detail.status === 'VERIFIED' ? 'APPROVED' : 'REJECTED',
+        actorStaffId: detail.reviewedBy,
+        actorStaffName: detail.reviewedByName,
+        reason: detail.status === 'REJECTED' ? detail.rejectionReason : null,
+        createdAt: detail.reviewedAt ?? detail.updatedAt,
+      })
+    )
+  }
+  // Newest first (kyc.yaml § reviewsHistory: reverse-chronological).
+  return rows.reverse()
+}
+
+export function createMockKycDetailState(list: KycListItem[]): {
+  details: Map<string, KycDetail>
+  reviews: Map<string, KycReviewLog[]>
+} {
+  const details = new Map<string, KycDetail>()
+  const reviews = new Map<string, KycReviewLog[]>()
+  list.forEach((item, i) => {
+    const detail = createKycDetail(item, i + 1)
+    details.set(item.id, detail)
+    reviews.set(item.id, createMockKycReviews(detail))
+  })
+  return { details, reviews }
 }

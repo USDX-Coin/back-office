@@ -66,6 +66,11 @@ const INTEGRATION_PATHS = new Set([
   // USDX-154: KYC review list — BE shipped with USDX-148 (backend PR #90).
   // Real-BE in the browser; the handler stays in handlers.ts for Vitest.
   '/api/v1/kyc',
+  // USDX-155: KYC detail + approve/reject + audit trail — same BE ship.
+  '/api/v1/kyc/:id',
+  '/api/v1/kyc/:id/reviews',
+  '/api/v1/kyc/:id/approve',
+  '/api/v1/kyc/:id/reject',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

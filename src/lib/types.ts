@@ -495,6 +495,64 @@ export interface KycListItem {
   reviewedByName: string | null
 }
 
+// sot/api/kyc.yaml § IdentityType — Week 1 only KTP; DRIVER_LICENSE deferred.
+export type KycIdentityType = 'KTP' | 'DRIVER_LICENSE'
+
+// sot/api/kyc.yaml § KycReviewAction — append-only audit log actions.
+export type KycReviewAction =
+  | 'SUBMITTED'
+  | 'VIEWED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'RESUBMITTED'
+  | 'PURGED'
+
+// sot/api/kyc.yaml § KycDetail — USDX-155. PII arrives DECRYPTED from the
+// backend (every GET writes a VIEWED audit row server-side). PII fields are
+// nullable: the retention sweeper NULLs ciphertext after the retention period.
+// Photo URLs are presigned GETs with a 5-minute TTL (`urlExpiresAt`); null
+// once the object has been purged.
+export interface KycDetail {
+  id: string
+  userId: string
+  userEmail: string
+  entityType: EntityType
+  status: KycStatus
+  submissionCount: number
+  firstName: string | null
+  lastName: string | null
+  dob: string | null
+  birthPlace: string | null
+  identityType: KycIdentityType
+  identityNumber: string | null
+  country: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  ktpPhotoUrl: string | null
+  selfiePhotoUrl: string | null
+  urlExpiresAt: string | null
+  rejectionReason: string | null
+  submittedAt: string | null
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// sot/api/kyc.yaml § KycReviewLog — one audit-trail row. actorStaffId is
+// non-null for VIEWED/APPROVED/REJECTED, actorUserId for SUBMITTED/RESUBMITTED.
+export interface KycReviewLog {
+  id: string
+  action: KycReviewAction
+  actorStaffId: string | null
+  actorStaffName: string | null
+  actorUserId: string | null
+  reason: string | null
+  ipAddress: string | null
+  createdAt: string
+}
+
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
 // USDX-46: forms now submit `userId` (operator picks from existing users)
 // + `amountCurrency` (USD/IDR — BE converts IDR using current rate).
