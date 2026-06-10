@@ -9,6 +9,7 @@ import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
+import KycListPage from '@/features/kyc/KycListPage'
 import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
@@ -58,6 +59,12 @@ const router = createBrowserRouter([
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
+          // USDX-154 + week1.md § Authorization Guard: KYC review list is
+          // reachable by every role (Admin/Manager/Staff/Developer) — no
+          // RoleGuard. Approve/reject gating happens inside the detail
+          // (USDX-155); BE enforces 403 for Developer regardless.
+          { path: '/kyc', element: <KycListPage /> },
+          { path: '/kyc/:id', element: <KycListPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects
