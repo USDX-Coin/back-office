@@ -4,6 +4,7 @@ import type {
   CustomerRole,
   CustomerType,
   EntityType,
+  KycListItem,
   KycStatus,
   Staff,
   OtcMintTransaction,
@@ -917,3 +918,48 @@ export function computeDashboardStats(
   }
 }
 
+
+// ─── Phase 2 Week 1 — KYC review list (sot/api/kyc.yaml § KycListItem) ───
+// USDX-154: seeded rows for the /kyc backoffice list. One row per user
+// (kyc.user_id is unique); statuses cycle PENDING/VERIFIED/REJECTED so every
+// filter has matches. The list handler sorts submitted_at ascending — the
+// factory intentionally returns unsorted rows so tests exercise that sort.
+
+const KYC_REVIEWER_NAMES = ['Andi Wijaya', 'Siti Rahma', 'Budi Santoso']
+
+export function createKycListItem(overrides: Partial<KycListItem> = {}): KycListItem {
+  return {
+    id: uuidLike(70000),
+    userId: uuidLike(71000),
+    userEmail: 'user@example.com',
+    entityType: 'INDIVIDUAL',
+    status: 'PENDING',
+    submissionCount: 1,
+    submittedAt: pastDateRecent(3),
+    reviewedAt: null,
+    reviewedByName: null,
+    ...overrides,
+  }
+}
+
+export function createMockKycList(count = 24): KycListItem[] {
+  return Array.from({ length: count }, (_, i) => {
+    const seed = i + 1
+    const status: KycStatus = (['PENDING', 'VERIFIED', 'REJECTED'] as const)[seed % 3]!
+    const name = CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!
+    const [first, last] = splitName(name)
+    const reviewed = status !== 'PENDING'
+    return createKycListItem({
+      id: uuidLike(seed + 70000),
+      userId: uuidLike(seed + 71000),
+      userEmail: customerEmail(first, last, seed),
+      status,
+      // Rejected users resubmit (unlimited resubmit, week1.md § Status Flow),
+      // so they tend to carry higher submission counts.
+      submissionCount: status === 'REJECTED' ? 1 + (seed % 3) : 1 + (seed % 2),
+      submittedAt: pastDateRecent(seed % 40),
+      reviewedAt: reviewed ? pastDateRecent(seed % 20) : null,
+      reviewedByName: reviewed ? KYC_REVIEWER_NAMES[seed % KYC_REVIEWER_NAMES.length]! : null,
+    })
+  })
+}

@@ -63,6 +63,9 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/manual-sync',
   '/api/v1/manual-sync/:id/verify',
   '/api/v1/manual-sync/:id/execute',
+  // USDX-154: KYC review list — BE shipped with USDX-148 (backend PR #90).
+  // Real-BE in the browser; the handler stays in handlers.ts for Vitest.
+  '/api/v1/kyc',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

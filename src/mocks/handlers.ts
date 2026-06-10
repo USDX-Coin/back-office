@@ -3,6 +3,7 @@ import { isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
+  KycListItem,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -16,6 +17,7 @@ import type {
 import { canManageRate } from '@/lib/types'
 import {
   createMockCustomerList,
+  createMockKycList,
   createMockStaffList,
   createMockOtcTransactions,
   createMockChainConfigs,
@@ -42,6 +44,7 @@ let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 's
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+let kycList: KycListItem[] = createMockKycList()
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -51,6 +54,7 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+  kycList = createMockKycList()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -170,6 +174,16 @@ function paginate<T>(items: T[], page: number, pageSize: number) {
 
 function badRequest(code: string, message: string, details?: Record<string, string>) {
   return HttpResponse.json({ error: { code, message, details } }, { status: 400 })
+}
+
+// Asia/Jakarta (UTC+7) date bucket of an ISO timestamp, mirrors BE
+// `(col AT TIME ZONE 'Asia/Jakarta')::date`. Inclusive both bounds
+// (equivalent to col < endDate + 1 day). Shared by the requests (USDX-98)
+// and KYC (USDX-154) list handlers.
+function jakartaDate(iso: string): string {
+  return new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
 }
 
 // ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
@@ -521,14 +535,6 @@ export const handlers = [
     if (startDate && endDate && endDate < startDate)
       return phaseOneBadRequest('endDate must be greater than or equal to startDate')
 
-    // Asia/Jakarta (UTC+7) date bucket of an ISO timestamp, mirrors BE
-    // `(created_at AT TIME ZONE 'Asia/Jakarta')::date`. Inclusive both bounds
-    // (equivalent to created_at < endDate + 1 day).
-    const jakartaDate = (iso: string): string =>
-      new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10)
-
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
     if (status) rows = rows.filter((r) => r.status === status)
@@ -554,6 +560,49 @@ export const handlers = [
       status: 'success',
       metadata: { page, limit, total: rows.length },
       data,
+    })
+  }),
+
+  // ─── Phase 2 W1 — KYC backoffice list (sot/api/kyc.yaml § list, USDX-154) ───
+  // Real BE in the browser (see src/mocks/browser.ts § INTEGRATION_PATHS);
+  // this handler keeps Vitest coverage. The contract exposes no sort params —
+  // order is fixed at submitted_at ascending (oldest pending first, week1.md
+  // § Backoffice Approval Menu).
+  http.get('/api/v1/kyc', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+    const status = url.searchParams.get('status')
+    const entityType = url.searchParams.get('entityType')
+    const search = url.searchParams.get('search')?.trim().toLowerCase()
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    if (startDate !== null && !DATE_RE.test(startDate))
+      return phaseOneBadRequest('startDate must be YYYY-MM-DD')
+    if (endDate !== null && !DATE_RE.test(endDate))
+      return phaseOneBadRequest('endDate must be YYYY-MM-DD')
+    if (startDate && endDate && endDate < startDate)
+      return phaseOneBadRequest('endDate must be greater than or equal to startDate')
+
+    let rows = [...kycList]
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (entityType) rows = rows.filter((r) => r.entityType === entityType)
+    // Search matches user email only (plaintext in `users`) — kyc.yaml § search.
+    if (search) rows = rows.filter((r) => r.userEmail.toLowerCase().includes(search))
+    if (startDate)
+      rows = rows.filter((r) => r.submittedAt && jakartaDate(r.submittedAt) >= startDate)
+    if (endDate)
+      rows = rows.filter((r) => r.submittedAt && jakartaDate(r.submittedAt) <= endDate)
+
+    rows.sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
+
+    const start = (page - 1) * limit
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: rows.length },
+      data: rows.slice(start, start + limit),
     })
   }),
 
