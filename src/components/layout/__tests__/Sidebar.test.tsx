@@ -203,4 +203,73 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
     })
   })
+
+  // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
+  // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
+  // unlike Mint/Burn the badge also renders for STAFF.
+  describe('USDX-154 — COMPLIANCE / KYC Review', () => {
+    function kycCount(total: number) {
+      return http.get('/api/v1/kyc', () =>
+        HttpResponse.json({
+          status: 'success',
+          metadata: { page: 1, limit: 1, total },
+          data: [],
+        })
+      )
+    }
+
+    test('renders Compliance section with a KYC Review link to /kyc (admin)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(screen.getByText(/compliance/i)).toBeInTheDocument()
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+    })
+
+    test('shows (N) badge with the PENDING submission count', async () => {
+      server.use(kycCount(5))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('5')
+    })
+
+    test('hides the badge when the PENDING count is 0', async () => {
+      server.use(kycCount(0))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      // Link renders; badge node only mounts when count > 0.
+      await screen.findByRole('link', { name: /kyc review/i })
+      expect(screen.queryByTestId('nav-badge-kyc')).not.toBeInTheDocument()
+    })
+
+    test('STAFF sees KYC Review with the badge (list is staff-accessible, unlike /mint)', async () => {
+      server.use(kycCount(3))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('3')
+    })
+
+    test('DEVELOPER sees KYC Review (view-only role still gets the list menu)', async () => {
+      server.use(kycCount(2))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius (DEVELOPER)
+      })
+      expect(screen.getByRole('link', { name: /kyc review/i })).toBeInTheDocument()
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('2')
+    })
+  })
 })
