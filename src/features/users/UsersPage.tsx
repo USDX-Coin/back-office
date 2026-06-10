@@ -15,9 +15,18 @@ import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
 import { useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
-import { getKycStatusConfig } from '@/lib/status'
+import {
+  deriveActivationStatus,
+  getActivationStatusConfig,
+  getKycStatusConfig,
+} from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { EntityType, KycStatus, PhaseOneUser } from '@/lib/types'
+import type {
+  ActivationStatus,
+  EntityType,
+  KycStatus,
+  PhaseOneUser,
+} from '@/lib/types'
 
 const PAGE_SIZE = 10
 
@@ -34,6 +43,8 @@ export default function UsersPage() {
   const search = params.searchParams.get('search') ?? ''
   const kycStatusParam = (params.searchParams.get('kycStatus') ?? '') as KycStatus | ''
   const entityTypeParam = (params.searchParams.get('entityType') ?? '') as EntityType | ''
+  const activationStatusParam = (params.searchParams.get('activationStatus') ??
+    '') as ActivationStatus | ''
 
   const list = useUsers({
     page: params.page,
@@ -41,6 +52,7 @@ export default function UsersPage() {
     search: search || undefined,
     kycStatus: kycStatusParam || undefined,
     entityType: entityTypeParam || undefined,
+    activationStatus: activationStatusParam || undefined,
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -66,7 +78,11 @@ export default function UsersPage() {
   }
 
   const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
-  const filterValues = { kycStatus: kycStatusParam, entityType: entityTypeParam }
+  const filterValues = {
+    kycStatus: kycStatusParam,
+    entityType: entityTypeParam,
+    activationStatus: activationStatusParam,
+  }
 
   const columns: ColumnDef<PhaseOneUser>[] = [
     {
@@ -122,6 +138,28 @@ export default function UsersPage() {
               cfg.className
             )}
           >
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    {
+      // USDX-156 — activation badge: FAILED (destructive) wins over PENDING
+      // (warning); ACTIVATED renders muted-success so the column scans quietly.
+      id: 'activation',
+      header: 'Activation',
+      cell: ({ row }) => {
+        const status = deriveActivationStatus(row.original)
+        const cfg = getActivationStatusConfig(status)
+        return (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              cfg.className
+            )}
+            data-testid={`activation-badge-${status.toLowerCase()}`}
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
             {cfg.label}
           </span>
         )
@@ -197,7 +235,9 @@ export default function UsersPage() {
 
   // SoT openapi.yaml § PaginatedResponse — total lives at metadata.total.
   const total = list.data?.metadata?.total ?? 0
-  const hasFilters = Boolean(search || kycStatusParam || entityTypeParam)
+  const hasFilters = Boolean(
+    search || kycStatusParam || entityTypeParam || activationStatusParam
+  )
 
   return (
     <div>
@@ -240,6 +280,7 @@ export default function UsersPage() {
                 params.updateParams({
                   kycStatus: next.kycStatus || null,
                   entityType: next.entityType || null,
+                  activationStatus: next.activationStatus || null,
                   page: '1',
                 }),
             }}
