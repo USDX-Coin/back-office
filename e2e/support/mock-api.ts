@@ -5,7 +5,7 @@ import type { Page, Route } from '@playwright/test'
 //
 // Playwright intercepts `**/api/v1/**` at the network layer. The dev server runs
 // the MSW browser worker, but the paths exercised here (auth, requests, mint,
-// burn, users, dashboard, rate, chains, threshold, staff) are all in MSW's
+// burn, users, dashboard, rate, chains, threshold, staff, kyc) are all in MSW's
 // `INTEGRATION_PATHS` bypass list — MSW lets them hit the network, so these
 // routes win. The result is a self-contained suite that runs in CI with no
 // backend / credentials and produces zero on-chain side effects (mint/burn
@@ -137,6 +137,114 @@ function seedRequests(): MockRequest[] {
   ]
 }
 
+// ── KYC review (USDX-154/155 — sot/api/kyc.yaml) ─────────────────────────────
+
+export interface MockKycRecord {
+  id: string
+  userId: string
+  userEmail: string
+  entityType: 'INDIVIDUAL' | 'LEGAL_ENTITY'
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED'
+  submissionCount: number
+  firstName: string
+  lastName: string
+  dob: string
+  birthPlace: string
+  identityType: 'KTP'
+  identityNumber: string
+  country: string
+  addressLine1: string
+  addressLine2: string | null
+  ktpPhotoUrl: string
+  selfiePhotoUrl: string
+  rejectionReason: string | null
+  submittedAt: string
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface MockKycReview {
+  id: string
+  action: 'SUBMITTED' | 'VIEWED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED' | 'PURGED'
+  actorStaffId: string | null
+  actorStaffName: string | null
+  actorUserId: string | null
+  reason: string | null
+  ipAddress: string | null
+  createdAt: string
+}
+
+// Presigned-photo stand-in host (mirrors the live Railway Bucket host so the
+// CSP `img-src https://*.storageapi.dev` allowance is exercised). Specs stub
+// this host with a 1×1 PNG via page.route.
+export const KYC_PHOTO_HOST = 'https://t3.storageapi.dev'
+
+function kycListItem(k: MockKycRecord) {
+  return {
+    id: k.id, userId: k.userId, userEmail: k.userEmail, entityType: k.entityType,
+    status: k.status, submissionCount: k.submissionCount, submittedAt: k.submittedAt,
+    reviewedAt: k.reviewedAt, reviewedByName: k.reviewedByName,
+  }
+}
+
+function seedKyc(): MockKycRecord[] {
+  const mk = (over: Partial<MockKycRecord>): MockKycRecord => ({
+    id: over.id!, userId: `usr_${over.id}`, userEmail: over.userEmail ?? 'user@example.com',
+    entityType: 'INDIVIDUAL', status: 'PENDING', submissionCount: 1,
+    firstName: 'Alice', lastName: 'Anderson', dob: '1995-03-15', birthPlace: 'Jakarta',
+    identityType: 'KTP', identityNumber: '3171234567890123', country: 'ID',
+    addressLine1: 'Jl. Sudirman No. 1', addressLine2: null,
+    ktpPhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/ktp.png`,
+    selfiePhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/selfie.png`,
+    rejectionReason: null, submittedAt: '2026-06-01T03:00:00.000Z',
+    reviewedBy: null, reviewedByName: null, reviewedAt: null,
+    createdAt: '2026-06-01T03:00:00.000Z', updatedAt: '2026-06-01T03:00:00.000Z',
+    ...over,
+  })
+  return [
+    // PENDING is the OLDEST on purpose — the list sorts submitted_at ascending,
+    // so specs can assert it lands on row #1 (oldest pending first).
+    mk({ id: 'kyc_pending', userEmail: 'alice.pending@example.com' }),
+    mk({
+      id: 'kyc_verified', userEmail: 'bob.verified@example.com', status: 'VERIFIED',
+      firstName: 'Bob', lastName: 'Martin', submittedAt: '2026-06-05T03:00:00.000Z',
+      reviewedBy: ADMIN_STAFF.id, reviewedByName: ADMIN_STAFF.name, reviewedAt: '2026-06-06T03:00:00.000Z',
+    }),
+    mk({
+      id: 'kyc_rejected', userEmail: 'cindy.rejected@example.com', status: 'REJECTED',
+      firstName: 'Cindy', lastName: 'Lestari', submissionCount: 2, submittedAt: '2026-06-08T03:00:00.000Z',
+      rejectionReason: 'Foto KTP buram', reviewedBy: ADMIN_STAFF.id,
+      reviewedByName: ADMIN_STAFF.name, reviewedAt: '2026-06-09T03:00:00.000Z',
+    }),
+  ]
+}
+
+function seedKycReviews(records: MockKycRecord[]): Map<string, MockKycReview[]> {
+  let n = 0
+  const mk = (over: Partial<MockKycReview>): MockKycReview => ({
+    id: `rev_${++n}`, action: 'SUBMITTED', actorStaffId: null, actorStaffName: null,
+    actorUserId: null, reason: null, ipAddress: null, createdAt: '2026-06-01T03:00:00.000Z', ...over,
+  })
+  const map = new Map<string, MockKycReview[]>()
+  for (const k of records) {
+    const rows: MockKycReview[] = [mk({ action: 'SUBMITTED', actorUserId: k.userId, createdAt: k.createdAt })]
+    if (k.status !== 'PENDING') {
+      rows.unshift(
+        mk({
+          action: k.status === 'VERIFIED' ? 'APPROVED' : 'REJECTED',
+          actorStaffId: k.reviewedBy, actorStaffName: k.reviewedByName,
+          reason: k.rejectionReason, createdAt: k.reviewedAt ?? k.updatedAt,
+        })
+      )
+    }
+    map.set(k.id, rows)
+  }
+  return map
+}
+
 type RouteOverride = (route: Route, url: URL) => Promise<boolean | void> | boolean | void
 
 export interface MockApiOptions {
@@ -144,6 +252,8 @@ export interface MockApiOptions {
   users?: (typeof VERIFIED_USER)[]
   /** Replace the seeded request list. */
   requests?: MockRequest[]
+  /** Replace the seeded KYC records (USDX-154/155). */
+  kyc?: MockKycRecord[]
   /** Override a single endpoint, keyed by `"METHOD /api/v1/path"`. Return `true` if handled. */
   routes?: Record<string, RouteOverride>
 }
@@ -151,12 +261,17 @@ export interface MockApiOptions {
 export interface MockApiState {
   users: (typeof VERIFIED_USER)[]
   requests: MockRequest[]
+  kyc: MockKycRecord[]
+  kycReviews: Map<string, MockKycReview[]>
 }
 
 export async function installMockApi(page: Page, opts: MockApiOptions = {}): Promise<MockApiState> {
+  const kycRecords = opts.kyc ?? seedKyc()
   const state: MockApiState = {
     users: [VERIFIED_USER, ...(opts.users ?? [])],
     requests: opts.requests ?? seedRequests(),
+    kyc: kycRecords,
+    kycReviews: seedKycReviews(kycRecords),
   }
 
   const envelope = (route: Route, data: unknown, status = 200) =>
@@ -243,6 +358,64 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         state.users = state.users.filter((u) => u.id !== id)
         return noContent(route)
       }
+    }
+
+    // ── KYC review list / detail / actions (USDX-154/155) ────────────────
+    if (method === 'GET' && path === '/api/v1/kyc') {
+      const status = url.searchParams.get('status')
+      const entity = url.searchParams.get('entityType')
+      const search = url.searchParams.get('search')?.toLowerCase()
+      let list = [...state.kyc]
+      if (status) list = list.filter((k) => k.status === status)
+      if (entity) list = list.filter((k) => k.entityType === entity)
+      if (search) list = list.filter((k) => k.userEmail.toLowerCase().includes(search))
+      // Contract: fixed submitted_at ascending (oldest pending first).
+      list.sort((a, b) => (a.submittedAt > b.submittedAt ? 1 : -1))
+      return paginated(route, list.map(kycListItem), Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '10'))
+    }
+    const kycReviewsMatch = path.match(/^\/api\/v1\/kyc\/([^/]+)\/reviews$/)
+    if (method === 'GET' && kycReviewsMatch) {
+      const rows = state.kycReviews.get(kycReviewsMatch[1])
+      if (!rows) return error(route, 'NOT_FOUND', 'KYC record not found', 404)
+      return envelope(route, rows)
+    }
+    const kycActionMatch = path.match(/^\/api\/v1\/kyc\/([^/]+)\/(approve|reject)$/)
+    if (method === 'POST' && kycActionMatch) {
+      const k = state.kyc.find((x) => x.id === kycActionMatch[1])
+      if (!k) return error(route, 'NOT_FOUND', 'KYC record not found', 404)
+      if (k.status !== 'PENDING') return error(route, 'INVALID_STATUS', 'KYC status is not PENDING', 409)
+      const now = new Date().toISOString()
+      if (kycActionMatch[2] === 'approve') {
+        k.status = 'VERIFIED'
+      } else {
+        const reason = String(body().reason ?? '').trim()
+        if (reason.length < 1 || reason.length > 500) return error(route, 'BAD_REQUEST', 'reason must be 1-500 characters', 400)
+        k.status = 'REJECTED'
+        k.rejectionReason = reason
+      }
+      k.reviewedBy = ADMIN_STAFF.id
+      k.reviewedByName = ADMIN_STAFF.name
+      k.reviewedAt = now
+      k.updatedAt = now
+      state.kycReviews.get(k.id)?.unshift({
+        id: `rev_live_${Date.now()}`, action: k.status === 'VERIFIED' ? 'APPROVED' : 'REJECTED',
+        actorStaffId: ADMIN_STAFF.id, actorStaffName: ADMIN_STAFF.name, actorUserId: null,
+        reason: k.rejectionReason, ipAddress: null, createdAt: now,
+      })
+      return envelope(route, kycListItem(k))
+    }
+    const kycIdMatch = path.match(/^\/api\/v1\/kyc\/([^/]+)$/)
+    if (method === 'GET' && kycIdMatch) {
+      const k = state.kyc.find((x) => x.id === kycIdMatch[1])
+      if (!k) return error(route, 'NOT_FOUND', 'KYC record not found', 404)
+      // Audit-first: every detail GET records a VIEWED row (kyc.yaml § detail).
+      state.kycReviews.get(k.id)?.unshift({
+        id: `rev_viewed_${Date.now()}`, action: 'VIEWED', actorStaffId: ADMIN_STAFF.id,
+        actorStaffName: ADMIN_STAFF.name, actorUserId: null, reason: null, ipAddress: null,
+        createdAt: new Date().toISOString(),
+      })
+      // Presigned URLs are minted per request — fresh 5-minute TTL.
+      return envelope(route, { ...k, urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })
     }
 
     // ── Requests list / detail ────────────────────────────────────────────
