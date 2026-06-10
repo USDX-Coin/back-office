@@ -13,6 +13,7 @@ import { formatShortDate } from '@/lib/format'
 import { getKycStatusConfig, getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import { useUserDetail } from './hooks'
+import ActivationStatusSection from './ActivationStatusSection'
 import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
 import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
@@ -159,6 +160,9 @@ export default function UserDetailPage() {
                 )}
               </span>
             </div>
+
+            {/* USDX-156 — activation state + admin resend action */}
+            <ActivationStatusSection user={data} />
 
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
