@@ -332,6 +332,20 @@ export function validateStaffEditForm(input: {
 }
 
 // sot/api/users.yaml § CreateUser/UpdateUser. USDX-47 enforces:
+// USDX-156 — sot/api/users.yaml § CreateUser.phone: optional at admin-create,
+// format `+62xxx` or `08xxx` (backend normalizes to +62). Empty = not provided.
+// Length bounds: Indonesian numbers are 9–13 digits after the prefix.
+const ID_PHONE_RE = /^(\+62\d{8,12}|08\d{7,11})$/
+
+export function validateOptionalIdPhone(phone: string): string | null {
+  const cleaned = phone.replace(/[\s()-]/g, '')
+  if (!cleaned) return null
+  if (!ID_PHONE_RE.test(cleaned)) {
+    return 'Use +62xxx or 08xxx format'
+  }
+  return null
+}
+
 // - name required, max 255 chars (AC6)
 // - email required + format check (S4 + S5: required in create AND edit per
 //   judgement — empty email would break Phase-2 login at sot/phase-1.md L341)

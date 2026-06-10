@@ -25,6 +25,7 @@ import {
 import FieldError from '@/components/FieldError'
 import {
   USER_LIMITS,
+  validateOptionalIdPhone,
   validateUserForm,
   validateUserWalletForm,
   validateUserWalletsLimit,
@@ -52,6 +53,9 @@ interface WalletDraft {
 interface FormState {
   name: string
   email: string
+  // USDX-156: optional at admin-create only — UpdateUser SoT has no phone
+  // field (the user manages it consumer-side), so edit mode hides it.
+  phone: string
   entityType: EntityType
   kycStatus: KycStatus
   suspended: boolean
@@ -64,6 +68,7 @@ interface FormState {
 const EMPTY: FormState = {
   name: '',
   email: '',
+  phone: '',
   entityType: 'INDIVIDUAL',
   kycStatus: 'UNVERIFIED',
   suspended: false,
@@ -94,6 +99,7 @@ export default function UserModal({
         setForm({
           name: user.name ?? '',
           email: user.email,
+          phone: user.phone ?? '',
           entityType: user.entityType,
           kycStatus: user.kycStatus,
           suspended: user.suspended,
@@ -160,6 +166,9 @@ export default function UserModal({
     })
     const walletErrors: Record<string, string> = {}
     if (mode === 'add') {
+      // USDX-156: phone is optional but must be +62xxx / 08xxx when filled.
+      const phoneError = validateOptionalIdPhone(form.phone)
+      if (phoneError) walletErrors['phone'] = phoneError
       // Pre-check wallet limit before per-row validation so we never POST 51+.
       const limitError = validateUserWalletsLimit(0, form.wallets.length)
       if (limitError) walletErrors['wallets'] = limitError
@@ -184,6 +193,7 @@ export default function UserModal({
         await create.mutateAsync({
           name: form.name.trim(),
           email: form.email.trim(),
+          phone: form.phone.replace(/[\s()-]/g, '') || undefined,
           entityType: form.entityType,
           notes: form.notes.trim() || undefined,
           wallets: wallets.length > 0 ? wallets : undefined,
@@ -234,7 +244,7 @@ export default function UserModal({
           <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Create a Phase-1 user. A temporary password will be generated and shown once after creation.'
+              ? 'The user will receive an activation email to set their own password — the link is valid for 7 days.'
               : 'Update user profile, KYC status, and suspension state.'}
           </DialogDescription>
         </DialogHeader>
@@ -267,6 +277,22 @@ export default function UserModal({
               />
               <FieldError message={errors.email} />
             </div>
+            {mode === 'add' && (
+              // USDX-156: optional phone at admin-create (CreateUser.phone).
+              // Edit mode has no phone — UpdateUser SoT doesn't carry it.
+              <div>
+                <Label htmlFor="phone">Phone (optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setField('phone', e.target.value)}
+                  placeholder="+62812xxxxxxx or 0812xxxxxxx"
+                  className="mt-1.5"
+                />
+                <FieldError message={errors.phone} />
+              </div>
+            )}
             <div>
               <Label htmlFor="entityType">Entity type</Label>
               <Select
