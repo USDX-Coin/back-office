@@ -982,7 +982,7 @@ export const handlers = [
 
     const { list, detail } = createBurnRequestFromSubmission(
       {
-        userName: phaseOneUser.name,
+        userName: phaseOneUser.name ?? phaseOneUser.email,
         userAddress,
         amount,
         amountCurrency,

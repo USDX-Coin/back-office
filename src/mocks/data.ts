@@ -686,13 +686,20 @@ export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseO
           createdAt: customer.createdAt,
         },
       ]
+  // USDX-156 activation seed: ~1/3 pending (emailVerifiedAt null), of which
+  // every 6th has a failed activation email; the rest are activated.
+  const pendingActivation = seed % 3 === 0
   return {
     id: customer.id,
     name: fullName,
     email: customer.email,
+    phone: seed % 2 === 0 ? `+628${seededBankAccount(seed + 27000).slice(0, 9)}` : null,
     entityType: deriveEntityType(seed),
     kycStatus: deriveKycStatus(seed),
     suspended: deriveSuspended(seed),
+    emailVerifiedAt: pendingActivation ? null : customer.createdAt,
+    activationEmailFailedAt:
+      pendingActivation && seed % 6 === 0 ? customer.createdAt : null,
     notes: customer.organization ?? null,
     wallets,
     createdAt: customer.createdAt,

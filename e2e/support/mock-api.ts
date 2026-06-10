@@ -41,9 +41,13 @@ export const VERIFIED_USER = {
   id: '00000000-0000-7000-8000-0000000000d1',
   name: 'Robert Deon',
   email: 'robert.deon@example.com',
+  phone: '+628123456789' as string | null,
   entityType: 'INDIVIDUAL' as const,
   kycStatus: 'VERIFIED' as const,
   suspended: false,
+  // USDX-156 activation fields (users.yaml § User)
+  emailVerifiedAt: '2026-01-02T00:00:00.000Z' as string | null,
+  activationEmailFailedAt: null as string | null,
   notes: null as string | null,
   wallets: [
     {
@@ -55,6 +59,30 @@ export const VERIFIED_USER = {
   ],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
+// USDX-156 — seeded activation states for the /users filter + resend specs.
+export const PENDING_ACTIVATION_USER = {
+  ...VERIFIED_USER,
+  id: '00000000-0000-7000-8000-0000000000d2',
+  name: 'Pending Pat',
+  email: 'pending.pat@example.com',
+  phone: null as string | null,
+  kycStatus: 'UNVERIFIED' as const,
+  emailVerifiedAt: null as string | null,
+  wallets: [],
+}
+
+export const FAILED_ACTIVATION_USER = {
+  ...VERIFIED_USER,
+  id: '00000000-0000-7000-8000-0000000000d3',
+  name: 'Failed Fia',
+  email: 'failed.fia@example.com',
+  phone: null as string | null,
+  kycStatus: 'UNVERIFIED' as const,
+  emailVerifiedAt: null as string | null,
+  activationEmailFailedAt: '2026-06-09T00:00:00.000Z' as string | null,
+  wallets: [],
 }
 
 const RATE_INFO = { rate: '16250.0000', mode: 'MANUAL' as const, spreadPct: '0', updatedAt: '2026-05-01T00:00:00.000Z' }
@@ -263,15 +291,18 @@ export interface MockApiState {
   requests: MockRequest[]
   kyc: MockKycRecord[]
   kycReviews: Map<string, MockKycReview[]>
+  /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
+  resendLog: Map<string, number>
 }
 
 export async function installMockApi(page: Page, opts: MockApiOptions = {}): Promise<MockApiState> {
   const kycRecords = opts.kyc ?? seedKyc()
   const state: MockApiState = {
-    users: [VERIFIED_USER, ...(opts.users ?? [])],
+    users: [VERIFIED_USER, PENDING_ACTIVATION_USER, FAILED_ACTIVATION_USER, ...(opts.users ?? [])],
     requests: opts.requests ?? seedRequests(),
     kyc: kycRecords,
     kycReviews: seedKycReviews(kycRecords),
+    resendLog: new Map(),
   }
 
   const envelope = (route: Route, data: unknown, status = 200) =>
@@ -324,23 +355,46 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const search = url.searchParams.get('search')?.toLowerCase()
       const kyc = url.searchParams.get('kycStatus')
       const entity = url.searchParams.get('entityType')
+      const activation = url.searchParams.get('activationStatus')
       let list = [...state.users]
-      if (search) list = list.filter((u) => u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search))
+      if (search) list = list.filter((u) => (u.name ?? '').toLowerCase().includes(search) || u.email.toLowerCase().includes(search))
       if (kyc) list = list.filter((u) => u.kycStatus === kyc)
       if (entity) list = list.filter((u) => u.entityType === entity)
+      // USDX-156 — users.yaml § activationStatus semantics
+      if (activation === 'PENDING') list = list.filter((u) => u.emailVerifiedAt === null)
+      if (activation === 'ACTIVATED') list = list.filter((u) => u.emailVerifiedAt !== null)
+      if (activation === 'FAILED') list = list.filter((u) => u.activationEmailFailedAt !== null)
       return paginated(route, list, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '20'))
     }
     if (key === 'POST /api/v1/users') {
       const b = body()
       if (state.users.some((u) => u.email.toLowerCase() === String(b.email ?? '').toLowerCase())) return error(route, 'CONFLICT', 'A user with this email already exists', 409)
+      // USDX-156: Phase 2 create — no password anywhere; user starts
+      // unverified and BE queues the activation email (admin-created.html).
       const created = {
-        id: `usr_${Date.now()}`, name: b.name, email: b.email, entityType: b.entityType ?? 'INDIVIDUAL',
-        kycStatus: 'UNVERIFIED' as const, suspended: false, notes: b.notes ?? null, wallets: [],
+        id: `usr_${Date.now()}`, name: b.name, email: b.email, phone: b.phone ?? null,
+        entityType: b.entityType ?? 'INDIVIDUAL',
+        kycStatus: 'UNVERIFIED' as const, suspended: false,
+        emailVerifiedAt: null, activationEmailFailedAt: null,
+        notes: b.notes ?? null, wallets: [],
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       }
       state.users.unshift(created as never)
-      return envelope(route, { ...created, password: 'Temp1234-Pass9876' }, 201)
+      return envelope(route, created, 201)
     }
+    // USDX-156 — POST /api/v1/users/:id/resend-activation (admin only).
+    // 60s per-user cooldown; 409 once the user has verified.
+    const resendMatch = path.match(/^\/api\/v1\/users\/([^/]+)\/resend-activation$/)
+    if (method === 'POST' && resendMatch) {
+      const u = state.users.find((x) => x.id === resendMatch[1])
+      if (!u) return error(route, 'NOT_FOUND', 'User not found', 404)
+      if (u.emailVerifiedAt !== null) return error(route, 'ALREADY_VERIFIED', 'User sudah verify email', 409)
+      const last = state.resendLog.get(u.id) ?? 0
+      if (Date.now() - last < 60_000) return error(route, 'TOO_MANY_REQUESTS', 'Cooldown 60 detik per user', 429)
+      state.resendLog.set(u.id, Date.now())
+      return envelope(route, { activationEmailSent: true })
+    }
+
     const userIdMatch = path.match(/^\/api\/v1\/users\/([^/]+)$/)
     if (userIdMatch) {
       const id = userIdMatch[1]

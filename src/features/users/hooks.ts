@@ -4,26 +4,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import type {
+  ActivationStatus,
   EntityType,
   KycStatus,
   PhaseOneCreateUser,
-  PhaseOneCreateUserResponse,
   PhaseOneCreateUserWallet,
   PhaseOnePaginatedResponse,
   PhaseOneUpdateUser,
   PhaseOneUser,
   PhaseOneUserDetail,
   PhaseOneUserWallet,
+  ResendActivationResult,
 } from '@/lib/types'
 
 // USDX-47 S3: filter by kycStatus and entityType. sot/api/users.yaml § GET
-// /users — both single-value enums.
+// /users — both single-value enums. USDX-156 adds activationStatus
+// (PENDING/ACTIVATED/FAILED, absent = no filter — "All" sends no param).
 export interface UsersListParams {
   page?: number
   limit?: number
   search?: string
   kycStatus?: KycStatus
   entityType?: EntityType
+  activationStatus?: ActivationStatus
 }
 
 function buildQuery(params: UsersListParams): string {
@@ -54,17 +57,37 @@ export function useUserDetail(id: string | undefined) {
   })
 }
 
-// USDX-47 AC5: POST returns user + one-time password. Caller (UserModal) uses
-// the `password` field to open PasswordRevealDialog after success.
+// USDX-156 (Phase 2): POST no longer returns a password — BE auto-sends the
+// activation email instead (admin-created.html, link valid 7 days). The old
+// USDX-47 PasswordRevealDialog flow was removed with backend PR #87.
 export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: PhaseOneCreateUser) =>
-      apiFetch<PhaseOneCreateUserResponse>('/api/v1/users', {
+      apiFetch<PhaseOneUser>('/api/v1/users', {
         method: 'POST',
         body: input,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+// USDX-156 — POST /api/v1/users/:id/resend-activation (Admin only).
+// Rotates the activation token and re-queues admin-created.html. Only valid
+// while email_verified_at is null: 409 ALREADY_VERIFIED otherwise, 429
+// TOO_MANY_REQUESTS within the 60s per-user cooldown (sot/api/users.yaml
+// § resendActivation).
+export function useResendActivation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<ResendActivationResult>(`/api/v1/users/${id}/resend-activation`, {
+        method: 'POST',
+      }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['users', 'detail', id] })
+    },
   })
 }
 

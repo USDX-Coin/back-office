@@ -422,13 +422,25 @@ export interface PhaseOneUserWallet {
   createdAt: string
 }
 
+// USDX-156 — Phase 2 fields per sot/api/users.yaml § User:
+// - `name` is nullable: self-signup users have no name until their first KYC
+//   submit auto-sets it (week1.md § users.name populate). Admin-created users
+//   always have one (form requires it).
+// - `phone` arrives decrypted (ciphertext at rest); nullable on Phase 1 rows.
+// - `emailVerifiedAt` null = belum aktivasi; `activationEmailFailedAt` set
+//   when the activation email exhausted its retries (job USDX-149).
+export type ActivationStatus = 'PENDING' | 'ACTIVATED' | 'FAILED'
+
 export interface PhaseOneUser {
   id: string
-  name: string
+  name: string | null
   email: string
+  phone: string | null
   entityType: EntityType
   kycStatus: KycStatus
   suspended: boolean
+  emailVerifiedAt: string | null
+  activationEmailFailedAt: string | null
   notes: string | null
   wallets: PhaseOneUserWallet[]
   createdAt: string
@@ -443,21 +455,23 @@ export interface PhaseOneUserDetail extends PhaseOneUser {
 }
 
 // sot/api/users.yaml § CreateUser — name + email + entityType required.
+// USDX-156 (Phase 2): no password anywhere — the user sets it via the
+// activation link (admin-created.html, valid 7 days) that BE auto-sends.
+// `phone` is optional at admin-create (format +62xxx / 08xxx, BE normalizes).
 export interface PhaseOneCreateUser {
   name: string
   email: string
+  phone?: string
   entityType: EntityType
   notes?: string
   wallets?: PhaseOneCreateUserWallet[]
 }
 
-// USDX-47 S4 + AC5: POST /api/v1/users returns User + auto-generated password
-// (one-time, plain). USDX-13 BE module spec: "auto-generated password (random
-// 16 char), hashed, returned plain in response (one-time)". Field is optional
-// at the type level so the FE degrades gracefully when BE hasn't shipped the
-// reveal yet (verified empirically against usdx-backend-api — currently absent).
-export interface PhaseOneCreateUserResponse extends PhaseOneUser {
-  password?: string
+// sot/api/users.yaml § ResendActivationResult — POST /users/:id/resend-activation.
+// `activationEmailSent: false` = single-attempt SMTP send failed but the token
+// WAS rotated; durable retry + activation_email_failed_at is job USDX-149's.
+export interface ResendActivationResult {
+  activationEmailSent: boolean
 }
 
 // sot/api/users.yaml § UpdateUser — admin can mutate name/email/entityType

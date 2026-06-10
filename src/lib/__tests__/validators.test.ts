@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
+  validateOptionalIdPhone,
   validateLoginForm,
   validatePhone,
   validateWalletAddress,
@@ -639,5 +640,39 @@ describe('isManualRateUnusual', () => {
   test('does not flag empty / invalid input (validator owns that)', () => {
     expect(isManualRateUnusual('')).toBe(false)
     expect(isManualRateUnusual('abc')).toBe(false)
+  })
+})
+
+// USDX-156 — optional Indonesian phone at admin-create (users.yaml § CreateUser.phone)
+describe('validateOptionalIdPhone', () => {
+  describe('positive', () => {
+    test('should accept empty (field is optional)', () => {
+      expect(validateOptionalIdPhone('')).toBeNull()
+      expect(validateOptionalIdPhone('   ')).toBeNull()
+    })
+    test('should accept +62 format', () => {
+      expect(validateOptionalIdPhone('+628123456789')).toBeNull()
+    })
+    test('should accept 08 format', () => {
+      expect(validateOptionalIdPhone('081234567890')).toBeNull()
+    })
+    test('should tolerate spaces and dashes', () => {
+      expect(validateOptionalIdPhone('+62 812-3456-789')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('should reject non-Indonesian prefixes', () => {
+      expect(validateOptionalIdPhone('+11234567890')).toMatch(/\+62xxx or 08xxx/)
+      expect(validateOptionalIdPhone('628123456789')).toMatch(/\+62xxx or 08xxx/)
+    })
+    test('should reject letters', () => {
+      expect(validateOptionalIdPhone('+62abc')).toMatch(/\+62xxx or 08xxx/)
+    })
+  })
+  describe('edge cases', () => {
+    test('should reject too-short and too-long numbers', () => {
+      expect(validateOptionalIdPhone('+62812')).not.toBeNull()
+      expect(validateOptionalIdPhone('+62' + '8'.repeat(14))).not.toBeNull()
+    })
   })
 })
