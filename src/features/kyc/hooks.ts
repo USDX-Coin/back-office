@@ -1,6 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiFetchRaw } from '@/lib/apiFetch'
-import type { KycListItem, PhaseOnePaginatedResponse } from '@/lib/types'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import type {
+  KycDetail,
+  KycListItem,
+  KycReviewLog,
+  PhaseOnePaginatedResponse,
+} from '@/lib/types'
 
 export interface KycListFilters {
   page?: number
@@ -55,5 +60,75 @@ export function usePendingKycCount() {
       return json.metadata.total
     },
     staleTime: 30 * 1000,
+  })
+}
+
+// ─── USDX-155 — detail / audit trail / approve / reject ───
+
+// GET /api/v1/kyc/:id — decrypted PII + presigned photo URLs (TTL 5 min).
+// EVERY call writes a `VIEWED` audit row server-side (audit-first, fail-closed
+// — kyc.yaml § detail), so this query must never refetch on its own: no
+// window-focus refetch, no staleness-driven refetch. Re-fetches happen only on
+// explicit operator intent ("Refresh photos") via `refetch()`.
+export function useKycDetail(id: string | null) {
+  return useQuery({
+    queryKey: ['kyc', 'detail', id],
+    queryFn: () => apiFetch<KycDetail>(`/api/v1/kyc/${id}`),
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  })
+}
+
+// GET /api/v1/kyc/:id/reviews — reverse-chronological audit trail. Does NOT
+// write a VIEWED row (kyc.yaml § reviewsHistory). Fetched lazily when the
+// collapsible opens (`enabled`).
+export function useKycReviews(id: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['kyc', 'reviews', id],
+    queryFn: () => apiFetch<KycReviewLog[]>(`/api/v1/kyc/${id}/reviews`),
+    enabled: Boolean(id) && enabled,
+  })
+}
+
+// Shared post-mutation cache work for approve/reject:
+// - drop the detail + reviews cache for this id WITHOUT refetching (a refetch
+//   would write a pointless VIEWED row — the modal closes on success anyway)
+// - invalidate the list + pending-count so the table and the sidebar (N)
+//   badge refresh (the USDX-154 AC "badge refresh setelah approve/reject")
+function useInvalidateAfterReview() {
+  const qc = useQueryClient()
+  return (id: string) => {
+    qc.removeQueries({ queryKey: ['kyc', 'detail', id] })
+    qc.removeQueries({ queryKey: ['kyc', 'reviews', id] })
+    qc.invalidateQueries({ queryKey: ['kyc', 'list'] })
+    qc.invalidateQueries({ queryKey: ['kyc', 'pending-count'] })
+  }
+}
+
+// POST /api/v1/kyc/:id/approve — Staff/Manager/Admin; only valid on PENDING
+// (else 409 INVALID_STATUS). Returns the updated KycListItem.
+export function useApproveKyc() {
+  const invalidate = useInvalidateAfterReview()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<KycListItem>(`/api/v1/kyc/${id}/approve`, { method: 'POST' }),
+    onSuccess: (_data, id) => invalidate(id),
+  })
+}
+
+// POST /api/v1/kyc/:id/reject — body { reason } (1..500 chars, visible to the
+// user + sent in the kyc-rejected email).
+export function useRejectKyc() {
+  const invalidate = useInvalidateAfterReview()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      apiFetch<KycListItem>(`/api/v1/kyc/${id}/reject`, {
+        method: 'POST',
+        body: { reason },
+      }),
+    onSuccess: (_data, { id }) => invalidate(id),
   })
 }

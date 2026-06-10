@@ -3,7 +3,9 @@ import { isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
+  KycDetail,
   KycListItem,
+  KycReviewLog,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -16,7 +18,9 @@ import type {
 } from '@/lib/types'
 import { canManageRate } from '@/lib/types'
 import {
+  createKycReviewLog,
   createMockCustomerList,
+  createMockKycDetailState,
   createMockKycList,
   createMockStaffList,
   createMockOtcTransactions,
@@ -45,6 +49,9 @@ let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
 let kycList: KycListItem[] = createMockKycList()
+let kycDetails: Map<string, KycDetail>
+let kycReviews: Map<string, KycReviewLog[]>
+;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -55,6 +62,7 @@ export function resetMockData() {
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   kycList = createMockKycList()
+  ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -174,6 +182,47 @@ function paginate<T>(items: T[], page: number, pageSize: number) {
 
 function badRequest(code: string, message: string, details?: Record<string, string>) {
   return HttpResponse.json({ error: { code, message, details } }, { status: 400 })
+}
+
+// USDX-155 — phase-one error shapes for the KYC review endpoints
+// (sot/api/kyc.yaml § detail/approve/reject error responses).
+function kycNotFound() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'NOT_FOUND', message: 'KYC record not found' },
+    },
+    { status: 404 }
+  )
+}
+
+function kycForbidden() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN', message: 'Developer role cannot approve or reject KYC' },
+    },
+    { status: 403 }
+  )
+}
+
+function kycInvalidStatus() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'INVALID_STATUS',
+        message: 'KYC status is not PENDING (it may have been reviewed concurrently)',
+      },
+    },
+    { status: 409 }
+  )
 }
 
 // Asia/Jakarta (UTC+7) date bucket of an ISO timestamp, mirrors BE
@@ -604,6 +653,118 @@ export const handlers = [
       metadata: { page, limit, total: rows.length },
       data: rows.slice(start, start + limit),
     })
+  }),
+
+  // ─── USDX-155 — KYC detail / reviews / approve / reject (sot/api/kyc.yaml) ───
+  // Real BE in the browser (INTEGRATION_PATHS); handlers kept for Vitest.
+
+  http.get('/api/v1/kyc/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    // Audit-first (kyc.yaml § detail): a VIEWED row is inserted on EVERY call
+    // — Developer included, never debounced. Mirrored here so tests can assert
+    // the trail grows when the modal (re)fetches.
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'VIEWED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        ipAddress: null,
+        createdAt: new Date().toISOString(),
+      })
+    )
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      // Presigned URLs are generated per request — stamp a fresh 5-minute TTL.
+      data: { ...detail, urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() },
+    })
+  }),
+
+  http.get('/api/v1/kyc/:id/reviews', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const rows = kycReviews.get(String(params.id))
+    if (!rows) return kycNotFound()
+    // Reverse-chronological; reading the trail does NOT write a VIEWED row
+    // (kyc.yaml § reviewsHistory).
+    return HttpResponse.json({ status: 'success', metadata: null, data: rows })
+  }),
+
+  http.post('/api/v1/kyc/:id/approve', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kycForbidden()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    if (detail.status !== 'PENDING') return kycInvalidStatus()
+    const now = new Date().toISOString()
+    detail.status = 'VERIFIED'
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kycList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'VERIFIED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'APPROVED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        ipAddress: null,
+        createdAt: now,
+      })
+    )
+    return HttpResponse.json({ status: 'success', metadata: null, data: listRow ?? detail })
+  }),
+
+  http.post('/api/v1/kyc/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kycForbidden()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    if (detail.status !== 'PENDING') return kycInvalidStatus()
+    let body: { reason?: unknown }
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 1 || reason.length > 500) {
+      return phaseOneBadRequest('reason must be 1–500 characters', 'BAD_REQUEST')
+    }
+    const now = new Date().toISOString()
+    detail.status = 'REJECTED'
+    detail.rejectionReason = reason
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kycList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'REJECTED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'REJECTED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        reason,
+        ipAddress: null,
+        createdAt: now,
+      })
+    )
+    return HttpResponse.json({ status: 'success', metadata: null, data: listRow ?? detail })
   }),
 
   // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
