@@ -478,6 +478,23 @@ export interface PhaseOneCreateUserWallet {
   address: string
 }
 
+// ─── Phase 2 Week 1 — KYC backoffice review (sot/api/kyc.yaml § KycListItem) ───
+// USDX-154: rows for the /kyc review list. PII is never present at list level —
+// decryption happens only on GET /api/v1/kyc/:id (detail modal, USDX-155).
+
+export interface KycListItem {
+  id: string
+  userId: string
+  userEmail: string
+  entityType: EntityType
+  status: KycStatus
+  submissionCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  /** Last reviewing staff's name (denormalized from `staff.name`). */
+  reviewedByName: string | null
+}
+
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
 // USDX-46: forms now submit `userId` (operator picks from existing users)
 // + `amountCurrency` (USD/IDR — BE converts IDR using current rate).

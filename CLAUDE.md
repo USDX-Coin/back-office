@@ -34,6 +34,8 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
 | `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
 | `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
+| `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
+| `/kyc/:id` | — | — | All roles | KYC detail deep-link (shell modal; full detail = USDX-155) |
 | `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER | View / update USD/IDR rate |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
@@ -71,6 +73,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── staff/         # StaffPage + modal + hooks
 │   │   ├── mint/          # MintListPage + MintFormPage + hooks
 │   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
+│   │   ├── kyc/           # KycListPage + KycDetailModal (shell) + hooks (/kyc — USDX-154)
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
 │   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)

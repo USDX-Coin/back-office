@@ -116,8 +116,13 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                       <SelectContent>
                         <SelectItem value={ALL}>All {def.label.toLowerCase()}</SelectItem>
                         {def.options.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
+                          <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.label}
+                            {opt.disabled && opt.disabledHint && (
+                              <span className="ml-1.5 text-[10.5px] text-muted-foreground">
+                                {opt.disabledHint}
+                              </span>
+                            )}
                           </SelectItem>
                         ))}
                       </SelectContent>
