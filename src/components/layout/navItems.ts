@@ -4,6 +4,7 @@ import {
   UserCog,
   Coins,
   Flame,
+  ShieldCheck,
   TrendingUp,
   Sliders,
   CalendarDays,
@@ -18,7 +19,7 @@ import {
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn'
+export type BadgeKey = 'mint' | 'burn' | 'kyc'
 
 export interface NavItem {
   to: string
@@ -69,6 +70,17 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/mint', label: 'Mint', icon: Coins, badgeKey: 'mint' },
       { to: '/burn', label: 'Burn', icon: Flame, badgeKey: 'burn' },
+    ],
+  },
+  {
+    // USDX-154 + sot/phase-2/week1.md § Backoffice Approval Menu — Sidebar:
+    // KYC Review is visible to ALL roles (Admin/Manager/Staff/Developer;
+    // approve/reject is gated inside the detail, not at the menu). Unlike
+    // Mint/Burn, the (N) badge also renders for STAFF — GET /api/v1/kyc is
+    // staff-accessible per week1.md § Authorization Guard role matrix.
+    label: 'Compliance',
+    items: [
+      { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
     ],
   },
   {
