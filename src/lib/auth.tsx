@@ -205,6 +205,14 @@ export function canAccessReports(staff: Staff | null): boolean {
   )
 }
 
+// USDX-155 — sot/phase-2/week1.md § Authorization Guard: approve/reject KYC
+// is Staff/Manager/Admin; DEVELOPER is view-only (403 on POST). Drives the
+// disabled state + tooltip on the Approve/Reject buttons in KycDetailModal —
+// BE enforces the 403 regardless.
+export function canReviewKyc(staff: Staff | null): boolean {
+  return staff !== null && staff.role !== 'DEVELOPER'
+}
+
 // USDX-78 — SoT phase-1.md L34: List Mint/Burn (/mint, /burn, /mint/:id,
 // /burn/:id) "hanya bisa diakses Admin, Developer, dan Manager. Staff tidak
 // boleh akses list/detail." Drives: route guard redirect target, Sidebar /

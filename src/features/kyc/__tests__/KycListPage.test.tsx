@@ -205,14 +205,44 @@ describe('KycListPage @ USDX-154', () => {
 
     test('AC — row click opens shell modal at /kyc/:id; close returns to /kyc', async () => {
       const user = userEvent.setup()
-      server.use(http.get('/api/v1/kyc', () => ok([baseRow({ id: 'kyc_open' })])))
+      // USDX-155: the modal now fetches GET /api/v1/kyc/:id on open. The
+      // default seeded handler 404s on this synthetic id, so stub the detail
+      // (full coverage of the detail modal lives in KycDetailModal.test.tsx).
+      server.use(
+        http.get('/api/v1/kyc', () => ok([baseRow({ id: 'kyc_open' })])),
+        http.get('/api/v1/kyc/kyc_open', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              ...baseRow({ id: 'kyc_open' }),
+              firstName: 'Alice',
+              lastName: 'Anderson',
+              dob: '1995-03-15',
+              birthPlace: 'Jakarta',
+              identityType: 'KTP',
+              identityNumber: '3171234567890123',
+              country: 'ID',
+              addressLine1: 'Jl. Sudirman No. 1',
+              addressLine2: null,
+              ktpPhotoUrl: null,
+              selfiePhotoUrl: null,
+              urlExpiresAt: null,
+              rejectionReason: null,
+              reviewedBy: null,
+              createdAt: '2026-06-01T03:00:00Z',
+              updatedAt: '2026-06-01T03:00:00Z',
+            },
+          })
+        )
+      )
       setup()
       const cell = await screen.findByText('alice.anderson@example.com')
       await user.click(cell)
 
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/kyc submission/i)).toBeInTheDocument()
-      // Row context renders inside the shell (email + status from the list row).
+      // Detail content renders inside the modal (decrypted PII from the stub).
       expect(within(dialog).getByText('alice.anderson@example.com')).toBeInTheDocument()
 
       await user.keyboard('{Escape}')
