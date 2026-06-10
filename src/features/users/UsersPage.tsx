@@ -186,7 +186,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openEdit(row.original)}
-                  aria-label={`Edit ${row.original.name}`}
+                  aria-label={`Edit ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -195,7 +195,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openDelete(row.original)}
-                  aria-label={`Delete ${row.original.name}`}
+                  aria-label={`Delete ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
