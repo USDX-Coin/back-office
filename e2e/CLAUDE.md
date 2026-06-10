@@ -21,6 +21,7 @@ success UX, list refresh — without the side effects.
 | 4 | Filter request list (status / safe / search / deep-link) + open detail modal | `usdx-26-requests.spec.ts` |
 | 5 | User CRUD (create → password reveal → list, edit, delete) + directory filters | `usdx-26-users.spec.ts` |
 | 6 | KYC review (USDX-154/155): sidebar badge → list oldest-first → detail modal (PII + photos) → approve / reject → refresh | `usdx-155-kyc.spec.ts` |
+| 7 | User activation (USDX-156): list filter + badges → detail resend (confirm, cooldown, 409/429) → create form phone + no password | `usdx-156-users-activation.spec.ts` |
 
 Each spec has `positive` / `negative` / `edge cases` describe blocks.
 

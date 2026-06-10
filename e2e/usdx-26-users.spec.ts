@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test'
 import { installMockApi } from './support/mock-api'
 import { seedAuthenticatedSession } from './support/auth'
 
-// USDX-26 — Critical flow #5: user CRUD (create → password reveal → list, edit
-// KYC status, delete with confirmation) plus the directory filters. Mock-backed.
+// USDX-26 — Critical flow #5: user CRUD (create → list, edit KYC status,
+// delete with confirmation) plus the directory filters. Mock-backed.
+// USDX-156 dropped the temporary-password reveal: create now just queues an
+// activation email (the user sets their own password via the 7-day link).
 
 function uniqueEmail(prefix = 'usdx26-e2e') {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}@example.test`
@@ -28,19 +30,18 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByText('Robert Deon')).toBeVisible()
     })
 
-    test('should create a user, show the temporary-password modal, and list the user', async ({ page }) => {
+    test('should create a user (no password anywhere) and list the user', async ({ page }) => {
       const name = `E2E Probe ${Math.random().toString(36).slice(2, 6)}`
       await page.getByRole('button', { name: /add user/i }).first().click()
+      // USDX-156 AC: no password field in the DOM; the modal explains the
+      // activation email instead.
+      await expect(page.getByLabel(/password/i)).toHaveCount(0)
+      await expect(page.getByText(/activation email/i)).toBeVisible()
       await page.getByLabel(/^name$/i).fill(name)
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
       await page.getByRole('button', { name: /create user/i }).click()
 
-      await expect(page.getByRole('heading', { name: /temporary password/i })).toBeVisible({ timeout: 10000 })
-      await expect(page.getByRole('button', { name: 'Done' })).toBeDisabled()
-      await page.getByLabel(/i have saved this password securely/i).check()
-      await expect(page.getByRole('button', { name: 'Done' })).toBeEnabled()
-      await page.getByRole('button', { name: 'Done' }).click()
-
+      await expect(page.getByText(/user created\. activation email sent\./i)).toBeVisible({ timeout: 10000 })
       await expect(page.getByRole('heading', { name: /temporary password/i })).toHaveCount(0)
       await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible({ timeout: 10000 })
     })
@@ -62,8 +63,6 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await page.getByLabel(/^name$/i).fill(name)
       await page.getByLabel(/^email$/i).fill(uniqueEmail('delete-probe'))
       await page.getByRole('button', { name: /create user/i }).click()
-      await page.getByLabel(/i have saved this password securely/i).check()
-      await page.getByRole('button', { name: 'Done' }).click()
       const row = page.getByRole('row', { name: new RegExp(name) })
       await expect(row).toBeVisible({ timeout: 10000 })
 
