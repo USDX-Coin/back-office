@@ -47,6 +47,18 @@ const BURN_ITEM: ManualSyncItem = {
   chain: 'arbitrum',
 }
 
+// USDX-208 — consumer mint_order row (Phase 2 W2). `status` here carries the
+// order's safe_status (PENDING_APPROVAL / APPROVED).
+const MINT_ORDER_ITEM: ManualSyncItem = {
+  ...BASE_ITEM,
+  id: '019e1aa8-9c7c-7fcd-6abc-mintorder0003',
+  type: 'mint_order',
+  userName: 'Carol Consumer',
+  amount: '250.00',
+  amountWei: '250000000',
+  chain: 'base',
+}
+
 function mockList(items: ManualSyncItem[]) {
   server.use(
     http.get('/api/v1/manual-sync', () =>
@@ -179,6 +191,39 @@ describe('ManualSyncPage @ USDX-87', () => {
       const row = anchor.closest('tr')
       expect(row?.className ?? '').toMatch(/bg-warning\/10/)
       scrollSpy.mockRestore()
+    })
+  })
+
+  describe('AC mint_order rows @ USDX-208', () => {
+    test('renders a consumer mint_order row with the Mint Order badge', async () => {
+      mockList([MINT_ORDER_ITEM])
+      setup()
+      expect(await screen.findByText(/Carol Consumer/i)).toBeInTheDocument()
+      // Badge label is "Mint Order" (CSS-uppercased on screen); the DOM text
+      // node stays mixed-case so this matches the consumer-row badge.
+      expect(screen.getByText('Mint Order')).toBeInTheDocument()
+    })
+
+    test('type=mint_order filter is forwarded to the BE', async () => {
+      const user = userEvent.setup()
+      let lastUrl: string | null = null
+      server.use(
+        http.get('/api/v1/manual-sync', ({ request }) => {
+          lastUrl = request.url
+          return HttpResponse.json({ status: 'success', metadata: null, data: [] })
+        })
+      )
+      setup()
+      await waitFor(() => expect(lastUrl).not.toBeNull())
+
+      await user.click(screen.getByRole('button', { name: /filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: /type/i }))
+      await user.click(await screen.findByRole('option', { name: /^mint order$/i }))
+      await user.click(screen.getByRole('button', { name: /apply/i }))
+
+      await waitFor(() =>
+        expect(new URL(lastUrl!).searchParams.get('type')).toBe('mint_order')
+      )
     })
   })
 })

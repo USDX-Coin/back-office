@@ -34,6 +34,12 @@ const MINT_ITEM: ManualSyncItem = {
 }
 
 const BURN_ITEM: ManualSyncItem = { ...MINT_ITEM, id: '019e1aa8-burn-7fcd-6abc-deadbeef0002', type: 'burn' }
+const MINT_ORDER_ITEM: ManualSyncItem = {
+  ...MINT_ITEM,
+  id: '019e1aa8-9c7c-7fcd-6abc-mintorder0003',
+  type: 'mint_order',
+  userName: 'Carol Consumer',
+}
 
 const VALID_TX = '0x' + 'a'.repeat(64)
 const MISMATCH_TX = '0xdead' + 'a'.repeat(60) // 64 hex chars, includes 'dead' marker
@@ -60,6 +66,16 @@ function mintMatchResult(allMatch: boolean): MatchResult {
       { field: 'idempotencyKey', requestData: '0xkey', blockchainData: '0xkey', match: true },
       { field: 'safeTxHash', requestData: '0xtx', blockchainData: '0xtx', match: true },
     ],
+  }
+}
+
+function mintOrderMatchResult(allMatch: boolean): MatchResult {
+  // sot/phase-1.md § Manual Sync: mint_order comparison = same 5 fields as mint
+  // (Safe Address, Amount, Destination, Idempotency Key, Safe Tx Hash).
+  return {
+    ...mintMatchResult(allMatch),
+    requestId: MINT_ORDER_ITEM.id,
+    requestType: 'mint_order',
   }
 }
 
@@ -325,6 +341,65 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       )
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
       errSpy.mockRestore()
+    })
+  })
+
+  describe('AC mint_order @ USDX-208', () => {
+    test('mint_order verify renders 5 comparison rows incl Destination', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/manual-sync/:id/verify', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: mintOrderMatchResult(true),
+          })
+        )
+      )
+      setupModal(MINT_ORDER_ITEM)
+      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+
+      await screen.findByTestId('comparison-block')
+      expect(screen.getByTestId('comparison-row-safeAddress')).toBeInTheDocument()
+      expect(screen.getByTestId('comparison-row-amount')).toBeInTheDocument()
+      expect(screen.getByTestId('comparison-row-destination')).toBeInTheDocument()
+      expect(screen.getByTestId('comparison-row-idempotencyKey')).toBeInTheDocument()
+      expect(screen.getByTestId('comparison-row-safeTxHash')).toBeInTheDocument()
+    })
+
+    test('confirm match → execute called + modal closes (order → COMPLETED)', async () => {
+      const user = userEvent.setup()
+      let executeCalled = false
+      server.use(
+        http.post('/api/v1/manual-sync/:id/verify', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: mintOrderMatchResult(true),
+          })
+        ),
+        http.post('/api/v1/manual-sync/:id/execute', () => {
+          executeCalled = true
+          // sot/api/manual-sync.yaml: mint_order execute sets
+          // safe_status=EXECUTED, status=COMPLETED — BE returns the order shape.
+          return HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: { id: MINT_ORDER_ITEM.id, safeStatus: 'EXECUTED', status: 'COMPLETED' },
+          })
+        })
+      )
+      const { onOpenChange } = setupModal(MINT_ORDER_ITEM)
+      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await screen.findByTestId('comparison-block')
+      const confirmBtn = screen.getByRole('button', { name: /^confirm$/i })
+      await waitFor(() => expect(confirmBtn).toBeEnabled())
+      await user.click(confirmBtn)
+
+      await waitFor(() => expect(executeCalled).toBe(true))
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     })
   })
 

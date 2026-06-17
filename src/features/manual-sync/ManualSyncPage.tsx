@@ -16,7 +16,7 @@ import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { findChainConfig } from '@/lib/chainLinks'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { shortRequestId } from '@/lib/format'
-import type { ManualSyncItem, RequestChain, SafeType } from '@/lib/types'
+import type { ManualSyncItem, ManualSyncType, RequestChain, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   MANUAL_SYNC_COLUMN_CONFIG,
@@ -44,6 +44,22 @@ const SAFE_LABEL: Record<SafeType, string> = {
   MANAGER: 'Manager',
 }
 
+// USDX-208: Manual Sync now carries consumer `mint_order` rows alongside OTC
+// mint/burn. mint & mint_order share the teal/primary family (both mint USDX) —
+// OTC mint is filled, the consumer mint_order is outlined so they're
+// distinguishable at a glance; burn stays amber.
+const TYPE_LABEL: Record<ManualSyncType, string> = {
+  mint: 'Mint',
+  burn: 'Burn',
+  mint_order: 'Mint Order',
+}
+
+const TYPE_BADGE_CLASS: Record<ManualSyncType, string> = {
+  mint: 'bg-primary/10 text-primary',
+  burn: 'bg-warning/10 text-warning',
+  mint_order: 'border border-primary/40 bg-transparent text-primary',
+}
+
 // USDX-87 — visual highlight for `?highlight=<id>` deep-links from the
 // SAFE_QUEUE_OCCUPIED banner (USDX-84). Animated 3s fade so it doesn't
 // distract longer than necessary once the operator's eyes land on the row.
@@ -61,7 +77,7 @@ async function copyId(value: string) {
 export default function ManualSyncPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const chain = searchParams.get('chain') ?? ''
-  const type = (searchParams.get('type') ?? '') as 'mint' | 'burn' | ''
+  const type = (searchParams.get('type') ?? '') as ManualSyncType | ''
   // Manual Sync is endpoint-scoped to PENDING_APPROVAL / APPROVED and is not
   // paginated (sot/api/manual-sync.yaml — no `?page=` param); the search
   // input is purely client-side substring filter over id / userName /
@@ -196,12 +212,10 @@ export default function ManualSyncPage() {
             variant="secondary"
             className={cn(
               'rounded-sm text-[10.5px] font-medium uppercase tracking-[0.04em]',
-              t === 'mint'
-                ? 'bg-primary/10 text-primary'
-                : 'bg-warning/10 text-warning'
+              TYPE_BADGE_CLASS[t]
             )}
           >
-            {t}
+            {TYPE_LABEL[t] ?? t}
           </Badge>
         )
       },
@@ -297,7 +311,7 @@ export default function ManualSyncPage() {
       mode="no-data"
       icon={<Wrench className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
       title="No pending requests"
-      description="Manual Sync is empty — every mint and burn is either executed or rejected."
+      description="Manual Sync is empty — every mint, burn, and consumer mint order is either executed or rejected."
     />
   )
 
