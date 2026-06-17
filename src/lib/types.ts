@@ -821,12 +821,21 @@ export interface ByUserRow {
 // queue (sot/phase-1.md § Safe Propose Queue).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// sot/api/manual-sync.yaml § ManualSyncItem.type / MatchResult.requestType —
+// enum [mint, burn, mint_order]. Manual Sync was extended to consumer
+// `mint_orders` in Phase 2 W2 (USDX-208). Kept separate from `RequestType`
+// (OTC-only, used by RequestListItem) so the OTC types can't accidentally
+// accept `mint_order`.
+export type ManualSyncType = 'mint' | 'burn' | 'mint_order'
+
 // sot/api/manual-sync.yaml § ManualSyncItem — row shape for the list table.
-// Subset of MintRequestDetail / BurnRequestDetail; BE pre-resolves `safeAddress`
-// from `safeType` + chain config so the FE doesn't have to.
+// Subset of MintRequestDetail / BurnRequestDetail / MintOrder; BE pre-resolves
+// `safeAddress` from `safeType` + chain config so the FE doesn't have to.
+// For `mint_order`, `status` carries the order's `safe_status`
+// (PENDING_APPROVAL / APPROVED).
 export interface ManualSyncItem {
   id: string
-  type: RequestType
+  type: ManualSyncType
   chain: string
   userId: string
   userName: string
@@ -857,7 +866,7 @@ export interface MatchField {
 // `allMatch === true` gates the Confirm button in the modal.
 export interface MatchResult {
   requestId: string
-  requestType: RequestType
+  requestType: ManualSyncType
   txHash: string
   allMatch: boolean
   fields: MatchField[]
