@@ -15,6 +15,8 @@ import type {
   UpdateRateConfig,
   RequestDetail,
   RequestListItem,
+  OrderDetail,
+  OrderListItem,
 } from '@/lib/types'
 import { canManageRate } from '@/lib/types'
 import {
@@ -35,6 +37,7 @@ import {
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
+  createMockOrders,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -48,6 +51,9 @@ let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 's
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+let orderList: OrderListItem[]
+let orderDetails: Map<string, OrderDetail>
+;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
 let kycList: KycListItem[] = createMockKycList()
 let kycDetails: Map<string, KycDetail>
 let kycReviews: Map<string, KycReviewLog[]>
@@ -61,6 +67,7 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+  ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   pendingTimers.forEach(clearTimeout)
@@ -782,6 +789,53 @@ export const handlers = [
       return HttpResponse.json(
         { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
         { status: 404 }
+      )
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  // ─── Phase 2 W2 — Consumer Orders / "User Transaction" (USDX-206) ───
+  // sot/api/orders.yaml. Read-only monitoring; auth = semua role backoffice.
+  // Week 2 is mint-only — `type=REDEEM` is accepted (union-ready) but matches
+  // nothing until W3. Not bearer-gated in the mock for the same reason as the
+  // `/api/v1/requests` list above (real BE enforces 401; this keeps Vitest +
+  // dev simple). Param `take` per orders.yaml (`limit` accepted as a fallback).
+  http.get('/api/v1/orders', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(
+      100,
+      Math.max(1, Number(url.searchParams.get('take') || url.searchParams.get('limit') || '10')),
+    )
+    const type = url.searchParams.get('type')
+    const status = url.searchParams.get('status')
+    const paymentStatus = url.searchParams.get('paymentStatus')
+    const safeStatus = url.searchParams.get('safeStatus')
+    const userId = url.searchParams.get('userId')
+
+    let rows = [...orderList]
+    if (type) rows = rows.filter((r) => r.type === type)
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (paymentStatus) rows = rows.filter((r) => r.paymentStatus === paymentStatus)
+    if (safeStatus) rows = rows.filter((r) => r.safeStatus === safeStatus)
+    if (userId) rows = rows.filter((r) => r.userId === userId)
+
+    const start = (page - 1) * take
+    const data = rows.slice(start, start + take)
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data,
+    })
+  }),
+
+  http.get('/api/v1/orders/:id', ({ params }) => {
+    const detail = orderDetails.get(String(params.id))
+    if (!detail) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Order not found' } },
+        { status: 404 },
       )
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })

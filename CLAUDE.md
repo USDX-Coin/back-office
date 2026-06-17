@@ -34,6 +34,8 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
 | `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
 | `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
+| `/transactions` | CONSUMER | User Transaction | All roles | Consumer mint-order list (USDX-206) — read-only; filter type/status/payment/safe (Phase 2 W2, mint-only; redeem W3) |
+| `/transactions/:id` | — | — | All roles | Order detail modal — fee/spread/revenue breakdown + address + idempotency key + on-chain/Safe links; read-only (no approve) |
 | `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
 | `/kyc/:id` | — | — | All roles | KYC detail modal — decrypted PII + photos + approve/reject (USDX-155); actions hidden unless PENDING, Developer view-only |
 | `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER | View / update USD/IDR rate |
@@ -73,6 +75,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── staff/         # StaffPage + modal + hooks
 │   │   ├── mint/          # MintListPage + MintFormPage + hooks
 │   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
+│   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks (USDX-206, read-only consumer orders)
 │   │   ├── kyc/           # KycListPage + KycDetailModal (PII/photos/approve/reject/audit) + hooks (USDX-154/155)
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)

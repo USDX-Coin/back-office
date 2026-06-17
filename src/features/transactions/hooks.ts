@@ -1,0 +1,68 @@
+import { useQuery } from '@tanstack/react-query'
+import { apiFetchRaw } from '@/lib/apiFetch'
+import { isOrderTerminal } from '@/lib/status'
+import type {
+  OrderDetail,
+  OrderListItem,
+  PhaseOnePaginatedResponse,
+  PhaseOneSuccessResponse,
+} from '@/lib/types'
+
+// USDX-206 — backoffice "User Transaction" (consumer mint orders). Read-only.
+// sot/api/orders.yaml: GET /api/v1/orders (list) + GET /api/v1/orders/{id}.
+
+export interface OrderListFilters {
+  page?: number
+  /** sot/api/orders.yaml uses `take` (default 10, max 100). */
+  take?: number
+  type?: string
+  status?: string
+  paymentStatus?: string
+  safeStatus?: string
+  userId?: string
+}
+
+function buildQuery(filters: OrderListFilters): string {
+  const sp = new URLSearchParams()
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
+  })
+  return sp.toString()
+}
+
+function fetchOrderList(
+  filters: OrderListFilters,
+): Promise<PhaseOnePaginatedResponse<OrderListItem>> {
+  return apiFetchRaw<PhaseOnePaginatedResponse<OrderListItem>>(
+    `/api/v1/orders?${buildQuery(filters)}`,
+  )
+}
+
+export function useOrderList(filters: OrderListFilters) {
+  return useQuery({
+    queryKey: ['orders', 'list', filters],
+    queryFn: () => fetchOrderList(filters),
+    // Poll only while a row is still moving through the payment/Safe lifecycle,
+    // then stop (mirrors the mint/burn list polling, USDX-27).
+    refetchInterval: (query) =>
+      (query.state.data?.data ?? []).some((r) => !isOrderTerminal(r.status)) ? 20_000 : false,
+    refetchOnWindowFocus: true,
+  })
+}
+
+function fetchOrderDetail(id: string): Promise<PhaseOneSuccessResponse<OrderDetail>> {
+  return apiFetchRaw<PhaseOneSuccessResponse<OrderDetail>>(`/api/v1/orders/${id}`)
+}
+
+export function useOrderDetail(id: string | null) {
+  return useQuery({
+    queryKey: ['orders', 'detail', id],
+    queryFn: () => fetchOrderDetail(id as string),
+    enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const status = query.state.data?.data?.status
+      return status && !isOrderTerminal(status) ? 20_000 : false
+    },
+    refetchOnWindowFocus: true,
+  })
+}
