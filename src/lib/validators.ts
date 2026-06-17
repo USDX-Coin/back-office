@@ -165,10 +165,13 @@ export function isManualRateUnusual(raw: string): boolean {
   return n < RATE_SOFT_LOW || n > RATE_SOFT_HIGH
 }
 
+// USDX-207: spread directional — validate spread beli & jual independently
+// (sot/api/rate.yaml § UpdateRateConfig). Same bounds as the old single spread.
 export function validateRateUpdateForm(input: {
   mode: RateMode | ''
   manualRate: string
-  spreadPct: string
+  spreadBuyPct: string
+  spreadSellPct: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
@@ -180,8 +183,50 @@ export function validateRateUpdateForm(input: {
   }
   // DYNAMIC: manualRate intentionally not validated — UI disables the field
   // and the payload omits it.
-  const spreadErr = validateSpreadPct(input.spreadPct)
-  if (spreadErr) errors.spreadPct = spreadErr
+  const buyErr = validateSpreadPct(input.spreadBuyPct)
+  if (buyErr) errors.spreadBuyPct = buyErr
+  const sellErr = validateSpreadPct(input.spreadSellPct)
+  if (sellErr) errors.spreadSellPct = sellErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// USDX-207: fee config form (sot/api/fee.yaml § UpdateFeeConfig). All three are
+// required. mintFeePct + pgFeeQrisPct are percentages (reuse the spread bound);
+// pgFeeVaFlat is a flat IDR amount (≥ 0).
+const PG_FEE_VA_MAX = 1_000_000 // Rp 1jt flat is already extreme for a PG fee
+
+export function validateFeePct(raw: string, label: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return `${label} is required`
+  if (!SPREAD_RE.test(trimmed)) return `${label} must be a number (up to 2 decimals)`
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
+  if (n > SPREAD_MAX_INCLUSIVE) return `${label} must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  return null
+}
+
+export function validatePgFeeVaFlat(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'VA fee is required'
+  if (!DECIMAL_RE.test(trimmed)) return 'VA fee must be a number (up to 4 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return 'VA fee cannot be negative'
+  if (n > PG_FEE_VA_MAX) return `VA fee must be at most ${PG_FEE_VA_MAX.toLocaleString()}`
+  return null
+}
+
+export function validateFeeConfigForm(input: {
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
+  if (mintErr) errors.mintFeePct = mintErr
+  const vaErr = validatePgFeeVaFlat(input.pgFeeVaFlat)
+  if (vaErr) errors.pgFeeVaFlat = vaErr
+  const qrisErr = validateFeePct(input.pgFeeQrisPct, 'QRIS fee')
+  if (qrisErr) errors.pgFeeQrisPct = qrisErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

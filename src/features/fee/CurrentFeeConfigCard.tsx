@@ -1,19 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRate, formatSpreadPct, formatRelativeTime } from '@/lib/format'
-import type { RateInfo } from '@/lib/types'
+import { formatIdrAmount, formatRelativeTime, formatSpreadPct } from '@/lib/format'
+import type { FeeConfig } from '@/lib/types'
 
-interface CurrentRateCardProps {
-  data: RateInfo | undefined
+interface Props {
+  data: FeeConfig | undefined
   isLoading: boolean
 }
 
-export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProps) {
+export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Current rate
+          Current fee config
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -26,69 +26,47 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
           <>
             <div>
               <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                Base rate
+                Mint fee (% dari subtotal)
               </p>
               <p
                 className="mt-1 font-mono text-[28px] font-semibold leading-tight tracking-tight"
-                aria-label="base rate"
+                aria-label="mint fee percent"
               >
-                {formatRate(data.baseRate)}
+                {formatSpreadPct(data.mintFeePct)}
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Effective beli (mint)
+                  PG fee VA (flat)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="effective buy rate"
+                  aria-label="pg fee va flat"
                 >
-                  {formatRate(data.effectiveBuyRate)}
+                  {formatIdrAmount(Number(data.pgFeeVaFlat))}
                 </dd>
               </div>
               <div>
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Effective jual (burn)
+                  PG fee QRIS (%)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="effective sell rate"
+                  aria-label="pg fee qris percent"
                 >
-                  {formatRate(data.effectiveSellRate)}
+                  {formatSpreadPct(data.pgFeeQrisPct)}
                 </dd>
               </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Spread beli
-                </dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {formatSpreadPct(data.spreadBuyPct)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Spread jual
-                </dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {formatSpreadPct(data.spreadSellPct)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Mode
-                </dt>
-                <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
-              </div>
-              <div>
+              <div className="col-span-2">
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Last updated
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"
-                  title={data.updatedAt}
+                  title={data.createdAt}
                 >
-                  {formatRelativeTime(data.updatedAt)}
+                  {formatRelativeTime(data.createdAt)}
                 </dd>
               </div>
             </dl>

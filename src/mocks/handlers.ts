@@ -13,12 +13,14 @@ import type {
   RateConfig,
   RateMode,
   UpdateRateConfig,
+  FeeConfig,
+  UpdateFeeConfig,
   RequestDetail,
   RequestListItem,
   OrderDetail,
   OrderListItem,
 } from '@/lib/types'
-import { canManageRate } from '@/lib/types'
+import { canManageRate, canManageFeeConfig } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -34,6 +36,8 @@ import {
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
+  createInitialFeeHistory,
+  createFeeConfig,
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
@@ -48,6 +52,7 @@ let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
@@ -66,6 +71,7 @@ export function resetMockData() {
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+  feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
@@ -497,7 +503,7 @@ export const handlers = [
           status: 'error',
           metadata: null,
           data: null,
-          error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' },
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN can update rate' },
         },
         { status: 403 }
       )
@@ -526,21 +532,88 @@ export const handlers = [
         return rateBadRequest('manualRate is required when mode is MANUAL')
       }
     }
-    if (body.spreadPct != null) {
-      const n = Number(body.spreadPct)
-      if (!Number.isFinite(n) || n < 0) {
-        return rateBadRequest('spreadPct must be a non-negative number')
+    for (const key of ['spreadBuyPct', 'spreadSellPct'] as const) {
+      const raw = body[key]
+      if (raw != null) {
+        const n = Number(raw)
+        if (!Number.isFinite(n) || n < 0) {
+          return rateBadRequest(`${key} must be a non-negative number`)
+        }
       }
     }
 
     const created = createRateConfig({
       mode: body.mode as RateMode,
       manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
-      spreadPct: body.spreadPct ?? '0',
+      spreadBuyPct: body.spreadBuyPct ?? '0',
+      spreadSellPct: body.spreadSellPct ?? '0',
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
     rateHistory.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ───
+  // GET = semua role backoffice (read); POST = admin only (append-only).
+  // Mock-served (not in browser INTEGRATION_PATHS) — BE belum tentu live.
+  // GET not Bearer-gated, same rationale as /api/v1/rate above.
+  http.get('/api/v1/fee-config', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: feeHistory[feeHistory.length - 1],
+    })
+  ),
+
+  http.post('/api/v1/fee-config', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageFeeConfig(operator.role)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN can update fee config' },
+        },
+        { status: 403 }
+      )
+    }
+
+    const body = (await request.json()) as UpdateFeeConfig
+
+    function feeBadRequest(message: string) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION', message },
+        },
+        { status: 422 }
+      )
+    }
+
+    for (const key of ['mintFeePct', 'pgFeeVaFlat', 'pgFeeQrisPct'] as const) {
+      const raw = body[key]
+      const n = Number(raw)
+      if (raw == null || raw === '' || !Number.isFinite(n) || n < 0) {
+        return feeBadRequest(`${key} is required and must be a non-negative number`)
+      }
+    }
+
+    const created = createFeeConfig({
+      mintFeePct: body.mintFeePct,
+      pgFeeVaFlat: body.pgFeeVaFlat,
+      pgFeeQrisPct: body.pgFeeQrisPct,
+      updatedBy: operator.id,
+      createdAt: new Date().toISOString(),
+    })
+    feeHistory.push(created)
     return HttpResponse.json(
       { status: 'success', metadata: null, data: created },
       { status: 201 }

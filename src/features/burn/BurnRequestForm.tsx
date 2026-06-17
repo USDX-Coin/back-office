@@ -267,6 +267,7 @@ export default function BurnRequestForm() {
               onCurrencyChange={handleCurrencyChange}
               amountError={errors.amount}
               currencyError={errors.amountCurrency}
+              direction="sell"
             />
             <FieldError message={errors.amount} />
             <FieldError message={errors.amountCurrency} />

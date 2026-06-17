@@ -21,6 +21,7 @@ const BREADCRUMB_MAP: Record<string, [string, string]> = {
   '/burn/new': ['OTC', 'New burn OTC'],
   '/transactions': ['Consumer', 'User Transaction'],
   '/settings/rate': ['Settings', 'Rate'],
+  '/settings/fee': ['Settings', 'Fee'],
   '/settings/threshold': ['Settings', 'Threshold'],
   '/profile': ['Account', 'Profile'],
 }

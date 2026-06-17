@@ -16,6 +16,7 @@ import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RatePage from '@/features/rate/RatePage'
+import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
@@ -115,6 +116,10 @@ const router = createBrowserRouter([
             ],
           },
           { path: '/settings/rate', element: <RatePage /> },
+          // USDX-207 + sot/api/fee.yaml: read = all backoffice roles, update =
+          // admin only (gated inside the page, read-only notice for non-admin —
+          // same as Rate). No route-level RoleGuard so DEVELOPER can view.
+          { path: '/settings/fee', element: <FeeConfigPage /> },
           {
             // sot/phase-1.md L516 "Threshold Management — admin only" +
             // Linear USDX-53 AC3: non-ADMIN must redirect/403.
