@@ -19,6 +19,7 @@ import type {
   StaffSummary,
   RateConfig,
   RateInfo,
+  FeeConfig,
   UserAnalytics,
   UserWallet,
   ChainConfig,
@@ -354,7 +355,9 @@ export function createRateConfig(overrides: Partial<RateConfig> = {}): RateConfi
     id: nextRateId(),
     mode: 'DYNAMIC',
     manualRate: null,
-    spreadPct: '0.5',
+    // USDX-207: spread directional — beli (mint) + jual (burn/redeem).
+    spreadBuyPct: '0.5',
+    spreadSellPct: '0.4',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -367,7 +370,8 @@ export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
     createRateConfig({
       mode: 'DYNAMIC',
       manualRate: null,
-      spreadPct: '0.5',
+      spreadBuyPct: '0.5',
+      spreadSellPct: '0.4',
       updatedBy: seedStaffId,
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
@@ -384,24 +388,62 @@ export function computeRateInfo(history: RateConfig[]): RateInfo {
   const latest = history[history.length - 1]
   if (!latest) {
     return {
-      rate: '0.00',
+      baseRate: '0.00',
       mode: 'DYNAMIC',
-      spreadPct: '0',
+      spreadBuyPct: '0',
+      spreadSellPct: '0',
+      effectiveBuyRate: '0.00',
+      effectiveSellRate: '0.00',
       updatedAt: new Date().toISOString(),
     }
   }
-  const spread = Number(latest.spreadPct) || 0
+  const buy = Number(latest.spreadBuyPct) || 0
+  const sell = Number(latest.spreadSellPct) || 0
   const base =
     latest.mode === 'MANUAL' && latest.manualRate
       ? Number(latest.manualRate)
       : MOCK_DYNAMIC_BASE_RATE
-  const effective = base * (1 + spread / 100)
   return {
-    rate: effective.toFixed(2),
+    baseRate: base.toFixed(2),
     mode: latest.mode,
-    spreadPct: latest.spreadPct,
+    spreadBuyPct: latest.spreadBuyPct,
+    spreadSellPct: latest.spreadSellPct,
+    // Beli: base × (1 + buy/100); Jual: base × (1 − sell/100).
+    effectiveBuyRate: (base * (1 + buy / 100)).toFixed(2),
+    effectiveSellRate: (base * (1 - sell / 100)).toFixed(2),
     updatedAt: latest.createdAt,
   }
+}
+
+// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ────────────
+// Append-only, admin-set. Latest row = active config. Seed mirrors the W2
+// reference tariffs (mint fee 1%, PG VA Rp4.000 flat, PG QRIS 0.7%).
+
+let feeIdCounter = 1
+function nextFeeId(): string {
+  return `fee-${(feeIdCounter++).toString().padStart(4, '0')}`
+}
+
+export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
+  return {
+    id: nextFeeId(),
+    mintFeePct: '1.0',
+    pgFeeVaFlat: '4000.00',
+    pgFeeQrisPct: '0.7',
+    updatedBy: 'seed',
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
+  feeIdCounter = 1
+  return [
+    createFeeConfig({
+      updatedBy: seedStaffId,
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    }),
+  ]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -24,6 +24,12 @@ export function canManageRate(role: StaffRole): boolean {
   return role === 'ADMIN'
 }
 
+// USDX-207: fee config update is admin-only (sot/api/fee.yaml POST 403).
+// GET is readable by all backoffice roles; only the write path is gated.
+export function canManageFeeConfig(role: StaffRole): boolean {
+  return role === 'ADMIN'
+}
+
 // SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
@@ -166,26 +172,60 @@ export interface ApiError {
 
 export type RateMode = 'MANUAL' | 'DYNAMIC'
 
+// USDX-207: spread directional (sot/api/rate.yaml + phase-1.md § Rate
+// Configuration). Mengganti `spread_pct` tunggal jadi dua arah: beli (mint)
+// pakai `spreadBuyPct`, jual (burn/redeem) pakai `spreadSellPct`. GET juga
+// surface effective rate per arah.
 export interface RateInfo {
-  rate: string
+  /** Base rate USD/IDR sebelum spread (manual atau feed). */
+  baseRate: string
   mode: RateMode
-  spreadPct: string
+  /** Spread % saat user beli USDX (mint). */
+  spreadBuyPct: string
+  /** Spread % saat user jual USDX (burn/redeem). */
+  spreadSellPct: string
+  /** baseRate × (1 + spreadBuyPct/100). */
+  effectiveBuyRate: string
+  /** baseRate × (1 − spreadSellPct/100). */
+  effectiveSellRate: string
   updatedAt: string
 }
 
 export interface UpdateRateConfig {
   mode: RateMode
   manualRate?: string | null
-  spreadPct?: string
+  /** Default 0. */
+  spreadBuyPct?: string
+  /** Default 0. */
+  spreadSellPct?: string
 }
 
 export interface RateConfig {
   id: string
   mode: RateMode
   manualRate: string | null
-  spreadPct: string
+  spreadBuyPct: string
+  spreadSellPct: string
   updatedBy: string
   createdAt: string
+}
+
+// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ───────────
+// Append-only, admin-set. Row terbaru = config aktif. mint fee (% nominal) +
+// PG fee referensi per channel (VA flat Rp / QRIS % atas subtotal_idr).
+export interface FeeConfig {
+  id: string
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
+  updatedBy: string
+  createdAt: string
+}
+
+export interface UpdateFeeConfig {
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────

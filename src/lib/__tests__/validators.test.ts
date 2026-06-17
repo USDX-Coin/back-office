@@ -13,6 +13,8 @@ import {
   validateSpreadPct,
   validateRateUpdateForm,
   isManualRateUnusual,
+  validateFeeConfigForm,
+  validatePgFeeVaFlat,
   TX_HASH_RE,
 } from '@/lib/validators'
 
@@ -597,32 +599,41 @@ describe('validateSpreadPct', () => {
 
 describe('validateRateUpdateForm', () => {
   describe('positive', () => {
-    test('MANUAL with valid rate passes', () => {
-      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '16250', spreadPct: '0.5' })
+    test('MANUAL with valid rate + both spreads passes', () => {
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '16250', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(true)
     })
     test('DYNAMIC ignores manualRate (even if blank)', () => {
-      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(true)
       expect(r.errors.manualRate).toBeUndefined()
+    })
+    test('blank spreads are allowed (optional, default 0)', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '', spreadSellPct: '' })
+      expect(r.valid).toBe(true)
     })
   })
 
   describe('negative', () => {
     test('MANUAL without rate fails', () => {
-      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
       expect(r.errors.manualRate).toBe('Manual rate is required')
     })
     test('missing mode fails', () => {
-      const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
       expect(r.errors.mode).toBe('Mode is required')
     })
-    test('out-of-range spread fails for DYNAMIC mode too', () => {
-      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '99' })
+    test('out-of-range spread beli fails for DYNAMIC mode too', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '99', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
-      expect(r.errors.spreadPct).toBeDefined()
+      expect(r.errors.spreadBuyPct).toBeDefined()
+    })
+    test('out-of-range spread jual fails independently', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.spreadSellPct).toBeDefined()
     })
   })
 })
@@ -673,6 +684,47 @@ describe('validateOptionalIdPhone', () => {
     test('should reject too-short and too-long numbers', () => {
       expect(validateOptionalIdPhone('+62812')).not.toBeNull()
       expect(validateOptionalIdPhone('+62' + '8'.repeat(14))).not.toBeNull()
+    })
+  })
+})
+
+// USDX-207 — fee config form (sot/api/fee.yaml § UpdateFeeConfig)
+describe('validateFeeConfigForm', () => {
+  const ok = { mintFeePct: '1.0', pgFeeVaFlat: '4000.00', pgFeeQrisPct: '0.7' }
+
+  describe('positive', () => {
+    test('valid mint fee % + VA flat + QRIS % passes', () => {
+      expect(validateFeeConfigForm(ok).valid).toBe(true)
+    })
+    test('zero fees are allowed', () => {
+      expect(validateFeeConfigForm({ mintFeePct: '0', pgFeeVaFlat: '0', pgFeeQrisPct: '0' }).valid).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('missing mint fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, mintFeePct: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.mintFeePct).toBeDefined()
+    })
+    test('negative VA flat fails', () => {
+      const r = validateFeeConfigForm({ ...ok, pgFeeVaFlat: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.pgFeeVaFlat).toBeDefined()
+    })
+    test('out-of-range QRIS % fails', () => {
+      const r = validateFeeConfigForm({ ...ok, pgFeeQrisPct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.pgFeeQrisPct).toBeDefined()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('VA flat rejects non-numeric', () => {
+      expect(validatePgFeeVaFlat('abc')).not.toBeNull()
+    })
+    test('VA flat accepts a large-but-valid flat amount', () => {
+      expect(validatePgFeeVaFlat('4500.50')).toBeNull()
     })
   })
 })

@@ -11,6 +11,7 @@ import {
   UsersRound,
   Wrench,
   Receipt,
+  Percent,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -111,6 +112,9 @@ export const NAV_SECTIONS: NavSection[] = [
     visibleWhen: canManageSettings,
     items: [
       { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
+      // USDX-207: fee config (mint fee % + PG fee VA/QRIS). Visible to the
+      // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
+      { to: '/settings/fee', label: 'Fee', icon: Percent },
       { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
     ],
   },

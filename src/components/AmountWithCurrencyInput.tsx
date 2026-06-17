@@ -34,6 +34,9 @@ export interface AmountWithCurrencyInputProps {
   currencyError?: string
   className?: string
   disabled?: boolean
+  // USDX-207: rate is directional. Mint (beli) previews with effectiveBuyRate,
+  // burn (jual) with effectiveSellRate. Default 'buy'.
+  direction?: 'buy' | 'sell'
 }
 
 const CURRENCIES: { value: AmountCurrency; hint: string }[] = [
@@ -52,11 +55,17 @@ export default function AmountWithCurrencyInput({
   currencyError,
   className,
   disabled,
+  direction = 'buy',
 }: AmountWithCurrencyInputProps) {
   const { data: rate, isError: rateError, isLoading: rateLoading } = useRate()
 
   const amountNum = Number(amount.trim())
-  const rateNum = rate ? Number(rate.rate) : Number.NaN
+  const effectiveRate = rate
+    ? direction === 'sell'
+      ? rate.effectiveSellRate
+      : rate.effectiveBuyRate
+    : undefined
+  const rateNum = effectiveRate ? Number(effectiveRate) : Number.NaN
   const hasValidAmount = amount.trim() !== '' && Number.isFinite(amountNum) && amountNum > 0
   const hasValidRate = Number.isFinite(rateNum) && rateNum > 0
 

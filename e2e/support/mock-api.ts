@@ -85,7 +85,28 @@ export const FAILED_ACTIVATION_USER = {
   wallets: [],
 }
 
-const RATE_INFO = { rate: '16250.0000', mode: 'MANUAL' as const, spreadPct: '0', updatedAt: '2026-05-01T00:00:00.000Z' }
+// USDX-207: spread directional (sot/api/rate.yaml). Spread 0 → effective == base.
+const RATE_INFO = {
+  baseRate: '16250.0000',
+  mode: 'MANUAL' as const,
+  spreadBuyPct: '0',
+  spreadSellPct: '0',
+  effectiveBuyRate: '16250.0000',
+  effectiveSellRate: '16250.0000',
+  updatedAt: '2026-05-01T00:00:00.000Z',
+}
+// Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
+const RATE_USED = RATE_INFO.effectiveBuyRate
+
+// USDX-207: fee config (sot/api/fee.yaml). W2 reference tariffs.
+const FEE_CONFIG = {
+  id: 'fee-0001',
+  mintFeePct: '1.0',
+  pgFeeVaFlat: '4000.00',
+  pgFeeQrisPct: '0.7',
+  updatedBy: ADMIN_STAFF.id,
+  createdAt: '2026-05-01T00:00:00.000Z',
+}
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
 const DASHBOARD_STATS = {
   totalSupply: '1000000.00',
@@ -377,6 +398,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     resendLog: new Map(),
   }
 
+  // USDX-207: per-test mutable rate + fee config so POST is reflected by the
+  // next GET (the FE invalidates and refetches after a successful update).
+  let liveRate = { ...RATE_INFO }
+  let liveFee = { ...FEE_CONFIG }
+
   const envelope = (route: Route, data: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ status: 'success', metadata: null, data }) })
   const paginated = (route: Route, items: unknown[], pageNum: number, limit: number) =>
@@ -417,7 +443,42 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
 
     // ── Dashboard / rate / chains / threshold ─────────────────────────────
     if (key === 'GET /api/v1/dashboard/stats') return envelope(route, DASHBOARD_STATS)
-    if (key === 'GET /api/v1/rate') return envelope(route, RATE_INFO)
+    if (key === 'GET /api/v1/rate') return envelope(route, liveRate)
+    // USDX-207: rate update (spread beli/jual). Recompute effective rates so the
+    // refetched GET shows the new spreads in the card.
+    if (key === 'POST /api/v1/rate') {
+      const b = body()
+      const base =
+        b.mode === 'MANUAL' && b.manualRate
+          ? Number.parseFloat(b.manualRate)
+          : Number.parseFloat(liveRate.baseRate)
+      const buy = Number.parseFloat(b.spreadBuyPct ?? '0') || 0
+      const sell = Number.parseFloat(b.spreadSellPct ?? '0') || 0
+      liveRate = {
+        baseRate: base.toFixed(4),
+        mode: b.mode,
+        spreadBuyPct: b.spreadBuyPct ?? '0',
+        spreadSellPct: b.spreadSellPct ?? '0',
+        effectiveBuyRate: (base * (1 + buy / 100)).toFixed(4),
+        effectiveSellRate: (base * (1 - sell / 100)).toFixed(4),
+        updatedAt: '2026-06-17T00:00:00.000Z',
+      }
+      return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)
+    }
+    // USDX-207: fee config (sot/api/fee.yaml). GET all roles, POST admin.
+    if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
+    if (key === 'POST /api/v1/fee-config') {
+      const b = body()
+      liveFee = {
+        id: 'fee-live',
+        mintFeePct: b.mintFeePct,
+        pgFeeVaFlat: b.pgFeeVaFlat,
+        pgFeeQrisPct: b.pgFeeQrisPct,
+        updatedBy: ADMIN_STAFF.id,
+        createdAt: '2026-06-17T00:00:00.000Z',
+      }
+      return envelope(route, liveFee, 201)
+    }
     if (key === 'GET /api/v1/chains') return envelope(route, [POLYGON_CHAIN])
     if (key === 'GET /api/v1/threshold') return envelope(route, THRESHOLD)
     if (key === 'GET /api/v1/staff') return paginated(route, [ADMIN_STAFF], 1, 50)
@@ -573,16 +634,16 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const type = key.endsWith('mint') ? 'mint' : 'burn'
       const id = `${type}_${Date.now()}`
       const usdx = b.amountCurrency === 'IDR'
-        ? (Number.parseFloat(b.amount) / Number.parseFloat(RATE_INFO.rate)).toFixed(6)
+        ? (Number.parseFloat(b.amount) / Number.parseFloat(RATE_USED)).toFixed(6)
         : Number.parseFloat(b.amount).toFixed(6)
       const idr = b.amountCurrency === 'IDR'
         ? Number.parseFloat(b.amount).toFixed(2)
-        : (Number.parseFloat(usdx) * Number.parseFloat(RATE_INFO.rate)).toFixed(2)
+        : (Number.parseFloat(usdx) * Number.parseFloat(RATE_USED)).toFixed(2)
       const u = state.users.find((x) => x.id === b.userId)
       const created: MockRequest = {
         id, type, idempotencyKey: HEX64('1'), userId: b.userId, userName: u?.name ?? 'Unknown',
         userAddress: b.userAddress, amount: usdx, amountWei: String(Math.round(Number.parseFloat(usdx) * 1e6)),
-        amountIdr: idr, inputCurrency: b.amountCurrency, rateUsed: RATE_INFO.rate, chain: b.chain,
+        amountIdr: idr, inputCurrency: b.amountCurrency, rateUsed: RATE_USED, chain: b.chain,
         notes: b.notes ?? null, safeType: Number(idr) >= 1_000_000_000 ? 'MANAGER' : 'STAFF', status: 'PENDING_APPROVAL',
         safeTxHash: HEX64('e'), onChainTxHash: null, createdBy: ADMIN_STAFF.id,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
