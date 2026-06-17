@@ -165,6 +165,74 @@ function seedRequests(): MockRequest[] {
   ]
 }
 
+// ── Consumer orders / "User Transaction" (USDX-206 — sot/api/orders.yaml) ────
+
+export interface MockOrder {
+  id: string
+  type: 'MINT' | 'REDEEM'
+  userId: string
+  userEmail: string
+  userAddress: string
+  chain: string
+  idempotencyKey: string
+  amount: string
+  baseRate: string
+  spreadBuyPct: string
+  spreadSellPct: string
+  effectiveRate: string
+  subtotalIdr: string
+  paymentChannel: 'VA' | 'QRIS' | null
+  paymentBank: string | null
+  mintFeePct: string
+  mintFeeIdr: string
+  pgFeeIdr: string | null
+  totalFeeIdr: string | null
+  totalPayIdr: string | null
+  estimatedRevenueIdr: string
+  safeType: 'STAFF' | 'MANAGER'
+  paymentStatus: 'REQUESTED' | 'WAITING_FOR_PAYMENT' | 'PAID' | 'EXPIRED'
+  safeStatus: 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'EXECUTED' | 'REJECTED'
+  status: 'WAITING_FOR_PAYMENT' | 'WAITING_FOR_APPROVAL' | 'COMPLETED' | 'FAILED'
+  paymentProvider: string
+  paidAt: string | null
+  expiresAt: string
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// OrderListItem projection (the list endpoint omits the fee/spread breakdown).
+function orderListItem(o: MockOrder) {
+  return {
+    id: o.id, type: o.type, userId: o.userId, userEmail: o.userEmail,
+    amount: o.amount, totalPayIdr: o.totalPayIdr, chain: o.chain,
+    paymentStatus: o.paymentStatus, safeStatus: o.safeStatus, status: o.status,
+    createdAt: o.createdAt,
+  }
+}
+
+export function seedOrders(): MockOrder[] {
+  const mk = (over: Partial<MockOrder>): MockOrder => ({
+    id: over.id!, type: 'MINT', userId: VERIFIED_USER.id, userEmail: VERIFIED_USER.email,
+    userAddress: VERIFIED_USER.wallets[0].address, chain: 'polygon',
+    idempotencyKey: 'mint_' + HEX64('1').slice(2, 22),
+    amount: '250.00', baseRate: '16200.00', spreadBuyPct: '0.50', spreadSellPct: '0.40',
+    effectiveRate: '16281.00', subtotalIdr: '4070250.00',
+    paymentChannel: 'VA', paymentBank: 'BCA', mintFeePct: '0.30', mintFeeIdr: '12210.75',
+    pgFeeIdr: '4440.00', totalFeeIdr: '16650.75', totalPayIdr: '4086900.75', estimatedRevenueIdr: '32310.75',
+    safeType: 'STAFF', paymentStatus: 'PAID', safeStatus: 'EXECUTED', status: 'COMPLETED',
+    paymentProvider: 'MOCK', paidAt: '2026-06-01T00:05:00.000Z', expiresAt: '2026-06-01T01:00:00.000Z',
+    safeTxHash: HEX64('b'), onChainTxHash: HEX64('a'),
+    createdAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:10:00.000Z', ...over,
+  })
+  return [
+    mk({ id: 'ord_completed', amount: '1000.00', status: 'COMPLETED', paymentStatus: 'PAID', safeStatus: 'EXECUTED' }),
+    mk({ id: 'ord_awaiting', amount: '500.00', status: 'WAITING_FOR_APPROVAL', paymentStatus: 'PAID', safeStatus: 'PENDING_APPROVAL', onChainTxHash: null, createdAt: '2026-06-02T09:00:00.000Z' }),
+    mk({ id: 'ord_unpaid', amount: '120.50', status: 'WAITING_FOR_PAYMENT', paymentStatus: 'REQUESTED', safeStatus: 'NONE', paymentChannel: null, paymentBank: null, pgFeeIdr: null, totalFeeIdr: null, totalPayIdr: null, safeTxHash: null, onChainTxHash: null, paidAt: null, createdAt: '2026-06-03T08:00:00.000Z' }),
+  ]
+}
+
 // ── KYC review (USDX-154/155 — sot/api/kyc.yaml) ─────────────────────────────
 
 export interface MockKycRecord {
@@ -282,6 +350,8 @@ export interface MockApiOptions {
   requests?: MockRequest[]
   /** Replace the seeded KYC records (USDX-154/155). */
   kyc?: MockKycRecord[]
+  /** Replace the seeded consumer orders (USDX-206). */
+  orders?: MockOrder[]
   /** Override a single endpoint, keyed by `"METHOD /api/v1/path"`. Return `true` if handled. */
   routes?: Record<string, RouteOverride>
 }
@@ -289,6 +359,7 @@ export interface MockApiOptions {
 export interface MockApiState {
   users: (typeof VERIFIED_USER)[]
   requests: MockRequest[]
+  orders: MockOrder[]
   kyc: MockKycRecord[]
   kycReviews: Map<string, MockKycReview[]>
   /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
@@ -300,6 +371,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
   const state: MockApiState = {
     users: [VERIFIED_USER, PENDING_ACTIVATION_USER, FAILED_ACTIVATION_USER, ...(opts.users ?? [])],
     requests: opts.requests ?? seedRequests(),
+    orders: opts.orders ?? seedOrders(),
     kyc: kycRecords,
     kycReviews: seedKycReviews(kycRecords),
     resendLog: new Map(),
@@ -518,6 +590,34 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
       state.requests.unshift(created)
       return envelope(route, detailItem(created), 201)
+    }
+
+    // ── Consumer orders / "User Transaction" (USDX-206) ──────────────────────
+    if (method === 'GET' && path === '/api/v1/orders') {
+      const type = url.searchParams.get('type')
+      const status = url.searchParams.get('status')
+      const paymentStatus = url.searchParams.get('paymentStatus')
+      const safeStatus = url.searchParams.get('safeStatus')
+      const userId = url.searchParams.get('userId')
+      let list = [...state.orders]
+      if (type) list = list.filter((o) => o.type === type)
+      if (status) list = list.filter((o) => o.status === status)
+      if (paymentStatus) list = list.filter((o) => o.paymentStatus === paymentStatus)
+      if (safeStatus) list = list.filter((o) => o.safeStatus === safeStatus)
+      if (userId) list = list.filter((o) => o.userId === userId)
+      list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      return paginated(
+        route,
+        list.map(orderListItem),
+        Number(url.searchParams.get('page') ?? '1'),
+        Number(url.searchParams.get('take') ?? url.searchParams.get('limit') ?? '20'),
+      )
+    }
+    const orderIdMatch = path.match(/^\/api\/v1\/orders\/([^/]+)$/)
+    if (method === 'GET' && orderIdMatch) {
+      const o = state.orders.find((x) => x.id === orderIdMatch[1])
+      if (!o) return error(route, 'NOT_FOUND', 'Order not found', 404)
+      return envelope(route, o)
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────

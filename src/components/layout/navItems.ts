@@ -10,6 +10,7 @@ import {
   CalendarDays,
   UsersRound,
   Wrench,
+  Receipt,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -70,6 +71,16 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/mint', label: 'Mint', icon: Coins, badgeKey: 'mint' },
       { to: '/burn', label: 'Burn', icon: Flame, badgeKey: 'burn' },
+    ],
+  },
+  {
+    // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
+    // read-only monitoring of consumer mint orders. Visible to every backoffice
+    // role (no visibleWhen) — distinct from the OTC desk above (different table
+    // / lifecycle). Redeem orders join the same menu in Week 3.
+    label: 'Consumer',
+    items: [
+      { to: '/transactions', label: 'User Transaction', icon: Receipt },
     ],
   },
   {

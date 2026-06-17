@@ -34,6 +34,13 @@ import type {
   BurnRequestStatus,
   PhaseOneUser,
   PhaseOneUserWallet,
+  OrderListItem,
+  OrderDetail,
+  MintPaymentStatus,
+  MintSafeStatus,
+  MintOrderStatus,
+  PaymentChannel,
+  VaBank,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -739,6 +746,160 @@ export function createMockRequests(
     const user = customers[i % customers.length]!
     const createdBy = staff[i % staff.length]!
     const pair = createRequestPair({ type, user, createdBy }, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return { list, details }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 W2 — Consumer mint orders (backoffice "User Transaction", USDX-206).
+// sot/api/orders.yaml + sot/phase-2/week2.md § Backoffice — User Transaction +
+// § Fee & Spread. Read-only mock; Week 2 is mint-only (type=MINT), redeem W3.
+// Distinct from the Phase-1 `requests` store above (different table/lifecycle).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORDER_BASE_RATE = '16200.00'
+const ORDER_SPREAD_BUY_PCT = '0.50'
+const ORDER_SPREAD_SELL_PCT = '0.40'
+const ORDER_MINT_FEE_PCT = '0.30'
+const ORDER_USDX_AMOUNTS = [50, 120.5, 250, 500.75, 1_000, 2_500, 5_000, 10_000]
+const ORDER_VA_BANKS: VaBank[] = ['BCA', 'BNI', 'MANDIRI', 'BRI', 'CIMB']
+
+// Coherent (payment_status, safe_status, status) tuples spanning the lifecycle
+// so the list has data for every filter value (sot/api/common.yaml § statuses;
+// week2.md § Lifecycle: NONE→PENDING_APPROVAL→APPROVED→EXECUTED).
+interface OrderLifecycleState {
+  paymentStatus: MintPaymentStatus
+  safeStatus: MintSafeStatus
+  status: MintOrderStatus
+}
+const ORDER_STATES: OrderLifecycleState[] = [
+  { paymentStatus: 'REQUESTED', safeStatus: 'NONE', status: 'WAITING_FOR_PAYMENT' },
+  { paymentStatus: 'WAITING_FOR_PAYMENT', safeStatus: 'NONE', status: 'WAITING_FOR_PAYMENT' },
+  { paymentStatus: 'PAID', safeStatus: 'PENDING_APPROVAL', status: 'WAITING_FOR_APPROVAL' },
+  { paymentStatus: 'PAID', safeStatus: 'APPROVED', status: 'WAITING_FOR_APPROVAL' },
+  { paymentStatus: 'PAID', safeStatus: 'EXECUTED', status: 'COMPLETED' },
+  { paymentStatus: 'PAID', safeStatus: 'EXECUTED', status: 'COMPLETED' },
+  { paymentStatus: 'EXPIRED', safeStatus: 'NONE', status: 'FAILED' },
+  { paymentStatus: 'PAID', safeStatus: 'REJECTED', status: 'FAILED' },
+]
+
+// IDR decimal string with 2 places (matches the "Rp …,00" display convention).
+function idrDecimal(n: number): string {
+  return n.toFixed(2)
+}
+
+function createOrderPair(
+  user: Customer,
+  seed: number,
+): { list: OrderListItem; detail: OrderDetail } {
+  const id = uuidLike(seed + 30_000)
+  const idempotencyKey = `mint_${seededHex(20, seed + 31_000)}`
+  const userAddress = bytes20(seed + 32_000)
+  const amountNum = ORDER_USDX_AMOUNTS[seed % ORDER_USDX_AMOUNTS.length]!
+  const amount = amountNum.toFixed(2)
+  const state = ORDER_STATES[seed % ORDER_STATES.length]!
+  const createdAt = pastDateRecent(seed % 45)
+  // MINT_ORDER_TTL abandon window (week2.md step 7 — NOW() + TTL). 1h here.
+  const expiresAt = new Date(new Date(createdAt).getTime() + 60 * 60 * 1000).toISOString()
+  const safeType: SafeType = SAFE_TYPES[seed % SAFE_TYPES.length]!
+
+  // Exchange rate + spread (week2.md § Fee & Spread).
+  const baseRateNum = Number(ORDER_BASE_RATE)
+  const spreadBuyNum = Number(ORDER_SPREAD_BUY_PCT)
+  const effectiveRateNum = baseRateNum * (1 + spreadBuyNum / 100)
+  const subtotalNum = amountNum * effectiveRateNum
+
+  // Mint fee = % of nominal (subtotal), admin-set (fee_configs).
+  const mintFeeNum = (subtotalNum * Number(ORDER_MINT_FEE_PCT)) / 100
+  // Estimated revenue = spread_revenue + mint_fee (PG fee pass-through, not
+  // subtracted — week2.md § Estimated revenue 2026-06-16).
+  const spreadRevenueNum = (amountNum * baseRateNum * spreadBuyNum) / 100
+  const estimatedRevenueIdr = idrDecimal(spreadRevenueNum + mintFeeNum)
+
+  // Payment channel is chosen once the order leaves REQUESTED (the abandon
+  // window before a method is selected). Before that, PG fee / totals are null.
+  const hasChannel = state.paymentStatus !== 'REQUESTED'
+  const isQris = seed % 2 === 0
+  const paymentChannel: PaymentChannel | null = hasChannel ? (isQris ? 'QRIS' : 'VA') : null
+  const paymentBank: VaBank | null =
+    hasChannel && !isQris ? ORDER_VA_BANKS[seed % ORDER_VA_BANKS.length]! : null
+  // PG fee reference tariff (week2.md § Fee — VA flat, QRIS % of subtotal).
+  const pgFeeNum = !hasChannel ? null : isQris ? Math.round(subtotalNum * 0.007 * 100) / 100 : 4_440
+  const pgFeeIdr = pgFeeNum === null ? null : idrDecimal(pgFeeNum)
+  const totalFeeIdr = pgFeeNum === null ? null : idrDecimal(mintFeeNum + pgFeeNum)
+  const totalPayIdr = pgFeeNum === null ? null : idrDecimal(subtotalNum + mintFeeNum + pgFeeNum)
+
+  const paidAt = state.paymentStatus === 'PAID' ? createdAt : null
+  // Safe TX proposed once safe_status leaves NONE; on-chain hash only at EXECUTED.
+  const safeTxHash = state.safeStatus === 'NONE' ? null : bytes32(seed + 33_000)
+  const onChainTxHash = state.safeStatus === 'EXECUTED' ? bytes32(seed + 34_000) : null
+
+  const list: OrderListItem = {
+    id,
+    type: 'MINT',
+    userId: user.id,
+    userEmail: user.email,
+    amount,
+    totalPayIdr,
+    chain: 'polygon',
+    paymentStatus: state.paymentStatus,
+    safeStatus: state.safeStatus,
+    status: state.status,
+    createdAt,
+  }
+
+  const detail: OrderDetail = {
+    id,
+    type: 'MINT',
+    userId: user.id,
+    userEmail: user.email,
+    userAddress,
+    chain: 'polygon',
+    idempotencyKey,
+    amount,
+    baseRate: ORDER_BASE_RATE,
+    spreadBuyPct: ORDER_SPREAD_BUY_PCT,
+    spreadSellPct: ORDER_SPREAD_SELL_PCT,
+    effectiveRate: idrDecimal(effectiveRateNum),
+    subtotalIdr: idrDecimal(subtotalNum),
+    paymentChannel,
+    paymentBank,
+    mintFeePct: ORDER_MINT_FEE_PCT,
+    mintFeeIdr: idrDecimal(mintFeeNum),
+    pgFeeIdr,
+    totalFeeIdr,
+    totalPayIdr,
+    estimatedRevenueIdr,
+    safeType,
+    paymentStatus: state.paymentStatus,
+    safeStatus: state.safeStatus,
+    status: state.status,
+    paymentProvider: 'MOCK',
+    paidAt,
+    expiresAt,
+    safeTxHash,
+    onChainTxHash,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  return { list, detail }
+}
+
+export function createMockOrders(
+  customers: Customer[],
+  count = 48,
+): { list: OrderListItem[]; details: Map<string, OrderDetail> } {
+  const list: OrderListItem[] = []
+  const details = new Map<string, OrderDetail>()
+  if (customers.length === 0) return { list, details }
+  for (let i = 0; i < count; i++) {
+    const seed = i + 1
+    const user = customers[i % customers.length]!
+    const pair = createOrderPair(user, seed)
     list.push(pair.list)
     details.set(pair.list.id, pair.detail)
   }

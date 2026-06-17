@@ -14,6 +14,7 @@ import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
+import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RatePage from '@/features/rate/RatePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
@@ -65,6 +66,12 @@ const router = createBrowserRouter([
           // (USDX-155); BE enforces 403 for Developer regardless.
           { path: '/kyc', element: <KycListPage /> },
           { path: '/kyc/:id', element: <KycListPage /> },
+          // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
+          // consumer-order monitoring, read-only, visible to every backoffice
+          // role (no RoleGuard — like KYC). `/transactions/:id` re-renders the
+          // list and opens the detail modal from URL state (deep-link safe).
+          { path: '/transactions', element: <TransactionsListPage /> },
+          { path: '/transactions/:id', element: <TransactionsListPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects

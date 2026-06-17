@@ -1,6 +1,9 @@
 import type {
   ActivationStatus,
   KycStatus,
+  MintOrderStatus,
+  MintPaymentStatus,
+  MintSafeStatus,
   OtcStatus,
   PhaseOneUser,
   RequestStatus,
@@ -99,6 +102,125 @@ export function isRequestTerminal(status: RequestStatus): boolean {
     status === 'IDR_TRANSFERRED' ||
     status === 'REJECTED'
   )
+}
+
+// ─── Phase 2 W2 — Consumer order statuses (USDX-206) ───
+// sot/api/common.yaml § MintOrderStatus / MintPaymentStatus / MintSafeStatus.
+// Three separate badges on the User Transaction list + detail. Colors follow
+// the same warning→primary→success→destructive convention as requests above.
+
+const orderStatusMap: Record<MintOrderStatus, StatusConfig> = {
+  WAITING_FOR_PAYMENT: {
+    label: 'Waiting for payment',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  WAITING_FOR_APPROVAL: {
+    label: 'Waiting for approval',
+    variant: 'outline',
+    className: 'bg-primary/10 text-primary',
+    dotClass: 'bg-primary',
+  },
+  COMPLETED: {
+    label: 'Completed',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  FAILED: {
+    label: 'Failed',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+}
+
+const paymentStatusMap: Record<MintPaymentStatus, StatusConfig> = {
+  REQUESTED: {
+    label: 'Requested',
+    variant: 'outline',
+    className: 'bg-muted text-muted-foreground',
+    dotClass: 'bg-muted-foreground',
+  },
+  WAITING_FOR_PAYMENT: {
+    label: 'Waiting for payment',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  PAID: {
+    label: 'Paid',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  EXPIRED: {
+    label: 'Expired',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+}
+
+const safeStatusMap: Record<MintSafeStatus, StatusConfig> = {
+  NONE: {
+    label: 'None',
+    variant: 'outline',
+    className: 'bg-muted text-muted-foreground',
+    dotClass: 'bg-muted-foreground',
+  },
+  PENDING_APPROVAL: {
+    label: 'Pending approval',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  APPROVED: {
+    label: 'Approved',
+    variant: 'outline',
+    className: 'bg-primary/10 text-primary',
+    dotClass: 'bg-primary',
+  },
+  EXECUTED: {
+    label: 'Executed',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+}
+
+function fallbackConfig(status: string): StatusConfig {
+  return {
+    label: status,
+    variant: 'outline',
+    className: '',
+    dotClass: 'bg-muted-foreground',
+  }
+}
+
+export function getOrderStatusConfig(status: MintOrderStatus): StatusConfig {
+  return orderStatusMap[status] ?? fallbackConfig(String(status))
+}
+
+export function getPaymentStatusConfig(status: MintPaymentStatus): StatusConfig {
+  return paymentStatusMap[status] ?? fallbackConfig(String(status))
+}
+
+export function getSafeStatusConfig(status: MintSafeStatus): StatusConfig {
+  return safeStatusMap[status] ?? fallbackConfig(String(status))
+}
+
+// Terminal order states stop the list/detail polling (sot/api/common.yaml
+// § MintOrderStatus — COMPLETED / FAILED are end states).
+export function isOrderTerminal(status: MintOrderStatus): boolean {
+  return status === 'COMPLETED' || status === 'FAILED'
 }
 
 // USDX-47 + sot/conventions.md § User KYC Status: state machine

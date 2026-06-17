@@ -333,6 +333,120 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
+// ─── Phase 2 W2 — Consumer Orders (backoffice "User Transaction", USDX-206) ───
+// sot/api/orders.yaml + sot/phase-2/week2.md § Backoffice — User Transaction.
+// Read-only monitoring of consumer mint orders (distinct from the Phase-1 OTC
+// mint/burn `requests` above — different table, different lifecycle). Week 2 is
+// mint-only; redeem joins Week 3 and the endpoint + `type` filter are
+// union-ready. Field + enum names mirror sot/api/common.yaml exactly.
+
+// sot/api/common.yaml § TransactionType. Week 2 = MINT only; REDEEM efektif W3.
+export type TransactionType = 'MINT' | 'REDEEM'
+
+// sot/api/common.yaml § MintPaymentStatus — IDR payment lifecycle of an order.
+export type MintPaymentStatus =
+  | 'REQUESTED'
+  | 'WAITING_FOR_PAYMENT'
+  | 'PAID'
+  | 'EXPIRED'
+
+// sot/api/common.yaml § MintSafeStatus — on-chain Safe execution (mirrors OTC).
+export type MintSafeStatus =
+  | 'NONE'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'REJECTED'
+
+// sot/api/common.yaml § MintOrderStatus — denormalized overall order status.
+export type MintOrderStatus =
+  | 'WAITING_FOR_PAYMENT'
+  | 'WAITING_FOR_APPROVAL'
+  | 'COMPLETED'
+  | 'FAILED'
+
+// sot/api/common.yaml § PaymentChannel / VaBank.
+export type PaymentChannel = 'VA' | 'QRIS'
+export type VaBank =
+  | 'BCA'
+  | 'BNI'
+  | 'BRI'
+  | 'CIMB'
+  | 'DANAMON'
+  | 'INA'
+  | 'MANDIRI'
+  | 'PERMATA'
+  | 'MAYBANK'
+
+// sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row.
+export interface OrderListItem {
+  id: string
+  type: TransactionType
+  userId: string
+  userEmail: string
+  /** Decimal USDX. */
+  amount: string
+  /** Total the user pays (IDR). Null until a payment channel is chosen. */
+  totalPayIdr: string | null
+  chain: string
+  paymentStatus: MintPaymentStatus
+  safeStatus: MintSafeStatus
+  status: MintOrderStatus
+  createdAt: string
+}
+
+// sot/api/orders.yaml § OrderDetail — GET /api/v1/orders/{id}. Adds the
+// fee/spread/revenue breakdown (backoffice-only monitoring, never exposed to
+// the consumer) on top of the list fields.
+export interface OrderDetail {
+  id: string
+  type: TransactionType
+  userId: string
+  userEmail: string
+  userAddress: string
+  chain: string
+  idempotencyKey: string
+  /** Decimal USDX. */
+  amount: string
+  // ── Exchange rate + spread ──
+  /** Rate USD/IDR before spread. */
+  baseRate: string
+  /** Spread beli (snapshot at order time). */
+  spreadBuyPct: string
+  /** Spread jual (from active rate config; informational). */
+  spreadSellPct: string
+  /** baseRate × (1 + spreadBuyPct/100); = rateUsed. */
+  effectiveRate: string
+  /** amount × effectiveRate. */
+  subtotalIdr: string
+  // ── Fee ──
+  paymentChannel: PaymentChannel | null
+  /** Bank VA terpilih (null untuk QRIS / belum pilih channel). */
+  paymentBank: VaBank | null
+  mintFeePct: string
+  mintFeeIdr: string
+  /** Payment gateway fee (IDR). Null until a channel is chosen. */
+  pgFeeIdr: string | null
+  /** mintFeeIdr + pgFeeIdr. Null until a channel is chosen. */
+  totalFeeIdr: string | null
+  /** subtotalIdr + totalFeeIdr (user bayar). Null until a channel is chosen. */
+  totalPayIdr: string | null
+  // ── Revenue (backoffice) — spread_revenue + mintFeeIdr (PG fee pass-through). ──
+  estimatedRevenueIdr: string
+  // ── Status ──
+  safeType: SafeType
+  paymentStatus: MintPaymentStatus
+  safeStatus: MintSafeStatus
+  status: MintOrderStatus
+  paymentProvider: string
+  paidAt: string | null
+  expiresAt: string
+  safeTxHash: string | null
+  onChainTxHash: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // sot/api/burn.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
 // USDX-46: userName → userId, add amountCurrency.
 export interface CreateBurnRequest {
