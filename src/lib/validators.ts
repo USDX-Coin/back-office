@@ -190,9 +190,10 @@ export function validateRateUpdateForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
-// USDX-207: fee config form (sot/api/fee.yaml § UpdateFeeConfig). All three are
-// required. mintFeePct + pgFeeQrisPct are percentages (reuse the spread bound);
-// pgFeeVaFlat is a flat IDR amount (≥ 0).
+// USDX-207 + USDX-245: fee config form (sot/api/fee.yaml § UpdateFeeConfig).
+// Full 5-field snapshot, all required. Percentages (mint / QRIS / redeem fee)
+// reuse the spread bound; flat IDR amounts (PG VA / disbursement) reuse the
+// flat-fee bound.
 const PG_FEE_VA_MAX = 1_000_000 // Rp 1jt flat is already extreme for a PG fee
 
 export function validateFeePct(raw: string, label: string): string | null {
@@ -205,20 +206,33 @@ export function validateFeePct(raw: string, label: string): string | null {
   return null
 }
 
-export function validatePgFeeVaFlat(raw: string): string | null {
+// Shared flat-IDR fee validator (PG VA flat + disbursement flat). `label` names
+// the field in the error message; both use the same extreme-Rp ceiling.
+function validateFlatFee(raw: string, label: string): string | null {
   const trimmed = raw.trim()
-  if (!trimmed) return 'VA fee is required'
-  if (!DECIMAL_RE.test(trimmed)) return 'VA fee must be a number (up to 4 decimals)'
+  if (!trimmed) return `${label} is required`
+  if (!DECIMAL_RE.test(trimmed)) return `${label} must be a number (up to 4 decimals)`
   const n = Number(trimmed)
-  if (!Number.isFinite(n) || n < 0) return 'VA fee cannot be negative'
-  if (n > PG_FEE_VA_MAX) return `VA fee must be at most ${PG_FEE_VA_MAX.toLocaleString()}`
+  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
+  if (n > PG_FEE_VA_MAX) return `${label} must be at most ${PG_FEE_VA_MAX.toLocaleString()}`
   return null
+}
+
+export function validatePgFeeVaFlat(raw: string): string | null {
+  return validateFlatFee(raw, 'VA fee')
+}
+
+// USDX-245: disbursement fee = Rp flat per payout (referensi sampai provider real).
+export function validateDisbursementFeeFlat(raw: string): string | null {
+  return validateFlatFee(raw, 'Disbursement fee')
 }
 
 export function validateFeeConfigForm(input: {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
+  redeemFeePct: string
+  disbursementFeeFlat: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
@@ -227,6 +241,10 @@ export function validateFeeConfigForm(input: {
   if (vaErr) errors.pgFeeVaFlat = vaErr
   const qrisErr = validateFeePct(input.pgFeeQrisPct, 'QRIS fee')
   if (qrisErr) errors.pgFeeQrisPct = qrisErr
+  const redeemErr = validateFeePct(input.redeemFeePct, 'Redeem fee')
+  if (redeemErr) errors.redeemFeePct = redeemErr
+  const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
+  if (disbErr) errors.disbursementFeeFlat = disbErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

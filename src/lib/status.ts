@@ -4,8 +4,10 @@ import type {
   MintOrderStatus,
   MintPaymentStatus,
   MintSafeStatus,
+  OrderStatus,
   OtcStatus,
   PhaseOneUser,
+  RedeemStatus,
   RequestStatus,
 } from './types'
 
@@ -196,6 +198,42 @@ const safeStatusMap: Record<MintSafeStatus, StatusConfig> = {
   },
 }
 
+// ─── Phase 2 W3 — Redeem order status (USDX-245) ───
+// sot/api/common.yaml § RedeemStatus — single-dimension lifecycle. EXPIRED is
+// destructive; BURNED/PROCESSING_PAYOUT are in-flight; PAYOUT_COMPLETE = done.
+const redeemStatusMap: Record<RedeemStatus, StatusConfig> = {
+  AWAITING_BURN: {
+    label: 'Awaiting burn',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  BURNED: {
+    label: 'Burned',
+    variant: 'outline',
+    className: 'bg-primary/10 text-primary',
+    dotClass: 'bg-primary',
+  },
+  PROCESSING_PAYOUT: {
+    label: 'Processing payout',
+    variant: 'outline',
+    className: 'bg-primary/10 text-primary',
+    dotClass: 'bg-primary',
+  },
+  PAYOUT_COMPLETE: {
+    label: 'Payout complete',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  EXPIRED: {
+    label: 'Expired',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+}
+
 function fallbackConfig(status: string): StatusConfig {
   return {
     label: status,
@@ -205,8 +243,14 @@ function fallbackConfig(status: string): StatusConfig {
   }
 }
 
-export function getOrderStatusConfig(status: MintOrderStatus): StatusConfig {
-  return orderStatusMap[status] ?? fallbackConfig(String(status))
+// Resolves either a mint or a redeem overall status (the two enums don't
+// collide except EXPIRED, which only redeem uses as an overall status).
+export function getOrderStatusConfig(status: OrderStatus): StatusConfig {
+  return (
+    redeemStatusMap[status as RedeemStatus] ??
+    orderStatusMap[status as MintOrderStatus] ??
+    fallbackConfig(String(status))
+  )
 }
 
 export function getPaymentStatusConfig(status: MintPaymentStatus): StatusConfig {
@@ -217,10 +261,17 @@ export function getSafeStatusConfig(status: MintSafeStatus): StatusConfig {
   return safeStatusMap[status] ?? fallbackConfig(String(status))
 }
 
-// Terminal order states stop the list/detail polling (sot/api/common.yaml
-// § MintOrderStatus — COMPLETED / FAILED are end states).
-export function isOrderTerminal(status: MintOrderStatus): boolean {
-  return status === 'COMPLETED' || status === 'FAILED'
+// Terminal order states stop the list/detail polling. MINT: COMPLETED/FAILED.
+// REDEEM: PAYOUT_COMPLETE / EXPIRED (sot/api/common.yaml § RedeemStatus — late
+// burn can still move EXPIRED→BURNED, so EXPIRED isn't strictly terminal, but
+// for poll purposes we treat both consumer-visible end states as done).
+export function isOrderTerminal(status: OrderStatus): boolean {
+  return (
+    status === 'COMPLETED' ||
+    status === 'FAILED' ||
+    status === 'PAYOUT_COMPLETE' ||
+    status === 'EXPIRED'
+  )
 }
 
 // USDX-47 + sot/conventions.md § User KYC Status: state machine

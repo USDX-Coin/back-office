@@ -29,11 +29,29 @@ const baseRow = (overrides: Partial<OrderListItem> = {}): OrderListItem => ({
   userEmail: 'alice@example.com',
   amount: '250.00',
   totalPayIdr: '4078500.00',
+  netPayoutIdr: null,
   chain: 'polygon',
   paymentStatus: 'PAID',
   safeStatus: 'EXECUTED',
   status: 'COMPLETED',
   createdAt: '2026-06-01T00:00:00Z',
+  ...overrides,
+})
+
+// Redeem list row — mint-only fields null, netPayoutIdr set (USDX-245).
+const redeemRow = (overrides: Partial<OrderListItem> = {}): OrderListItem => ({
+  id: 'ord_rdm',
+  type: 'REDEEM',
+  userId: 'usr_2',
+  userEmail: 'bob@example.com',
+  amount: '100.00',
+  totalPayIdr: null,
+  netPayoutIdr: '1547320.00',
+  chain: 'polygon',
+  paymentStatus: null,
+  safeStatus: null,
+  status: 'PAYOUT_COMPLETE',
+  createdAt: '2026-06-02T00:00:00Z',
   ...overrides,
 })
 
@@ -56,20 +74,92 @@ const baseDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   mintFeePct: '0.30',
   mintFeeIdr: '12210.75',
   pgFeeIdr: '4440.00',
-  totalFeeIdr: '16650.75',
   totalPayIdr: '4086900.75',
-  estimatedRevenueIdr: '32310.75',
   safeType: 'STAFF',
   paymentStatus: 'PAID',
   safeStatus: 'EXECUTED',
-  status: 'COMPLETED',
-  paymentProvider: 'MOCK',
   paidAt: '2026-06-01T00:05:00Z',
-  expiresAt: '2026-06-01T01:00:00Z',
   safeTxHash: '0x' + 'b'.repeat(64),
   onChainTxHash: '0x' + 'a'.repeat(64),
+  paymentProvider: 'MOCK',
+  // REDEEM block — null for mint.
+  redeemId: null,
+  grossIdr: null,
+  redeemFeePct: null,
+  redeemFeeIdr: null,
+  disbursementFeeIdr: null,
+  netPayoutIdr: null,
+  bankCode: null,
+  bankAccountNumberMasked: null,
+  bankAccountName: null,
+  lateBurn: null,
+  payoutRef: null,
+  burnTxHash: null,
+  burnedAt: null,
+  payoutCompletedAt: null,
+  payoutProvider: null,
+  // Shared.
+  totalFeeIdr: '16650.75',
+  estimatedRevenueIdr: '32310.75',
+  status: 'COMPLETED',
+  expiresAt: '2026-06-01T01:00:00Z',
   createdAt: '2026-06-01T00:00:00Z',
   updatedAt: '2026-06-01T00:10:00Z',
+  ...overrides,
+})
+
+// Redeem detail — mint block null, redeem block populated (USDX-245).
+const redeemDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
+  id: 'ord_rdm',
+  type: 'REDEEM',
+  userId: 'usr_2',
+  userEmail: 'bob@example.com',
+  userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+  chain: 'polygon',
+  amount: '100.00',
+  baseRate: '16000.00',
+  spreadBuyPct: null,
+  spreadSellPct: '2.00',
+  effectiveRate: '15680.00',
+  // MINT block — null for redeem.
+  idempotencyKey: null,
+  subtotalIdr: null,
+  paymentChannel: null,
+  paymentBank: null,
+  mintFeePct: null,
+  mintFeeIdr: null,
+  pgFeeIdr: null,
+  totalPayIdr: null,
+  safeType: null,
+  paymentStatus: null,
+  safeStatus: null,
+  paidAt: null,
+  safeTxHash: null,
+  onChainTxHash: null,
+  paymentProvider: null,
+  // REDEEM block.
+  redeemId: '0x' + 'c'.repeat(64),
+  grossIdr: '1568000.00',
+  redeemFeePct: '1.00',
+  redeemFeeIdr: '15680.00',
+  disbursementFeeIdr: '5000.00',
+  netPayoutIdr: '1547320.00',
+  bankCode: 'BCA',
+  bankAccountNumberMasked: '••••3271',
+  bankAccountName: 'BOB SETIAWAN',
+  lateBurn: false,
+  payoutRef: 'disb_abc123',
+  burnTxHash: '0x' + 'd'.repeat(64),
+  burnedAt: '2026-06-02T00:12:00Z',
+  payoutCompletedAt: '2026-06-02T00:20:00Z',
+  payoutProvider: 'MOCK',
+  // Shared.
+  totalFeeIdr: '20680.00',
+  estimatedRevenueIdr: '47680.00',
+  status: 'PAYOUT_COMPLETE',
+  expiresAt: '2026-06-02T01:00:00Z',
+  createdAt: '2026-06-02T00:00:00Z',
+  updatedAt: '2026-06-02T00:20:00Z',
   ...overrides,
 })
 
@@ -257,7 +347,7 @@ describe('TransactionsListPage @ USDX-206', () => {
       expect(screen.getAllByText('—').length).toBeGreaterThan(0)
     })
 
-    test('REDEEM type option is disabled (Week 2 mint-only, union-ready)', async () => {
+    test('REDEEM type option is now selectable (W3, USDX-245)', async () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/orders', () => okList([baseRow()])))
       setup()
@@ -265,7 +355,96 @@ describe('TransactionsListPage @ USDX-206', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Type' }))
       const redeem = await screen.findByRole('option', { name: /redeem/i })
-      expect(redeem).toHaveAttribute('aria-disabled', 'true')
+      expect(redeem).not.toHaveAttribute('aria-disabled', 'true')
+    })
+  })
+})
+
+// USDX-245 — User Transaction extended to redeem orders (type=REDEEM).
+describe('TransactionsListPage @ USDX-245 — redeem', () => {
+  describe('positive', () => {
+    test('AC #1 — filter type=REDEEM wires to ?type=REDEEM', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([redeemRow()])
+        }),
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() => expect(captured.some((s) => s.includes('type=REDEEM'))).toBe(true))
+    })
+
+    test('AC #1 — redeem row renders net payout + dashes for payment/safe', async () => {
+      server.use(http.get('/api/v1/orders', () => okList([redeemRow()])))
+      setup()
+      await screen.findByText('bob@example.com')
+      // Net payout (IDR) figure is shown for the redeem row.
+      expect(screen.getByText(/1.*547.*320/)).toBeInTheDocument()
+    })
+
+    test('AC #1 — Status options switch to RedeemStatus when type=REDEEM', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/orders', () => okList([redeemRow()])))
+      setup(['/transactions?type=REDEEM'])
+      await screen.findByText('bob@example.com')
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Status' }))
+      expect(await screen.findByRole('option', { name: /awaiting burn/i })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /payout complete/i })).toBeInTheDocument()
+    })
+
+    test('AC #2 — redeem detail shows fee / net payout / bank + burn tx link', async () => {
+      const user = userEvent.setup()
+      const burn = '0x' + 'd'.repeat(64)
+      server.use(
+        http.get('/api/v1/orders', () => okList([redeemRow({ id: 'ord_r1' })])),
+        http.get('/api/v1/orders/ord_r1', () =>
+          okDetail(redeemDetail({ id: 'ord_r1', burnTxHash: burn })),
+        ),
+      )
+      setup()
+      await user.click(await screen.findByText('bob@example.com'))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/redeem order/i)).toBeInTheDocument()
+      // Redeem-specific fields.
+      expect(within(dialog).getByText(/spread jual/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/disbursement fee/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/net payout/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/bank tujuan/i)).toBeInTheDocument()
+      // Bank account number is masked (4 last digits only) + account name shown.
+      expect(within(dialog).getByText('••••3271')).toBeInTheDocument()
+      expect(within(dialog).getByText('BOB SETIAWAN')).toBeInTheDocument()
+      // Burn tx hash deep-links to the block explorer.
+      await waitFor(() => {
+        expect(
+          document.querySelector(`a[href="https://polygonscan.com/tx/${burn}"]`),
+        ).not.toBeNull()
+      })
+    })
+  })
+
+  describe('AC #3 — read-only', () => {
+    test('redeem detail modal has no approve / reject controls', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/orders', () => okList([redeemRow({ id: 'ord_r2' })])),
+        http.get('/api/v1/orders/ord_r2', () => okDetail(redeemDetail({ id: 'ord_r2' }))),
+      )
+      setup()
+      await user.click(await screen.findByText('bob@example.com'))
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).queryByRole('button', { name: /approve/i })).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('button', { name: /reject/i })).not.toBeInTheDocument()
     })
   })
 })

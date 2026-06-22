@@ -8,7 +8,7 @@ import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
-import { ORDER_FILTER_DEFS, ORDER_COLUMN_CONFIG } from './filterDefs'
+import { buildOrderFilterDefs, ORDER_COLUMN_CONFIG } from './filterDefs'
 import { formatIdrAmount, formatShortDate } from '@/lib/format'
 import {
   getOrderStatusConfig,
@@ -53,13 +53,16 @@ export default function TransactionsListPage() {
   // honour it when present (e.g. arriving from a user detail page).
   const userId = params.searchParams.get('userId') ?? ''
 
+  // Redeem has no payment/Safe leg — never forward those filters for REDEEM
+  // (orders.yaml marks them MINT-only), even if a stale URL value lingers.
+  const isRedeem = type === 'REDEEM'
   const list = useOrderList({
     page: params.page,
     take: PAGE_SIZE,
     type: type || undefined,
     status: status || undefined,
-    paymentStatus: paymentStatus || undefined,
-    safeStatus: safeStatus || undefined,
+    paymentStatus: isRedeem ? undefined : paymentStatus || undefined,
+    safeStatus: isRedeem ? undefined : safeStatus || undefined,
     userId: userId || undefined,
   })
 
@@ -68,8 +71,12 @@ export default function TransactionsListPage() {
     ORDER_COLUMN_CONFIG,
   )
 
+  // Status options + Payment/Safe filters depend on the selected type (USDX-245).
+  const orderFilterDefs = buildOrderFilterDefs(type)
   const filterValues = { type, status, paymentStatus, safeStatus }
-  const hasFilters = Boolean(type || status || paymentStatus || safeStatus || userId)
+  const hasFilters = Boolean(
+    type || status || (!isRedeem && (paymentStatus || safeStatus)) || userId,
+  )
 
   const columns: ColumnDef<OrderListItem>[] = [
     {
@@ -130,6 +137,20 @@ export default function TransactionsListPage() {
       },
     },
     {
+      accessorKey: 'netPayoutIdr',
+      header: 'Net payout (IDR)',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return v ? (
+          <span className="font-mono text-[12px] tabular-nums">
+            {formatIdrAmount(Number(v))}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )
+      },
+    },
+    {
       accessorKey: 'chain',
       header: 'Chain',
       cell: ({ getValue }) => {
@@ -150,16 +171,28 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'paymentStatus',
       header: 'Payment',
-      cell: ({ getValue }) => (
-        <StatusBadge cfg={getPaymentStatusConfig(getValue() as OrderListItem['paymentStatus'])} />
-      ),
+      // Redeem rows have no payment leg (null) → dash.
+      cell: ({ getValue }) => {
+        const v = getValue() as OrderListItem['paymentStatus']
+        return v ? (
+          <StatusBadge cfg={getPaymentStatusConfig(v)} />
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )
+      },
     },
     {
       accessorKey: 'safeStatus',
       header: 'Safe',
-      cell: ({ getValue }) => (
-        <StatusBadge cfg={getSafeStatusConfig(getValue() as OrderListItem['safeStatus'])} />
-      ),
+      // Redeem rows don't go through Safe (null) → dash.
+      cell: ({ getValue }) => {
+        const v = getValue() as OrderListItem['safeStatus']
+        return v ? (
+          <StatusBadge cfg={getSafeStatusConfig(v)} />
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )
+      },
     },
     {
       accessorKey: 'status',
@@ -197,7 +230,7 @@ export default function TransactionsListPage() {
       mode="no-data"
       icon={<Receipt className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
       title="No user transactions yet"
-      description="Consumer mint orders will appear here as users transact."
+      description="Consumer mint & redeem orders will appear here as users transact."
     />
   )
 
@@ -207,7 +240,7 @@ export default function TransactionsListPage() {
         eyebrow="Consumer"
         title="User Transaction"
         italicAccent="orders"
-        subtitle="Read-only monitoring of consumer mint orders — payment, Safe execution, and fee / spread / revenue."
+        subtitle="Read-only monitoring of consumer mint & redeem orders — payment / payout, execution, and fee / spread / revenue."
       />
 
       <DataTable<OrderListItem>
@@ -223,16 +256,21 @@ export default function TransactionsListPage() {
         filterToolbar={
           <TableToolbar
             filter={{
-              defs: ORDER_FILTER_DEFS,
+              defs: orderFilterDefs,
               values: filterValues,
-              onChange: (next) =>
+              onChange: (next) => {
+                // Switching type invalidates the status enum + (for redeem) the
+                // payment/Safe filters — clear them so no stale param is sent.
+                const typeChanged = (next.type || '') !== type
+                const nextIsRedeem = next.type === 'REDEEM'
                 params.updateParams({
                   type: next.type || null,
-                  status: next.status || null,
-                  paymentStatus: next.paymentStatus || null,
-                  safeStatus: next.safeStatus || null,
+                  status: typeChanged ? null : next.status || null,
+                  paymentStatus: typeChanged || nextIsRedeem ? null : next.paymentStatus || null,
+                  safeStatus: typeChanged || nextIsRedeem ? null : next.safeStatus || null,
                   page: '1',
-                }),
+                })
+              },
             }}
             columns={{
               items: ORDER_COLUMN_CONFIG,

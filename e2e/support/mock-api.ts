@@ -98,12 +98,15 @@ const RATE_INFO = {
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
 const RATE_USED = RATE_INFO.effectiveBuyRate
 
-// USDX-207: fee config (sot/api/fee.yaml). W2 reference tariffs.
+// USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full 5-field snapshot —
+// W2 mint/PG tariffs + W3 redeem fee % + disbursement fee flat.
 const FEE_CONFIG = {
   id: 'fee-0001',
   mintFeePct: '1.0',
   pgFeeVaFlat: '4000.00',
   pgFeeQrisPct: '0.7',
+  redeemFeePct: '1.0',
+  disbursementFeeFlat: '5000.00',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
@@ -210,15 +213,40 @@ export interface MockOrder {
   totalFeeIdr: string | null
   totalPayIdr: string | null
   estimatedRevenueIdr: string
-  safeType: 'STAFF' | 'MANAGER'
-  paymentStatus: 'REQUESTED' | 'WAITING_FOR_PAYMENT' | 'PAID' | 'EXPIRED'
-  safeStatus: 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'EXECUTED' | 'REJECTED'
-  status: 'WAITING_FOR_PAYMENT' | 'WAITING_FOR_APPROVAL' | 'COMPLETED' | 'FAILED'
-  paymentProvider: string
+  safeType: 'STAFF' | 'MANAGER' | null
+  paymentStatus: 'REQUESTED' | 'WAITING_FOR_PAYMENT' | 'PAID' | 'EXPIRED' | null
+  safeStatus: 'NONE' | 'PENDING_APPROVAL' | 'APPROVED' | 'EXECUTED' | 'REJECTED' | null
+  status:
+    | 'WAITING_FOR_PAYMENT'
+    | 'WAITING_FOR_APPROVAL'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'AWAITING_BURN'
+    | 'BURNED'
+    | 'PROCESSING_PAYOUT'
+    | 'PAYOUT_COMPLETE'
+    | 'EXPIRED'
+  paymentProvider: string | null
   paidAt: string | null
   expiresAt: string
   safeTxHash: string | null
   onChainTxHash: string | null
+  // REDEEM block (W3, USDX-245) — present only for type=REDEEM rows.
+  netPayoutIdr?: string | null
+  redeemId?: string | null
+  grossIdr?: string | null
+  redeemFeePct?: string | null
+  redeemFeeIdr?: string | null
+  disbursementFeeIdr?: string | null
+  bankCode?: string | null
+  bankAccountNumberMasked?: string | null
+  bankAccountName?: string | null
+  lateBurn?: boolean | null
+  payoutRef?: string | null
+  burnTxHash?: string | null
+  burnedAt?: string | null
+  payoutCompletedAt?: string | null
+  payoutProvider?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -227,9 +255,9 @@ export interface MockOrder {
 function orderListItem(o: MockOrder) {
   return {
     id: o.id, type: o.type, userId: o.userId, userEmail: o.userEmail,
-    amount: o.amount, totalPayIdr: o.totalPayIdr, chain: o.chain,
-    paymentStatus: o.paymentStatus, safeStatus: o.safeStatus, status: o.status,
-    createdAt: o.createdAt,
+    amount: o.amount, totalPayIdr: o.totalPayIdr, netPayoutIdr: o.netPayoutIdr ?? null,
+    chain: o.chain, paymentStatus: o.paymentStatus, safeStatus: o.safeStatus,
+    status: o.status, createdAt: o.createdAt,
   }
 }
 
@@ -251,6 +279,41 @@ export function seedOrders(): MockOrder[] {
     mk({ id: 'ord_completed', amount: '1000.00', status: 'COMPLETED', paymentStatus: 'PAID', safeStatus: 'EXECUTED' }),
     mk({ id: 'ord_awaiting', amount: '500.00', status: 'WAITING_FOR_APPROVAL', paymentStatus: 'PAID', safeStatus: 'PENDING_APPROVAL', onChainTxHash: null, createdAt: '2026-06-02T09:00:00.000Z' }),
     mk({ id: 'ord_unpaid', amount: '120.50', status: 'WAITING_FOR_PAYMENT', paymentStatus: 'REQUESTED', safeStatus: 'NONE', paymentChannel: null, paymentBank: null, pgFeeIdr: null, totalFeeIdr: null, totalPayIdr: null, safeTxHash: null, onChainTxHash: null, paidAt: null, createdAt: '2026-06-03T08:00:00.000Z' }),
+  ]
+}
+
+// USDX-245 — redeem orders for the User Transaction redeem E2E. MINT-only
+// fields are null; the redeem block carries fee / net payout / bank / burn tx.
+export function seedRedeemOrders(): MockOrder[] {
+  const rmk = (over: Partial<MockOrder>): MockOrder => ({
+    id: over.id!, type: 'REDEEM', userId: VERIFIED_USER.id, userEmail: VERIFIED_USER.email,
+    userAddress: VERIFIED_USER.wallets[0].address, chain: 'polygon',
+    idempotencyKey: '', amount: '100.00', baseRate: '16000.00',
+    spreadBuyPct: '0', spreadSellPct: '2.00', effectiveRate: '15680.00',
+    subtotalIdr: '0', paymentChannel: null, paymentBank: null,
+    mintFeePct: '0', mintFeeIdr: '0', pgFeeIdr: null,
+    totalFeeIdr: '20680.00', totalPayIdr: null, estimatedRevenueIdr: '47680.00',
+    safeType: null, paymentStatus: null, safeStatus: null, status: 'PAYOUT_COMPLETE',
+    paymentProvider: null, paidAt: null, expiresAt: '2026-06-04T01:00:00.000Z',
+    safeTxHash: null, onChainTxHash: null,
+    // redeem block
+    netPayoutIdr: '1547320.00', redeemId: HEX64('c'), grossIdr: '1568000.00',
+    redeemFeePct: '1.00', redeemFeeIdr: '15680.00', disbursementFeeIdr: '5000.00',
+    bankCode: 'BCA', bankAccountNumberMasked: '••••3271', bankAccountName: 'BUDI SANTOSO',
+    lateBurn: false, payoutRef: 'disb_e2e001', burnTxHash: HEX64('d'),
+    burnedAt: '2026-06-04T00:12:00.000Z', payoutCompletedAt: '2026-06-04T00:20:00.000Z',
+    payoutProvider: 'MOCK',
+    createdAt: '2026-06-04T00:00:00.000Z', updatedAt: '2026-06-04T00:20:00.000Z', ...over,
+  })
+  return [
+    rmk({ id: 'ord_redeem_done', amount: '100.00', status: 'PAYOUT_COMPLETE' }),
+    rmk({
+      id: 'ord_redeem_await', amount: '250.00', status: 'AWAITING_BURN',
+      userAddress: '', burnTxHash: null, burnedAt: null, payoutRef: null,
+      payoutCompletedAt: null, netPayoutIdr: '3905320.00', grossIdr: '3920000.00',
+      redeemFeeIdr: '39200.00', totalFeeIdr: '44200.00', estimatedRevenueIdr: '119200.00',
+      createdAt: '2026-06-05T00:00:00.000Z', updatedAt: '2026-06-05T00:00:00.000Z',
+    }),
   ]
 }
 
@@ -469,11 +532,27 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
+      // Full 5-field snapshot, all required + non-negative (USDX-245). Body
+      // failures → 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
+      for (const f of [
+        'mintFeePct',
+        'pgFeeVaFlat',
+        'pgFeeQrisPct',
+        'redeemFeePct',
+        'disbursementFeeFlat',
+      ]) {
+        const n = Number(b[f])
+        if (b[f] == null || b[f] === '' || !Number.isFinite(n) || n < 0) {
+          return error(route, 'VALIDATION_ERROR', `${f} is required`, 422)
+        }
+      }
       liveFee = {
         id: 'fee-live',
         mintFeePct: b.mintFeePct,
         pgFeeVaFlat: b.pgFeeVaFlat,
         pgFeeQrisPct: b.pgFeeQrisPct,
+        redeemFeePct: b.redeemFeePct,
+        disbursementFeeFlat: b.disbursementFeeFlat,
         updatedBy: ADMIN_STAFF.id,
         createdAt: '2026-06-17T00:00:00.000Z',
       }
