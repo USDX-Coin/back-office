@@ -586,23 +586,33 @@ export const handlers = [
 
     const body = (await request.json()) as UpdateFeeConfig
 
-    function feeBadRequest(message: string) {
+    // sot/conventions.md § Validation Error — fee-config is on the v1→422
+    // allowlist, so body failures use 422 VALIDATION_ERROR (not 400/VALIDATION).
+    function feeValidationError(message: string) {
       return HttpResponse.json(
         {
           status: 'error',
           metadata: null,
           data: null,
-          error: { code: 'VALIDATION', message },
+          error: { code: 'VALIDATION_ERROR', message },
         },
         { status: 422 }
       )
     }
 
-    for (const key of ['mintFeePct', 'pgFeeVaFlat', 'pgFeeQrisPct'] as const) {
+    // POST = full 5-field snapshot; every field required + non-negative (W3
+    // redeem fields included so partial submits can't zero them out, USDX-245).
+    for (const key of [
+      'mintFeePct',
+      'pgFeeVaFlat',
+      'pgFeeQrisPct',
+      'redeemFeePct',
+      'disbursementFeeFlat',
+    ] as const) {
       const raw = body[key]
       const n = Number(raw)
       if (raw == null || raw === '' || !Number.isFinite(n) || n < 0) {
-        return feeBadRequest(`${key} is required and must be a non-negative number`)
+        return feeValidationError(`${key} is required and must be a non-negative number`)
       }
     }
 
@@ -610,6 +620,8 @@ export const handlers = [
       mintFeePct: body.mintFeePct,
       pgFeeVaFlat: body.pgFeeVaFlat,
       pgFeeQrisPct: body.pgFeeQrisPct,
+      redeemFeePct: body.redeemFeePct,
+      disbursementFeeFlat: body.disbursementFeeFlat,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })

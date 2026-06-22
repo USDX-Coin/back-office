@@ -34,12 +34,12 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
 | `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
 | `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
-| `/transactions` | CONSUMER | User Transaction | All roles | Consumer mint-order list (USDX-206) — read-only; filter type/status/payment/safe (Phase 2 W2, mint-only; redeem W3) |
-| `/transactions/:id` | — | — | All roles | Order detail modal — fee/spread/revenue breakdown + address + idempotency key + on-chain/Safe links; read-only (no approve) |
+| `/transactions` | CONSUMER | User Transaction | All roles | Consumer order list — mint (USDX-206) + redeem (USDX-245); read-only; filter type/status (contextual: RedeemStatus when type=REDEEM)/payment/safe |
+| `/transactions/:id` | — | — | All roles | Order detail modal — MINT: fee/spread/revenue + idempotency key + on-chain/Safe links. REDEEM: spread jual + redeem/disbursement fee + net payout + bank (masked) + redeem_id + burn_tx_hash + payout_ref (USDX-245). Read-only (no approve) |
 | `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
 | `/kyc/:id` | — | — | All roles | KYC detail modal — decrypted PII + photos + approve/reject (USDX-155); actions hidden unless PENDING, Developer view-only |
 | `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER (update is ADMIN-only) | View / update base rate + spread **beli/jual** (USDX-207) |
-| `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207); non-admin read-only |
+| `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot, 422 VALIDATION_ERROR; non-admin read-only |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
@@ -76,10 +76,10 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── staff/         # StaffPage + modal + hooks
 │   │   ├── mint/          # MintListPage + MintFormPage + hooks
 │   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
-│   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks (USDX-206, read-only consumer orders)
+│   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks — read-only consumer orders: mint (USDX-206) + redeem (USDX-245)
 │   │   ├── kyc/           # KycListPage + KycDetailModal (PII/photos/approve/reject/audit) + hooks (USDX-154/155)
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual
-│   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207)
+│   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245, full 5-field snapshot)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
 │   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
 │   │   └── profile/       # ProfilePage

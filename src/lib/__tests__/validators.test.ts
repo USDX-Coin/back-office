@@ -15,6 +15,7 @@ import {
   isManualRateUnusual,
   validateFeeConfigForm,
   validatePgFeeVaFlat,
+  validateDisbursementFeeFlat,
   TX_HASH_RE,
 } from '@/lib/validators'
 
@@ -688,16 +689,32 @@ describe('validateOptionalIdPhone', () => {
   })
 })
 
-// USDX-207 — fee config form (sot/api/fee.yaml § UpdateFeeConfig)
+// USDX-207 + USDX-245 — fee config form (sot/api/fee.yaml § UpdateFeeConfig).
+// Full 5-field snapshot: mint fee %, PG VA flat, PG QRIS %, redeem fee %,
+// disbursement fee flat.
 describe('validateFeeConfigForm', () => {
-  const ok = { mintFeePct: '1.0', pgFeeVaFlat: '4000.00', pgFeeQrisPct: '0.7' }
+  const ok = {
+    mintFeePct: '1.0',
+    pgFeeVaFlat: '4000.00',
+    pgFeeQrisPct: '0.7',
+    redeemFeePct: '1.0',
+    disbursementFeeFlat: '5000.00',
+  }
 
   describe('positive', () => {
-    test('valid mint fee % + VA flat + QRIS % passes', () => {
+    test('all 5 valid fields pass', () => {
       expect(validateFeeConfigForm(ok).valid).toBe(true)
     })
     test('zero fees are allowed', () => {
-      expect(validateFeeConfigForm({ mintFeePct: '0', pgFeeVaFlat: '0', pgFeeQrisPct: '0' }).valid).toBe(true)
+      expect(
+        validateFeeConfigForm({
+          mintFeePct: '0',
+          pgFeeVaFlat: '0',
+          pgFeeQrisPct: '0',
+          redeemFeePct: '0',
+          disbursementFeeFlat: '0',
+        }).valid,
+      ).toBe(true)
     })
   })
 
@@ -717,6 +734,26 @@ describe('validateFeeConfigForm', () => {
       expect(r.valid).toBe(false)
       expect(r.errors.pgFeeQrisPct).toBeDefined()
     })
+    test('missing redeem fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, redeemFeePct: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.redeemFeePct).toBeDefined()
+    })
+    test('out-of-range redeem fee % fails', () => {
+      const r = validateFeeConfigForm({ ...ok, redeemFeePct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.redeemFeePct).toBeDefined()
+    })
+    test('missing disbursement fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, disbursementFeeFlat: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.disbursementFeeFlat).toBeDefined()
+    })
+    test('negative disbursement fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, disbursementFeeFlat: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.disbursementFeeFlat).toBeDefined()
+    })
   })
 
   describe('edge cases', () => {
@@ -725,6 +762,12 @@ describe('validateFeeConfigForm', () => {
     })
     test('VA flat accepts a large-but-valid flat amount', () => {
       expect(validatePgFeeVaFlat('4500.50')).toBeNull()
+    })
+    test('disbursement flat rejects non-numeric', () => {
+      expect(validateDisbursementFeeFlat('abc')).not.toBeNull()
+    })
+    test('disbursement flat accepts a valid flat amount', () => {
+      expect(validateDisbursementFeeFlat('5000.00')).toBeNull()
     })
   })
 })

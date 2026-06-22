@@ -154,6 +154,12 @@ function money(value: string | null | undefined): ReactNode {
   return <span className="font-mono tabular-nums">{formatIdrAmount(Number(value))}</span>
 }
 
+// Percent string → "x%", or a dim dash when null/absent.
+function pct(value: string | null | undefined): ReactNode {
+  if (value === null || value === undefined || value === '') return <Dim />
+  return formatSpreadPct(value)
+}
+
 export default function OrderDetailModal({
   orderId,
   open,
@@ -171,14 +177,16 @@ export default function OrderDetailModal({
   const explorerTx = (hash: string) =>
     chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, hash) : null
 
+  const isRedeem = detail?.type === 'REDEEM'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card">
         <DialogHeader>
           <DialogTitle>{`${typeLabel} order`}</DialogTitle>
           <DialogDescription>
-            Payment, Safe execution, and the fee / spread / revenue breakdown for
-            this consumer order.
+            Payment / payout, execution, and the fee / spread / revenue breakdown
+            for this consumer order.
           </DialogDescription>
         </DialogHeader>
 
@@ -201,8 +209,13 @@ export default function OrderDetailModal({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
+                  {isRedeem && detail.lateBurn ? (
+                    <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+                      Late burn
+                    </span>
+                  ) : null}
                   <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                    {detail.safeType} safe · {detail.chain}
+                    {isRedeem ? 'redeem' : `${detail.safeType ?? '—'} safe`} · {detail.chain}
                   </span>
                 </div>
                 <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
@@ -218,8 +231,15 @@ export default function OrderDetailModal({
                 <Field label="Amount (USDX)">
                   <span className="font-mono tabular-nums">{detail.amount}</span>
                 </Field>
-                <Field label="Address tujuan">
-                  <CopyableMono value={detail.userAddress} label="User address" />
+                <Field label={isRedeem ? 'Wallet (burn source)' : 'Address tujuan'}>
+                  {detail.userAddress ? (
+                    <CopyableMono
+                      value={detail.userAddress}
+                      label={isRedeem ? 'Wallet address' : 'User address'}
+                    />
+                  ) : (
+                    <Dim />
+                  )}
                 </Field>
               </Section>
 
@@ -232,33 +252,57 @@ export default function OrderDetailModal({
                     {formatRate(detail.effectiveRate)}
                   </span>
                 </Field>
-                <Field label="Spread beli">{formatSpreadPct(detail.spreadBuyPct)}</Field>
-                <Field label="Spread jual">{formatSpreadPct(detail.spreadSellPct)}</Field>
-                <Field label="Subtotal (IDR)">{money(detail.subtotalIdr)}</Field>
+                {isRedeem ? (
+                  <Field label="Spread jual">{pct(detail.spreadSellPct)}</Field>
+                ) : (
+                  <>
+                    <Field label="Spread beli">{pct(detail.spreadBuyPct)}</Field>
+                    <Field label="Spread jual">{pct(detail.spreadSellPct)}</Field>
+                  </>
+                )}
+                <Field label={isRedeem ? 'Gross (IDR)' : 'Subtotal (IDR)'}>
+                  {money(isRedeem ? detail.grossIdr : detail.subtotalIdr)}
+                </Field>
               </Section>
 
-              <Section title="Fee breakdown">
-                <Field label="Payment channel">
-                  {detail.paymentChannel ? (
-                    <span>
-                      {detail.paymentChannel}
-                      {detail.paymentBank ? ` · ${detail.paymentBank}` : ''}
+              {isRedeem ? (
+                <Section title="Fee breakdown">
+                  <Field label="Redeem fee">
+                    <span className="font-mono tabular-nums">
+                      {pct(detail.redeemFeePct)} ·{' '}
+                      {formatIdrAmount(Number(detail.redeemFeeIdr ?? 0))}
                     </span>
-                  ) : (
-                    <Dim />
-                  )}
-                </Field>
-                <Field label="Mint fee">
-                  <span className="font-mono tabular-nums">
-                    {formatSpreadPct(detail.mintFeePct)} · {formatIdrAmount(Number(detail.mintFeeIdr))}
-                  </span>
-                </Field>
-                <Field label="Payment gateway fee">{money(detail.pgFeeIdr)}</Field>
-                <Field label="Total fee (IDR)">{money(detail.totalFeeIdr)}</Field>
-                <Field label="Total pay (IDR)">
-                  <span className="font-semibold">{money(detail.totalPayIdr)}</span>
-                </Field>
-              </Section>
+                  </Field>
+                  <Field label="Disbursement fee">{money(detail.disbursementFeeIdr)}</Field>
+                  <Field label="Total fee (IDR)">{money(detail.totalFeeIdr)}</Field>
+                  <Field label="Net payout (IDR)">
+                    <span className="font-semibold">{money(detail.netPayoutIdr)}</span>
+                  </Field>
+                </Section>
+              ) : (
+                <Section title="Fee breakdown">
+                  <Field label="Payment channel">
+                    {detail.paymentChannel ? (
+                      <span>
+                        {detail.paymentChannel}
+                        {detail.paymentBank ? ` · ${detail.paymentBank}` : ''}
+                      </span>
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Mint fee">
+                    <span className="font-mono tabular-nums">
+                      {pct(detail.mintFeePct)} · {formatIdrAmount(Number(detail.mintFeeIdr ?? 0))}
+                    </span>
+                  </Field>
+                  <Field label="Payment gateway fee">{money(detail.pgFeeIdr)}</Field>
+                  <Field label="Total fee (IDR)">{money(detail.totalFeeIdr)}</Field>
+                  <Field label="Total pay (IDR)">
+                    <span className="font-semibold">{money(detail.totalPayIdr)}</span>
+                  </Field>
+                </Section>
+              )}
 
               {/* Estimated revenue — emphasized monitoring figure (backoffice only) */}
               <div className="flex items-center justify-between rounded-md bg-primary/5 px-3 py-2.5">
@@ -267,7 +311,9 @@ export default function OrderDetailModal({
                     Estimated revenue
                   </p>
                   <p className="text-[11px] text-muted-foreground">
-                    spread revenue + mint fee (PG fee pass-through)
+                    {isRedeem
+                      ? 'spread revenue + redeem fee (disbursement pass-through)'
+                      : 'spread revenue + mint fee (PG fee pass-through)'}
                   </p>
                 </div>
                 <span className="font-mono text-[15px] font-semibold tabular-nums text-primary">
@@ -275,59 +321,142 @@ export default function OrderDetailModal({
                 </span>
               </div>
 
-              <Section title="Payment & status">
-                <Field label="Payment status">
-                  <StatusBadge cfg={getPaymentStatusConfig(detail.paymentStatus)} />
-                </Field>
-                <Field label="Safe status">
-                  <StatusBadge cfg={getSafeStatusConfig(detail.safeStatus)} />
-                </Field>
-                <Field label="Order status">
-                  <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
-                </Field>
-                <Field label="Payment provider">{detail.paymentProvider}</Field>
-                <Field label="Paid at">
-                  {detail.paidAt ? formatDate(detail.paidAt) : <Dim />}
-                </Field>
-                <Field label="Expires at">{formatDate(detail.expiresAt)}</Field>
-              </Section>
+              {isRedeem ? (
+                <Section title="Status & payout">
+                  <Field label="Order status">
+                    <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
+                  </Field>
+                  <Field label="Late burn">{detail.lateBurn ? 'Yes' : 'No'}</Field>
+                  <Field label="Payout provider">{detail.payoutProvider ?? <Dim />}</Field>
+                  <Field label="Burned at">
+                    {detail.burnedAt ? formatDate(detail.burnedAt) : <Dim />}
+                  </Field>
+                  <Field label="Payout completed at">
+                    {detail.payoutCompletedAt ? formatDate(detail.payoutCompletedAt) : <Dim />}
+                  </Field>
+                  <Field label="Expires at">{formatDate(detail.expiresAt)}</Field>
+                </Section>
+              ) : (
+                <Section title="Payment & status">
+                  <Field label="Payment status">
+                    {detail.paymentStatus ? (
+                      <StatusBadge cfg={getPaymentStatusConfig(detail.paymentStatus)} />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Safe status">
+                    {detail.safeStatus ? (
+                      <StatusBadge cfg={getSafeStatusConfig(detail.safeStatus)} />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Order status">
+                    <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
+                  </Field>
+                  <Field label="Payment provider">{detail.paymentProvider ?? <Dim />}</Field>
+                  <Field label="Paid at">
+                    {detail.paidAt ? formatDate(detail.paidAt) : <Dim />}
+                  </Field>
+                  <Field label="Expires at">{formatDate(detail.expiresAt)}</Field>
+                </Section>
+              )}
 
-              <Section title="References">
-                <Field label="Order ID">
-                  <CopyableMono value={detail.id} label="Order ID" />
-                </Field>
-                <Field label="Idempotency key">
-                  <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />
-                </Field>
-                <Field label="Safe tx hash">
-                  {detail.safeTxHash ? (
-                    <HashLink
-                      value={detail.safeTxHash}
-                      label="Safe tx hash"
-                      linkLabel="View in Safe"
-                      href={safeTxUrl({
-                        chain: chainCfg,
-                        safeType: detail.safeType,
-                        safeTxHash: detail.safeTxHash,
-                      })}
-                    />
-                  ) : (
-                    <Dim />
-                  )}
-                </Field>
-                <Field label="On-chain tx hash">
-                  {detail.onChainTxHash ? (
-                    <HashLink
-                      value={detail.onChainTxHash}
-                      label="On-chain tx hash"
-                      linkLabel="View on block explorer"
-                      href={explorerTx(detail.onChainTxHash)}
-                    />
-                  ) : (
-                    <Dim />
-                  )}
-                </Field>
-              </Section>
+              {isRedeem ? (
+                <Section title="Bank tujuan">
+                  <Field label="Bank">{detail.bankCode ?? <Dim />}</Field>
+                  <Field label="Account number">
+                    {detail.bankAccountNumberMasked ? (
+                      <span className="font-mono tabular-nums">
+                        {detail.bankAccountNumberMasked}
+                      </span>
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Account name">{detail.bankAccountName ?? <Dim />}</Field>
+                </Section>
+              ) : null}
+
+              {isRedeem ? (
+                <Section title="References">
+                  <Field label="Order ID">
+                    <CopyableMono value={detail.id} label="Order ID" />
+                  </Field>
+                  <Field label="Redeem ID">
+                    {detail.redeemId ? (
+                      <CopyableMono value={detail.redeemId} label="Redeem ID" />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Burn tx hash">
+                    {detail.burnTxHash ? (
+                      <HashLink
+                        value={detail.burnTxHash}
+                        label="Burn tx hash"
+                        linkLabel="View on block explorer"
+                        href={explorerTx(detail.burnTxHash)}
+                      />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Payout ref">
+                    {detail.payoutRef ? (
+                      <CopyableMono value={detail.payoutRef} label="Payout ref" />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                </Section>
+              ) : (
+                <Section title="References">
+                  <Field label="Order ID">
+                    <CopyableMono value={detail.id} label="Order ID" />
+                  </Field>
+                  <Field label="Idempotency key">
+                    {detail.idempotencyKey ? (
+                      <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Safe tx hash">
+                    {detail.safeTxHash ? (
+                      <HashLink
+                        value={detail.safeTxHash}
+                        label="Safe tx hash"
+                        linkLabel="View in Safe"
+                        href={
+                          detail.safeType
+                            ? safeTxUrl({
+                                chain: chainCfg,
+                                safeType: detail.safeType,
+                                safeTxHash: detail.safeTxHash,
+                              })
+                            : null
+                        }
+                      />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="On-chain tx hash">
+                    {detail.onChainTxHash ? (
+                      <HashLink
+                        value={detail.onChainTxHash}
+                        label="On-chain tx hash"
+                        linkLabel="View on block explorer"
+                        href={explorerTx(detail.onChainTxHash)}
+                      />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                </Section>
+              )}
             </div>
           )}
         </DialogBody>

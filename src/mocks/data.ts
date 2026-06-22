@@ -40,6 +40,7 @@ import type {
   MintPaymentStatus,
   MintSafeStatus,
   MintOrderStatus,
+  RedeemStatus,
   PaymentChannel,
   VaBank,
 } from '@/lib/types'
@@ -430,6 +431,9 @@ export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
     mintFeePct: '1.0',
     pgFeeVaFlat: '4000.00',
     pgFeeQrisPct: '0.7',
+    // Redeem fees (W3, USDX-245) — seeded so redeem orders compute; admin-set.
+    redeemFeePct: '1.0',
+    disbursementFeeFlat: '5000.00',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -809,6 +813,11 @@ const ORDER_MINT_FEE_PCT = '0.30'
 const ORDER_USDX_AMOUNTS = [50, 120.5, 250, 500.75, 1_000, 2_500, 5_000, 10_000]
 const ORDER_VA_BANKS: VaBank[] = ['BCA', 'BNI', 'MANDIRI', 'BRI', 'CIMB']
 
+// Redeem (W3, USDX-245) — fee snapshot + bank codes for the redeem detail.
+const ORDER_REDEEM_FEE_PCT = '1.00'
+const ORDER_DISBURSEMENT_FEE_FLAT = '5000.00'
+const ORDER_BANK_CODES = ['BCA', 'MANDIRI', 'BNI', 'BRI', 'CIMB']
+
 // Coherent (payment_status, safe_status, status) tuples spanning the lifecycle
 // so the list has data for every filter value (sot/api/common.yaml § statuses;
 // week2.md § Lifecycle: NONE→PENDING_APPROVAL→APPROVED→EXECUTED).
@@ -886,6 +895,7 @@ function createOrderPair(
     userEmail: user.email,
     amount,
     totalPayIdr,
+    netPayoutIdr: null,
     chain: 'polygon',
     paymentStatus: state.paymentStatus,
     safeStatus: state.safeStatus,
@@ -912,20 +922,177 @@ function createOrderPair(
     mintFeePct: ORDER_MINT_FEE_PCT,
     mintFeeIdr: idrDecimal(mintFeeNum),
     pgFeeIdr,
-    totalFeeIdr,
     totalPayIdr,
-    estimatedRevenueIdr,
     safeType,
     paymentStatus: state.paymentStatus,
     safeStatus: state.safeStatus,
-    status: state.status,
-    paymentProvider: 'MOCK',
     paidAt,
-    expiresAt,
     safeTxHash,
     onChainTxHash,
+    paymentProvider: 'MOCK',
+    // REDEEM block — null for mint.
+    redeemId: null,
+    grossIdr: null,
+    redeemFeePct: null,
+    redeemFeeIdr: null,
+    disbursementFeeIdr: null,
+    netPayoutIdr: null,
+    bankCode: null,
+    bankAccountNumberMasked: null,
+    bankAccountName: null,
+    lateBurn: null,
+    payoutRef: null,
+    burnTxHash: null,
+    burnedAt: null,
+    payoutCompletedAt: null,
+    payoutProvider: null,
+    // Shared.
+    totalFeeIdr,
+    estimatedRevenueIdr,
+    status: state.status,
+    expiresAt,
     createdAt,
     updatedAt: createdAt,
+  }
+
+  return { list, detail }
+}
+
+// ─── Phase 2 W3 — Consumer redeem orders (USDX-245) ───
+// sot/api/orders.yaml + sot/phase-2/week3.md § Backoffice — User Transaction
+// (Redeem) + § Fee & Spread. Redeem tidak lewat Safe: burn = self-sign user,
+// payout = disbursement. Fee dipotong dari gross (kebalikan mint).
+interface RedeemLifecycleState {
+  status: RedeemStatus
+  burned: boolean
+  payoutStarted: boolean
+  payoutComplete: boolean
+  lateBurn: boolean
+}
+
+// Coherent tuples spanning the redeem lifecycle so the list has a row for every
+// status (incl. a late-burn case). sot/api/common.yaml § RedeemStatus.
+const REDEEM_STATES: RedeemLifecycleState[] = [
+  { status: 'AWAITING_BURN', burned: false, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'BURNED', burned: true, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'PROCESSING_PAYOUT', burned: true, payoutStarted: true, payoutComplete: false, lateBurn: false },
+  { status: 'PAYOUT_COMPLETE', burned: true, payoutStarted: true, payoutComplete: true, lateBurn: false },
+  { status: 'PAYOUT_COMPLETE', burned: true, payoutStarted: true, payoutComplete: true, lateBurn: false },
+  { status: 'EXPIRED', burned: false, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'BURNED', burned: true, payoutStarted: false, payoutComplete: false, lateBurn: true },
+]
+
+function createRedeemOrderPair(
+  user: Customer,
+  seed: number,
+): { list: OrderListItem; detail: OrderDetail } {
+  const id = uuidLike(seed + 40_000)
+  const redeemId = bytes32(seed + 41_000)
+  const amountNum = ORDER_USDX_AMOUNTS[seed % ORDER_USDX_AMOUNTS.length]!
+  const amount = amountNum.toFixed(2)
+  const state = REDEEM_STATES[seed % REDEEM_STATES.length]!
+  const createdAt = pastDateRecent(seed % 45)
+  // REDEEM_BURN_TTL window (week3.md § Status Flow). 1h here.
+  const expiresAt = new Date(new Date(createdAt).getTime() + 60 * 60 * 1000).toISOString()
+
+  // Exchange rate + spread JUAL; fee dipotong dari gross (week3.md § Fee & Spread).
+  const baseRateNum = Number(ORDER_BASE_RATE)
+  const spreadSellNum = Number(ORDER_SPREAD_SELL_PCT)
+  const effectiveRateNum = baseRateNum * (1 - spreadSellNum / 100)
+  const grossNum = amountNum * effectiveRateNum
+  const redeemFeeNum = (grossNum * Number(ORDER_REDEEM_FEE_PCT)) / 100
+  const disbursementFeeNum = Number(ORDER_DISBURSEMENT_FEE_FLAT)
+  const totalFeeNum = redeemFeeNum + disbursementFeeNum
+  // net_payout = gross − total_fee; desimal dibulatkan KE BAWAH, wajib ≥ Rp 10.000.
+  const netPayoutNum = Math.floor(grossNum - totalFeeNum)
+  // estimated_revenue = spread_sell_revenue + redeem_fee (disbursement pass-through).
+  const spreadRevenueNum = (amountNum * baseRateNum * spreadSellNum) / 100
+  const estimatedRevenueIdr = idrDecimal(spreadRevenueNum + redeemFeeNum)
+  const netPayoutIdr = idrDecimal(netPayoutNum)
+
+  // Bank tujuan — number always masked (4 last digits); name decrypted for render.
+  const bankCode = ORDER_BANK_CODES[seed % ORDER_BANK_CODES.length]!
+  const last4 = String((seed * 7919) % 10000).padStart(4, '0')
+  const bankAccountNumberMasked = `••••${last4}`
+  const bankAccountName = `${user.firstName} ${user.lastName}`.toUpperCase()
+
+  // On-chain burn fields appear once the Redeem event is detected.
+  const userAddress = state.burned ? bytes20(seed + 42_000) : null
+  const burnTxHash = state.burned ? bytes32(seed + 43_000) : null
+  const burnedAt = state.burned
+    ? new Date(new Date(createdAt).getTime() + 12 * 60 * 1000).toISOString()
+    : null
+  const payoutRef = state.payoutStarted ? `disb_${seededHex(20, seed + 44_000)}` : null
+  const payoutCompletedAt = state.payoutComplete
+    ? new Date(new Date(createdAt).getTime() + 20 * 60 * 1000).toISOString()
+    : null
+
+  const list: OrderListItem = {
+    id,
+    type: 'REDEEM',
+    userId: user.id,
+    userEmail: user.email,
+    amount,
+    totalPayIdr: null,
+    netPayoutIdr,
+    chain: 'polygon',
+    paymentStatus: null,
+    safeStatus: null,
+    status: state.status,
+    createdAt,
+  }
+
+  const detail: OrderDetail = {
+    id,
+    type: 'REDEEM',
+    userId: user.id,
+    userEmail: user.email,
+    userAddress,
+    chain: 'polygon',
+    amount,
+    baseRate: ORDER_BASE_RATE,
+    spreadBuyPct: null,
+    spreadSellPct: ORDER_SPREAD_SELL_PCT,
+    effectiveRate: idrDecimal(effectiveRateNum),
+    // MINT block — null for redeem.
+    idempotencyKey: null,
+    subtotalIdr: null,
+    paymentChannel: null,
+    paymentBank: null,
+    mintFeePct: null,
+    mintFeeIdr: null,
+    pgFeeIdr: null,
+    totalPayIdr: null,
+    safeType: null,
+    paymentStatus: null,
+    safeStatus: null,
+    paidAt: null,
+    safeTxHash: null,
+    onChainTxHash: null,
+    paymentProvider: null,
+    // REDEEM block.
+    redeemId,
+    grossIdr: idrDecimal(grossNum),
+    redeemFeePct: ORDER_REDEEM_FEE_PCT,
+    redeemFeeIdr: idrDecimal(redeemFeeNum),
+    disbursementFeeIdr: idrDecimal(disbursementFeeNum),
+    netPayoutIdr,
+    bankCode,
+    bankAccountNumberMasked,
+    bankAccountName,
+    lateBurn: state.lateBurn,
+    payoutRef,
+    burnTxHash,
+    burnedAt,
+    payoutCompletedAt,
+    payoutProvider: 'MOCK',
+    // Shared.
+    totalFeeIdr: idrDecimal(totalFeeNum),
+    estimatedRevenueIdr,
+    status: state.status,
+    expiresAt,
+    createdAt,
+    updatedAt: burnedAt ?? createdAt,
   }
 
   return { list, detail }
@@ -934,6 +1101,7 @@ function createOrderPair(
 export function createMockOrders(
   customers: Customer[],
   count = 48,
+  redeemCount = 24,
 ): { list: OrderListItem[]; details: Map<string, OrderDetail> } {
   const list: OrderListItem[] = []
   const details = new Map<string, OrderDetail>()
@@ -942,6 +1110,14 @@ export function createMockOrders(
     const seed = i + 1
     const user = customers[i % customers.length]!
     const pair = createOrderPair(user, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  // Redeem orders (W3, USDX-245) — same store, union mint + redeem.
+  for (let i = 0; i < redeemCount; i++) {
+    const seed = i + 1
+    const user = customers[i % customers.length]!
+    const pair = createRedeemOrderPair(user, seed)
     list.push(pair.list)
     details.set(pair.list.id, pair.detail)
   }

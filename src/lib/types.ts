@@ -210,22 +210,34 @@ export interface RateConfig {
   createdAt: string
 }
 
-// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ───────────
-// Append-only, admin-set. Row terbaru = config aktif. mint fee (% nominal) +
-// PG fee referensi per channel (VA flat Rp / QRIS % atas subtotal_idr).
+// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207 + USDX-245) ──
+// Append-only, admin-set. Row terbaru = config aktif. Full snapshot:
+//  - mint (W2): mint fee (% nominal) + PG fee referensi per channel
+//    (VA flat Rp / QRIS % atas subtotal_idr).
+//  - redeem (W3): redeem fee (% dari gross_idr) + disbursement fee flat (Rp).
 export interface FeeConfig {
   id: string
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
+  /** Redeem fee % dari gross_idr (W3). */
+  redeemFeePct: string
+  /** Disbursement fee Rp flat per payout (W3, referensi sampai provider real). */
+  disbursementFeeFlat: string
   updatedBy: string
   createdAt: string
 }
 
+// sot/api/fee.yaml § UpdateFeeConfig — POST = full 5-field snapshot (semua
+// required). Jangan kirim partial: BE meng-overwrite seluruh row, partial =
+// meng-nol-kan fee yang tidak dikirim (USDX-245). Body invalid → 422
+// VALIDATION_ERROR (conventions.md § Validation Error — fee-config allowlist).
 export interface UpdateFeeConfig {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
+  redeemFeePct: string
+  disbursementFeeFlat: string
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
@@ -405,6 +417,19 @@ export type MintOrderStatus =
   | 'COMPLETED'
   | 'FAILED'
 
+// sot/api/common.yaml § RedeemStatus — single-dimension redeem lifecycle (W3,
+// USDX-245). Redeem tidak lewat Safe: burn = self-sign user, payout =
+// disbursement. late_burn (burn setelah EXPIRED) tetap pindah ke BURNED.
+export type RedeemStatus =
+  | 'AWAITING_BURN'
+  | 'BURNED'
+  | 'PROCESSING_PAYOUT'
+  | 'PAYOUT_COMPLETE'
+  | 'EXPIRED'
+
+// Union overall status: MINT → MintOrderStatus, REDEEM → RedeemStatus.
+export type OrderStatus = MintOrderStatus | RedeemStatus
+
 // sot/api/common.yaml § PaymentChannel / VaBank.
 export type PaymentChannel = 'VA' | 'QRIS'
 export type VaBank =
@@ -418,7 +443,9 @@ export type VaBank =
   | 'PERMATA'
   | 'MAYBANK'
 
-// sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row.
+// sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row (union mint +
+// redeem). MINT-only fields (totalPayIdr, paymentStatus, safeStatus) are null
+// for redeem; netPayoutIdr is null for mint.
 export interface OrderListItem {
   id: string
   type: TransactionType
@@ -426,63 +453,99 @@ export interface OrderListItem {
   userEmail: string
   /** Decimal USDX. */
   amount: string
-  /** Total the user pays (IDR). Null until a payment channel is chosen. */
+  /** MINT: total the user pays (IDR; null until a channel is chosen). REDEEM: null. */
   totalPayIdr: string | null
+  /** REDEEM: IDR the user receives. MINT: null. */
+  netPayoutIdr: string | null
   chain: string
-  paymentStatus: MintPaymentStatus
-  safeStatus: MintSafeStatus
-  status: MintOrderStatus
+  /** MINT only (redeem has no payment leg). */
+  paymentStatus: MintPaymentStatus | null
+  /** MINT only (redeem tidak lewat Safe). */
+  safeStatus: MintSafeStatus | null
+  status: OrderStatus
   createdAt: string
 }
 
-// sot/api/orders.yaml § OrderDetail — GET /api/v1/orders/{id}. Adds the
-// fee/spread/revenue breakdown (backoffice-only monitoring, never exposed to
-// the consumer) on top of the list fields.
+// sot/api/orders.yaml § OrderDetail — GET /api/v1/orders/{id} (union mint +
+// redeem). Adds the fee/spread/revenue breakdown (backoffice-only monitoring,
+// never exposed to the consumer). MINT-only block is null for redeem and the
+// REDEEM block is null for mint; totalFeeIdr + estimatedRevenueIdr are shared.
 export interface OrderDetail {
   id: string
   type: TransactionType
   userId: string
   userEmail: string
-  userAddress: string
+  /** MINT: address tujuan. REDEEM: wallet sumber burn (null sampai BURNED). */
+  userAddress: string | null
   chain: string
-  idempotencyKey: string
   /** Decimal USDX. */
   amount: string
   // ── Exchange rate + spread ──
   /** Rate USD/IDR before spread. */
   baseRate: string
-  /** Spread beli (snapshot at order time). */
-  spreadBuyPct: string
-  /** Spread jual (from active rate config; informational). */
-  spreadSellPct: string
-  /** baseRate × (1 + spreadBuyPct/100); = rateUsed. */
+  /** MINT: spread beli (snapshot). REDEEM: null. */
+  spreadBuyPct: string | null
+  /** REDEEM: spread jual (snapshot). MINT: informasional/null. */
+  spreadSellPct: string | null
+  /** = rateUsed snapshot (mint = ×(1+buy); redeem = ×(1−sell)). */
   effectiveRate: string
-  /** amount × effectiveRate. */
-  subtotalIdr: string
-  // ── Fee ──
+  // ── MINT block (null untuk redeem) ──
+  /** MINT only (Safe mint key). */
+  idempotencyKey: string | null
+  /** MINT: amount × effectiveRate. */
+  subtotalIdr: string | null
   paymentChannel: PaymentChannel | null
-  /** Bank VA terpilih (null untuk QRIS / belum pilih channel). */
+  /** Bank VA terpilih (null untuk QRIS / redeem). */
   paymentBank: VaBank | null
-  mintFeePct: string
-  mintFeeIdr: string
-  /** Payment gateway fee (IDR). Null until a channel is chosen. */
+  mintFeePct: string | null
+  mintFeeIdr: string | null
+  /** Payment gateway fee (IDR). */
   pgFeeIdr: string | null
-  /** mintFeeIdr + pgFeeIdr. Null until a channel is chosen. */
-  totalFeeIdr: string | null
-  /** subtotalIdr + totalFeeIdr (user bayar). Null until a channel is chosen. */
+  /** MINT: subtotalIdr + totalFeeIdr (user bayar). */
   totalPayIdr: string | null
-  // ── Revenue (backoffice) — spread_revenue + mintFeeIdr (PG fee pass-through). ──
-  estimatedRevenueIdr: string
-  // ── Status ──
-  safeType: SafeType
-  paymentStatus: MintPaymentStatus
-  safeStatus: MintSafeStatus
-  status: MintOrderStatus
-  paymentProvider: string
+  /** MINT only (redeem tidak lewat Safe). */
+  safeType: SafeType | null
+  paymentStatus: MintPaymentStatus | null
+  safeStatus: MintSafeStatus | null
   paidAt: string | null
-  expiresAt: string
   safeTxHash: string | null
+  /** MINT: tx mint. (Redeem pakai burnTxHash.) */
   onChainTxHash: string | null
+  /** MINT: payment provider (W2). */
+  paymentProvider: string | null
+  // ── REDEEM block (null untuk mint) ──
+  /** REDEEM: bytes32 id untuk redeem(id, amount). */
+  redeemId: string | null
+  /** REDEEM: amount × effectiveRate (sebelum fee). */
+  grossIdr: string | null
+  redeemFeePct: string | null
+  /** REDEEM: redeem fee (IDR). */
+  redeemFeeIdr: string | null
+  /** REDEEM: disbursement fee (IDR). */
+  disbursementFeeIdr: string | null
+  /** REDEEM: grossIdr − totalFee (user terima). */
+  netPayoutIdr: string | null
+  bankCode: string | null
+  /** 4 digit terakhir; plaintext tidak di-expose. */
+  bankAccountNumberMasked: string | null
+  /** Decrypt + audit log (BE side-effect). */
+  bankAccountName: string | null
+  /** REDEEM: burn setelah EXPIRED. */
+  lateBurn: boolean | null
+  payoutRef: string | null
+  /** REDEEM: on-chain redeem tx. */
+  burnTxHash: string | null
+  burnedAt: string | null
+  payoutCompletedAt: string | null
+  /** REDEEM: disbursement/payout provider (W3). */
+  payoutProvider: string | null
+  // ── Shared ──
+  /** MINT: mintFee + pgFee. REDEEM: redeemFee + disbursementFee. */
+  totalFeeIdr: string | null
+  /** MINT: spread_buy_revenue + mintFee. REDEEM: spread_sell_revenue + redeemFee. */
+  estimatedRevenueIdr: string
+  status: OrderStatus
+  expiresAt: string
   createdAt: string
   updatedAt: string
 }

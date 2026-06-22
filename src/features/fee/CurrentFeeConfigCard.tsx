@@ -58,6 +58,28 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   {formatSpreadPct(data.pgFeeQrisPct)}
                 </dd>
               </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Redeem fee (%)
+                </dt>
+                <dd
+                  className="mt-1 font-mono text-sm font-medium"
+                  aria-label="redeem fee percent"
+                >
+                  {formatSpreadPct(data.redeemFeePct)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Disbursement fee (flat)
+                </dt>
+                <dd
+                  className="mt-1 font-mono text-sm font-medium"
+                  aria-label="disbursement fee flat"
+                >
+                  {formatIdrAmount(Number(data.disbursementFeeFlat))}
+                </dd>
+              </div>
               <div className="col-span-2">
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Last updated

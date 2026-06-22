@@ -29,13 +29,16 @@ function loginAsStaffRole(email: string) {
 
 describe('FeeConfigPage @integration', () => {
   describe('AC: open /settings/fee shows current config', () => {
-    test('shows mint fee %, PG VA flat, and PG QRIS % from GET /api/v1/fee-config', async () => {
+    test('shows mint / PG / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
       await waitFor(() => {
         expect(screen.getByLabelText(/mint fee percent/i)).toHaveTextContent('1%')
       })
       expect(screen.getByLabelText(/pg fee va flat/i)).toHaveTextContent(/4\.000/)
       expect(screen.getByLabelText(/pg fee qris percent/i)).toHaveTextContent('0.7%')
+      // Redeem fields (W3, USDX-245).
+      expect(screen.getByLabelText(/redeem fee percent/i)).toHaveTextContent('1%')
+      expect(screen.getByLabelText(/disbursement fee flat/i)).toHaveTextContent(/5\.000/)
     })
   })
 
@@ -121,12 +124,18 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
     expect(res.status).toBe(401)
   })
 
-  test('201 + FeeConfig when caller is ADMIN', async () => {
+  test('201 + FeeConfig (full 5-field snapshot) when caller is ADMIN', async () => {
     const staff = findStaffByEmail('demo@usdx.io')! // super_admin → ADMIN
     const res = await fetch('/api/v1/fee-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issueMockJwt(staff)}` },
-      body: JSON.stringify({ mintFeePct: '2.0', pgFeeVaFlat: '5000.00', pgFeeQrisPct: '0.8' }),
+      body: JSON.stringify({
+        mintFeePct: '2.0',
+        pgFeeVaFlat: '5000.00',
+        pgFeeQrisPct: '0.8',
+        redeemFeePct: '1.5',
+        disbursementFeeFlat: '6000.00',
+      }),
     })
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -134,19 +143,26 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
       mintFeePct: '2.0',
       pgFeeVaFlat: '5000.00',
       pgFeeQrisPct: '0.8',
+      redeemFeePct: '1.5',
+      disbursementFeeFlat: '6000.00',
       updatedBy: staff.id,
     })
     expect(typeof body.data.id).toBe('string')
   })
 
-  test('422 when a required field is missing', async () => {
+  // sot/conventions.md § Validation Error — fee-config is on the v1→422
+  // allowlist, so body failures return 422 VALIDATION_ERROR (USDX-245).
+  test('422 VALIDATION_ERROR when a redeem field is missing', async () => {
     const staff = findStaffByEmail('demo@usdx.io')!
     const res = await fetch('/api/v1/fee-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issueMockJwt(staff)}` },
-      body: JSON.stringify({ mintFeePct: '2.0', pgFeeVaFlat: '5000.00' }),
+      // redeemFeePct + disbursementFeeFlat omitted → partial snapshot rejected.
+      body: JSON.stringify({ mintFeePct: '2.0', pgFeeVaFlat: '5000.00', pgFeeQrisPct: '0.8' }),
     })
     expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body).toMatchObject({ status: 'error', error: { code: 'VALIDATION_ERROR' } })
   })
 })
 
@@ -160,6 +176,9 @@ describe('GET /api/v1/fee-config response shape', () => {
       mintFeePct: expect.stringMatching(/^\d+(\.\d+)?$/),
       pgFeeVaFlat: expect.stringMatching(/^\d+(\.\d+)?$/),
       pgFeeQrisPct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      // Redeem fields included in GET (W3, USDX-245) so the form pre-fills 5.
+      redeemFeePct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      disbursementFeeFlat: expect.stringMatching(/^\d+(\.\d+)?$/),
     })
   })
 })
