@@ -47,20 +47,24 @@ export default function TransactionsListPage() {
   const params = useDataTableParams()
   const type = params.searchParams.get('type') ?? ''
   const status = params.searchParams.get('status') ?? ''
+  const redeemStatus = params.searchParams.get('redeemStatus') ?? ''
   const paymentStatus = params.searchParams.get('paymentStatus') ?? ''
   const safeStatus = params.searchParams.get('safeStatus') ?? ''
   // `userId` is a programmatic (deep-link) filter — no visible control, but we
   // honour it when present (e.g. arriving from a user detail page).
   const userId = params.searchParams.get('userId') ?? ''
 
-  // Redeem has no payment/Safe leg — never forward those filters for REDEEM
-  // (orders.yaml marks them MINT-only), even if a stale URL value lingers.
+  // Redeem filters on RedeemStatus via `redeemStatus`; the mint `status` /
+  // payment / Safe params are MINT-only (orders.yaml). Never forward the
+  // wrong-dimension filters for the active type, even if a stale URL value
+  // lingers (USDX-254).
   const isRedeem = type === 'REDEEM'
   const list = useOrderList({
     page: params.page,
     take: PAGE_SIZE,
     type: type || undefined,
-    status: status || undefined,
+    status: isRedeem ? undefined : status || undefined,
+    redeemStatus: isRedeem ? redeemStatus || undefined : undefined,
     paymentStatus: isRedeem ? undefined : paymentStatus || undefined,
     safeStatus: isRedeem ? undefined : safeStatus || undefined,
     userId: userId || undefined,
@@ -71,11 +75,14 @@ export default function TransactionsListPage() {
     ORDER_COLUMN_CONFIG,
   )
 
-  // Status options + Payment/Safe filters depend on the selected type (USDX-245).
+  // Status options + Payment/Safe filters depend on the selected type
+  // (USDX-245 dropdown; USDX-254 sends redeem status via `redeemStatus`).
   const orderFilterDefs = buildOrderFilterDefs(type)
-  const filterValues = { type, status, paymentStatus, safeStatus }
+  const filterValues = { type, status, redeemStatus, paymentStatus, safeStatus }
   const hasFilters = Boolean(
-    type || status || (!isRedeem && (paymentStatus || safeStatus)) || userId,
+    type ||
+      userId ||
+      (isRedeem ? redeemStatus : status || paymentStatus || safeStatus),
   )
 
   const columns: ColumnDef<OrderListItem>[] = [
@@ -260,12 +267,16 @@ export default function TransactionsListPage() {
               values: filterValues,
               onChange: (next) => {
                 // Switching type invalidates the status enum + (for redeem) the
-                // payment/Safe filters — clear them so no stale param is sent.
+                // payment/Safe filters — clear the now-irrelevant params so we
+                // never send an invalid combination the BE would 422 (USDX-254).
                 const typeChanged = (next.type || '') !== type
                 const nextIsRedeem = next.type === 'REDEEM'
                 params.updateParams({
                   type: next.type || null,
-                  status: typeChanged ? null : next.status || null,
+                  // Mint status only when not redeem; redeemStatus only when redeem.
+                  status: typeChanged || nextIsRedeem ? null : next.status || null,
+                  redeemStatus:
+                    typeChanged || !nextIsRedeem ? null : next.redeemStatus || null,
                   paymentStatus: typeChanged || nextIsRedeem ? null : next.paymentStatus || null,
                   safeStatus: typeChanged || nextIsRedeem ? null : next.safeStatus || null,
                   page: '1',

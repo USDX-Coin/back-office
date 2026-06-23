@@ -894,6 +894,10 @@ export const handlers = [
     )
     const type = url.searchParams.get('type')
     const status = url.searchParams.get('status')
+    // Redeem orders filter on RedeemStatus via `redeemStatus` (USDX-254). The
+    // union `status` field carries the RedeemStatus value for redeem rows, so we
+    // match against it. (Real BE contract for this param lands via USDX-253.)
+    const redeemStatus = url.searchParams.get('redeemStatus')
     const paymentStatus = url.searchParams.get('paymentStatus')
     const safeStatus = url.searchParams.get('safeStatus')
     const userId = url.searchParams.get('userId')
@@ -901,6 +905,7 @@ export const handlers = [
     let rows = [...orderList]
     if (type) rows = rows.filter((r) => r.type === type)
     if (status) rows = rows.filter((r) => r.status === status)
+    if (redeemStatus) rows = rows.filter((r) => r.status === redeemStatus)
     if (paymentStatus) rows = rows.filter((r) => r.paymentStatus === paymentStatus)
     if (safeStatus) rows = rows.filter((r) => r.safeStatus === safeStatus)
     if (userId) rows = rows.filter((r) => r.userId === userId)
