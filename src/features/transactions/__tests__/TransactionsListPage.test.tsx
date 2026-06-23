@@ -448,3 +448,86 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
     })
   })
 })
+
+// USDX-254 — type-aware status filter: when type=REDEEM the RedeemStatus value
+// is sent through a distinct `redeemStatus` query param, never the mint `status`.
+describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
+  describe('positive', () => {
+    test('AC #1 — selecting a redeem status wires to ?type=REDEEM&redeemStatus=PROCESSING_PAYOUT', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([redeemRow({ status: 'PROCESSING_PAYOUT' })])
+        }),
+      )
+      // Start already on REDEEM so the Status dropdown offers RedeemStatus.
+      setup(['/transactions?type=REDEEM'])
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Status' }))
+      await user.click(await screen.findByRole('option', { name: /processing payout/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() =>
+        expect(
+          captured.some(
+            (s) => s.includes('type=REDEEM') && s.includes('redeemStatus=PROCESSING_PAYOUT'),
+          ),
+        ).toBe(true),
+      )
+      // The RedeemStatus value must never travel through the mint `status` param.
+      expect(captured.every((s) => !/[?&]status=/.test(s))).toBe(true)
+    })
+  })
+
+  describe('AC #3 — type switch resets the stale status dimension', () => {
+    test('REDEEM → MINT drops redeemStatus from the next request', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([baseRow()])
+        }),
+      )
+      setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
+      await waitFor(() =>
+        expect(captured.some((s) => s.includes('redeemStatus=PROCESSING_PAYOUT'))).toBe(true),
+      )
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('option', { name: /^mint$/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() => {
+        const last = captured[captured.length - 1]
+        expect(last).toContain('type=MINT')
+        expect(last).not.toContain('redeemStatus')
+      })
+    })
+  })
+
+  describe('negative', () => {
+    test('a 422 from an invalid combo surfaces a graceful error state (not a crash)', async () => {
+      server.use(
+        http.get('/api/v1/orders', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'VALIDATION_ERROR', message: 'invalid filter combination' },
+            },
+            { status: 422 },
+          ),
+        ),
+      )
+      setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
+      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+    })
+  })
+})

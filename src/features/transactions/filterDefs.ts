@@ -45,21 +45,21 @@ const SAFE_STATUS_OPTIONS: FilterOption[] = [
 ]
 
 // Filter defs are contextual on the selected `type` (decision 2026-06-22):
-//  - REDEEM → Status offers RedeemStatus; Payment/Safe filters drop out
-//    (redeem has no payment/Safe leg — orders.yaml marks them MINT-only).
-//  - MINT / all → Status offers MintOrderStatus + Payment + Safe filters.
-// Note: orders.yaml types the `status` param as MintOrderStatus; surfacing
-// RedeemStatus here is intentional drift, documented for PM.
+//  - REDEEM → Status offers RedeemStatus on the `redeemStatus` query param;
+//    Payment/Safe filters drop out (redeem has no payment/Safe leg — orders.yaml
+//    marks them MINT-only).
+//  - MINT / all → Status offers MintOrderStatus on `status` + Payment + Safe.
+// The redeem branch writes a distinct `redeemStatus` key so it never sends a
+// RedeemStatus value through the mint `status` param (USDX-254). The BE contract
+// for `redeemStatus` lands via USDX-253; orders.yaml doesn't list it yet, so this
+// is FE-ahead drift documented for PM (enum itself = sot/api/common.yaml § RedeemStatus).
 export function buildOrderFilterDefs(type: string): FilterDef[] {
   const isRedeem = type === 'REDEEM'
   const defs: FilterDef[] = [
     { kind: 'select', key: 'type', label: 'Type', options: TYPE_OPTIONS },
-    {
-      kind: 'select',
-      key: 'status',
-      label: 'Status',
-      options: isRedeem ? REDEEM_STATUS_OPTIONS : MINT_STATUS_OPTIONS,
-    },
+    isRedeem
+      ? { kind: 'select', key: 'redeemStatus', label: 'Status', options: REDEEM_STATUS_OPTIONS }
+      : { kind: 'select', key: 'status', label: 'Status', options: MINT_STATUS_OPTIONS },
   ]
   if (!isRedeem) {
     defs.push(
