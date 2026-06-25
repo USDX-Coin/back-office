@@ -365,11 +365,11 @@ export default function OrderDetailModal({
 
               {isRedeem ? (
                 <Section title="Bank tujuan">
-                  <Field label="Bank">{detail.bankCode ?? <Dim />}</Field>
+                  <Field label="Bank">{detail.bankName ?? detail.bankCode ?? <Dim />}</Field>
                   <Field label="Account number">
-                    {detail.bankAccountNumberMasked ? (
+                    {detail.bankAccountNumber ? (
                       <span className="font-mono tabular-nums">
-                        {detail.bankAccountNumberMasked}
+                        {detail.bankAccountNumber}
                       </span>
                     ) : (
                       <Dim />
