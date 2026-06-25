@@ -239,7 +239,8 @@ export interface MockOrder {
   redeemFeeIdr?: string | null
   disbursementFeeIdr?: string | null
   bankCode?: string | null
-  bankAccountNumberMasked?: string | null
+  bankName?: string | null
+  bankAccountNumber?: string | null
   bankAccountName?: string | null
   lateBurn?: boolean | null
   payoutRef?: string | null
@@ -299,7 +300,7 @@ export function seedRedeemOrders(): MockOrder[] {
     // redeem block
     netPayoutIdr: '1547320.00', redeemId: HEX64('c'), grossIdr: '1568000.00',
     redeemFeePct: '1.00', redeemFeeIdr: '15680.00', disbursementFeeIdr: '5000.00',
-    bankCode: 'BCA', bankAccountNumberMasked: '••••3271', bankAccountName: 'BUDI SANTOSO',
+    bankCode: 'BCA', bankName: 'BCA', bankAccountNumber: '1234563271', bankAccountName: 'BUDI SANTOSO',
     lateBurn: false, payoutRef: 'disb_e2e001', burnTxHash: HEX64('d'),
     burnedAt: '2026-06-04T00:12:00.000Z', payoutCompletedAt: '2026-06-04T00:20:00.000Z',
     payoutProvider: 'MOCK',
