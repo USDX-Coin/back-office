@@ -48,7 +48,7 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       await expect(page.getByRole('option', { name: /payout complete/i })).toBeVisible()
     })
 
-    test('AC #2 — redeem detail shows fee / net payout / bank (masked) + burn tx', async ({
+    test('AC #2 — redeem detail shows fee / net payout / bank (full) + burn tx', async ({
       page,
     }) => {
       await installMockApi(page, { orders: seedRedeemOrders() })
@@ -63,8 +63,9 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       await expect(dialog.getByText(/disbursement fee/i)).toBeVisible()
       await expect(dialog.getByText(/net payout/i)).toBeVisible()
       await expect(dialog.getByText(/bank tujuan/i)).toBeVisible()
-      // Account number is masked (4 last digits) + account name shown.
-      await expect(dialog.getByText('••••3271')).toBeVisible()
+      // Bank name + full account number + account name shown (un-mask, USDX-270).
+      await expect(dialog.getByText('BCA')).toBeVisible()
+      await expect(dialog.getByText('1234563271')).toBeVisible()
       await expect(dialog.getByText('BUDI SANTOSO')).toBeVisible()
       // Burn tx hash field present (redeem on-chain reference).
       await expect(dialog.getByText(/burn tx hash/i)).toBeVisible()

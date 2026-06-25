@@ -817,6 +817,14 @@ const ORDER_VA_BANKS: VaBank[] = ['BCA', 'BNI', 'MANDIRI', 'BRI', 'CIMB']
 const ORDER_REDEEM_FEE_PCT = '1.00'
 const ORDER_DISBURSEMENT_FEE_FLAT = '5000.00'
 const ORDER_BANK_CODES = ['BCA', 'MANDIRI', 'BNI', 'BRI', 'CIMB']
+// Static bank_code → display name reference (mirrors BE resolve; USDX-270).
+const ORDER_BANK_NAMES: Record<string, string> = {
+  BCA: 'BCA',
+  MANDIRI: 'Mandiri',
+  BNI: 'BNI',
+  BRI: 'BRI',
+  CIMB: 'CIMB Niaga',
+}
 
 // Coherent (payment_status, safe_status, status) tuples spanning the lifecycle
 // so the list has data for every filter value (sot/api/common.yaml § statuses;
@@ -938,7 +946,8 @@ function createOrderPair(
     disbursementFeeIdr: null,
     netPayoutIdr: null,
     bankCode: null,
-    bankAccountNumberMasked: null,
+    bankName: null,
+    bankAccountNumber: null,
     bankAccountName: null,
     lateBurn: null,
     payoutRef: null,
@@ -1010,10 +1019,11 @@ function createRedeemOrderPair(
   const estimatedRevenueIdr = idrDecimal(spreadRevenueNum + redeemFeeNum)
   const netPayoutIdr = idrDecimal(netPayoutNum)
 
-  // Bank tujuan — number always masked (4 last digits); name decrypted for render.
+  // Bank tujuan — full account number + resolved bank name (un-mask 2026-06-25, USDX-270).
   const bankCode = ORDER_BANK_CODES[seed % ORDER_BANK_CODES.length]!
+  const bankName = ORDER_BANK_NAMES[bankCode] ?? bankCode
   const last4 = String((seed * 7919) % 10000).padStart(4, '0')
-  const bankAccountNumberMasked = `••••${last4}`
+  const bankAccountNumber = `${String(1_000_000 + ((seed * 31) % 9_000_000))}${last4}`
   const bankAccountName = `${user.firstName} ${user.lastName}`.toUpperCase()
 
   // On-chain burn fields appear once the Redeem event is detected.
@@ -1078,7 +1088,8 @@ function createRedeemOrderPair(
     disbursementFeeIdr: idrDecimal(disbursementFeeNum),
     netPayoutIdr,
     bankCode,
-    bankAccountNumberMasked,
+    bankName,
+    bankAccountNumber,
     bankAccountName,
     lateBurn: state.lateBurn,
     payoutRef,
