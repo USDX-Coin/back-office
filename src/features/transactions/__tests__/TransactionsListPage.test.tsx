@@ -90,7 +90,8 @@ const baseDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   disbursementFeeIdr: null,
   netPayoutIdr: null,
   bankCode: null,
-  bankAccountNumberMasked: null,
+  bankName: null,
+  bankAccountNumber: null,
   bankAccountName: null,
   lateBurn: null,
   payoutRef: null,
@@ -145,7 +146,8 @@ const redeemDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   disbursementFeeIdr: '5000.00',
   netPayoutIdr: '1547320.00',
   bankCode: 'BCA',
-  bankAccountNumberMasked: '••••3271',
+  bankName: 'BCA',
+  bankAccountNumber: '1234563271',
   bankAccountName: 'BOB SETIAWAN',
   lateBurn: false,
   payoutRef: 'disb_abc123',
@@ -421,8 +423,9 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       expect(within(dialog).getByText(/disbursement fee/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/net payout/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/bank tujuan/i)).toBeInTheDocument()
-      // Bank account number is masked (4 last digits only) + account name shown.
-      expect(within(dialog).getByText('••••3271')).toBeInTheDocument()
+      // Bank name + full account number + account name shown (un-mask, USDX-270).
+      expect(within(dialog).getByText('BCA')).toBeInTheDocument()
+      expect(within(dialog).getByText('1234563271')).toBeInTheDocument()
       expect(within(dialog).getByText('BOB SETIAWAN')).toBeInTheDocument()
       // Burn tx hash deep-links to the block explorer.
       await waitFor(() => {
