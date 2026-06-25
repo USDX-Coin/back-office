@@ -526,8 +526,10 @@ export interface OrderDetail {
   /** REDEEM: grossIdr − totalFee (user terima). */
   netPayoutIdr: string | null
   bankCode: string | null
-  /** 4 digit terakhir; plaintext tidak di-expose. */
-  bankAccountNumberMasked: string | null
+  /** REDEEM: nama bank di-resolve dari bankCode (tampil nama, bukan kode). Fallback ke kode kalau tak dikenal. */
+  bankName: string | null
+  /** REDEEM: nomor rekening PENUH (un-mask 2026-06-25). Decrypt + audit log (BE side-effect). */
+  bankAccountNumber: string | null
   /** Decrypt + audit log (BE side-effect). */
   bankAccountName: string | null
   /** REDEEM: burn setelah EXPIRED. */
