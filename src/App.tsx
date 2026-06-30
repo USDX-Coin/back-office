@@ -1,4 +1,5 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
+import { lazy, Suspense } from 'react'
+import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
@@ -20,6 +21,10 @@ import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+
+// Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
+// loads only when an operator opens /multisig, not on every page (USDX-275).
+const MultisigRoute = lazy(() => import('@/features/multisig/MultisigRoute'))
 import DailyMintReportPage from '@/features/reports/DailyMintPage'
 import MintByUserReportPage from '@/features/reports/MintByUserPage'
 import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
@@ -137,6 +142,32 @@ const router = createBrowserRouter([
               { path: '/reports/mint/by-user', element: <MintByUserReportPage /> },
               { path: '/reports/burn/daily', element: <DailyBurnReportPage /> },
               { path: '/reports/burn/by-user', element: <BurnByUserReportPage /> },
+            ],
+          },
+          {
+            // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md §
+            // Backoffice Multisig Page: the Multisig queue is ADMIN / DEVELOPER /
+            // MANAGER only (STAFF redirects — signer = Safe owner). The wallet
+            // stack (wagmi/RainbowKit) wraps only this subtree so other pages
+            // don't pull in the connectors / chain polling. `/multisig/:id`
+            // re-renders the list and opens the detail drawer from URL state.
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
+            children: [
+              {
+                element: (
+                  <Suspense
+                    fallback={
+                      <div className="p-8 text-sm text-muted-foreground">Loading…</div>
+                    }
+                  >
+                    <Outlet />
+                  </Suspense>
+                ),
+                children: [
+                  { path: '/multisig', element: <MultisigRoute /> },
+                  { path: '/multisig/:id', element: <MultisigRoute /> },
+                ],
+              },
             ],
           },
           // USDX-87 / sot/phase-1.md L583 — Manual Sync is reachable to every

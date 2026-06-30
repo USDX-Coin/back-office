@@ -942,3 +942,141 @@ export interface MatchResult {
 export interface ManualSyncTxHashBody {
   txHash: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 — W4 Multisig (USDX-275, sot/api/multisig.yaml, sot/phase-2/week4.md)
+//
+// Self-hosted Safe coordination: the `/multisig` page is the queue of Safe
+// transactions (mint/burn auto-proposed by the backend + governance ops). Owners
+// connect a wallet and sign the SafeTx EIP-712; any operator executes
+// `execTransaction`. Status is TX-level (finer than the per-request safe_status)
+// and follows the queue tabs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// sot/api/multisig.yaml § SafeActivity — operation decoded from the calldata.
+// UNKNOWN = calldata the backend decoder couldn't resolve → blind-sign guard.
+export type SafeActivity =
+  | 'MINT'
+  | 'BURN'
+  | 'ADD_BLACKLIST'
+  | 'REMOVE_BLACKLIST'
+  | 'DESTROY_FUNDS'
+  | 'PAUSE'
+  | 'UNPAUSE'
+  | 'SET_SUPPORTED_CHAIN'
+  | 'GRANT_ROLE'
+  | 'REVOKE_ROLE'
+  | 'MINT_BRIDGE'
+  | 'TIMELOCK_SCHEDULE'
+  | 'TIMELOCK_EXECUTE'
+  | 'UNKNOWN'
+
+// sot/api/multisig.yaml § SafeTxStatus + conventions.md § Status Enums (TX-level).
+// PENDING_SIGN → READY_TO_EXECUTE → CONFIRMING → EXECUTED | FAILED | CANCELLED.
+export type SafeTxStatus =
+  | 'PENDING_SIGN'
+  | 'READY_TO_EXECUTE'
+  | 'CONFIRMING'
+  | 'EXECUTED'
+  | 'FAILED'
+  | 'CANCELLED'
+
+// Signatures collected vs the Safe threshold (drives the progress bar + the
+// "X/Y" label). READY_TO_EXECUTE once collected ≥ threshold.
+export interface SignatureProgress {
+  collected: number
+  threshold: number
+}
+
+// sot/api/multisig.yaml § SafeTxListItem — one row in the queue table.
+export interface SafeTxListItem {
+  id: string
+  chain: string
+  safeType: SafeType
+  safeAddress: string
+  nonce: number
+  activity: SafeActivity
+  /** Human label decoded by the backend, e.g. "Mint 100 USDX → 0xUser". */
+  activityLabel: string
+  signatureProgress: SignatureProgress
+  proposerType: 'BACKEND' | 'STAFF'
+  proposerAddress: string
+  status: SafeTxStatus
+  safeTxHash: string
+  execTxHash: string | null
+  createdAt: string
+}
+
+// One Safe owner's signing state (sot/api/multisig.yaml § SafeTxDetail.signers).
+export interface SafeTxSigner {
+  address: string
+  staffName: string | null
+  isBackend: boolean
+  signed: boolean
+  signedAt: string | null
+}
+
+// sot/api/multisig.yaml § SafeTxDetail.execPayload — the `execTransaction`
+// params, ready to send, exposed only while READY_TO_EXECUTE. `signatures` is
+// already concatenated + sorted ascending by owner address (checkSignatures req).
+export interface SafeExecPayload {
+  to: string
+  value: string
+  data: string
+  operation: number
+  safeTxGas: string
+  baseGas: string
+  gasPrice: string
+  gasToken: string
+  refundReceiver: string
+  signatures: string
+}
+
+// sot/api/multisig.yaml § SafeTxDetail — full TX incl. decoded args (display +
+// blind-sign guard), signer states, linked request/order, and exec payload.
+export interface SafeTxDetail extends SafeTxListItem {
+  to: string
+  value: string
+  data: string
+  operation: number
+  /** Decoded calldata args for display + cross-check vs intent (blind-sign guard). */
+  decodedArgs: Record<string, unknown>
+  linkedRequestId: string | null
+  linkedOrderId: string | null
+  signers: SafeTxSigner[]
+  execPayload: SafeExecPayload | null
+  /** Decoded revert reason if the last execTransaction failed (GS013 / USDX custom error). */
+  lastExecError: string | null
+  executedByStaffName: string | null
+  executedAt: string | null
+}
+
+// sot/api/multisig.yaml § SafeMeta — GET /api/v1/multisig/safes. Used to render
+// the queue + validate whether the connected wallet is an owner (signer gate).
+export interface SafeMeta {
+  chain: string
+  safeType: SafeType
+  safeAddress: string
+  threshold: number
+  owners: string[]
+  nonce: number
+  /** Native (POL) balance — informational. Gas for execTransaction is paid by the executor wallet, not the Safe. */
+  balanceNative: string
+  lastSyncedAt: string
+}
+
+// POST /api/v1/multisig/{id}/confirm body (sot/api/multisig.yaml § confirm).
+export interface SafeConfirmBody {
+  signerAddress: string
+  signature: string
+}
+
+// POST /api/v1/multisig/{id}/execute body (sot/api/multisig.yaml § execute).
+export interface SafeExecuteBody {
+  execTxHash: string
+}
+
+// POST /api/v1/multisig/{id}/cancel body (sot/api/multisig.yaml § cancel).
+export interface SafeCancelBody {
+  reason?: string
+}

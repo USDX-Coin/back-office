@@ -34,6 +34,8 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
 | `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
 | `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
+| `/multisig` | TREASURY | Multisig | ADMIN + DEVELOPER + MANAGER | Self-hosted Safe transaction queue (USDX-275) — tabs (All/Pending Sign/Ready to Execute/Confirming/Executed/Failed), search, safeType filter; connect wallet (wagmi/RainbowKit). Consumes `/api/v1/multisig/*` |
+| `/multisig/:id` | — | — | ADMIN + DEVELOPER + MANAGER | Detail drawer — decoded TX + blind-sign cross-check vs linked intent + signers + on-chain links + **Sign** (owner, EIP-712 gasless) + **Execute** (execTransaction, simulate-gated to prevent GS013) + **Cancel** (admin/proposer). Network guard Polygon-137 |
 | `/transactions` | CONSUMER | User Transaction | All roles | Consumer order list — mint (USDX-206) + redeem (USDX-245); read-only; filter type/status (contextual: RedeemStatus when type=REDEEM)/payment/safe |
 | `/transactions/:id` | — | — | All roles | Order detail modal — MINT: fee/spread/revenue + idempotency key + on-chain/Safe links. REDEEM: spread jual + redeem/disbursement fee + net payout + bank (nama bank + nomor rekening penuh + nama pemilik — un-mask USDX-270) + redeem_id + burn_tx_hash + payout_ref (USDX-245). Read-only (no approve) |
 | `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
@@ -82,6 +84,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245, full 5-field snapshot)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
 │   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
+│   │   ├── multisig/      # MultisigListPage + MultisigDetailSheet + tabs + wallet actions (USDX-275) — self-hosted Safe queue, connect-wallet (wagmi/RainbowKit), sign EIP-712 + execute + simulate guard
 │   │   └── profile/       # ProfilePage
 │   ├── lib/               # Shared utilities
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook

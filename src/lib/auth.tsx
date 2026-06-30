@@ -213,6 +213,19 @@ export function canReviewKyc(staff: Staff | null): boolean {
   return staff !== null && staff.role !== 'DEVELOPER'
 }
 
+// USDX-275 — sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
+// Multisig Page: the Multisig queue is visible to ADMIN / DEVELOPER / MANAGER
+// (STAFF excluded — signer = Safe owner, typically Manager/Admin). Sign/Execute
+// gating is enforced per-action inside the page (owner wallet); BE enforces the
+// list/detail role check regardless.
+export function canAccessTreasury(staff: Staff | null): boolean {
+  return (
+    staff?.role === 'ADMIN' ||
+    staff?.role === 'DEVELOPER' ||
+    staff?.role === 'MANAGER'
+  )
+}
+
 // USDX-78 — SoT phase-1.md L34: List Mint/Burn (/mint, /burn, /mint/:id,
 // /burn/:id) "hanya bisa diakses Admin, Developer, dan Manager. Staff tidak
 // boleh akses list/detail." Drives: route guard redirect target, Sidebar /

@@ -12,10 +12,12 @@ import {
   Wrench,
   Receipt,
   Percent,
+  KeyRound,
 } from 'lucide-react'
 import {
   canAccessReports,
   canAccessRequestList,
+  canAccessTreasury,
   canManageSettings,
   canManageStaff,
 } from '@/lib/auth'
@@ -94,6 +96,15 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
     ],
+  },
+  {
+    // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
+    // Multisig Page: self-hosted Safe transaction queue. ADMIN / DEVELOPER /
+    // MANAGER (STAFF excluded — signer = Safe owner). No (N) badge on the
+    // sidebar entry (status counts live on the page tabs).
+    label: 'Treasury',
+    visibleWhen: canAccessTreasury,
+    items: [{ to: '/multisig', label: 'Multisig', icon: KeyRound }],
   },
   {
     // USDX-81 + sot/phase-1.md § Reporting access: ADMIN + DEVELOPER + MANAGER.
