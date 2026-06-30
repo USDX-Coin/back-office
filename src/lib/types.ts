@@ -1080,3 +1080,30 @@ export interface SafeExecuteBody {
 export interface SafeCancelBody {
   reason?: string
 }
+
+// ─── USDX-280 — Propose governance (sot/api/multisig.yaml § propose) ─────────
+// The governance subset of SafeActivity that an operator can propose from the
+// backoffice (MINT/BURN/MINT_BRIDGE are auto-proposed by the backend, never via
+// this modal; UNKNOWN is not proposable). Verified live against the BE enum.
+export type GovernanceOperation =
+  | 'ADD_BLACKLIST'
+  | 'REMOVE_BLACKLIST'
+  | 'DESTROY_FUNDS'
+  | 'PAUSE'
+  | 'UNPAUSE'
+  | 'SET_SUPPORTED_CHAIN'
+  | 'GRANT_ROLE'
+  | 'REVOKE_ROLE'
+  | 'TIMELOCK_SCHEDULE'
+  | 'TIMELOCK_EXECUTE'
+
+// POST /api/v1/multisig/propose body (sot/api/multisig.yaml § ProposeRequest).
+// `params` shape depends on `operation` (see src/lib/multisig/propose.ts). The
+// backend encodes the calldata + simulates before storing PENDING_SIGN. `chain`
+// is optional (W4 Polygon-only → backend defaults to polygon).
+export interface ProposeRequest {
+  safeType: SafeType
+  operation: GovernanceOperation
+  params: Record<string, unknown>
+  chain?: string
+}

@@ -3,6 +3,7 @@ import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import { isSafeTxTerminal } from '@/lib/multisig/status'
 import type {
   PhaseOnePaginatedResponse,
+  ProposeRequest,
   SafeCancelBody,
   SafeConfirmBody,
   SafeExecuteBody,
@@ -145,5 +146,21 @@ export function useCancelSafeTx(id: string) {
         body,
       }),
     onSuccess: () => invalidate(id),
+  })
+}
+
+// USDX-280 — propose a governance op. Backend encodes calldata + simulates +
+// stores PENDING_SIGN + auto-signs 1/N. On success the new TX appears in the
+// queue → invalidate list + counts. 409 SAFE_QUEUE_OCCUPIED / 422 validation /
+// simulate-revert are surfaced by the caller (ProposeModal).
+export function useProposeGovernance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ProposeRequest) =>
+      apiFetch<SafeTxDetail>('/api/v1/multisig/propose', { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['multisig', 'list'] })
+      qc.invalidateQueries({ queryKey: ['multisig', 'count'] })
+    },
   })
 }
