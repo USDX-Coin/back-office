@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { Eye, KeyRound, AlertTriangle } from 'lucide-react'
+import { Eye, KeyRound, AlertTriangle, Plus } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { formatShortDate, truncateMiddle } from '@/lib/format'
 import { type StatusConfig } from '@/lib/status'
+import { useAuth, canProposeGovernance } from '@/lib/auth'
 import {
   getActivityLabel,
   getSafeTxStatusConfig,
@@ -28,6 +30,7 @@ import { useMultisigList } from './hooks'
 import SignatureProgressBar from './SignatureProgressBar'
 import MultisigTabs from './MultisigTabs'
 import MultisigDetailSheet from './MultisigDetailSheet'
+import ProposeModal from './ProposeModal'
 
 const PAGE_SIZE = 20
 
@@ -48,6 +51,11 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
 export default function MultisigListPage() {
   const navigate = useNavigate()
   const { id: activeId } = useParams<{ id?: string }>()
+  const { user } = useAuth()
+
+  // USDX-280 — propose governance op. Admin-only (BE gates propose at admin).
+  const [proposeOpen, setProposeOpen] = useState(false)
+  const canPropose = canProposeGovernance(user)
 
   const params = useDataTableParams()
   const status = (params.searchParams.get('status') ?? '') as SafeTxStatus | ''
@@ -183,7 +191,17 @@ export default function MultisigListPage() {
         title="Multisig"
         italicAccent="queue"
         subtitle="Self-hosted Safe transaction queue — sign (EIP-712) and execute mint / burn and governance operations."
-        actions={<ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />}
+        actions={
+          <div className="flex items-center gap-2">
+            {canPropose && (
+              <Button size="sm" onClick={() => setProposeOpen(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                Propose
+              </Button>
+            )}
+            <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
+          </div>
+        }
       />
 
       <MultisigTabs
@@ -241,6 +259,8 @@ export default function MultisigListPage() {
           if (!o) navigate('/multisig', { replace: true })
         }}
       />
+
+      {canPropose && <ProposeModal open={proposeOpen} onOpenChange={setProposeOpen} />}
     </div>
   )
 }

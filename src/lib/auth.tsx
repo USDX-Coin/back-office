@@ -226,6 +226,13 @@ export function canAccessTreasury(staff: Staff | null): boolean {
   )
 }
 
+// USDX-280 — sot/api/multisig.yaml § propose ("Akses: admin (ops sensitif)"):
+// proposing a governance op (blacklist/pause/chain/role/timelock) is ADMIN-only.
+// Gates the "Propose" button on /multisig; the BE enforces 403 regardless.
+export function canProposeGovernance(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN'
+}
+
 // USDX-78 — SoT phase-1.md L34: List Mint/Burn (/mint, /burn, /mint/:id,
 // /burn/:id) "hanya bisa diakses Admin, Developer, dan Manager. Staff tidak
 // boleh akses list/detail." Drives: route guard redirect target, Sidebar /
