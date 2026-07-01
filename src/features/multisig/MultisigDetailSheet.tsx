@@ -487,7 +487,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               {wallet.isConnected && ownerVerification === 'unavailable' && (
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-[11.5px] text-warning">
-                    Couldn't verify Safe ownership — the owner list is unavailable.
+                    Couldn't verify Safe ownership — the owner list is unavailable. Contact an admin
+                    if it persists.
                   </span>
                   <Button
                     size="sm"
