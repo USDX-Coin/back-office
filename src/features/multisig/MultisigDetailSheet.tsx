@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Copy,
   ExternalLink,
@@ -380,9 +381,31 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const headerTitle = detail?.activityLabel || listItem?.activityLabel || 'Safe transaction'
   const busy = isSigning || isExecuting || confirmMutation.isPending || executeMutation.isPending
 
+  // modal={false}: a modal Radix Dialog locks body pointer-events + traps focus,
+  // which makes the RainbowKit connect modal (a portal sibling tagged [data-rk])
+  // unclickable. Non-modal keeps the drawer usable while the wallet modal is open;
+  // onInteractOutside below stops the drawer closing when the rk modal is clicked.
+  // Radix only renders its overlay in modal mode, so we portal our own backdrop
+  // (z-40, below the z-50 panel and the higher-z wallet modal) to keep the dim.
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto bg-card sm:max-w-xl">
+    <>
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-40 bg-black/80"
+            aria-hidden
+            onClick={() => onOpenChange(false)}
+          />,
+          document.body,
+        )}
+      <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+      <SheetContent
+        className="flex w-full flex-col gap-0 overflow-y-auto bg-card sm:max-w-xl"
+        onInteractOutside={(e) => {
+          const target = e.detail.originalEvent.target as HTMLElement | null
+          if (target?.closest('[data-rk]')) e.preventDefault()
+        }}
+      >
         <SheetHeader>
           <SheetTitle>{headerTitle}</SheetTitle>
           <SheetDescription>
@@ -789,6 +812,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
           </div>
         )}
       </SheetContent>
-    </Sheet>
+      </Sheet>
+    </>
   )
 }
