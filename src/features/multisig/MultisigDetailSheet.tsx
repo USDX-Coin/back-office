@@ -321,8 +321,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
     if (!wallet.chainOk) return 'Switch to Polygon to execute'
     if (!detail?.execPayload) return 'No exec payload yet'
     if (simulate.status === 'loading') return 'Simulating…'
-    if (simulate.status === 'revert' || simulate.status === 'error')
-      return 'Simulation failed — execution would revert'
+    if (simulate.status === 'revert') return 'Simulation failed — execution would revert'
+    if (simulate.status === 'error') return "Simulation unavailable — couldn't reach the RPC, retry"
     if (simulate.status !== 'ok') return 'Waiting for simulation'
     return null
   })()
@@ -652,7 +652,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 tone={
                   simulate.status === 'ok'
                     ? 'success'
-                    : simulate.status === 'revert' || simulate.status === 'error'
+                    : simulate.status === 'revert'
                       ? 'error'
                       : 'warning'
                 }
@@ -669,10 +669,27 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 {simulate.status === 'loading' && 'Simulating execTransaction…'}
                 {simulate.status === 'ok' &&
                   'Simulation passed — the inner call succeeds. Safe to execute.'}
-                {(simulate.status === 'revert' || simulate.status === 'error') && (
+                {simulate.status === 'revert' && (
                   <span>
                     <strong>Would revert:</strong> {simulate.reason} — Execute is disabled (prevents
                     a stuck GS013).
+                  </span>
+                )}
+                {simulate.status === 'error' && (
+                  <span className="flex items-center justify-between gap-2">
+                    <span>
+                      <strong>Simulation unavailable:</strong> {simulate.reason} — couldn't reach the
+                      RPC, so Execute is held (this is not a revert). Retry, or check the Polygon RPC /
+                      CSP allowlist.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => simulate.refetch()}
+                      disabled={simulate.isRefetching}
+                    >
+                      {simulate.isRefetching ? 'Retrying…' : 'Retry'}
+                    </Button>
                   </span>
                 )}
                 {simulate.status === 'idle' && 'Simulation pending.'}
