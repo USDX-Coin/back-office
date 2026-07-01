@@ -18,10 +18,11 @@ export default defineConfig({
       'Referrer-Policy': 'strict-origin-when-cross-origin',
     },
     // Same-origin proxy so dev fetch ke /api/* tidak hit cross-origin CORS.
-    // Mirrors the Netlify _redirects rule for production deploys.
+    // Target = SoT dev backend (project-overview.md § Environment: api-dev.usdx.co.id);
+    // Railway URL lama sudah stale. Mirrors the Netlify _redirects rule.
     proxy: {
       '/api': {
-        target: 'https://usdx-backend-development.up.railway.app',
+        target: 'https://api-dev.usdx.co.id',
         changeOrigin: true,
         secure: true,
       },
