@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { isOwnerAddress, resolveOwnerCheck } from '../owner'
+import { isOwnerAddress, resolveOwnerCheck, resolveOwnerVerification } from '../owner'
 import type { SafeTxSigner } from '@/lib/types'
 
 const OWNER = '0x444444840C416D1e7765de855c9100B0A31184d7'
@@ -81,6 +81,27 @@ describe('resolveOwnerCheck', () => {
       expect(resolveOwnerCheck(OWNER, undefined, undefined)).toBe('unknown')
       expect(resolveOwnerCheck(OWNER, [], [])).toBe('unknown')
       expect(resolveOwnerCheck(OWNER, [])).toBe('unknown')
+    })
+  })
+})
+
+describe('resolveOwnerVerification', () => {
+  describe('positive', () => {
+    test('resolved owner/not-owner pass through regardless of loading', () => {
+      expect(resolveOwnerVerification('owner', { sourcesLoading: true })).toBe('owner')
+      expect(resolveOwnerVerification('owner', { sourcesLoading: false })).toBe('owner')
+      expect(resolveOwnerVerification('not-owner', { sourcesLoading: true })).toBe('not-owner')
+      expect(resolveOwnerVerification('not-owner', { sourcesLoading: false })).toBe('not-owner')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('unknown + a source still loading → checking (transient)', () => {
+      expect(resolveOwnerVerification('unknown', { sourcesLoading: true })).toBe('checking')
+    })
+
+    test('unknown + all sources settled → unavailable (terminal, not a hang)', () => {
+      expect(resolveOwnerVerification('unknown', { sourcesLoading: false })).toBe('unavailable')
     })
   })
 })

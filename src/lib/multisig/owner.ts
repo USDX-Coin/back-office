@@ -60,3 +60,27 @@ export function resolveOwnerCheck(
   // No authoritative source yet → don't claim "not an owner".
   return 'unknown'
 }
+
+// UI-facing owner status. Splits the data-only 'unknown' into a *transient*
+// "checking" (an owner source is still loading) vs a *terminal* "unavailable"
+// (every source settled and none yields owners). This is what stops the Sign
+// gate from showing "Verifying Safe ownership…" forever with no error/retry.
+export type OwnerVerification = 'owner' | 'not-owner' | 'checking' | 'unavailable'
+
+/**
+ * Fold the data-only `OwnerCheck` with whether an owner source is still loading.
+ * - resolved (owner/not-owner) passes through untouched.
+ * - 'unknown' + a source still loading → 'checking' (OK to show "Verifying…").
+ * - 'unknown' + all sources settled     → 'unavailable' (show error + retry).
+ *
+ * `sourcesLoading` should reflect only the *initial* load of the fallback owner
+ * source — NOT a background refetch/poll — otherwise the status flickers between
+ * 'unavailable' and 'checking' on every poll.
+ */
+export function resolveOwnerVerification(
+  base: OwnerCheck,
+  opts: { sourcesLoading: boolean },
+): OwnerVerification {
+  if (base !== 'unknown') return base
+  return opts.sourcesLoading ? 'checking' : 'unavailable'
+}
