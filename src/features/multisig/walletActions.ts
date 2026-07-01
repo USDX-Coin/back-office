@@ -21,7 +21,7 @@ import {
   buildSafeTxTypedData,
   safeTxHashMatches,
 } from '@/lib/multisig/safeTx'
-import { summarizeSimulationError } from '@/lib/multisig/errors'
+import { isTransportError, summarizeSimulationError } from '@/lib/multisig/errors'
 import type { SafeTxDetail } from '@/lib/types'
 
 // Owner-membership + owner-check helpers moved to src/lib/multisig/owner.ts
@@ -130,7 +130,9 @@ export type SimulateState =
 // with its real reason instead of being masked by the Safe (GS013). With gas=0,
 // execTransaction succeeds iff this inner call succeeds — so this both gates
 // Execute and explains why it would revert.
-export function useSimulateExec(detail: SafeTxDetail | undefined, enabled: boolean) {
+export type SimulateResult = SimulateState & { refetch: () => void; isRefetching: boolean }
+
+export function useSimulateExec(detail: SafeTxDetail | undefined, enabled: boolean): SimulateResult {
   const publicClient = usePublicClient({ chainId: POLYGON_CHAIN_ID })
 
   const query = useQuery({
@@ -150,13 +152,21 @@ export function useSimulateExec(detail: SafeTxDetail | undefined, enabled: boole
         })
         return { status: 'ok' }
       } catch (err) {
-        return { status: 'revert', reason: summarizeSimulationError(err) }
+        // Distinguish an RPC/transport failure (unreachable / CSP-blocked /
+        // timeout) from a real on-chain revert — the former is not "would revert".
+        const reason = summarizeSimulationError(err)
+        return isTransportError(err) ? { status: 'error', reason } : { status: 'revert', reason }
       }
     },
   })
 
-  if (query.isLoading || query.isFetching) {
-    if (!query.data) return { status: 'loading' } as SimulateState
+  const refetch = () => {
+    void query.refetch()
   }
-  return query.data ?? ({ status: 'idle' } as SimulateState)
+  const isRefetching = query.isFetching
+
+  if (query.isLoading || query.isFetching) {
+    if (!query.data) return { status: 'loading', refetch, isRefetching }
+  }
+  return { ...(query.data ?? { status: 'idle' }), refetch, isRefetching }
 }
