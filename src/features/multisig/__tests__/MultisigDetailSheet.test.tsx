@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   detail: undefined as unknown,
   safes: undefined as unknown,
   wallet: undefined as unknown,
+  simulate: undefined as unknown,
 }))
 
 vi.mock('../hooks', () => ({
@@ -23,7 +24,7 @@ vi.mock('../walletActions', () => ({
   useMultisigWallet: () => state.wallet,
   useSignSafeTx: () => ({ signAsync: vi.fn(), isSigning: false }),
   useExecuteTransaction: () => ({ executeAsync: vi.fn(), isExecuting: false }),
-  useSimulateExec: () => ({ status: 'idle' }),
+  useSimulateExec: () => state.simulate,
 }))
 
 vi.mock('@/features/chains/hooks', () => ({ useChainConfig: () => ({ data: [] }) }))
@@ -138,6 +139,7 @@ describe('MultisigDetailSheet owner verification', () => {
     }
     setDetail()
     setSafes([])
+    state.simulate = { status: 'idle', refetch: vi.fn(), isRefetching: false }
   })
 
   describe('positive', () => {
@@ -200,6 +202,92 @@ describe('MultisigDetailSheet owner verification', () => {
       expect(screen.getByText('· ownership unknown')).toBeInTheDocument()
       expect(screen.queryByText(/verifying owner/)).not.toBeInTheDocument()
       expect(screen.getByText(/owner list is unavailable/)).toBeInTheDocument()
+    })
+  })
+})
+
+// Execute is gated by the pre-execute simulate. A transport/RPC failure must read
+// as "unavailable" (retryable), NOT a false "would revert".
+describe('MultisigDetailSheet execute simulate gate', () => {
+  const EXEC_PAYLOAD = {
+    to: '0x2702d7043693651BB8A3D2Ec1C296B20692C7426',
+    value: '0',
+    data: '0x',
+    operation: 0,
+    safeTxGas: '0',
+    baseGas: '0',
+    gasPrice: '0',
+    gasToken: '0x0000000000000000000000000000000000000000',
+    refundReceiver: '0x0000000000000000000000000000000000000000',
+    signatures: '0x',
+  }
+
+  function setExecutable() {
+    setDetail({
+      status: 'READY_TO_EXECUTE',
+      signers: [signer(OWNER, true), signer(OTHER, true)],
+      signatureProgress: { collected: 2, threshold: 2 },
+      execPayload: EXEC_PAYLOAD,
+    })
+    setSafes([safeMeta([OWNER, OTHER])])
+  }
+
+  const execBtn = () => screen.getByRole('button', { name: 'Execute' })
+
+  beforeEach(() => {
+    refetchDetail = vi.fn()
+    refetchSafes = vi.fn()
+    state.wallet = {
+      isConnected: true,
+      address: OWNER,
+      chainId: 137,
+      chainOk: true,
+      connect: vi.fn(),
+      switchToPolygon: vi.fn(),
+      isSwitching: false,
+    }
+    setExecutable()
+  })
+
+  describe('positive', () => {
+    test('simulate ok → Execute enabled', () => {
+      state.simulate = { status: 'ok', refetch: vi.fn(), isRefetching: false }
+      renderSheet()
+      expect(screen.getByText(/Simulation passed/)).toBeInTheDocument()
+      expect(execBtn()).toBeEnabled()
+    })
+  })
+
+  describe('negative', () => {
+    test('simulate revert → Execute disabled, shows "Would revert"', () => {
+      state.simulate = {
+        status: 'revert',
+        reason: 'The USDX contract is paused — unpause before this can execute.',
+        refetch: vi.fn(),
+        isRefetching: false,
+      }
+      renderSheet()
+      expect(screen.getByText(/Would revert/)).toBeInTheDocument()
+      expect(execBtn()).toBeDisabled()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('simulate error (RPC unreachable) → unavailable, not a revert, Retry refetches', () => {
+      const simRefetch = vi.fn()
+      state.simulate = {
+        status: 'error',
+        reason: 'HTTP request failed.',
+        refetch: simRefetch,
+        isRefetching: false,
+      }
+      renderSheet()
+      expect(screen.getByText(/Simulation unavailable/)).toBeInTheDocument()
+      expect(screen.queryByText(/Would revert/)).not.toBeInTheDocument()
+      expect(execBtn()).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(simRefetch).toHaveBeenCalledTimes(1)
     })
   })
 })
