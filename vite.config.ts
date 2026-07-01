@@ -6,9 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  // Dev API proxy target. Default to the stable custom domain — the ephemeral
-  // *.up.railway.app URL stopped resolving (DNS ENOTFOUND) once the Railway
-  // service moved. Override per-machine with VITE_API_PROXY_TARGET in .env.
+  // Dev API proxy target = SoT dev backend (project-overview.md § Environment:
+  // api-dev.usdx.co.id). The old ephemeral *.up.railway.app URL went stale and
+  // stopped resolving (DNS ENOTFOUND). Override per-machine with
+  // VITE_API_PROXY_TARGET in .env.
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'https://api-dev.usdx.co.id'
 
   return {
