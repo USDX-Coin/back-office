@@ -38,7 +38,7 @@ import {
   isUnknownActivity,
 } from '@/lib/multisig/status'
 import { safeTxHashMatches } from '@/lib/multisig/safeTx'
-import { resolveOwnerCheck } from '@/lib/multisig/owner'
+import { resolveOwnerCheck, resolveOwnerVerification } from '@/lib/multisig/owner'
 import type { SafeTxListItem, SafeTxSigner } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -224,7 +224,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const { user } = useAuth()
   const query = useMultisigDetail(open ? txId : null)
   const { data: chains } = useChainConfig()
-  const { data: safes } = useSafes()
+  const safesQuery = useSafes()
   const detail = query.data
 
   const wallet = useMultisigWallet()
@@ -256,14 +256,28 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const explorerAddr = (addr: string) =>
     chainCfg ? buildAddressExplorerUrl(chainCfg.blockExplorerUrl, addr) : null
 
-  const safeMeta = safes?.find(
-    (s) => s.safeAddress.toLowerCase() === (detail?.safeAddress ?? '').toLowerCase(),
-  )
+  // Match the Safe by address first, then by safeType+chain so a checksum/format
+  // quirk in safeAddress doesn't silently drop the owners fallback.
+  const safeMeta =
+    safesQuery.data?.find(
+      (s) => s.safeAddress.toLowerCase() === (detail?.safeAddress ?? '').toLowerCase(),
+    ) ??
+    safesQuery.data?.find(
+      (s) => s.safeType === detail?.safeType && s.chain === detail?.chain,
+    )
   // Owner-check is sourced from detail.signers (authoritative owner list, loaded
   // with the detail) and only falls back to safeMeta.owners (from the slow
   // live-RPC /multisig/safes) — so a slow/failed safes call can no longer
   // mislabel a valid owner "not an owner" and disable Sign (USDX-290).
   const ownerCheck = resolveOwnerCheck(wallet.address, detail?.signers, safeMeta?.owners)
+  // Split the data-only 'unknown' into a transient 'checking' vs a terminal
+  // 'unavailable'. Only the fallback's INITIAL load counts as checking — NOT a
+  // background poll — so the status doesn't flicker every 12s (useMultisigDetail
+  // polls non-terminal TXs; hooks.ts). The retry button uses isFetching locally.
+  const ownerVerification = resolveOwnerVerification(ownerCheck, {
+    sourcesLoading: safesQuery.isLoading,
+  })
+  const ownerRefetching = safesQuery.isFetching || query.isFetching
   const hashOk = detail ? safeTxHashMatches(detail) : true
   const unknownActivity = detail ? isUnknownActivity(detail.activity) : false
 
@@ -291,8 +305,9 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const signBlockedReason = (() => {
     if (!wallet.isConnected) return 'Connect a wallet to sign'
     if (!wallet.chainOk) return 'Switch to Polygon to sign'
-    if (ownerCheck === 'unknown') return 'Verifying Safe ownership…'
-    if (ownerCheck === 'not-owner') return 'Connected wallet is not an owner of this Safe'
+    if (ownerVerification === 'checking') return 'Verifying Safe ownership…'
+    if (ownerVerification === 'unavailable') return "Couldn't verify Safe ownership — retry below"
+    if (ownerVerification === 'not-owner') return 'Connected wallet is not an owner of this Safe'
     if (alreadySigned) return 'You have already signed this transaction'
     if (!hashOk) return 'SafeTx hash mismatch — signing disabled'
     if (unknownActivity && !ackUnknown) return 'Acknowledge the undecoded-calldata warning to sign'
@@ -442,12 +457,14 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 {wallet.isConnected ? (
                   <span className="font-mono text-[11.5px]">
                     {truncateMiddle(wallet.address ?? '', 6, 4)}{' '}
-                    {ownerCheck === 'owner' ? (
+                    {ownerVerification === 'owner' ? (
                       <span className="text-success">· owner</span>
-                    ) : ownerCheck === 'not-owner' ? (
+                    ) : ownerVerification === 'not-owner' ? (
                       <span className="text-warning">· not an owner</span>
-                    ) : (
+                    ) : ownerVerification === 'checking' ? (
                       <span className="text-muted-foreground">· verifying owner…</span>
+                    ) : (
+                      <span className="text-warning">· ownership unknown</span>
                     )}
                   </span>
                 ) : (
@@ -464,6 +481,24 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     disabled={wallet.isSwitching}
                   >
                     {wallet.isSwitching ? 'Switching…' : 'Switch to Polygon'}
+                  </Button>
+                </div>
+              )}
+              {wallet.isConnected && ownerVerification === 'unavailable' && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-warning">
+                    Couldn't verify Safe ownership — the owner list is unavailable.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      query.refetch()
+                      safesQuery.refetch()
+                    }}
+                    disabled={ownerRefetching}
+                  >
+                    {ownerRefetching ? 'Retrying…' : 'Retry'}
                   </Button>
                 </div>
               )}
