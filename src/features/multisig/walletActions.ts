@@ -39,8 +39,13 @@ export interface MultisigWallet {
 
 // Connection + Polygon-137 network guard.
 export function useMultisigWallet(): MultisigWallet {
-  const { address, isConnected } = useAccount()
+  const { address, status } = useAccount()
   const chainId = useChainId()
+  // Treat the wallet as connected only once the address has actually resolved.
+  // wagmi can briefly report status 'connected' before `address` is populated;
+  // an undefined address would make the owner-check read 'unknown' and strand
+  // the Sign gate at "Verifying Safe ownership…" (see owner.ts).
+  const isConnected = status === 'connected' && Boolean(address)
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
 
