@@ -38,6 +38,7 @@ import {
   isUnknownActivity,
 } from '@/lib/multisig/status'
 import { safeTxHashMatches } from '@/lib/multisig/safeTx'
+import { resolveOwnerCheck } from '@/lib/multisig/owner'
 import type { SafeTxListItem, SafeTxSigner } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -48,7 +49,6 @@ import {
   useSafes,
 } from './hooks'
 import {
-  isOwnerAddress,
   useExecuteTransaction,
   useMultisigWallet,
   useSignSafeTx,
@@ -259,8 +259,11 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const safeMeta = safes?.find(
     (s) => s.safeAddress.toLowerCase() === (detail?.safeAddress ?? '').toLowerCase(),
   )
-  const owners = safeMeta?.owners
-  const connectedIsOwner = isOwnerAddress(wallet.address, owners)
+  // Owner-check is sourced from detail.signers (authoritative owner list, loaded
+  // with the detail) and only falls back to safeMeta.owners (from the slow
+  // live-RPC /multisig/safes) — so a slow/failed safes call can no longer
+  // mislabel a valid owner "not an owner" and disable Sign (USDX-290).
+  const ownerCheck = resolveOwnerCheck(wallet.address, detail?.signers, safeMeta?.owners)
   const hashOk = detail ? safeTxHashMatches(detail) : true
   const unknownActivity = detail ? isUnknownActivity(detail.activity) : false
 
@@ -288,7 +291,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const signBlockedReason = (() => {
     if (!wallet.isConnected) return 'Connect a wallet to sign'
     if (!wallet.chainOk) return 'Switch to Polygon to sign'
-    if (!connectedIsOwner) return 'Connected wallet is not an owner of this Safe'
+    if (ownerCheck === 'unknown') return 'Verifying Safe ownership…'
+    if (ownerCheck === 'not-owner') return 'Connected wallet is not an owner of this Safe'
     if (alreadySigned) return 'You have already signed this transaction'
     if (!hashOk) return 'SafeTx hash mismatch — signing disabled'
     if (unknownActivity && !ackUnknown) return 'Acknowledge the undecoded-calldata warning to sign'
@@ -438,10 +442,12 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 {wallet.isConnected ? (
                   <span className="font-mono text-[11.5px]">
                     {truncateMiddle(wallet.address ?? '', 6, 4)}{' '}
-                    {connectedIsOwner ? (
+                    {ownerCheck === 'owner' ? (
                       <span className="text-success">· owner</span>
-                    ) : (
+                    ) : ownerCheck === 'not-owner' ? (
                       <span className="text-warning">· not an owner</span>
+                    ) : (
+                      <span className="text-muted-foreground">· verifying owner…</span>
                     )}
                   </span>
                 ) : (
