@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMatch, useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Eye, KeyRound, AlertTriangle, Plus } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
@@ -31,6 +30,7 @@ import SignatureProgressBar from './SignatureProgressBar'
 import MultisigTabs from './MultisigTabs'
 import MultisigDetailSheet from './MultisigDetailSheet'
 import ProposeModal from './ProposeModal'
+import WalletConnectButton from './WalletConnectButton'
 
 const PAGE_SIZE = 20
 
@@ -202,7 +202,7 @@ export default function MultisigListPage() {
                 Propose
               </Button>
             )}
-            <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
+            <WalletConnectButton />
           </div>
         }
       />
