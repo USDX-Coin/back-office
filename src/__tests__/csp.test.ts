@@ -57,3 +57,23 @@ describe('index.html CSP connect-src', () => {
     })
   })
 })
+
+// WalletConnect v2 loads its Verify attestation page in a hidden iframe
+// (verify.walletconnect.org). Without a frame-src the CSP falls back to
+// default-src 'self' and that iframe is blocked, degrading the connect modal.
+describe('index.html CSP frame-src', () => {
+  function frameSrc(): string {
+    const meta = html.match(
+      /http-equiv="Content-Security-Policy"\s+content="([^"]*)"/i,
+    )
+    const directive = meta?.[1]
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith('frame-src'))
+    return directive ?? ''
+  }
+
+  test('allowlists the WalletConnect frame origin', () => {
+    expect(frameSrc()).toMatch(/walletconnect\.org/)
+  })
+})

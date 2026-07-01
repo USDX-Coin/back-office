@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useMatch, useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Eye, KeyRound, AlertTriangle, Plus } from 'lucide-react'
@@ -50,7 +50,10 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
 
 export default function MultisigListPage() {
   const navigate = useNavigate()
-  const { id: activeId } = useParams<{ id?: string }>()
+  // Route is a /multisig/* splat (App.tsx) so the wallet provider doesn't
+  // remount when the drawer opens; useMatch still resolves the :id from the URL
+  // — present when the detail drawer is open, undefined on the bare list.
+  const activeId = useMatch('/multisig/:id')?.params.id
   const { user } = useAuth()
 
   // USDX-280 — propose governance op. Admin-only (BE gates propose at admin).
