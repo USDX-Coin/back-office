@@ -95,13 +95,15 @@ describe('resolveOwnerVerification', () => {
     })
   })
 
-  describe('edge cases', () => {
-    test('unknown + a source still loading → checking (transient)', () => {
-      expect(resolveOwnerVerification('unknown', { sourcesLoading: true })).toBe('checking')
-    })
-
+  describe('negative', () => {
     test('unknown + all sources settled → unavailable (terminal, not a hang)', () => {
       expect(resolveOwnerVerification('unknown', { sourcesLoading: false })).toBe('unavailable')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('unknown + a source still loading → checking (transient, not unavailable)', () => {
+      expect(resolveOwnerVerification('unknown', { sourcesLoading: true })).toBe('checking')
     })
   })
 })

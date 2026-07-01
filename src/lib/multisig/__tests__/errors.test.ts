@@ -111,6 +111,14 @@ describe('isTransportError', () => {
       expect(isTransportError(new Error('execution reverted'))).toBe(false)
     })
   })
+
+  describe('edge cases', () => {
+    test('non-Error throwables → NOT transport (no false positive)', () => {
+      expect(isTransportError(null)).toBe(false)
+      expect(isTransportError(undefined)).toBe(false)
+      expect(isTransportError('HTTP request failed')).toBe(false) // a bare string, not an Error
+    })
+  })
 })
 
 describe('summarizeSimulationError', () => {
