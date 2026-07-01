@@ -12,7 +12,9 @@
 
 import {
   BaseError,
+  HttpRequestError,
   RawContractError,
+  TimeoutError,
   decodeErrorResult,
   type Abi,
   type Hex,
@@ -169,6 +171,21 @@ export function extractRevertData(error: unknown): Hex | null {
     }
   }
   return null
+}
+
+// True when a simulate call failed at the transport/RPC layer — the RPC is
+// unreachable / CSP-blocked / timed out / rate-limited — rather than the tx
+// reverting on-chain. These MUST NOT be shown as "would revert": the outcome is
+// unknown, not doomed. A CSP-blocked eth_call surfaces here as viem's
+// HttpRequestError ("HTTP request failed") or a bare fetch TypeError.
+export function isTransportError(error: unknown): boolean {
+  // A genuine on-chain revert carries decodable revert data — never transport.
+  if (extractRevertData(error)) return false
+  if (error instanceof BaseError && error.walk((e) => e instanceof HttpRequestError || e instanceof TimeoutError)) {
+    return true
+  }
+  const message = error instanceof Error ? error.message : ''
+  return /failed to fetch|networkerror|load failed|http request failed|fetch failed/i.test(message)
 }
 
 // One-call helper for the simulate guard: turn a thrown simulate error into a

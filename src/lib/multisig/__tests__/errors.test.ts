@@ -1,8 +1,9 @@
 import { describe, test, expect } from 'vitest'
-import { BaseError, RawContractError, encodeErrorResult } from 'viem'
+import { BaseError, HttpRequestError, RawContractError, encodeErrorResult } from 'viem'
 import {
   decodeRevertData,
   extractRevertData,
+  isTransportError,
   summarizeSimulationError,
   USDX_REVERT_ABI,
 } from '../errors'
@@ -82,6 +83,40 @@ describe('extractRevertData', () => {
   describe('negative', () => {
     test('returns null for a plain error with no revert data', () => {
       expect(extractRevertData(new Error('boom'))).toBeNull()
+    })
+  })
+})
+
+describe('isTransportError', () => {
+  describe('positive', () => {
+    test('viem HttpRequestError → transport', () => {
+      expect(isTransportError(new HttpRequestError({ url: 'http://localhost:8545' }))).toBe(true)
+    })
+
+    test('CSP-blocked / offline fetch failures (by message) → transport', () => {
+      expect(isTransportError(new Error('HTTP request failed'))).toBe(true)
+      expect(isTransportError(new Error('Failed to fetch'))).toBe(true)
+      expect(isTransportError(new Error('Load failed'))).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('an on-chain revert (has revert data) → NOT transport', () => {
+      const data = encodeErrorResult({ abi: USDX_REVERT_ABI, errorName: 'ZeroAmount' })
+      const err = new BaseError('execution reverted', { cause: new RawContractError({ data }) })
+      expect(isTransportError(err)).toBe(false)
+    })
+
+    test('a plain revert message with no transport signal → NOT transport', () => {
+      expect(isTransportError(new Error('execution reverted'))).toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('non-Error throwables → NOT transport (no false positive)', () => {
+      expect(isTransportError(null)).toBe(false)
+      expect(isTransportError(undefined)).toBe(false)
+      expect(isTransportError('HTTP request failed')).toBe(false) // a bare string, not an Error
     })
   })
 })
