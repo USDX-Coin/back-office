@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { resolveOwnerCheck } from '../owner'
+import { isOwnerAddress, resolveOwnerCheck } from '../owner'
 import type { SafeTxSigner } from '@/lib/types'
 
 const OWNER = '0x444444840C416D1e7765de855c9100B0A31184d7'
@@ -8,6 +8,30 @@ const OTHER = '0x1111111111111111111111111111111111111111'
 function signer(address: string): SafeTxSigner {
   return { address, staffName: null, isBackend: false, signed: false, signedAt: null }
 }
+
+describe('isOwnerAddress', () => {
+  describe('positive', () => {
+    test('matches regardless of checksum casing', () => {
+      expect(isOwnerAddress(OWNER, [OWNER, OTHER])).toBe(true)
+      expect(isOwnerAddress(OWNER.toLowerCase(), [OWNER])).toBe(true)
+      expect(isOwnerAddress(OWNER, [OWNER.toLowerCase()])).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('address not in owners → false', () => {
+      expect(isOwnerAddress(OTHER, [OWNER])).toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('missing address or owners → false', () => {
+      expect(isOwnerAddress(undefined, [OWNER])).toBe(false)
+      expect(isOwnerAddress(OWNER, undefined)).toBe(false)
+      expect(isOwnerAddress(OWNER, [])).toBe(false)
+    })
+  })
+})
 
 describe('resolveOwnerCheck', () => {
   describe('positive', () => {

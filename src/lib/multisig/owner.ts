@@ -12,15 +12,20 @@
 
 import type { SafeTxSigner } from '@/lib/types'
 
+// Case-insensitive owner membership (addresses may differ in checksum casing).
+export function isOwnerAddress(
+  address: string | undefined,
+  owners: string[] | undefined,
+): boolean {
+  if (!address || !owners?.length) return false
+  const a = address.toLowerCase()
+  return owners.some((o) => o.toLowerCase() === a)
+}
+
 // Tri-state so the UI can distinguish "owner data not loaded yet" from a
 // confirmed non-owner, and never claim "not an owner" prematurely (a valid
 // owner briefly shown "not an owner" would have Sign disabled).
 export type OwnerCheck = 'owner' | 'not-owner' | 'unknown'
-
-// Case-insensitive membership (addresses may differ in checksum casing).
-function includesAddress(list: readonly string[], lowerAddress: string): boolean {
-  return list.some((a) => a.toLowerCase() === lowerAddress)
-}
 
 /**
  * Resolve whether `address` owns the Safe, preferring `detail.signers` (the
@@ -36,13 +41,12 @@ export function resolveOwnerCheck(
   fallbackOwners?: string[] | undefined,
 ): OwnerCheck {
   if (!address) return 'unknown'
-  const a = address.toLowerCase()
 
   // Primary + authoritative: the owner list carried by the SafeTx detail.
   if (signers && signers.length > 0) {
-    return includesAddress(
+    return isOwnerAddress(
+      address,
       signers.map((s) => s.address),
-      a,
     )
       ? 'owner'
       : 'not-owner'
@@ -50,7 +54,7 @@ export function resolveOwnerCheck(
 
   // Fallback: /multisig/safes owners — used only when detail signers are absent.
   if (fallbackOwners && fallbackOwners.length > 0) {
-    return includesAddress(fallbackOwners, a) ? 'owner' : 'not-owner'
+    return isOwnerAddress(address, fallbackOwners) ? 'owner' : 'not-owner'
   }
 
   // No authoritative source yet → don't claim "not an owner".

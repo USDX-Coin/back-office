@@ -24,15 +24,8 @@ import {
 import { summarizeSimulationError } from '@/lib/multisig/errors'
 import type { SafeTxDetail } from '@/lib/types'
 
-// Case-insensitive owner membership (addresses may differ in checksum casing).
-export function isOwnerAddress(
-  address: string | undefined,
-  owners: string[] | undefined,
-): boolean {
-  if (!address || !owners?.length) return false
-  const a = address.toLowerCase()
-  return owners.some((o) => o.toLowerCase() === a)
-}
+// Owner-membership + owner-check helpers moved to src/lib/multisig/owner.ts
+// (pure, unit-tested). See isOwnerAddress / resolveOwnerCheck there (USDX-290).
 
 export interface MultisigWallet {
   isConnected: boolean
