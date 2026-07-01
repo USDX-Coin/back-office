@@ -164,8 +164,15 @@ const router = createBrowserRouter([
                   </Suspense>
                 ),
                 children: [
-                  { path: '/multisig', element: <MultisigRoute /> },
-                  { path: '/multisig/:id', element: <MultisigRoute /> },
+                  // One splat route for both /multisig and /multisig/:id so
+                  // MultisigRoute (and the wagmi/RainbowKit WalletProviders it
+                  // hosts) mounts ONCE and survives opening the detail drawer.
+                  // Two separate routes remounted the provider on navigate, and
+                  // because reconnectOnMount is off (WalletProviders.tsx) the
+                  // fresh mount reset to disconnected — the detail view then
+                  // showed "Connect Wallet" again mid-session. MultisigListPage
+                  // reads the :id via useMatch to open the drawer from URL state.
+                  { path: '/multisig/*', element: <MultisigRoute /> },
                 ],
               },
             ],

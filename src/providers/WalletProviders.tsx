@@ -43,11 +43,15 @@ const theme = lightTheme({
 })
 
 export default function WalletProviders({ children }: { children: ReactNode }) {
-  // reconnectOnMount={false}: the Multisig page starts with a "Connect Wallet"
-  // button every load; the wallet is only read after the operator connects in
-  // flow (no global persistent connection in the back-office).
+  // reconnectOnMount left at its default (true): restore the wallet from the
+  // browser session on a fresh load / refresh / deep-link to /multisig/:id so
+  // operators don't re-connect on every page load. Signing still prompts the
+  // wallet per action, so auto-reconnect grants no silent capability. (Was
+  // explicitly false, which reset the connection on every mount — that also
+  // dropped it mid-session on list→detail; the route is now a stable
+  // /multisig/* splat, see App.tsx.)
   return (
-    <WagmiProvider config={config} reconnectOnMount={false}>
+    <WagmiProvider config={config}>
       <RainbowKitProvider theme={theme} modalSize="compact">
         {children}
       </RainbowKitProvider>
