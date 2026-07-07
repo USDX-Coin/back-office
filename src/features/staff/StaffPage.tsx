@@ -9,9 +9,13 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import StaffModal from './StaffModal'
 import StaffDeactivateDialog from './StaffDeactivateDialog'
-import StaffFilterToolbar, {
-  type StaffFilterValues,
-} from './StaffFilterToolbar'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import {
+  STAFF_FILTER_DEFS,
+  STAFF_SORT_COLUMNS,
+  STAFF_COLUMN_CONFIG,
+} from './filterDefs'
 import { useStaff } from './hooks'
 import { canManageStaff, useAuth } from '@/lib/auth'
 import type { Staff, StaffRole } from '@/lib/types'
@@ -41,12 +45,16 @@ export default function StaffPage() {
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
   const role = (params.searchParams.get('role') ?? '') as StaffRole | ''
-  const activeFilter = (params.searchParams.get('active') ?? 'all') as
-    | 'all'
+  // USDX-27: active is now a select filter (URL: 'active' | 'inactive' | empty=all)
+  // matching the FilterDef in filterDefs.ts.
+  const activeFilter = (params.searchParams.get('active') ?? '') as
+    | ''
     | 'active'
     | 'inactive'
   const sortBy = params.sortBy
   const sortOrder = params.sortOrder
+  const filterValues = { role, active: activeFilter }
+  const [colVisibility, setColVisibility] = useColumnVisibility('staff', STAFF_COLUMN_CONFIG)
 
   const list = useStaff({ page: 1, limit: FETCH_LIMIT })
   const allStaff = useMemo<Staff[]>(() => list.data?.data ?? [], [list.data])
@@ -73,15 +81,6 @@ export default function StaffPage() {
     setDeactivateOpen(true)
   }
 
-  function handleFilterChange(next: StaffFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      role: next.role || null,
-      active: next.active === 'all' ? null : next.active,
-      page: '1',
-    })
-  }
-
   // Client-side filter pipeline (search → role → active → sort → paginate).
   const filtered = useMemo(() => {
     let rows = allStaff
@@ -94,7 +93,7 @@ export default function StaffPage() {
       )
     }
     if (role) rows = rows.filter((s) => s.role === role)
-    if (activeFilter !== 'all') {
+    if (activeFilter) {
       const want = activeFilter === 'active'
       rows = rows.filter((s) => s.isActive === want)
     }
@@ -263,15 +262,47 @@ export default function StaffPage() {
         data={pageRows}
         rowCount={totalFiltered}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <StaffFilterToolbar
-            values={{ search, role, active: activeFilter }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search by name or email',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
+            }}
+            sort={{
+              columns: STAFF_SORT_COLUMNS,
+              sortBy,
+              sortOrder: (sortOrder ?? '') as 'asc' | 'desc' | '',
+              onChange: (nextBy, nextOrder) =>
+                params.updateParams({
+                  sortBy: nextBy || null,
+                  sortOrder: nextOrder || null,
+                  page: '1',
+                }),
+            }}
+            filter={{
+              defs: STAFF_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  role: next.role || null,
+                  active: next.active || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: STAFF_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
-        hasFilters={Boolean(search || role || activeFilter !== 'all')}
+        hasFilters={Boolean(search || role || activeFilter)}
         emptyState={noDataState}
       />
 

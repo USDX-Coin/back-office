@@ -26,12 +26,18 @@ export function configureApiFetch(next: AuthBindings) {
 export class ApiError extends Error {
   status: number
   code: string
+  // `details` carries error-specific structured payload as defined by SoT
+  // per-endpoint (e.g. `SAFE_QUEUE_OCCUPIED` returns `{ safeType, blockingRequestId }`
+  // — sot/api/mint.yaml L36-53, sot/api/burn.yaml L36-53). Typed as `unknown`
+  // because the shape varies per `code`; callers narrow at the call site.
+  details: unknown
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, details: unknown = undefined) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -41,12 +47,13 @@ interface SoTSuccessEnvelope<T> {
   data: T
 }
 
-// sot/openapi.yaml § ErrorResponse defines `error: { code, message }` only.
-// We intentionally don't model a `details` field — adding one would invite
-// callers to depend on a shape the contract doesn't promise.
+// sot/openapi.yaml § ErrorResponse. `details` is per-error-code structured
+// data; SoT introduced it for `409 SAFE_QUEUE_OCCUPIED` (mint.yaml, burn.yaml)
+// and may extend to other codes in the future. Kept as `unknown` here so this
+// module stays code-agnostic.
 interface SoTErrorEnvelope {
   status?: 'error'
-  error?: { code?: string; message?: string }
+  error?: { code?: string; message?: string; details?: unknown }
 }
 
 export interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
@@ -92,7 +99,8 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed'
+      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.details
     )
   }
 
@@ -142,9 +150,80 @@ export async function apiFetchRaw<TEnvelope>(
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed'
+      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.details
     )
   }
 
   return payload as TEnvelope
+}
+
+// Variant of apiFetch for file downloads (CSV reports per sot/api/reporting.yaml).
+// Returns the raw Blob + filename parsed from `Content-Disposition`. Errors are
+// still routed through ApiError; on 401 the unauthorized callback fires so the
+// session clears like with the JSON variants.
+export interface BlobResponse {
+  blob: Blob
+  filename: string | null
+}
+
+// RFC 6266 §4.1 — supports both `filename=...` and the RFC 5987 `filename*=UTF-8''...`
+// form. We try the extended form first because spec'd UTF-8 filenames live there.
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null
+  const ext = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header)
+  if (ext?.[1]) {
+    try {
+      return decodeURIComponent(ext[1].trim())
+    } catch {
+      // fall through to the plain form
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)
+  return plain?.[1]?.trim() ?? null
+}
+
+export async function apiFetchBlob(
+  path: string,
+  options: ApiFetchOptions = {}
+): Promise<BlobResponse> {
+  const { body, headers, skipAuth, ...rest } = options
+  const finalHeaders = new Headers(headers)
+  if (body !== undefined && !finalHeaders.has('Content-Type')) {
+    finalHeaders.set('Content-Type', 'application/json')
+  }
+  if (!skipAuth) {
+    const token = bindings.getToken()
+    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(`${env.apiUrl}${path}`, {
+    ...rest,
+    headers: finalHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  if (response.status === 401) bindings.onUnauthorized()
+
+  if (!response.ok) {
+    // Error responses still follow SoT ErrorResponse JSON shape — try to parse.
+    let payload: unknown = null
+    try {
+      payload = await response.json()
+    } catch {
+      // non-JSON error body — stay generic
+    }
+    const err = (payload ?? {}) as SoTErrorEnvelope
+    throw new ApiError(
+      response.status,
+      err.error?.code ?? 'UNKNOWN',
+      err.error?.message ?? response.statusText ?? 'Request failed'
+    )
+  }
+
+  const blob = await response.blob()
+  const filename = parseContentDispositionFilename(
+    response.headers.get('Content-Disposition')
+  )
+  return { blob, filename }
 }

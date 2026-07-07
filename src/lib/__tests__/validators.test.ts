@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
+  validateOptionalIdPhone,
   validateLoginForm,
   validatePhone,
   validateWalletAddress,
@@ -12,6 +13,9 @@ import {
   validateSpreadPct,
   validateRateUpdateForm,
   isManualRateUnusual,
+  validateFeeConfigForm,
+  validatePgFeeVaFlat,
+  validateDisbursementFeeFlat,
   TX_HASH_RE,
 } from '@/lib/validators'
 
@@ -596,32 +600,41 @@ describe('validateSpreadPct', () => {
 
 describe('validateRateUpdateForm', () => {
   describe('positive', () => {
-    test('MANUAL with valid rate passes', () => {
-      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '16250', spreadPct: '0.5' })
+    test('MANUAL with valid rate + both spreads passes', () => {
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '16250', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(true)
     })
     test('DYNAMIC ignores manualRate (even if blank)', () => {
-      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(true)
       expect(r.errors.manualRate).toBeUndefined()
+    })
+    test('blank spreads are allowed (optional, default 0)', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '', spreadSellPct: '' })
+      expect(r.valid).toBe(true)
     })
   })
 
   describe('negative', () => {
     test('MANUAL without rate fails', () => {
-      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
       expect(r.errors.manualRate).toBe('Manual rate is required')
     })
     test('missing mode fails', () => {
-      const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadPct: '0.5' })
+      const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
       expect(r.errors.mode).toBe('Mode is required')
     })
-    test('out-of-range spread fails for DYNAMIC mode too', () => {
-      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadPct: '99' })
+    test('out-of-range spread beli fails for DYNAMIC mode too', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '99', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
-      expect(r.errors.spreadPct).toBeDefined()
+      expect(r.errors.spreadBuyPct).toBeDefined()
+    })
+    test('out-of-range spread jual fails independently', () => {
+      const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.spreadSellPct).toBeDefined()
     })
   })
 })
@@ -639,5 +652,122 @@ describe('isManualRateUnusual', () => {
   test('does not flag empty / invalid input (validator owns that)', () => {
     expect(isManualRateUnusual('')).toBe(false)
     expect(isManualRateUnusual('abc')).toBe(false)
+  })
+})
+
+// USDX-156 — optional Indonesian phone at admin-create (users.yaml § CreateUser.phone)
+describe('validateOptionalIdPhone', () => {
+  describe('positive', () => {
+    test('should accept empty (field is optional)', () => {
+      expect(validateOptionalIdPhone('')).toBeNull()
+      expect(validateOptionalIdPhone('   ')).toBeNull()
+    })
+    test('should accept +62 format', () => {
+      expect(validateOptionalIdPhone('+628123456789')).toBeNull()
+    })
+    test('should accept 08 format', () => {
+      expect(validateOptionalIdPhone('081234567890')).toBeNull()
+    })
+    test('should tolerate spaces and dashes', () => {
+      expect(validateOptionalIdPhone('+62 812-3456-789')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('should reject non-Indonesian prefixes', () => {
+      expect(validateOptionalIdPhone('+11234567890')).toMatch(/\+62xxx or 08xxx/)
+      expect(validateOptionalIdPhone('628123456789')).toMatch(/\+62xxx or 08xxx/)
+    })
+    test('should reject letters', () => {
+      expect(validateOptionalIdPhone('+62abc')).toMatch(/\+62xxx or 08xxx/)
+    })
+  })
+  describe('edge cases', () => {
+    test('should reject too-short and too-long numbers', () => {
+      expect(validateOptionalIdPhone('+62812')).not.toBeNull()
+      expect(validateOptionalIdPhone('+62' + '8'.repeat(14))).not.toBeNull()
+    })
+  })
+})
+
+// USDX-207 + USDX-245 — fee config form (sot/api/fee.yaml § UpdateFeeConfig).
+// Full 5-field snapshot: mint fee %, PG VA flat, PG QRIS %, redeem fee %,
+// disbursement fee flat.
+describe('validateFeeConfigForm', () => {
+  const ok = {
+    mintFeePct: '1.0',
+    pgFeeVaFlat: '4000.00',
+    pgFeeQrisPct: '0.7',
+    redeemFeePct: '1.0',
+    disbursementFeeFlat: '5000.00',
+  }
+
+  describe('positive', () => {
+    test('all 5 valid fields pass', () => {
+      expect(validateFeeConfigForm(ok).valid).toBe(true)
+    })
+    test('zero fees are allowed', () => {
+      expect(
+        validateFeeConfigForm({
+          mintFeePct: '0',
+          pgFeeVaFlat: '0',
+          pgFeeQrisPct: '0',
+          redeemFeePct: '0',
+          disbursementFeeFlat: '0',
+        }).valid,
+      ).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('missing mint fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, mintFeePct: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.mintFeePct).toBeDefined()
+    })
+    test('negative VA flat fails', () => {
+      const r = validateFeeConfigForm({ ...ok, pgFeeVaFlat: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.pgFeeVaFlat).toBeDefined()
+    })
+    test('out-of-range QRIS % fails', () => {
+      const r = validateFeeConfigForm({ ...ok, pgFeeQrisPct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.pgFeeQrisPct).toBeDefined()
+    })
+    test('missing redeem fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, redeemFeePct: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.redeemFeePct).toBeDefined()
+    })
+    test('out-of-range redeem fee % fails', () => {
+      const r = validateFeeConfigForm({ ...ok, redeemFeePct: '99' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.redeemFeePct).toBeDefined()
+    })
+    test('missing disbursement fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, disbursementFeeFlat: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.disbursementFeeFlat).toBeDefined()
+    })
+    test('negative disbursement fee fails', () => {
+      const r = validateFeeConfigForm({ ...ok, disbursementFeeFlat: '-1' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.disbursementFeeFlat).toBeDefined()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('VA flat rejects non-numeric', () => {
+      expect(validatePgFeeVaFlat('abc')).not.toBeNull()
+    })
+    test('VA flat accepts a large-but-valid flat amount', () => {
+      expect(validatePgFeeVaFlat('4500.50')).toBeNull()
+    })
+    test('disbursement flat rejects non-numeric', () => {
+      expect(validateDisbursementFeeFlat('abc')).not.toBeNull()
+    })
+    test('disbursement flat accepts a valid flat amount', () => {
+      expect(validateDisbursementFeeFlat('5000.00')).toBeNull()
+    })
   })
 })

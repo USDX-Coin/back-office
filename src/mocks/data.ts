@@ -4,6 +4,9 @@ import type {
   CustomerRole,
   CustomerType,
   EntityType,
+  KycDetail,
+  KycListItem,
+  KycReviewLog,
   KycStatus,
   Staff,
   OtcMintTransaction,
@@ -16,8 +19,10 @@ import type {
   StaffSummary,
   RateConfig,
   RateInfo,
+  FeeConfig,
   UserAnalytics,
   UserWallet,
+  ChainConfig,
   RequestChain,
   RequestDetail,
   RequestListItem,
@@ -30,6 +35,14 @@ import type {
   BurnRequestStatus,
   PhaseOneUser,
   PhaseOneUserWallet,
+  OrderListItem,
+  OrderDetail,
+  MintPaymentStatus,
+  MintSafeStatus,
+  MintOrderStatus,
+  RedeemStatus,
+  PaymentChannel,
+  VaBank,
 } from '@/lib/types'
 
 // Pseudo-random but deterministic seeded helpers
@@ -343,7 +356,9 @@ export function createRateConfig(overrides: Partial<RateConfig> = {}): RateConfi
     id: nextRateId(),
     mode: 'DYNAMIC',
     manualRate: null,
-    spreadPct: '0.5',
+    // USDX-207: spread directional — beli (mint) + jual (burn/redeem).
+    spreadBuyPct: '0.5',
+    spreadSellPct: '0.4',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -356,7 +371,8 @@ export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
     createRateConfig({
       mode: 'DYNAMIC',
       manualRate: null,
-      spreadPct: '0.5',
+      spreadBuyPct: '0.5',
+      spreadSellPct: '0.4',
       updatedBy: seedStaffId,
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
@@ -373,24 +389,65 @@ export function computeRateInfo(history: RateConfig[]): RateInfo {
   const latest = history[history.length - 1]
   if (!latest) {
     return {
-      rate: '0.00',
+      baseRate: '0.00',
       mode: 'DYNAMIC',
-      spreadPct: '0',
+      spreadBuyPct: '0',
+      spreadSellPct: '0',
+      effectiveBuyRate: '0.00',
+      effectiveSellRate: '0.00',
       updatedAt: new Date().toISOString(),
     }
   }
-  const spread = Number(latest.spreadPct) || 0
+  const buy = Number(latest.spreadBuyPct) || 0
+  const sell = Number(latest.spreadSellPct) || 0
   const base =
     latest.mode === 'MANUAL' && latest.manualRate
       ? Number(latest.manualRate)
       : MOCK_DYNAMIC_BASE_RATE
-  const effective = base * (1 + spread / 100)
   return {
-    rate: effective.toFixed(2),
+    baseRate: base.toFixed(2),
     mode: latest.mode,
-    spreadPct: latest.spreadPct,
+    spreadBuyPct: latest.spreadBuyPct,
+    spreadSellPct: latest.spreadSellPct,
+    // Beli: base × (1 + buy/100); Jual: base × (1 − sell/100).
+    effectiveBuyRate: (base * (1 + buy / 100)).toFixed(2),
+    effectiveSellRate: (base * (1 - sell / 100)).toFixed(2),
     updatedAt: latest.createdAt,
   }
+}
+
+// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ────────────
+// Append-only, admin-set. Latest row = active config. Seed mirrors the W2
+// reference tariffs (mint fee 1%, PG VA Rp4.000 flat, PG QRIS 0.7%).
+
+let feeIdCounter = 1
+function nextFeeId(): string {
+  return `fee-${(feeIdCounter++).toString().padStart(4, '0')}`
+}
+
+export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
+  return {
+    id: nextFeeId(),
+    mintFeePct: '1.0',
+    pgFeeVaFlat: '4000.00',
+    pgFeeQrisPct: '0.7',
+    // Redeem fees (W3, USDX-245) — seeded so redeem orders compute; admin-set.
+    redeemFeePct: '1.0',
+    disbursementFeeFlat: '5000.00',
+    updatedBy: 'seed',
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
+  feeIdCounter = 1
+  return [
+    createFeeConfig({
+      updatedBy: seedStaffId,
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+    }),
+  ]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -511,7 +568,9 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     safeType,
     status,
     safeTxHash,
+    onChainTxHash,
     createdBy: opts.createdBy.id,
+    createdByName: opts.createdBy.name,
     createdAt,
   }
 
@@ -531,6 +590,7 @@ function createRequestPair(opts: CreateRequestOpts, seed: number): {
     safeTxHash,
     onChainTxHash,
     createdBy: opts.createdBy.id,
+    createdByName: opts.createdBy.name,
     createdAt,
     updatedAt,
   } satisfies Omit<MintRequestDetail | BurnRequestDetail, 'type' | 'status' | 'depositTxHash' | 'bankName' | 'bankAccount'>
@@ -604,7 +664,9 @@ export function createMintFromRequest(
     safeType,
     status: 'PENDING_APPROVAL',
     safeTxHash,
+    onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
   }
   const detail: MintRequestDetail = {
@@ -625,6 +687,7 @@ export function createMintFromRequest(
     safeTxHash,
     onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
     updatedAt: createdAt,
   }
@@ -676,18 +739,42 @@ export function customerToPhaseOneUser(customer: Customer, seed: number): PhaseO
           createdAt: customer.createdAt,
         },
       ]
+  // USDX-156 activation seed: ~1/3 pending (emailVerifiedAt null), of which
+  // every 6th has a failed activation email; the rest are activated.
+  const pendingActivation = seed % 3 === 0
   return {
     id: customer.id,
     name: fullName,
     email: customer.email,
+    phone: seed % 2 === 0 ? `+628${seededBankAccount(seed + 27000).slice(0, 9)}` : null,
     entityType: deriveEntityType(seed),
     kycStatus: deriveKycStatus(seed),
     suspended: deriveSuspended(seed),
+    emailVerifiedAt: pendingActivation ? null : customer.createdAt,
+    activationEmailFailedAt:
+      pendingActivation && seed % 6 === 0 ? customer.createdAt : null,
     notes: customer.organization ?? null,
     wallets,
     createdAt: customer.createdAt,
     updatedAt: customer.createdAt,
   }
+}
+
+// sot/api/chains.yaml § ChainConfig — mock for GET /api/v1/chains. Dev + prod
+// run on Polygon mainnet, so the mock mirrors that (chainId 137 / polygonscan).
+// Addresses are deterministic placeholders — checksum is not validated FE-side.
+export function createMockChainConfigs(): ChainConfig[] {
+  return [
+    {
+      chain: 'polygon',
+      chainId: 137,
+      name: 'Polygon',
+      blockExplorerUrl: 'https://polygonscan.com',
+      staffSafeAddress: bytes20(910001),
+      managerSafeAddress: bytes20(910002),
+      usdxAddress: bytes20(910003),
+    },
+  ]
 }
 
 export function createMockRequests(
@@ -705,6 +792,343 @@ export function createMockRequests(
     const user = customers[i % customers.length]!
     const createdBy = staff[i % staff.length]!
     const pair = createRequestPair({ type, user, createdBy }, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  return { list, details }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 W2 — Consumer mint orders (backoffice "User Transaction", USDX-206).
+// sot/api/orders.yaml + sot/phase-2/week2.md § Backoffice — User Transaction +
+// § Fee & Spread. Read-only mock; Week 2 is mint-only (type=MINT), redeem W3.
+// Distinct from the Phase-1 `requests` store above (different table/lifecycle).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORDER_BASE_RATE = '16200.00'
+const ORDER_SPREAD_BUY_PCT = '0.50'
+const ORDER_SPREAD_SELL_PCT = '0.40'
+const ORDER_MINT_FEE_PCT = '0.30'
+const ORDER_USDX_AMOUNTS = [50, 120.5, 250, 500.75, 1_000, 2_500, 5_000, 10_000]
+const ORDER_VA_BANKS: VaBank[] = ['BCA', 'BNI', 'MANDIRI', 'BRI', 'CIMB']
+
+// Redeem (W3, USDX-245) — fee snapshot + bank codes for the redeem detail.
+const ORDER_REDEEM_FEE_PCT = '1.00'
+const ORDER_DISBURSEMENT_FEE_FLAT = '5000.00'
+const ORDER_BANK_CODES = ['BCA', 'MANDIRI', 'BNI', 'BRI', 'CIMB']
+// Static bank_code → display name reference (mirrors BE resolve; USDX-270).
+const ORDER_BANK_NAMES: Record<string, string> = {
+  BCA: 'BCA',
+  MANDIRI: 'Mandiri',
+  BNI: 'BNI',
+  BRI: 'BRI',
+  CIMB: 'CIMB Niaga',
+}
+
+// Coherent (payment_status, safe_status, status) tuples spanning the lifecycle
+// so the list has data for every filter value (sot/api/common.yaml § statuses;
+// week2.md § Lifecycle: NONE→PENDING_APPROVAL→APPROVED→EXECUTED).
+interface OrderLifecycleState {
+  paymentStatus: MintPaymentStatus
+  safeStatus: MintSafeStatus
+  status: MintOrderStatus
+}
+const ORDER_STATES: OrderLifecycleState[] = [
+  { paymentStatus: 'REQUESTED', safeStatus: 'NONE', status: 'WAITING_FOR_PAYMENT' },
+  { paymentStatus: 'WAITING_FOR_PAYMENT', safeStatus: 'NONE', status: 'WAITING_FOR_PAYMENT' },
+  { paymentStatus: 'PAID', safeStatus: 'PENDING_APPROVAL', status: 'WAITING_FOR_APPROVAL' },
+  { paymentStatus: 'PAID', safeStatus: 'APPROVED', status: 'WAITING_FOR_APPROVAL' },
+  { paymentStatus: 'PAID', safeStatus: 'EXECUTED', status: 'COMPLETED' },
+  { paymentStatus: 'PAID', safeStatus: 'EXECUTED', status: 'COMPLETED' },
+  { paymentStatus: 'EXPIRED', safeStatus: 'NONE', status: 'FAILED' },
+  { paymentStatus: 'PAID', safeStatus: 'REJECTED', status: 'FAILED' },
+]
+
+// IDR decimal string with 2 places (matches the "Rp …,00" display convention).
+function idrDecimal(n: number): string {
+  return n.toFixed(2)
+}
+
+function createOrderPair(
+  user: Customer,
+  seed: number,
+): { list: OrderListItem; detail: OrderDetail } {
+  const id = uuidLike(seed + 30_000)
+  const idempotencyKey = `mint_${seededHex(20, seed + 31_000)}`
+  const userAddress = bytes20(seed + 32_000)
+  const amountNum = ORDER_USDX_AMOUNTS[seed % ORDER_USDX_AMOUNTS.length]!
+  const amount = amountNum.toFixed(2)
+  const state = ORDER_STATES[seed % ORDER_STATES.length]!
+  const createdAt = pastDateRecent(seed % 45)
+  // MINT_ORDER_TTL abandon window (week2.md step 7 — NOW() + TTL). 1h here.
+  const expiresAt = new Date(new Date(createdAt).getTime() + 60 * 60 * 1000).toISOString()
+  const safeType: SafeType = SAFE_TYPES[seed % SAFE_TYPES.length]!
+
+  // Exchange rate + spread (week2.md § Fee & Spread).
+  const baseRateNum = Number(ORDER_BASE_RATE)
+  const spreadBuyNum = Number(ORDER_SPREAD_BUY_PCT)
+  const effectiveRateNum = baseRateNum * (1 + spreadBuyNum / 100)
+  const subtotalNum = amountNum * effectiveRateNum
+
+  // Mint fee = % of nominal (subtotal), admin-set (fee_configs).
+  const mintFeeNum = (subtotalNum * Number(ORDER_MINT_FEE_PCT)) / 100
+  // Estimated revenue = spread_revenue + mint_fee (PG fee pass-through, not
+  // subtracted — week2.md § Estimated revenue 2026-06-16).
+  const spreadRevenueNum = (amountNum * baseRateNum * spreadBuyNum) / 100
+  const estimatedRevenueIdr = idrDecimal(spreadRevenueNum + mintFeeNum)
+
+  // Payment channel is chosen once the order leaves REQUESTED (the abandon
+  // window before a method is selected). Before that, PG fee / totals are null.
+  const hasChannel = state.paymentStatus !== 'REQUESTED'
+  const isQris = seed % 2 === 0
+  const paymentChannel: PaymentChannel | null = hasChannel ? (isQris ? 'QRIS' : 'VA') : null
+  const paymentBank: VaBank | null =
+    hasChannel && !isQris ? ORDER_VA_BANKS[seed % ORDER_VA_BANKS.length]! : null
+  // PG fee reference tariff (week2.md § Fee — VA flat, QRIS % of subtotal).
+  const pgFeeNum = !hasChannel ? null : isQris ? Math.round(subtotalNum * 0.007 * 100) / 100 : 4_440
+  const pgFeeIdr = pgFeeNum === null ? null : idrDecimal(pgFeeNum)
+  const totalFeeIdr = pgFeeNum === null ? null : idrDecimal(mintFeeNum + pgFeeNum)
+  const totalPayIdr = pgFeeNum === null ? null : idrDecimal(subtotalNum + mintFeeNum + pgFeeNum)
+
+  const paidAt = state.paymentStatus === 'PAID' ? createdAt : null
+  // Safe TX proposed once safe_status leaves NONE; on-chain hash only at EXECUTED.
+  const safeTxHash = state.safeStatus === 'NONE' ? null : bytes32(seed + 33_000)
+  const onChainTxHash = state.safeStatus === 'EXECUTED' ? bytes32(seed + 34_000) : null
+
+  const list: OrderListItem = {
+    id,
+    type: 'MINT',
+    userId: user.id,
+    userEmail: user.email,
+    amount,
+    totalPayIdr,
+    netPayoutIdr: null,
+    chain: 'polygon',
+    paymentStatus: state.paymentStatus,
+    safeStatus: state.safeStatus,
+    status: state.status,
+    createdAt,
+  }
+
+  const detail: OrderDetail = {
+    id,
+    type: 'MINT',
+    userId: user.id,
+    userEmail: user.email,
+    userAddress,
+    chain: 'polygon',
+    idempotencyKey,
+    amount,
+    baseRate: ORDER_BASE_RATE,
+    spreadBuyPct: ORDER_SPREAD_BUY_PCT,
+    spreadSellPct: ORDER_SPREAD_SELL_PCT,
+    effectiveRate: idrDecimal(effectiveRateNum),
+    subtotalIdr: idrDecimal(subtotalNum),
+    paymentChannel,
+    paymentBank,
+    mintFeePct: ORDER_MINT_FEE_PCT,
+    mintFeeIdr: idrDecimal(mintFeeNum),
+    pgFeeIdr,
+    totalPayIdr,
+    safeType,
+    paymentStatus: state.paymentStatus,
+    safeStatus: state.safeStatus,
+    paidAt,
+    safeTxHash,
+    onChainTxHash,
+    paymentProvider: 'MOCK',
+    // REDEEM block — null for mint.
+    redeemId: null,
+    grossIdr: null,
+    redeemFeePct: null,
+    redeemFeeIdr: null,
+    disbursementFeeIdr: null,
+    netPayoutIdr: null,
+    bankCode: null,
+    bankName: null,
+    bankAccountNumber: null,
+    bankAccountName: null,
+    lateBurn: null,
+    payoutRef: null,
+    burnTxHash: null,
+    burnedAt: null,
+    payoutCompletedAt: null,
+    payoutProvider: null,
+    // Shared.
+    totalFeeIdr,
+    estimatedRevenueIdr,
+    status: state.status,
+    expiresAt,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  return { list, detail }
+}
+
+// ─── Phase 2 W3 — Consumer redeem orders (USDX-245) ───
+// sot/api/orders.yaml + sot/phase-2/week3.md § Backoffice — User Transaction
+// (Redeem) + § Fee & Spread. Redeem tidak lewat Safe: burn = self-sign user,
+// payout = disbursement. Fee dipotong dari gross (kebalikan mint).
+interface RedeemLifecycleState {
+  status: RedeemStatus
+  burned: boolean
+  payoutStarted: boolean
+  payoutComplete: boolean
+  lateBurn: boolean
+}
+
+// Coherent tuples spanning the redeem lifecycle so the list has a row for every
+// status (incl. a late-burn case). sot/api/common.yaml § RedeemStatus.
+const REDEEM_STATES: RedeemLifecycleState[] = [
+  { status: 'AWAITING_BURN', burned: false, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'BURNED', burned: true, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'PROCESSING_PAYOUT', burned: true, payoutStarted: true, payoutComplete: false, lateBurn: false },
+  { status: 'PAYOUT_COMPLETE', burned: true, payoutStarted: true, payoutComplete: true, lateBurn: false },
+  { status: 'PAYOUT_COMPLETE', burned: true, payoutStarted: true, payoutComplete: true, lateBurn: false },
+  { status: 'EXPIRED', burned: false, payoutStarted: false, payoutComplete: false, lateBurn: false },
+  { status: 'BURNED', burned: true, payoutStarted: false, payoutComplete: false, lateBurn: true },
+]
+
+function createRedeemOrderPair(
+  user: Customer,
+  seed: number,
+): { list: OrderListItem; detail: OrderDetail } {
+  const id = uuidLike(seed + 40_000)
+  const redeemId = bytes32(seed + 41_000)
+  const amountNum = ORDER_USDX_AMOUNTS[seed % ORDER_USDX_AMOUNTS.length]!
+  const amount = amountNum.toFixed(2)
+  const state = REDEEM_STATES[seed % REDEEM_STATES.length]!
+  const createdAt = pastDateRecent(seed % 45)
+  // REDEEM_BURN_TTL window (week3.md § Status Flow). 1h here.
+  const expiresAt = new Date(new Date(createdAt).getTime() + 60 * 60 * 1000).toISOString()
+
+  // Exchange rate + spread JUAL; fee dipotong dari gross (week3.md § Fee & Spread).
+  const baseRateNum = Number(ORDER_BASE_RATE)
+  const spreadSellNum = Number(ORDER_SPREAD_SELL_PCT)
+  const effectiveRateNum = baseRateNum * (1 - spreadSellNum / 100)
+  const grossNum = amountNum * effectiveRateNum
+  const redeemFeeNum = (grossNum * Number(ORDER_REDEEM_FEE_PCT)) / 100
+  const disbursementFeeNum = Number(ORDER_DISBURSEMENT_FEE_FLAT)
+  const totalFeeNum = redeemFeeNum + disbursementFeeNum
+  // net_payout = gross − total_fee; desimal dibulatkan KE BAWAH, wajib ≥ Rp 10.000.
+  const netPayoutNum = Math.floor(grossNum - totalFeeNum)
+  // estimated_revenue = spread_sell_revenue + redeem_fee (disbursement pass-through).
+  const spreadRevenueNum = (amountNum * baseRateNum * spreadSellNum) / 100
+  const estimatedRevenueIdr = idrDecimal(spreadRevenueNum + redeemFeeNum)
+  const netPayoutIdr = idrDecimal(netPayoutNum)
+
+  // Bank tujuan — full account number + resolved bank name (un-mask 2026-06-25, USDX-270).
+  const bankCode = ORDER_BANK_CODES[seed % ORDER_BANK_CODES.length]!
+  const bankName = ORDER_BANK_NAMES[bankCode] ?? bankCode
+  const last4 = String((seed * 7919) % 10000).padStart(4, '0')
+  const bankAccountNumber = `${String(1_000_000 + ((seed * 31) % 9_000_000))}${last4}`
+  const bankAccountName = `${user.firstName} ${user.lastName}`.toUpperCase()
+
+  // On-chain burn fields appear once the Redeem event is detected.
+  const userAddress = state.burned ? bytes20(seed + 42_000) : null
+  const burnTxHash = state.burned ? bytes32(seed + 43_000) : null
+  const burnedAt = state.burned
+    ? new Date(new Date(createdAt).getTime() + 12 * 60 * 1000).toISOString()
+    : null
+  const payoutRef = state.payoutStarted ? `disb_${seededHex(20, seed + 44_000)}` : null
+  const payoutCompletedAt = state.payoutComplete
+    ? new Date(new Date(createdAt).getTime() + 20 * 60 * 1000).toISOString()
+    : null
+
+  const list: OrderListItem = {
+    id,
+    type: 'REDEEM',
+    userId: user.id,
+    userEmail: user.email,
+    amount,
+    totalPayIdr: null,
+    netPayoutIdr,
+    chain: 'polygon',
+    paymentStatus: null,
+    safeStatus: null,
+    status: state.status,
+    createdAt,
+  }
+
+  const detail: OrderDetail = {
+    id,
+    type: 'REDEEM',
+    userId: user.id,
+    userEmail: user.email,
+    userAddress,
+    chain: 'polygon',
+    amount,
+    baseRate: ORDER_BASE_RATE,
+    spreadBuyPct: null,
+    spreadSellPct: ORDER_SPREAD_SELL_PCT,
+    effectiveRate: idrDecimal(effectiveRateNum),
+    // MINT block — null for redeem.
+    idempotencyKey: null,
+    subtotalIdr: null,
+    paymentChannel: null,
+    paymentBank: null,
+    mintFeePct: null,
+    mintFeeIdr: null,
+    pgFeeIdr: null,
+    totalPayIdr: null,
+    safeType: null,
+    paymentStatus: null,
+    safeStatus: null,
+    paidAt: null,
+    safeTxHash: null,
+    onChainTxHash: null,
+    paymentProvider: null,
+    // REDEEM block.
+    redeemId,
+    grossIdr: idrDecimal(grossNum),
+    redeemFeePct: ORDER_REDEEM_FEE_PCT,
+    redeemFeeIdr: idrDecimal(redeemFeeNum),
+    disbursementFeeIdr: idrDecimal(disbursementFeeNum),
+    netPayoutIdr,
+    bankCode,
+    bankName,
+    bankAccountNumber,
+    bankAccountName,
+    lateBurn: state.lateBurn,
+    payoutRef,
+    burnTxHash,
+    burnedAt,
+    payoutCompletedAt,
+    payoutProvider: 'MOCK',
+    // Shared.
+    totalFeeIdr: idrDecimal(totalFeeNum),
+    estimatedRevenueIdr,
+    status: state.status,
+    expiresAt,
+    createdAt,
+    updatedAt: burnedAt ?? createdAt,
+  }
+
+  return { list, detail }
+}
+
+export function createMockOrders(
+  customers: Customer[],
+  count = 48,
+  redeemCount = 24,
+): { list: OrderListItem[]; details: Map<string, OrderDetail> } {
+  const list: OrderListItem[] = []
+  const details = new Map<string, OrderDetail>()
+  if (customers.length === 0) return { list, details }
+  for (let i = 0; i < count; i++) {
+    const seed = i + 1
+    const user = customers[i % customers.length]!
+    const pair = createOrderPair(user, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  // Redeem orders (W3, USDX-245) — same store, union mint + redeem.
+  for (let i = 0; i < redeemCount; i++) {
+    const seed = i + 1
+    const user = customers[i % customers.length]!
+    const pair = createRedeemOrderPair(user, seed)
     list.push(pair.list)
     details.set(pair.list.id, pair.detail)
   }
@@ -772,7 +1196,9 @@ export function createBurnRequestFromSubmission(
     safeType,
     status: 'PENDING_APPROVAL',
     safeTxHash,
+    onChainTxHash: null,
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
   }
 
@@ -797,6 +1223,7 @@ export function createBurnRequestFromSubmission(
     bankName: input.bankName.trim(),
     bankAccount: input.bankAccount.trim(),
     createdBy: createdBy.id,
+    createdByName: createdBy.name,
     createdAt,
     updatedAt: createdAt,
   }
@@ -888,4 +1315,169 @@ export function computeDashboardStats(
     },
     currentRate: RATE_USED,
   }
+}
+
+
+// ─── Phase 2 Week 1 — KYC review list (sot/api/kyc.yaml § KycListItem) ───
+// USDX-154: seeded rows for the /kyc backoffice list. One row per user
+// (kyc.user_id is unique); statuses cycle PENDING/VERIFIED/REJECTED so every
+// filter has matches. The list handler sorts submitted_at ascending — the
+// factory intentionally returns unsorted rows so tests exercise that sort.
+
+const KYC_REVIEWER_NAMES = ['Andi Wijaya', 'Siti Rahma', 'Budi Santoso']
+
+export function createKycListItem(overrides: Partial<KycListItem> = {}): KycListItem {
+  return {
+    id: uuidLike(70000),
+    userId: uuidLike(71000),
+    userEmail: 'user@example.com',
+    entityType: 'INDIVIDUAL',
+    status: 'PENDING',
+    submissionCount: 1,
+    submittedAt: pastDateRecent(3),
+    reviewedAt: null,
+    reviewedByName: null,
+    ...overrides,
+  }
+}
+
+export function createMockKycList(count = 24): KycListItem[] {
+  return Array.from({ length: count }, (_, i) => {
+    const seed = i + 1
+    const status: KycStatus = (['PENDING', 'VERIFIED', 'REJECTED'] as const)[seed % 3]!
+    const name = CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!
+    const [first, last] = splitName(name)
+    const reviewed = status !== 'PENDING'
+    return createKycListItem({
+      id: uuidLike(seed + 70000),
+      userId: uuidLike(seed + 71000),
+      userEmail: customerEmail(first, last, seed),
+      status,
+      // Rejected users resubmit (unlimited resubmit, week1.md § Status Flow),
+      // so they tend to carry higher submission counts.
+      submissionCount: status === 'REJECTED' ? 1 + (seed % 3) : 1 + (seed % 2),
+      submittedAt: pastDateRecent(seed % 40),
+      reviewedAt: reviewed ? pastDateRecent(seed % 20) : null,
+      reviewedByName: reviewed ? KYC_REVIEWER_NAMES[seed % KYC_REVIEWER_NAMES.length]! : null,
+    })
+  })
+}
+
+// ─── USDX-155 — KYC detail + audit trail (sot/api/kyc.yaml § KycDetail/KycReviewLog) ───
+// Detail rows mirror the seeded list (same seed → same name/email as
+// createMockKycList). PII here is fake-but-plausible plaintext — the mock
+// stands in for what the real BE returns AFTER decryption. Photo URLs imitate
+// Railway Bucket presigned GETs (host per live BE: t3.storageapi.dev);
+// `urlExpiresAt` is stamped by the handler at serve time (TTL 5 min), not here.
+
+const BIRTH_PLACES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Yogyakarta']
+const STREETS = ['Jl. Sudirman', 'Jl. Gatot Subroto', 'Jl. Thamrin', 'Jl. Diponegoro', 'Jl. Asia Afrika']
+
+let kycReviewIdCounter = 1
+
+export function createKycReviewLog(overrides: Partial<KycReviewLog> = {}): KycReviewLog {
+  const n = kycReviewIdCounter++
+  return {
+    id: uuidLike(n + 80000),
+    action: 'SUBMITTED',
+    actorStaffId: null,
+    actorStaffName: null,
+    actorUserId: null,
+    reason: null,
+    ipAddress: `10.0.${n % 255}.${(n * 7) % 255}`,
+    createdAt: pastDateRecent(n % 30),
+    ...overrides,
+  }
+}
+
+function mockPresignedUrl(userId: string, docKind: 'ktp' | 'selfie', seed: number): string {
+  return `https://t3.storageapi.dev/usdx-kyc/kyc/${userId}/${docKind}/${uuidLike(seed)}.jpg?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`
+}
+
+export function createKycDetail(
+  item: KycListItem,
+  seed: number,
+  overrides: Partial<KycDetail> = {}
+): KycDetail {
+  const name = CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!
+  const [firstName, lastName] = splitName(name)
+  return {
+    id: item.id,
+    userId: item.userId,
+    userEmail: item.userEmail,
+    entityType: item.entityType,
+    status: item.status,
+    submissionCount: item.submissionCount,
+    firstName,
+    lastName: lastName || 'Wijaya',
+    dob: `19${70 + (seed % 30)}-${String(1 + (seed % 12)).padStart(2, '0')}-${String(1 + (seed % 28)).padStart(2, '0')}`,
+    birthPlace: BIRTH_PLACES[seed % BIRTH_PLACES.length]!,
+    identityType: 'KTP',
+    // 16-digit KTP number: '3171' province/city prefix + 12 seeded digits.
+    identityNumber: `3171${seededBankAccount(seed)}`,
+    country: 'ID',
+    addressLine1: `${STREETS[seed % STREETS.length]!} No. ${1 + (seed % 120)}`,
+    addressLine2: seed % 3 === 0 ? `RT ${1 + (seed % 9)}/RW ${1 + (seed % 5)}` : null,
+    ktpPhotoUrl: mockPresignedUrl(item.userId, 'ktp', seed + 75000),
+    selfiePhotoUrl: mockPresignedUrl(item.userId, 'selfie', seed + 76000),
+    urlExpiresAt: null,
+    rejectionReason:
+      item.status === 'REJECTED'
+        ? 'Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas'
+        : null,
+    submittedAt: item.submittedAt,
+    reviewedBy: item.reviewedByName ? uuidLike(seed + 77000) : null,
+    reviewedByName: item.reviewedByName,
+    reviewedAt: item.reviewedAt,
+    createdAt: item.submittedAt ?? pastDateRecent(seed % 40),
+    updatedAt: item.reviewedAt ?? item.submittedAt ?? pastDateRecent(seed % 40),
+    ...overrides,
+  }
+}
+
+/** Seeded audit trail per detail row, newest-first (contract order). */
+export function createMockKycReviews(detail: KycDetail): KycReviewLog[] {
+  const rows: KycReviewLog[] = [
+    createKycReviewLog({
+      action: 'SUBMITTED',
+      actorUserId: detail.userId,
+      createdAt: detail.createdAt,
+    }),
+  ]
+  for (let i = 1; i < detail.submissionCount; i++) {
+    rows.push(
+      createKycReviewLog({
+        action: 'RESUBMITTED',
+        actorUserId: detail.userId,
+        createdAt: detail.submittedAt ?? detail.createdAt,
+      })
+    )
+  }
+  if (detail.status === 'VERIFIED' || detail.status === 'REJECTED') {
+    rows.push(
+      createKycReviewLog({
+        action: detail.status === 'VERIFIED' ? 'APPROVED' : 'REJECTED',
+        actorStaffId: detail.reviewedBy,
+        actorStaffName: detail.reviewedByName,
+        reason: detail.status === 'REJECTED' ? detail.rejectionReason : null,
+        createdAt: detail.reviewedAt ?? detail.updatedAt,
+      })
+    )
+  }
+  // Newest first (kyc.yaml § reviewsHistory: reverse-chronological).
+  return rows.reverse()
+}
+
+export function createMockKycDetailState(list: KycListItem[]): {
+  details: Map<string, KycDetail>
+  reviews: Map<string, KycReviewLog[]>
+} {
+  const details = new Map<string, KycDetail>()
+  const reviews = new Map<string, KycReviewLog[]>()
+  list.forEach((item, i) => {
+    const detail = createKycDetail(item, i + 1)
+    details.set(item.id, detail)
+    reviews.set(item.id, createMockKycReviews(detail))
+  })
+  return { details, reviews }
 }

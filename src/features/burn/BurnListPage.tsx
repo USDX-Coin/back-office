@@ -1,18 +1,26 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Flame } from 'lucide-react'
+import { Plus, Flame, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import InputCurrencyBadge from '@/components/InputCurrencyBadge'
+import TruncatedHash from '@/components/TruncatedHash'
 import { Button } from '@/components/ui/button'
 import RequestDetailModal from '@/components/RequestDetailModal'
-import MintBurnFilterToolbar, {
-  type MintBurnFilterValues,
-} from '@/components/MintBurnFilterToolbar'
+import { RequestIdCell } from '@/components/RequestIdCell'
+import { TxHashLink } from '@/components/OnChainLinks'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import {
+  REQUEST_FILTER_DEFS,
+  REQUEST_SORT_COLUMNS,
+  REQUEST_COLUMN_CONFIG,
+} from '@/features/mint/filterDefs'
+import { resolveOnChainLinks } from '@/lib/chainLinks'
+import { useChainConfig } from '@/features/chains/hooks'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
@@ -46,11 +54,19 @@ export default function BurnListPage() {
   const { user } = useAuth()
   const canCreate = canSubmitOtc(user)
 
+  // USDX-78: deep-link route `/burn/:id` — list page stays rendered in the
+  // background while the detail modal auto-opens for the URL param.
+  const { id: activeId } = useParams<{ id?: string }>()
+
   const params = useDataTableParams()
   const search = params.searchParams.get('search') ?? ''
   const status = params.searchParams.get('status') ?? ''
   const chain = params.searchParams.get('chain') ?? ''
   const safeType = params.searchParams.get('safeType') ?? ''
+  const startDate = params.searchParams.get('startDate') ?? ''
+  const endDate = params.searchParams.get('endDate') ?? ''
+  const sortBy = params.searchParams.get('sortBy') ?? ''
+  const sortOrder = (params.searchParams.get('sortOrder') ?? '') as 'asc' | 'desc' | ''
 
   const list = useBurnList({
     page: params.page,
@@ -59,21 +75,17 @@ export default function BurnListPage() {
     chain: chain || undefined,
     safeType: safeType || undefined,
     search: search || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   })
+  const { data: chains } = useChainConfig()
 
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [colVisibility, setColVisibility] = useColumnVisibility('burn', REQUEST_COLUMN_CONFIG)
 
-  function handleFilterChange(next: MintBurnFilterValues) {
-    params.updateParams({
-      search: next.search || null,
-      status: next.status || null,
-      chain: next.chain || null,
-      safeType: next.safeType || null,
-      page: '1',
-    })
-  }
-
-  const hasFilters = Boolean(search || status || chain || safeType)
+  const filterValues = { status, chain, safeType, startDate, endDate }
+  const hasFilters = Boolean(
+    search || status || chain || safeType || startDate || endDate
+  )
 
   const columns: ColumnDef<RequestListItem>[] = [
     {
@@ -86,6 +98,11 @@ export default function BurnListPage() {
       ),
     },
     {
+      id: 'id',
+      header: 'ID',
+      cell: ({ row }) => <RequestIdCell id={row.original.id} />,
+    },
+    {
       id: 'user',
       header: 'User',
       cell: ({ row }) => (
@@ -94,8 +111,7 @@ export default function BurnListPage() {
           <div className="flex flex-col leading-tight">
             <span className="font-medium">{row.original.userName}</span>
             <span className="font-mono text-[10.5px] text-muted-foreground">
-              {row.original.userAddress.slice(0, 6)}…
-              {row.original.userAddress.slice(-4)}
+              <TruncatedHash value={row.original.userAddress} />
             </span>
           </div>
         </div>
@@ -165,10 +181,61 @@ export default function BurnListPage() {
         )
       },
     },
+    {
+      id: 'createdByName',
+      header: 'Created by',
+      cell: ({ row }) => (
+        <span className="text-[12px] text-muted-foreground">
+          {row.original.createdByName || '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'onchainTx',
+      header: 'On-chain tx',
+      cell: ({ row }) => (
+        <TxHashLink
+          hash={row.original.onChainTxHash}
+          href={resolveOnChainLinks(row.original, chains).explorerHref}
+          label="View transaction on block explorer"
+        />
+      ),
+    },
+    {
+      id: 'safeTx',
+      header: 'Safe tx',
+      cell: ({ row }) => (
+        <TxHashLink
+          hash={row.original.safeTxHash}
+          href={resolveOnChainLinks(row.original, chains).safeHref}
+          label="View transaction in Safe"
+        />
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/burn/${row.original.id}`)
+          }}
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          aria-label={`View burn request for ${row.original.userName}`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          View
+        </button>
+      ),
+    },
   ]
 
   const rows = list.data?.data ?? []
   const total = list.data?.metadata.total ?? 0
+  const activeListItem =
+    activeId ? rows.find((r) => r.id === activeId) ?? null : null
 
   const noDataState = (
     <TableEmptyState
@@ -189,47 +256,86 @@ export default function BurnListPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <PageHeader
-          eyebrow="Operations"
-          title="Burn"
-          italicAccent="OTC requests"
-          subtitle="Track every burn request across its approval lifecycle."
-        />
-        {canCreate && (
-          <Button onClick={() => navigate('/burn/new')} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Burn OTC
-          </Button>
-        )}
-      </div>
+      {/* USDX-27: align with Users/Staff — Add button lives in PageHeader's
+          `actions` slot (compact, top-right at ≥sm) instead of a separate
+          full-width button below the title. */}
+      <PageHeader
+        eyebrow="Operations"
+        title="Burn"
+        italicAccent="OTC requests"
+        subtitle="Track every burn request across its approval lifecycle."
+        actions={
+          canCreate ? (
+            <Button onClick={() => navigate('/burn/new')} size="sm" className="h-7 text-[12px]">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add Burn OTC
+            </Button>
+          ) : undefined
+        }
+      />
 
       <DataTable<RequestListItem>
         columns={columns}
         data={rows}
         rowCount={total}
         isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
         filterToolbar={
-          <MintBurnFilterToolbar
-            values={{ search, status, chain, safeType }}
-            onChange={handleFilterChange}
-            onClear={params.clearAll}
+          <TableToolbar
+            search={{
+              value: search,
+              placeholder: 'Search user, address, tx…',
+              onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
+            }}
+            sort={{
+              columns: REQUEST_SORT_COLUMNS,
+              sortBy,
+              sortOrder,
+              onChange: (nextBy, nextOrder) =>
+                params.updateParams({
+                  sortBy: nextBy || null,
+                  sortOrder: nextOrder || null,
+                  page: '1',
+                }),
+            }}
+            filter={{
+              defs: REQUEST_FILTER_DEFS,
+              values: filterValues,
+              onChange: (next) =>
+                params.updateParams({
+                  status: next.status || null,
+                  chain: next.chain || null,
+                  safeType: next.safeType || null,
+                  startDate: next.startDate || null,
+                  endDate: next.endDate || null,
+                  page: '1',
+                }),
+            }}
+            columns={{
+              items: REQUEST_COLUMN_CONFIG,
+              visibility: colVisibility,
+              onChange: setColVisibility,
+            }}
           />
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
-        onRowClick={(r) => setActiveId(r.id)}
+        onRowClick={(r) => navigate(`/burn/${r.id}`)}
         rowAriaLabel={(r) =>
           `Open burn request for ${r.userName}, ${r.amount} USDX`
         }
       />
 
       <RequestDetailModal
-        requestId={activeId}
+        requestId={activeId ?? null}
+        listItem={activeListItem}
         open={Boolean(activeId)}
         onOpenChange={(o) => {
-          if (!o) setActiveId(null)
+          if (!o) navigate('/burn', { replace: true })
         }}
       />
     </div>

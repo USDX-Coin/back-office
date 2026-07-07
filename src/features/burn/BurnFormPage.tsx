@@ -1,5 +1,5 @@
 import PageHeader from '@/components/PageHeader'
-import CurrentRateCard from '@/components/CurrentRateCard'
+import RateSnapshotCard from '@/components/RateSnapshotCard'
 import BurnRequestForm from './BurnRequestForm'
 import BurnRequestInfoPanel from './BurnRequestInfoPanel'
 
@@ -18,7 +18,7 @@ export default function BurnFormPage() {
           <BurnRequestForm />
         </div>
         <div className="lg:col-span-4 space-y-4">
-          <CurrentRateCard />
+          <RateSnapshotCard direction="sell" />
           <BurnRequestInfoPanel />
         </div>
       </div>

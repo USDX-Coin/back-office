@@ -19,9 +19,11 @@ import FieldError from '@/components/FieldError'
 import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
+import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
 import { validateBurnRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser, RequestChain } from '@/lib/types'
 import { ApiError } from '@/lib/apiFetch'
+import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { useCreateBurn } from './hooks'
 
 // Phase 1 deploys to Polygon Amoy + Polygon mainnet only (sot/phase-1.md
@@ -64,6 +66,13 @@ export default function BurnRequestForm() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // USDX-84: 409 SAFE_QUEUE_OCCUPIED renders via a dedicated banner that
+  // shows the blocking request ID + Manual Sync shortcut (sot/phase-1.md
+  // § Safe Propose Queue).
+  const [queueBlock, setQueueBlock] = useState<{
+    safeType?: 'STAFF' | 'MANAGER'
+    blockingRequestId?: string
+  } | null>(null)
 
   function clearError(key: string) {
     if (errors[key]) {
@@ -134,6 +143,7 @@ export default function BurnRequestForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitError(null)
+    setQueueBlock(null)
 
     const validation = validateBurnRequestForm({
       userId: form.user?.id ?? '',
@@ -169,6 +179,14 @@ export default function BurnRequestForm() {
       setErrors({})
       navigate('/burn')
     } catch (err) {
+      // USDX-84 — Safe Propose Queue conflict: render a banner with the
+      // blocking request ID + Manual Sync link. Form state is preserved so
+      // the operator can retry once the queue clears.
+      const queueInfo = parseSafeQueueOccupied(err)
+      if (queueInfo) {
+        setQueueBlock(queueInfo)
+        return
+      }
       const message =
         err instanceof ApiError
           ? err.message
@@ -249,6 +267,7 @@ export default function BurnRequestForm() {
               onCurrencyChange={handleCurrencyChange}
               amountError={errors.amount}
               currencyError={errors.amountCurrency}
+              direction="sell"
             />
             <FieldError message={errors.amount} />
             <FieldError message={errors.amountCurrency} />
@@ -305,6 +324,12 @@ export default function BurnRequestForm() {
             />
           </div>
 
+          {queueBlock && (
+            <SafeQueueOccupiedBanner
+              safeType={queueBlock.safeType}
+              blockingRequestId={queueBlock.blockingRequestId}
+            />
+          )}
           {submitError && (
             <div
               role="alert"

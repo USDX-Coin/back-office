@@ -159,3 +159,28 @@ describe('USDX-16 acceptance criteria', () => {
     }
   })
 })
+
+// USDX-78 — STAFF doesn't have access to the mint/burn request list, so the
+// "Pending requests" widget on the dashboard is hidden (the shortcut would
+// bounce them). Other panels stay visible.
+describe('USDX-78 — dashboard "Pending requests" widget visibility', () => {
+  test('hidden for STAFF role', async () => {
+    renderWithProviders(<DashboardPage />, { staffId: 'stf_4' /* Sarah King (STAFF) */ })
+    await waitFor(
+      () => expect(screen.getByTestId('safe-balance-staff')).toBeInTheDocument(),
+      { timeout: 3000 }
+    )
+    expect(screen.queryByTestId('stat-pending-requests')).not.toBeInTheDocument()
+    // Other Phase1Stats panels still render.
+    expect(screen.getByTestId('stat-total-supply')).toBeInTheDocument()
+    expect(screen.getByTestId('stat-requests-by-status')).toBeInTheDocument()
+  })
+
+  test('visible for ADMIN role', async () => {
+    renderWithProviders(<DashboardPage />, { staffId: 'stf_1' /* Marcus Thorne (ADMIN) */ })
+    await waitFor(
+      () => expect(screen.getByTestId('stat-pending-requests')).toBeInTheDocument(),
+      { timeout: 3000 }
+    )
+  })
+})

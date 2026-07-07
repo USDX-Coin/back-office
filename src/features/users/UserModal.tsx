@@ -6,6 +6,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
+  DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -23,6 +25,7 @@ import {
 import FieldError from '@/components/FieldError'
 import {
   USER_LIMITS,
+  validateOptionalIdPhone,
   validateUserForm,
   validateUserWalletForm,
   validateUserWalletsLimit,
@@ -40,9 +43,6 @@ interface UserModalProps {
   onOpenChange: (open: boolean) => void
   mode: 'add' | 'edit'
   user?: PhaseOneUser | null
-  // USDX-47 AC5: surfaces the one-time password from POST response so the
-  // parent can open PasswordRevealDialog after this modal closes.
-  onCreated?: (password: string | undefined) => void
 }
 
 interface WalletDraft {
@@ -53,6 +53,9 @@ interface WalletDraft {
 interface FormState {
   name: string
   email: string
+  // USDX-156: optional at admin-create only — UpdateUser SoT has no phone
+  // field (the user manages it consumer-side), so edit mode hides it.
+  phone: string
   entityType: EntityType
   kycStatus: KycStatus
   suspended: boolean
@@ -65,6 +68,7 @@ interface FormState {
 const EMPTY: FormState = {
   name: '',
   email: '',
+  phone: '',
   entityType: 'INDIVIDUAL',
   kycStatus: 'UNVERIFIED',
   suspended: false,
@@ -80,7 +84,6 @@ export default function UserModal({
   onOpenChange,
   mode,
   user,
-  onCreated,
 }: UserModalProps) {
   const create = useCreateUser()
   const update = useUpdateUser()
@@ -94,8 +97,9 @@ export default function UserModal({
     if (open) {
       if (mode === 'edit' && user) {
         setForm({
-          name: user.name,
+          name: user.name ?? '',
           email: user.email,
+          phone: user.phone ?? '',
           entityType: user.entityType,
           kycStatus: user.kycStatus,
           suspended: user.suspended,
@@ -162,6 +166,9 @@ export default function UserModal({
     })
     const walletErrors: Record<string, string> = {}
     if (mode === 'add') {
+      // USDX-156: phone is optional but must be +62xxx / 08xxx when filled.
+      const phoneError = validateOptionalIdPhone(form.phone)
+      if (phoneError) walletErrors['phone'] = phoneError
       // Pre-check wallet limit before per-row validation so we never POST 51+.
       const limitError = validateUserWalletsLimit(0, form.wallets.length)
       if (limitError) walletErrors['wallets'] = limitError
@@ -183,24 +190,18 @@ export default function UserModal({
           chain: w.chain,
           address: w.address.trim(),
         }))
-        const created = await create.mutateAsync({
+        await create.mutateAsync({
           name: form.name.trim(),
           email: form.email.trim(),
+          phone: form.phone.replace(/[\s()-]/g, '') || undefined,
           entityType: form.entityType,
           notes: form.notes.trim() || undefined,
           wallets: wallets.length > 0 ? wallets : undefined,
         })
-        toast.success('User created')
+        // USDX-156: no password round-trip anymore — BE queues the activation
+        // email (admin-created.html, link valid 7 days) on create.
+        toast.success('User created. Activation email sent.')
         onOpenChange(false)
-        // AC5: hand the one-time password back to the parent. If BE didn't
-        // return it (e.g., Day-1 BE without reveal support), surface a soft
-        // warning so the operator knows to reset via Forgot Password later.
-        if (created.password) {
-          onCreated?.(created.password)
-        } else {
-          toast.warning('User created, but no temporary password was returned')
-          onCreated?.(undefined)
-        }
         return
       }
 
@@ -220,7 +221,7 @@ export default function UserModal({
         onOpenChange(false)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Operation failed')
+      toast.error(err instanceof Error ? err.message : "Couldn't save the user. Please try again.")
     }
   }
 
@@ -243,12 +244,13 @@ export default function UserModal({
           <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Create a Phase-1 user. A temporary password will be generated and shown once after creation.'
+              ? 'The user will receive an activation email to set their own password — the link is valid for 7 days.'
               : 'Update user profile, KYC status, and suspension state.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogBody className="space-y-4">
           <div>
             <Label htmlFor="name">Name</Label>
             <Input
@@ -275,6 +277,22 @@ export default function UserModal({
               />
               <FieldError message={errors.email} />
             </div>
+            {mode === 'add' && (
+              // USDX-156: optional phone at admin-create (CreateUser.phone).
+              // Edit mode has no phone — UpdateUser SoT doesn't carry it.
+              <div>
+                <Label htmlFor="phone">Phone (optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setField('phone', e.target.value)}
+                  placeholder="+62812xxxxxxx or 0812xxxxxxx"
+                  className="mt-1.5"
+                />
+                <FieldError message={errors.phone} />
+              </div>
+            )}
             <div>
               <Label htmlFor="entityType">Entity type</Label>
               <Select
@@ -429,7 +447,8 @@ export default function UserModal({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          </DialogBody>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -441,7 +460,7 @@ export default function UserModal({
             <Button type="submit" disabled={isPending}>
               {isPending ? 'Submitting…' : mode === 'add' ? 'Create user' : 'Save changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -34,7 +34,14 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/mint/new` | — | — | All except DEVELOPER | New mint OTC form |
 | `/burn` | OTC | Burn | All roles | Burn request list (table) — sidebar shows `(N)` PENDING_APPROVAL count |
 | `/burn/new` | — | — | All except DEVELOPER | New burn OTC form |
-| `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER | View / update USD/IDR rate |
+| `/multisig` | TREASURY | Multisig | ADMIN + DEVELOPER + MANAGER | Self-hosted Safe transaction queue (USDX-275) — tabs (All/Pending Sign/Ready to Execute/Confirming/Executed/Failed), search, safeType filter; connect wallet (wagmi/RainbowKit). **Propose** governance modal (USDX-280, ADMIN-only): blacklist/pause/setSupportedChain/grant-revoke-role/timelock → `POST /api/v1/multisig/propose`. Consumes `/api/v1/multisig/*` |
+| `/multisig/:id` | — | — | ADMIN + DEVELOPER + MANAGER | Detail drawer — decoded TX + blind-sign cross-check vs linked intent + signers + on-chain links + **Sign** (owner, EIP-712 gasless) + **Execute** (execTransaction, simulate-gated to prevent GS013) + **Cancel** (admin/proposer). Network guard Polygon-137 |
+| `/transactions` | CONSUMER | User Transaction | All roles | Consumer order list — mint (USDX-206) + redeem (USDX-245); read-only; filter type/status (contextual: RedeemStatus when type=REDEEM)/payment/safe |
+| `/transactions/:id` | — | — | All roles | Order detail modal — MINT: fee/spread/revenue + idempotency key + on-chain/Safe links. REDEEM: spread jual + redeem/disbursement fee + net payout + bank (nama bank + nomor rekening penuh + nama pemilik — un-mask USDX-270) + redeem_id + burn_tx_hash + payout_ref (USDX-245). Read-only (no approve) |
+| `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
+| `/kyc/:id` | — | — | All roles | KYC detail modal — decrypted PII + photos + approve/reject (USDX-155); actions hidden unless PENDING, Developer view-only |
+| `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER (update is ADMIN-only) | View / update base rate + spread **beli/jual** (USDX-207) |
+| `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot, 422 VALIDATION_ERROR; non-admin read-only |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
@@ -62,6 +69,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── FieldError.tsx # Inline form error primitive
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
 │   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
+│   │   ├── OnChainLinks.tsx  # TxHashLink cell (clickable short tx hash) + resolveOnChainLinks — On-chain tx / Safe tx columns
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
 │   │   ├── auth/          # LoginPage
@@ -70,16 +78,24 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── staff/         # StaffPage + modal + hooks
 │   │   ├── mint/          # MintListPage + MintFormPage + hooks
 │   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
-│   │   ├── rate/          # RatePage + cards/forms (settings/rate)
+│   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks — read-only consumer orders: mint (USDX-206) + redeem (USDX-245)
+│   │   ├── kyc/           # KycListPage + KycDetailModal (PII/photos/approve/reject/audit) + hooks (USDX-154/155)
+│   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual
+│   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245, full 5-field snapshot)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
+│   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
+│   │   ├── multisig/      # MultisigListPage + MultisigDetailSheet + tabs + wallet actions (USDX-275) — self-hosted Safe queue, connect-wallet (wagmi/RainbowKit), sign EIP-712 + execute + simulate guard
 │   │   └── profile/       # ProfilePage
 │   ├── lib/               # Shared utilities
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook
 │   │   ├── types.ts       # Staff, Customer, OTC types, DashboardSnapshot
 │   │   ├── validators.ts  # Pure form validators
-│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime
+│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime, shortHash
 │   │   ├── status.ts      # OTC status config + helpers
 │   │   ├── csv.ts         # CSV export (with formula-injection guard)
+│   │   ├── explorerUrl.ts # Block explorer deep-links (base URL from /api/v1/chains)
+│   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
+│   │   ├── chainLinks.ts  # findChainConfig + resolveOnChainLinks (composes explorer/safe URLs)
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
 │   │   ├── handlers.ts    # REST handlers + inline settlement simulator

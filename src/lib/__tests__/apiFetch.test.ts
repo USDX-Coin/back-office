@@ -135,6 +135,59 @@ describe('apiFetch', () => {
     })
   })
 
+  describe('error.details (USDX-84)', () => {
+    test('should attach SAFE_QUEUE_OCCUPIED details to ApiError', async () => {
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'SAFE_QUEUE_OCCUPIED',
+                message: 'Staff Safe pending',
+                details: {
+                  safeType: 'STAFF',
+                  blockingRequestId: '019e1aa8-9c7c-7fcd-6abc-deadbeef0001',
+                },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+      await expect(apiFetch('/api/v1/mint', { method: 'POST', body: {} })).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 409,
+        code: 'SAFE_QUEUE_OCCUPIED',
+        details: {
+          safeType: 'STAFF',
+          blockingRequestId: '019e1aa8-9c7c-7fcd-6abc-deadbeef0001',
+        },
+      })
+    })
+
+    test('should leave details undefined when the envelope omits it', async () => {
+      server.use(
+        http.get('/api/probe', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'BAD_REQUEST', message: 'Nope.' },
+            },
+            { status: 400 }
+          )
+        )
+      )
+      const caught = await apiFetch('/api/probe').catch((e) => e)
+      expect(caught).toBeInstanceOf(ApiError)
+      expect((caught as ApiError).details).toBeUndefined()
+    })
+  })
+
   describe('edge cases', () => {
     test('should fall back to UNKNOWN code when error envelope is missing', async () => {
       server.use(http.get('/api/probe', () => new HttpResponse(null, { status: 500 })))

@@ -165,10 +165,13 @@ export function isManualRateUnusual(raw: string): boolean {
   return n < RATE_SOFT_LOW || n > RATE_SOFT_HIGH
 }
 
+// USDX-207: spread directional — validate spread beli & jual independently
+// (sot/api/rate.yaml § UpdateRateConfig). Same bounds as the old single spread.
 export function validateRateUpdateForm(input: {
   mode: RateMode | ''
   manualRate: string
-  spreadPct: string
+  spreadBuyPct: string
+  spreadSellPct: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
@@ -180,8 +183,68 @@ export function validateRateUpdateForm(input: {
   }
   // DYNAMIC: manualRate intentionally not validated — UI disables the field
   // and the payload omits it.
-  const spreadErr = validateSpreadPct(input.spreadPct)
-  if (spreadErr) errors.spreadPct = spreadErr
+  const buyErr = validateSpreadPct(input.spreadBuyPct)
+  if (buyErr) errors.spreadBuyPct = buyErr
+  const sellErr = validateSpreadPct(input.spreadSellPct)
+  if (sellErr) errors.spreadSellPct = sellErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// USDX-207 + USDX-245: fee config form (sot/api/fee.yaml § UpdateFeeConfig).
+// Full 5-field snapshot, all required. Percentages (mint / QRIS / redeem fee)
+// reuse the spread bound; flat IDR amounts (PG VA / disbursement) reuse the
+// flat-fee bound.
+const PG_FEE_VA_MAX = 1_000_000 // Rp 1jt flat is already extreme for a PG fee
+
+export function validateFeePct(raw: string, label: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return `${label} is required`
+  if (!SPREAD_RE.test(trimmed)) return `${label} must be a number (up to 2 decimals)`
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
+  if (n > SPREAD_MAX_INCLUSIVE) return `${label} must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  return null
+}
+
+// Shared flat-IDR fee validator (PG VA flat + disbursement flat). `label` names
+// the field in the error message; both use the same extreme-Rp ceiling.
+function validateFlatFee(raw: string, label: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return `${label} is required`
+  if (!DECIMAL_RE.test(trimmed)) return `${label} must be a number (up to 4 decimals)`
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
+  if (n > PG_FEE_VA_MAX) return `${label} must be at most ${PG_FEE_VA_MAX.toLocaleString()}`
+  return null
+}
+
+export function validatePgFeeVaFlat(raw: string): string | null {
+  return validateFlatFee(raw, 'VA fee')
+}
+
+// USDX-245: disbursement fee = Rp flat per payout (referensi sampai provider real).
+export function validateDisbursementFeeFlat(raw: string): string | null {
+  return validateFlatFee(raw, 'Disbursement fee')
+}
+
+export function validateFeeConfigForm(input: {
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
+  redeemFeePct: string
+  disbursementFeeFlat: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
+  if (mintErr) errors.mintFeePct = mintErr
+  const vaErr = validatePgFeeVaFlat(input.pgFeeVaFlat)
+  if (vaErr) errors.pgFeeVaFlat = vaErr
+  const qrisErr = validateFeePct(input.pgFeeQrisPct, 'QRIS fee')
+  if (qrisErr) errors.pgFeeQrisPct = qrisErr
+  const redeemErr = validateFeePct(input.redeemFeePct, 'Redeem fee')
+  if (redeemErr) errors.redeemFeePct = redeemErr
+  const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
+  if (disbErr) errors.disbursementFeeFlat = disbErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -332,6 +395,20 @@ export function validateStaffEditForm(input: {
 }
 
 // sot/api/users.yaml § CreateUser/UpdateUser. USDX-47 enforces:
+// USDX-156 — sot/api/users.yaml § CreateUser.phone: optional at admin-create,
+// format `+62xxx` or `08xxx` (backend normalizes to +62). Empty = not provided.
+// Length bounds: Indonesian numbers are 9–13 digits after the prefix.
+const ID_PHONE_RE = /^(\+62\d{8,12}|08\d{7,11})$/
+
+export function validateOptionalIdPhone(phone: string): string | null {
+  const cleaned = phone.replace(/[\s()-]/g, '')
+  if (!cleaned) return null
+  if (!ID_PHONE_RE.test(cleaned)) {
+    return 'Use +62xxx or 08xxx format'
+  }
+  return null
+}
+
 // - name required, max 255 chars (AC6)
 // - email required + format check (S4 + S5: required in create AND edit per
 //   judgement — empty email would break Phase-2 login at sot/phase-1.md L341)

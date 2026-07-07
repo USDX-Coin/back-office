@@ -6,7 +6,7 @@ import { handlers } from './handlers'
 // not yet implemented stay registered with MSW so the FE keeps working
 // against a contract-shaped mock until BE catches up.
 //
-// BE readiness audited live on https://backend-dev-c526.up.railway.app
+// BE readiness audited live on https://usdx-backend-api.up.railway.app
 // (see PR description for the per-endpoint result table). Update this set
 // as endpoints ship — anything that becomes 200/4xx (not 404 "Cannot ...")
 // belongs here.
@@ -16,8 +16,25 @@ import { handlers } from './handlers'
 // these endpoints are real-BE-only in both browser and Vitest.
 //
 // USDX-53: /api/v1/threshold handlers removed from handlers.ts. BE endpoint
-// is currently 404 on dev — listed here to document FE intent (real-BE-only)
-// and to surface the BE gap as a Post-Merge Action in the PR description.
+// has since shipped (200 on dev as of USDX-23 audit).
+//
+// USDX-23: final integration pass — /api/v1/dashboard/stats and
+// /api/v1/requests (list + detail) now flow to the real BE in the browser.
+// Handlers remain in handlers.ts so Vitest keeps the MSW-backed coverage
+// for the existing unit tests; the worker filter below drops them at runtime.
+// /api/v1/staff was already real-BE-only in the browser (handler removed
+// in USDX-41); listed here as documentation only.
+//
+// USDX-82: /api/v1/reports/* handlers were removed from handlers.ts entirely
+// (no Vitest coverage needed — production code just calls apiFetch). Path
+// entries below kept as documentation that these endpoints are real-BE-only.
+//
+// USDX-85: Manual Sync endpoints + the 409 SAFE_QUEUE_OCCUPIED branch inside
+// `/api/v1/mint` and `/api/v1/burn` were removed from handlers.ts. The
+// list/verify/execute paths join the real-BE-only set; the mint/burn paths
+// were already listed (USDX-23 final integration) — queue enforcement now
+// lives entirely in BE (USDX-83). Vitest tests scope their own
+// `server.use(...)` overrides per scenario so no defaults are needed.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   '/api/v1/auth/me',
@@ -29,6 +46,31 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/users/:id',
   '/api/v1/users/:id/wallets',
   '/api/v1/users/:id/wallets/:walletId',
+  '/api/v1/dashboard/stats',
+  '/api/v1/staff',
+  '/api/v1/staff/:id',
+  '/api/v1/requests',
+  '/api/v1/requests/:id',
+  // USDX-71: GET /api/v1/chains shipped on the backend (USDX-70). Real-BE in the
+  // browser; the handler stays in handlers.ts for Vitest coverage.
+  '/api/v1/chains',
+  // USDX-82: reporting endpoints — documentation only, handlers deleted.
+  '/api/v1/reports/mint/daily',
+  '/api/v1/reports/mint/by-user',
+  '/api/v1/reports/burn/daily',
+  '/api/v1/reports/burn/by-user',
+  // USDX-85: Manual Sync — documentation only, handlers deleted.
+  '/api/v1/manual-sync',
+  '/api/v1/manual-sync/:id/verify',
+  '/api/v1/manual-sync/:id/execute',
+  // USDX-154: KYC review list — BE shipped with USDX-148 (backend PR #90).
+  // Real-BE in the browser; the handler stays in handlers.ts for Vitest.
+  '/api/v1/kyc',
+  // USDX-155: KYC detail + approve/reject + audit trail — same BE ship.
+  '/api/v1/kyc/:id',
+  '/api/v1/kyc/:id/reviews',
+  '/api/v1/kyc/:id/approve',
+  '/api/v1/kyc/:id/reject',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

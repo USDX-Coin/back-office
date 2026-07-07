@@ -163,7 +163,9 @@ describe('MintFormPage @ USDX-46', () => {
       expect(screen.getByLabelText(/^amount$/i)).toHaveValue('1000')
       // Open the currency Select and pick IDR
       await user.click(screen.getByLabelText(/^currency$/i))
-      await user.click(await screen.findByRole('option', { name: /^IDR$/i }))
+      // USDX-27: option label is now "IDR (auto-convert)" — match on the
+      // currency code prefix, not the full label.
+      await user.click(await screen.findByRole('option', { name: /^IDR\b/i }))
       expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
     })
   })
@@ -273,6 +275,147 @@ describe('MintFormPage @ USDX-46', () => {
       setup()
       await user.click(screen.getByRole('button', { name: /submit mint request/i }))
       expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
+    })
+  })
+
+  // USDX-84 — 409 SAFE_QUEUE_OCCUPIED banner.
+  // Acceptance criteria:
+  //  - banner shows safeType + short blocking ID + "Lihat di Manual Sync" link
+  //  - form input is NOT reset after 409
+  //  - non-queue errors (400) keep the existing destructive-banner path
+  //  - 409 without details.blockingRequestId still renders a graceful banner
+  describe('AC USDX-84 — Safe queue occupied banner', () => {
+    const BLOCKING_ID = '019e1aa8-9c7c-7fcd-6abc-deadbeef0001'
+
+    async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+      await pickEligibleUser(user)
+      await selectChainPolygon(user)
+      await user.click(document.getElementById('mintWallet')!)
+      await user.click(
+        await screen.findByRole('option', {
+          name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
+        })
+      )
+      await user.type(screen.getByLabelText(/^amount$/i), '250')
+      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
+    }
+
+    test('renders banner with short blocking ID + Manual Sync link on 409', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'SAFE_QUEUE_OCCUPIED',
+                message: 'queued',
+                details: { safeType: 'STAFF', blockingRequestId: BLOCKING_ID },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      const banner = await screen.findByTestId('safe-queue-occupied-banner')
+      expect(banner).toHaveTextContent(/Safe STAFF/i)
+      expect(banner).toHaveTextContent('019e1aa8…f0001')
+      const link = screen.getByRole('link', { name: /lihat di manual sync/i })
+      expect(link).toHaveAttribute('href', `/manual-sync?highlight=${BLOCKING_ID}`)
+    })
+
+    test('form values are preserved after 409 so operator can retry', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'SAFE_QUEUE_OCCUPIED',
+                message: 'queued',
+                details: { safeType: 'MANAGER', blockingRequestId: BLOCKING_ID },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+      await screen.findByTestId('safe-queue-occupied-banner')
+
+      // Inputs that should survive the 409.
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('250')
+      expect(await screen.findByTestId('user-picker-selected')).toBeInTheDocument()
+      // Should NOT have navigated to /mint.
+      expect(screen.queryByTestId('mint-list-page')).not.toBeInTheDocument()
+    })
+
+    test('400 validation error still uses the existing destructive banner, not queue banner', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'VALIDATION_ERROR', message: 'amount must be positive' },
+            },
+            { status: 400 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      expect(await screen.findByText(/amount must be positive/i)).toBeInTheDocument()
+      expect(screen.queryByTestId('safe-queue-occupied-banner')).not.toBeInTheDocument()
+    })
+
+    test('graceful fallback when 409 omits details.blockingRequestId', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/mint', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'SAFE_QUEUE_OCCUPIED', message: 'queued' },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      const banner = await screen.findByTestId('safe-queue-occupied-banner')
+      expect(banner).toHaveTextContent(/Safe target/i)
+      // No short ID present.
+      expect(banner.textContent ?? '').not.toMatch(/019e1aa8/)
+      // Link still points at Manual Sync, just without highlight param.
+      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+        'href',
+        '/manual-sync'
+      )
     })
   })
 })

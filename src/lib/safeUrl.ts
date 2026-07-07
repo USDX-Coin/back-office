@@ -43,3 +43,31 @@ export function buildSafeUrl({ chainId, safeAddress, safeTxHash }: SafeUrlInput)
   })
   return `${SAFE_APP_BASE_URL}/transactions/tx?${params.toString()}`
 }
+
+/** Minimal slice of ChainConfig (sot/api/chains.yaml) needed to build a Safe link. */
+export interface SafeChainConfig {
+  chainId: number
+  staffSafeAddress: string
+  managerSafeAddress: string
+}
+
+/**
+ * Resolve a Safe UI deep-link for a request row/detail. Returns `null` when the
+ * chain config is unavailable, the safeTxHash is missing, or the chainId is not
+ * one Safe supports — callers fall back to plain copyable text in that case.
+ */
+export function safeTxUrl(params: {
+  chain: SafeChainConfig | undefined
+  safeType: 'STAFF' | 'MANAGER'
+  safeTxHash: string | null | undefined
+}): string | null {
+  const { chain, safeType, safeTxHash } = params
+  if (!chain || !safeTxHash) return null
+  const safeAddress = safeType === 'STAFF' ? chain.staffSafeAddress : chain.managerSafeAddress
+  if (!safeAddress) return null
+  try {
+    return buildSafeUrl({ chainId: chain.chainId, safeAddress, safeTxHash })
+  } catch {
+    return null
+  }
+}

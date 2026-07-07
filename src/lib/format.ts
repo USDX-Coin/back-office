@@ -33,6 +33,29 @@ export function formatIdrAmount(idr: number): string {
   return `Rp ${IDR_FORMATTER.format(idr)}`
 }
 
+// Generic middle-truncation for a hex string (address / tx hash):
+// `0x1234…abcd`. Returns the value unchanged when it is already short enough.
+// USDX-27: used by <TruncatedHash> for the responsive (mobile vs desktop)
+// address/hash display.
+export function truncateMiddle(value: string, head: number, tail: number): string {
+  if (!value || value.length <= head + tail) return value
+  return `${value.slice(0, head)}…${value.slice(-tail)}`
+}
+
+// Truncate an 0x hash for display: `0x3d84b05e…d4587f`. Returns the hash
+// unchanged when it's already short enough.
+export function shortHash(hash: string, head = 10, tail = 6): string {
+  return truncateMiddle(hash, head, tail)
+}
+
+// USDX-84 / USDX-87: short form of a request UUID for compact display in
+// banners + the Manual Sync list. AC expects
+// `019e1aa8-9c7c-7fcd-6abc-deadbeef0001` → `019e1aa8…f0001` (first UUID
+// segment + last 5 chars). Delegates to truncateMiddle.
+export function shortRequestId(id: string): string {
+  return truncateMiddle(id, 8, 5)
+}
+
 export function formatDate(dateString: string): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',

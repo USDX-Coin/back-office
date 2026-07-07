@@ -180,4 +180,140 @@ describe('BurnFormPage @ USDX-46', () => {
       expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
     })
   })
+
+  // USDX-84 — 409 SAFE_QUEUE_OCCUPIED banner on /burn/new.
+  describe('AC USDX-84 — Safe queue occupied banner', () => {
+    const BLOCKING_ID = '019e1aa8-9c7c-7fcd-6abc-deadbeef0001'
+
+    async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+      await pickEligibleUser(user)
+      await user.click(document.getElementById('burnWallet')!)
+      await user.click(
+        await screen.findByRole('option', {
+          name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
+        })
+      )
+      await user.type(screen.getByLabelText(/^amount$/i), '750')
+      await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
+      await user.type(screen.getByLabelText(/bank name/i), 'BCA')
+      await user.type(screen.getByLabelText(/bank account/i), '1234567890')
+      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+    }
+
+    test('renders banner with short blocking ID + Manual Sync link on 409', { timeout: 15000 }, async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/burn', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'SAFE_QUEUE_OCCUPIED',
+                message: 'queued',
+                details: { safeType: 'MANAGER', blockingRequestId: BLOCKING_ID },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      const banner = await screen.findByTestId('safe-queue-occupied-banner')
+      expect(banner).toHaveTextContent(/Safe MANAGER/i)
+      expect(banner).toHaveTextContent('019e1aa8…f0001')
+      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+        'href',
+        `/manual-sync?highlight=${BLOCKING_ID}`
+      )
+    })
+
+    test('form values preserved + no navigate on 409', { timeout: 15000 }, async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/burn', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'SAFE_QUEUE_OCCUPIED',
+                message: 'queued',
+                details: { safeType: 'STAFF', blockingRequestId: BLOCKING_ID },
+              },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+      await screen.findByTestId('safe-queue-occupied-banner')
+
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('750')
+      expect(screen.getByLabelText(/deposit tx hash/i)).toHaveValue(VALID_TX)
+      expect(screen.getByLabelText(/bank name/i)).toHaveValue('BCA')
+      expect(screen.queryByTestId('burn-list-page')).not.toBeInTheDocument()
+    })
+
+    test('400 validation error keeps the existing destructive banner, not queue banner', { timeout: 15000 }, async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/burn', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'VALIDATION_ERROR', message: 'depositTxHash mismatch' },
+            },
+            { status: 400 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      expect(await screen.findByText(/depositTxHash mismatch/i)).toBeInTheDocument()
+      expect(screen.queryByTestId('safe-queue-occupied-banner')).not.toBeInTheDocument()
+    })
+
+    test('graceful fallback when 409 omits details.blockingRequestId', { timeout: 15000 }, async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      server.use(
+        http.post('/api/v1/burn', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'SAFE_QUEUE_OCCUPIED', message: 'queued' },
+            },
+            { status: 409 }
+          )
+        )
+      )
+
+      setup()
+      await fillAndSubmit(user)
+
+      const banner = await screen.findByTestId('safe-queue-occupied-banner')
+      expect(banner).toHaveTextContent(/Safe target/i)
+      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+        'href',
+        '/manual-sync'
+      )
+    })
+  })
 })

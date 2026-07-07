@@ -4,31 +4,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import type {
-  Customer,
-  CustomerSummary,
+  ActivationStatus,
   EntityType,
   KycStatus,
-  Network,
-  PaginatedResponse,
   PhaseOneCreateUser,
-  PhaseOneCreateUserResponse,
   PhaseOneCreateUserWallet,
   PhaseOnePaginatedResponse,
   PhaseOneUpdateUser,
   PhaseOneUser,
   PhaseOneUserDetail,
   PhaseOneUserWallet,
-  UserWallet,
+  ResendActivationResult,
 } from '@/lib/types'
 
 // USDX-47 S3: filter by kycStatus and entityType. sot/api/users.yaml § GET
-// /users — both single-value enums.
+// /users — both single-value enums. USDX-156 adds activationStatus
+// (PENDING/ACTIVATED/FAILED, absent = no filter — "All" sends no param).
 export interface UsersListParams {
   page?: number
   limit?: number
   search?: string
   kycStatus?: KycStatus
   entityType?: EntityType
+  activationStatus?: ActivationStatus
 }
 
 function buildQuery(params: UsersListParams): string {
@@ -59,17 +57,37 @@ export function useUserDetail(id: string | undefined) {
   })
 }
 
-// USDX-47 AC5: POST returns user + one-time password. Caller (UserModal) uses
-// the `password` field to open PasswordRevealDialog after success.
+// USDX-156 (Phase 2): POST no longer returns a password — BE auto-sends the
+// activation email instead (admin-created.html, link valid 7 days). The old
+// USDX-47 PasswordRevealDialog flow was removed with backend PR #87.
 export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: PhaseOneCreateUser) =>
-      apiFetch<PhaseOneCreateUserResponse>('/api/v1/users', {
+      apiFetch<PhaseOneUser>('/api/v1/users', {
         method: 'POST',
         body: input,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+// USDX-156 — POST /api/v1/users/:id/resend-activation (Admin only).
+// Rotates the activation token and re-queues admin-created.html. Only valid
+// while email_verified_at is null: 409 ALREADY_VERIFIED otherwise, 429
+// TOO_MANY_REQUESTS within the 60s per-user cooldown (sot/api/users.yaml
+// § resendActivation).
+export function useResendActivation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<ResendActivationResult>(`/api/v1/users/${id}/resend-activation`, {
+        method: 'POST',
+      }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['users', 'detail', id] })
+    },
   })
 }
 
@@ -129,70 +147,3 @@ export function useRemoveWallet(userId: string | undefined) {
   })
 }
 
-// ─── Legacy mock-only hooks ─────────────────────────────────────────────────
-// `Customer` is the FE mock-domain (firstName/lastName/email/type/role).
-// Phase-1 SoT users live in the hooks above (PhaseOneUser → /api/v1/users).
-// These remain because OTC mint/redeem and `CustomerTypeahead` still consume
-// the mock customer directory; migrating those is outside USDX-37 scope.
-
-interface LegacyListParams {
-  page?: number
-  pageSize?: number
-  search?: string
-  type?: string
-  role?: string
-  sortBy?: string
-  sortOrder?: string
-}
-
-function buildLegacyQuery(params: LegacyListParams): string {
-  const sp = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
-  })
-  return sp.toString()
-}
-
-export function useCustomers(params: LegacyListParams = {}) {
-  return useQuery({
-    queryKey: ['customers', params],
-    queryFn: () =>
-      apiFetchRaw<PaginatedResponse<Customer>>(
-        `/api/customers?${buildLegacyQuery(params)}`
-      ),
-  })
-}
-
-export function useCustomerSummary() {
-  return useQuery({
-    queryKey: ['customers', 'summary'],
-    queryFn: () => apiFetch<CustomerSummary>('/api/customers/summary'),
-  })
-}
-
-export function useLegacyAddWallet(customerId: string | undefined) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { chain: Network; address: string }) => {
-      if (!customerId) throw new Error('Missing user id')
-      return apiFetch<UserWallet>(`/api/customers/${customerId}/wallets`, {
-        method: 'POST',
-        body: input,
-      })
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
-  })
-}
-
-export function useLegacyRemoveWallet(customerId: string | undefined) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (walletId: string) => {
-      if (!customerId) throw new Error('Missing user id')
-      await apiFetch<void>(`/api/customers/${customerId}/wallets/${walletId}`, {
-        method: 'DELETE',
-      })
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
-  })
-}

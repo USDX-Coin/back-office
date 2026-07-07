@@ -1,3 +1,8 @@
-/api/*                 https://backend-dev-c526.up.railway.app/api/:splat  200
+# Same-origin /api proxy fallback (dipakai hanya bila VITE_API_URL kosong; kalau
+# di-set, apiFetch call backend langsung — lihat src/lib/env.ts + .env.example).
+# Target = SoT dev backend (project-overview.md § Environment: api-dev.usdx.co.id);
+# URL Railway lama sudah stale (404). Staging/prod set VITE_API_URL ke backend
+# masing-masing (api.usdx.co.id utk prod), jadi tidak mengandalkan rewrite ini.
+/api/*                 https://api-dev.usdx.co.id/api/:splat  200
 /mockServiceWorker.js  /mockServiceWorker.js  200
 /*                     /index.html            200

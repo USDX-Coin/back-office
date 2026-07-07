@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -33,7 +34,7 @@ export default function RemoveWalletDialog({
       toast.success('Wallet removed')
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove wallet')
+      toast.error(err instanceof Error ? err.message : "Couldn't remove the wallet. Please try again.")
     }
   }
 
@@ -51,12 +52,14 @@ export default function RemoveWalletDialog({
       >
         <DialogHeader>
           <DialogTitle>Remove wallet?</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
           <DialogDescription>
             {wallet
               ? `Remove ${wallet.chain} wallet ${wallet.address}? This cannot be undone.`
               : 'No wallet selected.'}
           </DialogDescription>
-        </DialogHeader>
+        </DialogBody>
         <DialogFooter>
           <Button
             type="button"

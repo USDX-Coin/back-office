@@ -14,7 +14,7 @@ afterAll(() => server.close())
 
 describe('Sidebar @ USDX-50', () => {
   describe('layout (admin)', () => {
-    test('renders 3 section headers: Workspace / OTC / Settings', () => {
+    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true,
@@ -22,6 +22,8 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.getByText(/workspace/i)).toBeInTheDocument()
       expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
       expect(screen.getByText(/settings/i)).toBeInTheDocument()
+      // USDX-87: Manual Sync lives in its own Troubleshooting section.
+      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
     })
 
     test('renders all admin nav links', () => {
@@ -39,6 +41,8 @@ describe('Sidebar @ USDX-50', () => {
       // SETTINGS
       expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      // TROUBLESHOOTING (USDX-87)
+      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
     })
   })
 
@@ -93,6 +97,17 @@ describe('Sidebar @ USDX-50', () => {
       // Staff entry stays hidden (admin only) even for DEVELOPER per Flag-A.
       expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
     })
+
+    // USDX-87: Manual Sync is an emergency recovery surface — every role
+    // (incl. STAFF who has no Settings access) must see it.
+    test('Troubleshooting > Manual Sync visible to STAFF role', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
+      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
+    })
   })
 
   describe('badge counter (sot/phase-1.md § Sidebar)', () => {
@@ -143,6 +158,118 @@ describe('Sidebar @ USDX-50', () => {
       // the count is > 0 (per Linear AC: hide angka, label saja saat 0).
       expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
       expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
+    })
+  })
+
+  // USDX-78 — STAFF can't access /mint /burn lists (sot/phase-1.md L34 +
+  // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
+  // the (N) badge so STAFF doesn't see a counter they can't act on.
+  describe('USDX-78 — STAFF sidebar', () => {
+    test('STAFF Mint link targets /mint/new instead of /mint', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      const mintLink = screen.getByRole('link', { name: /^mint$/i })
+      expect(mintLink).toHaveAttribute('href', '/mint/new')
+    })
+
+    test('STAFF Burn link targets /burn/new instead of /burn', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4',
+      })
+      const burnLink = screen.getByRole('link', { name: /^burn$/i })
+      expect(burnLink).toHaveAttribute('href', '/burn/new')
+    })
+
+    test('STAFF never sees the Mint/Burn (N) badge', async () => {
+      // Even if a stale handler returned a count, the Sidebar disables the
+      // count query for STAFF and never renders a badge.
+      server.use(
+        http.get('/api/v1/requests', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 99 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4',
+      })
+      expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
+    })
+  })
+
+  // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
+  // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
+  // unlike Mint/Burn the badge also renders for STAFF.
+  describe('USDX-154 — COMPLIANCE / KYC Review', () => {
+    function kycCount(total: number) {
+      return http.get('/api/v1/kyc', () =>
+        HttpResponse.json({
+          status: 'success',
+          metadata: { page: 1, limit: 1, total },
+          data: [],
+        })
+      )
+    }
+
+    test('renders Compliance section with a KYC Review link to /kyc (admin)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(screen.getByText(/compliance/i)).toBeInTheDocument()
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+    })
+
+    test('shows (N) badge with the PENDING submission count', async () => {
+      server.use(kycCount(5))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('5')
+    })
+
+    test('hides the badge when the PENDING count is 0', async () => {
+      server.use(kycCount(0))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      // Link renders; badge node only mounts when count > 0.
+      await screen.findByRole('link', { name: /kyc review/i })
+      expect(screen.queryByTestId('nav-badge-kyc')).not.toBeInTheDocument()
+    })
+
+    test('STAFF sees KYC Review with the badge (list is staff-accessible, unlike /mint)', async () => {
+      server.use(kycCount(3))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('3')
+    })
+
+    test('DEVELOPER sees KYC Review (view-only role still gets the list menu)', async () => {
+      server.use(kycCount(2))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius (DEVELOPER)
+      })
+      expect(screen.getByRole('link', { name: /kyc review/i })).toBeInTheDocument()
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('2')
     })
   })
 })

@@ -11,7 +11,6 @@ components/
   ├── Avatar.tsx             # Initials + fixed 8-color palette
   ├── FieldError.tsx         # Inline form error primitive (role="alert")
   ├── TableEmptyState.tsx    # Table empty-state with no-data / no-results modes
-  ├── CustomerTypeahead.tsx  # Shared customer lookup (debounced)
   ├── DataTable.tsx          # Generic data table with filter-toolbar slot
   └── useDataTableParams.ts  # URL-state hook for tables that compose their own toolbar
 ```
@@ -23,7 +22,6 @@ components/
 - **`Avatar`** — Initials only (no uploaded images in v1). Background hue indexed by `name.charCodeAt(0) % 8` from a fixed Azure Horizon palette.
 - **`FieldError`** — Renders `<p role="alert">` with `text-destructive` styling when `message` is non-empty; null otherwise.
 - **`TableEmptyState`** — Two modes: `no-data` (default empty surface, optional CTA) and `no-results` (filtered with optional Clear-filters affordance).
-- **`CustomerTypeahead`** — Debounced (300ms) input backed by `useCustomers({search})`. Handles idle / debounce / in-flight (skeletons) / results / zero-results / error states. Used by Users, OTC Mint, OTC Redeem, Report.
 - **`DataTable`** — Generic table accepting `ColumnDef<T>[]`, data, rowCount. Features: arbitrary `filterToolbar` slot, custom `emptyState` slot, pagination, sort, URL-state via `useDataTableParams`, loading skeletons, no-line Azure Horizon styling. Default toolbar (search + statusOptions + date range) renders only when no `filterToolbar` is provided.
 - **`useDataTableParams`** — Lives in its own file (Fast Refresh requires component-only files). Reads page/sortBy/sortOrder/search from URL; provides `updateParams` and `clearAll`.
 

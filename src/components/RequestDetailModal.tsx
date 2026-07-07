@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react'
+import { Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -6,16 +6,23 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogBody,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetchRaw } from '@/lib/apiFetch'
-import { formatDate } from '@/lib/format'
-import { getRequestStatusConfig } from '@/lib/status'
+import { buildTxExplorerUrl } from '@/lib/explorerUrl'
+import { safeTxUrl } from '@/lib/safeUrl'
+import { formatDate, shortHash } from '@/lib/format'
+import { getRequestStatusConfig, isRequestTerminal } from '@/lib/status'
+import { findChainConfig } from '@/lib/chainLinks'
+import { useChainConfig } from '@/features/chains/hooks'
 import type {
   BurnRequestDetail,
   PhaseOneSuccessResponse,
   RequestDetail,
+  RequestListItem,
+  RequestType,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +30,11 @@ interface RequestDetailModalProps {
   requestId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  // USDX-23: BE /requests/:id detail omits `type` + `userName`. The list-page
+  // caller passes the row it just clicked so we can render the title + user
+  // name without an extra fetch. Optional so the prop can be omitted in
+  // contexts that don't have the row (none today).
+  listItem?: RequestListItem | null
 }
 
 function fetchRequestDetail(
@@ -36,12 +48,14 @@ function useRequestDetail(id: string | null) {
     queryKey: ['requests', 'detail', id],
     queryFn: () => fetchRequestDetail(id as string),
     enabled: Boolean(id),
+    // USDX-27: while the modal is open on a request that's still moving through
+    // the approval lifecycle, poll so the status badge updates live.
+    refetchInterval: (query) => {
+      const status = query.state.data?.data?.status
+      return status && !isRequestTerminal(status) ? 20_000 : false
+    },
+    refetchOnWindowFocus: true,
   })
-}
-
-function shortHash(hash: string, head = 10, tail = 6): string {
-  if (hash.length < head + tail + 2) return hash
-  return `${hash.slice(0, head)}…${hash.slice(-tail)}`
 }
 
 async function copy(value: string, label: string) {
@@ -51,6 +65,20 @@ async function copy(value: string, label: string) {
   } catch {
     toast.error('Copy failed')
   }
+}
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => copy(value, label)}
+      className="text-muted-foreground hover:text-primary"
+      title={`Copy ${label}`}
+      aria-label={`Copy ${label}`}
+    >
+      <Copy className="h-3 w-3" />
+    </button>
+  )
 }
 
 function CopyableMono({ value, label }: { value: string; label: string }) {
@@ -65,6 +93,38 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
       <span className="break-all">{shortHash(value)}</span>
       <Copy className="h-3 w-3 opacity-50" />
     </button>
+  )
+}
+
+// Hash rendered as an external deep-link (block explorer / Safe UI) with a copy
+// button alongside. Falls back to plain copyable text when no link is available
+// (e.g. chain config not loaded, or chainId Safe doesn't recognise).
+function HashLink({
+  value,
+  label,
+  linkLabel,
+  href,
+}: {
+  value: string
+  label: string
+  linkLabel: string
+  href: string | null
+}) {
+  if (!href) return <CopyableMono value={value} label={label} />
+  return (
+    <span className="inline-flex items-center gap-2">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
+        title={`${linkLabel}: ${value}`}
+      >
+        <span className="break-all">{shortHash(value)}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+      </a>
+      <CopyButton value={value} label={label} />
+    </span>
   )
 }
 
@@ -85,26 +145,41 @@ function Field({
   )
 }
 
-function isBurn(detail: RequestDetail): detail is BurnRequestDetail {
-  return detail.type === 'burn'
+function isBurn(
+  detail: RequestDetail,
+  fallbackType?: RequestType
+): detail is BurnRequestDetail {
+  return (detail.type ?? fallbackType) === 'burn'
 }
 
 export default function RequestDetailModal({
   requestId,
   open,
   onOpenChange,
+  listItem,
 }: RequestDetailModalProps) {
   const query = useRequestDetail(open ? requestId : null)
+  const { data: chains } = useChainConfig()
   const detail = query.data?.data
   const cfg = detail ? getRequestStatusConfig(detail.status) : null
+  // USDX-23: BE detail omits `type` + `userName` — fall back to the list row.
+  const resolvedType = detail?.type ?? listItem?.type
+  const resolvedUserName = detail?.userName ?? listItem?.userName
+  // USDX-78: render "Created by" — prefer detail (SoT api/mint.yaml § MintRequest
+  // L134 / api/burn.yaml § BurnRequest L147) and fall back to the list row.
+  const resolvedCreatedByName = detail?.createdByName ?? listItem?.createdByName
+  // USDX-71: resolve the chain's explorer/Safe config for on-chain deep-links.
+  const chainCfg = findChainConfig(chains, detail?.chain ?? listItem?.chain)
+  const explorerTx = (hash: string) =>
+    chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, hash) : null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card">
         <DialogHeader>
           <DialogTitle>
-            {detail
-              ? `${detail.type === 'mint' ? 'Mint' : 'Burn'} request`
+            {resolvedType
+              ? `${resolvedType === 'mint' ? 'Mint' : 'Burn'} request`
               : 'Request detail'}
           </DialogTitle>
           <DialogDescription>
@@ -112,14 +187,15 @@ export default function RequestDetailModal({
           </DialogDescription>
         </DialogHeader>
 
+        <DialogBody>
         {query.isLoading || !detail ? (
-          <div className="space-y-3 py-2">
+          <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-4 w-full" />
             ))}
           </div>
         ) : query.isError ? (
-          <p className="py-6 text-center text-sm text-destructive">
+          <p className="py-2 text-center text-sm text-destructive">
             {query.error instanceof Error
               ? query.error.message
               : 'Failed to load request detail.'}
@@ -147,7 +223,11 @@ export default function RequestDetailModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="User name">{detail.userName}</Field>
+              <Field label="User name">
+                {resolvedUserName ?? (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </Field>
               <Field label="User wallet">
                 <CopyableMono value={detail.userAddress} label="User address" />
               </Field>
@@ -173,21 +253,37 @@ export default function RequestDetailModal({
               <Field label="Request ID">
                 <CopyableMono value={detail.id} label="Request ID" />
               </Field>
+              <Field label="Created by">
+                {resolvedCreatedByName ?? (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </Field>
               <Field label="Idempotency key">
                 <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />
               </Field>
               <Field label="Safe tx hash">
                 {detail.safeTxHash ? (
-                  <CopyableMono value={detail.safeTxHash} label="Safe tx hash" />
+                  <HashLink
+                    value={detail.safeTxHash}
+                    label="Safe tx hash"
+                    linkLabel="View in Safe"
+                    href={safeTxUrl({
+                      chain: chainCfg,
+                      safeType: detail.safeType,
+                      safeTxHash: detail.safeTxHash,
+                    })}
+                  />
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </Field>
               <Field label="On-chain tx hash">
                 {detail.onChainTxHash ? (
-                  <CopyableMono
+                  <HashLink
                     value={detail.onChainTxHash}
                     label="On-chain tx hash"
+                    linkLabel="View on block explorer"
+                    href={explorerTx(detail.onChainTxHash)}
                   />
                 ) : (
                   <span className="text-muted-foreground">—</span>
@@ -195,16 +291,33 @@ export default function RequestDetailModal({
               </Field>
             </div>
 
-            {isBurn(detail) && (
+            {isBurn(detail, resolvedType) && (
               <div className="grid gap-4 rounded-md bg-muted/40 p-3 sm:grid-cols-2">
                 <Field label="Deposit tx hash">
-                  <CopyableMono value={detail.depositTxHash} label="Deposit tx" />
+                  {detail.depositTxHash ? (
+                    <HashLink
+                      value={detail.depositTxHash}
+                      label="Deposit tx"
+                      linkLabel="View on block explorer"
+                      href={explorerTx(detail.depositTxHash)}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </Field>
                 <Field label="Bank">
-                  <span>{detail.bankName}</span>
+                  <span>
+                    {detail.bankName ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
                 </Field>
                 <Field label="Bank account">
-                  <span className="font-mono tabular-nums">{detail.bankAccount}</span>
+                  <span className="font-mono tabular-nums">
+                    {detail.bankAccount ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
                 </Field>
               </div>
             )}
@@ -218,6 +331,7 @@ export default function RequestDetailModal({
             </Field>
           </div>
         )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

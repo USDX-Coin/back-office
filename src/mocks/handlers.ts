@@ -3,6 +3,9 @@ import { isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
+  KycDetail,
+  KycListItem,
+  KycReviewLog,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -10,29 +13,35 @@ import type {
   RateConfig,
   RateMode,
   UpdateRateConfig,
+  FeeConfig,
+  UpdateFeeConfig,
   RequestDetail,
   RequestListItem,
+  OrderDetail,
+  OrderListItem,
 } from '@/lib/types'
-import { canManageRate } from '@/lib/types'
+import { canManageRate, canManageFeeConfig } from '@/lib/types'
 import {
+  createKycReviewLog,
   createMockCustomerList,
+  createMockKycDetailState,
+  createMockKycList,
   createMockStaffList,
   createMockOtcTransactions,
+  createMockChainConfigs,
   createMockRequests,
-  createCustomer,
-  createUserWallet,
   createOtcMintTransaction,
   createOtcRedeemTransaction,
   createBurnRequestFromSubmission,
-  computeCustomerSummary,
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
-  computeUserAnalytics,
-  computeUserRecentRequests,
+  createInitialFeeHistory,
+  createFeeConfig,
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
+  createMockOrders,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -43,9 +52,17 @@ let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+let orderList: OrderListItem[]
+let orderDetails: Map<string, OrderDetail>
+;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
+let kycList: KycListItem[] = createMockKycList()
+let kycDetails: Map<string, KycDetail>
+let kycReviews: Map<string, KycReviewLog[]>
+;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -54,9 +71,31 @@ export function resetMockData() {
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+  feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
+  ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
+  kycList = createMockKycList()
+  ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
+}
+
+// USDX-84 — test helper. The seeded `createMockRequests` factory generates
+// multiple PENDING_APPROVAL/APPROVED entries per Safe (legacy demo data
+// useful for list/dashboard tests). That collides with the SoT § Safe
+// Propose Queue 1-pending-per-Safe invariant the POST handlers now enforce,
+// so submission tests need a clean queue before exercising the happy path.
+//
+// Not exported from the runtime API surface (no callers in src/, only tests).
+export function clearActiveRequestsForTests() {
+  for (const item of requestList) {
+    if (item.status === 'PENDING_APPROVAL' || item.status === 'APPROVED') {
+      requestDetails.delete(item.id)
+    }
+  }
+  requestList = requestList.filter(
+    (r) => r.status !== 'PENDING_APPROVAL' && r.status !== 'APPROVED'
+  )
 }
 
 // Exposed for AuthProvider: looks up Staff without going over HTTP
@@ -154,41 +193,59 @@ function paginate<T>(items: T[], page: number, pageSize: number) {
   }
 }
 
-function applyCommonFilters<T extends { createdAt: string }>(
-  items: T[],
-  params: URLSearchParams
-): T[] {
-  let result = [...items]
-  const startDate = params.get('startDate')
-  const endDate = params.get('endDate')
-  const sortBy = params.get('sortBy')
-  const sortOrder = params.get('sortOrder') || 'desc'
-
-  if (startDate) result = result.filter((i) => i.createdAt >= startDate)
-  if (endDate) result = result.filter((i) => i.createdAt <= endDate)
-
-  if (sortBy) {
-    result.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sortBy]
-      const bVal = (b as Record<string, unknown>)[sortBy]
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
-      }
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
-      }
-      return 0
-    })
-  }
-  return result
-}
-
 function badRequest(code: string, message: string, details?: Record<string, string>) {
   return HttpResponse.json({ error: { code, message, details } }, { status: 400 })
 }
 
-function notFound() {
-  return new HttpResponse(null, { status: 404 })
+// USDX-155 — phase-one error shapes for the KYC review endpoints
+// (sot/api/kyc.yaml § detail/approve/reject error responses).
+function kycNotFound() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'NOT_FOUND', message: 'KYC record not found' },
+    },
+    { status: 404 }
+  )
+}
+
+function kycForbidden() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN', message: 'Developer role cannot approve or reject KYC' },
+    },
+    { status: 403 }
+  )
+}
+
+function kycInvalidStatus() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'INVALID_STATUS',
+        message: 'KYC status is not PENDING (it may have been reviewed concurrently)',
+      },
+    },
+    { status: 409 }
+  )
+}
+
+// Asia/Jakarta (UTC+7) date bucket of an ISO timestamp, mirrors BE
+// `(col AT TIME ZONE 'Asia/Jakarta')::date`. Inclusive both bounds
+// (equivalent to col < endDate + 1 day). Shared by the requests (USDX-98)
+// and KYC (USDX-154) list handlers.
+function jakartaDate(iso: string): string {
+  return new Date(new Date(iso).getTime() + 7 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
 }
 
 // ─── Mock JWT (mock-only; v1 risk R64 — not a real signed token) ───
@@ -341,101 +398,9 @@ export const handlers = [
     })
   }),
 
-  // ─── Customers (User menu) ───
-  http.get('/api/customers', ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get('page') || '1')
-    const pageSize = Number(url.searchParams.get('pageSize') || '10')
-    const search = url.searchParams.get('search')?.toLowerCase()
-    const type = url.searchParams.get('type')
-    const role = url.searchParams.get('role')
-
-    let result = [...customerStore]
-    if (search) {
-      result = result.filter(
-        (c) =>
-          c.firstName.toLowerCase().includes(search) ||
-          c.lastName.toLowerCase().includes(search) ||
-          c.email.toLowerCase().includes(search) ||
-          c.wallets.some((w) => w.address.toLowerCase().includes(search))
-      )
-    }
-    if (type) result = result.filter((c) => c.type === type)
-    if (role) result = result.filter((c) => c.role === role)
-    result = applyCommonFilters(result, url.searchParams)
-
-    return HttpResponse.json(paginate(result, page, pageSize))
-  }),
-
-  http.get('/api/customers/summary', () => HttpResponse.json(computeCustomerSummary(customerStore))),
-
-  http.get('/api/customers/:id', ({ params }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const analytics = computeUserAnalytics(customer.id, otcMintStore, otcRedeemStore)
-    const recentRequests = computeUserRecentRequests(customer.id, otcMintStore, otcRedeemStore)
-    return HttpResponse.json({ ...customer, analytics, recentRequests })
-  }),
-
-  http.post('/api/customers/:id/wallets', async ({ params, request }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const body = (await request.json()) as { chain?: string; address?: string }
-    if (!body.chain || !body.address) {
-      return badRequest('VALIDATION', 'Chain and address are required')
-    }
-    const duplicate = customer.wallets.some(
-      (w) => w.chain === body.chain && w.address.toLowerCase() === body.address!.toLowerCase()
-    )
-    if (duplicate) {
-      return HttpResponse.json(
-        { error: { code: 'CONFLICT', message: 'Wallet already exists for this user' } },
-        { status: 409 }
-      )
-    }
-    const wallet = createUserWallet({
-      chain: body.chain as Customer['wallets'][number]['chain'],
-      address: body.address,
-      createdAt: new Date().toISOString(),
-    })
-    customer.wallets.push(wallet)
-    return HttpResponse.json(wallet, { status: 201 })
-  }),
-
-  http.delete('/api/customers/:id/wallets/:walletId', ({ params }) => {
-    const customer = customerStore.find((c) => c.id === params.id)
-    if (!customer) return notFound()
-    const idx = customer.wallets.findIndex((w) => w.id === params.walletId)
-    if (idx < 0) return notFound()
-    customer.wallets.splice(idx, 1)
-    return new HttpResponse(null, { status: 204 })
-  }),
-
-  http.post('/api/customers', async ({ request }) => {
-    const body = (await request.json()) as Partial<Customer>
-    if (!body.firstName || !body.lastName || !body.email || !body.type || !body.role) {
-      return badRequest('VALIDATION', 'Missing required fields')
-    }
-    const created = createCustomer({ ...(body as Partial<Customer>), wallets: body.wallets ?? [] })
-    customerStore.unshift(created)
-    return HttpResponse.json(created, { status: 201 })
-  }),
-
-  http.patch('/api/customers/:id', async ({ params, request }) => {
-    const tx = customerStore.find((c) => c.id === params.id)
-    if (!tx) return notFound()
-    const body = (await request.json()) as Partial<Customer>
-    Object.assign(tx, body, { id: tx.id })
-    return HttpResponse.json(tx)
-  }),
-
-  http.delete('/api/customers/:id', ({ params }) => {
-    const idx = customerStore.findIndex((c) => c.id === params.id)
-    if (idx < 0) return notFound()
-    customerStore.splice(idx, 1)
-    return new HttpResponse(null, { status: 204 })
-  }),
-
+  // USDX-23: /api/customers/* handlers removed — legacy mock domain replaced
+  // by the SoT `/api/v1/users` flow (USDX-37 + USDX-47). No remaining consumer.
+  //
   // USDX-41: /api/staff/* mock removed — StaffPage now hits real GET /api/v1/staff.
 
   // ─── OTC Mint ───
@@ -538,7 +503,7 @@ export const handlers = [
           status: 'error',
           metadata: null,
           data: null,
-          error: { code: 'FORBIDDEN', message: 'Only ADMIN or MANAGER can update rate' },
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN can update rate' },
         },
         { status: 403 }
       )
@@ -567,17 +532,21 @@ export const handlers = [
         return rateBadRequest('manualRate is required when mode is MANUAL')
       }
     }
-    if (body.spreadPct != null) {
-      const n = Number(body.spreadPct)
-      if (!Number.isFinite(n) || n < 0) {
-        return rateBadRequest('spreadPct must be a non-negative number')
+    for (const key of ['spreadBuyPct', 'spreadSellPct'] as const) {
+      const raw = body[key]
+      if (raw != null) {
+        const n = Number(raw)
+        if (!Number.isFinite(n) || n < 0) {
+          return rateBadRequest(`${key} must be a non-negative number`)
+        }
       }
     }
 
     const created = createRateConfig({
       mode: body.mode as RateMode,
       manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
-      spreadPct: body.spreadPct ?? '0',
+      spreadBuyPct: body.spreadBuyPct ?? '0',
+      spreadSellPct: body.spreadSellPct ?? '0',
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
@@ -588,10 +557,103 @@ export const handlers = [
     )
   }),
 
+  // ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207) ───
+  // GET = semua role backoffice (read); POST = admin only (append-only).
+  // Mock-served (not in browser INTEGRATION_PATHS) — BE belum tentu live.
+  // GET not Bearer-gated, same rationale as /api/v1/rate above.
+  http.get('/api/v1/fee-config', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: feeHistory[feeHistory.length - 1],
+    })
+  ),
+
+  http.post('/api/v1/fee-config', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageFeeConfig(operator.role)) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'FORBIDDEN', message: 'Only ADMIN can update fee config' },
+        },
+        { status: 403 }
+      )
+    }
+
+    const body = (await request.json()) as UpdateFeeConfig
+
+    // sot/conventions.md § Validation Error — fee-config is on the v1→422
+    // allowlist, so body failures use 422 VALIDATION_ERROR (not 400/VALIDATION).
+    function feeValidationError(message: string) {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'VALIDATION_ERROR', message },
+        },
+        { status: 422 }
+      )
+    }
+
+    // POST = full 5-field snapshot; every field required + non-negative (W3
+    // redeem fields included so partial submits can't zero them out, USDX-245).
+    for (const key of [
+      'mintFeePct',
+      'pgFeeVaFlat',
+      'pgFeeQrisPct',
+      'redeemFeePct',
+      'disbursementFeeFlat',
+    ] as const) {
+      const raw = body[key]
+      const n = Number(raw)
+      if (raw == null || raw === '' || !Number.isFinite(n) || n < 0) {
+        return feeValidationError(`${key} is required and must be a non-negative number`)
+      }
+    }
+
+    const created = createFeeConfig({
+      mintFeePct: body.mintFeePct,
+      pgFeeVaFlat: body.pgFeeVaFlat,
+      pgFeeQrisPct: body.pgFeeQrisPct,
+      redeemFeePct: body.redeemFeePct,
+      disbursementFeeFlat: body.disbursementFeeFlat,
+      updatedBy: operator.id,
+      createdAt: new Date().toISOString(),
+    })
+    feeHistory.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // ─── Chain config — sot/api/chains.yaml § GET /api/v1/chains ───
+  // FE-facing chain metadata (block explorer + Safe addresses) used to build
+  // on-chain deep-links. Real-BE-backed in the browser (see browser.ts §
+  // INTEGRATION_PATHS); this handler keeps Vitest coverage. Not Bearer-gated in
+  // the mock for the same reason as /api/v1/rate above.
+  http.get('/api/v1/chains', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: createMockChainConfigs(),
+    })
+  ),
+
+  // USDX-82: MSW reporting handlers removed — `/api/v1/reports/*` now hits the
+  // real BE (sot/api/reporting.yaml). Requests fall through to the configured
+  // VITE_API_URL via `onUnhandledRequest: 'bypass'` in main.tsx.
+
   // ─── Phase 1 Requests (mint/burn approval lifecycle) — see sot/openapi.yaml ───
-  // USDX-51: `?search=` filters by user name / address substring (case-insensitive)
-  // to back the search input in MintBurnFilterToolbar. Mirrors the /api/v1/users
-  // search shape; real BE support against `sot/api/requests.yaml` to be confirmed.
+  // USDX-51: `?search=` filters by user name / address substring (case-insensitive).
+  // USDX-78: `?search=` also matches on request `id` (prefix / substring) — users
+  // typically paste the short form `019e1aa8` from the ID column. Per
+  // sot/api/requests.yaml § search L26-34.
   http.get('/api/v1/requests', ({ request }) => {
     const url = new URL(request.url)
     const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
@@ -601,6 +663,18 @@ export const handlers = [
     const chain = url.searchParams.get('chain')
     const safeType = url.searchParams.get('safeType')
     const search = url.searchParams.get('search')?.trim().toLowerCase()
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+
+    // Mirror backend USDX-98: date-only, reject datetime → 400; cross-field
+    // endDate >= startDate only when both present.
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    if (startDate !== null && !DATE_RE.test(startDate))
+      return phaseOneBadRequest('startDate must be YYYY-MM-DD')
+    if (endDate !== null && !DATE_RE.test(endDate))
+      return phaseOneBadRequest('endDate must be YYYY-MM-DD')
+    if (startDate && endDate && endDate < startDate)
+      return phaseOneBadRequest('endDate must be greater than or equal to startDate')
 
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
@@ -609,11 +683,14 @@ export const handlers = [
     if (safeType === 'STAFF' || safeType === 'MANAGER') {
       rows = rows.filter((r) => r.safeType === safeType)
     }
+    if (startDate) rows = rows.filter((r) => jakartaDate(r.createdAt) >= startDate)
+    if (endDate) rows = rows.filter((r) => jakartaDate(r.createdAt) <= endDate)
     if (search) {
       rows = rows.filter(
         (r) =>
           r.userName.toLowerCase().includes(search) ||
-          r.userAddress.toLowerCase().includes(search)
+          r.userAddress.toLowerCase().includes(search) ||
+          r.id.toLowerCase().includes(search)
       )
     }
 
@@ -625,6 +702,161 @@ export const handlers = [
       metadata: { page, limit, total: rows.length },
       data,
     })
+  }),
+
+  // ─── Phase 2 W1 — KYC backoffice list (sot/api/kyc.yaml § list, USDX-154) ───
+  // Real BE in the browser (see src/mocks/browser.ts § INTEGRATION_PATHS);
+  // this handler keeps Vitest coverage. The contract exposes no sort params —
+  // order is fixed at submitted_at ascending (oldest pending first, week1.md
+  // § Backoffice Approval Menu).
+  http.get('/api/v1/kyc', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+    const status = url.searchParams.get('status')
+    const entityType = url.searchParams.get('entityType')
+    const search = url.searchParams.get('search')?.trim().toLowerCase()
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+    if (startDate !== null && !DATE_RE.test(startDate))
+      return phaseOneBadRequest('startDate must be YYYY-MM-DD')
+    if (endDate !== null && !DATE_RE.test(endDate))
+      return phaseOneBadRequest('endDate must be YYYY-MM-DD')
+    if (startDate && endDate && endDate < startDate)
+      return phaseOneBadRequest('endDate must be greater than or equal to startDate')
+
+    let rows = [...kycList]
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (entityType) rows = rows.filter((r) => r.entityType === entityType)
+    // Search matches user email only (plaintext in `users`) — kyc.yaml § search.
+    if (search) rows = rows.filter((r) => r.userEmail.toLowerCase().includes(search))
+    if (startDate)
+      rows = rows.filter((r) => r.submittedAt && jakartaDate(r.submittedAt) >= startDate)
+    if (endDate)
+      rows = rows.filter((r) => r.submittedAt && jakartaDate(r.submittedAt) <= endDate)
+
+    rows.sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
+
+    const start = (page - 1) * limit
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: rows.length },
+      data: rows.slice(start, start + limit),
+    })
+  }),
+
+  // ─── USDX-155 — KYC detail / reviews / approve / reject (sot/api/kyc.yaml) ───
+  // Real BE in the browser (INTEGRATION_PATHS); handlers kept for Vitest.
+
+  http.get('/api/v1/kyc/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    // Audit-first (kyc.yaml § detail): a VIEWED row is inserted on EVERY call
+    // — Developer included, never debounced. Mirrored here so tests can assert
+    // the trail grows when the modal (re)fetches.
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'VIEWED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        ipAddress: null,
+        createdAt: new Date().toISOString(),
+      })
+    )
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      // Presigned URLs are generated per request — stamp a fresh 5-minute TTL.
+      data: { ...detail, urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() },
+    })
+  }),
+
+  http.get('/api/v1/kyc/:id/reviews', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const rows = kycReviews.get(String(params.id))
+    if (!rows) return kycNotFound()
+    // Reverse-chronological; reading the trail does NOT write a VIEWED row
+    // (kyc.yaml § reviewsHistory).
+    return HttpResponse.json({ status: 'success', metadata: null, data: rows })
+  }),
+
+  http.post('/api/v1/kyc/:id/approve', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kycForbidden()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    if (detail.status !== 'PENDING') return kycInvalidStatus()
+    const now = new Date().toISOString()
+    detail.status = 'VERIFIED'
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kycList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'VERIFIED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'APPROVED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        ipAddress: null,
+        createdAt: now,
+      })
+    )
+    return HttpResponse.json({ status: 'success', metadata: null, data: listRow ?? detail })
+  }),
+
+  http.post('/api/v1/kyc/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kycForbidden()
+    const detail = kycDetails.get(String(params.id))
+    if (!detail) return kycNotFound()
+    if (detail.status !== 'PENDING') return kycInvalidStatus()
+    let body: { reason?: unknown }
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 1 || reason.length > 500) {
+      return phaseOneBadRequest('reason must be 1–500 characters', 'BAD_REQUEST')
+    }
+    const now = new Date().toISOString()
+    detail.status = 'REJECTED'
+    detail.rejectionReason = reason
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kycList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'REJECTED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    kycReviews.get(detail.id)?.unshift(
+      createKycReviewLog({
+        action: 'REJECTED',
+        actorStaffId: staff.id,
+        actorStaffName: staff.name,
+        reason,
+        ipAddress: null,
+        createdAt: now,
+      })
+    )
+    return HttpResponse.json({ status: 'success', metadata: null, data: listRow ?? detail })
   }),
 
   // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
@@ -642,6 +874,58 @@ export const handlers = [
       return HttpResponse.json(
         { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Request not found' } },
         { status: 404 }
+      )
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  // ─── Phase 2 W2 — Consumer Orders / "User Transaction" (USDX-206) ───
+  // sot/api/orders.yaml. Read-only monitoring; auth = semua role backoffice.
+  // Week 2 is mint-only — `type=REDEEM` is accepted (union-ready) but matches
+  // nothing until W3. Not bearer-gated in the mock for the same reason as the
+  // `/api/v1/requests` list above (real BE enforces 401; this keeps Vitest +
+  // dev simple). Param `take` per orders.yaml (`limit` accepted as a fallback).
+  http.get('/api/v1/orders', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(
+      100,
+      Math.max(1, Number(url.searchParams.get('take') || url.searchParams.get('limit') || '10')),
+    )
+    const type = url.searchParams.get('type')
+    const status = url.searchParams.get('status')
+    // Redeem orders filter on RedeemStatus via `redeemStatus` (USDX-254). The
+    // union `status` field carries the RedeemStatus value for redeem rows, so we
+    // match against it. (Real BE contract for this param lands via USDX-253.)
+    const redeemStatus = url.searchParams.get('redeemStatus')
+    const paymentStatus = url.searchParams.get('paymentStatus')
+    const safeStatus = url.searchParams.get('safeStatus')
+    const userId = url.searchParams.get('userId')
+
+    let rows = [...orderList]
+    if (type) rows = rows.filter((r) => r.type === type)
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (redeemStatus) rows = rows.filter((r) => r.status === redeemStatus)
+    if (paymentStatus) rows = rows.filter((r) => r.paymentStatus === paymentStatus)
+    if (safeStatus) rows = rows.filter((r) => r.safeStatus === safeStatus)
+    if (userId) rows = rows.filter((r) => r.userId === userId)
+
+    const start = (page - 1) * take
+    const data = rows.slice(start, start + take)
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data,
+    })
+  }),
+
+  http.get('/api/v1/orders/:id', ({ params }) => {
+    const detail = orderDetails.get(String(params.id))
+    if (!detail) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Order not found' } },
+        { status: 404 },
       )
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })
@@ -842,7 +1126,7 @@ export const handlers = [
 
     const { list, detail } = createBurnRequestFromSubmission(
       {
-        userName: phaseOneUser.name,
+        userName: phaseOneUser.name ?? phaseOneUser.email,
         userAddress,
         amount,
         amountCurrency,
@@ -885,4 +1169,5 @@ export const handlers = [
       { status: 201 }
     )
   }),
+
 ]

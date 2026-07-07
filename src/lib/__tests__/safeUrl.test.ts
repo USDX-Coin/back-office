@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildSafeUrl, CHAIN_PREFIX_BY_ID, SAFE_APP_BASE_URL } from '../safeUrl'
+import { buildSafeUrl, safeTxUrl, CHAIN_PREFIX_BY_ID, SAFE_APP_BASE_URL } from '../safeUrl'
 
 describe('buildSafeUrl', () => {
   describe('positive', () => {
@@ -78,6 +78,50 @@ describe('buildSafeUrl', () => {
     test('should expose all 5 chain prefixes the Network enum may target', () => {
       // Phase 1 targets Polygon, but we list parity with the Network enum.
       expect(Object.keys(CHAIN_PREFIX_BY_ID).length).toBeGreaterThanOrEqual(5)
+    })
+  })
+})
+
+describe('safeTxUrl', () => {
+  const chain = {
+    chainId: 137,
+    staffSafeAddress: '0x1111111111111111111111111111111111111111',
+    managerSafeAddress: '0x2222222222222222222222222222222222222222',
+  }
+
+  describe('positive', () => {
+    test('should pick the STAFF safe address', () => {
+      const url = safeTxUrl({ chain, safeType: 'STAFF', safeTxHash: '0xabc' })
+      expect(url).toContain('safe=matic%3A0x1111111111111111111111111111111111111111')
+      expect(url).toContain('id=multisig_0x1111111111111111111111111111111111111111_0xabc')
+    })
+
+    test('should pick the MANAGER safe address', () => {
+      const url = safeTxUrl({ chain, safeType: 'MANAGER', safeTxHash: '0xabc' })
+      expect(url).toContain('safe=matic%3A0x2222222222222222222222222222222222222222')
+    })
+  })
+
+  describe('negative', () => {
+    test('should return null when chain config is undefined', () => {
+      expect(safeTxUrl({ chain: undefined, safeType: 'STAFF', safeTxHash: '0xabc' })).toBeNull()
+    })
+
+    test('should return null when safeTxHash is missing', () => {
+      expect(safeTxUrl({ chain, safeType: 'STAFF', safeTxHash: null })).toBeNull()
+      expect(safeTxUrl({ chain, safeType: 'STAFF', safeTxHash: undefined })).toBeNull()
+    })
+
+    test('should return null when the chainId is not one Safe recognises', () => {
+      expect(
+        safeTxUrl({ chain: { ...chain, chainId: 9999 }, safeType: 'STAFF', safeTxHash: '0xabc' })
+      ).toBeNull()
+    })
+
+    test('should return null when the resolved safe address is empty', () => {
+      expect(
+        safeTxUrl({ chain: { ...chain, staffSafeAddress: '' }, safeType: 'STAFF', safeTxHash: '0xabc' })
+      ).toBeNull()
     })
   })
 })
