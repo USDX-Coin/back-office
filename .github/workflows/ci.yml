@@ -6,6 +6,28 @@ on:
     branches: [dev, main]
 
 jobs:
+  quality:
+    name: Quality & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # USDX-381 / OWASP-A06: blocking dependency-audit gate. Fails the build on
+      # any high or critical advisory. Accepted transitive risks are documented
+      # in package.json > pnpm.auditConfig.ignoreCves.
+      - name: Dependency audit — blocking gate high+ (USDX-381)
+        run: pnpm audit --audit-level=high
+
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
