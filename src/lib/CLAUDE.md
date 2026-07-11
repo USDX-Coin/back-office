@@ -7,7 +7,7 @@ except `auth.tsx`) and independently testable.
 
 | File | Purpose | Tests |
 |------|---------|-------|
-| `auth.tsx` | AuthProvider context + useAuth hook (mock auth, v1→v2 localStorage migration, accepts any non-empty credentials) | `__tests__/auth.test.tsx` |
+| `auth.tsx` | AuthProvider context + useAuth hook. USDX-392: auth via httpOnly session cookie (no token in localStorage); localStorage caches only the non-sensitive v5 Staff profile for synchronous restore, re-validated by GET /auth/me; logout POSTs /auth/logout for server-side revoke | `__tests__/auth.test.tsx` |
 | `types.ts` | Domain types: Staff, Customer, OtcMintTransaction, OtcRedeemTransaction, OtcStatus, Network, CustomerType/Role, StaffRole, ReportRow, DashboardSnapshot, PaginatedResponse, ApiError | — |
 | `validators.ts` | Pure form validators: validateLoginForm, validateCustomerForm, validateStaffForm, validateOtcMintForm, validateOtcRedeemForm, validatePhone, validateWalletAddress | `__tests__/validators.test.ts` |
 | `format.ts` | Number/date/hash formatting: formatAmount, formatUsdxAmount, formatIdrAmount, formatDate, formatShortDate, formatRelativeTime, formatRate, formatSpreadPct, shortHash | `__tests__/format.test.ts` |

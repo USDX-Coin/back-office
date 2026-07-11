@@ -15,21 +15,17 @@ afterEach(() => {
 afterAll(() => server.close())
 
 // Default-seeded staff (demo@usdx.io) is super_admin → maps to ADMIN.
-// To exercise the read-only path we pre-populate localStorage with a
-// staff whose role maps to STAFF before rendering. Session shape v3
-// (token + staffId) matches what AuthProvider expects post-USDX-7.
+// To exercise the read-only path we pre-populate a staff whose role maps to
+// STAFF before rendering. USDX-392: v5 profile (no token) + the `usdx_session`
+// cookie so /auth/me and authenticated writes pass the mock's cookie gate.
 function loginAsStaffRole(email: string) {
   const staff = findStaffByEmail(email)
   if (!staff) throw new Error(`Test fixture missing: ${email}`)
   localStorage.setItem(
     'usdx_auth_user',
-    JSON.stringify({
-      version: 4,
-      staff,
-      token: issueMockJwt(staff),
-      issuedAt: Date.now(),
-    })
+    JSON.stringify({ version: 5, staff, issuedAt: Date.now() })
   )
+  document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
   return staff
 }
 

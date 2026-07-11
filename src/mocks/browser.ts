@@ -37,6 +37,8 @@ import { handlers } from './handlers'
 // `server.use(...)` overrides per scenario so no defaults are needed.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
+  // USDX-392: server-side logout is live on the backend (PR #197).
+  '/api/v1/auth/logout',
   '/api/v1/auth/me',
   '/api/v1/mint',
   '/api/v1/burn',

@@ -496,14 +496,31 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const b = body()
       if (!b.email || !b.password) return error(route, 'VALIDATION_ERROR', 'Email and password are required', 400)
       if (b.password !== 'admin123456' && b.password !== MOCK_TOKEN) return error(route, 'UNAUTHORIZED', 'Invalid credentials', 401)
-      return envelope(route, { accessToken: MOCK_TOKEN, staff: { ...ADMIN_STAFF, email: b.email } })
+      // USDX-392: set the httpOnly session cookie (primary auth) + keep the
+      // backward-compat accessToken in the body.
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'set-cookie': `usdx_session=${MOCK_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800` },
+        body: JSON.stringify({ status: 'success', metadata: null, data: { accessToken: MOCK_TOKEN, staff: { ...ADMIN_STAFF, email: b.email } } }),
+      })
     }
     if (key === 'GET /api/v1/auth/me') {
+      // USDX-392: authenticate via the session cookie (Bearer still accepted).
       const auth = req.headers()['authorization'] ?? ''
-      if (!auth.startsWith('Bearer ')) return error(route, 'UNAUTHORIZED', 'UNAUTHORIZED', 401)
+      const cookie = req.headers()['cookie'] ?? ''
+      const authed = auth.startsWith('Bearer ') || /(?:^|;\s*)usdx_session=/.test(cookie)
+      if (!authed) return error(route, 'UNAUTHORIZED', 'UNAUTHORIZED', 401)
       return envelope(route, ADMIN_STAFF)
     }
-    if (key === 'POST /api/v1/auth/logout') return noContent(route)
+    // USDX-392: server-side logout — clear the cookie and return success.
+    if (key === 'POST /api/v1/auth/logout') {
+      return route.fulfill({
+        status: 204,
+        headers: { 'set-cookie': 'usdx_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0' },
+        body: '',
+      })
+    }
 
     // ── Dashboard / rate / chains / threshold ─────────────────────────────
     if (key === 'GET /api/v1/dashboard/stats') return envelope(route, DASHBOARD_STATS)

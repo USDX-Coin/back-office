@@ -323,10 +323,32 @@ function phaseOneBadRequest(message: string, code = 'VALIDATION_ERROR') {
   )
 }
 
+// USDX-392: session cookie name set by POST /auth/login (mirrors the live BE).
+const SESSION_COOKIE = 'usdx_session'
+
+function readSessionCookie(request: Request): string | null {
+  const cookie = request.headers.get('cookie') ?? ''
+  const match = new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`).exec(cookie)
+  if (!match) return null
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+}
+
 function authenticatedStaff(request: Request): Staff | null {
-  const header = request.headers.get('Authorization') ?? ''
-  if (!header.startsWith('Bearer ')) return null
-  const claims = verifyMockJwt(header.slice('Bearer '.length).trim())
+  // USDX-392: primary auth is the httpOnly session cookie (credentials:'include'
+  // sends it on every request). The Bearer path is kept for backward-compat and
+  // for tests that hit the mock directly with an Authorization header.
+  const token =
+    readSessionCookie(request) ??
+    (() => {
+      const header = request.headers.get('Authorization') ?? ''
+      return header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : null
+    })()
+  if (!token) return null
+  const claims = verifyMockJwt(token)
   if (!claims) return null
   return findStaffById(claims.sub) ?? null
 }
@@ -377,17 +399,44 @@ export const handlers = [
         { status: 401 }
       )
     }
-    return HttpResponse.json({
-      status: 'success',
-      metadata: null,
-      data: {
-        accessToken: issueMockJwt(matched),
-        staff: matched,
+    // USDX-392: set the httpOnly session cookie (primary auth) and still return
+    // `accessToken` in the body for backward-compat. Max-Age 28800s = 8h, the
+    // cap the live backend enforces (PR #197).
+    const token = issueMockJwt(matched)
+    return HttpResponse.json(
+      {
+        status: 'success',
+        metadata: null,
+        data: {
+          accessToken: token,
+          staff: matched,
+        },
       },
-    })
+      {
+        headers: {
+          'Set-Cookie': `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800`,
+        },
+      }
+    )
   }),
 
-  // sot/openapi.yaml § /api/v1/auth/me — restore session by Bearer token.
+  // USDX-392 — sot/openapi.yaml § /api/v1/auth/logout: revoke the session
+  // server-side and clear the cookie. Auth is via the session cookie.
+  http.post('/api/v1/auth/logout', ({ request }) => {
+    // A logout without a session is a no-op success (idempotent).
+    authenticatedStaff(request)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: null },
+      {
+        headers: {
+          'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+        },
+      }
+    )
+  }),
+
+  // sot/openapi.yaml § /api/v1/auth/me — restore session by the session cookie
+  // (Bearer still accepted for backward-compat / direct-fetch tests).
   http.get('/api/v1/auth/me', ({ request }) => {
     const staff = authenticatedStaff(request)
     if (!staff) return unauthorized()

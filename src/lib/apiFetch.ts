@@ -1,7 +1,9 @@
 // Thin fetch wrapper that follows sot/openapi.yaml conventions:
 // - Prepends `env.apiUrl` (VITE_API_URL) so requests hit the configured backend
 //   directly instead of the FE origin (sot/project-overview.md § Infrastructure).
-// - Attaches `Authorization: Bearer <token>` (global `security: [bearerAuth]`).
+// - Sends `credentials: 'include'` so the httpOnly session cookie set by
+//   POST /auth/login rides with every request — USDX-392 (WSTG-CLNT-12) moved
+//   auth off a localStorage bearer token onto the cookie.
 // - Unwraps SuccessResponse `{ status, metadata, data }` envelope and returns `data`.
 // - Throws ApiError for non-2xx responses with the SoT ErrorResponse shape.
 // - Notifies a registered "unauthorized" callback on 401 so AuthProvider can
@@ -10,12 +12,10 @@
 import { env } from './env'
 
 interface AuthBindings {
-  getToken: () => string | null
   onUnauthorized: () => void
 }
 
 let bindings: AuthBindings = {
-  getToken: () => null,
   onUnauthorized: () => {},
 }
 
@@ -58,23 +58,21 @@ interface SoTErrorEnvelope {
 
 export interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
-  // When true, send the request without an Authorization header (e.g. /auth/login).
-  skipAuth?: boolean
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { body, headers, skipAuth, ...rest } = options
+  const { body, headers, ...rest } = options
   const finalHeaders = new Headers(headers)
   if (body !== undefined && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json')
   }
-  if (!skipAuth) {
-    const token = bindings.getToken()
-    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(`${env.apiUrl}${path}`, {
     ...rest,
+    // USDX-392: attach the httpOnly session cookie so auth rides on the cookie,
+    // not a bearer token read from localStorage. Placed after `...rest` so it
+    // can't be accidentally dropped by a caller-supplied RequestInit.
+    credentials: 'include',
     headers: finalHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -120,18 +118,15 @@ export async function apiFetchRaw<TEnvelope>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<TEnvelope> {
-  const { body, headers, skipAuth, ...rest } = options
+  const { body, headers, ...rest } = options
   const finalHeaders = new Headers(headers)
   if (body !== undefined && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json')
   }
-  if (!skipAuth) {
-    const token = bindings.getToken()
-    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(`${env.apiUrl}${path}`, {
     ...rest,
+    credentials: 'include',
     headers: finalHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -187,18 +182,15 @@ export async function apiFetchBlob(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<BlobResponse> {
-  const { body, headers, skipAuth, ...rest } = options
+  const { body, headers, ...rest } = options
   const finalHeaders = new Headers(headers)
   if (body !== undefined && !finalHeaders.has('Content-Type')) {
     finalHeaders.set('Content-Type', 'application/json')
   }
-  if (!skipAuth) {
-    const token = bindings.getToken()
-    if (token) finalHeaders.set('Authorization', `Bearer ${token}`)
-  }
 
   const response = await fetch(`${env.apiUrl}${path}`, {
     ...rest,
+    credentials: 'include',
     headers: finalHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   })

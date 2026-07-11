@@ -34,17 +34,18 @@ function createWrapper({
     if (authenticated || staffId) {
       const staff = staffId ? findStaffById(staffId) : getDefaultStaff()
       if (staff) {
-        // v4 session shape (USDX-41): inline the full Staff record so
-        // restore is independent of the mock staff lookup.
+        // USDX-392: seed the v5 profile cache (no token — the session lives in
+        // the cookie) for synchronous restore, plus the `usdx_session` cookie
+        // so /auth/me and authenticated writes pass the mock's cookie gate.
         localStorage.setItem(
           'usdx_auth_user',
           JSON.stringify({
-            version: 4,
+            version: 5,
             staff,
-            token: issueMockJwt(staff),
             issuedAt: Date.now(),
           })
         )
+        document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
       }
     }
 
