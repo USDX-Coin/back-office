@@ -20,10 +20,12 @@ afterAll(() => server.close())
 function loginAsStaffRole(email: string) {
   const staff = findStaffByEmail(email)
   if (!staff) throw new Error(`Test fixture missing: ${email}`)
+  // USDX-392: v5 profile (no token) + session cookie for the mock's cookie gate.
   localStorage.setItem(
     'usdx_auth_user',
-    JSON.stringify({ version: 4, staff, token: issueMockJwt(staff), issuedAt: Date.now() }),
+    JSON.stringify({ version: 5, staff, issuedAt: Date.now() }),
   )
+  document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
   return staff
 }
 

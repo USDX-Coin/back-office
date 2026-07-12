@@ -49,4 +49,10 @@ if (typeof globalThis.matchMedia === 'undefined') {
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  // USDX-392: clear cookies between tests so a seeded `usdx_session` cookie
+  // doesn't leak an authenticated state into the next test.
+  for (const pair of document.cookie.split(';')) {
+    const name = pair.split('=')[0].trim()
+    if (name) document.cookie = `${name}=; Path=/; Max-Age=0`
+  }
 })

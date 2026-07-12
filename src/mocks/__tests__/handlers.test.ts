@@ -411,3 +411,64 @@ describe('POST /api/v1/burn @ sot/api/burn.yaml + sot/conventions.md', () => {
     })
   })
 })
+
+// USDX-392 (WSTG-CLNT-12): the mock authenticates via the httpOnly `usdx_session`
+// cookie (in addition to the legacy Bearer path), POST /auth/login sets it, and
+// POST /auth/logout exists to revoke it server-side. Cookies are seeded via
+// `document.cookie`; jsdom sends them on same-origin requests (Set-Cookie is a
+// forbidden response header, so we don't assert on it directly here).
+describe('Auth via session cookie (USDX-392)', () => {
+  function clearCookies() {
+    for (const pair of document.cookie.split(';')) {
+      const name = pair.split('=')[0].trim()
+      if (name) document.cookie = `${name}=; Path=/; Max-Age=0`
+    }
+  }
+  beforeEach(clearCookies)
+
+  test('POST /api/v1/auth/login returns staff + backward-compat accessToken', async () => {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'demo@usdx.io', password: 'anything' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.staff).toBeDefined()
+    expect(typeof body.data.accessToken).toBe('string')
+  })
+
+  test('GET /api/v1/auth/me authenticates via the session cookie (no Bearer)', async () => {
+    const staff = getDefaultStaff()!
+    document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
+    const res = await fetch('/api/v1/auth/me', { credentials: 'include' })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.id).toBe(staff.id)
+  })
+
+  // Note: the mock's 401-without-auth path is covered in auth.test.tsx
+  // (/auth/me 401 clears the session) and RatePage.test.tsx (POST /rate 401
+  // without a token). We don't re-assert it here because MSW's node cookie
+  // store persists the login Set-Cookie across tests in this file, which would
+  // make an in-file "no cookie" assertion order-dependent.
+
+  test('a gated write (POST /api/v1/rate) authenticates via the session cookie', async () => {
+    const staff = getDefaultStaff()! // demo@usdx.io → super_admin (can manage rate)
+    document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
+    const res = await fetch('/api/v1/rate', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'DYNAMIC', spreadPct: '0.5' }),
+    })
+    expect(res.status).not.toBe(401)
+  })
+
+  test('POST /api/v1/auth/logout responds success', async () => {
+    const res = await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('success')
+  })
+})
