@@ -216,6 +216,18 @@ export function canReviewKyc(staff: Staff | null): boolean {
   return staff !== null && staff.role !== 'DEVELOPER'
 }
 
+// USDX-485 (audit alur uang P1-18) — kontak on-call insiden uang. Admin-only
+// termasuk untuk MEMBACA, dan itu menyimpang dari Settings lain (rate/fee/
+// threshold pakai canManageSettings = ADMIN+DEVELOPER untuk melihat). Dua
+// alasan: (1) daftar ini menentukan siapa yang dipanggil saat uang bermasalah
+// dan siapa yang boleh menarik rem darurat payout — pengetahuan yang berguna
+// bagi orang yang ingin uangnya tidak direm; (2) `contactValue` bisa berupa
+// nomor telepon, dan tabel role di sot/conventions.md § Audit Akses PII
+// menaruh "Telepon" di kolom ADMIN saja. Backend juga 403 untuk role lain.
+export function canManageOncall(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN'
+}
+
 // USDX-275 — sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
 // Multisig Page: the Multisig queue is visible to ADMIN / DEVELOPER / MANAGER
 // (STAFF excluded — signer = Safe owner, typically Manager/Admin). Sign/Execute

@@ -41,6 +41,7 @@ feature-name/
 | `rate/` | RatePage + CurrentRateCard + RateUpdateForm + RateConfirmDialog | Yes | `/settings/rate` view + update base rate + spread beli/jual (admin-only update; USDX-207). |
 | `fee/` | FeeConfigPage + CurrentFeeConfigCard + FeeConfigUpdateForm | Yes | `/settings/fee` view + update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot (422 VALIDATION_ERROR on invalid); admin-only update, read-only for non-admin. |
 | `threshold/` | ThresholdPage + CurrentThresholdCard + ThresholdUpdateForm | Yes | `/settings/threshold` view + update Safe routing threshold (admin only). |
+| `oncall/` | OncallContactsPage + OncallContactModal + OncallContactDeleteDialog | Yes | `/settings/oncall` kontak on-call insiden uang (USDX-485, audit P1-18) — CRUD penuh, **ADMIN-only termasuk untuk membaca** (nomor telepon = PII; daftarnya menentukan siapa yang dipanggil saat uang bermasalah). Banner memberi tahu kategori insiden mana yang belum punya penanggung jawab; dialog hapus memperingatkan saat kontak TERAKHIR sebuah kategori akan dibuang. |
 | `profile/` | ProfilePage + PersonalDetailsForm + SecurityAccessSection + RecentActivityTimeline | Yes | Operator profile (reachable only via navbar dropdown). |
 
 ## Adding a Feature

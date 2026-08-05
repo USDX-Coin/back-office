@@ -29,6 +29,8 @@ import type {
   RequestStatus,
   RequestType,
   SafeType,
+  OncallContact,
+  CreateOncallContact,
   MintRequestDetail,
   BurnRequestDetail,
   MintRequestStatus,
@@ -1480,4 +1482,65 @@ export function createMockKycDetailState(list: KycListItem[]): {
     reviews.set(item.id, createMockKycReviews(detail))
   })
   return { details, reviews }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-485 — kontak on-call insiden uang (audit alur uang P1-18)
+// ─────────────────────────────────────────────────────────────────────────────
+
+let oncallIdCounter = 1
+
+/**
+ * Seed daftar on-call. Sengaja TIDAK menutup semua kategori: MINT, REDEEM,
+ * FRAUD, INFRA, dan OTHER dibiarkan kosong supaya keadaan "kategori tanpa
+ * penanggung jawab" — keadaan yang justru dibereskan tiket ini — terlihat di
+ * dev/test alih-alih tersembunyi di balik data mock yang terlalu rapi.
+ */
+export function createInitialOncallContacts(): OncallContact[] {
+  oncallIdCounter = 1
+  const now = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+  return [
+    {
+      id: `oncall-${oncallIdCounter++}`,
+      name: 'Budi Santoso',
+      role: 'Ops Lead',
+      channel: 'PHONE',
+      contactValue: '+6281234567890',
+      categories: ['PAYOUT', 'RECONCILIATION'],
+      createdBy: null,
+      updatedBy: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: `oncall-${oncallIdCounter++}`,
+      name: 'Ops Uang',
+      role: 'Kanal tim',
+      channel: 'SLACK',
+      contactValue: '#ops-uang',
+      categories: ['SECURITY'],
+      createdBy: null,
+      updatedBy: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
+}
+
+export function createOncallContact(
+  input: CreateOncallContact & { createdBy: string | null }
+): OncallContact {
+  const now = new Date().toISOString()
+  return {
+    id: `oncall-${oncallIdCounter++}`,
+    name: input.name,
+    role: input.role,
+    channel: input.channel,
+    contactValue: input.contactValue,
+    categories: [...input.categories],
+    createdBy: input.createdBy,
+    updatedBy: null,
+    createdAt: now,
+    updatedAt: now,
+  }
 }

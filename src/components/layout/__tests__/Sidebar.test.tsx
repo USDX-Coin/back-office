@@ -41,6 +41,8 @@ describe('Sidebar @ USDX-50', () => {
       // SETTINGS
       expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      // USDX-485 — kontak on-call insiden uang (Settings, ADMIN saja).
+      expect(screen.getByRole('link', { name: /^on-call$/i })).toBeInTheDocument()
       // TROUBLESHOOTING (USDX-87)
       expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
     })
@@ -85,6 +87,27 @@ describe('Sidebar @ USDX-50', () => {
       })
       expect(screen.queryByRole('link', { name: /^rate$/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /^threshold$/i })).not.toBeInTheDocument()
+    })
+
+    // USDX-485 (audit P1-18): On-Call di-gate di level ITEM, lebih ketat dari
+    // section-nya. Daftar itu memuat nomor telepon (PII → ADMIN saja per
+    // conventions.md § Audit Akses PII) dan menentukan siapa yang boleh menarik
+    // rem darurat payout — DEVELOPER melihat Rate/Fee/Threshold, tapi tidak ini.
+    test('On-Call link hidden for DEVELOPER even though the SETTINGS section is visible (USDX-485)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius DEVELOPER
+      })
+      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
+    })
+
+    test('On-Call link hidden for STAFF (USDX-485)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
     })
 
     test('SETTINGS section visible for DEVELOPER role (Flag-B: SoT § Backoffice Role System grants System Config)', () => {
