@@ -13,9 +13,11 @@ import {
   Receipt,
   Percent,
   KeyRound,
+  PhoneCall,
 } from 'lucide-react'
 import {
   canAccessReports,
+  canManageOncall,
   canAccessRequestList,
   canAccessTreasury,
   canManageSettings,
@@ -127,6 +129,16 @@ export const NAV_SECTIONS: NavSection[] = [
       // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
       { to: '/settings/fee', label: 'Fee', icon: Percent },
       { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
+      // USDX-485 (audit P1-18): kontak on-call insiden uang. Di-gate di level
+      // ITEM, bukan mengikuti section (canManageSettings = ADMIN+DEVELOPER):
+      // daftarnya memuat nomor telepon dan menentukan siapa yang dipanggil saat
+      // uang bermasalah, jadi DEVELOPER pun tidak melihatnya.
+      {
+        to: '/settings/oncall',
+        label: 'On-Call',
+        icon: PhoneCall,
+        visibleWhen: canManageOncall,
+      },
     ],
   },
   // USDX-87: Manual Sync — recovery tool for stuck PENDING_APPROVAL / APPROVED

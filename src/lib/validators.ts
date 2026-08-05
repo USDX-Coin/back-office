@@ -7,6 +7,8 @@ import type {
   RateMode,
   RequestChain,
   StaffRole,
+  OncallChannel,
+  OncallIncidentCategory,
 } from './types'
 
 export interface ValidationResult {
@@ -505,5 +507,54 @@ export function validateMintRequestForm(input: {
   if (!input.chain.trim()) {
     errors.chain = 'Chain is required'
   }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// USDX-485 — form kontak on-call insiden uang.
+//
+// `contactValue` SENGAJA tidak divalidasi per-kanal: kanalnya bisa Slack, nomor
+// kantor, nomor luar negeri, atau nomor darurat vendor, dan memaksakan bentuk
+// Indonesia (validateOptionalIdPhone) akan menolak kontak yang sah lalu
+// meninggalkan sebuah kategori tanpa penanggung jawab. Daftar yang salah ketik
+// masih bisa diperbaiki; kategori yang kosong tidak bisa ditelepon. Batasnya
+// mengikuti kolom backend (name/role 120, contact_value 200).
+const MAX_ONCALL_TEXT_LEN = 120
+const MAX_ONCALL_VALUE_LEN = 200
+
+export function validateOncallContactForm(input: {
+  name: string
+  role: string
+  channel: OncallChannel | ''
+  contactValue: string
+  categories: OncallIncidentCategory[]
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (!input.name.trim()) {
+    errors.name = 'Name is required'
+  } else if (input.name.length > MAX_ONCALL_TEXT_LEN) {
+    errors.name = `Name must be under ${MAX_ONCALL_TEXT_LEN} characters`
+  }
+
+  if (!input.role.trim()) {
+    errors.role = 'Role is required'
+  } else if (input.role.length > MAX_ONCALL_TEXT_LEN) {
+    errors.role = `Role must be under ${MAX_ONCALL_TEXT_LEN} characters`
+  }
+
+  if (!input.channel) errors.channel = 'Channel is required'
+
+  if (!input.contactValue.trim()) {
+    errors.contactValue = 'Contact value is required'
+  } else if (input.contactValue.length > MAX_ONCALL_VALUE_LEN) {
+    errors.contactValue = `Contact value must be under ${MAX_ONCALL_VALUE_LEN} characters`
+  }
+
+  // Kontak tanpa kategori tidak akan pernah ikut di satu alarm pun — ia terlihat
+  // terdaftar tapi secara efektif tidak ada.
+  if (input.categories.length === 0) {
+    errors.categories = 'Pick at least one incident category'
+  }
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
