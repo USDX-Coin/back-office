@@ -1,8 +1,28 @@
 /// <reference types="vitest/config" />
+import fs from 'fs'
 import path from 'path'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+
+// MSW is dev-only (see src/main.tsx). The worker file lives in public/ so the
+// local dev server can serve it, but Vite copies everything in public/ into the
+// production bundle unconditionally. Strip it from dist/ after a build so the
+// mock service worker never ships to production.
+function stripMswWorker(): Plugin {
+  return {
+    name: 'strip-msw-worker',
+    apply: 'build',
+    closeBundle() {
+      const target = path.resolve(__dirname, 'dist/mockServiceWorker.js')
+      if (fs.existsSync(target)) {
+        fs.rmSync(target)
+        // eslint-disable-next-line no-console
+        console.log('[build] removed dist/mockServiceWorker.js — MSW is dev-only')
+      }
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -13,7 +33,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'https://api-dev.usdx.co.id'
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), stripMswWorker()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
