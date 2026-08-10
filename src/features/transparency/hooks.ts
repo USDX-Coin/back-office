@@ -7,7 +7,7 @@
 //   GET    /api/v1/transparency/ledger?page&take   → { entries, page, take, total, balance }
 //   POST   /api/v1/transparency/ledger             → one entry
 //   GET    /api/v1/transparency/attestations       → { items: [...] }  (revoked rows INCLUDED)
-//   POST   /api/v1/transparency/attestations/upload-url → { uploadUrl, fileKey }
+//   POST   /api/v1/transparency/attestations/upload-url  { period } → { uploadUrl, fileKey }
 //   PUT    <uploadUrl>                             → the bytes, straight to storage
 //   POST   /api/v1/transparency/attestations       → { period, title, fileKey }
 //   DELETE /api/v1/transparency/attestations/:id   → revoke (fills revokedAt)
@@ -20,6 +20,7 @@ import type {
   AttestationListPage,
   AttestationReport,
   AttestationUploadTicket,
+  AttestationUploadUrlInput,
   CreateAttestationInput,
   CreateLedgerEntryInput,
   ReserveLedgerEntry,
@@ -119,10 +120,13 @@ export function useUploadAttestation() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ period, title, file }: UploadAttestationInput) => {
-      // Step 1 — the contract shows no request body for this call.
+      // Step 1 — `period` is REQUIRED: the backend derives `fileKey` from it and
+      // its DTO rejects a body without it. Sending no body at all fails
+      // validation before the flow ever reaches storage.
+      const ticketBody: AttestationUploadUrlInput = { period }
       const ticket = await apiFetch<AttestationUploadTicket>(
         '/api/v1/transparency/attestations/upload-url',
-        { method: 'POST' }
+        { method: 'POST', body: ticketBody }
       )
 
       // Step 2 — bytes go straight to storage, never through the API.

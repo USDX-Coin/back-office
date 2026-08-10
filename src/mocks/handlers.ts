@@ -840,12 +840,34 @@ export const handlers = [
   }),
 
   // Attestations — three-step upload (§ 3). Step 1 hands out a presigned URL.
-  http.post('/api/v1/transparency/attestations/upload-url', ({ request }) => {
+  //
+  // `period` is REQUIRED here. The real backend's CreateAttestationUploadUrlDto
+  // rejects a body without it, so this mock rejects it too — a permissive mock
+  // would let a client that sends no body pass every test and then fail in
+  // production, which is precisely the failure this contract exists to prevent.
+  http.post('/api/v1/transparency/attestations/upload-url', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()
     if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    const fileKey = `transparency/attestation/${Date.now()}-report.pdf`
+    let body: { period?: string } | null = null
+    try {
+      body = (await request.json()) as { period?: string }
+    } catch {
+      body = null
+    }
+    const period = body?.period?.trim() ?? ''
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+      return transparencyError(
+        422,
+        'INVALID_ATTESTATION_PERIOD',
+        'period is required and must be a YYYY-MM value'
+      )
+    }
+
+    // The backend builds the key from `period` — mirror that so the fileKey the
+    // client registers in step 3 is traceable to the month it covers.
+    const fileKey = `transparency/attestation/${period}-report.pdf`
     return HttpResponse.json({
       status: 'success',
       metadata: null,

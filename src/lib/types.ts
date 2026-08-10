@@ -379,7 +379,19 @@ export interface AttestationListPage {
   total?: number
 }
 
-/** Step 1 of the three-step upload → `POST /attestations/upload-url`. */
+/**
+ * Step 1 request body → `POST /attestations/upload-url`.
+ *
+ * `period` is REQUIRED and must be `YYYY-MM`: the backend builds `fileKey` from
+ * it, and its `CreateAttestationUploadUrlDto` rejects a body without it. This is
+ * not an optional convenience field — sending nothing fails validation and the
+ * upload button dies on contact with the real API.
+ */
+export interface AttestationUploadUrlInput {
+  period: string
+}
+
+/** Step 1 response → `{ uploadUrl, fileKey }`. */
 export interface AttestationUploadTicket {
   uploadUrl: string
   fileKey: string

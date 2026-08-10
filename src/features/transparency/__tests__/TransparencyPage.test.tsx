@@ -717,15 +717,17 @@ describe('TransparencyPage @integration', () => {
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
     })
 
-    test('upload runs the THREE-STEP flow — upload-url, PUT the bytes, register the fileKey', async () => {
+    test('upload runs the THREE-STEP flow — upload-url {period}, PUT the bytes, register the fileKey', async () => {
       const user = userEvent.setup()
       const calls: string[] = []
+      let ticketBody: Record<string, unknown> | null = null
       let registerBody: Record<string, unknown> | null = null
       let putContentType: string | null = null
 
       server.use(
-        http.post('/api/v1/transparency/attestations/upload-url', () => {
+        http.post('/api/v1/transparency/attestations/upload-url', async ({ request }) => {
           calls.push('upload-url')
+          ticketBody = (await request.json()) as Record<string, unknown>
           return ledgerResponse({
             uploadUrl: 'https://storage.usdx.test/upload/signed-123',
             fileKey: 'transparency/attestation/2026-07-laporan.pdf',
@@ -768,6 +770,10 @@ describe('TransparencyPage @integration', () => {
       await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
 
       await waitFor(() => expect(calls).toEqual(['upload-url', 'put', 'register']))
+      // Step 1 MUST carry `period` — the backend derives `fileKey` from it and
+      // its DTO rejects a bodyless request. Asserting only the call order let an
+      // empty body slip through review once already.
+      expect(ticketBody).toEqual({ period: '2026-07' })
       // Step 3 is JSON carrying the key — the API never receives the file.
       expect(registerBody).toEqual({
         period: '2026-07',
@@ -806,6 +812,45 @@ describe('TransparencyPage @integration', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
       expect(ticketCalls).toBe(0)
+    })
+
+    test('a rejected upload-url stops the flow before any file leaves the browser', async () => {
+      const user = userEvent.setup()
+      let putCalls = 0
+      let registerCalls = 0
+      server.use(
+        http.post('/api/v1/transparency/attestations/upload-url', () =>
+          apiError(
+            422,
+            'INVALID_ATTESTATION_PERIOD',
+            'period is required and must be a YYYY-MM value'
+          )
+        ),
+        http.put('https://storage.usdx.test/upload/*', () => {
+          putCalls += 1
+          return new HttpResponse(null, { status: 200 })
+        }),
+        http.post('/api/v1/transparency/attestations', () => {
+          registerCalls += 1
+          return ledgerResponse({})
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
+      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/report file/i), {
+        target: { files: [pdfFile()] },
+      })
+      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+
+      expect(
+        await within(dialog).findByText(/period is required and must be a YYYY-MM value/i)
+      ).toBeInTheDocument()
+      expect(putCalls).toBe(0)
+      expect(registerCalls).toBe(0)
     })
 
     test('a failure while PUTting to storage does NOT register an attestation', async () => {
@@ -1090,6 +1135,49 @@ describe('/api/v1/transparency/* contract', () => {
       .items as { id: string; revokedAt: string | null }[]
     expect(after).toHaveLength(before.length)
     expect(after.find((i) => i.id === active.id)!.revokedAt).not.toBeNull()
+  })
+
+  test('POST /attestations/upload-url REQUIRES period — a bodyless request is rejected', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/attestations/upload-url', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${issueMockJwt(staff)}` },
+    })
+    // The mock must be as strict as CreateAttestationUploadUrlDto. If this ever
+    // starts passing, the mock has gone permissive and every upload test above
+    // stops proving anything about the real API.
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe('INVALID_ATTESTATION_PERIOD')
+  })
+
+  test('POST /attestations/upload-url rejects a malformed period', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/attestations/upload-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({ period: 'Juli 2026' }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe('INVALID_ATTESTATION_PERIOD')
+  })
+
+  test('POST /attestations/upload-url builds the fileKey from the period', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/attestations/upload-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({ period: '2026-07' }),
+    })
+    expect(res.status).toBe(200)
+    const { data } = await res.json()
+    expect(data.fileKey).toContain('2026-07')
+    expect(data.uploadUrl).toEqual(expect.stringContaining('https://'))
   })
 
   test('POST /attestations rejects a duplicate ACTIVE period with 409', async () => {
