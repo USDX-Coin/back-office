@@ -1348,3 +1348,89 @@ export interface ProposeRequest {
   params: Record<string, unknown>
   chain?: string
 }
+
+// ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
+//
+// Backend membaca daftar ini setiap kali mengirim alarm kondisi uang dan
+// menyisipkan kontak yang cocok kategorinya ke dalam pesan alarm. Halaman
+// setting-nya yang membuat daftar itu bisa diperbarui tanpa deploy — dokumen
+// runbook statis cepat basi (orang berganti, nomor berganti), data yang dibaca
+// sistem ikut hidup.
+
+export type OncallChannel = 'PHONE' | 'EMAIL' | 'SLACK'
+
+/**
+ * Kategori insiden yang ditangani satu kontak. Backend memetakan kode kondisi
+ * alarm ke kategori ini (`resolveIncidentCategory`), mis. `PAYOUT_QUEUE_JAMMED`
+ * → PAYOUT, `BNI_UNEXPLAINED_INFLOW` → RECONCILIATION. `OTHER` adalah jaring
+ * pengaman untuk kondisi baru yang belum dipetakan.
+ */
+export type OncallIncidentCategory =
+  | 'PAYOUT'
+  | 'RECONCILIATION'
+  | 'MINT'
+  | 'REDEEM'
+  | 'FRAUD'
+  | 'SECURITY'
+  | 'INFRA'
+  | 'OTHER'
+
+export const ONCALL_CHANNELS: readonly OncallChannel[] = ['PHONE', 'EMAIL', 'SLACK']
+
+export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
+  'PAYOUT',
+  'RECONCILIATION',
+  'MINT',
+  'REDEEM',
+  'FRAUD',
+  'SECURITY',
+  'INFRA',
+  'OTHER',
+]
+
+/** Label yang menerangkan kategori — nama enum saja tak cukup untuk memilih dengan benar. */
+export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
+  PAYOUT: 'Payout gagal, antrean buntu, plafon habis, rem darurat',
+  RECONCILIATION: 'Saldo tak terjelaskan, selisih rekonsiliasi bank',
+  MINT: 'Pembayaran masuk tak dikredit, callback tak tercocokkan',
+  REDEEM: 'Burn nasabah ditolak scanner, selisih jumlah burn',
+  FRAUD: 'Aturan FDS menyala (velocity, structuring, fan-in)',
+  SECURITY: 'Brute force login, aksi sensitif backoffice',
+  INFRA: 'Kanal alert mati, transaksi Safe dibatalkan',
+  OTHER: 'Kondisi baru yang belum dipetakan ke kategori mana pun',
+}
+
+/**
+ * Kontak on-call. `contactValue` bisa berupa nomor telepon = PII, dan menurut
+ * tabel role di `sot/conventions.md § Audit Akses PII` hanya ADMIN yang boleh
+ * melihat telepon — karena itu BACA pun digerbangi ADMIN di sini, tidak seperti
+ * fee/rate yang GET-nya terbuka untuk semua role backoffice.
+ */
+export interface OncallContact {
+  id: string
+  name: string
+  role: string
+  channel: OncallChannel
+  contactValue: string
+  categories: OncallIncidentCategory[]
+  createdBy: string | null
+  updatedBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateOncallContact {
+  name: string
+  role: string
+  channel: OncallChannel
+  contactValue: string
+  categories: OncallIncidentCategory[]
+}
+
+export type UpdateOncallContact = Partial<CreateOncallContact>
+
+// USDX-485: seluruh permukaan kontak on-call (baca DAN tulis) admin-only —
+// lihat alasannya di komentar OncallContact di atas.
+export function canManageOncallContacts(role: StaffRole): boolean {
+  return role === 'ADMIN'
+}

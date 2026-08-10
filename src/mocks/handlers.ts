@@ -23,8 +23,11 @@ import type {
   RequestListItem,
   OrderDetail,
   OrderListItem,
+  OncallContact,
+  CreateOncallContact,
+  UpdateOncallContact,
 } from '@/lib/types'
-import { canManageRate, canManageFeeConfig, canManageTransparency } from '@/lib/types'
+import { canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -40,6 +43,8 @@ import {
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
+  createInitialOncallContacts,
+  createOncallContact,
   createInitialFeeHistory,
   createFeeConfig,
   createLedgerEntry,
@@ -58,6 +63,8 @@ let customerStore: Customer[] = createMockCustomerList()
 let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
+// USDX-485 — direktori kontak on-call insiden uang (audit P1-18).
+let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
@@ -77,6 +84,7 @@ let kycReviews: Map<string, KycReviewLog[]>
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
+  oncallStore = createInitialOncallContacts()
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
@@ -500,7 +508,154 @@ function storageSignatureError(detail: string) {
 
 // ─── Handlers ───
 
+function oncallForbidden() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN', message: 'Only ADMIN can manage on-call contacts' },
+    },
+    { status: 403 }
+  )
+}
+
+function oncallNotFound() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'ONCALL_CONTACT_NOT_FOUND', message: 'On-call contact not found' },
+    },
+    { status: 404 }
+  )
+}
+
+function oncallDuplicate(
+  channel: string,
+  contactValue: string,
+  ignoreId: string | null
+) {
+  const clash = oncallStore.some(
+    (c) => c.id !== ignoreId && c.channel === channel && c.contactValue === contactValue
+  )
+  if (!clash) return null
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'ONCALL_CONTACT_ALREADY_EXISTS',
+        message: 'A contact with this channel and value is already registered.',
+      },
+    },
+    { status: 409 }
+  )
+}
+
+function oncallBodyError(body: Partial<CreateOncallContact>) {
+  const problems: string[] = []
+  if (!body.name?.trim()) problems.push('name')
+  if (!body.role?.trim()) problems.push('role')
+  if (!body.channel) problems.push('channel')
+  if (!body.contactValue?.trim()) problems.push('contactValue')
+  if (!body.categories || body.categories.length === 0) problems.push('categories')
+  if (problems.length === 0) return null
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `Required and must be non-empty: ${problems.join(', ')}`,
+      },
+    },
+    { status: 422 }
+  )
+}
+
 export const handlers = [
+  // ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
+  //
+  // Backend menyimpan daftar ini dan menyisipkan kontak yang cocok kategorinya ke
+  // dalam isi alarm kondisi uang. SELURUH permukaannya — termasuk BACA — admin-only:
+  // `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per tabel role di
+  // sot/conventions.md § Audit Akses PII), dan daftar "siapa yang boleh menarik rem
+  // darurat payout" bukan pengetahuan yang perlu dibagikan lebih luas.
+  //
+  // Mock-served (tidak masuk INTEGRATION_PATHS di browser.ts) — endpoint BE-nya baru
+  // mendarat di PR backend yang menyertai tiket ini dan belum tentu sudah ter-deploy
+  // di dev saat halaman ini dipakai.
+  http.get('/api/v1/oncall-contacts', ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: [...oncallStore].sort((a, b) => a.name.localeCompare(b.name)),
+    })
+  }),
+
+  http.post('/api/v1/oncall-contacts', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const body = (await request.json()) as CreateOncallContact
+    const invalid = oncallBodyError(body)
+    if (invalid) return invalid
+    const duplicate = oncallDuplicate(body.channel, body.contactValue, null)
+    if (duplicate) return duplicate
+
+    const created = createOncallContact({ ...body, createdBy: operator.id })
+    oncallStore.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  http.patch('/api/v1/oncall-contacts/:id', async ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const index = oncallStore.findIndex((c) => c.id === params.id)
+    if (index === -1) return oncallNotFound()
+
+    const existing = oncallStore[index]!
+    const body = (await request.json()) as UpdateOncallContact
+    const next = { ...existing, ...body }
+    const invalid = oncallBodyError(next)
+    if (invalid) return invalid
+    const duplicate = oncallDuplicate(next.channel, next.contactValue, existing.id)
+    if (duplicate) return duplicate
+
+    const updated: OncallContact = {
+      ...next,
+      categories: [...next.categories],
+      updatedBy: operator.id,
+      updatedAt: new Date().toISOString(),
+    }
+    oncallStore[index] = updated
+    return HttpResponse.json({ status: 'success', metadata: null, data: updated })
+  }),
+
+  http.delete('/api/v1/oncall-contacts/:id', ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const index = oncallStore.findIndex((c) => c.id === params.id)
+    if (index === -1) return oncallNotFound()
+    oncallStore.splice(index, 1)
+    return HttpResponse.json({ status: 'success', metadata: null, data: null })
+  }),
+
   // ─── Auth ───
   // Response envelope follows sot/openapi.yaml § /api/v1/auth/login.
   http.post('/api/v1/auth/login', async ({ request }) => {

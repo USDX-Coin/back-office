@@ -26,6 +26,7 @@ import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
+import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 
@@ -158,6 +159,11 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN']} />,
             children: [
               { path: '/settings/threshold', element: <ThresholdPage /> },
+              // USDX-485 (audit alur uang P1-18): kontak on-call insiden uang.
+              // ADMIN-only termasuk untuk MEMBACA — daftarnya memuat nomor
+              // telepon (PII → ADMIN saja per conventions.md § Audit Akses PII)
+              // dan menentukan siapa yang boleh menarik rem darurat payout.
+              { path: '/settings/oncall', element: <OncallContactsPage /> },
             ],
           },
           {

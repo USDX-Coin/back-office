@@ -31,6 +31,7 @@ import {
   ATTESTATION_MAX_FILE_LABEL,
   ATTESTATION_NOT_A_PDF_MESSAGE,
   isValidIdempotencyKey,
+  validateOncallContactForm,
   TX_HASH_RE,
 } from '@/lib/validators'
 import { newIdempotencyKey } from '@/lib/transparency'
@@ -1274,6 +1275,110 @@ describe('toDateInputValue', () => {
   describe('edge cases', () => {
     test('pads single-digit months and days', () => {
       expect(toDateInputValue(new Date(2026, 8, 5))).toBe('2026-09-05')
+    })
+  })
+})
+
+// USDX-485 — form kontak on-call insiden uang.
+describe('validateOncallContactForm', () => {
+  const valid = {
+    name: 'Budi Santoso',
+    role: 'Ops Lead',
+    channel: 'PHONE' as const,
+    contactValue: '+6281234567890',
+    categories: ['PAYOUT' as const],
+  }
+
+  describe('positive', () => {
+    test('should accept a fully filled contact', () => {
+      expect(validateOncallContactForm(valid)).toEqual({ valid: true, errors: {} })
+    })
+
+    test('should accept several categories at once', () => {
+      const result = validateOncallContactForm({
+        ...valid,
+        categories: ['PAYOUT', 'RECONCILIATION', 'MINT'],
+      })
+      expect(result.valid).toBe(true)
+    })
+
+    test.each(['PHONE', 'EMAIL', 'SLACK'] as const)(
+      'should accept channel %s without imposing a per-channel format',
+      (channel) => {
+        // Nomor kantor / nomor luar negeri / handle Slack semuanya sah — daftar
+        // yang salah ketik masih bisa diperbaiki, kategori yang kosong tidak
+        // bisa ditelepon.
+        const result = validateOncallContactForm({ ...valid, channel, contactValue: 'ext-2201' })
+        expect(result.valid).toBe(true)
+      }
+    )
+  })
+
+  describe('negative', () => {
+    test('should reject an empty name', () => {
+      const result = validateOncallContactForm({ ...valid, name: '  ' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.name).toBeTruthy()
+    })
+
+    test('should reject an empty role', () => {
+      const result = validateOncallContactForm({ ...valid, role: '' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.role).toBeTruthy()
+    })
+
+    test('should reject an empty contact value', () => {
+      const result = validateOncallContactForm({ ...valid, contactValue: '' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.contactValue).toBeTruthy()
+    })
+
+    test('should reject a missing channel', () => {
+      const result = validateOncallContactForm({ ...valid, channel: '' })
+      expect(result.valid).toBe(false)
+      expect(result.errors.channel).toBeTruthy()
+    })
+
+    test('should reject zero categories — a contact who handles nothing is never called', () => {
+      const result = validateOncallContactForm({ ...valid, categories: [] })
+      expect(result.valid).toBe(false)
+      expect(result.errors.categories).toBeTruthy()
+    })
+
+    test('should report every empty field at once, not just the first', () => {
+      const result = validateOncallContactForm({
+        name: '',
+        role: '',
+        channel: '',
+        contactValue: '',
+        categories: [],
+      })
+      expect(Object.keys(result.errors).sort()).toEqual([
+        'categories',
+        'channel',
+        'contactValue',
+        'name',
+        'role',
+      ])
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should reject a name over the length cap', () => {
+      const result = validateOncallContactForm({ ...valid, name: 'a'.repeat(121) })
+      expect(result.valid).toBe(false)
+      expect(result.errors.name).toBeTruthy()
+    })
+
+    test('should reject a contact value over the length cap', () => {
+      const result = validateOncallContactForm({ ...valid, contactValue: '9'.repeat(201) })
+      expect(result.valid).toBe(false)
+      expect(result.errors.contactValue).toBeTruthy()
+    })
+
+    test('should trim surrounding whitespace before judging emptiness', () => {
+      const result = validateOncallContactForm({ ...valid, contactValue: '   ' })
+      expect(result.valid).toBe(false)
     })
   })
 })
