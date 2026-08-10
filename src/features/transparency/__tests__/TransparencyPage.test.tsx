@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { findStaffByEmail, issueMockJwt, resetMockData } from '@/mocks/handlers'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
+import { isValidIdempotencyKey } from '@/lib/validators'
 import { renderWithProviders } from '@/test/test-utils'
 
 // Transparency (/transparency) — the append-only reserve ledger behind the
@@ -657,6 +658,113 @@ describe('TransparencyPage @integration', () => {
       // treat the retry as a brand-new entry, which is the entire failure.
       expect(keys[0]).toEqual(expect.stringMatching(UUID_RE))
       expect(keys[1]).toBe(keys[0])
+
+      // And the 200 replay is SUCCESS, not an error. This is the half that
+      // closes the loop: if a safe replay surfaced as a failure the operator
+      // would press again, which is precisely what the key exists to stop.
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+    })
+
+    test('a 200 replay is treated as success, exactly like a 201', async () => {
+      const user = userEvent.setup()
+      server.use(
+        // The backend answers a repeat of a known key with 200 + the entry it
+        // already holds. Only 201 means "a row was just created".
+        http.post('/api/v1/transparency/ledger', () =>
+          HttpResponse.json(
+            { status: 'success', metadata: null, data: entry() },
+            { status: 200 }
+          )
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user)
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+      // No error surface anywhere — not on a field, not in the dialog.
+      expect(screen.queryByText(/couldn't record the entry/i)).not.toBeInTheDocument()
+    })
+
+    test('the minted key satisfies the backend’s 16–200 character bound', async () => {
+      const user = userEvent.setup()
+      const keys: string[] = []
+      server.use(
+        http.post('/api/v1/transparency/ledger', async ({ request }) => {
+          const body = (await request.json()) as { idempotencyKey: string }
+          keys.push(body.idempotencyKey)
+          return HttpResponse.json(
+            { status: 'success', metadata: null, data: entry() },
+            { status: 201 }
+          )
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user)
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      await waitFor(() => expect(keys).toHaveLength(1))
+      // Below 16 the backend answers LEDGER_IDEMPOTENCY_KEY_INVALID — and the
+      // floor is there because a short key collides, which drops a real entry.
+      expect(isValidIdempotencyKey(keys[0]!)).toBe(true)
+    })
+
+    test('LEDGER_IDEMPOTENCY_KEY_INVALID lands in the dialog, not on a field', async () => {
+      const user = userEvent.setup()
+      let ledgerReads = 0
+      server.use(
+        http.get('/api/v1/transparency/ledger', () => {
+          ledgerReads += 1
+          return ledgerResponse({
+            entries: [entry()],
+            page: 1,
+            take: 50,
+            total: 1,
+            balance: { amount: '50000.00', currency: 'USD' },
+          })
+        }),
+        http.post('/api/v1/transparency/ledger', () =>
+          apiError(
+            422,
+            'LEDGER_IDEMPOTENCY_KEY_INVALID',
+            'idempotencyKey must be between 16 and 200 characters'
+          )
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user)
+      const readsBefore = ledgerReads
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      // The operator typed nothing wrong — this is the client's own bug — so
+      // pinning it on Amount or Reason would send them to fix a correct field.
+      expect(
+        await within(dialog).findByText(/idempotencyKey must be between 16 and 200/i)
+      ).toBeInTheDocument()
+      // A 422 is a definite "nothing was written", so no balance re-read: that
+      // is reserved for failures where the outcome is genuinely unknown.
+      expect(
+        screen.queryByText(/balance re-read after the error/i)
+      ).not.toBeInTheDocument()
+      expect(ledgerReads).toBe(readsBefore)
     })
 
     test('a fresh form-filling attempt gets a NEW key', async () => {
@@ -1438,6 +1546,82 @@ describe('TransparencyPage @integration', () => {
       }
     })
 
+    test('the four file-related 422 codes reach the operator verbatim', async () => {
+      // The messages are the server's, not ours: these describe four genuinely
+      // different situations (wrong key, too big, never uploaded, wrong content)
+      // and paraphrasing them into one "upload failed" would leave the operator
+      // guessing which of the four they are looking at.
+      const cases = [
+        ['INVALID_FILE_KEY', 'fileKey was not issued by this service'],
+        ['ATTESTATION_FILE_TOO_LARGE', 'File must be at most 5242880 bytes'],
+        ['ATTESTATION_FILE_NOT_UPLOADED', 'No object was found at that fileKey'],
+        ['ATTESTATION_FILE_TYPE_INVALID', 'The uploaded object is not a PDF'],
+      ] as const
+
+      for (const [code, message] of cases) {
+        const user = userEvent.setup()
+        server.use(
+          http.post('/api/v1/transparency/attestations/upload-url', () =>
+            ledgerResponse({
+              uploadUrl: 'https://storage.usdx.test/upload/codes',
+              fileKey: 'transparency/attestation/2026-07-report.pdf',
+              expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+              headers: {},
+            })
+          ),
+          http.put('https://storage.usdx.test/upload/codes', () =>
+            new HttpResponse(null, { status: 200 })
+          ),
+          http.post('/api/v1/transparency/attestations', () =>
+            apiError(422, code, message)
+          )
+        )
+        const view = renderWithProviders(<TransparencyPage />, { authenticated: true })
+
+        await user.type(await screen.findByLabelText(/period/i), '2026-07')
+        await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+        fireEvent.change(screen.getByLabelText(/report file/i), {
+          target: { files: [pdfFile('laporan.pdf', 512)] },
+        })
+        await user.click(screen.getByRole('button', { name: /review and upload/i }))
+        const dialog = await screen.findByRole('dialog')
+        await user.click(
+          within(dialog).getByRole('button', { name: /yes, publish publicly/i })
+        )
+
+        expect(await within(dialog).findByText(message)).toBeInTheDocument()
+        view.unmount()
+        server.resetHandlers()
+      }
+    })
+
+    test('a storage OUTAGE stays a 5xx and is not dressed up as a validation error', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/transparency/attestations/upload-url', () =>
+          apiError(503, 'STORAGE_UNAVAILABLE', 'Object storage is unavailable')
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
+      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/report file/i), {
+        target: { files: [pdfFile('laporan.pdf', 512)] },
+      })
+      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+
+      // Infrastructure failures fail closed and stay infrastructure failures.
+      // Translating "the bucket is down" into a 422 would tell the operator to
+      // fix a file that has nothing wrong with it.
+      expect(
+        await within(dialog).findByText(/object storage is unavailable/i)
+      ).toBeInTheDocument()
+      expect(within(dialog).queryByText(/not a PDF/i)).not.toBeInTheDocument()
+    })
+
     test('a renamed non-PDF is rejected on its BYTES, not on its name', async () => {
       const user = userEvent.setup()
       let ticketCalls = 0
@@ -1873,6 +2057,63 @@ describe('/api/v1/transparency/* contract', () => {
     expect((await res.json()).error.code).toBe('INVALID_FILE_KEY')
   })
 
+  // Step 3 consults the bucket, the way the backend does. Registering a key
+  // whose object never landed would publish a report row whose public download
+  // is a dead link — worse than no report at all, because it looks official.
+  test('POST /attestations rejects a fileKey whose object was never uploaded', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    // A well-formed key from step 1, but step 2 was never run.
+    const ticket = (await (await requestTicket({ period: '2026-11', sizeBytes: 64 })).json())
+      .data as { fileKey: string }
+
+    const res = await fetch('/api/v1/transparency/attestations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({
+        period: '2026-11',
+        title: 'Laporan yang berkasnya tidak pernah naik',
+        fileKey: ticket.fileKey,
+      }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe('ATTESTATION_FILE_NOT_UPLOADED')
+  })
+
+  test('POST /attestations rejects an object whose BYTES are not a PDF', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const notPdf = 'MZ this is an executable, not a report'
+    const ticket = (
+      await (await requestTicket({ period: '2026-11', sizeBytes: notPdf.length })).json()
+    ).data as { uploadUrl: string; fileKey: string; headers: Record<string, string> }
+
+    // Storage accepts it — a bucket does not care what the bytes mean.
+    const put = await fetch(ticket.uploadUrl, {
+      method: 'PUT',
+      body: notPdf,
+      headers: ticket.headers,
+    })
+    expect(put.status).toBe(200)
+
+    // The API is where it gets caught, on content rather than on the name.
+    const res = await fetch('/api/v1/transparency/attestations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({
+        period: '2026-11',
+        title: 'Bukan PDF sama sekali',
+        fileKey: ticket.fileKey,
+      }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe('ATTESTATION_FILE_TYPE_INVALID')
+  })
+
   test('POST /ledger replays the same idempotencyKey instead of appending a twin', async () => {
     const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
     const key = testIdempotencyKey()
@@ -1908,6 +2149,55 @@ describe('/api/v1/transparency/* contract', () => {
     expect(ledger.balance.amount).toBe('151917.16')
   })
 
+  // The 16-character floor is not cosmetic. A key like "retry" would be reused
+  // across unrelated attempts, and the backend would answer the second one with
+  // the FIRST one's entry — a legitimate ledger row dropped in silence, which
+  // is a quieter failure than the duplicate the key was introduced to prevent.
+  test.each([
+    ['too short', 'retry'],
+    ['15 characters — one under the floor', 'k'.repeat(15)],
+    ['201 characters — one over the ceiling', 'k'.repeat(201)],
+  ])('POST /ledger rejects an idempotencyKey %s with 422', async (_label, key) => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/ledger', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({
+        entryType: 'SEED',
+        amount: '100.00',
+        currency: 'USD',
+        reason: 'Setoran awal cadangan kustodian',
+        occurredAt: '2026-01-01',
+        idempotencyKey: key,
+      }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe('LEDGER_IDEMPOTENCY_KEY_INVALID')
+  })
+
+  test('POST /ledger accepts a key exactly at the 16-character floor', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/ledger', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({
+        entryType: 'SEED',
+        amount: '100.00',
+        currency: 'USD',
+        reason: 'Setoran awal cadangan kustodian',
+        occurredAt: '2026-01-01',
+        idempotencyKey: 'k'.repeat(16),
+      }),
+    })
+    expect(res.status).toBe(201)
+  })
+
   test('POST /ledger without an idempotencyKey is a plain 400', async () => {
     const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
     const res = await fetch('/api/v1/transparency/ledger', {
@@ -1928,11 +2218,12 @@ describe('/api/v1/transparency/* contract', () => {
     expect((await res.json()).error.message).toMatch(/idempotencyKey/i)
   })
 
-  test('GET /attestations defaults take to 20, exactly like the backend', async () => {
-    // A generous default here would hide the bug it exists to expose: a client
-    // that asks for no page size only ever sees the first 20 reports.
+  test('GET /attestations defaults take to 24, exactly like the backend', async () => {
+    // 24 = the number of reports the public page lists. A generous default here
+    // would hide the bug it exists to expose: a client that asks for no page
+    // size sees only the newest 24, and the ones it loses are the old ones.
     const body = await (await fetch('/api/v1/transparency/attestations')).json()
-    expect(body.data.take).toBe(20)
+    expect(body.data.take).toBe(24)
   })
 
   test('GET /attestations honours page + take', async () => {

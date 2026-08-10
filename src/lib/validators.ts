@@ -302,7 +302,7 @@ const MAX_ATTESTATION_TITLE_LEN = 200
  * backend lands under the input that caused it instead of in a generic banner.
  * `null` means "no single field owns this" → render it at form level.
  */
-export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string> = {
+export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string | null> = {
   LEDGER_AMOUNT_ZERO: 'amount',
   LEDGER_AMOUNT_INVALID: 'amount',
   LEDGER_REASON_TOO_SHORT: 'reason',
@@ -310,6 +310,31 @@ export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string> = {
   LEDGER_DATE_INVALID: 'occurredAt',
   LEDGER_CURRENCY_UNSUPPORTED: 'currency',
   LEDGER_TYPE_NOT_ALLOWED: 'entryType',
+  // No input produced this: the client minted a key outside 16–200 characters.
+  // Sending the operator to a field would be a lie — there is no field to fix —
+  // so it renders at form level in the dialog.
+  LEDGER_IDEMPOTENCY_KEY_INVALID: null,
+}
+
+/**
+ * Bounds the backend enforces on `idempotencyKey`
+ * (`LEDGER_IDEMPOTENCY_KEY_INVALID`).
+ *
+ * The MINIMUM is the interesting one. It exists to make a lazy key like
+ * `"retry"` impossible, because two unrelated attempts sharing a key means the
+ * second one is answered with the first one's entry and a legitimate ledger
+ * row is silently dropped — a quieter failure than the duplicate the key was
+ * introduced to prevent.
+ */
+export const LEDGER_IDEMPOTENCY_KEY_MIN_LEN = 16
+export const LEDGER_IDEMPOTENCY_KEY_MAX_LEN = 200
+
+/** True when a key would survive the backend's length check. */
+export function isValidIdempotencyKey(key: string): boolean {
+  return (
+    key.length >= LEDGER_IDEMPOTENCY_KEY_MIN_LEN &&
+    key.length <= LEDGER_IDEMPOTENCY_KEY_MAX_LEN
+  )
 }
 
 /** Narrows an arbitrary server code to one this form knows how to place. */

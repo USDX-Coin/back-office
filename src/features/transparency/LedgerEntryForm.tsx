@@ -141,8 +141,17 @@ export default function LedgerEntryForm({ balance }: Props) {
         // Resolved outside the updater so the narrowed code survives — inside
         // the callback TS widens `err.code` back to `string`.
         const field = LEDGER_ERROR_FIELD[err.code]
-        setErrors((prev) => ({ ...prev, [field]: message }))
-        setPending(null)
+        if (field === null) {
+          // A 422 no input owns — today only LEDGER_IDEMPOTENCY_KEY_INVALID,
+          // which means this client minted a bad key. Show it in the dialog
+          // rather than pinning it on a field the operator filled in correctly.
+          // Deliberately NO balance re-read: a 422 is a definite "not written",
+          // so re-reading would only imply doubt that does not exist.
+          setDialogError(message)
+        } else {
+          setErrors((prev) => ({ ...prev, [field]: message }))
+          setPending(null)
+        }
       } else {
         setDialogError(message)
         // A 422 is a definite "not written". Everything else is genuinely

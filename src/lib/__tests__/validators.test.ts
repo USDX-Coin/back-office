@@ -30,8 +30,11 @@ import {
   ATTESTATION_MAX_FILE_BYTES,
   ATTESTATION_MAX_FILE_LABEL,
   ATTESTATION_NOT_A_PDF_MESSAGE,
+  isValidIdempotencyKey,
   TX_HASH_RE,
 } from '@/lib/validators'
+import { newIdempotencyKey } from '@/lib/transparency'
+import type { LedgerErrorCode } from '@/lib/types'
 
 describe('validateLoginForm', () => {
   describe('positive', () => {
@@ -1049,9 +1052,10 @@ describe('validateLedgerEntryForm', () => {
 
 describe('LEDGER_ERROR_FIELD / isLedgerErrorCode', () => {
   describe('positive', () => {
-    // Every code in the contract's validation table must be placeable on a
-    // field, otherwise a server 422 becomes an unattributed banner.
-    test('maps every contract code to a form field', () => {
+    // Every code in the contract's validation table must be PLACED — on a
+    // field, or deliberately at form level — otherwise a server 422 becomes an
+    // unattributed banner.
+    test('places every contract code', () => {
       expect(LEDGER_ERROR_FIELD).toEqual({
         LEDGER_AMOUNT_ZERO: 'amount',
         LEDGER_AMOUNT_INVALID: 'amount',
@@ -1060,6 +1064,10 @@ describe('LEDGER_ERROR_FIELD / isLedgerErrorCode', () => {
         LEDGER_DATE_INVALID: 'occurredAt',
         LEDGER_CURRENCY_UNSUPPORTED: 'currency',
         LEDGER_TYPE_NOT_ALLOWED: 'entryType',
+        // `null` = no input owns this. The client minted a key outside
+        // 16–200 characters; the operator's fields are all correct, so this
+        // renders in the dialog rather than pointing at one of them.
+        LEDGER_IDEMPOTENCY_KEY_INVALID: null,
       })
     })
     test('recognises a contract code', () => {
@@ -1139,6 +1147,69 @@ describe('validateAttestationFile', () => {
 describe('ATTESTATION_NOT_A_PDF_MESSAGE', () => {
   test('names the content, not the extension — the operator renamed nothing wrong', () => {
     expect(ATTESTATION_NOT_A_PDF_MESSAGE).toMatch(/not a PDF/i)
+  })
+})
+
+describe('isValidIdempotencyKey', () => {
+  describe('positive', () => {
+    test('accepts a key at the 16-character floor', () => {
+      expect(isValidIdempotencyKey('k'.repeat(16))).toBe(true)
+    })
+    test('accepts a key at the 200-character ceiling', () => {
+      expect(isValidIdempotencyKey('k'.repeat(200))).toBe(true)
+    })
+    // The one that actually ships.
+    test('accepts the UUID newIdempotencyKey mints', () => {
+      expect(isValidIdempotencyKey(newIdempotencyKey())).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    // The floor is the interesting bound. A key this lazy would be reused
+    // across unrelated attempts, and the backend would answer the second one
+    // with the first one's entry — silently dropping a real ledger row, which
+    // is a quieter failure than the duplicate the key exists to prevent.
+    test('rejects a throwaway key like "retry"', () => {
+      expect(isValidIdempotencyKey('retry')).toBe(false)
+    })
+    test('rejects one character under the floor', () => {
+      expect(isValidIdempotencyKey('k'.repeat(15))).toBe(false)
+    })
+    test('rejects one character over the ceiling', () => {
+      expect(isValidIdempotencyKey('k'.repeat(201))).toBe(false)
+    })
+  })
+})
+
+describe('LEDGER_ERROR_FIELD', () => {
+  test('covers every contract code, so no 422 can go unplaced', () => {
+    const codes: LedgerErrorCode[] = [
+      'LEDGER_AMOUNT_ZERO',
+      'LEDGER_AMOUNT_INVALID',
+      'LEDGER_REASON_TOO_SHORT',
+      'LEDGER_DATE_IN_FUTURE',
+      'LEDGER_DATE_INVALID',
+      'LEDGER_CURRENCY_UNSUPPORTED',
+      'LEDGER_TYPE_NOT_ALLOWED',
+      'LEDGER_IDEMPOTENCY_KEY_INVALID',
+    ]
+    for (const code of codes) {
+      expect(isLedgerErrorCode(code)).toBe(true)
+      expect(LEDGER_ERROR_FIELD).toHaveProperty(code)
+    }
+  })
+
+  test('maps the idempotency-key code to NO field — the operator typed nothing wrong', () => {
+    // It is the client that minted a bad key. Pinning this on Amount or Reason
+    // would send an operator to correct a field that is already right.
+    expect(LEDGER_ERROR_FIELD.LEDGER_IDEMPOTENCY_KEY_INVALID).toBeNull()
+  })
+
+  test('every OTHER code names a real form field', () => {
+    for (const [code, field] of Object.entries(LEDGER_ERROR_FIELD)) {
+      if (code === 'LEDGER_IDEMPOTENCY_KEY_INVALID') continue
+      expect(field).toBeTruthy()
+    }
   })
 })
 

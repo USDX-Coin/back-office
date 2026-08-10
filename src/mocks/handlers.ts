@@ -86,6 +86,7 @@ export function resetMockData() {
   attestations = createInitialAttestations()
   ledgerIdempotency.clear()
   issuedUploadTickets.clear()
+  storageObjects.clear()
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
@@ -408,8 +409,15 @@ const LEDGER_MAX_INT_DIGITS = 28
 const ATTESTATION_MAX_FILE_BYTES_MOCK = 5 * 1024 * 1024
 /** Every `fileKey` the backend hands out starts here. */
 const ATTESTATION_FILE_KEY_PREFIX = 'transparency/attestation/'
-/** Backend default when a client omits `take` — small on purpose, like production. */
-const ATTESTATION_DEFAULT_TAKE = 20
+/**
+ * Backend default when a client omits `take` — matches the number of reports
+ * the public page lists. Still small enough that a back office relying on it
+ * would lose sight of older reports, which is why the client asks explicitly.
+ */
+const ATTESTATION_DEFAULT_TAKE = 24
+/** `idempotencyKey` bounds the backend enforces (§ 3). */
+const LEDGER_IDEMPOTENCY_KEY_MIN = 16
+const LEDGER_IDEMPOTENCY_KEY_MAX = 200
 
 // Reserve balance = SUM(amount) over the WHOLE ledger (§ 1). Computed on
 // integer cents so a 30-digit numeric never touches a float.
@@ -455,9 +463,26 @@ function isRealCalendarDate(value: string): boolean {
 interface IssuedUploadTicket {
   headers: Record<string, string>
   contentLength: number
+  fileKey: string
 }
 
 const issuedUploadTickets = new Map<string, IssuedUploadTicket>()
+
+/**
+ * The fake bucket's contents: fileKey → what actually landed there.
+ *
+ * Step 3 consults this the way the backend consults S3 before registering a
+ * report. Without it the mock would happily register a `fileKey` whose object
+ * was never uploaded — publishing a row whose public download is a dead link —
+ * and the two codes that exist for exactly that (ATTESTATION_FILE_NOT_UPLOADED,
+ * ATTESTATION_FILE_TYPE_INVALID) could never be produced locally.
+ */
+interface StoredObject {
+  size: number
+  isPdf: boolean
+}
+
+const storageObjects = new Map<string, StoredObject>()
 
 // Idempotency ledger for POST /transparency/ledger: key → the entry it created.
 // The backend keeps a unique index on this column; a replay returns the row that
@@ -855,6 +880,21 @@ export const handlers = [
     if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
       return nestValidationError(['idempotencyKey should not be empty'])
     }
+    // Length is a SERVICE check, so it carries a named 422 rather than the
+    // plain 400 a missing field gets. The 16-character floor is the important
+    // half: a throwaway key like "retry" would collide between unrelated
+    // attempts, and a collision answers the second one with the first one's
+    // entry — silently losing a legitimate ledger row.
+    if (
+      idempotencyKey.length < LEDGER_IDEMPOTENCY_KEY_MIN ||
+      idempotencyKey.length > LEDGER_IDEMPOTENCY_KEY_MAX
+    ) {
+      return transparencyError(
+        422,
+        'LEDGER_IDEMPOTENCY_KEY_INVALID',
+        `idempotencyKey must be between ${LEDGER_IDEMPOTENCY_KEY_MIN} and ${LEDGER_IDEMPOTENCY_KEY_MAX} characters`
+      )
+    }
 
     // Replay. The whole point of the key: the first attempt wrote the row and
     // lost its response, so the second one must return that row rather than
@@ -1012,7 +1052,11 @@ export const handlers = [
 
     // Remember what this URL was "signed" with — headers AND length — so the PUT
     // handler below can reject a mismatch the way real storage would.
-    issuedUploadTickets.set(uploadUrl, { headers, contentLength: sizeBytes })
+    issuedUploadTickets.set(uploadUrl, {
+      headers,
+      contentLength: sizeBytes,
+      fileKey,
+    })
 
     return HttpResponse.json({
       status: 'success',
@@ -1053,12 +1097,20 @@ export const handlers = [
     // forbidden header, so the client cannot set or fake it, it is simply the
     // real byte count of the file. The signature therefore only matches when
     // step 1 declared that same number as `sizeBytes`.
-    const sent = (await request.arrayBuffer()).byteLength
+    const body = await request.arrayBuffer()
+    const sent = body.byteLength
     if (sent !== ticket.contentLength) {
       return storageSignatureError(
         `content-length was signed as ${ticket.contentLength} but the request sent ${sent}`
       )
     }
+
+    // The object now exists in the bucket. Step 3 reads this back, the way the
+    // backend HEADs/GETs the object before registering a report — which is what
+    // makes ATTESTATION_FILE_NOT_UPLOADED and ATTESTATION_FILE_TYPE_INVALID
+    // reachable at all.
+    const head = String.fromCharCode(...new Uint8Array(body.slice(0, 5)))
+    storageObjects.set(ticket.fileKey, { size: sent, isPdf: head === '%PDF-' })
     return new HttpResponse(null, { status: 200 })
   }),
 
@@ -1119,11 +1171,34 @@ export const handlers = [
       )
     }
     // Only an ACTIVE report blocks the period — a revoked one may be replaced.
+    // Checked before the bucket lookups below: it is the cheap one, and a taken
+    // period makes the request dead no matter what the file turns out to be.
     if (attestations.some((a) => a.period === body.period && a.revokedAt === null)) {
       return transparencyError(
         409,
         'ATTESTATION_PERIOD_EXISTS',
         `An active report already exists for ${body.period}`
+      )
+    }
+    // Registering a key whose object never landed would publish a report row
+    // whose public download is a dead link. The backend checks the bucket;
+    // so does this.
+    const stored = storageObjects.get(body.fileKey)
+    if (!stored || stored.size === 0) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_NOT_UPLOADED',
+        'No object was found at that fileKey — step 2 did not complete'
+      )
+    }
+    // Content type is judged from the BYTES, not from what step 2 claimed in a
+    // header. A renamed executable published under "Laporan Atestasi" is worse
+    // than a rejected upload.
+    if (!stored.isPdf) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_TYPE_INVALID',
+        'The uploaded object is not a PDF'
       )
     }
 

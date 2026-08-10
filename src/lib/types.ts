@@ -342,7 +342,15 @@ export interface CreateLedgerEntryInput {
    *
    * Generated ONCE per form-filling attempt — not per click — and re-sent
    * UNCHANGED on every retry of that same attempt. The backend keys a unique
-   * index on it and answers a replay with the existing entry and a 200.
+   * index on it and answers a replay with the existing entry and a **200**
+   * (a new entry is **201**); the client must treat BOTH as success, because
+   * showing the safe replay as an error is what pushes an operator to press
+   * again.
+   *
+   * Must be 16–200 characters (`LEDGER_IDEMPOTENCY_KEY_INVALID`). The lower
+   * bound is deliberate: a throwaway key like `"retry"` would collide across
+   * unrelated attempts, and a collision silently DROPS a legitimate entry —
+   * quieter, and worse, than the duplicate this field exists to prevent.
    */
   idempotencyKey: string
 }
@@ -364,6 +372,12 @@ export type LedgerErrorCode =
   | 'LEDGER_DATE_INVALID'
   | 'LEDGER_CURRENCY_UNSUPPORTED'
   | 'LEDGER_TYPE_NOT_ALLOWED'
+  /**
+   * The key was shorter than 16 or longer than 200 characters. No form field
+   * owns this one — the operator typed nothing wrong, the client minted a bad
+   * key — so it renders at form level (see `LEDGER_ERROR_FIELD`).
+   */
+  | 'LEDGER_IDEMPOTENCY_KEY_INVALID'
 
 /** One row of `GET /api/v1/transparency/attestations` → `data.items[]`. */
 export interface AttestationReport {
@@ -448,7 +462,15 @@ export interface CreateAttestationInput {
   fileKey: string
 }
 
-/** `error.code` values the attestation endpoints can return (§ 3). */
+/**
+ * `error.code` values the attestation endpoints can return (§ 3).
+ *
+ * All four of the file-related ones are 422 — they describe something wrong
+ * with what the CLIENT did. A storage outage is NOT in this list on purpose:
+ * infrastructure failures stay 5xx and fail closed, because translating "the
+ * bucket is down" into a validation error would tell an operator to fix a file
+ * that has nothing wrong with it.
+ */
 export type AttestationErrorCode =
   | 'ATTESTATION_PERIOD_EXISTS'
   | 'INVALID_ATTESTATION_PERIOD'
@@ -456,6 +478,13 @@ export type AttestationErrorCode =
   | 'ATTESTATION_FILE_TOO_LARGE'
   /** Step 3 was handed a `fileKey` the backend never issued. */
   | 'INVALID_FILE_KEY'
+  /**
+   * Step 3 ran but the object is missing or zero-length — step 2 never landed.
+   * Registering anyway would publish a row whose public download is broken.
+   */
+  | 'ATTESTATION_FILE_NOT_UPLOADED'
+  /** The bytes in the bucket are not a PDF, whatever the file was named. */
+  | 'ATTESTATION_FILE_TYPE_INVALID'
 
 /**
  * Every mutation under /api/v1/transparency (ledger entry, attestation upload,
