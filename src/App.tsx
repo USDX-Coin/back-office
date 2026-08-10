@@ -19,6 +19,7 @@ import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
+import TransparencyPage from '@/features/transparency/TransparencyPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 
@@ -50,6 +51,7 @@ const queryClient = new QueryClient({
 //   /burn/new           → Burn form
 //   /settings/rate      → Rate management
 //   /settings/threshold → Threshold management
+//   /transparency       → Reserve ledger + attestation reports (ADMIN + DEVELOPER)
 //   /profile            → Operator profile (no sidebar entry; navbar dropdown)
 const router = createBrowserRouter([
   {
@@ -125,6 +127,18 @@ const router = createBrowserRouter([
           // admin only (gated inside the page, read-only notice for non-admin —
           // same as Rate). No route-level RoleGuard so DEVELOPER can view.
           { path: '/settings/fee', element: <FeeConfigPage /> },
+          {
+            // KONTRAK-API-TRANSPARANSI.md § 3: reading the reserve ledger is
+            // ADMIN + DEVELOPER. Gated at the ROUTE, like /settings/threshold —
+            // the ledger exposes internal `reason` text and staff names that
+            // never appear publicly, so hiding the buttons alone would still
+            // leave the data one URL away. Recording entries is ADMIN-only
+            // inside the page and the BE enforces that again (403).
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER']} />,
+            children: [
+              { path: '/transparency', element: <TransparencyPage /> },
+            ],
+          },
           {
             // sot/phase-1.md L516 "Threshold Management — admin only" +
             // Linear USDX-53 AC3: non-ADMIN must redirect/403.

@@ -35,6 +35,10 @@ import { handlers } from './handlers'
 // were already listed (USDX-23 final integration) — queue enforcement now
 // lives entirely in BE (USDX-83). Vitest tests scope their own
 // `server.use(...)` overrides per scenario so no defaults are needed.
+//
+// Transparency (/api/v1/transparency/*) is deliberately ABSENT from the set
+// below: the backend is still being built, so the browser keeps using the MSW
+// handlers. Move those paths here once the BE endpoints are live.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).

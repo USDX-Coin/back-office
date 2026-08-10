@@ -15,12 +15,16 @@ import type {
   UpdateRateConfig,
   FeeConfig,
   UpdateFeeConfig,
+  ReserveLedgerEntry,
+  CreateLedgerEntryInput,
+  CreateAttestationInput,
+  AttestationReport,
   RequestDetail,
   RequestListItem,
   OrderDetail,
   OrderListItem,
 } from '@/lib/types'
-import { canManageRate, canManageFeeConfig } from '@/lib/types'
+import { canManageRate, canManageFeeConfig, canManageTransparency } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -38,6 +42,10 @@ import {
   computeRateInfo,
   createInitialFeeHistory,
   createFeeConfig,
+  createLedgerEntry,
+  createInitialLedgerEntries,
+  createAttestationReport,
+  createInitialAttestations,
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
@@ -53,6 +61,8 @@ let otcRedeemStore: OtcRedeemTransaction[]
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+let reserveLedger: ReserveLedgerEntry[] = createInitialLedgerEntries()
+let attestations: AttestationReport[] = createInitialAttestations()
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
@@ -72,6 +82,8 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+  reserveLedger = createInitialLedgerEntries()
+  attestations = createInitialAttestations()
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
@@ -351,6 +363,40 @@ function authenticatedStaff(request: Request): Staff | null {
   const claims = verifyMockJwt(token)
   if (!claims) return null
   return findStaffById(claims.sub) ?? null
+}
+
+// ─── Transparency error envelopes (/api/v1/transparency/*) ───
+// Codes + HTTP statuses come straight from the validation tables in
+// catatan/KONTRAK-API-TRANSPARANSI.md § 3.
+function transparencyError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+function transparencyForbidden() {
+  return transparencyError(403, 'FORBIDDEN', 'Only ADMIN can write transparency data')
+}
+
+// Reserve balance = SUM(amount) over the WHOLE ledger (§ 1). Computed on
+// integer cents so a 30-digit numeric never touches a float.
+function ledgerBalanceAmount(entries: ReserveLedgerEntry[]): string {
+  let cents = 0n
+  for (const entry of entries) {
+    const [whole = '0', fraction = ''] = entry.amount.replace('-', '').split('.')
+    const magnitude = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+    cents += entry.amount.startsWith('-') ? -magnitude : magnitude
+  }
+  const negative = cents < 0n
+  const abs = negative ? -cents : cents
+  return `${negative ? '-' : ''}${abs / 100n}.${(abs % 100n).toString().padStart(2, '0')}`
+}
+
+// Mirror of the backend's WIB day rule (§ 3): "today" is UTC+7, so an entry
+// filed at 02:00 WIB is not treated as tomorrow.
+function wibTodayMock(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
 // ─── Handlers ───
@@ -679,6 +725,214 @@ export const handlers = [
       { status: 'success', metadata: null, data: created },
       { status: 201 }
     )
+  }),
+
+  // ─── Transparency (/api/v1/transparency/*) ───
+  // APPEND-ONLY reserve ledger + attestation reports, per
+  // catatan/KONTRAK-API-TRANSPARANSI.md § 3. There is no update, no delete and
+  // no draft/publish state — a correction is a new entry with a negative
+  // amount. Writes are ADMIN-only; reads are open here for the same
+  // first-fetch-ordering reason as /api/v1/rate above (the route-level
+  // RoleGuard is what gates reading in the app).
+  //
+  // NOT in browser.ts INTEGRATION_PATHS yet — the backend is still being built.
+
+  http.get('/api/v1/transparency/ledger', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
+    const take = Math.max(1, Number(url.searchParams.get('take') ?? '50') || 50)
+
+    // Newest event first, then newest record — the order an operator reads a
+    // ledger in.
+    const ordered = [...reserveLedger].sort(
+      (a, b) =>
+        b.occurredAt.localeCompare(a.occurredAt) ||
+        b.createdAt.localeCompare(a.createdAt)
+    )
+    const start = (page - 1) * take
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        entries: ordered.slice(start, start + take),
+        page,
+        take,
+        total: ordered.length,
+        // Balance of the ENTIRE ledger, not of this page.
+        balance: {
+          amount: ledgerBalanceAmount(reserveLedger),
+          currency: 'USD',
+        },
+      },
+    })
+  }),
+
+  http.post('/api/v1/transparency/ledger', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
+
+    const body = (await request.json()) as CreateLedgerEntryInput
+
+    // Order and codes follow the § 3 table exactly.
+    if (body.entryType !== 'SEED' && body.entryType !== 'ADJUSTMENT') {
+      return transparencyError(
+        422,
+        'LEDGER_TYPE_NOT_ALLOWED',
+        'entryType must be SEED or ADJUSTMENT'
+      )
+    }
+    const amount = (body.amount ?? '').trim()
+    if (!/^-?\d+(\.\d{1,2})?$/.test(amount)) {
+      return transparencyError(
+        422,
+        'LEDGER_AMOUNT_INVALID',
+        'amount must be a decimal with at most 2 decimal places'
+      )
+    }
+    if (Number(amount) === 0) {
+      return transparencyError(422, 'LEDGER_AMOUNT_ZERO', 'amount cannot be zero')
+    }
+    if (body.currency !== 'USD') {
+      return transparencyError(
+        422,
+        'LEDGER_CURRENCY_UNSUPPORTED',
+        'Only USD is supported at this stage'
+      )
+    }
+    if (!body.reason || body.reason.trim().length < 10) {
+      return transparencyError(
+        422,
+        'LEDGER_REASON_TOO_SHORT',
+        'reason must be at least 10 characters'
+      )
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.occurredAt ?? '')) {
+      return transparencyError(
+        422,
+        'LEDGER_DATE_IN_FUTURE',
+        'occurredAt must be a YYYY-MM-DD date'
+      )
+    }
+    if (body.occurredAt > wibTodayMock()) {
+      return transparencyError(
+        422,
+        'LEDGER_DATE_IN_FUTURE',
+        'occurredAt cannot be in the future'
+      )
+    }
+
+    const created = createLedgerEntry({
+      entryType: body.entryType,
+      amount,
+      currency: body.currency,
+      reason: body.reason.trim(),
+      occurredAt: body.occurredAt,
+      createdByName: operator.name,
+      createdAt: new Date().toISOString(),
+    })
+    reserveLedger.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // Attestations — three-step upload (§ 3). Step 1 hands out a presigned URL.
+  http.post('/api/v1/transparency/attestations/upload-url', ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
+
+    const fileKey = `transparency/attestation/${Date.now()}-report.pdf`
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        uploadUrl: `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`,
+        fileKey,
+      },
+    })
+  }),
+
+  // Step 2 — the client PUTs the bytes straight at the storage host. This
+  // handler stands in for that bucket; it is NOT part of the USDX API, which is
+  // exactly why the app must not send session cookies to it.
+  http.put('https://storage.usdx.test/upload/*', () => new HttpResponse(null, { status: 200 })),
+
+  http.get('/api/v1/transparency/attestations', () =>
+    HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      // Revoked rows ARE included — the backend returns everything for the
+      // audit trail and the back office is responsible for filtering.
+      data: {
+        items: [...attestations].sort((a, b) => b.period.localeCompare(a.period)),
+        page: 1,
+        take: 50,
+        total: attestations.length,
+      },
+    })
+  ),
+
+  // Step 3 — register the uploaded object. JSON with `fileKey`, never multipart.
+  http.post('/api/v1/transparency/attestations', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
+
+    const body = (await request.json()) as CreateAttestationInput
+
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period ?? '')) {
+      return transparencyError(
+        422,
+        'INVALID_ATTESTATION_PERIOD',
+        'period must be a YYYY-MM value'
+      )
+    }
+    if (!body.title?.trim() || !body.fileKey?.trim()) {
+      return transparencyError(
+        422,
+        'INVALID_ATTESTATION_PERIOD',
+        'title and fileKey are required'
+      )
+    }
+    // Only an ACTIVE report blocks the period — a revoked one may be replaced.
+    if (attestations.some((a) => a.period === body.period && a.revokedAt === null)) {
+      return transparencyError(
+        409,
+        'ATTESTATION_PERIOD_EXISTS',
+        `An active report already exists for ${body.period}`
+      )
+    }
+
+    const created = createAttestationReport({
+      period: body.period,
+      title: body.title.trim(),
+      fileUrl: `https://storage.usdx.test/${body.fileKey}`,
+      publishedAt: new Date().toISOString(),
+      revokedAt: null,
+    })
+    attestations.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // Revoke — fills `revokedAt`, never removes the row.
+  http.delete('/api/v1/transparency/attestations/:id', ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
+
+    const report = attestations.find((a) => a.id === params.id)
+    if (!report) {
+      return transparencyError(404, 'NOT_FOUND', 'Attestation not found')
+    }
+    report.revokedAt = report.revokedAt ?? new Date().toISOString()
+    return HttpResponse.json({ status: 'success', metadata: null, data: report })
   }),
 
   // ─── Chain config — sot/api/chains.yaml § GET /api/v1/chains ───

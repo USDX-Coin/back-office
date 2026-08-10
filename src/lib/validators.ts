@@ -3,11 +3,14 @@ import type {
   AmountCurrency,
   CustomerRole,
   CustomerType,
+  LedgerErrorCode,
   Network,
   RateMode,
   RequestChain,
   StaffRole,
 } from './types'
+import { LEDGER_ENTRY_TYPES_SELECTABLE, LEDGER_SUPPORTED_CURRENCY } from './types'
+import { isFutureWibDate, parseAmountToCents, wibToday } from './transparency'
 
 export interface ValidationResult {
   valid: boolean
@@ -245,6 +248,215 @@ export function validateFeeConfigForm(input: {
   if (redeemErr) errors.redeemFeePct = redeemErr
   const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
   if (disbErr) errors.disbursementFeeFlat = disbErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// ─── Transparency: reserve ledger + attestation upload ──────────────────────
+// Client-side mirror of the validation table in
+// catatan/KONTRAK-API-TRANSPARANSI.md § 3. The point of duplicating the rules
+// here is a fast, field-level answer — NOT to be the authority. The server
+// re-validates, and when it disagrees its message is what the operator sees
+// (see LEDGER_ERROR_FIELD below).
+//
+// Every rule below maps 1:1 to an `error.code` from that table. If a rule here
+// has no code, it does not belong here.
+
+/** Contract `amount`: numeric(30,2), sign allowed, at most 2 decimals. */
+const LEDGER_AMOUNT_RE = /^-?\d+(\.\d{1,2})?$/
+/** Contract `reason`: required, minimum 10 characters. */
+export const LEDGER_REASON_MIN_LEN = 10
+const LEDGER_REASON_MAX_LEN = 500
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+const MAX_ATTESTATION_TITLE_LEN = 200
+
+/**
+ * Which form field each server `error.code` belongs to, so a 422 from the
+ * backend lands under the input that caused it instead of in a generic banner.
+ * `null` means "no single field owns this" → render it at form level.
+ */
+export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string> = {
+  LEDGER_AMOUNT_ZERO: 'amount',
+  LEDGER_AMOUNT_INVALID: 'amount',
+  LEDGER_REASON_TOO_SHORT: 'reason',
+  LEDGER_DATE_IN_FUTURE: 'occurredAt',
+  LEDGER_CURRENCY_UNSUPPORTED: 'currency',
+  LEDGER_TYPE_NOT_ALLOWED: 'entryType',
+}
+
+/** Narrows an arbitrary server code to one this form knows how to place. */
+export function isLedgerErrorCode(code: string): code is LedgerErrorCode {
+  return code in LEDGER_ERROR_FIELD
+}
+
+/** Attestation uploads are PDFs only, capped at 10 MB (client-side guard). */
+export const ATTESTATION_ACCEPTED_MIME = 'application/pdf'
+export const ATTESTATION_ACCEPTED_EXTENSION = '.pdf'
+export const ATTESTATION_MAX_FILE_BYTES = 10 * 1024 * 1024
+
+/** Local-calendar YYYY-MM-DD for `date` (used to seed the date input). */
+export function toDateInputValue(date: Date): string {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/**
+ * `amount` rules, in the contract's own order:
+ *   not a valid 2-decimal number → LEDGER_AMOUNT_INVALID
+ *   exactly zero                 → LEDGER_AMOUNT_ZERO
+ * Negative is explicitly VALID — filing a negative entry is how a correction is
+ * made, because the ledger has no UPDATE and no DELETE.
+ */
+export function validateLedgerAmount(raw: string): string | null {
+  const value = raw.trim()
+  if (!value) return 'Amount is required'
+  if (!LEDGER_AMOUNT_RE.test(value)) {
+    return 'Amount must be a decimal number with at most 2 decimal places'
+  }
+  const cents = parseAmountToCents(value)
+  if (cents === null) {
+    return 'Amount must be a decimal number with at most 2 decimal places'
+  }
+  if (cents === 0n) return 'Amount cannot be zero'
+  return null
+}
+
+/** `reason` — required, min 10 chars (LEDGER_REASON_TOO_SHORT). */
+export function validateLedgerReason(raw: string): string | null {
+  const value = raw.trim()
+  if (!value) return 'Reason is required'
+  if (value.length < LEDGER_REASON_MIN_LEN) {
+    return `Reason must be at least ${LEDGER_REASON_MIN_LEN} characters`
+  }
+  if (value.length > LEDGER_REASON_MAX_LEN) {
+    return `Reason must be under ${LEDGER_REASON_MAX_LEN} characters`
+  }
+  return null
+}
+
+/**
+ * `occurredAt` — a real calendar date, not in the future (LEDGER_DATE_IN_FUTURE).
+ * "Future" is measured in WIB to match the backend's wib-day util: judging this
+ * in UTC would reject today's date for anyone filing between 00:00 and 07:00 WIB.
+ */
+export function validateLedgerOccurredAt(
+  raw: string,
+  now: Date = new Date()
+): string | null {
+  const value = raw.trim()
+  if (!value) return 'Event date is required'
+  if (!ISO_DATE_RE.test(value)) return 'Date must use the YYYY-MM-DD format'
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number]
+  // Round-trip guard: `new Date(2026, 1, 31)` silently rolls over to Mar 3.
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return 'Date is not a real calendar date'
+  }
+  if (isFutureWibDate(value, now)) return 'Event date cannot be in the future'
+  return null
+}
+
+/** `currency` — ISO-4217 uppercase; only USD this phase (LEDGER_CURRENCY_UNSUPPORTED). */
+export function validateLedgerCurrency(raw: string): string | null {
+  const value = raw.trim()
+  if (!value) return 'Currency is required'
+  if (value !== LEDGER_SUPPORTED_CURRENCY) {
+    return `Only ${LEDGER_SUPPORTED_CURRENCY} is supported at this stage`
+  }
+  return null
+}
+
+/** `entryType` — SEED or ADJUSTMENT only (LEDGER_TYPE_NOT_ALLOWED). */
+export function validateLedgerEntryType(raw: string): string | null {
+  if (!raw) return 'Entry type is required'
+  if (!(LEDGER_ENTRY_TYPES_SELECTABLE as readonly string[]).includes(raw)) {
+    return 'Entry type must be SEED or ADJUSTMENT'
+  }
+  return null
+}
+
+export function validateLedgerEntryForm(
+  input: {
+    entryType: string
+    amount: string
+    currency: string
+    reason: string
+    occurredAt: string
+  },
+  now: Date = new Date()
+): ValidationResult {
+  const errors: Record<string, string> = {}
+  const typeErr = validateLedgerEntryType(input.entryType)
+  if (typeErr) errors.entryType = typeErr
+  const amountErr = validateLedgerAmount(input.amount)
+  if (amountErr) errors.amount = amountErr
+  const currencyErr = validateLedgerCurrency(input.currency)
+  if (currencyErr) errors.currency = currencyErr
+  const reasonErr = validateLedgerReason(input.reason)
+  if (reasonErr) errors.reason = reasonErr
+  const dateErr = validateLedgerOccurredAt(input.occurredAt, now)
+  if (dateErr) errors.occurredAt = dateErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+// Minimal structural view of a browser `File` so this stays a pure function
+// (tests do not need to construct a real File to exercise the rules).
+export interface UploadFileLike {
+  name: string
+  type: string
+  size: number
+}
+
+export function validateAttestationFile(file: UploadFileLike | null): string | null {
+  if (!file) return 'A PDF report file is required'
+  const isPdfMime = file.type === ATTESTATION_ACCEPTED_MIME
+  // Some browsers report an empty `type` for drag-and-dropped files; fall back
+  // to the extension so a genuine PDF is not rejected. Anything else is out.
+  const isPdfName = file.name.toLowerCase().endsWith(ATTESTATION_ACCEPTED_EXTENSION)
+  if (!isPdfMime && !(file.type === '' && isPdfName)) {
+    return 'Only PDF files can be uploaded'
+  }
+  if (file.size <= 0) return 'File appears to be empty'
+  if (file.size > ATTESTATION_MAX_FILE_BYTES) {
+    return `File must be at most ${ATTESTATION_MAX_FILE_BYTES / (1024 * 1024)} MB`
+  }
+  return null
+}
+
+/** `period` — strict YYYY-MM (server: 422 INVALID_ATTESTATION_PERIOD). */
+export function validateAttestationPeriod(
+  raw: string,
+  now: Date = new Date()
+): string | null {
+  const value = raw.trim()
+  if (!value) return 'Period is required'
+  if (!PERIOD_RE.test(value)) return 'Period must use the YYYY-MM format'
+  // A report cannot cover a month that has not finished happening. Measured in
+  // WIB for the same reason `occurredAt` is.
+  if (value > wibToday(now).slice(0, 7)) return 'Period cannot be in the future'
+  return null
+}
+
+export function validateAttestationUploadForm(
+  input: { period: string; title: string; file: UploadFileLike | null },
+  now: Date = new Date()
+): ValidationResult {
+  const errors: Record<string, string> = {}
+  const periodErr = validateAttestationPeriod(input.period, now)
+  if (periodErr) errors.period = periodErr
+  const title = input.title.trim()
+  if (!title) {
+    errors.title = 'Title is required'
+  } else if (title.length > MAX_ATTESTATION_TITLE_LEN) {
+    errors.title = `Title must be under ${MAX_ATTESTATION_TITLE_LEN} characters`
+  }
+  const fileErr = validateAttestationFile(input.file)
+  if (fileErr) errors.file = fileErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

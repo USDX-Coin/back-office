@@ -20,6 +20,8 @@ import type {
   RateConfig,
   RateInfo,
   FeeConfig,
+  ReserveLedgerEntry,
+  AttestationReport,
   UserAnalytics,
   UserWallet,
   ChainConfig,
@@ -447,6 +449,124 @@ export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
       updatedBy: seedStaffId,
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
+  ]
+}
+
+// ─── Transparency (/api/v1/transparency/*) ───────────────────────────────────
+// Shapes here are copied from catatan/KONTRAK-API-TRANSPARANSI.md § 3. The
+// backend is being built in parallel against that same file, so these mocks
+// exist to develop against the contract — NOT to define it. If a field name
+// here drifts from the contract, every test that passes becomes a lie.
+//
+// The figures are deliberately arbitrary. Contract § 6 says the real seeding
+// numbers (and the custodian, account number, NPWP) must never be written into
+// any code — staff type them into production through the back office.
+
+let ledgerIdCounter = 1
+function nextLedgerId(): string {
+  // Contract says uuid v7; the mock only needs a stable, unique, opaque id.
+  return `0198a000-0000-7000-8000-${(ledgerIdCounter++).toString().padStart(12, '0')}`
+}
+
+let attestationIdCounter = 1
+function nextAttestationId(): string {
+  return `0198b000-0000-7000-8000-${(attestationIdCounter++).toString().padStart(12, '0')}`
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString()
+}
+
+function dateOnlyDaysAgo(days: number): string {
+  return isoDaysAgo(days).slice(0, 10)
+}
+
+export function createLedgerEntry(
+  overrides: Partial<ReserveLedgerEntry> = {}
+): ReserveLedgerEntry {
+  return {
+    id: nextLedgerId(),
+    entryType: 'ADJUSTMENT',
+    amount: '1000.00',
+    currency: 'USD',
+    reason: 'Penyesuaian saldo hasil rekonsiliasi bulanan',
+    occurredAt: dateOnlyDaysAgo(1),
+    createdByName: 'Demo Admin',
+    createdAt: isoDaysAgo(1),
+    ...overrides,
+  }
+}
+
+/**
+ * Seed ledger: one SEED plus two ADJUSTMENTs, one of which is NEGATIVE — the
+ * contract's only way to correct a figure — so the table and the balance are
+ * exercised against a sign change from the first render.
+ */
+export function createInitialLedgerEntries(): ReserveLedgerEntry[] {
+  ledgerIdCounter = 1
+  return [
+    createLedgerEntry({
+      entryType: 'SEED',
+      amount: '50000.00',
+      reason: 'Setoran awal cadangan ke rekening kustodian',
+      occurredAt: dateOnlyDaysAgo(45),
+      createdAt: isoDaysAgo(45),
+    }),
+    createLedgerEntry({
+      entryType: 'ADJUSTMENT',
+      amount: '2500.50',
+      reason: 'Tambahan setoran cadangan periode berjalan',
+      occurredAt: dateOnlyDaysAgo(20),
+      createdAt: isoDaysAgo(20),
+    }),
+    createLedgerEntry({
+      entryType: 'ADJUSTMENT',
+      amount: '-1250.75',
+      reason: 'Koreksi pencatatan ganda pada setoran sebelumnya',
+      occurredAt: dateOnlyDaysAgo(5),
+      createdByName: 'Demo Admin',
+      createdAt: isoDaysAgo(5),
+    }),
+  ]
+}
+
+export function createAttestationReport(
+  overrides: Partial<AttestationReport> = {}
+): AttestationReport {
+  return {
+    id: nextAttestationId(),
+    period: '2026-06',
+    title: 'Laporan Atestasi Cadangan Juni 2026',
+    fileUrl: 'https://storage.usdx.test/transparency/attestation/atestasi-2026-06.pdf',
+    publishedAt: isoDaysAgo(30),
+    revokedAt: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Seed attestations include one REVOKED row on purpose. The backend returns
+ * revoked reports for the audit trail, so the mock must too — otherwise the
+ * back office's obligation to filter them out is never actually tested.
+ */
+export function createInitialAttestations(): AttestationReport[] {
+  attestationIdCounter = 1
+  return [
+    createAttestationReport({
+      period: '2026-04',
+      title: 'Laporan Atestasi Cadangan April 2026 (ditarik)',
+      fileUrl: 'https://storage.usdx.test/transparency/attestation/atestasi-2026-04.pdf',
+      publishedAt: isoDaysAgo(92),
+      revokedAt: isoDaysAgo(80),
+    }),
+    createAttestationReport({
+      period: '2026-05',
+      title: 'Laporan Atestasi Cadangan Mei 2026',
+      fileUrl: 'https://storage.usdx.test/transparency/attestation/atestasi-2026-05.pdf',
+      publishedAt: isoDaysAgo(61),
+      revokedAt: null,
+    }),
+    createAttestationReport(),
   ]
 }
 

@@ -258,6 +258,158 @@ export interface UpdateThresholdConfig {
   amount: string
 }
 
+// ─── Transparency (/api/v1/transparency/*) ───────────────────────────────────
+// EVERY name below is copied field-for-field from
+// catatan/KONTRAK-API-TRANSPARANSI.md § 3 (Endpoint admin). That file is LOCKED
+// and shared with the backend — do not "improve" a name here. The previous
+// round invented `amount`/`currency`/`custodian`/`isPublished` locally while the
+// backend shipped something else, and the columns rendered `undefined`.
+//
+// The model is an APPEND-ONLY LEDGER (§ 1): no update, no delete, no status
+// column, no draft/publish. A wrong figure is corrected by filing a new entry
+// in the opposite direction. Reserve balance = SUM(amount) of every entry, and
+// the server hands it over pre-computed in `balance`.
+//
+// Money stays a decimal string end to end (§ 0) — numeric(30,2) exceeds
+// Number.MAX_SAFE_INTEGER, so parsing it into a float would corrupt it.
+
+/**
+ * `reserve_ledger_entry.entry_type` (§ 1).
+ *
+ * `MINT` / `BURN` / `REDEEM` are RESERVED for the automatic hooks that come
+ * later — the contract puts them in the enum now so the backend never has to
+ * migrate again, but nothing writes them in this phase. They can therefore
+ * arrive on a READ and must render, while the create form only offers the two
+ * values below in `LEDGER_ENTRY_TYPES_SELECTABLE`.
+ */
+export type LedgerEntryType = 'SEED' | 'ADJUSTMENT' | 'MINT' | 'BURN' | 'REDEEM'
+
+/** The only `entryType` values staff may file (§ 3 `LEDGER_TYPE_NOT_ALLOWED`). */
+export const LEDGER_ENTRY_TYPES_SELECTABLE = ['SEED', 'ADJUSTMENT'] as const
+export type SelectableLedgerEntryType = (typeof LEDGER_ENTRY_TYPES_SELECTABLE)[number]
+
+/** The only currency accepted this phase (§ 1 / `LEDGER_CURRENCY_UNSUPPORTED`). */
+export const LEDGER_SUPPORTED_CURRENCY = 'USD'
+
+/** One row of `GET /api/v1/transparency/ledger` → `data.entries[]`. */
+export interface ReserveLedgerEntry {
+  id: string
+  entryType: LedgerEntryType
+  /** Decimal string. MAY be negative — that is how a correction is filed. */
+  amount: string
+  /** ISO-4217, uppercase. Only `USD` this phase. */
+  currency: string
+  /** Why the public number moved. Required, min 10 chars. NEVER shown publicly. */
+  reason: string
+  /** Real-world date of the event (YYYY-MM-DD), not the date it was typed in. */
+  occurredAt: string
+  createdByName: string
+  /** ISO-8601 UTC. */
+  createdAt: string
+}
+
+/**
+ * `data.balance` — the balance of the WHOLE ledger, not of this page.
+ * Render it as-is. Summing the visible rows is wrong by construction: the rows
+ * are one page of many.
+ */
+export interface ReserveBalance {
+  amount: string
+  currency: string
+}
+
+/** `GET /api/v1/transparency/ledger?page=1&take=50` → `data`. */
+export interface ReserveLedgerPage {
+  entries: ReserveLedgerEntry[]
+  page: number
+  take: number
+  total: number
+  balance: ReserveBalance
+}
+
+/** `POST /api/v1/transparency/ledger` request body. */
+export interface CreateLedgerEntryInput {
+  entryType: SelectableLedgerEntryType
+  amount: string
+  currency: string
+  reason: string
+  occurredAt: string
+}
+
+/** `error.code` values `POST /ledger` can return (§ 3 validation table). */
+export type LedgerErrorCode =
+  | 'LEDGER_AMOUNT_ZERO'
+  | 'LEDGER_AMOUNT_INVALID'
+  | 'LEDGER_REASON_TOO_SHORT'
+  | 'LEDGER_DATE_IN_FUTURE'
+  | 'LEDGER_CURRENCY_UNSUPPORTED'
+  | 'LEDGER_TYPE_NOT_ALLOWED'
+
+/** One row of `GET /api/v1/transparency/attestations` → `data.items[]`. */
+export interface AttestationReport {
+  id: string
+  /** Reporting period, `YYYY-MM`. */
+  period: string
+  title: string
+  /**
+   * Present on the ADMIN response too, not just the public one — otherwise the
+   * download button is an anchor with no href.
+   */
+  fileUrl: string
+  publishedAt: string
+  /**
+   * Set once the report is revoked. The backend returns revoked rows as well,
+   * for the audit trail; the back office MUST filter them out of the active
+   * list (§ 3).
+   */
+  revokedAt: string | null
+}
+
+/**
+ * `GET /api/v1/transparency/attestations` → `data`.
+ *
+ * The contract pins `items` and writes the rest as "…", so the pagination
+ * fields are optional here and nothing reads them. See the assumptions note in
+ * the feature hooks.
+ */
+export interface AttestationListPage {
+  items: AttestationReport[]
+  page?: number
+  take?: number
+  total?: number
+}
+
+/** Step 1 of the three-step upload → `POST /attestations/upload-url`. */
+export interface AttestationUploadTicket {
+  uploadUrl: string
+  fileKey: string
+}
+
+/** Step 3 of the three-step upload → `POST /attestations` (JSON, NOT multipart). */
+export interface CreateAttestationInput {
+  period: string
+  title: string
+  fileKey: string
+}
+
+/** `error.code` values the attestation endpoints can return (§ 3). */
+export type AttestationErrorCode =
+  | 'ATTESTATION_PERIOD_EXISTS'
+  | 'INVALID_ATTESTATION_PERIOD'
+
+/**
+ * Every mutation under /api/v1/transparency (ledger entry, attestation upload,
+ * revoke) is ADMIN-only (§ 3). Reading is ADMIN + DEVELOPER and is gated at the
+ * route with `RoleGuard`, the same way /settings/threshold is — hiding the
+ * buttons alone would still leave the page reachable by URL.
+ */
+export function canManageTransparency(role: StaffRole): boolean {
+  return role === 'ADMIN'
+}
+
+/** Roles allowed to READ the transparency ledger (§ 3). */
+export const TRANSPARENCY_READ_ROLES: StaffRole[] = ['ADMIN', 'DEVELOPER']
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 1 — mint/burn request lifecycle (see sot/openapi.yaml § /api/v1/requests)
 //

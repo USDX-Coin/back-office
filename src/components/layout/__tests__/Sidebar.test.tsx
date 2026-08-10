@@ -98,6 +98,28 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
     })
 
+    // Transparency lives under COMPLIANCE but carries the settings-level read
+    // gate: what it lists includes DRAFT reserve figures that are not public
+    // yet. Publishing itself is ADMIN-only inside the page.
+    test('Compliance > Transparency visible to ADMIN and DEVELOPER, hidden for STAFF', () => {
+      const { unmount } = renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true, // ADMIN
+      })
+      expect(
+        screen.getByRole('link', { name: /^transparency$/i })
+      ).toHaveAttribute('href', '/transparency')
+      unmount()
+
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(
+        screen.queryByRole('link', { name: /^transparency$/i })
+      ).not.toBeInTheDocument()
+    })
+
     // USDX-87: Manual Sync is an emergency recovery surface — every role
     // (incl. STAFF who has no Settings access) must see it.
     test('Troubleshooting > Manual Sync visible to STAFF role', () => {

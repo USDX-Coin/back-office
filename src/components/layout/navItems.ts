@@ -13,6 +13,7 @@ import {
   Receipt,
   Percent,
   KeyRound,
+  Landmark,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -95,6 +96,18 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Compliance',
     items: [
       { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
+      // Transparency: the append-only reserve ledger + attestation reports
+      // behind the public usdx.co.id figures. Read audience is ADMIN +
+      // DEVELOPER (KONTRAK-API-TRANSPARANSI.md § 3), which is exactly what
+      // canManageSettings already resolves to; the route itself is guarded by
+      // RoleGuard in App.tsx, so this only controls menu noise. Recording
+      // entries is ADMIN-only (canManageTransparency) and re-enforced by the BE.
+      {
+        to: '/transparency',
+        label: 'Transparency',
+        icon: Landmark,
+        visibleWhen: canManageSettings,
+      },
     ],
   },
   {
