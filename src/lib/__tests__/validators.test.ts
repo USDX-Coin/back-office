@@ -991,12 +991,13 @@ describe('LEDGER_ERROR_FIELD / isLedgerErrorCode', () => {
   describe('positive', () => {
     // Every code in the contract's validation table must be placeable on a
     // field, otherwise a server 422 becomes an unattributed banner.
-    test('maps all six contract codes to a form field', () => {
+    test('maps every contract code to a form field', () => {
       expect(LEDGER_ERROR_FIELD).toEqual({
         LEDGER_AMOUNT_ZERO: 'amount',
         LEDGER_AMOUNT_INVALID: 'amount',
         LEDGER_REASON_TOO_SHORT: 'reason',
         LEDGER_DATE_IN_FUTURE: 'occurredAt',
+        LEDGER_DATE_INVALID: 'occurredAt',
         LEDGER_CURRENCY_UNSUPPORTED: 'currency',
         LEDGER_TYPE_NOT_ALLOWED: 'entryType',
       })

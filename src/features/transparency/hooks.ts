@@ -7,8 +7,9 @@
 //   GET    /api/v1/transparency/ledger?page&take   → { entries, page, take, total, balance }
 //   POST   /api/v1/transparency/ledger             → one entry
 //   GET    /api/v1/transparency/attestations       → { items: [...] }  (revoked rows INCLUDED)
-//   POST   /api/v1/transparency/attestations/upload-url  { period } → { uploadUrl, fileKey }
-//   PUT    <uploadUrl>                             → the bytes, straight to storage
+//   POST   /api/v1/transparency/attestations/upload-url  { period }
+//                                                  → { uploadUrl, fileKey, expiresAt, headers }
+//   PUT    <uploadUrl>                             → the bytes + the ticket's `headers`, verbatim
 //   POST   /api/v1/transparency/attestations       → { period, title, fileKey }
 //   DELETE /api/v1/transparency/attestations/:id   → revoke (fills revokedAt)
 //
@@ -80,6 +81,12 @@ export interface UploadAttestationInput {
   file: File
 }
 
+/** True once the presigned URL is past its stated lifetime. */
+function isTicketExpired(ticket: AttestationUploadTicket, now: number = Date.now()): boolean {
+  const expiry = Date.parse(ticket.expiresAt)
+  return Number.isFinite(expiry) && expiry <= now
+}
+
 /**
  * Sends the file to the presigned URL from step 1.
  *
@@ -88,18 +95,39 @@ export interface UploadAttestationInput {
  *     prepends `env.apiUrl`.
  *   - `credentials: 'omit'` — apiFetch attaches the httpOnly session cookie to
  *     every call. Shipping that cookie to a third-party bucket would leak the
- *     session outside the API's origin, and a signed URL does not need it.
+ *     staff session outside the API's origin, and a signed URL does not need it.
+ *
+ * The headers come from the ticket VERBATIM. A presigned URL is signed together
+ * with a specific set of headers, so anything we invent here — even a
+ * `Content-Type` that looks obviously right — changes the signature and storage
+ * rejects the upload. Hardcoding it would pass every local test (a mock does not
+ * verify signatures) and only fail in production.
  */
-async function putFileToStorage(uploadUrl: string, file: File): Promise<void> {
-  const response = await fetch(uploadUrl, {
+async function putFileToStorage(
+  ticket: AttestationUploadTicket,
+  file: File
+): Promise<void> {
+  if (isTicketExpired(ticket)) {
+    throw new Error(
+      'The upload link expired before the file could be sent. Please try again.'
+    )
+  }
+
+  const response = await fetch(ticket.uploadUrl, {
     method: 'PUT',
     body: file,
     credentials: 'omit',
-    // Presigned URLs are commonly signed over the content type; send the file's
-    // own so the signature still matches.
-    headers: { 'Content-Type': file.type || 'application/pdf' },
+    headers: ticket.headers,
   })
+
   if (!response.ok) {
+    // A large file can outlive a short-lived ticket. Saying so beats a bare
+    // 403, which reads like a permissions problem the operator cannot fix.
+    if (isTicketExpired(ticket)) {
+      throw new Error(
+        'The upload link expired before the file finished sending. Please try again.'
+      )
+    }
     throw new Error(
       `Upload to storage failed (${response.status}). The report was not published.`
     )
@@ -129,8 +157,9 @@ export function useUploadAttestation() {
         { method: 'POST', body: ticketBody }
       )
 
-      // Step 2 — bytes go straight to storage, never through the API.
-      await putFileToStorage(ticket.uploadUrl, file)
+      // Step 2 — bytes go straight to storage, never through the API, using the
+      // exact headers the ticket was signed with.
+      await putFileToStorage(ticket, file)
 
       // Step 3 — register the object by key.
       const body: CreateAttestationInput = {

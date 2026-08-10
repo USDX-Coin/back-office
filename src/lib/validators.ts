@@ -280,6 +280,7 @@ export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string> = {
   LEDGER_AMOUNT_INVALID: 'amount',
   LEDGER_REASON_TOO_SHORT: 'reason',
   LEDGER_DATE_IN_FUTURE: 'occurredAt',
+  LEDGER_DATE_INVALID: 'occurredAt',
   LEDGER_CURRENCY_UNSUPPORTED: 'currency',
   LEDGER_TYPE_NOT_ALLOWED: 'entryType',
 }

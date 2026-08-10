@@ -399,6 +399,31 @@ function wibTodayMock(): string {
   return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
+// A real calendar date? `new Date(2026, 1, 31)` silently rolls over to Mar 3,
+// which is why the contract gives this its own code (LEDGER_DATE_INVALID).
+function isRealCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number]
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  )
+}
+
+// Presigned-upload bookkeeping for the fake storage host: upload URL → the
+// headers that URL was signed with.
+const issuedUploadTickets = new Map<string, Record<string, string>>()
+
+// Storage rejects a signature mismatch with 403 and an XML body — deliberately
+// NOT the USDX JSON envelope, because this host is not the USDX API.
+function storageSignatureError(detail: string) {
+  return new HttpResponse(
+    `<?xml version="1.0" encoding="UTF-8"?><Error><Code>SignatureDoesNotMatch</Code><Message>${detail}</Message></Error>`,
+    { status: 403, headers: { 'Content-Type': 'application/xml' } }
+  )
+}
+
 // ─── Handlers ───
 
 export const handlers = [
@@ -808,11 +833,14 @@ export const handlers = [
         'reason must be at least 10 characters'
       )
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.occurredAt ?? '')) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(body.occurredAt ?? '') ||
+      !isRealCalendarDate(body.occurredAt)
+    ) {
       return transparencyError(
         422,
-        'LEDGER_DATE_IN_FUTURE',
-        'occurredAt must be a YYYY-MM-DD date'
+        'LEDGER_DATE_INVALID',
+        'occurredAt must be a real YYYY-MM-DD date'
       )
     }
     if (body.occurredAt > wibTodayMock()) {
@@ -868,12 +896,21 @@ export const handlers = [
     // The backend builds the key from `period` — mirror that so the fileKey the
     // client registers in step 3 is traceable to the month it covers.
     const fileKey = `transparency/attestation/${period}-report.pdf`
+    const uploadUrl = `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`
+    const headers = { 'content-type': 'application/pdf' }
+
+    // Remember what this URL was "signed" with, so the PUT handler below can
+    // reject a mismatch the way real storage would.
+    issuedUploadTickets.set(uploadUrl, headers)
+
     return HttpResponse.json({
       status: 'success',
       metadata: null,
       data: {
-        uploadUrl: `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`,
+        uploadUrl,
         fileKey,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        headers,
       },
     })
   }),
@@ -881,7 +918,28 @@ export const handlers = [
   // Step 2 — the client PUTs the bytes straight at the storage host. This
   // handler stands in for that bucket; it is NOT part of the USDX API, which is
   // exactly why the app must not send session cookies to it.
-  http.put('https://storage.usdx.test/upload/*', () => new HttpResponse(null, { status: 200 })),
+  //
+  // It VERIFIES the signed headers. Real presigned URLs are signed together with
+  // a specific header set and answer a mismatch with SignatureDoesNotMatch. A
+  // mock that accepts any PUT would let a client hardcode its own headers, pass
+  // every test, and fail only in production — the same trap as the missing
+  // `period`.
+  http.put('https://storage.usdx.test/upload/*', ({ request }) => {
+    const signedHeaders = issuedUploadTickets.get(request.url)
+    if (!signedHeaders) {
+      // No ticket was ever issued for this URL — an unsigned or forged upload.
+      return storageSignatureError('No signed ticket was issued for this URL')
+    }
+    for (const [name, expected] of Object.entries(signedHeaders)) {
+      const actual = request.headers.get(name)
+      if ((actual ?? '').toLowerCase() !== expected.toLowerCase()) {
+        return storageSignatureError(
+          `Header "${name}" was signed as "${expected}" but the request sent "${actual ?? '(absent)'}"`
+        )
+      }
+    }
+    return new HttpResponse(null, { status: 200 })
+  }),
 
   http.get('/api/v1/transparency/attestations', () =>
     HttpResponse.json({

@@ -336,12 +336,21 @@ export interface CreateLedgerEntryInput {
   occurredAt: string
 }
 
-/** `error.code` values `POST /ledger` can return (§ 3 validation table). */
+/**
+ * `error.code` values `POST /ledger` can return (§ 3 validation table).
+ *
+ * These are thrown by the SERVICE as named 422s. A malformed payload (missing
+ * field, wrong type) still fails in `ValidationPipe` first and comes back as a
+ * plain NestJS **400 with no code from this list** — transparency routes are not
+ * in `V1_VALIDATION_422_ROUTES`. So the client must handle both: place a known
+ * code on its field, and show `error.message` verbatim for anything else.
+ */
 export type LedgerErrorCode =
   | 'LEDGER_AMOUNT_ZERO'
   | 'LEDGER_AMOUNT_INVALID'
   | 'LEDGER_REASON_TOO_SHORT'
   | 'LEDGER_DATE_IN_FUTURE'
+  | 'LEDGER_DATE_INVALID'
   | 'LEDGER_CURRENCY_UNSUPPORTED'
   | 'LEDGER_TYPE_NOT_ALLOWED'
 
@@ -391,10 +400,21 @@ export interface AttestationUploadUrlInput {
   period: string
 }
 
-/** Step 1 response → `{ uploadUrl, fileKey }`. */
+/** Step 1 response. */
 export interface AttestationUploadTicket {
   uploadUrl: string
   fileKey: string
+  /** ISO-8601 UTC. After this the presigned URL stops working. */
+  expiresAt: string
+  /**
+   * The headers the PUT in step 2 MUST send, verbatim.
+   *
+   * A presigned URL is signed together with a specific set of headers. Sending
+   * anything different — including a hand-written `Content-Type` that looks
+   * correct — makes the signature not match and storage rejects the upload.
+   * Never hardcode these; pass the map through as-is.
+   */
+  headers: Record<string, string>
 }
 
 /** Step 3 of the three-step upload → `POST /attestations` (JSON, NOT multipart). */

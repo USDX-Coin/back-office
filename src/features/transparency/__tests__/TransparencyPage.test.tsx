@@ -145,7 +145,11 @@ describe('TransparencyPage @integration', () => {
       expect(screen.getByText(/showing 1–1 of 120 entries/i)).toBeInTheDocument()
     })
 
-    test('shows an em dash rather than 0 when the ledger is empty', async () => {
+    // Contract § 3: an empty ledger returns `{ "0.00", "USD" }` and the staff
+    // screen shows that zero, because on this screen zero is a fact. (The
+    // PUBLIC payload sends `reserve: null` instead, so it never reads as a
+    // claim of "zero reserves" — that distinction lives in the backend.)
+    test('shows a real 0.00 when the ledger is empty', async () => {
       server.use(
         http.get('/api/v1/transparency/ledger', () =>
           ledgerResponse({
@@ -160,6 +164,7 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       expect(await screen.findByText(/no ledger entries yet/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('0.00')
     })
   })
 
@@ -637,6 +642,60 @@ describe('TransparencyPage @integration', () => {
       ).toBeInTheDocument()
     })
 
+    // Transparency routes are NOT in V1_VALIDATION_422_ROUTES, so a malformed
+    // payload comes back as a plain NestJS 400 with no code from our table.
+    // It still has to reach the operator instead of vanishing.
+    test('an unrecognised 400 from ValidationPipe is shown verbatim', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/transparency/ledger', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'BAD_REQUEST',
+                message: 'amount must be a string',
+              },
+            },
+            { status: 400 }
+          )
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user)
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      expect(
+        await within(dialog).findByText('amount must be a string')
+      ).toBeInTheDocument()
+    })
+
+    test('a server LEDGER_DATE_INVALID lands on the date field', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/transparency/ledger', () =>
+          apiError(422, 'LEDGER_DATE_INVALID', 'occurredAt must be a real date')
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user)
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      expect(
+        await screen.findByText('occurredAt must be a real date')
+      ).toBeInTheDocument()
+    })
+
     test('a failed ledger load shows a retry state instead of an empty table', async () => {
       server.use(
         http.get('/api/v1/transparency/ledger', () =>
@@ -722,7 +781,15 @@ describe('TransparencyPage @integration', () => {
       const calls: string[] = []
       let ticketBody: Record<string, unknown> | null = null
       let registerBody: Record<string, unknown> | null = null
-      let putContentType: string | null = null
+      let putHeaders: Record<string, string> = {}
+
+      // Headers the ticket claims the URL was signed with. Deliberately NOT the
+      // obvious `application/pdf` alone: a client that hardcodes what it thinks
+      // is right would send the wrong set and must be caught here.
+      const signedHeaders = {
+        'content-type': 'application/octet-stream',
+        'x-amz-server-side-encryption': 'AES256',
+      }
 
       server.use(
         http.post('/api/v1/transparency/attestations/upload-url', async ({ request }) => {
@@ -731,11 +798,17 @@ describe('TransparencyPage @integration', () => {
           return ledgerResponse({
             uploadUrl: 'https://storage.usdx.test/upload/signed-123',
             fileKey: 'transparency/attestation/2026-07-laporan.pdf',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: signedHeaders,
           })
         }),
         http.put('https://storage.usdx.test/upload/signed-123', ({ request }) => {
           calls.push('put')
-          putContentType = request.headers.get('Content-Type')
+          putHeaders = {
+            'content-type': request.headers.get('content-type') ?? '',
+            'x-amz-server-side-encryption':
+              request.headers.get('x-amz-server-side-encryption') ?? '',
+          }
           return new HttpResponse(null, { status: 200 })
         }),
         http.post('/api/v1/transparency/attestations', async ({ request }) => {
@@ -774,13 +847,16 @@ describe('TransparencyPage @integration', () => {
       // its DTO rejects a bodyless request. Asserting only the call order let an
       // empty body slip through review once already.
       expect(ticketBody).toEqual({ period: '2026-07' })
+      // Step 2 MUST send the ticket's headers verbatim. A presigned URL is
+      // signed over these; inventing our own makes the signature not match, and
+      // a mock that skips signature checks would never reveal it.
+      expect(putHeaders).toEqual(signedHeaders)
       // Step 3 is JSON carrying the key — the API never receives the file.
       expect(registerBody).toEqual({
         period: '2026-07',
         title: 'Laporan Atestasi Juli 2026',
         fileKey: 'transparency/attestation/2026-07-laporan.pdf',
       })
-      expect(putContentType).toBe('application/pdf')
     })
 
     test('upload confirms first — nothing is sent by merely submitting the form', async () => {
@@ -789,7 +865,12 @@ describe('TransparencyPage @integration', () => {
       server.use(
         http.post('/api/v1/transparency/attestations/upload-url', () => {
           ticketCalls += 1
-          return ledgerResponse({ uploadUrl: 'https://storage.usdx.test/upload/x', fileKey: 'k' })
+          return ledgerResponse({
+            uploadUrl: 'https://storage.usdx.test/upload/x',
+            fileKey: 'k',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
@@ -853,6 +934,92 @@ describe('TransparencyPage @integration', () => {
       expect(registerCalls).toBe(0)
     })
 
+    test('storage rejecting the signature stops the flow — nothing is registered', async () => {
+      const user = userEvent.setup()
+      let registerCalls = 0
+      server.use(
+        http.post('/api/v1/transparency/attestations/upload-url', () =>
+          ledgerResponse({
+            uploadUrl: 'https://storage.usdx.test/upload/strict',
+            fileKey: 'transparency/attestation/2026-07-report.pdf',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
+        ),
+        // Stands in for storage verifying the signed headers.
+        http.put('https://storage.usdx.test/upload/strict', ({ request }) =>
+          request.headers.get('content-type') === 'application/pdf'
+            ? new HttpResponse(null, { status: 200 })
+            : new HttpResponse('<Error><Code>SignatureDoesNotMatch</Code></Error>', {
+                status: 403,
+              })
+        ),
+        http.post('/api/v1/transparency/attestations', () => {
+          registerCalls += 1
+          return ledgerResponse({})
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
+      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+      // A .pdf whose browser-reported MIME is empty. If the client derived the
+      // header from the FILE instead of the TICKET it would send the wrong
+      // value here and storage would reject it.
+      const blankTypeFile = new File(['%PDF-1.7'], 'laporan.pdf', { type: '' })
+      Object.defineProperty(blankTypeFile, 'size', { value: 2048 })
+      fireEvent.change(screen.getByLabelText(/report file/i), {
+        target: { files: [blankTypeFile] },
+      })
+      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+
+      // Succeeds precisely because the header came from the ticket.
+      await waitFor(() => expect(registerCalls).toBe(1))
+    })
+
+    test('an already-expired ticket is reported as expired and never reaches storage', async () => {
+      const user = userEvent.setup()
+      let putCalls = 0
+      let registerCalls = 0
+      server.use(
+        http.post('/api/v1/transparency/attestations/upload-url', () =>
+          ledgerResponse({
+            uploadUrl: 'https://storage.usdx.test/upload/stale',
+            fileKey: 'transparency/attestation/2026-07-report.pdf',
+            // Already in the past by the time the client reads it.
+            expiresAt: new Date(Date.now() - 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
+        ),
+        http.put('https://storage.usdx.test/upload/stale', () => {
+          putCalls += 1
+          return new HttpResponse(null, { status: 200 })
+        }),
+        http.post('/api/v1/transparency/attestations', () => {
+          registerCalls += 1
+          return ledgerResponse({})
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
+      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/report file/i), {
+        target: { files: [pdfFile()] },
+      })
+      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+
+      expect(
+        await within(dialog).findByText(/upload link expired/i)
+      ).toBeInTheDocument()
+      expect(putCalls).toBe(0)
+      expect(registerCalls).toBe(0)
+    })
+
     test('a failure while PUTting to storage does NOT register an attestation', async () => {
       const user = userEvent.setup()
       let registerCalls = 0
@@ -861,6 +1028,8 @@ describe('TransparencyPage @integration', () => {
           ledgerResponse({
             uploadUrl: 'https://storage.usdx.test/upload/broken',
             fileKey: 'transparency/attestation/x.pdf',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
           })
         ),
         http.put('https://storage.usdx.test/upload/broken', () =>
@@ -893,7 +1062,12 @@ describe('TransparencyPage @integration', () => {
       const user = userEvent.setup()
       server.use(
         http.post('/api/v1/transparency/attestations/upload-url', () =>
-          ledgerResponse({ uploadUrl: 'https://storage.usdx.test/upload/dup', fileKey: 'k' })
+          ledgerResponse({
+            uploadUrl: 'https://storage.usdx.test/upload/dup',
+            fileKey: 'k',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
         ),
         http.put('https://storage.usdx.test/upload/dup', () =>
           new HttpResponse(null, { status: 200 })
@@ -928,7 +1102,12 @@ describe('TransparencyPage @integration', () => {
       server.use(
         http.post('/api/v1/transparency/attestations/upload-url', () => {
           ticketCalls += 1
-          return ledgerResponse({ uploadUrl: 'x', fileKey: 'k' })
+          return ledgerResponse({
+            uploadUrl: 'x',
+            fileKey: 'k',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: {},
+          })
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
@@ -1088,6 +1267,7 @@ describe('/api/v1/transparency/* contract', () => {
     ['three decimals', { amount: '1.234' }, 'LEDGER_AMOUNT_INVALID'],
     ['short reason', { reason: 'pendek' }, 'LEDGER_REASON_TOO_SHORT'],
     ['future date', { occurredAt: '2099-01-01' }, 'LEDGER_DATE_IN_FUTURE'],
+    ['impossible calendar date', { occurredAt: '2026-02-31' }, 'LEDGER_DATE_INVALID'],
     ['wrong currency', { currency: 'IDR' }, 'LEDGER_CURRENCY_UNSUPPORTED'],
     ['reserved type', { entryType: 'MINT' }, 'LEDGER_TYPE_NOT_ALLOWED'],
   ])('POST /ledger rejects %s with 422 %s', async (_label, patch, expectedCode) => {
@@ -1178,6 +1358,58 @@ describe('/api/v1/transparency/* contract', () => {
     const { data } = await res.json()
     expect(data.fileKey).toContain('2026-07')
     expect(data.uploadUrl).toEqual(expect.stringContaining('https://'))
+    // The ticket carries the signed headers + a lifetime, per the contract.
+    expect(data.headers).toEqual({ 'content-type': 'application/pdf' })
+    expect(Number.isFinite(Date.parse(data.expiresAt))).toBe(true)
+  })
+
+  test('the fake storage host ACCEPTS a PUT carrying the ticket headers', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const ticket = (
+      await (
+        await fetch('/api/v1/transparency/attestations/upload-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${issueMockJwt(staff)}`,
+          },
+          body: JSON.stringify({ period: '2026-09' }),
+        })
+      ).json()
+    ).data as { uploadUrl: string; headers: Record<string, string> }
+
+    const res = await fetch(ticket.uploadUrl, {
+      method: 'PUT',
+      body: 'bytes',
+      headers: ticket.headers,
+    })
+    expect(res.status).toBe(200)
+  })
+
+  test('the fake storage host REJECTS a PUT whose headers differ from the ticket', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const ticket = (
+      await (
+        await fetch('/api/v1/transparency/attestations/upload-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${issueMockJwt(staff)}`,
+          },
+          body: JSON.stringify({ period: '2026-10' }),
+        })
+      ).json()
+    ).data as { uploadUrl: string }
+
+    // If this ever returns 200, the mock has stopped verifying signatures and
+    // every upload test above silently stops proving anything about storage.
+    const res = await fetch(ticket.uploadUrl, {
+      method: 'PUT',
+      body: 'bytes',
+      headers: { 'content-type': 'text/plain' },
+    })
+    expect(res.status).toBe(403)
+    expect(await res.text()).toContain('SignatureDoesNotMatch')
   })
 
   test('POST /attestations rejects a duplicate ACTIVE period with 409', async () => {
