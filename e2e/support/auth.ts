@@ -13,17 +13,30 @@ export async function loginViaForm(page: Page, email = 'admin@usdx.io', password
 }
 
 /**
- * Pre-seed a valid v4 session in localStorage before any page script runs, so
- * tests that aren't *about* login start authenticated without driving the form.
- * AuthProvider revalidates the token via GET /api/v1/auth/me — the mock API
- * answers that. Call this AFTER installMockApi and BEFORE the first goto.
+ * Pre-seed an authenticated session before any page script runs, so tests that
+ * aren't *about* login start signed in without driving the form.
+ *
+ * USDX-392: auth rides on the httpOnly `usdx_session` cookie — seed it in the
+ * browser context so GET /api/v1/auth/me (cookie-gated) succeeds. localStorage
+ * only holds the non-sensitive v5 Staff profile for synchronous UI restore (no
+ * token). Call this AFTER installMockApi and BEFORE the first goto.
  */
 export async function seedAuthenticatedSession(page: Page) {
+  await page.context().addCookies([
+    {
+      name: 'usdx_session',
+      value: MOCK_TOKEN,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
   await page.addInitScript(
     ({ key, value }) => window.localStorage.setItem(key, value),
     {
       key: STORAGE_KEY,
-      value: JSON.stringify({ version: 4, staff: ADMIN_STAFF, token: MOCK_TOKEN, issuedAt: Date.now() }),
+      value: JSON.stringify({ version: 5, staff: ADMIN_STAFF, issuedAt: Date.now() }),
     }
   )
 }

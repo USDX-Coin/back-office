@@ -15,8 +15,18 @@ function formatIdr(rate: string): string {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n)
 }
 
-export default function RateSnapshotCard() {
+// USDX-207: rate is directional — mint shows the buy (beli) side, burn the
+// sell (jual) side. Default 'buy'.
+export default function RateSnapshotCard({
+  direction = 'buy',
+}: {
+  direction?: 'buy' | 'sell'
+}) {
   const { data: rate, isLoading, isError } = useRate()
+  const effective =
+    direction === 'sell' ? rate?.effectiveSellRate : rate?.effectiveBuyRate
+  const spread =
+    direction === 'sell' ? rate?.spreadSellPct : rate?.spreadBuyPct
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
@@ -37,11 +47,11 @@ export default function RateSnapshotCard() {
               className="text-[22px] font-semibold tracking-tight tabular-nums"
               data-testid="rate-display"
             >
-              Rp {formatIdr(rate.rate)}
+              Rp {formatIdr(effective ?? rate.baseRate)}
             </p>
             <p className="text-[11.5px] text-muted-foreground">
               {rate.mode === 'MANUAL' ? 'Manual rate' : 'Dynamic rate'} · spread{' '}
-              {rate.spreadPct}%
+              {direction === 'sell' ? 'jual' : 'beli'} {spread}%
             </p>
           </>
         )}

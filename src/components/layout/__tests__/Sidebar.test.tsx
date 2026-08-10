@@ -41,6 +41,8 @@ describe('Sidebar @ USDX-50', () => {
       // SETTINGS
       expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      // USDX-485 — kontak on-call insiden uang (Settings, ADMIN saja).
+      expect(screen.getByRole('link', { name: /^on-call$/i })).toBeInTheDocument()
       // TROUBLESHOOTING (USDX-87)
       expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
     })
@@ -85,6 +87,27 @@ describe('Sidebar @ USDX-50', () => {
       })
       expect(screen.queryByRole('link', { name: /^rate$/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /^threshold$/i })).not.toBeInTheDocument()
+    })
+
+    // USDX-485 (audit P1-18): On-Call di-gate di level ITEM, lebih ketat dari
+    // section-nya. Daftar itu memuat nomor telepon (PII → ADMIN saja per
+    // conventions.md § Audit Akses PII) dan menentukan siapa yang boleh menarik
+    // rem darurat payout — DEVELOPER melihat Rate/Fee/Threshold, tapi tidak ini.
+    test('On-Call link hidden for DEVELOPER even though the SETTINGS section is visible (USDX-485)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius DEVELOPER
+      })
+      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
+    })
+
+    test('On-Call link hidden for STAFF (USDX-485)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
     })
 
     test('SETTINGS section visible for DEVELOPER role (Flag-B: SoT § Backoffice Role System grants System Config)', () => {
@@ -201,6 +224,75 @@ describe('Sidebar @ USDX-50', () => {
       })
       expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
       expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
+    })
+  })
+
+  // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
+  // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
+  // unlike Mint/Burn the badge also renders for STAFF.
+  describe('USDX-154 — COMPLIANCE / KYC Review', () => {
+    function kycCount(total: number) {
+      return http.get('/api/v1/kyc', () =>
+        HttpResponse.json({
+          status: 'success',
+          metadata: { page: 1, limit: 1, total },
+          data: [],
+        })
+      )
+    }
+
+    test('renders Compliance section with a KYC Review link to /kyc (admin)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(screen.getByText(/compliance/i)).toBeInTheDocument()
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+    })
+
+    test('shows (N) badge with the PENDING submission count', async () => {
+      server.use(kycCount(5))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('5')
+    })
+
+    test('hides the badge when the PENDING count is 0', async () => {
+      server.use(kycCount(0))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      // Link renders; badge node only mounts when count > 0.
+      await screen.findByRole('link', { name: /kyc review/i })
+      expect(screen.queryByTestId('nav-badge-kyc')).not.toBeInTheDocument()
+    })
+
+    test('STAFF sees KYC Review with the badge (list is staff-accessible, unlike /mint)', async () => {
+      server.use(kycCount(3))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(link).toHaveAttribute('href', '/kyc')
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('3')
+    })
+
+    test('DEVELOPER sees KYC Review (view-only role still gets the list menu)', async () => {
+      server.use(kycCount(2))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius (DEVELOPER)
+      })
+      expect(screen.getByRole('link', { name: /kyc review/i })).toBeInTheDocument()
+      const badge = await screen.findByTestId('nav-badge-kyc')
+      expect(badge).toHaveTextContent('2')
     })
   })
 })

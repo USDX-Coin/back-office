@@ -4,21 +4,28 @@ import {
   UserCog,
   Coins,
   Flame,
+  ShieldCheck,
   TrendingUp,
   Sliders,
   CalendarDays,
   UsersRound,
   Wrench,
+  Receipt,
+  Percent,
+  KeyRound,
+  PhoneCall,
 } from 'lucide-react'
 import {
   canAccessReports,
+  canManageOncall,
   canAccessRequestList,
+  canAccessTreasury,
   canManageSettings,
   canManageStaff,
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn'
+export type BadgeKey = 'mint' | 'burn' | 'kyc'
 
 export interface NavItem {
   to: string
@@ -72,6 +79,36 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
+    // read-only monitoring of consumer mint orders. Visible to every backoffice
+    // role (no visibleWhen) — distinct from the OTC desk above (different table
+    // / lifecycle). Redeem orders join the same menu in Week 3.
+    label: 'Consumer',
+    items: [
+      { to: '/transactions', label: 'User Transaction', icon: Receipt },
+    ],
+  },
+  {
+    // USDX-154 + sot/phase-2/week1.md § Backoffice Approval Menu — Sidebar:
+    // KYC Review is visible to ALL roles (Admin/Manager/Staff/Developer;
+    // approve/reject is gated inside the detail, not at the menu). Unlike
+    // Mint/Burn, the (N) badge also renders for STAFF — GET /api/v1/kyc is
+    // staff-accessible per week1.md § Authorization Guard role matrix.
+    label: 'Compliance',
+    items: [
+      { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
+    ],
+  },
+  {
+    // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
+    // Multisig Page: self-hosted Safe transaction queue. ADMIN / DEVELOPER /
+    // MANAGER (STAFF excluded — signer = Safe owner). No (N) badge on the
+    // sidebar entry (status counts live on the page tabs).
+    label: 'Treasury',
+    visibleWhen: canAccessTreasury,
+    items: [{ to: '/multisig', label: 'Multisig', icon: KeyRound }],
+  },
+  {
     // USDX-81 + sot/phase-1.md § Reporting access: ADMIN + DEVELOPER + MANAGER.
     // STAFF never sees these entries; BE also enforces 403.
     label: 'Reporting',
@@ -88,7 +125,20 @@ export const NAV_SECTIONS: NavSection[] = [
     visibleWhen: canManageSettings,
     items: [
       { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
+      // USDX-207: fee config (mint fee % + PG fee VA/QRIS). Visible to the
+      // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
+      { to: '/settings/fee', label: 'Fee', icon: Percent },
       { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
+      // USDX-485 (audit P1-18): kontak on-call insiden uang. Di-gate di level
+      // ITEM, bukan mengikuti section (canManageSettings = ADMIN+DEVELOPER):
+      // daftarnya memuat nomor telepon dan menentukan siapa yang dipanggil saat
+      // uang bermasalah, jadi DEVELOPER pun tidak melihatnya.
+      {
+        to: '/settings/oncall',
+        label: 'On-Call',
+        icon: PhoneCall,
+        visibleWhen: canManageOncall,
+      },
     ],
   },
   // USDX-87: Manual Sync — recovery tool for stuck PENDING_APPROVAL / APPROVED

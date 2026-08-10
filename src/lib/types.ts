@@ -24,6 +24,12 @@ export function canManageRate(role: StaffRole): boolean {
   return role === 'ADMIN'
 }
 
+// USDX-207: fee config update is admin-only (sot/api/fee.yaml POST 403).
+// GET is readable by all backoffice roles; only the write path is gated.
+export function canManageFeeConfig(role: StaffRole): boolean {
+  return role === 'ADMIN'
+}
+
 // SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
@@ -166,26 +172,72 @@ export interface ApiError {
 
 export type RateMode = 'MANUAL' | 'DYNAMIC'
 
+// USDX-207: spread directional (sot/api/rate.yaml + phase-1.md § Rate
+// Configuration). Mengganti `spread_pct` tunggal jadi dua arah: beli (mint)
+// pakai `spreadBuyPct`, jual (burn/redeem) pakai `spreadSellPct`. GET juga
+// surface effective rate per arah.
 export interface RateInfo {
-  rate: string
+  /** Base rate USD/IDR sebelum spread (manual atau feed). */
+  baseRate: string
   mode: RateMode
-  spreadPct: string
+  /** Spread % saat user beli USDX (mint). */
+  spreadBuyPct: string
+  /** Spread % saat user jual USDX (burn/redeem). */
+  spreadSellPct: string
+  /** baseRate × (1 + spreadBuyPct/100). */
+  effectiveBuyRate: string
+  /** baseRate × (1 − spreadSellPct/100). */
+  effectiveSellRate: string
   updatedAt: string
 }
 
 export interface UpdateRateConfig {
   mode: RateMode
   manualRate?: string | null
-  spreadPct?: string
+  /** Default 0. */
+  spreadBuyPct?: string
+  /** Default 0. */
+  spreadSellPct?: string
 }
 
 export interface RateConfig {
   id: string
   mode: RateMode
   manualRate: string | null
-  spreadPct: string
+  spreadBuyPct: string
+  spreadSellPct: string
   updatedBy: string
   createdAt: string
+}
+
+// ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207 + USDX-245) ──
+// Append-only, admin-set. Row terbaru = config aktif. Full snapshot:
+//  - mint (W2): mint fee (% nominal) + PG fee referensi per channel
+//    (VA flat Rp / QRIS % atas subtotal_idr).
+//  - redeem (W3): redeem fee (% dari gross_idr) + disbursement fee flat (Rp).
+export interface FeeConfig {
+  id: string
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
+  /** Redeem fee % dari gross_idr (W3). */
+  redeemFeePct: string
+  /** Disbursement fee Rp flat per payout (W3, referensi sampai provider real). */
+  disbursementFeeFlat: string
+  updatedBy: string
+  createdAt: string
+}
+
+// sot/api/fee.yaml § UpdateFeeConfig — POST = full 5-field snapshot (semua
+// required). Jangan kirim partial: BE meng-overwrite seluruh row, partial =
+// meng-nol-kan fee yang tidak dikirim (USDX-245). Body invalid → 422
+// VALIDATION_ERROR (conventions.md § Validation Error — fee-config allowlist).
+export interface UpdateFeeConfig {
+  mintFeePct: string
+  pgFeeVaFlat: string
+  pgFeeQrisPct: string
+  redeemFeePct: string
+  disbursementFeeFlat: string
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
@@ -333,6 +385,173 @@ export interface BurnRequestDetail extends RequestDetailBase {
 
 export type RequestDetail = MintRequestDetail | BurnRequestDetail
 
+// ─── Phase 2 W2 — Consumer Orders (backoffice "User Transaction", USDX-206) ───
+// sot/api/orders.yaml + sot/phase-2/week2.md § Backoffice — User Transaction.
+// Read-only monitoring of consumer mint orders (distinct from the Phase-1 OTC
+// mint/burn `requests` above — different table, different lifecycle). Week 2 is
+// mint-only; redeem joins Week 3 and the endpoint + `type` filter are
+// union-ready. Field + enum names mirror sot/api/common.yaml exactly.
+
+// sot/api/common.yaml § TransactionType. Week 2 = MINT only; REDEEM efektif W3.
+export type TransactionType = 'MINT' | 'REDEEM'
+
+// sot/api/common.yaml § MintPaymentStatus — IDR payment lifecycle of an order.
+export type MintPaymentStatus =
+  | 'REQUESTED'
+  | 'WAITING_FOR_PAYMENT'
+  | 'PAID'
+  | 'EXPIRED'
+
+// sot/api/common.yaml § MintSafeStatus — on-chain Safe execution (mirrors OTC).
+export type MintSafeStatus =
+  | 'NONE'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'EXECUTED'
+  | 'REJECTED'
+
+// sot/api/common.yaml § MintOrderStatus — denormalized overall order status.
+export type MintOrderStatus =
+  | 'WAITING_FOR_PAYMENT'
+  | 'WAITING_FOR_APPROVAL'
+  | 'COMPLETED'
+  | 'FAILED'
+
+// sot/api/common.yaml § RedeemStatus — single-dimension redeem lifecycle (W3,
+// USDX-245). Redeem tidak lewat Safe: burn = self-sign user, payout =
+// disbursement. late_burn (burn setelah EXPIRED) tetap pindah ke BURNED.
+export type RedeemStatus =
+  | 'AWAITING_BURN'
+  | 'BURNED'
+  | 'PROCESSING_PAYOUT'
+  | 'PAYOUT_COMPLETE'
+  | 'EXPIRED'
+
+// Union overall status: MINT → MintOrderStatus, REDEEM → RedeemStatus.
+export type OrderStatus = MintOrderStatus | RedeemStatus
+
+// sot/api/common.yaml § PaymentChannel / VaBank.
+export type PaymentChannel = 'VA' | 'QRIS'
+export type VaBank =
+  | 'BCA'
+  | 'BNI'
+  | 'BRI'
+  | 'CIMB'
+  | 'DANAMON'
+  | 'INA'
+  | 'MANDIRI'
+  | 'PERMATA'
+  | 'MAYBANK'
+
+// sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row (union mint +
+// redeem). MINT-only fields (totalPayIdr, paymentStatus, safeStatus) are null
+// for redeem; netPayoutIdr is null for mint.
+export interface OrderListItem {
+  id: string
+  type: TransactionType
+  userId: string
+  userEmail: string
+  /** Decimal USDX. */
+  amount: string
+  /** MINT: total the user pays (IDR; null until a channel is chosen). REDEEM: null. */
+  totalPayIdr: string | null
+  /** REDEEM: IDR the user receives. MINT: null. */
+  netPayoutIdr: string | null
+  chain: string
+  /** MINT only (redeem has no payment leg). */
+  paymentStatus: MintPaymentStatus | null
+  /** MINT only (redeem tidak lewat Safe). */
+  safeStatus: MintSafeStatus | null
+  status: OrderStatus
+  createdAt: string
+}
+
+// sot/api/orders.yaml § OrderDetail — GET /api/v1/orders/{id} (union mint +
+// redeem). Adds the fee/spread/revenue breakdown (backoffice-only monitoring,
+// never exposed to the consumer). MINT-only block is null for redeem and the
+// REDEEM block is null for mint; totalFeeIdr + estimatedRevenueIdr are shared.
+export interface OrderDetail {
+  id: string
+  type: TransactionType
+  userId: string
+  userEmail: string
+  /** MINT: address tujuan. REDEEM: wallet sumber burn (null sampai BURNED). */
+  userAddress: string | null
+  chain: string
+  /** Decimal USDX. */
+  amount: string
+  // ── Exchange rate + spread ──
+  /** Rate USD/IDR before spread. */
+  baseRate: string
+  /** MINT: spread beli (snapshot). REDEEM: null. */
+  spreadBuyPct: string | null
+  /** REDEEM: spread jual (snapshot). MINT: informasional/null. */
+  spreadSellPct: string | null
+  /** = rateUsed snapshot (mint = ×(1+buy); redeem = ×(1−sell)). */
+  effectiveRate: string
+  // ── MINT block (null untuk redeem) ──
+  /** MINT only (Safe mint key). */
+  idempotencyKey: string | null
+  /** MINT: amount × effectiveRate. */
+  subtotalIdr: string | null
+  paymentChannel: PaymentChannel | null
+  /** Bank VA terpilih (null untuk QRIS / redeem). */
+  paymentBank: VaBank | null
+  mintFeePct: string | null
+  mintFeeIdr: string | null
+  /** Payment gateway fee (IDR). */
+  pgFeeIdr: string | null
+  /** MINT: subtotalIdr + totalFeeIdr (user bayar). */
+  totalPayIdr: string | null
+  /** MINT only (redeem tidak lewat Safe). */
+  safeType: SafeType | null
+  paymentStatus: MintPaymentStatus | null
+  safeStatus: MintSafeStatus | null
+  paidAt: string | null
+  safeTxHash: string | null
+  /** MINT: tx mint. (Redeem pakai burnTxHash.) */
+  onChainTxHash: string | null
+  /** MINT: payment provider (W2). */
+  paymentProvider: string | null
+  // ── REDEEM block (null untuk mint) ──
+  /** REDEEM: bytes32 id untuk redeem(id, amount). */
+  redeemId: string | null
+  /** REDEEM: amount × effectiveRate (sebelum fee). */
+  grossIdr: string | null
+  redeemFeePct: string | null
+  /** REDEEM: redeem fee (IDR). */
+  redeemFeeIdr: string | null
+  /** REDEEM: disbursement fee (IDR). */
+  disbursementFeeIdr: string | null
+  /** REDEEM: grossIdr − totalFee (user terima). */
+  netPayoutIdr: string | null
+  bankCode: string | null
+  /** REDEEM: nama bank di-resolve dari bankCode (tampil nama, bukan kode). Fallback ke kode kalau tak dikenal. */
+  bankName: string | null
+  /** REDEEM: nomor rekening PENUH (un-mask 2026-06-25). Decrypt + audit log (BE side-effect). */
+  bankAccountNumber: string | null
+  /** Decrypt + audit log (BE side-effect). */
+  bankAccountName: string | null
+  /** REDEEM: burn setelah EXPIRED. */
+  lateBurn: boolean | null
+  payoutRef: string | null
+  /** REDEEM: on-chain redeem tx. */
+  burnTxHash: string | null
+  burnedAt: string | null
+  payoutCompletedAt: string | null
+  /** REDEEM: disbursement/payout provider (W3). */
+  payoutProvider: string | null
+  // ── Shared ──
+  /** MINT: mintFee + pgFee. REDEEM: redeemFee + disbursementFee. */
+  totalFeeIdr: string | null
+  /** MINT: spread_buy_revenue + mintFee. REDEEM: spread_sell_revenue + redeemFee. */
+  estimatedRevenueIdr: string
+  status: OrderStatus
+  expiresAt: string
+  createdAt: string
+  updatedAt: string
+}
+
 // sot/api/burn.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
 // USDX-46: userName → userId, add amountCurrency.
 export interface CreateBurnRequest {
@@ -422,13 +641,25 @@ export interface PhaseOneUserWallet {
   createdAt: string
 }
 
+// USDX-156 — Phase 2 fields per sot/api/users.yaml § User:
+// - `name` is nullable: self-signup users have no name until their first KYC
+//   submit auto-sets it (week1.md § users.name populate). Admin-created users
+//   always have one (form requires it).
+// - `phone` arrives decrypted (ciphertext at rest); nullable on Phase 1 rows.
+// - `emailVerifiedAt` null = belum aktivasi; `activationEmailFailedAt` set
+//   when the activation email exhausted its retries (job USDX-149).
+export type ActivationStatus = 'PENDING' | 'ACTIVATED' | 'FAILED'
+
 export interface PhaseOneUser {
   id: string
-  name: string
+  name: string | null
   email: string
+  phone: string | null
   entityType: EntityType
   kycStatus: KycStatus
   suspended: boolean
+  emailVerifiedAt: string | null
+  activationEmailFailedAt: string | null
   notes: string | null
   wallets: PhaseOneUserWallet[]
   createdAt: string
@@ -443,21 +674,23 @@ export interface PhaseOneUserDetail extends PhaseOneUser {
 }
 
 // sot/api/users.yaml § CreateUser — name + email + entityType required.
+// USDX-156 (Phase 2): no password anywhere — the user sets it via the
+// activation link (admin-created.html, valid 7 days) that BE auto-sends.
+// `phone` is optional at admin-create (format +62xxx / 08xxx, BE normalizes).
 export interface PhaseOneCreateUser {
   name: string
   email: string
+  phone?: string
   entityType: EntityType
   notes?: string
   wallets?: PhaseOneCreateUserWallet[]
 }
 
-// USDX-47 S4 + AC5: POST /api/v1/users returns User + auto-generated password
-// (one-time, plain). USDX-13 BE module spec: "auto-generated password (random
-// 16 char), hashed, returned plain in response (one-time)". Field is optional
-// at the type level so the FE degrades gracefully when BE hasn't shipped the
-// reveal yet (verified empirically against usdx-backend-api — currently absent).
-export interface PhaseOneCreateUserResponse extends PhaseOneUser {
-  password?: string
+// sot/api/users.yaml § ResendActivationResult — POST /users/:id/resend-activation.
+// `activationEmailSent: false` = single-attempt SMTP send failed but the token
+// WAS rotated; durable retry + activation_email_failed_at is job USDX-149's.
+export interface ResendActivationResult {
+  activationEmailSent: boolean
 }
 
 // sot/api/users.yaml § UpdateUser — admin can mutate name/email/entityType
@@ -476,6 +709,81 @@ export interface PhaseOneUpdateUser {
 export interface PhaseOneCreateUserWallet {
   chain: string
   address: string
+}
+
+// ─── Phase 2 Week 1 — KYC backoffice review (sot/api/kyc.yaml § KycListItem) ───
+// USDX-154: rows for the /kyc review list. PII is never present at list level —
+// decryption happens only on GET /api/v1/kyc/:id (detail modal, USDX-155).
+
+export interface KycListItem {
+  id: string
+  userId: string
+  userEmail: string
+  entityType: EntityType
+  status: KycStatus
+  submissionCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  /** Last reviewing staff's name (denormalized from `staff.name`). */
+  reviewedByName: string | null
+}
+
+// sot/api/kyc.yaml § IdentityType — Week 1 only KTP; DRIVER_LICENSE deferred.
+export type KycIdentityType = 'KTP' | 'DRIVER_LICENSE'
+
+// sot/api/kyc.yaml § KycReviewAction — append-only audit log actions.
+export type KycReviewAction =
+  | 'SUBMITTED'
+  | 'VIEWED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'RESUBMITTED'
+  | 'PURGED'
+
+// sot/api/kyc.yaml § KycDetail — USDX-155. PII arrives DECRYPTED from the
+// backend (every GET writes a VIEWED audit row server-side). PII fields are
+// nullable: the retention sweeper NULLs ciphertext after the retention period.
+// Photo URLs are presigned GETs with a 5-minute TTL (`urlExpiresAt`); null
+// once the object has been purged.
+export interface KycDetail {
+  id: string
+  userId: string
+  userEmail: string
+  entityType: EntityType
+  status: KycStatus
+  submissionCount: number
+  firstName: string | null
+  lastName: string | null
+  dob: string | null
+  birthPlace: string | null
+  identityType: KycIdentityType
+  identityNumber: string | null
+  country: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  ktpPhotoUrl: string | null
+  selfiePhotoUrl: string | null
+  urlExpiresAt: string | null
+  rejectionReason: string | null
+  submittedAt: string | null
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// sot/api/kyc.yaml § KycReviewLog — one audit-trail row. actorStaffId is
+// non-null for VIEWED/APPROVED/REJECTED, actorUserId for SUBMITTED/RESUBMITTED.
+export interface KycReviewLog {
+  id: string
+  action: KycReviewAction
+  actorStaffId: string | null
+  actorStaffName: string | null
+  actorUserId: string | null
+  reason: string | null
+  ipAddress: string | null
+  createdAt: string
 }
 
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
@@ -578,12 +886,21 @@ export interface ByUserRow {
 // queue (sot/phase-1.md § Safe Propose Queue).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// sot/api/manual-sync.yaml § ManualSyncItem.type / MatchResult.requestType —
+// enum [mint, burn, mint_order]. Manual Sync was extended to consumer
+// `mint_orders` in Phase 2 W2 (USDX-208). Kept separate from `RequestType`
+// (OTC-only, used by RequestListItem) so the OTC types can't accidentally
+// accept `mint_order`.
+export type ManualSyncType = 'mint' | 'burn' | 'mint_order'
+
 // sot/api/manual-sync.yaml § ManualSyncItem — row shape for the list table.
-// Subset of MintRequestDetail / BurnRequestDetail; BE pre-resolves `safeAddress`
-// from `safeType` + chain config so the FE doesn't have to.
+// Subset of MintRequestDetail / BurnRequestDetail / MintOrder; BE pre-resolves
+// `safeAddress` from `safeType` + chain config so the FE doesn't have to.
+// For `mint_order`, `status` carries the order's `safe_status`
+// (PENDING_APPROVAL / APPROVED).
 export interface ManualSyncItem {
   id: string
-  type: RequestType
+  type: ManualSyncType
   chain: string
   userId: string
   userName: string
@@ -614,7 +931,7 @@ export interface MatchField {
 // `allMatch === true` gates the Confirm button in the modal.
 export interface MatchResult {
   requestId: string
-  requestType: RequestType
+  requestType: ManualSyncType
   txHash: string
   allMatch: boolean
   fields: MatchField[]
@@ -624,4 +941,255 @@ export interface MatchResult {
 // sot/api/manual-sync.yaml § VerifyRequest.
 export interface ManualSyncTxHashBody {
   txHash: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 — W4 Multisig (USDX-275, sot/api/multisig.yaml, sot/phase-2/week4.md)
+//
+// Self-hosted Safe coordination: the `/multisig` page is the queue of Safe
+// transactions (mint/burn auto-proposed by the backend + governance ops). Owners
+// connect a wallet and sign the SafeTx EIP-712; any operator executes
+// `execTransaction`. Status is TX-level (finer than the per-request safe_status)
+// and follows the queue tabs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// sot/api/multisig.yaml § SafeActivity — operation decoded from the calldata.
+// UNKNOWN = calldata the backend decoder couldn't resolve → blind-sign guard.
+export type SafeActivity =
+  | 'MINT'
+  | 'BURN'
+  | 'ADD_BLACKLIST'
+  | 'REMOVE_BLACKLIST'
+  | 'DESTROY_FUNDS'
+  | 'PAUSE'
+  | 'UNPAUSE'
+  | 'SET_SUPPORTED_CHAIN'
+  | 'GRANT_ROLE'
+  | 'REVOKE_ROLE'
+  | 'MINT_BRIDGE'
+  | 'TIMELOCK_SCHEDULE'
+  | 'TIMELOCK_EXECUTE'
+  | 'UNKNOWN'
+
+// sot/api/multisig.yaml § SafeTxStatus + conventions.md § Status Enums (TX-level).
+// PENDING_SIGN → READY_TO_EXECUTE → CONFIRMING → EXECUTED | FAILED | CANCELLED.
+export type SafeTxStatus =
+  | 'PENDING_SIGN'
+  | 'READY_TO_EXECUTE'
+  | 'CONFIRMING'
+  | 'EXECUTED'
+  | 'FAILED'
+  | 'CANCELLED'
+
+// Signatures collected vs the Safe threshold (drives the progress bar + the
+// "X/Y" label). READY_TO_EXECUTE once collected ≥ threshold.
+export interface SignatureProgress {
+  collected: number
+  threshold: number
+}
+
+// sot/api/multisig.yaml § SafeTxListItem — one row in the queue table.
+export interface SafeTxListItem {
+  id: string
+  chain: string
+  safeType: SafeType
+  safeAddress: string
+  nonce: number
+  activity: SafeActivity
+  /** Human label decoded by the backend, e.g. "Mint 100 USDX → 0xUser". */
+  activityLabel: string
+  signatureProgress: SignatureProgress
+  proposerType: 'BACKEND' | 'STAFF'
+  proposerAddress: string
+  status: SafeTxStatus
+  safeTxHash: string
+  execTxHash: string | null
+  createdAt: string
+}
+
+// One Safe owner's signing state (sot/api/multisig.yaml § SafeTxDetail.signers).
+export interface SafeTxSigner {
+  address: string
+  staffName: string | null
+  isBackend: boolean
+  signed: boolean
+  signedAt: string | null
+}
+
+// sot/api/multisig.yaml § SafeTxDetail.execPayload — the `execTransaction`
+// params, ready to send, exposed only while READY_TO_EXECUTE. `signatures` is
+// already concatenated + sorted ascending by owner address (checkSignatures req).
+export interface SafeExecPayload {
+  to: string
+  value: string
+  data: string
+  operation: number
+  safeTxGas: string
+  baseGas: string
+  gasPrice: string
+  gasToken: string
+  refundReceiver: string
+  signatures: string
+}
+
+// sot/api/multisig.yaml § SafeTxDetail — full TX incl. decoded args (display +
+// blind-sign guard), signer states, linked request/order, and exec payload.
+export interface SafeTxDetail extends SafeTxListItem {
+  to: string
+  value: string
+  data: string
+  operation: number
+  /** Decoded calldata args for display + cross-check vs intent (blind-sign guard). */
+  decodedArgs: Record<string, unknown>
+  linkedRequestId: string | null
+  linkedOrderId: string | null
+  signers: SafeTxSigner[]
+  execPayload: SafeExecPayload | null
+  /** Decoded revert reason if the last execTransaction failed (GS013 / USDX custom error). */
+  lastExecError: string | null
+  executedByStaffName: string | null
+  executedAt: string | null
+}
+
+// sot/api/multisig.yaml § SafeMeta — GET /api/v1/multisig/safes. Used to render
+// the queue + validate whether the connected wallet is an owner (signer gate).
+export interface SafeMeta {
+  chain: string
+  safeType: SafeType
+  safeAddress: string
+  threshold: number
+  owners: string[]
+  nonce: number
+  /** Native (POL) balance — informational. Gas for execTransaction is paid by the executor wallet, not the Safe. */
+  balanceNative: string
+  lastSyncedAt: string
+}
+
+// POST /api/v1/multisig/{id}/confirm body (sot/api/multisig.yaml § confirm).
+export interface SafeConfirmBody {
+  signerAddress: string
+  signature: string
+}
+
+// POST /api/v1/multisig/{id}/execute body (sot/api/multisig.yaml § execute).
+export interface SafeExecuteBody {
+  execTxHash: string
+}
+
+// POST /api/v1/multisig/{id}/cancel body (sot/api/multisig.yaml § cancel).
+export interface SafeCancelBody {
+  reason?: string
+}
+
+// ─── USDX-280 — Propose governance (sot/api/multisig.yaml § propose) ─────────
+// The governance subset of SafeActivity that an operator can propose from the
+// backoffice (MINT/BURN/MINT_BRIDGE are auto-proposed by the backend, never via
+// this modal; UNKNOWN is not proposable). Verified live against the BE enum.
+export type GovernanceOperation =
+  | 'ADD_BLACKLIST'
+  | 'REMOVE_BLACKLIST'
+  | 'DESTROY_FUNDS'
+  | 'PAUSE'
+  | 'UNPAUSE'
+  | 'SET_SUPPORTED_CHAIN'
+  | 'GRANT_ROLE'
+  | 'REVOKE_ROLE'
+  | 'TIMELOCK_SCHEDULE'
+  | 'TIMELOCK_EXECUTE'
+
+// POST /api/v1/multisig/propose body (sot/api/multisig.yaml § ProposeRequest).
+// `params` shape depends on `operation` (see src/lib/multisig/propose.ts). The
+// backend encodes the calldata + simulates before storing PENDING_SIGN. `chain`
+// is optional (W4 Polygon-only → backend defaults to polygon).
+export interface ProposeRequest {
+  safeType: SafeType
+  operation: GovernanceOperation
+  params: Record<string, unknown>
+  chain?: string
+}
+
+// ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
+//
+// Backend membaca daftar ini setiap kali mengirim alarm kondisi uang dan
+// menyisipkan kontak yang cocok kategorinya ke dalam pesan alarm. Halaman
+// setting-nya yang membuat daftar itu bisa diperbarui tanpa deploy — dokumen
+// runbook statis cepat basi (orang berganti, nomor berganti), data yang dibaca
+// sistem ikut hidup.
+
+export type OncallChannel = 'PHONE' | 'EMAIL' | 'SLACK'
+
+/**
+ * Kategori insiden yang ditangani satu kontak. Backend memetakan kode kondisi
+ * alarm ke kategori ini (`resolveIncidentCategory`), mis. `PAYOUT_QUEUE_JAMMED`
+ * → PAYOUT, `BNI_UNEXPLAINED_INFLOW` → RECONCILIATION. `OTHER` adalah jaring
+ * pengaman untuk kondisi baru yang belum dipetakan.
+ */
+export type OncallIncidentCategory =
+  | 'PAYOUT'
+  | 'RECONCILIATION'
+  | 'MINT'
+  | 'REDEEM'
+  | 'FRAUD'
+  | 'SECURITY'
+  | 'INFRA'
+  | 'OTHER'
+
+export const ONCALL_CHANNELS: readonly OncallChannel[] = ['PHONE', 'EMAIL', 'SLACK']
+
+export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
+  'PAYOUT',
+  'RECONCILIATION',
+  'MINT',
+  'REDEEM',
+  'FRAUD',
+  'SECURITY',
+  'INFRA',
+  'OTHER',
+]
+
+/** Label yang menerangkan kategori — nama enum saja tak cukup untuk memilih dengan benar. */
+export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
+  PAYOUT: 'Payout gagal, antrean buntu, plafon habis, rem darurat',
+  RECONCILIATION: 'Saldo tak terjelaskan, selisih rekonsiliasi bank',
+  MINT: 'Pembayaran masuk tak dikredit, callback tak tercocokkan',
+  REDEEM: 'Burn nasabah ditolak scanner, selisih jumlah burn',
+  FRAUD: 'Aturan FDS menyala (velocity, structuring, fan-in)',
+  SECURITY: 'Brute force login, aksi sensitif backoffice',
+  INFRA: 'Kanal alert mati, transaksi Safe dibatalkan',
+  OTHER: 'Kondisi baru yang belum dipetakan ke kategori mana pun',
+}
+
+/**
+ * Kontak on-call. `contactValue` bisa berupa nomor telepon = PII, dan menurut
+ * tabel role di `sot/conventions.md § Audit Akses PII` hanya ADMIN yang boleh
+ * melihat telepon — karena itu BACA pun digerbangi ADMIN di sini, tidak seperti
+ * fee/rate yang GET-nya terbuka untuk semua role backoffice.
+ */
+export interface OncallContact {
+  id: string
+  name: string
+  role: string
+  channel: OncallChannel
+  contactValue: string
+  categories: OncallIncidentCategory[]
+  createdBy: string | null
+  updatedBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateOncallContact {
+  name: string
+  role: string
+  channel: OncallChannel
+  contactValue: string
+  categories: OncallIncidentCategory[]
+}
+
+export type UpdateOncallContact = Partial<CreateOncallContact>
+
+// USDX-485: seluruh permukaan kontak on-call (baca DAN tulis) admin-only —
+// lihat alasannya di komentar OncallContact di atas.
+export function canManageOncallContacts(role: StaffRole): boolean {
+  return role === 'ADMIN'
 }

@@ -26,16 +26,54 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
           <>
             <div>
               <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                Effective rate
+                Base rate
               </p>
               <p
                 className="mt-1 font-mono text-[28px] font-semibold leading-tight tracking-tight"
-                aria-label="effective rate"
+                aria-label="base rate"
               >
-                {formatRate(data.rate)}
+                {formatRate(data.baseRate)}
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Effective beli (mint)
+                </dt>
+                <dd
+                  className="mt-1 font-mono text-sm font-medium"
+                  aria-label="effective buy rate"
+                >
+                  {formatRate(data.effectiveBuyRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Effective jual (burn)
+                </dt>
+                <dd
+                  className="mt-1 font-mono text-sm font-medium"
+                  aria-label="effective sell rate"
+                >
+                  {formatRate(data.effectiveSellRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Spread beli
+                </dt>
+                <dd className="mt-1 text-sm font-medium">
+                  {formatSpreadPct(data.spreadBuyPct)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Spread jual
+                </dt>
+                <dd className="mt-1 text-sm font-medium">
+                  {formatSpreadPct(data.spreadSellPct)}
+                </dd>
+              </div>
               <div>
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Mode
@@ -43,14 +81,6 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Spread
-                </dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {formatSpreadPct(data.spreadPct)}
-                </dd>
-              </div>
-              <div className="col-span-2">
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Last updated
                 </dt>

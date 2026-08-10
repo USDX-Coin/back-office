@@ -10,15 +10,23 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
 import UserDeleteDialog from './UserDeleteDialog'
-import PasswordRevealDialog from './PasswordRevealDialog'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
 import { useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
-import { getKycStatusConfig } from '@/lib/status'
+import {
+  deriveActivationStatus,
+  getActivationStatusConfig,
+  getKycStatusConfig,
+} from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { EntityType, KycStatus, PhaseOneUser } from '@/lib/types'
+import type {
+  ActivationStatus,
+  EntityType,
+  KycStatus,
+  PhaseOneUser,
+} from '@/lib/types'
 
 const PAGE_SIZE = 10
 
@@ -35,6 +43,8 @@ export default function UsersPage() {
   const search = params.searchParams.get('search') ?? ''
   const kycStatusParam = (params.searchParams.get('kycStatus') ?? '') as KycStatus | ''
   const entityTypeParam = (params.searchParams.get('entityType') ?? '') as EntityType | ''
+  const activationStatusParam = (params.searchParams.get('activationStatus') ??
+    '') as ActivationStatus | ''
 
   const list = useUsers({
     page: params.page,
@@ -42,14 +52,13 @@ export default function UsersPage() {
     search: search || undefined,
     kycStatus: kycStatusParam || undefined,
     entityType: entityTypeParam || undefined,
+    activationStatus: activationStatusParam || undefined,
   })
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  // USDX-47 AC5: temporary password surfaced once after create.
-  const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
 
   function openAdd() {
     setModalMode('add')
@@ -69,7 +78,11 @@ export default function UsersPage() {
   }
 
   const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
-  const filterValues = { kycStatus: kycStatusParam, entityType: entityTypeParam }
+  const filterValues = {
+    kycStatus: kycStatusParam,
+    entityType: entityTypeParam,
+    activationStatus: activationStatusParam,
+  }
 
   const columns: ColumnDef<PhaseOneUser>[] = [
     {
@@ -85,10 +98,12 @@ export default function UsersPage() {
               navigate(`/users/${u.id}`)
             }}
             className="flex items-center gap-2.5 text-left hover:text-primary"
-            aria-label={`Open ${u.name}`}
+            aria-label={`Open ${u.name ?? u.email}`}
           >
-            <Avatar name={u.name} size="sm" />
-            <span className="font-medium">{u.name}</span>
+            {/* Self-signup users have no name until first KYC submit
+                (users.yaml § User.name nullable) — fall back to email. */}
+            <Avatar name={u.name ?? u.email} size="sm" />
+            <span className="font-medium">{u.name ?? '—'}</span>
           </button>
         )
       },
@@ -129,6 +144,28 @@ export default function UsersPage() {
       },
     },
     {
+      // USDX-156 — activation badge: FAILED (destructive) wins over PENDING
+      // (warning); ACTIVATED renders muted-success so the column scans quietly.
+      id: 'activation',
+      header: 'Activation',
+      cell: ({ row }) => {
+        const status = deriveActivationStatus(row.original)
+        const cfg = getActivationStatusConfig(status)
+        return (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              cfg.className
+            )}
+            data-testid={`activation-badge-${status.toLowerCase()}`}
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    {
       id: 'suspended',
       header: 'Status',
       cell: ({ row }) =>
@@ -149,7 +186,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openEdit(row.original)}
-                  aria-label={`Edit ${row.original.name}`}
+                  aria-label={`Edit ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -158,7 +195,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openDelete(row.original)}
-                  aria-label={`Delete ${row.original.name}`}
+                  aria-label={`Delete ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -198,7 +235,9 @@ export default function UsersPage() {
 
   // SoT openapi.yaml § PaginatedResponse — total lives at metadata.total.
   const total = list.data?.metadata?.total ?? 0
-  const hasFilters = Boolean(search || kycStatusParam || entityTypeParam)
+  const hasFilters = Boolean(
+    search || kycStatusParam || entityTypeParam || activationStatusParam
+  )
 
   return (
     <div>
@@ -241,6 +280,7 @@ export default function UsersPage() {
                 params.updateParams({
                   kycStatus: next.kycStatus || null,
                   entityType: next.entityType || null,
+                  activationStatus: next.activationStatus || null,
                   page: '1',
                 }),
             }}
@@ -260,19 +300,11 @@ export default function UsersPage() {
         onOpenChange={setModalOpen}
         mode={modalMode}
         user={activeUser}
-        onCreated={(password) => {
-          if (password) setRevealedPassword(password)
-        }}
       />
       <UserDeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         user={activeUser}
-      />
-      <PasswordRevealDialog
-        open={revealedPassword !== null}
-        password={revealedPassword ?? ''}
-        onClose={() => setRevealedPassword(null)}
       />
     </div>
   )

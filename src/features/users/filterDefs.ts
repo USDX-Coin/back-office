@@ -22,6 +22,17 @@ export const USERS_FILTER_DEFS: FilterDef[] = [
       { value: 'LEGAL_ENTITY', label: 'Legal Entity' },
     ],
   },
+  // USDX-156 — sot/api/users.yaml § activationStatus. "All" = no param sent.
+  {
+    kind: 'select',
+    key: 'activationStatus',
+    label: 'Activation',
+    options: [
+      { value: 'PENDING', label: 'Pending' },
+      { value: 'ACTIVATED', label: 'Activated' },
+      { value: 'FAILED', label: 'Failed email' },
+    ],
+  },
 ]
 
 // Column ids must match the TanStack ColumnDef ids in UsersPage.
@@ -30,6 +41,7 @@ export const USERS_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'email', label: 'Email' },
   { key: 'entityType', label: 'Entity' },
   { key: 'kycStatus', label: 'KYC' },
+  { key: 'activation', label: 'Activation' },
   { key: 'suspended', label: 'Status' },
   { key: 'actions', label: 'Actions', required: true },
 ]

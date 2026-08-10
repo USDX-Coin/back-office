@@ -28,7 +28,15 @@ function rateOk() {
     HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: { rate: RATE, mode: 'MANUAL', spreadPct: '0', updatedAt: '2026-05-01T00:00:00Z' },
+      data: {
+        baseRate: RATE,
+        mode: 'MANUAL',
+        spreadBuyPct: '0',
+        spreadSellPct: '0',
+        effectiveBuyRate: RATE,
+        effectiveSellRate: RATE,
+        updatedAt: '2026-05-01T00:00:00Z',
+      },
     })
   )
 }

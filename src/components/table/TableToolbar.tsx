@@ -36,7 +36,8 @@ interface ColumnsProps {
 }
 
 interface TableToolbarProps {
-  search: SearchProps
+  /** Omit when the endpoint has no `search` param (e.g. orders/USDX-206). */
+  search?: SearchProps
   sort?: SortProps
   filter?: FilterProps
   columns?: ColumnsProps
@@ -60,7 +61,7 @@ export default function TableToolbar({
       {/* USDX-27: stack search + buttons on mobile (search takes full width
           so the placeholder doesn't get truncated); inline at ≥sm. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <DebouncedSearch {...search} />
+        {search && <DebouncedSearch {...search} />}
         <div className="flex flex-wrap items-center gap-2">
           {sort && (
             <SortPopover

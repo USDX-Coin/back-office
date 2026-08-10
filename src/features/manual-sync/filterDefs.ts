@@ -30,6 +30,8 @@ export const MANUAL_SYNC_FILTER_DEFS: FilterDef[] = [
     options: [
       { value: 'mint', label: 'Mint' },
       { value: 'burn', label: 'Burn' },
+      // USDX-208: consumer mint_orders extended into Manual Sync (Phase 2 W2).
+      { value: 'mint_order', label: 'Mint Order' },
     ],
   },
 ]

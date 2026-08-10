@@ -16,7 +16,10 @@ test.describe('USDX-26 auth @e2e', () => {
       await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible()
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeTruthy()
-      expect(JSON.parse(stored!)).toMatchObject({ version: 4, token: expect.any(String) })
+      // USDX-392: the persisted profile is v5 and must NOT carry a session token
+      // (auth lives in the httpOnly cookie).
+      expect(JSON.parse(stored!)).toMatchObject({ version: 5 })
+      expect(JSON.parse(stored!).token).toBeUndefined()
     })
 
     test('should restore the session on reload without re-login', async ({ page }) => {

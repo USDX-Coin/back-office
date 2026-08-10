@@ -5,7 +5,6 @@ import { apiFetch, ApiError, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
   user: Staff | null
-  token: string | null
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
@@ -13,125 +12,123 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+// USDX-392 (WSTG-CLNT-12): the session lives in an httpOnly cookie the server
+// sets on POST /auth/login — it is never readable from JS, so an XSS payload
+// cannot exfiltrate it. localStorage now only caches the *non-sensitive* Staff
+// profile so the UI can render synchronously on reload without a login flash;
+// GET /auth/me (authenticated by the cookie) re-validates it on every boot. No
+// session token is stored client-side anymore.
 const STORAGE_KEY = 'usdx_auth_user'
 const LOGIN_ENDPOINT = '/api/v1/auth/login'
+const LOGOUT_ENDPOINT = '/api/v1/auth/logout'
 const ME_ENDPOINT = '/api/v1/auth/me'
 
-interface PersistedSession {
-  version: 4
+// Persisted profile shape. `version` gates migrations; anything below the
+// current version — including the pre-USDX-392 shapes (v1–v4) that embedded a
+// JWT — is discarded on read so any stale token is purged from storage.
+const SESSION_VERSION = 5
+
+interface PersistedProfile {
+  version: typeof SESSION_VERSION
   staff: Staff
-  token: string
   issuedAt: number
 }
 
-interface RestoredSession {
-  user: Staff
-  token: string
-}
-
-function parsePersistedSession(): Partial<PersistedSession> | null {
+function readPersistedStaff(): Staff | null {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
+  let parsed: Partial<PersistedProfile> | null = null
   try {
-    return JSON.parse(raw) as Partial<PersistedSession>
+    parsed = JSON.parse(raw) as Partial<PersistedProfile>
   } catch {
-    return null
+    parsed = null
   }
-}
-
-function readPersistedSession(): RestoredSession | null {
-  const parsed = parsePersistedSession()
-  if (parsed && parsed.version === 4 && parsed.staff && parsed.token) {
-    // Trust the cached Staff record synchronously; /auth/me below
-    // re-validates and refreshes from the server.
-    return { user: parsed.staff, token: parsed.token }
+  if (parsed && parsed.version === SESSION_VERSION && parsed.staff) {
+    // Trust the cached Staff record synchronously; /auth/me below re-validates
+    // it against the cookie and refreshes from the server.
+    return parsed.staff
   }
-  // Legacy versions (v1/v2/v3) pre-date the SoT-aligned Staff shape; clear
-  // so the user re-authenticates and we restore a clean v4 record.
-  if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(STORAGE_KEY)
+  // Anything else (corrupt, legacy v1–v4 with an embedded token, or unknown
+  // version) is dropped so we purge stale data and re-validate via the cookie.
+  localStorage.removeItem(STORAGE_KEY)
   return null
 }
 
-// USDX-58: bind apiFetch at module-load time, not inside a useEffect. React
-// runs effects bottom-up, so child useQuery hooks would fire apiFetch before
-// AuthProvider's effect had a chance to configure the bindings — the request
-// went out with no Authorization header, the server replied 401, and by the
-// time the 401 came back the onUnauthorized handler had been wired up to
-// setSession(null), forcing a logout on every reload. Reading the token
-// straight from localStorage on each call sidesteps the effect ordering
-// entirely; AuthProvider just registers the logout setter.
-let authSessionSetter: ((session: RestoredSession | null) => void) | null = null
+// Register the "session expired" hook at module load so a 401 from any early
+// request can clear the cached profile even before AuthProvider's effects run.
+// The cookie itself is attached by the browser on every request regardless of
+// React lifecycle, so there's no token-timing race to guard against anymore
+// (the USDX-58 bearer-from-localStorage workaround is no longer needed).
+let authSessionSetter: ((staff: Staff | null) => void) | null = null
 
 configureApiFetch({
-  getToken: () => {
-    const parsed = parsePersistedSession()
-    return parsed?.version === 4 && parsed.token ? parsed.token : null
-  },
   onUnauthorized: () => authSessionSetter?.(null),
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<RestoredSession | null>(() => readPersistedSession())
+  const [user, setUser] = useState<Staff | null>(() => readPersistedStaff())
 
   useEffect(() => {
-    if (session) {
-      const persisted: PersistedSession = {
-        version: 4,
-        staff: session.user,
-        token: session.token,
+    if (user) {
+      const persisted: PersistedProfile = {
+        version: SESSION_VERSION,
+        staff: user,
         issuedAt: Date.now(),
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
     } else {
       localStorage.removeItem(STORAGE_KEY)
     }
-  }, [session])
+  }, [user])
 
   useEffect(() => {
-    authSessionSetter = setSession
+    authSessionSetter = setUser
     return () => {
       authSessionSetter = null
     }
   }, [])
 
-  // Boot validation: when restored from localStorage, verify the token by
-  // calling /api/v1/auth/me. apiFetch already calls onUnauthorized on 401.
-  // We refresh the user record from the server response for freshness.
+  // Boot validation: confirm the session cookie is still valid by calling
+  // /api/v1/auth/me. apiFetch sends the cookie (credentials:'include') and
+  // fires onUnauthorized on 401, which clears the cached profile. A successful
+  // call refreshes the Staff record from the server (source of truth).
   useEffect(() => {
-    if (!session) return
+    if (!user) return
     let cancelled = false
     apiFetch<Staff>(ME_ENDPOINT)
       .then((staff) => {
         if (cancelled) return
         if (staff && staff.id) {
-          setSession((prev) => (prev ? { ...prev, user: staff } : prev))
+          setUser((prev) => (prev ? staff : prev))
         }
       })
       .catch(() => {
-        // ApiError(401) already triggered onUnauthorized -> setSession(null).
+        // ApiError(401) already triggered onUnauthorized -> setUser(null).
         // Other errors (network down) we ignore so offline users stay signed in.
       })
     return () => {
       cancelled = true
     }
-    // Run only when token identity changes — not on every staff refresh.
+    // Run only when the signed-in identity changes — not on every refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.token])
+  }, [user?.id])
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email.trim() || !password) {
       throw new Error('Email and password are required')
     }
     try {
-      const data = await apiFetch<{ accessToken: string; staff: Staff }>(LOGIN_ENDPOINT, {
+      // The server sets the httpOnly session cookie on this response. It also
+      // still returns `accessToken` in the body for backward-compat during the
+      // migration — we deliberately ignore it and never persist it (USDX-392).
+      const data = await apiFetch<{ accessToken?: string; staff: Staff }>(LOGIN_ENDPOINT, {
         method: 'POST',
         body: { email, password },
-        skipAuth: true,
       })
-      if (!data?.accessToken || !data?.staff) {
+      if (!data?.staff) {
         throw new Error('Malformed login response')
       }
-      setSession({ user: data.staff, token: data.accessToken })
+      setUser(data.staff)
     } catch (err) {
       if (err instanceof ApiError) {
         throw new Error(err.message)
@@ -141,15 +138,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    setSession(null)
+    // Clear client state first so the UI signs out immediately (no flicker on
+    // the redirect to /login). The httpOnly cookie is independent of React
+    // state, so it still rides along with the revoke call below.
+    setUser(null)
+    // Server-side revoke (USDX-392): invalidates the session server-side and
+    // clears the cookie (Set-Cookie). Best-effort — the operator is already
+    // signed out locally even if this fails (offline / session already gone).
+    apiFetch(LOGOUT_ENDPOINT, { method: 'POST' }).catch(() => {})
   }, [])
 
   return (
     <AuthContext.Provider
       value={{
-        user: session?.user ?? null,
-        token: session?.token ?? null,
-        isAuthenticated: !!session,
+        user,
+        isAuthenticated: !!user,
         login,
         logout,
       }}
@@ -203,6 +206,46 @@ export function canAccessReports(staff: Staff | null): boolean {
     staff?.role === 'DEVELOPER' ||
     staff?.role === 'MANAGER'
   )
+}
+
+// USDX-155 — sot/phase-2/week1.md § Authorization Guard: approve/reject KYC
+// is Staff/Manager/Admin; DEVELOPER is view-only (403 on POST). Drives the
+// disabled state + tooltip on the Approve/Reject buttons in KycDetailModal —
+// BE enforces the 403 regardless.
+export function canReviewKyc(staff: Staff | null): boolean {
+  return staff !== null && staff.role !== 'DEVELOPER'
+}
+
+// USDX-485 (audit alur uang P1-18) — kontak on-call insiden uang. Admin-only
+// termasuk untuk MEMBACA, dan itu menyimpang dari Settings lain (rate/fee/
+// threshold pakai canManageSettings = ADMIN+DEVELOPER untuk melihat). Dua
+// alasan: (1) daftar ini menentukan siapa yang dipanggil saat uang bermasalah
+// dan siapa yang boleh menarik rem darurat payout — pengetahuan yang berguna
+// bagi orang yang ingin uangnya tidak direm; (2) `contactValue` bisa berupa
+// nomor telepon, dan tabel role di sot/conventions.md § Audit Akses PII
+// menaruh "Telepon" di kolom ADMIN saja. Backend juga 403 untuk role lain.
+export function canManageOncall(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN'
+}
+
+// USDX-275 — sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
+// Multisig Page: the Multisig queue is visible to ADMIN / DEVELOPER / MANAGER
+// (STAFF excluded — signer = Safe owner, typically Manager/Admin). Sign/Execute
+// gating is enforced per-action inside the page (owner wallet); BE enforces the
+// list/detail role check regardless.
+export function canAccessTreasury(staff: Staff | null): boolean {
+  return (
+    staff?.role === 'ADMIN' ||
+    staff?.role === 'DEVELOPER' ||
+    staff?.role === 'MANAGER'
+  )
+}
+
+// USDX-280 — sot/api/multisig.yaml § propose ("Akses: admin (ops sensitif)"):
+// proposing a governance op (blacklist/pause/chain/role/timelock) is ADMIN-only.
+// Gates the "Propose" button on /multisig; the BE enforces 403 regardless.
+export function canProposeGovernance(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN'
 }
 
 // USDX-78 — SoT phase-1.md L34: List Mint/Burn (/mint, /burn, /mint/:id,

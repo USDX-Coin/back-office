@@ -78,9 +78,12 @@ export default function UserPicker({
         )}
         data-testid="user-picker-selected"
       >
-        <Avatar name={value.name} size="md" />
+        {/* Picker lists KYC-VERIFIED users; name is auto-set at first KYC
+            submit so it is non-null in practice — fall back to email anyway
+            (users.yaml § User.name nullable). */}
+        <Avatar name={value.name ?? value.email} size="md" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{value.name}</p>
+          <p className="truncate text-sm font-medium text-foreground">{value.name ?? value.email}</p>
           <p className="truncate text-xs text-muted-foreground">{value.email}</p>
         </div>
         {!disabled && (
@@ -153,9 +156,9 @@ export default function UserPicker({
                     onClick={() => handleSelect(u)}
                     className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
                   >
-                    <Avatar name={u.name} size="sm" />
+                    <Avatar name={u.name ?? u.email} size="sm" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{u.name}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{u.name ?? u.email}</p>
                       <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </button>

@@ -6,39 +6,41 @@ import { apiFetch, ApiError, configureApiFetch } from '@/lib/apiFetch'
 beforeAll(() => server.listen())
 afterEach(() => {
   server.resetHandlers()
-  configureApiFetch({ getToken: () => null, onUnauthorized: () => {} })
+  configureApiFetch({ onUnauthorized: () => {} })
 })
 afterAll(() => server.close())
 
 beforeEach(() => {
-  configureApiFetch({ getToken: () => null, onUnauthorized: () => {} })
+  configureApiFetch({ onUnauthorized: () => {} })
 })
 
 describe('apiFetch', () => {
   describe('positive', () => {
-    test('should attach Bearer header when a token is registered', async () => {
-      configureApiFetch({ getToken: () => 'header.body.sig', onUnauthorized: () => {} })
-      let captured = ''
+    // USDX-392: auth rides on the httpOnly session cookie. apiFetch sends
+    // `credentials: 'include'`, so a same-origin cookie reaches the backend.
+    test('should send the session cookie via credentials:include', async () => {
+      document.cookie = 'usdx_session=cookie.jwt.value; Path=/'
+      let captured: string | null = null
       server.use(
         http.get('/api/probe', ({ request }) => {
-          captured = request.headers.get('Authorization') ?? ''
+          captured = request.headers.get('cookie')
           return HttpResponse.json({ status: 'success', metadata: null, data: { ok: true } })
         })
       )
       await apiFetch('/api/probe')
-      expect(captured).toBe('Bearer header.body.sig')
+      expect(captured).toContain('usdx_session=cookie.jwt.value')
     })
 
-    test('should omit Bearer header when skipAuth is true', async () => {
-      configureApiFetch({ getToken: () => 'header.body.sig', onUnauthorized: () => {} })
-      let captured: string | null = null
+    test('should never attach an Authorization header (cookie-only auth)', async () => {
+      document.cookie = 'usdx_session=cookie.jwt.value; Path=/'
+      let captured: string | null = 'unset'
       server.use(
-        http.post('/api/probe', ({ request }) => {
+        http.get('/api/probe', ({ request }) => {
           captured = request.headers.get('Authorization')
           return HttpResponse.json({ status: 'success', metadata: null, data: { ok: true } })
         })
       )
-      await apiFetch('/api/probe', { method: 'POST', body: {}, skipAuth: true })
+      await apiFetch('/api/probe')
       expect(captured).toBeNull()
     })
 
@@ -111,7 +113,7 @@ describe('apiFetch', () => {
 
     test('should call onUnauthorized exactly once on 401', async () => {
       const onUnauthorized = vi.fn()
-      configureApiFetch({ getToken: () => 'whatever', onUnauthorized })
+      configureApiFetch({ onUnauthorized })
       server.use(
         http.get('/api/probe', () =>
           HttpResponse.json(

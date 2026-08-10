@@ -15,21 +15,17 @@ afterEach(() => {
 afterAll(() => server.close())
 
 // Default-seeded staff (demo@usdx.io) is super_admin → maps to ADMIN.
-// To exercise the read-only path we pre-populate localStorage with a
-// staff whose role maps to STAFF before rendering. Session shape v3
-// (token + staffId) matches what AuthProvider expects post-USDX-7.
+// To exercise the read-only path we pre-populate a staff whose role maps to
+// STAFF before rendering. USDX-392: v5 profile (no token) + the `usdx_session`
+// cookie so /auth/me and authenticated writes pass the mock's cookie gate.
 function loginAsStaffRole(email: string) {
   const staff = findStaffByEmail(email)
   if (!staff) throw new Error(`Test fixture missing: ${email}`)
   localStorage.setItem(
     'usdx_auth_user',
-    JSON.stringify({
-      version: 4,
-      staff,
-      token: issueMockJwt(staff),
-      issuedAt: Date.now(),
-    })
+    JSON.stringify({ version: 5, staff, issuedAt: Date.now() })
   )
+  document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
   return staff
 }
 
@@ -40,7 +36,7 @@ describe('RatePage @integration', () => {
 
       // RateInfo skeleton resolves to the seeded DYNAMIC config
       await waitFor(() => {
-        expect(screen.getByLabelText(/effective rate/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/base rate/i)).toHaveTextContent(/IDR\/USD/)
       })
       expect(screen.getByText('DYNAMIC')).toBeInTheDocument()
       expect(screen.getByText('0.5%')).toBeInTheDocument()
@@ -76,7 +72,7 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/effective rate/i)).toBeInTheDocument()
+        expect(screen.getByLabelText(/base rate/i)).toBeInTheDocument()
       })
     })
   })
@@ -163,7 +159,7 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />, { authenticated: true })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/effective rate/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/base rate/i)).toHaveTextContent(/IDR\/USD/)
       })
 
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
@@ -245,7 +241,7 @@ describe('POST /api/v1/rate authorization (SoT 403)', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ mode: 'MANUAL', manualRate: '16400', spreadPct: '0.4' }),
+      body: JSON.stringify({ mode: 'MANUAL', manualRate: '16400', spreadBuyPct: '0.5', spreadSellPct: '0.4' }),
     })
     expect(res.status).toBe(201)
     const body = await res.json()
@@ -253,7 +249,8 @@ describe('POST /api/v1/rate authorization (SoT 403)', () => {
     expect(body.data).toMatchObject({
       mode: 'MANUAL',
       manualRate: '16400',
-      spreadPct: '0.4',
+      spreadBuyPct: '0.5',
+      spreadSellPct: '0.4',
       updatedBy: staff.id,
     })
     expect(typeof body.data.id).toBe('string')
@@ -271,9 +268,12 @@ describe('GET /api/v1/rate response shape', () => {
     expect(body.status).toBe('success')
     expect(body.metadata).toBeNull()
     expect(body.data).toMatchObject({
-      rate: expect.stringMatching(/^\d+(\.\d+)?$/),
+      baseRate: expect.stringMatching(/^\d+(\.\d+)?$/),
       mode: expect.stringMatching(/^(MANUAL|DYNAMIC)$/),
-      spreadPct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      spreadBuyPct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      spreadSellPct: expect.stringMatching(/^\d+(\.\d+)?$/),
+      effectiveBuyRate: expect.stringMatching(/^\d+(\.\d+)?$/),
+      effectiveSellRate: expect.stringMatching(/^\d+(\.\d+)?$/),
       updatedAt: expect.any(String),
     })
   })

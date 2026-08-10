@@ -16,6 +16,9 @@
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
+    # USDX-362 (WSTG-CLNT-09): frame-ancestors 'none' = padanan modern X-Frame-Options DENY
+    # (dihormati browser modern; XFO utk klien lama). Back-office top-level, tak pernah di-iframe.
+    Content-Security-Policy = "frame-ancestors 'none';"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 

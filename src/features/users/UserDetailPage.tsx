@@ -13,6 +13,7 @@ import { formatShortDate } from '@/lib/format'
 import { getKycStatusConfig, getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import { useUserDetail } from './hooks'
+import ActivationStatusSection from './ActivationStatusSection'
 import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
 import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
@@ -88,7 +89,7 @@ export default function UserDetailPage() {
 
       <PageHeader
         eyebrow="Workspace · User"
-        title={data.name}
+        title={data.name ?? data.email}
         subtitle={`Joined ${formatShortDate(data.createdAt)}`}
       />
 
@@ -117,9 +118,10 @@ export default function UserDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-[12.5px]">
             <div className="flex items-center gap-2.5">
-              <Avatar name={data.name} size="md" />
+              {/* users.yaml § User.name nullable (self-signup pre-KYC) */}
+              <Avatar name={data.name ?? data.email} size="md" />
               <div className="min-w-0">
-                <p className="font-medium text-foreground">{data.name}</p>
+                <p className="font-medium text-foreground">{data.name ?? '—'}</p>
                 <p className="truncate text-muted-foreground">{data.email}</p>
               </div>
             </div>
@@ -158,6 +160,9 @@ export default function UserDetailPage() {
                 )}
               </span>
             </div>
+
+            {/* USDX-156 — activation state + admin resend action */}
+            <ActivationStatusSection user={data} />
 
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">

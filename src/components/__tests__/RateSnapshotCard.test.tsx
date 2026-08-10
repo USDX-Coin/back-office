@@ -32,9 +32,12 @@ describe('RateSnapshotCard', () => {
             status: 'success',
             metadata: null,
             data: {
-              rate: '16250.00',
+              baseRate: '16168.00',
               mode: 'MANUAL',
-              spreadPct: '0.5',
+              spreadBuyPct: '0.5',
+              spreadSellPct: '0.4',
+              effectiveBuyRate: '16250.00',
+              effectiveSellRate: '16103.00',
               updatedAt: new Date().toISOString(),
             },
           })
@@ -88,9 +91,12 @@ describe('RateSnapshotCard', () => {
             status: 'success',
             metadata: null,
             data: {
-              rate: '16250.00',
+              baseRate: '16168.00',
               mode: 'MANUAL',
-              spreadPct: '0.5',
+              spreadBuyPct: '0.5',
+              spreadSellPct: '0.4',
+              effectiveBuyRate: '16250.00',
+              effectiveSellRate: '16103.00',
               updatedAt: new Date().toISOString(),
             },
           })
@@ -107,7 +113,7 @@ describe('RateSnapshotCard', () => {
       expect((display.textContent ?? '').replace(/\D/g, '')).toContain('16250')
 
       expect(await screen.findByText(/manual rate/i)).toBeInTheDocument()
-      expect(screen.getByText(/spread\s*0\.5%/i)).toBeInTheDocument()
+      expect(screen.getByText(/spread\s*beli\s*0\.5%/i)).toBeInTheDocument()
     })
 
     test('should render "Dynamic rate" label when mode is DYNAMIC', async () => {
@@ -117,9 +123,12 @@ describe('RateSnapshotCard', () => {
             status: 'success',
             metadata: null,
             data: {
-              rate: '16500.00',
+              baseRate: '16336.00',
               mode: 'DYNAMIC',
-              spreadPct: '1',
+              spreadBuyPct: '1',
+              spreadSellPct: '0.5',
+              effectiveBuyRate: '16500.00',
+              effectiveSellRate: '16254.00',
               updatedAt: new Date().toISOString(),
             },
           })

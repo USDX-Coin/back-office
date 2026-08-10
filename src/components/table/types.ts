@@ -5,6 +5,10 @@
 export interface FilterOption {
   value: string
   label: string
+  /** Render the option unselectable (e.g. a feature deferred to a later phase). */
+  disabled?: boolean
+  /** Short suffix rendered next to a disabled option's label (e.g. "Week 2+"). */
+  disabledHint?: string
 }
 
 /** Single-select filter writing one URL param. */

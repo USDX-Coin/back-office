@@ -28,7 +28,8 @@ interface RateUpdateFormProps {
 interface FormState {
   mode: RateMode | ''
   manualRate: string
-  spreadPct: string
+  spreadBuyPct: string
+  spreadSellPct: string
 }
 
 // Form state is the user's overrides on top of the current config.
@@ -39,11 +40,12 @@ type FormOverrides = Partial<FormState>
 function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): FormState {
   return {
     mode: overrides.mode ?? current?.mode ?? '',
-    // manualRate intentionally not seeded from current — current.rate has
-    // spread baked in, and asking the operator to retype the base value
-    // makes the change explicit.
+    // manualRate intentionally not seeded from current — current.baseRate is
+    // the pre-spread base; asking the operator to retype it makes the change
+    // explicit (and the field is for MANUAL mode only).
     manualRate: overrides.manualRate ?? '',
-    spreadPct: overrides.spreadPct ?? current?.spreadPct ?? '',
+    spreadBuyPct: overrides.spreadBuyPct ?? current?.spreadBuyPct ?? '',
+    spreadSellPct: overrides.spreadSellPct ?? current?.spreadSellPct ?? '',
   }
 }
 
@@ -71,7 +73,8 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
     const validation = validateRateUpdateForm({
       mode: form.mode,
       manualRate: form.manualRate,
-      spreadPct: form.spreadPct,
+      spreadBuyPct: form.spreadBuyPct,
+      spreadSellPct: form.spreadSellPct,
     })
     if (!validation.valid) {
       setErrors(validation.errors)
@@ -92,7 +95,8 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
       await update.mutateAsync({
         mode: form.mode,
         manualRate: form.mode === 'MANUAL' ? form.manualRate : null,
-        spreadPct: form.spreadPct || '0',
+        spreadBuyPct: form.spreadBuyPct || '0',
+        spreadSellPct: form.spreadSellPct || '0',
       })
       toast.success('Rate updated')
       setConfirmOpen(false)
@@ -176,28 +180,52 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             <FieldError message={errors.manualRate} />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="spreadPct">Spread</Label>
-            <div className="relative">
-              <Input
-                id="spreadPct"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.spreadPct}
-                onChange={(e) => set('spreadPct', e.target.value)}
-                placeholder="0.5"
-                className="pr-10 font-mono"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                %
-              </span>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadBuyPct">Spread beli (mint)</Label>
+              <div className="relative">
+                <Input
+                  id="spreadBuyPct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.spreadBuyPct}
+                  onChange={(e) => set('spreadBuyPct', e.target.value)}
+                  placeholder="0.5"
+                  className="pr-10 font-mono"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Markup saat user beli USDX. Effective = base × (1 + beli%).
+              </p>
+              <FieldError message={errors.spreadBuyPct} />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Markup applied on top of the base rate. SoT example "0.5" means
-              0.5%.
-            </p>
-            <FieldError message={errors.spreadPct} />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadSellPct">Spread jual (burn/redeem)</Label>
+              <div className="relative">
+                <Input
+                  id="spreadSellPct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.spreadSellPct}
+                  onChange={(e) => set('spreadSellPct', e.target.value)}
+                  placeholder="0.4"
+                  className="pr-10 font-mono"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Markdown saat user jual USDX. Effective = base × (1 − jual%).
+              </p>
+              <FieldError message={errors.spreadSellPct} />
+            </div>
           </div>
         </CardContent>
         <CardFooter>
@@ -220,7 +248,8 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
         next={{
           mode: (form.mode || 'DYNAMIC') as RateMode,
           manualRate: form.manualRate,
-          spreadPct: form.spreadPct,
+          spreadBuyPct: form.spreadBuyPct,
+          spreadSellPct: form.spreadSellPct,
         }}
         onConfirm={handleConfirm}
         isPending={update.isPending}

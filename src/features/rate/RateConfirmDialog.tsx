@@ -18,7 +18,8 @@ export interface RateConfirmDialogProps {
   next: {
     mode: RateMode
     manualRate: string
-    spreadPct: string
+    spreadBuyPct: string
+    spreadSellPct: string
   }
   onConfirm: () => void
   isPending: boolean
@@ -62,8 +63,8 @@ export default function RateConfirmDialog({
             to={next.mode}
           />
           <DiffRow
-            label="Rate"
-            from={current ? formatRate(current.rate) : '—'}
+            label="Base rate"
+            from={current ? formatRate(current.baseRate) : '—'}
             to={
               next.mode === 'MANUAL' && next.manualRate
                 ? formatRate(next.manualRate)
@@ -71,9 +72,14 @@ export default function RateConfirmDialog({
             }
           />
           <DiffRow
-            label="Spread"
-            from={current ? formatSpreadPct(current.spreadPct) : '—'}
-            to={formatSpreadPct(next.spreadPct || '0')}
+            label="Spread beli"
+            from={current ? formatSpreadPct(current.spreadBuyPct) : '—'}
+            to={formatSpreadPct(next.spreadBuyPct || '0')}
+          />
+          <DiffRow
+            label="Spread jual"
+            from={current ? formatSpreadPct(current.spreadSellPct) : '—'}
+            to={formatSpreadPct(next.spreadSellPct || '0')}
           />
         </DialogBody>
 

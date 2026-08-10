@@ -37,6 +37,8 @@ import { handlers } from './handlers'
 // `server.use(...)` overrides per scenario so no defaults are needed.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
+  // USDX-392: server-side logout is live on the backend (PR #197).
+  '/api/v1/auth/logout',
   '/api/v1/auth/me',
   '/api/v1/mint',
   '/api/v1/burn',
@@ -63,6 +65,14 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/manual-sync',
   '/api/v1/manual-sync/:id/verify',
   '/api/v1/manual-sync/:id/execute',
+  // USDX-154: KYC review list — BE shipped with USDX-148 (backend PR #90).
+  // Real-BE in the browser; the handler stays in handlers.ts for Vitest.
+  '/api/v1/kyc',
+  // USDX-155: KYC detail + approve/reject + audit trail — same BE ship.
+  '/api/v1/kyc/:id',
+  '/api/v1/kyc/:id/reviews',
+  '/api/v1/kyc/:id/approve',
+  '/api/v1/kyc/:id/reject',
 ])
 
 const browserHandlers = handlers.filter((handler) => {
