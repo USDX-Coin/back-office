@@ -5,9 +5,10 @@
 // anything below as transcription, not design:
 //
 //   GET    /api/v1/transparency/ledger?page&take   → { entries, page, take, total, balance }
-//   POST   /api/v1/transparency/ledger             → one entry
-//   GET    /api/v1/transparency/attestations       → { items: [...] }  (revoked rows INCLUDED)
-//   POST   /api/v1/transparency/attestations/upload-url  { period }
+//   POST   /api/v1/transparency/ledger             → one entry  (+ idempotencyKey)
+//   GET    /api/v1/transparency/attestations?page&take → { items, page, take, total }
+//                                                  (revoked rows INCLUDED)
+//   POST   /api/v1/transparency/attestations/upload-url  { period, sizeBytes }
 //                                                  → { uploadUrl, fileKey, expiresAt, headers }
 //   PUT    <uploadUrl>                             → the bytes + the ticket's `headers`, verbatim
 //   POST   /api/v1/transparency/attestations       → { period, title, fileKey }
@@ -15,6 +16,7 @@
 //
 // There is no publish endpoint and no delete. An entry is live the moment it is
 // created, and the only way to undo one is to file its opposite.
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiFetch'
 import type {
@@ -48,9 +50,33 @@ export function useReserveLedger(page: number, take: number = LEDGER_PAGE_SIZE) 
 }
 
 /**
+ * Forces the ledger query to go back to the server and returns when it has.
+ *
+ * The contract requires this after a NON-422 failure (§ 3): a 504 or a dropped
+ * connection tells the client nothing about whether the row was written, and
+ * the one fact that settles it is the balance. Offering a retry before showing
+ * the operator that number is how a reserve gets recorded twice.
+ *
+ * `refetchQueries`, not `invalidateQueries` — invalidation resolves as soon as
+ * the queries are marked stale, so awaiting it would prove nothing.
+ */
+export function useRefetchReserveLedger() {
+  const qc = useQueryClient()
+  return useCallback(
+    () => qc.refetchQueries({ queryKey: LEDGER_QUERY_KEY }),
+    [qc]
+  )
+}
+
+/**
  * Filing an entry moves the number on the public site immediately — there is no
  * draft to review afterwards. Callers MUST route this through
  * LedgerConfirmDialog rather than firing it from a form's submit handler.
+ *
+ * The body carries an `idempotencyKey` minted once per form-filling attempt.
+ * This hook deliberately does NOT generate it: the key has to outlive the
+ * mutation so a retry re-sends the same one, and anything created in here would
+ * be new on every call — which is exactly the bug the key exists to prevent.
  */
 export function useCreateLedgerEntry() {
   const qc = useQueryClient()
@@ -67,11 +93,31 @@ export function useCreateLedgerEntry() {
   })
 }
 
-export function useAttestations() {
+/**
+ * Page size for the attestation list.
+ *
+ * Asking for a size is not optional. The backend defaults `take` to 20, and the
+ * back office then hides revoked rows on top of that — so a bare request shows
+ * at most 20 reports and often fewer, while usdx.co.id lists up to 24. The
+ * reports that fall off the end are the OLD ones, which is precisely the set
+ * most likely to need revoking: a wrong report could stay publicly downloadable
+ * with no way to withdraw it from this screen.
+ */
+export const ATTESTATION_PAGE_SIZE = 50
+
+export function useAttestations(
+  page: number = 1,
+  take: number = ATTESTATION_PAGE_SIZE
+) {
   return useQuery({
-    queryKey: ATTESTATIONS_QUERY_KEY,
+    queryKey: [...ATTESTATIONS_QUERY_KEY, page, take],
     queryFn: () =>
-      apiFetch<AttestationListPage>('/api/v1/transparency/attestations'),
+      apiFetch<AttestationListPage>(
+        `/api/v1/transparency/attestations?page=${page}&take=${take}`
+      ),
+    // Keeps the current page visible while the next one loads instead of
+    // flashing the empty state.
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -102,6 +148,18 @@ function isTicketExpired(ticket: AttestationUploadTicket, now: number = Date.now
  * `Content-Type` that looks obviously right — changes the signature and storage
  * rejects the upload. Hardcoding it would pass every local test (a mock does not
  * verify signatures) and only fail in production.
+ *
+ * `Content-Length` is signed too, and is NOT set here on purpose: it is a
+ * forbidden header, so the browser owns it and fills it from the file. That is
+ * why step 1 has to declare `sizeBytes` — it is the only way the signature and
+ * the header can agree.
+ *
+ * This is the first `fetch` in the back office aimed at the storage host, so
+ * the host has to be in the CSP `connect-src` (index.html). It was already in
+ * `img-src` for the KYC photos, which is not the same directive and does not
+ * help: without connect-src the browser blocks this PUT before it is sent and
+ * the failure surfaces as `TypeError: Failed to fetch`. Guarded by
+ * src/__tests__/csp.test.ts — neither jsdom nor MSW enforces CSP.
  */
 async function putFileToStorage(
   ticket: AttestationUploadTicket,
@@ -148,10 +206,19 @@ export function useUploadAttestation() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ period, title, file }: UploadAttestationInput) => {
-      // Step 1 — `period` is REQUIRED: the backend derives `fileKey` from it and
-      // its DTO rejects a body without it. Sending no body at all fails
-      // validation before the flow ever reaches storage.
-      const ticketBody: AttestationUploadUrlInput = { period }
+      // Step 1 — BOTH fields are REQUIRED and both have already cost a round of
+      // this feature:
+      //   `period`    — the backend derives `fileKey` from it and its DTO
+      //                 rejects a body without it.
+      //   `sizeBytes` — the presigner signs `content-length`. The browser fills
+      //                 that header itself from the real file size and refuses
+      //                 to let us override it (forbidden header), so a backend
+      //                 left guessing signs a length that can never match and
+      //                 storage answers 403 to every single upload.
+      const ticketBody: AttestationUploadUrlInput = {
+        period,
+        sizeBytes: file.size,
+      }
       const ticket = await apiFetch<AttestationUploadTicket>(
         '/api/v1/transparency/attestations/upload-url',
         { method: 'POST', body: ticketBody }

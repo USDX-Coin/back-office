@@ -334,6 +334,17 @@ export interface CreateLedgerEntryInput {
   currency: string
   reason: string
   occurredAt: string
+  /**
+   * REQUIRED (§ 3). Without it a transient failure DOUBLES the reserve figure
+   * the public sees: the row is written, the 504 hides the response, the
+   * operator presses again and the ledger holds two SEEDs. Append-only means
+   * the only correction is a negative entry that stays visible forever.
+   *
+   * Generated ONCE per form-filling attempt — not per click — and re-sent
+   * UNCHANGED on every retry of that same attempt. The backend keys a unique
+   * index on it and answers a replay with the existing entry and a 200.
+   */
+  idempotencyKey: string
 }
 
 /**
@@ -375,11 +386,15 @@ export interface AttestationReport {
 }
 
 /**
- * `GET /api/v1/transparency/attestations` → `data`.
+ * `GET /api/v1/transparency/attestations?page=1&take=50` → `data`.
  *
- * The contract pins `items` and writes the rest as "…", so the pagination
- * fields are optional here and nothing reads them. See the assumptions note in
- * the feature hooks.
+ * The pagination fields are NOT decoration. The backend defaults `take` to 20,
+ * and the back office then hides revoked rows on top of that, so a request
+ * without an explicit page size shows at most 20 reports — fewer once anything
+ * is revoked — while the public page lists up to 24. A report old enough to
+ * fall off that first page could not be revoked from here at all, even though
+ * the public could still download it. `total` is what tells the screen there is
+ * more to fetch, so it is read, not ignored.
  */
 export interface AttestationListPage {
   items: AttestationReport[]
@@ -395,9 +410,18 @@ export interface AttestationListPage {
  * it, and its `CreateAttestationUploadUrlDto` rejects a body without it. This is
  * not an optional convenience field — sending nothing fails validation and the
  * upload button dies on contact with the real API.
+ *
+ * `sizeBytes` is REQUIRED for a subtler reason (§ 3). The AWS presigner signs
+ * `content-length` (and, counter-intuitively, does NOT sign `content-type` —
+ * the SDK lists it as unsignable). The browser fills `Content-Length` itself
+ * from the real file size and an application cannot override it: it is a
+ * forbidden header. So if the backend has to guess a length, the signature
+ * never matches and storage answers 403 to EVERY upload. Send `file.size`.
  */
 export interface AttestationUploadUrlInput {
   period: string
+  /** `file.size`, in bytes. Capped at `ATTESTATION_MAX_FILE_BYTES` (5 MiB). */
+  sizeBytes: number
 }
 
 /** Step 1 response. */
@@ -428,6 +452,10 @@ export interface CreateAttestationInput {
 export type AttestationErrorCode =
   | 'ATTESTATION_PERIOD_EXISTS'
   | 'INVALID_ATTESTATION_PERIOD'
+  /** `sizeBytes` above the shared 5 MiB ceiling, raised by step 1. */
+  | 'ATTESTATION_FILE_TOO_LARGE'
+  /** Step 3 was handed a `fileKey` the backend never issued. */
+  | 'INVALID_FILE_KEY'
 
 /**
  * Every mutation under /api/v1/transparency (ledger entry, attestation upload,

@@ -106,7 +106,78 @@ export function isFutureWibDate(occurredAt: string, now: Date = new Date()): boo
   return occurredAt.trim() > wibToday(now)
 }
 
+// ─── Idempotency ────────────────────────────────────────────────────────────
+
+/**
+ * A fresh key for one attempt at filing a ledger entry (§ 3).
+ *
+ * Why this exists at all: `POST /ledger` is append-only and public. A gateway
+ * timeout hides the response of a request that already wrote its row, the
+ * operator presses the button again, and usdx.co.id reports twice the reserve
+ * it holds. The key lets the backend recognise the second request as the same
+ * attempt and hand back the row it already created.
+ *
+ * Callers must mint this ONCE per form-filling attempt and re-send the SAME
+ * value on every retry — minting one per click would defeat the entire point.
+ *
+ * Random source is the platform CSPRNG. If neither entry point exists we throw
+ * rather than fall back to `Math.random()`: a guessable or colliding key is
+ * worse than a blocked submit, because a collision would silently swallow a
+ * genuine second entry.
+ */
+export function newIdempotencyKey(): string {
+  const webcrypto = globalThis.crypto
+  if (typeof webcrypto?.randomUUID === 'function') {
+    return webcrypto.randomUUID()
+  }
+  if (typeof webcrypto?.getRandomValues === 'function') {
+    const bytes = webcrypto.getRandomValues(new Uint8Array(16))
+    // RFC 4122 §4.4 — pin the version (4) and variant bits.
+    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40
+    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    return [
+      hex.slice(0, 8),
+      hex.slice(8, 12),
+      hex.slice(12, 16),
+      hex.slice(16, 20),
+      hex.slice(20),
+    ].join('-')
+  }
+  throw new Error(
+    'No cryptographic random source available to generate an idempotency key'
+  )
+}
+
 // ─── Attestation reports ────────────────────────────────────────────────────
+
+/** Every PDF starts with this signature (ISO 32000-1 § 7.5.2). */
+const PDF_MAGIC = '%PDF-'
+
+/**
+ * Reads the first bytes of the picked file and reports whether they are a PDF
+ * header.
+ *
+ * The name and the browser-reported MIME type are both attacker-chosen: renaming
+ * `payload.exe` to `report.pdf` gives `{ name: 'report.pdf', type: '' }`, and an
+ * empty `type` is exactly the case the extension fallback was written to
+ * tolerate. The bytes are the only part of the claim the file cannot fake.
+ *
+ * Returns `null` when the content genuinely could not be read (no `arrayBuffer`,
+ * revoked file handle) — the caller decides, and must not read that as a pass.
+ */
+export async function looksLikePdf(file: Blob): Promise<boolean | null> {
+  try {
+    if (typeof file.slice !== 'function' || typeof file.arrayBuffer !== 'function') {
+      return null
+    }
+    const head = await file.slice(0, PDF_MAGIC.length).arrayBuffer()
+    const text = String.fromCharCode(...new Uint8Array(head))
+    return text === PDF_MAGIC
+  } catch {
+    return null
+  }
+}
 
 /**
  * A report is active until it is revoked. `GET /attestations` returns revoked

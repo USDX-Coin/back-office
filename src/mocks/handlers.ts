@@ -84,6 +84,8 @@ export function resetMockData() {
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
   reserveLedger = createInitialLedgerEntries()
   attestations = createInitialAttestations()
+  ledgerIdempotency.clear()
+  issuedUploadTickets.clear()
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
@@ -379,6 +381,36 @@ function transparencyForbidden() {
   return transparencyError(403, 'FORBIDDEN', 'Only ADMIN can write transparency data')
 }
 
+/**
+ * A DTO/ValidationPipe rejection — a PLAIN 400, not a named 422.
+ *
+ * `V1_VALIDATION_422_ROUTES` in the backend's http-exception filter lists only
+ * `/api/v1/fee-config`, so transparency routes never get the named-code
+ * treatment for shape errors: a missing or mistyped field comes back as NestJS's
+ * own 400. A mock that answers a friendly 422 here trains the client to expect a
+ * code that production will never send.
+ */
+function nestValidationError(messages: string[]) {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'BAD_REQUEST', message: messages.join(', ') },
+    },
+    { status: 400 }
+  )
+}
+
+/** numeric(30,2) → at most 28 digits before the decimal point. */
+const LEDGER_MAX_INT_DIGITS = 28
+/** Shared 5 MiB ceiling — the same number the presigner signs against. */
+const ATTESTATION_MAX_FILE_BYTES_MOCK = 5 * 1024 * 1024
+/** Every `fileKey` the backend hands out starts here. */
+const ATTESTATION_FILE_KEY_PREFIX = 'transparency/attestation/'
+/** Backend default when a client omits `take` — small on purpose, like production. */
+const ATTESTATION_DEFAULT_TAKE = 20
+
 // Reserve balance = SUM(amount) over the WHOLE ledger (§ 1). Computed on
 // integer cents so a 30-digit numeric never touches a float.
 function ledgerBalanceAmount(entries: ReserveLedgerEntry[]): string {
@@ -411,9 +443,26 @@ function isRealCalendarDate(value: string): boolean {
   )
 }
 
-// Presigned-upload bookkeeping for the fake storage host: upload URL → the
-// headers that URL was signed with.
-const issuedUploadTickets = new Map<string, Record<string, string>>()
+// Presigned-upload bookkeeping for the fake storage host: upload URL → what
+// that URL was signed with.
+//
+// `contentLength` is in here because the presigner signs `content-length` and
+// does NOT sign `content-type` (the AWS SDK marks it unsignable). The browser
+// fills Content-Length from the real file and an application cannot override it,
+// so the ONLY way the signature can ever match is if step 1 was told the true
+// size. A stub that ignores length is why the missing `sizeBytes` looked fine
+// locally while every production upload would have been 403'd.
+interface IssuedUploadTicket {
+  headers: Record<string, string>
+  contentLength: number
+}
+
+const issuedUploadTickets = new Map<string, IssuedUploadTicket>()
+
+// Idempotency ledger for POST /transparency/ledger: key → the entry it created.
+// The backend keeps a unique index on this column; a replay returns the row that
+// already exists instead of appending a second one.
+const ledgerIdempotency = new Map<string, ReserveLedgerEntry>()
 
 // Storage rejects a signature mismatch with 403 and an XML body — deliberately
 // NOT the USDX JSON envelope, because this host is not the USDX API.
@@ -800,6 +849,24 @@ export const handlers = [
 
     const body = (await request.json()) as CreateLedgerEntryInput
 
+    // `idempotencyKey` is a DTO field: absent or empty is a ValidationPipe
+    // failure, which on this route is a plain 400 — NOT one of the named codes.
+    const idempotencyKey = body.idempotencyKey
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+      return nestValidationError(['idempotencyKey should not be empty'])
+    }
+
+    // Replay. The whole point of the key: the first attempt wrote the row and
+    // lost its response, so the second one must return that row rather than
+    // append a twin. 200, not 201 — nothing was created this time.
+    const replayed = ledgerIdempotency.get(idempotencyKey)
+    if (replayed) {
+      return HttpResponse.json(
+        { status: 'success', metadata: null, data: replayed },
+        { status: 200 }
+      )
+    }
+
     // Order and codes follow the § 3 table exactly.
     if (body.entryType !== 'SEED' && body.entryType !== 'ADJUSTMENT') {
       return transparencyError(
@@ -808,12 +875,25 @@ export const handlers = [
         'entryType must be SEED or ADJUSTMENT'
       )
     }
-    const amount = (body.amount ?? '').trim()
+    // NOT trimmed. The backend does not trim `amount` either, so " 100.00 "
+    // fails its decimal check — a mock that trims quietly accepts payloads
+    // production rejects.
+    const amount = body.amount ?? ''
     if (!/^-?\d+(\.\d{1,2})?$/.test(amount)) {
       return transparencyError(
         422,
         'LEDGER_AMOUNT_INVALID',
         'amount must be a decimal with at most 2 decimal places'
+      )
+    }
+    // numeric(30,2) — Postgres refuses a wider value outright. Leading zeros
+    // are not significant digits.
+    const [wholePart = ''] = amount.replace('-', '').split('.')
+    if (wholePart.replace(/^0+/, '').length > LEDGER_MAX_INT_DIGITS) {
+      return transparencyError(
+        422,
+        'LEDGER_AMOUNT_INVALID',
+        `amount cannot have more than ${LEDGER_MAX_INT_DIGITS} digits before the decimal point`
       )
     }
     if (Number(amount) === 0) {
@@ -861,6 +941,7 @@ export const handlers = [
       createdAt: new Date().toISOString(),
     })
     reserveLedger.push(created)
+    ledgerIdempotency.set(idempotencyKey, created)
     return HttpResponse.json(
       { status: 'success', metadata: null, data: created },
       { status: 201 }
@@ -869,39 +950,69 @@ export const handlers = [
 
   // Attestations — three-step upload (§ 3). Step 1 hands out a presigned URL.
   //
-  // `period` is REQUIRED here. The real backend's CreateAttestationUploadUrlDto
-  // rejects a body without it, so this mock rejects it too — a permissive mock
-  // would let a client that sends no body pass every test and then fail in
-  // production, which is precisely the failure this contract exists to prevent.
+  // BOTH `period` and `sizeBytes` are REQUIRED, and each is required for its own
+  // reason:
+  //   `period`    — the backend derives `fileKey` from it.
+  //   `sizeBytes` — the presigner signs `content-length` with it. Absent, the
+  //                 backend signs a fixed length, the browser sends the real
+  //                 one, and storage 403s every upload.
+  // Missing either is a DTO failure, so the answer is a plain 400 and not a
+  // named 422 — transparency is not in V1_VALIDATION_422_ROUTES. The previous
+  // version of this mock replied 422 INVALID_ATTESTATION_PERIOD to a bodyless
+  // request, which is a code the real backend cannot produce for that case.
   http.post('/api/v1/transparency/attestations/upload-url', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()
     if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    let body: { period?: string } | null = null
+    let body: { period?: unknown; sizeBytes?: unknown } | null = null
     try {
-      body = (await request.json()) as { period?: string }
+      body = (await request.json()) as { period?: unknown; sizeBytes?: unknown }
     } catch {
       body = null
     }
-    const period = body?.period?.trim() ?? ''
+
+    const dtoErrors: string[] = []
+    if (typeof body?.period !== 'string' || body.period.trim() === '') {
+      dtoErrors.push('period should not be empty')
+    }
+    if (
+      typeof body?.sizeBytes !== 'number' ||
+      !Number.isInteger(body.sizeBytes) ||
+      body.sizeBytes <= 0
+    ) {
+      dtoErrors.push('sizeBytes must be a positive integer')
+    }
+    if (dtoErrors.length > 0) return nestValidationError(dtoErrors)
+
+    const period = (body!.period as string).trim()
+    const sizeBytes = body!.sizeBytes as number
+
+    // Service-level checks DO carry named codes (assertValidPeriod's pattern).
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       return transparencyError(
         422,
         'INVALID_ATTESTATION_PERIOD',
-        'period is required and must be a YYYY-MM value'
+        'period must be a YYYY-MM value'
+      )
+    }
+    if (sizeBytes > ATTESTATION_MAX_FILE_BYTES_MOCK) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_TOO_LARGE',
+        `File must be at most ${ATTESTATION_MAX_FILE_BYTES_MOCK} bytes`
       )
     }
 
     // The backend builds the key from `period` — mirror that so the fileKey the
     // client registers in step 3 is traceable to the month it covers.
-    const fileKey = `transparency/attestation/${period}-report.pdf`
+    const fileKey = `${ATTESTATION_FILE_KEY_PREFIX}${period}-report.pdf`
     const uploadUrl = `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`
     const headers = { 'content-type': 'application/pdf' }
 
-    // Remember what this URL was "signed" with, so the PUT handler below can
-    // reject a mismatch the way real storage would.
-    issuedUploadTickets.set(uploadUrl, headers)
+    // Remember what this URL was "signed" with — headers AND length — so the PUT
+    // handler below can reject a mismatch the way real storage would.
+    issuedUploadTickets.set(uploadUrl, { headers, contentLength: sizeBytes })
 
     return HttpResponse.json({
       status: 'success',
@@ -924,13 +1035,13 @@ export const handlers = [
   // mock that accepts any PUT would let a client hardcode its own headers, pass
   // every test, and fail only in production — the same trap as the missing
   // `period`.
-  http.put('https://storage.usdx.test/upload/*', ({ request }) => {
-    const signedHeaders = issuedUploadTickets.get(request.url)
-    if (!signedHeaders) {
+  http.put('https://storage.usdx.test/upload/*', async ({ request }) => {
+    const ticket = issuedUploadTickets.get(request.url)
+    if (!ticket) {
       // No ticket was ever issued for this URL — an unsigned or forged upload.
       return storageSignatureError('No signed ticket was issued for this URL')
     }
-    for (const [name, expected] of Object.entries(signedHeaders)) {
+    for (const [name, expected] of Object.entries(ticket.headers)) {
       const actual = request.headers.get(name)
       if ((actual ?? '').toLowerCase() !== expected.toLowerCase()) {
         return storageSignatureError(
@@ -938,23 +1049,47 @@ export const handlers = [
         )
       }
     }
+    // Content-Length is part of the signature and the BROWSER owns it: it is a
+    // forbidden header, so the client cannot set or fake it, it is simply the
+    // real byte count of the file. The signature therefore only matches when
+    // step 1 declared that same number as `sizeBytes`.
+    const sent = (await request.arrayBuffer()).byteLength
+    if (sent !== ticket.contentLength) {
+      return storageSignatureError(
+        `content-length was signed as ${ticket.contentLength} but the request sent ${sent}`
+      )
+    }
     return new HttpResponse(null, { status: 200 })
   }),
 
-  http.get('/api/v1/transparency/attestations', () =>
-    HttpResponse.json({
+  // The list is PAGED, and `take` defaults to 20 exactly like the backend.
+  // A generous default here would hide the bug it is meant to expose: a client
+  // that asks for no page size sees 20 rows at most, fewer after revoked ones
+  // are filtered out, and silently loses access to everything older.
+  http.get('/api/v1/transparency/attestations', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
+    const takeParam = url.searchParams.get('take')
+    const take = Math.max(
+      1,
+      Number(takeParam ?? ATTESTATION_DEFAULT_TAKE) || ATTESTATION_DEFAULT_TAKE
+    )
+    const ordered = [...attestations].sort((a, b) => b.period.localeCompare(a.period))
+    const start = (page - 1) * take
+
+    return HttpResponse.json({
       status: 'success',
       metadata: null,
       // Revoked rows ARE included — the backend returns everything for the
       // audit trail and the back office is responsible for filtering.
       data: {
-        items: [...attestations].sort((a, b) => b.period.localeCompare(a.period)),
-        page: 1,
-        take: 50,
-        total: attestations.length,
+        items: ordered.slice(start, start + take),
+        page,
+        take,
+        total: ordered.length,
       },
     })
-  ),
+  }),
 
   // Step 3 — register the uploaded object. JSON with `fileKey`, never multipart.
   http.post('/api/v1/transparency/attestations', async ({ request }) => {
@@ -972,10 +1107,15 @@ export const handlers = [
       )
     }
     if (!body.title?.trim() || !body.fileKey?.trim()) {
+      return nestValidationError(['title and fileKey should not be empty'])
+    }
+    // The backend only accepts a key it issued itself in step 1, so an
+    // arbitrary string cannot be registered as a published report.
+    if (!body.fileKey.startsWith(ATTESTATION_FILE_KEY_PREFIX)) {
       return transparencyError(
         422,
-        'INVALID_ATTESTATION_PERIOD',
-        'title and fileKey are required'
+        'INVALID_FILE_KEY',
+        `fileKey must start with ${ATTESTATION_FILE_KEY_PREFIX}`
       )
     }
     // Only an ACTIVE report blocks the period — a revoked one may be replaced.
@@ -1008,10 +1148,13 @@ export const handlers = [
     if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
     const report = attestations.find((a) => a.id === params.id)
-    if (!report) {
+    // An already-revoked report is a 404, not a second successful revoke. The
+    // backend scopes its lookup to active rows, so the row is simply not there
+    // to revoke — answering 200 taught the client that a double revoke is fine.
+    if (!report || report.revokedAt !== null) {
       return transparencyError(404, 'NOT_FOUND', 'Attestation not found')
     }
-    report.revokedAt = report.revokedAt ?? new Date().toISOString()
+    report.revokedAt = new Date().toISOString()
     return HttpResponse.json({ status: 'success', metadata: null, data: report })
   }),
 

@@ -43,7 +43,7 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER (update is ADMIN-only) | View / update base rate + spread **beli/jual** (USDX-207) |
 | `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot, 422 VALIDATION_ERROR; non-admin read-only |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
-| `/transparency` | COMPLIANCE | Transparency | ADMIN + DEVELOPER via `RoleGuard` (recording is ADMIN-only) | Append-only **reserve ledger** — entry history table (event date / type / amount / reason / recorded by / recorded at, server-paginated), reserve balance read from the response's `balance` field, and an add-entry form (SEED/ADJUSTMENT, negative amounts allowed as corrections, reason min 10 chars, non-future `occurredAt` judged in WIB) behind a confirm dialog that restates the amount and the resulting balance. Monthly attestation PDFs use the three-step upload (`upload-url` with a REQUIRED `{ period }` → `PUT` to storage using the ticket's `headers` verbatim → register `fileKey`); revoked reports are filtered out. Contract: `catatan/KONTRAK-API-TRANSPARANSI.md` |
+| `/transparency` | COMPLIANCE | Transparency | ADMIN + DEVELOPER via `RoleGuard` (recording is ADMIN-only) | Append-only **reserve ledger** — entry history table (event date / type / amount / reason / recorded by / recorded at, server-paginated), reserve balance read from the response's `balance` field, and an add-entry form (SEED/ADJUSTMENT, negative amounts allowed as corrections, reason min 10 chars and no control/bidi characters, non-future `occurredAt` judged in WIB) behind a confirm dialog that restates the amount and the resulting balance. POST carries an **`idempotencyKey`** minted once per form-filling attempt and re-sent unchanged on retry; after a non-422 failure the balance is re-read and shown before a retry is offered, and a commit is blocked while the balance is unknown. Monthly attestation PDFs use the three-step upload (`upload-url` with a REQUIRED `{ period, sizeBytes }` → `PUT` to storage using the ticket's `headers` verbatim → register `fileKey`), capped at **5 MiB** and content-sniffed for a real PDF header; the list is server-paginated and revoked reports are filtered out. Contract: `catatan/KONTRAK-API-TRANSPARANSI.md` |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
 Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / Staff (ADMIN) / Rate (ADMIN+DEV) / Threshold (ADMIN+DEV) / Profile.
@@ -210,7 +210,12 @@ Sidebar `(N)` badge counts requests with status `PENDING_APPROVAL`. Counts are q
 
 ## Security
 
-- CSP meta tag in `index.html` restricts script/style/font/connect sources
+- CSP meta tag in `index.html` restricts script/style/font/connect sources.
+  **Anything the app `fetch`es needs its host in `connect-src`** — `img-src` does
+  not cover it. Guarded by `src/__tests__/csp.test.ts`, which reads the shipped
+  policy off disk, because neither jsdom nor MSW enforces CSP and no integration
+  test can catch a missing origin (USDX-292 Polygon RPC, then the transparency
+  upload host)
 - Security headers in `vite.config.ts`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
 - Auth is mocked via localStorage — **not production-ready**
 - All `target="_blank"` links should include `rel="noopener noreferrer"`

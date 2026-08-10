@@ -11,6 +11,8 @@ import {
   isActiveAttestation,
   isFutureWibDate,
   isNegativeAmount,
+  looksLikePdf,
+  newIdempotencyKey,
   parseAmountToCents,
   wibToday,
 } from '@/lib/transparency'
@@ -287,6 +289,101 @@ describe('formatOccurredAt', () => {
     })
     test('returns the raw value for an impossible month', () => {
       expect(formatOccurredAt('2026-13-01')).toBe('2026-13-01')
+    })
+  })
+})
+
+
+// --- Idempotency key --------------------------------------------------------
+//
+// The key is what stops a transient failure from doubling the reserve figure
+// published on usdx.co.id: the row is written, the 504 hides the response, the
+// operator presses again. Two properties matter -- every key is unique, and no
+// key is guessable, because a collision would silently swallow a genuine second
+// entry rather than dedupe a retry.
+
+describe('newIdempotencyKey', () => {
+  describe('positive', () => {
+    test('returns a UUID', () => {
+      expect(newIdempotencyKey()).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      )
+    })
+  })
+
+  describe('edge cases', () => {
+    test('never repeats across a large batch', () => {
+      const keys = new Set(Array.from({ length: 2000 }, () => newIdempotencyKey()))
+      expect(keys.size).toBe(2000)
+    })
+
+    test('falls back to getRandomValues when randomUUID is unavailable', () => {
+      // Not hypothetical: `crypto.randomUUID` is only exposed on secure
+      // origins, so an operator on a plain-HTTP internal host does not have it.
+      const original = globalThis.crypto.randomUUID
+      Object.defineProperty(globalThis.crypto, 'randomUUID', {
+        value: undefined,
+        configurable: true,
+      })
+      try {
+        // Still a well-formed v4 UUID, variant bits and all.
+        expect(newIdempotencyKey()).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        )
+      } finally {
+        Object.defineProperty(globalThis.crypto, 'randomUUID', {
+          value: original,
+          configurable: true,
+        })
+      }
+    })
+  })
+})
+
+// --- PDF content sniffing ---------------------------------------------------
+
+describe('looksLikePdf', () => {
+  describe('positive', () => {
+    test('accepts a file whose bytes start with the PDF header', async () => {
+      const file = new File(['%PDF-1.7\nlaporan'], 'atestasi.pdf', {
+        type: 'application/pdf',
+      })
+      await expect(looksLikePdf(file)).resolves.toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    // The exact hole this closes: name and MIME type are both picker-chosen.
+    // `{ name: 'evil.pdf', type: '' }` passes every check that reads them,
+    // because an empty type is what browsers report for drag-and-dropped files
+    // and the extension fallback then accepts the name as proof.
+    test('rejects a renamed non-PDF that claims the .pdf extension', async () => {
+      const file = new File(['MZ windows executable'], 'evil.pdf', { type: '' })
+      await expect(looksLikePdf(file)).resolves.toBe(false)
+    })
+
+    test('rejects a file that merely CONTAINS a PDF header later on', async () => {
+      const file = new File(['junk%PDF-1.7'], 'atestasi.pdf', {
+        type: 'application/pdf',
+      })
+      await expect(looksLikePdf(file)).resolves.toBe(false)
+    })
+
+    test('rejects an empty file', async () => {
+      await expect(looksLikePdf(new File([], 'kosong.pdf'))).resolves.toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    // `null` means "could not read", which the caller must NOT treat as a pass.
+    test('returns null -- not true -- when the content cannot be read', async () => {
+      const unreadable = {
+        slice: () => ({
+          arrayBuffer: () => Promise.reject(new Error('handle revoked')),
+        }),
+        arrayBuffer: () => Promise.reject(new Error('handle revoked')),
+      } as unknown as Blob
+      await expect(looksLikePdf(unreadable)).resolves.toBeNull()
     })
   })
 })

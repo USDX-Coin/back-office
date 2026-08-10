@@ -166,10 +166,14 @@ export default function LedgerHistoryTable({
             {`Showing ${firstRow}–${lastRow} of ${total} entries`}
           </p>
           <div className="flex items-center gap-2">
+            {/* Named explicitly: the attestation table below has its own
+                Previous/Next, and "Next" alone is ambiguous to a screen reader
+                landing anywhere on this page. */}
             <Button
               type="button"
               variant="outline"
               size="sm"
+              aria-label="Previous page of ledger entries"
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1 || isLoading}
             >
@@ -182,6 +186,7 @@ export default function LedgerHistoryTable({
               type="button"
               variant="outline"
               size="sm"
+              aria-label="Next page of ledger entries"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= lastPage || isLoading}
             >

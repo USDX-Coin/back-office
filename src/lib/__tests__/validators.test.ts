@@ -28,6 +28,8 @@ import {
   validateAttestationUploadForm,
   toDateInputValue,
   ATTESTATION_MAX_FILE_BYTES,
+  ATTESTATION_MAX_FILE_LABEL,
+  ATTESTATION_NOT_A_PDF_MESSAGE,
   TX_HASH_RE,
 } from '@/lib/validators'
 
@@ -823,6 +825,12 @@ describe('validateLedgerAmount', () => {
     test('rejects an empty amount', () => {
       expect(validateLedgerAmount('   ')).toMatch(/required/i)
     })
+    // numeric(30,2) = 30 significant digits, 2 after the point. Postgres
+    // refuses a wider value outright and the backend reports it as
+    // LEDGER_AMOUNT_INVALID — so the operator should hear it before the trip.
+    test('rejects more than 28 digits before the decimal point', () => {
+      expect(validateLedgerAmount(`${'9'.repeat(29)}.00`)).toMatch(/28 digits/i)
+    })
   })
 
   describe('edge cases', () => {
@@ -831,6 +839,16 @@ describe('validateLedgerAmount', () => {
     })
     test('accepts the smallest non-zero correction', () => {
       expect(validateLedgerAmount('-0.01')).toBeNull()
+    })
+    test('accepts exactly 28 integer digits — the widest numeric(30,2) allows', () => {
+      expect(validateLedgerAmount(`${'9'.repeat(28)}.99`)).toBeNull()
+    })
+    test('counts significant digits only — leading zeros are not width', () => {
+      expect(validateLedgerAmount(`${'0'.repeat(10)}100.00`)).toBeNull()
+    })
+    test('applies the width rule to negatives too (the sign is not a digit)', () => {
+      expect(validateLedgerAmount(`-${'9'.repeat(28)}.99`)).toBeNull()
+      expect(validateLedgerAmount(`-${'9'.repeat(29)}.99`)).toMatch(/28 digits/i)
     })
   })
 })
@@ -851,6 +869,48 @@ describe('validateLedgerReason', () => {
     })
     test('counts trimmed length, so padding cannot buy the minimum', () => {
       expect(validateLedgerReason('   abc    ')).toMatch(/at least 10 characters/i)
+    })
+  })
+
+  // `reason` is the audit record of why a public number moved — it is read
+  // months later by someone reconstructing a decision, so what is rendered has
+  // to be what was stored.
+  describe('edge cases: control and bidi characters', () => {
+    // Escape sequences, not literal characters: a raw NUL or RTL override in a
+    // source file is unreadable in review and can reorder the line it sits on —
+    // which is the very property being rejected here.
+    const NUL = '\u0000'
+    const RTL_OVERRIDE = '\u202E'
+
+    test('rejects a NUL, which trim() does not remove', () => {
+      // `NUL.trim()` is still one character long, so a length-only check reads
+      // ten NULs as a perfectly good ten-character reason.
+      expect(NUL.repeat(10).trim()).toHaveLength(10)
+      expect(validateLedgerReason(NUL.repeat(10))).toMatch(/control/i)
+      expect(validateLedgerReason(`Setoran giro${NUL} USD`)).toMatch(/control/i)
+    })
+
+    test('rejects an RTL override, which makes the text read differently from the bytes', () => {
+      expect(validateLedgerReason(`Koreksi ${RTL_OVERRIDE}nagnarukgnep`)).toMatch(
+        /text-direction|control/i
+      )
+    })
+
+    test('rejects the other bidi marks and isolates', () => {
+      // LRM, RLM, LRE, LRI, PDI — same class of problem as the override.
+      for (const ch of ['\u200E', '\u200F', '\u202A', '\u2066', '\u2069']) {
+        expect(validateLedgerReason(`Setoran giro USD${ch}`)).toMatch(
+          /text-direction|control/i
+        )
+      }
+    })
+
+    test('still accepts ordinary punctuation, accents and newlines', () => {
+      // The rule must not turn into "ASCII only" — Indonesian audit text uses
+      // all of these, and a newline is legitimate in a multi-line reason.
+      expect(
+        validateLedgerReason('Setoran giro USD \u2014 BNI\nRp 1.810.000.000 \u00F7 17.980,00')
+      ).toBeNull()
     })
   })
 })
@@ -1057,6 +1117,28 @@ describe('validateAttestationFile', () => {
         validateAttestationFile({ ...pdf, size: ATTESTATION_MAX_FILE_BYTES })
       ).toBeNull()
     })
+
+    // The ceiling is the BACKEND's, not a UI preference: it signs the presigned
+    // URL for at most this many bytes and answers a larger `sizeBytes` with
+    // 422 ATTESTATION_FILE_TOO_LARGE. The two sides must hold the same number,
+    // so this pins the constant rather than trusting the copy next to it.
+    test('the cap is 5 MiB, matching the number the backend signs against', () => {
+      expect(ATTESTATION_MAX_FILE_BYTES).toBe(5 * 1024 * 1024)
+      expect(ATTESTATION_MAX_FILE_LABEL).toBe('5 MiB')
+    })
+    test('a 10 MB file — what the old copy promised — is refused', () => {
+      expect(
+        validateAttestationFile({ ...pdf, size: 10 * 1024 * 1024 })
+      ).toMatch(/at most 5 MiB/i)
+    })
+  })
+})
+
+// The name and the MIME type are the file's OWN claim about itself and both are
+// picker-controlled; `looksLikePdf` in lib/transparency.ts reads the bytes.
+describe('ATTESTATION_NOT_A_PDF_MESSAGE', () => {
+  test('names the content, not the extension — the operator renamed nothing wrong', () => {
+    expect(ATTESTATION_NOT_A_PDF_MESSAGE).toMatch(/not a PDF/i)
   })
 })
 

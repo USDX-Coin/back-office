@@ -18,13 +18,19 @@ import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import FieldError from '@/components/FieldError'
 import { formatShortDate } from '@/lib/format'
-import { activeAttestations, formatPeriod } from '@/lib/transparency'
+import { activeAttestations, formatPeriod, looksLikePdf } from '@/lib/transparency'
 import {
-  ATTESTATION_MAX_FILE_BYTES,
+  ATTESTATION_MAX_FILE_LABEL,
+  ATTESTATION_NOT_A_PDF_MESSAGE,
   validateAttestationUploadForm,
 } from '@/lib/validators'
 import type { AttestationReport } from '@/lib/types'
-import { useAttestations, useRevokeAttestation, useUploadAttestation } from './hooks'
+import {
+  ATTESTATION_PAGE_SIZE,
+  useAttestations,
+  useRevokeAttestation,
+  useUploadAttestation,
+} from './hooks'
 import AttestationRevokeDialog from './AttestationRevokeDialog'
 import AttestationUploadDialog, {
   type PendingAttestationUpload,
@@ -34,10 +40,9 @@ interface Props {
   canManage: boolean
 }
 
-const MAX_FILE_MB = ATTESTATION_MAX_FILE_BYTES / (1024 * 1024)
-
 export default function AttestationSection({ canManage }: Props) {
-  const list = useAttestations()
+  const [page, setPage] = useState(1)
+  const list = useAttestations(page)
   const upload = useUploadAttestation()
   const revoke = useRevokeAttestation()
 
@@ -57,6 +62,17 @@ export default function AttestationSection({ canManage }: Props) {
   // filtered out — this is the back office's job, per the contract.
   const rows = activeAttestations(list.data?.items ?? [])
 
+  // Paging is SERVER-side and driven by `total`. Two facts make this necessary
+  // rather than decorative: the backend caps an unqualified request at 20 rows,
+  // and the filter above then removes revoked ones from whatever came back — so
+  // the screen can show well under 20 while more reports exist. The ones that
+  // drop off are the oldest, which is the group most likely to hold a report
+  // that has to be withdrawn. Without paging they stayed publicly downloadable
+  // with no way to revoke them from here.
+  const take = list.data?.take ?? ATTESTATION_PAGE_SIZE
+  const total = list.data?.total ?? rows.length
+  const lastPage = take > 0 ? Math.max(1, Math.ceil(total / take)) : 1
+
   function clearError(key: string) {
     setErrors((prev) => {
       if (!prev[key]) return prev
@@ -68,7 +84,7 @@ export default function AttestationSection({ canManage }: Props) {
 
   // Submit only validates and opens the confirmation — the upload itself is
   // fired from the dialog, because it publishes a publicly downloadable file.
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setUploadError(null)
     const validation = validateAttestationUploadForm({ period, title, file })
@@ -76,7 +92,20 @@ export default function AttestationSection({ canManage }: Props) {
       setErrors(validation.errors)
       return
     }
-    setPendingUpload({ period: period.trim(), title: title.trim(), file: file as File })
+    const picked = file as File
+
+    // Name and MIME type are both the file's own claim: `evil.exe` renamed to
+    // `report.pdf` arrives as `{ name: 'report.pdf', type: '' }` and the
+    // empty-type fallback above waves it through. Read the header bytes before
+    // anything is published under a "Laporan Atestasi" title on usdx.co.id.
+    // `null` = the content could not be read at all, which is not a pass.
+    const isPdf = await looksLikePdf(picked)
+    if (isPdf !== true) {
+      setErrors((prev) => ({ ...prev, file: ATTESTATION_NOT_A_PDF_MESSAGE }))
+      return
+    }
+
+    setPendingUpload({ period: period.trim(), title: title.trim(), file: picked })
   }
 
   async function handleConfirmUpload() {
@@ -180,10 +209,16 @@ export default function AttestationSection({ canManage }: Props) {
                 }}
                 className="file:mr-3 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:font-medium"
               />
+              {/* The ceiling is the BACKEND's: it signs the upload URL for at
+                  most this many bytes and rejects anything larger with
+                  ATTESTATION_FILE_TOO_LARGE. Promising a bigger number here
+                  would not raise the limit, only move the rejection to after
+                  the operator waited for the upload. */}
               <p className="text-xs text-muted-foreground">
-                PDF only, up to {MAX_FILE_MB} MB. The file is uploaded straight
-                to storage and then registered here; once published anyone can
-                download it from usdx.co.id — you will be asked to confirm first.
+                PDF only, up to {ATTESTATION_MAX_FILE_LABEL}. The file is
+                uploaded straight to storage and then registered here; once
+                published anyone can download it from usdx.co.id — you will be
+                asked to confirm first.
               </p>
               <FieldError message={errors.file} />
             </div>
@@ -289,6 +324,45 @@ export default function AttestationSection({ canManage }: Props) {
           </div>
         )}
       </CardContent>
+
+      {!list.isError && total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+          {/* Deliberately NOT phrased as a row range. Revoked reports are
+              filtered out client-side, so the visible count is not a slice of
+              `total` and claiming "showing 1–20 of 60" would be a lie on any
+              page holding a revoked row. */}
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {`${rows.length} active on this page · ${total} report${total === 1 ? '' : 's'} in total (including revoked)`}
+          </p>
+          <div className="flex items-center gap-2">
+            {/* The page has two paginators. Both need names a screen-reader
+                user (and a test) can tell apart. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label="Previous page of attestation reports"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1 || list.isFetching}
+            >
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {lastPage}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label="Next page of attestation reports"
+              onClick={() => setPage(page + 1)}
+              disabled={page >= lastPage || list.isFetching}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       <AttestationUploadDialog
         open={pendingUpload !== null}

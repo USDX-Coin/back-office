@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +16,17 @@ import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
+  parseAmountToCents,
 } from '@/lib/transparency'
 import type { CreateLedgerEntryInput, ReserveBalance } from '@/lib/types'
+
+/**
+ * Where the balance stands relative to the last failed attempt.
+ *   idle     — no failure yet, the balance on screen is simply the current one
+ *   checking — a non-422 failure happened and the balance is being re-read
+ *   checked  — the balance below was read AFTER the failure
+ */
+export type BalanceRecheckState = 'idle' | 'checking' | 'checked'
 
 interface Props {
   open: boolean
@@ -27,6 +37,9 @@ interface Props {
   onConfirm: () => void
   isPending: boolean
   error?: string | null
+  recheck?: BalanceRecheckState
+  /** Re-reads the ledger so an unknown balance can be resolved from here. */
+  onReloadBalance?: () => Promise<unknown>
 }
 
 /**
@@ -47,7 +60,11 @@ export default function LedgerConfirmDialog({
   onConfirm,
   isPending,
   error,
+  recheck = 'idle',
+  onReloadBalance,
 }: Props) {
+  const [reloading, setReloading] = useState(false)
+
   // Esc / outside-click disabled while the request is in flight, matching the
   // repo's modal convention — a half-sent entry must not lose its dialog.
   function handleOpenChange(next: boolean) {
@@ -55,10 +72,26 @@ export default function LedgerConfirmDialog({
     onOpenChange(next)
   }
 
+  async function handleReload() {
+    if (!onReloadBalance || reloading) return
+    setReloading(true)
+    try {
+      await onReloadBalance()
+    } finally {
+      setReloading(false)
+    }
+  }
+
   const negative = entry ? isNegativeAmount(entry.amount) : false
   // Exact decimal addition (BigInt cents) — never float arithmetic on money.
   const projected =
     entry && balance ? addAmounts(balance.amount, entry.amount) : null
+  // The current balance is only "known" if the server actually handed one over
+  // AND it parses. `balance === undefined` means the ledger query failed or has
+  // not landed — not that the reserve is zero.
+  const balanceKnown =
+    balance !== undefined && parseAmountToCents(balance.amount) !== null
+  const busy = isPending || reloading || recheck === 'checking'
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -111,6 +144,76 @@ export default function LedgerConfirmDialog({
                 />
               </dl>
 
+              {/* Recording with no idea of the running balance is exactly
+                  backwards. A CORRECTION is the entry most likely to be filed
+                  here, and a correction is meaningless without the figure it is
+                  correcting: -1,250.75 against 51k is routine, against 900 it
+                  puts the public reserve underwater. So the commit is blocked
+                  rather than merely annotated. */}
+              {!balanceKnown && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3"
+                >
+                  <p className="text-sm font-medium text-foreground">
+                    The current reserve balance could not be loaded.
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Recording is blocked until it is known — without it there is
+                    no way to tell what this entry does to the figure published
+                    on usdx.co.id.
+                  </p>
+                  {onReloadBalance && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={handleReload}
+                      disabled={reloading}
+                      aria-busy={reloading}
+                    >
+                      {reloading ? 'Loading balance…' : 'Reload balance'}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* After a non-422 failure the ledger is re-read before a retry is
+                  allowed: a 504 can hide a request that DID write its row, and
+                  the balance is the only thing that says which happened. */}
+              {recheck !== 'idle' && (
+                <div
+                  role="status"
+                  className="rounded-md border border-border bg-muted/30 px-4 py-3"
+                >
+                  {recheck === 'checking' ? (
+                    <p className="text-sm text-muted-foreground">
+                      Re-checking the reserve balance…
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                        Balance re-read after the error
+                      </p>
+                      <p
+                        aria-label="Rechecked reserve balance"
+                        className="mt-1 font-mono text-sm font-semibold text-foreground"
+                      >
+                        {balanceKnown
+                          ? `${formatAmountDecimal(balance.amount)} ${balance.currency}`
+                          : 'Still unavailable'}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        If this already includes the entry, it was recorded
+                        despite the error — close this dialog instead of trying
+                        again.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-md border border-border px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Reason (internal — not shown publicly)
@@ -139,7 +242,7 @@ export default function LedgerConfirmDialog({
           <Button
             type="button"
             onClick={onConfirm}
-            disabled={isPending || !entry}
+            disabled={busy || !entry || !balanceKnown}
             aria-busy={isPending}
           >
             {isPending ? 'Recording…' : 'Yes, record entry'}

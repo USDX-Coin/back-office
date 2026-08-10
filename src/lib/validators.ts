@@ -258,14 +258,41 @@ export function validateFeeConfigForm(input: {
 // re-validates, and when it disagrees its message is what the operator sees
 // (see LEDGER_ERROR_FIELD below).
 //
-// Every rule below maps 1:1 to an `error.code` from that table. If a rule here
-// has no code, it does not belong here.
+// Most rules below map 1:1 to an `error.code` from that table. Three do NOT,
+// and they are listed here rather than left to be discovered:
+//
+//   - `reason` maximum length (500)   — the contract sets no ceiling; this is a
+//     paste guard so an operator cannot wedge a whole email into an audit field.
+//   - `reason` control characters     — see validateLedgerReason.
+//   - attestation `title` max (200)   — same reasoning as `reason`.
+//
+// Everything else that appears here exists because the server enforces it and
+// the operator deserves the answer before a round trip. A NEW rule without a
+// code needs the same treatment: add it to this list, with why.
 
 /** Contract `amount`: numeric(30,2), sign allowed, at most 2 decimals. */
 const LEDGER_AMOUNT_RE = /^-?\d+(\.\d{1,2})?$/
+/**
+ * `numeric(30,2)` = 30 significant digits, two of them after the point, so at
+ * most 28 before it. Postgres rejects a wider value outright, which the backend
+ * reports as `422 LEDGER_AMOUNT_INVALID`.
+ */
+const LEDGER_AMOUNT_MAX_INT_DIGITS = 28
 /** Contract `reason`: required, minimum 10 characters. */
 export const LEDGER_REASON_MIN_LEN = 10
 const LEDGER_REASON_MAX_LEN = 500
+/**
+ * C0/C1 control characters plus the Unicode bidirectional overrides.
+ *
+ * `reason` is an audit field: it is the record of why a public number moved, and
+ * it is read months later by someone reconstructing a decision. A NUL survives
+ * `trim()` and can truncate the string in whatever reads the export next; an
+ * RTL override (U+202E and friends) makes the rendered text read differently
+ * from the bytes that were stored, which is precisely the property an audit
+ * trail must not have.
+ */
+// eslint-disable-next-line no-control-regex
+const UNSAFE_TEXT_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 const MAX_ATTESTATION_TITLE_LEN = 200
@@ -290,10 +317,23 @@ export function isLedgerErrorCode(code: string): code is LedgerErrorCode {
   return code in LEDGER_ERROR_FIELD
 }
 
-/** Attestation uploads are PDFs only, capped at 10 MB (client-side guard). */
+/**
+ * Attestation uploads are PDFs only, capped at **5 MiB**.
+ *
+ * The number is not a UI preference. The backend signs the presigned URL for
+ * exactly this ceiling and rejects a larger `sizeBytes` with
+ * `422 ATTESTATION_FILE_TOO_LARGE` (§ 3: "Batasnya 5 MiB, dan angka itu harus
+ * sama di kedua sisi"). A looser client limit does not let a bigger file
+ * through — it only moves the rejection from a field message to a failed upload
+ * after the operator has waited for it.
+ *
+ * MiB, not MB: 5 × 1024 × 1024, matching the backend's own arithmetic.
+ */
 export const ATTESTATION_ACCEPTED_MIME = 'application/pdf'
 export const ATTESTATION_ACCEPTED_EXTENSION = '.pdf'
-export const ATTESTATION_MAX_FILE_BYTES = 10 * 1024 * 1024
+export const ATTESTATION_MAX_FILE_BYTES = 5 * 1024 * 1024
+/** Display form of the ceiling, so UI copy cannot drift from the constant. */
+export const ATTESTATION_MAX_FILE_LABEL = `${ATTESTATION_MAX_FILE_BYTES / (1024 * 1024)} MiB`
 
 /** Local-calendar YYYY-MM-DD for `date` (used to seed the date input). */
 export function toDateInputValue(date: Date): string {
@@ -305,6 +345,7 @@ export function toDateInputValue(date: Date): string {
 /**
  * `amount` rules, in the contract's own order:
  *   not a valid 2-decimal number → LEDGER_AMOUNT_INVALID
+ *   wider than numeric(30,2)     → LEDGER_AMOUNT_INVALID
  *   exactly zero                 → LEDGER_AMOUNT_ZERO
  * Negative is explicitly VALID — filing a negative entry is how a correction is
  * made, because the ledger has no UPDATE and no DELETE.
@@ -315,6 +356,12 @@ export function validateLedgerAmount(raw: string): string | null {
   if (!LEDGER_AMOUNT_RE.test(value)) {
     return 'Amount must be a decimal number with at most 2 decimal places'
   }
+  // Leading zeros are not significant, so "007.00" is a 1-digit value; Postgres
+  // counts what is left after normalisation.
+  const [whole = ''] = value.replace('-', '').split('.')
+  if (whole.replace(/^0+/, '').length > LEDGER_AMOUNT_MAX_INT_DIGITS) {
+    return `Amount can have at most ${LEDGER_AMOUNT_MAX_INT_DIGITS} digits before the decimal point`
+  }
   const cents = parseAmountToCents(value)
   if (cents === null) {
     return 'Amount must be a decimal number with at most 2 decimal places'
@@ -323,8 +370,19 @@ export function validateLedgerAmount(raw: string): string | null {
   return null
 }
 
-/** `reason` — required, min 10 chars (LEDGER_REASON_TOO_SHORT). */
+/**
+ * `reason` — required, min 10 chars (LEDGER_REASON_TOO_SHORT), and free of
+ * control / bidi-override characters (no server code; see UNSAFE_TEXT_RE).
+ *
+ * The control-character check runs on the RAW value, before `trim()`: `trim()`
+ * removes whitespace, and a NUL is not whitespace — `" ".trim()` is still
+ * one character long, so a reason made only of NULs would sail past a
+ * length-only check as "10 characters" of nothing.
+ */
 export function validateLedgerReason(raw: string): string | null {
+  if (UNSAFE_TEXT_RE.test(raw)) {
+    return 'Reason cannot contain control or text-direction characters'
+  }
   const value = raw.trim()
   if (!value) return 'Reason is required'
   if (value.length < LEDGER_REASON_MIN_LEN) {
@@ -413,6 +471,16 @@ export interface UploadFileLike {
   size: number
 }
 
+/**
+ * Name / MIME / size checks on the picked file.
+ *
+ * These three are all the FILE'S OWN CLAIM about itself, and every one of them
+ * is under the picker's control: renaming `payload.exe` to `report.pdf` yields
+ * `{ name: 'report.pdf', type: '' }` and passes here. The bytes are checked
+ * separately by `looksLikePdf` in lib/transparency.ts, which the upload form
+ * awaits before it opens the confirmation. Keep both — this one gives an
+ * instant answer, that one gives the truthful one.
+ */
 export function validateAttestationFile(file: UploadFileLike | null): string | null {
   if (!file) return 'A PDF report file is required'
   const isPdfMime = file.type === ATTESTATION_ACCEPTED_MIME
@@ -424,10 +492,14 @@ export function validateAttestationFile(file: UploadFileLike | null): string | n
   }
   if (file.size <= 0) return 'File appears to be empty'
   if (file.size > ATTESTATION_MAX_FILE_BYTES) {
-    return `File must be at most ${ATTESTATION_MAX_FILE_BYTES / (1024 * 1024)} MB`
+    return `File must be at most ${ATTESTATION_MAX_FILE_LABEL}`
   }
   return null
 }
+
+/** Message shown when the picked file's bytes are not a PDF. */
+export const ATTESTATION_NOT_A_PDF_MESSAGE =
+  'This file is not a PDF — its contents do not start with a PDF header'
 
 /** `period` — strict YYYY-MM (server: 422 INVALID_ATTESTATION_PERIOD). */
 export function validateAttestationPeriod(

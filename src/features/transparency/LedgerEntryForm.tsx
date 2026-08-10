@@ -26,9 +26,11 @@ import {
   type ReserveBalance,
   type SelectableLedgerEntryType,
 } from '@/lib/types'
-import { wibToday } from '@/lib/transparency'
-import { useCreateLedgerEntry } from './hooks'
-import LedgerConfirmDialog from './LedgerConfirmDialog'
+import { newIdempotencyKey, wibToday } from '@/lib/transparency'
+import { useCreateLedgerEntry, useRefetchReserveLedger } from './hooks'
+import LedgerConfirmDialog, {
+  type BalanceRecheckState,
+} from './LedgerConfirmDialog'
 
 interface Props {
   /** Current whole-ledger balance, passed to the dialog to project the result. */
@@ -57,6 +59,7 @@ const EMPTY_FORM = {
  */
 export default function LedgerEntryForm({ balance }: Props) {
   const create = useCreateLedgerEntry()
+  const refetchLedger = useRefetchReserveLedger()
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState<Record<string, string>>({})
   // A failure the dialog has to keep showing (500, 403, network). Field-level
@@ -65,6 +68,9 @@ export default function LedgerEntryForm({ balance }: Props) {
   // operator needs to see exactly what the API objected to.
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [pending, setPending] = useState<CreateLedgerEntryInput | null>(null)
+  // Whether the balance behind the dialog has been re-read since the last
+  // failure — see handleConfirm.
+  const [recheck, setRecheck] = useState<BalanceRecheckState>('idle')
 
   function set<K extends keyof typeof EMPTY_FORM>(
     key: K,
@@ -82,6 +88,7 @@ export default function LedgerEntryForm({ balance }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setDialogError(null)
+    setRecheck('idle')
     const validation = validateLedgerEntryForm({
       entryType: form.entryType,
       amount: form.amount,
@@ -99,12 +106,20 @@ export default function LedgerEntryForm({ balance }: Props) {
       currency: LEDGER_SUPPORTED_CURRENCY,
       reason: form.reason.trim(),
       occurredAt: form.occurredAt.trim(),
+      // Minted HERE — once, as this attempt is assembled — and then carried on
+      // the `pending` object. Every retry re-sends this same value, because a
+      // retry confirms the SAME `pending`. Generating it inside handleConfirm
+      // would produce a new key per click, which is the failure the contract
+      // added it to prevent: the first POST times out having already written
+      // the row, the operator presses again, and the public reserve doubles.
+      idempotencyKey: newIdempotencyKey(),
     })
   }
 
   async function handleConfirm() {
     if (!pending) return
     setDialogError(null)
+    setRecheck('idle')
     try {
       await create.mutateAsync(pending)
       toast.success('Ledger entry recorded')
@@ -130,6 +145,17 @@ export default function LedgerEntryForm({ balance }: Props) {
         setPending(null)
       } else {
         setDialogError(message)
+        // A 422 is a definite "not written". Everything else is genuinely
+        // unknown — a 504 means the row may well be in the ledger already, with
+        // the response lost on the way back. Re-read the balance and put it in
+        // front of the operator BEFORE the retry button becomes usable again,
+        // so the decision to press it is an informed one (§ 3).
+        setRecheck('checking')
+        try {
+          await refetchLedger()
+        } finally {
+          setRecheck('checked')
+        }
       }
       toast.error(message)
     }
@@ -273,6 +299,7 @@ export default function LedgerEntryForm({ balance }: Props) {
           if (!open) {
             setPending(null)
             setDialogError(null)
+            setRecheck('idle')
           }
         }}
         entry={pending}
@@ -280,6 +307,8 @@ export default function LedgerEntryForm({ balance }: Props) {
         onConfirm={handleConfirm}
         isPending={create.isPending}
         error={dialogError}
+        recheck={recheck}
+        onReloadBalance={refetchLedger}
       />
     </Card>
   )
