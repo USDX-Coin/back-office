@@ -15,6 +15,7 @@ import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import {
   isLedgerErrorCode,
+  isLedgerKeyConflict,
   LEDGER_ERROR_FIELD,
   LEDGER_REASON_MIN_LEN,
   validateLedgerEntryForm,
@@ -69,8 +70,12 @@ export default function LedgerEntryForm({ balance }: Props) {
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [pending, setPending] = useState<CreateLedgerEntryInput | null>(null)
   // Whether the balance behind the dialog has been re-read since the last
-  // failure — see handleConfirm.
+  // failure — see submitEntry.
   const [recheck, setRecheck] = useState<BalanceRecheckState>('idle')
+  // The last attempt came back 409 LEDGER_IDEMPOTENCY_KEY_CONFLICT: this key
+  // already belongs to an entry with different content. Re-sending it can only
+  // produce the same 409, so the dialog has to offer a different way out.
+  const [conflict, setConflict] = useState(false)
 
   function set<K extends keyof typeof EMPTY_FORM>(
     key: K,
@@ -89,6 +94,7 @@ export default function LedgerEntryForm({ balance }: Props) {
     e.preventDefault()
     setDialogError(null)
     setRecheck('idle')
+    setConflict(false)
     const validation = validateLedgerEntryForm({
       entryType: form.entryType,
       amount: form.amount,
@@ -116,12 +122,23 @@ export default function LedgerEntryForm({ balance }: Props) {
     })
   }
 
-  async function handleConfirm() {
-    if (!pending) return
+  function handleConfirm() {
+    if (pending) void submitEntry(pending)
+  }
+
+  /**
+   * Files the entry EXACTLY as handed over — the key included.
+   *
+   * The input is a parameter rather than read from `pending` so the caller owns
+   * which key goes out: an ordinary retry re-sends the same one, and the
+   * post-409 path deliberately mints a new one first.
+   */
+  async function submitEntry(input: CreateLedgerEntryInput) {
     setDialogError(null)
     setRecheck('idle')
+    setConflict(false)
     try {
-      await create.mutateAsync(pending)
+      await create.mutateAsync(input)
       toast.success('Ledger entry recorded')
       setPending(null)
       setForm(EMPTY_FORM)
@@ -132,21 +149,40 @@ export default function LedgerEntryForm({ balance }: Props) {
           ? err.message
           : "Couldn't record the entry. Please try again."
 
+      // 409: this key is already on an entry whose content differs, so the
+      // backend wrote NOTHING and answering "success" would be a lie. It is also
+      // not a field error — the amount the operator just corrected may well be
+      // the right one; what clashes is the key-and-content pair. So: keep the
+      // dialog open, re-read the balance so the operator can see whether the
+      // OTHER entry (the one that owns this key) is already in the reserve, and
+      // let them re-send under a new key from there (§ 3).
+      if (err instanceof ApiError && isLedgerKeyConflict(err.code)) {
+        setDialogError(message)
+        setConflict(true)
+        setRecheck('checking')
+        try {
+          await refetchLedger()
+        } finally {
+          setRecheck('checked')
+        }
+      }
       // A contract validation code names the field that is wrong, so send the
       // operator back to that field with the server's own wording — the entry
       // cannot succeed until they change something. Anything else (500, 403,
       // network) is transient or systemic, so the dialog stays open and a retry
       // does not mean re-confirming from scratch.
-      if (err instanceof ApiError && isLedgerErrorCode(err.code)) {
+      else if (err instanceof ApiError && isLedgerErrorCode(err.code)) {
         // Resolved outside the updater so the narrowed code survives — inside
         // the callback TS widens `err.code` back to `string`.
         const field = LEDGER_ERROR_FIELD[err.code]
         if (field === null) {
-          // A 422 no input owns — today only LEDGER_IDEMPOTENCY_KEY_INVALID,
-          // which means this client minted a bad key. Show it in the dialog
-          // rather than pinning it on a field the operator filled in correctly.
-          // Deliberately NO balance re-read: a 422 is a definite "not written",
-          // so re-reading would only imply doubt that does not exist.
+          // A 422 no input owns. The other field-less code, the 409 conflict, is
+          // already handled above, so what reaches here is
+          // LEDGER_IDEMPOTENCY_KEY_INVALID: this client minted a bad key. Show
+          // it in the dialog rather than pinning it on a field the operator
+          // filled in correctly. Deliberately NO balance re-read: a 422 is a
+          // definite "not written", so re-reading would only imply doubt that
+          // does not exist.
           setDialogError(message)
         } else {
           setErrors((prev) => ({ ...prev, [field]: message }))
@@ -168,6 +204,24 @@ export default function LedgerEntryForm({ balance }: Props) {
       }
       toast.error(message)
     }
+  }
+
+  /**
+   * Re-files the SAME entry under a brand-new key, after a 409.
+   *
+   * Minting a key mid-attempt is normally the exact bug the key exists to
+   * prevent — but a 409 is the one answer that says, definitively, that this
+   * request wrote nothing and that the key is spoken for by something else.
+   * Re-sending the old key could only ever return the same 409.
+   *
+   * The new key is stored back on `pending`, so if THIS attempt then times out,
+   * the ordinary retry re-sends it unchanged instead of minting a third one.
+   */
+  async function handleRecordWithNewKey() {
+    if (!pending) return
+    const retried = { ...pending, idempotencyKey: newIdempotencyKey() }
+    setPending(retried)
+    await submitEntry(retried)
   }
 
   return (
@@ -309,6 +363,7 @@ export default function LedgerEntryForm({ balance }: Props) {
             setPending(null)
             setDialogError(null)
             setRecheck('idle')
+            setConflict(false)
           }
         }}
         entry={pending}
@@ -318,6 +373,8 @@ export default function LedgerEntryForm({ balance }: Props) {
         error={dialogError}
         recheck={recheck}
         onReloadBalance={refetchLedger}
+        conflict={conflict}
+        onRecordWithNewKey={handleRecordWithNewKey}
       />
     </Card>
   )

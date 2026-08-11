@@ -40,6 +40,14 @@ interface Props {
   recheck?: BalanceRecheckState
   /** Re-reads the ledger so an unknown balance can be resolved from here. */
   onReloadBalance?: () => Promise<unknown>
+  /**
+   * The last attempt came back `409 LEDGER_IDEMPOTENCY_KEY_CONFLICT`: the key
+   * is already on an entry with different content, so nothing was written and
+   * pressing confirm again would only repeat the same 409.
+   */
+  conflict?: boolean
+  /** Re-files this same entry under a NEW key — the only way out of a 409. */
+  onRecordWithNewKey?: () => void | Promise<unknown>
 }
 
 /**
@@ -62,6 +70,8 @@ export default function LedgerConfirmDialog({
   error,
   recheck = 'idle',
   onReloadBalance,
+  conflict = false,
+  onRecordWithNewKey,
 }: Props) {
   const [reloading, setReloading] = useState(false)
 
@@ -214,6 +224,54 @@ export default function LedgerConfirmDialog({
                 </div>
               )}
 
+              {/* 409 LEDGER_IDEMPOTENCY_KEY_CONFLICT. Not a success, and not
+                  an error to shrug at: the key belongs to an entry that says
+                  something ELSE, which is what happens when a timeout is
+                  followed by a correction. Nothing was written this time, so
+                  the operator has to decide between two live possibilities —
+                  the other entry is the one they meant (close), or this is a
+                  genuinely different entry (record it under a new key). The
+                  balance panel above is what tells them which. */}
+              {conflict && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3"
+                >
+                  <p className="text-sm font-medium text-foreground">
+                    This entry was NOT recorded — its key belongs to a different
+                    entry
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    An earlier attempt used the same key for an entry whose
+                    details differ from the ones above, so this request was
+                    rejected and nothing changed. That earlier entry is
+                    untouched. Compare the balance above with what you expect: if
+                    it already reflects what you meant to record, close this
+                    dialog.
+                  </p>
+                  {onRecordWithNewKey && (
+                    <>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        If this really is a different entry, record it under a new
+                        key. The ledger is append-only, so it is ADDED next to the
+                        earlier one — it does not replace or correct it.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => void onRecordWithNewKey()}
+                        disabled={busy || !balanceKnown}
+                        aria-busy={isPending}
+                      >
+                        Record as a new entry
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-md border border-border px-4 py-3">
                 <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Reason (internal — not shown publicly)
@@ -242,7 +300,10 @@ export default function LedgerConfirmDialog({
           <Button
             type="button"
             onClick={onConfirm}
-            disabled={busy || !entry || !balanceKnown}
+            // Locked while a conflict stands: this button re-sends the SAME
+            // key, and the backend can only answer it with the same 409. The
+            // way forward is the new-key action in the alert above, or Cancel.
+            disabled={busy || !entry || !balanceKnown || conflict}
             aria-busy={isPending}
           >
             {isPending ? 'Recording…' : 'Yes, record entry'}

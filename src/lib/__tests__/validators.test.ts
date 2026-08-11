@@ -23,6 +23,7 @@ import {
   validateLedgerEntryType,
   validateLedgerEntryForm,
   isLedgerErrorCode,
+  isLedgerKeyConflict,
   LEDGER_ERROR_FIELD,
   validateAttestationFile,
   validateAttestationUploadForm,
@@ -1069,6 +1070,11 @@ describe('LEDGER_ERROR_FIELD / isLedgerErrorCode', () => {
         // 16–200 characters; the operator's fields are all correct, so this
         // renders in the dialog rather than pointing at one of them.
         LEDGER_IDEMPOTENCY_KEY_INVALID: null,
+        // Field-less for a different reason: every field may be right. The key
+        // is on an entry that says something else, and the fix is a new key —
+        // underlining Amount would send the operator to change the figure they
+        // had just finished correcting.
+        LEDGER_IDEMPOTENCY_KEY_CONFLICT: null,
       })
     })
     test('recognises a contract code', () => {
@@ -1193,6 +1199,7 @@ describe('LEDGER_ERROR_FIELD', () => {
       'LEDGER_CURRENCY_UNSUPPORTED',
       'LEDGER_TYPE_NOT_ALLOWED',
       'LEDGER_IDEMPOTENCY_KEY_INVALID',
+      'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
     ]
     for (const code of codes) {
       expect(isLedgerErrorCode(code)).toBe(true)
@@ -1206,11 +1213,45 @@ describe('LEDGER_ERROR_FIELD', () => {
     expect(LEDGER_ERROR_FIELD.LEDGER_IDEMPOTENCY_KEY_INVALID).toBeNull()
   })
 
+  // The 409 is field-less too, and for the sharper reason: it is raised when the
+  // operator has just CORRECTED a value. Sending them back to that field would
+  // point at the one thing that is now right.
+  test('maps the key CONFLICT to no field either', () => {
+    expect(LEDGER_ERROR_FIELD.LEDGER_IDEMPOTENCY_KEY_CONFLICT).toBeNull()
+  })
+
   test('every OTHER code names a real form field', () => {
+    const fieldless = [
+      'LEDGER_IDEMPOTENCY_KEY_INVALID',
+      'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
+    ]
     for (const [code, field] of Object.entries(LEDGER_ERROR_FIELD)) {
-      if (code === 'LEDGER_IDEMPOTENCY_KEY_INVALID') continue
+      if (fieldless.includes(code)) continue
       expect(field).toBeTruthy()
     }
+  })
+})
+
+// The 409 needs a different response from the rest of the table — reload the
+// balance, then offer a new key — so the form has to be able to tell it apart
+// before it decides anything else.
+describe('isLedgerKeyConflict', () => {
+  describe('positive', () => {
+    test('recognises the conflict code', () => {
+      expect(isLedgerKeyConflict('LEDGER_IDEMPOTENCY_KEY_CONFLICT')).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('does not confuse it with the key LENGTH code', () => {
+      // Similar name, opposite handling: the length 422 is a definite "nothing
+      // was written" that needs no balance re-read at all.
+      expect(isLedgerKeyConflict('LEDGER_IDEMPOTENCY_KEY_INVALID')).toBe(false)
+    })
+    test('does not claim other codes', () => {
+      expect(isLedgerKeyConflict('LEDGER_AMOUNT_INVALID')).toBe(false)
+      expect(isLedgerKeyConflict('ATTESTATION_PERIOD_EXISTS')).toBe(false)
+    })
   })
 })
 

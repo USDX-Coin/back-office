@@ -902,6 +902,221 @@ describe('TransparencyPage @integration', () => {
     })
   })
 
+  // § 3: "Kunci sama dengan isi berbeda dijawab 409, dan tidak menulis apa pun."
+  //
+  // The scenario is the 504 one with a twist that makes it worse: the operator
+  // fixes the typo before pressing again. The key is unchanged — the contract
+  // mints one per form-filling attempt — so before the backend compared content
+  // the corrected request was answered with the OLD entry and a success status.
+  // The wrong figure stayed the public reserve, and the screen said "recorded".
+  describe('AC: a 409 key conflict is an actionable failure, never a success', () => {
+    const CONFLICT_MESSAGE =
+      'This idempotencyKey is already used by an entry with DIFFERENT content.'
+
+    function conflictHandlers(options: { balanceAfter?: string } = {}) {
+      let ledgerReads = 0
+      const counters = {
+        get reads() {
+          return ledgerReads
+        },
+      }
+      const handlers = [
+        http.get('/api/v1/transparency/ledger', () => {
+          ledgerReads += 1
+          return ledgerResponse({
+            entries: [entry()],
+            page: 1,
+            take: 50,
+            total: 1,
+            balance: {
+              // The FIRST attempt's (wrong) entry did land — that is exactly what
+              // the operator has to be shown before deciding anything.
+              amount:
+                ledgerReads === 1
+                  ? '50000.00'
+                  : (options.balanceAfter ?? '1050000.00'),
+              currency: 'USD',
+            },
+          })
+        }),
+      ]
+      return { handlers, counters }
+    }
+
+    test('the entry is not reported as recorded, and the form keeps its values', async () => {
+      const user = userEvent.setup()
+      const { handlers } = conflictHandlers()
+      server.use(
+        ...handlers,
+        http.post('/api/v1/transparency/ledger', () =>
+          apiError(409, 'LEDGER_IDEMPOTENCY_KEY_CONFLICT', CONFLICT_MESSAGE)
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user, { amount: '100000.00' })
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      // The server's own wording, in the DIALOG: no single input is at fault —
+      // the amount the operator just corrected may well be the right one.
+      expect(await within(dialog).findByText(CONFLICT_MESSAGE)).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/its key belongs to a different entry/i)
+      ).toBeInTheDocument()
+      // Not success: the dialog stays, the form is untouched, nothing is reset.
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('100000.00')
+      // And no message was pinned to a field the operator filled in correctly.
+      expect(
+        within(screen.getByLabelText(/^amount$/i).closest('div')!).queryByText(
+          CONFLICT_MESSAGE
+        )
+      ).not.toBeInTheDocument()
+    })
+
+    test('the balance is re-read and shown, and re-sending the same key is blocked', async () => {
+      const user = userEvent.setup()
+      const { handlers, counters } = conflictHandlers()
+      let posts = 0
+      server.use(
+        ...handlers,
+        http.post('/api/v1/transparency/ledger', () => {
+          posts += 1
+          return apiError(409, 'LEDGER_IDEMPOTENCY_KEY_CONFLICT', CONFLICT_MESSAGE)
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user, { amount: '100000.00' })
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      const readsBefore = counters.reads
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      // The balance the OTHER entry produced is what decides the operator's next
+      // move, so it is fetched fresh and put on screen before anything else is
+      // offered (§ 3: muat ulang saldo, tampilkan ke staf, lalu tawarkan).
+      expect(
+        await within(dialog).findByText(/balance re-read after the error/i)
+      ).toBeInTheDocument()
+      await waitFor(() => {
+        expect(
+          within(dialog).getByLabelText(/rechecked reserve balance/i)
+        ).toHaveTextContent('1,050,000.00')
+      })
+      expect(counters.reads).toBeGreaterThan(readsBefore)
+
+      // Pressing confirm again would re-send the SAME key and could only earn
+      // the same 409 — a dead end, so it is locked.
+      const confirm = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      expect(confirm).toBeDisabled()
+      await user.click(confirm)
+      expect(posts).toBe(1)
+    })
+
+    test('re-sending under a NEW key carries the same entry and succeeds', async () => {
+      const user = userEvent.setup()
+      const { handlers } = conflictHandlers()
+      const bodies: Record<string, unknown>[] = []
+      server.use(
+        ...handlers,
+        http.post('/api/v1/transparency/ledger', async ({ request }) => {
+          bodies.push((await request.json()) as Record<string, unknown>)
+          if (bodies.length === 1) {
+            return apiError(409, 'LEDGER_IDEMPOTENCY_KEY_CONFLICT', CONFLICT_MESSAGE)
+          }
+          return HttpResponse.json(
+            { status: 'success', metadata: null, data: entry() },
+            { status: 201 }
+          )
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user, { amount: '100000.00' })
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      await within(dialog).findByText(CONFLICT_MESSAGE)
+      // The append-only consequence is stated where the decision is made: this
+      // does not replace the entry that owns the old key, it is added beside it.
+      expect(
+        within(dialog).getByText(/does not replace or correct it/i)
+      ).toBeInTheDocument()
+      await user.click(
+        within(dialog).getByRole('button', { name: /record as a new entry/i })
+      )
+
+      await waitFor(() => expect(bodies).toHaveLength(2))
+      // A NEW key — re-sending the old one can only 409 again — and everything
+      // else identical, because the entry the operator wants filed is unchanged.
+      expect(bodies[1]!.idempotencyKey).toEqual(expect.stringMatching(UUID_RE))
+      expect(bodies[1]!.idempotencyKey).not.toBe(bodies[0]!.idempotencyKey)
+      expect({ ...bodies[1], idempotencyKey: undefined }).toEqual({
+        ...bodies[0],
+        idempotencyKey: undefined,
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+    })
+
+    test('a timeout AFTER the new key re-sends that same new key, not a third one', async () => {
+      const user = userEvent.setup()
+      const { handlers } = conflictHandlers()
+      const keys: unknown[] = []
+      server.use(
+        ...handlers,
+        http.post('/api/v1/transparency/ledger', async ({ request }) => {
+          const body = (await request.json()) as { idempotencyKey?: unknown }
+          keys.push(body.idempotencyKey)
+          if (keys.length === 1) {
+            return apiError(409, 'LEDGER_IDEMPOTENCY_KEY_CONFLICT', CONFLICT_MESSAGE)
+          }
+          if (keys.length === 2) {
+            return apiError(504, 'GATEWAY_TIMEOUT', 'Upstream request timed out')
+          }
+          return HttpResponse.json(
+            { status: 'success', metadata: null, data: entry() },
+            { status: 200 }
+          )
+        })
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      await fillEntryForm(user, { amount: '100000.00' })
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      await within(dialog).findByText(CONFLICT_MESSAGE)
+      await user.click(
+        within(dialog).getByRole('button', { name: /record as a new entry/i })
+      )
+
+      await within(dialog).findByText(/upstream request timed out/i)
+      const retry = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      await waitFor(() => expect(retry).toBeEnabled())
+      await user.click(retry)
+
+      await waitFor(() => expect(keys).toHaveLength(3))
+      // The new key is kept for the rest of this attempt. Minting one per click
+      // would put the reserve back where the idempotency key found it: the 504
+      // may have written the row, and a third key would write it again.
+      expect(keys[1]).not.toBe(keys[0])
+      expect(keys[2]).toBe(keys[1])
+    })
+  })
+
   describe('negative: API failures', () => {
     test('a contract 422 is shown verbatim on the field that caused it', async () => {
       const user = userEvent.setup()
@@ -2198,7 +2413,12 @@ describe('/api/v1/transparency/* contract', () => {
     expect(res.status).toBe(201)
   })
 
-  test('POST /ledger without an idempotencyKey is a plain 400', async () => {
+  // NOT a plain 400. `CreateLedgerEntryDto` is `@Allow()`-only precisely so
+  // ValidationPipe never answers for this route — a missing field reaches the
+  // service as `undefined` and comes back as the named 422 for that field. The
+  // 400 note that used to sit here belonged to the attestation routes, whose
+  // DTOs do use class-validator.
+  test('POST /ledger without an idempotencyKey is a named 422, not a plain 400', async () => {
     const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
     const res = await fetch('/api/v1/transparency/ledger', {
       method: 'POST',
@@ -2214,8 +2434,166 @@ describe('/api/v1/transparency/* contract', () => {
         occurredAt: '2026-01-01',
       }),
     })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.message).toMatch(/idempotencyKey/i)
+    expect(res.status).toBe(422)
+    const { error } = await res.json()
+    expect(error.code).toBe('LEDGER_IDEMPOTENCY_KEY_INVALID')
+    expect(error.message).toMatch(/idempotencyKey/i)
+  })
+
+  // Money is a decimal STRING in this contract (§ 0). A JSON number is a
+  // float64 — the type the contract keeps money away from — and the mock used
+  // to coerce it through the regex and then blow up on `amount.replace`, a 500
+  // where the backend answers a named 422. That is the one direction a stub
+  // must never diverge in: worse than production, for a payload production
+  // handles cleanly.
+  test.each([
+    ['amount as a JSON number', { amount: 1000 }, 'LEDGER_AMOUNT_INVALID'],
+    ['amount as null', { amount: null }, 'LEDGER_AMOUNT_INVALID'],
+    ['reason as a number', { reason: 1234567890 }, 'LEDGER_REASON_TOO_SHORT'],
+    ['occurredAt as a number', { occurredAt: 20260101 }, 'LEDGER_DATE_INVALID'],
+    ['currency as a number', { currency: 840 }, 'LEDGER_CURRENCY_UNSUPPORTED'],
+    ['entryType as an object', { entryType: { value: 'SEED' } }, 'LEDGER_TYPE_NOT_ALLOWED'],
+    [
+      // Long enough to clear the 16-character floor if it were a string — the
+      // type is what disqualifies it, not the length.
+      'idempotencyKey as a number',
+      { idempotencyKey: 1234567890123456 },
+      'LEDGER_IDEMPOTENCY_KEY_INVALID',
+    ],
+  ])('POST /ledger answers %s with 422 %s, never a 500', async (_label, patch, expectedCode) => {
+    const staff = findStaffByEmail('demo@usdx.io')! // ADMIN
+    const res = await fetch('/api/v1/transparency/ledger', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${issueMockJwt(staff)}`,
+      },
+      body: JSON.stringify({
+        entryType: 'SEED',
+        amount: '100.00',
+        currency: 'USD',
+        reason: 'Setoran awal cadangan kustodian',
+        occurredAt: '2026-01-01',
+        idempotencyKey: testIdempotencyKey(),
+        ...patch,
+      }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.code).toBe(expectedCode)
+  })
+
+  // The hole the backend closed in 362915e, and the reason this mock compares
+  // CONTENT and not just the key: a stub that replays on the key alone answers
+  // a corrected amount with "200, here is your old entry", the back office shows
+  // success, and the wrong figure stays the public reserve.
+  describe('POST /ledger — same key, different content', () => {
+    const staff = () => findStaffByEmail('demo@usdx.io')! // ADMIN
+
+    function send(
+      body: Record<string, unknown>,
+      as = staff()
+    ): Promise<Response> {
+      return fetch('/api/v1/transparency/ledger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${issueMockJwt(as)}`,
+        },
+        body: JSON.stringify(body),
+      })
+    }
+
+    function entryBody(overrides: Record<string, unknown> = {}) {
+      return {
+        entryType: 'SEED',
+        amount: '1000000.00',
+        currency: 'USD',
+        reason: 'Setoran giro USD BNI 23 Juli 2026',
+        occurredAt: '2026-07-23',
+        ...overrides,
+      }
+    }
+
+    async function ledgerState() {
+      const { data } = await (
+        await fetch('/api/v1/transparency/ledger?page=1&take=50')
+      ).json()
+      return data as { total: number; balance: { amount: string } }
+    }
+
+    test('a corrected amount under the same key is a 409, and writes nothing', async () => {
+      const key = testIdempotencyKey()
+      const first = await send(entryBody({ idempotencyKey: key }))
+      expect(first.status).toBe(201)
+      const before = await ledgerState()
+
+      // The operator spotted a typo — 1,000,000.00 should have been 100,000.00 —
+      // and fixed it before pressing again. Same key: the contract mints one per
+      // form-filling attempt.
+      const second = await send(entryBody({ amount: '100000.00', idempotencyKey: key }))
+      expect(second.status).toBe(409)
+      expect((await second.json()).error.code).toBe('LEDGER_IDEMPOTENCY_KEY_CONFLICT')
+
+      // Neither entry moved: the old one is untouched, the new one is not there.
+      const after = await ledgerState()
+      expect(after.total).toBe(before.total)
+      expect(after.balance.amount).toBe(before.balance.amount)
+    })
+
+    test.each([
+      ['a different entryType', { entryType: 'ADJUSTMENT' }],
+      ['a different reason', { reason: 'Alasan yang berbeda sama sekali' }],
+      ['a different occurredAt', { occurredAt: '2026-07-24' }],
+    ])('%s under the same key is a 409 too', async (_label, patch) => {
+      const key = testIdempotencyKey()
+      expect((await send(entryBody({ idempotencyKey: key }))).status).toBe(201)
+
+      const second = await send(entryBody({ ...patch, idempotencyKey: key }))
+      expect(second.status).toBe(409)
+      expect((await second.json()).error.code).toBe('LEDGER_IDEMPOTENCY_KEY_CONFLICT')
+    })
+
+    test('the same key from a DIFFERENT staff member is a 409, not the first one’s entry', async () => {
+      const key = testIdempotencyKey()
+      expect((await send(entryBody({ idempotencyKey: key }))).status).toBe(201)
+
+      // Keys are not scoped per staff. Without comparing the recorder, staff B
+      // is handed staff A's entry as a success and B's own entry is never
+      // written — with nothing anywhere to say it went missing.
+      const other = findStaffByEmail('marcus.t@usdx.io')! // the other ADMIN
+      const second = await send(entryBody({ idempotencyKey: key }), other)
+      expect(second.status).toBe(409)
+      expect((await second.json()).error.code).toBe('LEDGER_IDEMPOTENCY_KEY_CONFLICT')
+    })
+
+    test('the same amount written differently is a REPLAY, not a conflict', async () => {
+      const key = testIdempotencyKey()
+      const first = await send(entryBody({ amount: '100667.4', idempotencyKey: key }))
+      expect(first.status).toBe(201)
+      const created = (await first.json()).data
+      // numeric(30,2) stores "100667.4" as "100667.40" and hands it back that way.
+      expect(created.amount).toBe('100667.40')
+
+      const before = await ledgerState()
+      const second = await send(entryBody({ amount: '100667.40', idempotencyKey: key }))
+      // Same money, so this is the retry it looks like — 200, not a false 409
+      // that would leave a legitimate retry with nowhere to go.
+      expect(second.status).toBe(200)
+      expect((await second.json()).data.id).toBe(created.id)
+      const after = await ledgerState()
+      expect(after.total).toBe(before.total)
+    })
+
+    test('an identical repeat is still a 200 replay with the original entry', async () => {
+      const key = testIdempotencyKey()
+      const first = await send(entryBody({ idempotencyKey: key }))
+      expect(first.status).toBe(201)
+      const created = (await first.json()).data
+
+      const second = await send(entryBody({ idempotencyKey: key }))
+      expect(second.status).toBe(200)
+      expect((await second.json()).data).toEqual(created)
+    })
   })
 
   test('GET /attestations defaults take to 24, exactly like the backend', async () => {

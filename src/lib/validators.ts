@@ -316,6 +316,11 @@ export const LEDGER_ERROR_FIELD: Record<LedgerErrorCode, string | null> = {
   // Sending the operator to a field would be a lie — there is no field to fix —
   // so it renders at form level in the dialog.
   LEDGER_IDEMPOTENCY_KEY_INVALID: null,
+  // Also field-less, for a different reason: every field may be correct. What
+  // clashes is the KEY together with the content, and the fix is a new key, not
+  // a new value. Underlining Amount here would send the operator to change a
+  // figure they had just finished correcting.
+  LEDGER_IDEMPOTENCY_KEY_CONFLICT: null,
 }
 
 /**
@@ -342,6 +347,19 @@ export function isValidIdempotencyKey(key: string): boolean {
 /** Narrows an arbitrary server code to one this form knows how to place. */
 export function isLedgerErrorCode(code: string): code is LedgerErrorCode {
   return code in LEDGER_ERROR_FIELD
+}
+
+/**
+ * The 409 from § 3: the key is on an entry with DIFFERENT content, so nothing
+ * was written and this is not a replay.
+ *
+ * Singled out from the rest of the table because it is the one code that needs
+ * the balance re-read AND a way forward (a new key) rather than a message under
+ * an input. Written as a `satisfies` so a typo here fails the type check instead
+ * of quietly demoting a 409 to an ordinary error.
+ */
+export function isLedgerKeyConflict(code: string): boolean {
+  return code === ('LEDGER_IDEMPOTENCY_KEY_CONFLICT' satisfies LedgerErrorCode)
 }
 
 /**

@@ -16,7 +16,6 @@ import type {
   FeeConfig,
   UpdateFeeConfig,
   ReserveLedgerEntry,
-  CreateLedgerEntryInput,
   CreateAttestationInput,
   AttestationReport,
   RequestDetail,
@@ -394,10 +393,17 @@ function transparencyForbidden() {
  * A DTO/ValidationPipe rejection — a PLAIN 400, not a named 422.
  *
  * `V1_VALIDATION_422_ROUTES` in the backend's http-exception filter lists only
- * `/api/v1/fee-config`, so transparency routes never get the named-code
- * treatment for shape errors: a missing or mistyped field comes back as NestJS's
- * own 400. A mock that answers a friendly 422 here trains the client to expect a
- * code that production will never send.
+ * `/api/v1/fee-config`, so where a transparency DTO does use class-validator its
+ * shape errors come back as NestJS's own 400. That is the ATTESTATION routes:
+ * `CreateAttestationUploadUrlDto` and friends carry `@IsString()`/`@IsInt()`, so
+ * a missing `period` or `sizeBytes` never reaches the service. A mock that
+ * answers a friendly 422 there trains the client to expect a code production
+ * cannot send.
+ *
+ * The LEDGER route is the opposite case and must not be lumped in with it:
+ * `CreateLedgerEntryDto` is `@Allow()`-only by design, so every condition —
+ * including a missing or mistyped field — exits the service as its own named
+ * 422. The only 400 left there is a body that is not JSON at all.
  */
 function nestValidationError(messages: string[]) {
   return HttpResponse.json(
@@ -492,10 +498,47 @@ interface StoredObject {
 
 const storageObjects = new Map<string, StoredObject>()
 
-// Idempotency ledger for POST /transparency/ledger: key → the entry it created.
-// The backend keeps a unique index on this column; a replay returns the row that
-// already exists instead of appending a second one.
-const ledgerIdempotency = new Map<string, ReserveLedgerEntry>()
+/**
+ * Idempotency ledger for POST /transparency/ledger: key → what was written under
+ * it. The backend keeps a unique index on the column; a repeat returns the row
+ * that already exists instead of appending a second one.
+ *
+ * The CONTENT is kept, not just the key, because a repeat is only a replay if
+ * the request is the same request. Same key + different content is a 409
+ * (§ 3) — the case where a 504 is followed by the operator fixing a typo, and a
+ * mock that compares keys alone answers it "200, here is your old entry" and
+ * hides the exact bug the 409 exists to expose.
+ *
+ * `createdBy` rides along because the backend compares it too: keys are not
+ * scoped per staff member, so a key reused across sessions would otherwise hand
+ * staff B the entry staff A wrote, with B's entry never stored.
+ */
+interface LedgerIdempotencyRecord {
+  entry: ReserveLedgerEntry
+  createdBy: string
+}
+
+const ledgerIdempotency = new Map<string, LedgerIdempotencyRecord>()
+
+/**
+ * Decimal money in the canonical `[-]<int>.<2 digits>` form — the form a
+ * `numeric(30,2)` column hands back.
+ *
+ * Used for BOTH storage and comparison, mirroring the backend: the column
+ * normalises what it stores, so "100667.4" is read back as "100667.40" and the
+ * two must not register as a content conflict. Done on strings, never through
+ * `Number()`, because a reserve figure can outrun float64 precision.
+ */
+function canonicalMoneyMock(value: string): string {
+  const trimmed = value.trim()
+  const negative = trimmed.startsWith('-')
+  const [intRaw = '', fracRaw = ''] = trimmed.replace(/^[-+]/, '').split('.')
+  const int = intRaw.replace(/^0+(?=\d)/, '') || '0'
+  const canonical = `${int}.${`${fracRaw}00`.slice(0, 2)}`
+  // "-0.00" and "0.00" are the same number; the sign only means something once
+  // a non-zero digit is present.
+  return negative && /[1-9]/.test(canonical) ? `-${canonical}` : canonical
+}
 
 // Storage rejects a signature mismatch with 403 and an XML body — deliberately
 // NOT the USDX JSON envelope, because this host is not the USDX API.
@@ -1027,90 +1070,80 @@ export const handlers = [
     if (!operator) return unauthorized()
     if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    const body = (await request.json()) as CreateLedgerEntryInput
-
-    // `idempotencyKey` is a DTO field: absent or empty is a ValidationPipe
-    // failure, which on this route is a plain 400 — NOT one of the named codes.
-    const idempotencyKey = body.idempotencyKey
-    if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
-      return nestValidationError(['idempotencyKey should not be empty'])
-    }
-    // Length is a SERVICE check, so it carries a named 422 rather than the
-    // plain 400 a missing field gets. The 16-character floor is the important
-    // half: a throwaway key like "retry" would collide between unrelated
-    // attempts, and a collision answers the second one with the first one's
-    // entry — silently losing a legitimate ledger row.
-    if (
-      idempotencyKey.length < LEDGER_IDEMPOTENCY_KEY_MIN ||
-      idempotencyKey.length > LEDGER_IDEMPOTENCY_KEY_MAX
-    ) {
-      return transparencyError(
-        422,
-        'LEDGER_IDEMPOTENCY_KEY_INVALID',
-        `idempotencyKey must be between ${LEDGER_IDEMPOTENCY_KEY_MIN} and ${LEDGER_IDEMPOTENCY_KEY_MAX} characters`
-      )
+    // Every field arrives as `unknown`, exactly as the backend sees it. Its DTO
+    // is `@Allow()` and nothing else — no `@IsString`, no `@Matches` — precisely
+    // so ValidationPipe never answers for this route and each condition can come
+    // back as its OWN named 422 (`ledger-entry.validation.ts`). A JSON number in
+    // `amount` is therefore 422 LEDGER_AMOUNT_INVALID, not a 400 and certainly
+    // not the 500 this mock used to raise on `amount.replace`.
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      // The one 400 this route can still produce: a body the JSON parser cannot
+      // read at all, rejected before Nest ever reaches the controller.
+      return nestValidationError(['Unexpected token in JSON at position 0'])
     }
 
-    // Replay. The whole point of the key: the first attempt wrote the row and
-    // lost its response, so the second one must return that row rather than
-    // append a twin. 200, not 201 — nothing was created this time.
-    const replayed = ledgerIdempotency.get(idempotencyKey)
-    if (replayed) {
-      return HttpResponse.json(
-        { status: 'success', metadata: null, data: replayed },
-        { status: 200 }
-      )
-    }
-
-    // Order and codes follow the § 3 table exactly.
-    if (body.entryType !== 'SEED' && body.entryType !== 'ADJUSTMENT') {
+    // Order and codes follow `validateLedgerEntryInput` exactly — entryType,
+    // amount, reason, occurredAt, currency, idempotencyKey — because the order
+    // decides WHICH code a doubly-invalid body gets back.
+    const entryType = body.entryType
+    if (entryType !== 'SEED' && entryType !== 'ADJUSTMENT') {
       return transparencyError(
         422,
         'LEDGER_TYPE_NOT_ALLOWED',
         'entryType must be SEED or ADJUSTMENT'
       )
     }
-    // NOT trimmed. The backend does not trim `amount` either, so " 100.00 "
-    // fails its decimal check — a mock that trims quietly accepts payloads
-    // production rejects.
-    const amount = body.amount ?? ''
-    if (!/^-?\d+(\.\d{1,2})?$/.test(amount)) {
+
+    // Money is a STRING in this contract. A JSON number is a float64 — the type
+    // the whole contract keeps money away from — and `regex.test(1000)` would
+    // silently coerce it and let it through.
+    // NOT trimmed either: the backend does not trim `amount`, so " 100.00 "
+    // fails its decimal check, and a mock that trims makes surrounding
+    // whitespace look harmless.
+    const amount = body.amount
+    if (typeof amount !== 'string' || !/^-?\d+(\.\d{1,2})?$/.test(amount)) {
       return transparencyError(
         422,
         'LEDGER_AMOUNT_INVALID',
-        'amount must be a decimal with at most 2 decimal places'
+        'amount must be a decimal string with at most 2 decimal places'
       )
     }
-    // numeric(30,2) — Postgres refuses a wider value outright. Leading zeros
-    // are not significant digits.
+    // numeric(30,2) — Postgres refuses a wider value outright. Counted the way
+    // the backend counts, WITHOUT stripping leading zeros: it measures the
+    // digits it was sent, so "0…0" padding is rejected there too.
     const [wholePart = ''] = amount.replace('-', '').split('.')
-    if (wholePart.replace(/^0+/, '').length > LEDGER_MAX_INT_DIGITS) {
+    if (wholePart.length > LEDGER_MAX_INT_DIGITS) {
       return transparencyError(
         422,
         'LEDGER_AMOUNT_INVALID',
         `amount cannot have more than ${LEDGER_MAX_INT_DIGITS} digits before the decimal point`
       )
     }
-    if (Number(amount) === 0) {
+    // "0", "0.00" and "-0.00" are all zero. Matched on the string rather than
+    // through `Number()`, which would round a 28-digit value on the way.
+    if (/^-?0(\.0{1,2})?$/.test(amount)) {
       return transparencyError(422, 'LEDGER_AMOUNT_ZERO', 'amount cannot be zero')
     }
-    if (body.currency !== 'USD') {
-      return transparencyError(
-        422,
-        'LEDGER_CURRENCY_UNSUPPORTED',
-        'Only USD is supported at this stage'
-      )
-    }
-    if (!body.reason || body.reason.trim().length < 10) {
+
+    // A non-string `reason` is not "missing": `.trim()` on a number is a
+    // TypeError, which would be a 500 where the backend answers 422.
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10) {
       return transparencyError(
         422,
         'LEDGER_REASON_TOO_SHORT',
         'reason must be at least 10 characters'
       )
     }
+
+    const occurredAt = body.occurredAt
     if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(body.occurredAt ?? '') ||
-      !isRealCalendarDate(body.occurredAt)
+      typeof occurredAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(occurredAt) ||
+      !isRealCalendarDate(occurredAt)
     ) {
       return transparencyError(
         422,
@@ -1118,7 +1151,7 @@ export const handlers = [
         'occurredAt must be a real YYYY-MM-DD date'
       )
     }
-    if (body.occurredAt > wibTodayMock()) {
+    if (occurredAt > wibTodayMock()) {
       return transparencyError(
         422,
         'LEDGER_DATE_IN_FUTURE',
@@ -1126,17 +1159,86 @@ export const handlers = [
       )
     }
 
+    // Case-insensitive, then stored uppercase — the backend normalises with
+    // `toUpperCase()` before comparing.
+    const currency = body.currency
+    if (typeof currency !== 'string' || currency.toUpperCase() !== 'USD') {
+      return transparencyError(
+        422,
+        'LEDGER_CURRENCY_UNSUPPORTED',
+        'Only USD is supported at this stage'
+      )
+    }
+
+    // Trimmed before the length check, and the trimmed value is what gets
+    // stored and looked up — same as the backend. The 16-character floor is the
+    // important half: a throwaway key like "retry" would collide between
+    // unrelated attempts, and a collision answers the second one with the first
+    // one's entry, silently losing a legitimate ledger row.
+    const idempotencyKey =
+      typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : ''
+    if (
+      idempotencyKey.length < LEDGER_IDEMPOTENCY_KEY_MIN ||
+      idempotencyKey.length > LEDGER_IDEMPOTENCY_KEY_MAX
+    ) {
+      return transparencyError(
+        422,
+        'LEDGER_IDEMPOTENCY_KEY_INVALID',
+        `idempotencyKey is required, ${LEDGER_IDEMPOTENCY_KEY_MIN}–${LEDGER_IDEMPOTENCY_KEY_MAX} characters`
+      )
+    }
+
+    const canonicalAmount = canonicalMoneyMock(amount)
+    const normalisedCurrency = currency.toUpperCase()
+
+    // A key already on file answers ONE of two ways, and telling them apart is
+    // the whole job:
+    //   same content  → replay. The first attempt wrote the row and lost its
+    //                   response, so hand back that row. 200, not 201 — nothing
+    //                   was created this time.
+    //   different     → 409, and nothing is written. Not a retry of that entry:
+    //                   the operator corrected something (the typo'd amount,
+    //                   most likely) after a timeout, and answering "success"
+    //                   with the OLD entry leaves the wrong figure standing on
+    //                   the public site with nothing on screen to say so.
+    // Amounts compare in canonical form because the column stores them that way
+    // — "100667.4" and "100667.40" are the same money, not a conflict.
+    const previous = ledgerIdempotency.get(idempotencyKey)
+    if (previous) {
+      const sameRequest =
+        previous.entry.entryType === entryType &&
+        canonicalMoneyMock(previous.entry.amount) === canonicalAmount &&
+        previous.entry.currency === normalisedCurrency &&
+        previous.entry.reason === reason &&
+        previous.entry.occurredAt === occurredAt &&
+        // Keys are not scoped per staff member. Without this, staff B reusing
+        // A's key is handed A's entry and B's own entry is never written.
+        previous.createdBy === operator.id
+      if (!sameRequest) {
+        return transparencyError(
+          409,
+          'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
+          'This idempotencyKey is already used by an entry with DIFFERENT content. The existing entry was left untouched and nothing new was written — reload the balance and history, then re-send with a new key if this really is a different entry.'
+        )
+      }
+      return HttpResponse.json(
+        { status: 'success', metadata: null, data: previous.entry },
+        { status: 200 }
+      )
+    }
+
     const created = createLedgerEntry({
-      entryType: body.entryType,
-      amount,
-      currency: body.currency,
-      reason: body.reason.trim(),
-      occurredAt: body.occurredAt,
+      entryType,
+      // Stored canonical, the way numeric(30,2) stores it.
+      amount: canonicalAmount,
+      currency: normalisedCurrency,
+      reason,
+      occurredAt,
       createdByName: operator.name,
       createdAt: new Date().toISOString(),
     })
     reserveLedger.push(created)
-    ledgerIdempotency.set(idempotencyKey, created)
+    ledgerIdempotency.set(idempotencyKey, { entry: created, createdBy: operator.id })
     return HttpResponse.json(
       { status: 'success', metadata: null, data: created },
       { status: 201 }

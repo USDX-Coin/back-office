@@ -358,11 +358,20 @@ export interface CreateLedgerEntryInput {
 /**
  * `error.code` values `POST /ledger` can return (§ 3 validation table).
  *
- * These are thrown by the SERVICE as named 422s. A malformed payload (missing
- * field, wrong type) still fails in `ValidationPipe` first and comes back as a
- * plain NestJS **400 with no code from this list** — transparency routes are not
- * in `V1_VALIDATION_422_ROUTES`. So the client must handle both: place a known
- * code on its field, and show `error.message` verbatim for anything else.
+ * Every one of them is thrown by the SERVICE, and that is deliberate on the
+ * backend's side: `CreateLedgerEntryDto` carries nothing but `@Allow()` — no
+ * `@IsString`, no `@Matches` — so `ValidationPipe` has no rule to fail and
+ * cannot collapse the table into one generic code. A field that is missing
+ * altogether, or sent as the wrong type (an `amount` as a JSON number), reaches
+ * the service as `unknown` and comes back as the NAMED 422 for that field.
+ *
+ * An earlier version of this comment said a plain 400 was still possible here.
+ * That is true of the ATTESTATION routes, whose DTOs do use class-validator, and
+ * it was carried over to the ledger by mistake. On this route the only 400 left
+ * is a body that is not JSON at all, which this client cannot send.
+ *
+ * The list is what the client can PLACE, not everything it can receive: an
+ * unrecognised code still renders with `error.message` verbatim.
  */
 export type LedgerErrorCode =
   | 'LEDGER_AMOUNT_ZERO'
@@ -378,6 +387,24 @@ export type LedgerErrorCode =
    * key — so it renders at form level (see `LEDGER_ERROR_FIELD`).
    */
   | 'LEDGER_IDEMPOTENCY_KEY_INVALID'
+  /**
+   * **409, the only non-422 in this list.** The key is already on an entry whose
+   * CONTENT differs, so this is not a retry of that entry and nothing was
+   * written.
+   *
+   * The scenario is the one the contract spells out: the operator hits a 504,
+   * then spots a typo in the amount and FIXES it before pressing again. The key
+   * is unchanged, because the contract mints one per form-filling attempt. Until
+   * the backend compared content, that second request was answered with the OLD
+   * entry and a success status — the corrected figure was never stored and the
+   * wrong one stayed on the public site with nothing on screen to say so.
+   *
+   * No field owns it either (see `LEDGER_ERROR_FIELD`): what is wrong is the
+   * key-and-content pair, not anything the operator typed. It is an ACTIONABLE
+   * failure — reload the balance, show it, then offer to re-send under a NEW key
+   * if the entry really is a different one.
+   */
+  | 'LEDGER_IDEMPOTENCY_KEY_CONFLICT'
 
 /** One row of `GET /api/v1/transparency/attestations` → `data.items[]`. */
 export interface AttestationReport {
