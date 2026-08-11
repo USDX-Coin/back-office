@@ -191,7 +191,17 @@ export default function LedgerConfirmDialog({
 
               {/* After a non-422 failure the ledger is re-read before a retry is
                   allowed: a 504 can hide a request that DID write its row, and
-                  the balance is the only thing that says which happened. */}
+                  the balance is the only thing that says which happened.
+
+                  A 409 re-reads the balance too, but it means the OPPOSITE: the
+                  backend wrote nothing, and the figure below moved because of
+                  the OTHER entry that owns this key — the mistyped one. So the
+                  504 wording ("it was recorded despite the error — close this
+                  dialog") is gated behind `!conflict`. Left ungated it told the
+                  operator to walk away from a 409 with the wrong number left
+                  standing as the public reserve and the correction never
+                  filed. The heading changes with it, so the number is never
+                  read as this entry's doing. */}
               {recheck !== 'idle' && (
                 <div
                   role="status"
@@ -204,7 +214,9 @@ export default function LedgerConfirmDialog({
                   ) : (
                     <>
                       <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                        Balance re-read after the error
+                        {conflict
+                          ? 'Balance after the OTHER entry that holds this key'
+                          : 'Balance re-read after the error'}
                       </p>
                       <p
                         aria-label="Rechecked reserve balance"
@@ -214,11 +226,20 @@ export default function LedgerConfirmDialog({
                           ? `${formatAmountDecimal(balance.amount)} ${balance.currency}`
                           : 'Still unavailable'}
                       </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        If this already includes the entry, it was recorded
-                        despite the error — close this dialog instead of trying
-                        again.
-                      </p>
+                      {conflict ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          This figure does NOT include the entry above — nothing
+                          from this attempt was written. It is the reserve as
+                          the other entry, the one already holding this key,
+                          left it.
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          If this already includes the entry, it was recorded
+                          despite the error — close this dialog instead of
+                          trying again.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>

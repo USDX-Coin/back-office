@@ -999,9 +999,12 @@ describe('TransparencyPage @integration', () => {
 
       // The balance the OTHER entry produced is what decides the operator's next
       // move, so it is fetched fresh and put on screen before anything else is
-      // offered (§ 3: muat ulang saldo, tampilkan ke staf, lalu tawarkan).
+      // offered (§ 3: muat ulang saldo, tampilkan ke staf, lalu tawarkan) —
+      // labelled as the other entry's doing, never as this attempt's.
       expect(
-        await within(dialog).findByText(/balance re-read after the error/i)
+        await within(dialog).findByText(
+          /balance after the other entry that holds this key/i
+        )
       ).toBeInTheDocument()
       await waitFor(() => {
         expect(
@@ -1016,6 +1019,65 @@ describe('TransparencyPage @integration', () => {
       expect(confirm).toBeDisabled()
       await user.click(confirm)
       expect(posts).toBe(1)
+    })
+
+    // The 409 screen re-uses the balance panel the 504 path built, and that
+    // panel used to end with "it was recorded despite the error — close this
+    // dialog instead of trying again". On a 409 that sentence is false and its
+    // advice is the damaging one: nothing was written, the raised balance is
+    // the mistyped entry's, so closing the dialog leaves the wrong figure as
+    // the public reserve and the correction unfiled. "Kirim ulang" is already
+    // blocked by the locked confirm button — "tutup dan pergi" was not.
+    test('no wording on the 409 screen implies the entry was recorded', async () => {
+      const user = userEvent.setup()
+      const { handlers } = conflictHandlers()
+      server.use(
+        ...handlers,
+        http.post('/api/v1/transparency/ledger', () =>
+          apiError(409, 'LEDGER_IDEMPOTENCY_KEY_CONFLICT', CONFLICT_MESSAGE)
+        )
+      )
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /review and record/i })
+
+      // The contract's own scenario: 1,000,000.00 was mistyped and DID land,
+      // the operator corrects it to 100,000.00, and the same key comes back 409.
+      await fillEntryForm(user, { amount: '100000.00' })
+      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+
+      await within(dialog).findByText(CONFLICT_MESSAGE)
+      await waitFor(() => {
+        expect(
+          within(dialog).getByLabelText(/rechecked reserve balance/i)
+        ).toHaveTextContent('1,050,000.00')
+      })
+
+      // Not one sentence may say, or hint, that this entry made it in.
+      expect(
+        within(dialog).queryByText(/recorded despite the error/i)
+      ).not.toBeInTheDocument()
+      expect(
+        within(dialog).queryByText(/close this dialog instead of trying again/i)
+      ).not.toBeInTheDocument()
+      // And the figure on screen is owned by the OTHER entry, out loud, so the
+      // raised balance cannot be mistaken for proof that this one was filed.
+      expect(
+        within(dialog).queryByText(/balance re-read after the error/i)
+      ).not.toBeInTheDocument()
+      expect(
+        within(dialog).getByText(
+          /balance after the other entry that holds this key/i
+        )
+      ).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/does not include the entry above/i)
+      ).toBeInTheDocument()
+      // The standing verdict is unchanged and still the loud one.
+      expect(
+        within(dialog).getByText(/this entry was not recorded/i)
+      ).toBeInTheDocument()
     })
 
     test('re-sending under a NEW key carries the same entry and succeeds', async () => {
