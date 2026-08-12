@@ -48,7 +48,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col px-2 pb-2 pt-1">
+      <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2 pt-1">
         {sections.map((section) => (
           <div key={section.label} className="flex flex-col">
             <div className="px-2 pt-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
@@ -66,7 +66,7 @@ export default function Sidebar() {
       </nav>
 
       {user && (
-        <div className="border-t border-border px-2 py-2">
+        <div className="shrink-0 border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
               {getInitials(user.name)}
