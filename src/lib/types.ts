@@ -258,6 +258,274 @@ export interface UpdateThresholdConfig {
   amount: string
 }
 
+// ─── Transparency (/api/v1/transparency/*) ───────────────────────────────────
+// EVERY name below is copied field-for-field from
+// catatan/KONTRAK-API-TRANSPARANSI.md § 3 (Endpoint admin). That file is LOCKED
+// and shared with the backend — do not "improve" a name here. The previous
+// round invented `amount`/`currency`/`custodian`/`isPublished` locally while the
+// backend shipped something else, and the columns rendered `undefined`.
+//
+// The model is an APPEND-ONLY LEDGER (§ 1): no update, no delete, no status
+// column, no draft/publish. A wrong figure is corrected by filing a new entry
+// in the opposite direction. Reserve balance = SUM(amount) of every entry, and
+// the server hands it over pre-computed in `balance`.
+//
+// Money stays a decimal string end to end (§ 0) — numeric(30,2) exceeds
+// Number.MAX_SAFE_INTEGER, so parsing it into a float would corrupt it.
+
+/**
+ * `reserve_ledger_entry.entry_type` (§ 1).
+ *
+ * `MINT` / `BURN` / `REDEEM` are RESERVED for the automatic hooks that come
+ * later — the contract puts them in the enum now so the backend never has to
+ * migrate again, but nothing writes them in this phase. They can therefore
+ * arrive on a READ and must render, while the create form only offers the two
+ * values below in `LEDGER_ENTRY_TYPES_SELECTABLE`.
+ */
+export type LedgerEntryType = 'SEED' | 'ADJUSTMENT' | 'MINT' | 'BURN' | 'REDEEM'
+
+/** The only `entryType` values staff may file (§ 3 `LEDGER_TYPE_NOT_ALLOWED`). */
+export const LEDGER_ENTRY_TYPES_SELECTABLE = ['SEED', 'ADJUSTMENT'] as const
+export type SelectableLedgerEntryType = (typeof LEDGER_ENTRY_TYPES_SELECTABLE)[number]
+
+/** The only currency accepted this phase (§ 1 / `LEDGER_CURRENCY_UNSUPPORTED`). */
+export const LEDGER_SUPPORTED_CURRENCY = 'USD'
+
+/** One row of `GET /api/v1/transparency/ledger` → `data.entries[]`. */
+export interface ReserveLedgerEntry {
+  id: string
+  entryType: LedgerEntryType
+  /** Decimal string. MAY be negative — that is how a correction is filed. */
+  amount: string
+  /** ISO-4217, uppercase. Only `USD` this phase. */
+  currency: string
+  /** Why the public number moved. Required, min 10 chars. NEVER shown publicly. */
+  reason: string
+  /** Real-world date of the event (YYYY-MM-DD), not the date it was typed in. */
+  occurredAt: string
+  createdByName: string
+  /** ISO-8601 UTC. */
+  createdAt: string
+}
+
+/**
+ * `data.balance` — the balance of the WHOLE ledger, not of this page.
+ * Render it as-is. Summing the visible rows is wrong by construction: the rows
+ * are one page of many.
+ */
+export interface ReserveBalance {
+  amount: string
+  currency: string
+}
+
+/** `GET /api/v1/transparency/ledger?page=1&take=50` → `data`. */
+export interface ReserveLedgerPage {
+  entries: ReserveLedgerEntry[]
+  page: number
+  take: number
+  total: number
+  balance: ReserveBalance
+}
+
+/** `POST /api/v1/transparency/ledger` request body. */
+export interface CreateLedgerEntryInput {
+  entryType: SelectableLedgerEntryType
+  amount: string
+  currency: string
+  reason: string
+  occurredAt: string
+  /**
+   * REQUIRED (§ 3). Without it a transient failure DOUBLES the reserve figure
+   * the public sees: the row is written, the 504 hides the response, the
+   * operator presses again and the ledger holds two SEEDs. Append-only means
+   * the only correction is a negative entry that stays visible forever.
+   *
+   * Generated ONCE per form-filling attempt — not per click — and re-sent
+   * UNCHANGED on every retry of that same attempt. The backend keys a unique
+   * index on it and answers a replay with the existing entry and a **200**
+   * (a new entry is **201**); the client must treat BOTH as success, because
+   * showing the safe replay as an error is what pushes an operator to press
+   * again.
+   *
+   * Must be 16–200 characters (`LEDGER_IDEMPOTENCY_KEY_INVALID`). The lower
+   * bound is deliberate: a throwaway key like `"retry"` would collide across
+   * unrelated attempts, and a collision silently DROPS a legitimate entry —
+   * quieter, and worse, than the duplicate this field exists to prevent.
+   */
+  idempotencyKey: string
+}
+
+/**
+ * `error.code` values `POST /ledger` can return (§ 3 validation table).
+ *
+ * Every one of them is thrown by the SERVICE, and that is deliberate on the
+ * backend's side: `CreateLedgerEntryDto` carries nothing but `@Allow()` — no
+ * `@IsString`, no `@Matches` — so `ValidationPipe` has no rule to fail and
+ * cannot collapse the table into one generic code. A field that is missing
+ * altogether, or sent as the wrong type (an `amount` as a JSON number), reaches
+ * the service as `unknown` and comes back as the NAMED 422 for that field.
+ *
+ * An earlier version of this comment said a plain 400 was still possible here.
+ * That is true of the ATTESTATION routes, whose DTOs do use class-validator, and
+ * it was carried over to the ledger by mistake. On this route the only 400 left
+ * is a body that is not JSON at all, which this client cannot send.
+ *
+ * The list is what the client can PLACE, not everything it can receive: an
+ * unrecognised code still renders with `error.message` verbatim.
+ */
+export type LedgerErrorCode =
+  | 'LEDGER_AMOUNT_ZERO'
+  | 'LEDGER_AMOUNT_INVALID'
+  | 'LEDGER_REASON_TOO_SHORT'
+  | 'LEDGER_DATE_IN_FUTURE'
+  | 'LEDGER_DATE_INVALID'
+  | 'LEDGER_CURRENCY_UNSUPPORTED'
+  | 'LEDGER_TYPE_NOT_ALLOWED'
+  /**
+   * The key was shorter than 16 or longer than 200 characters. No form field
+   * owns this one — the operator typed nothing wrong, the client minted a bad
+   * key — so it renders at form level (see `LEDGER_ERROR_FIELD`).
+   */
+  | 'LEDGER_IDEMPOTENCY_KEY_INVALID'
+  /**
+   * **409, the only non-422 in this list.** The key is already on an entry whose
+   * CONTENT differs, so this is not a retry of that entry and nothing was
+   * written.
+   *
+   * The scenario is the one the contract spells out: the operator hits a 504,
+   * then spots a typo in the amount and FIXES it before pressing again. The key
+   * is unchanged, because the contract mints one per form-filling attempt. Until
+   * the backend compared content, that second request was answered with the OLD
+   * entry and a success status — the corrected figure was never stored and the
+   * wrong one stayed on the public site with nothing on screen to say so.
+   *
+   * No field owns it either (see `LEDGER_ERROR_FIELD`): what is wrong is the
+   * key-and-content pair, not anything the operator typed. It is an ACTIONABLE
+   * failure — reload the balance, show it, then offer to re-send under a NEW key
+   * if the entry really is a different one.
+   */
+  | 'LEDGER_IDEMPOTENCY_KEY_CONFLICT'
+
+/** One row of `GET /api/v1/transparency/attestations` → `data.items[]`. */
+export interface AttestationReport {
+  id: string
+  /** Reporting period, `YYYY-MM`. */
+  period: string
+  title: string
+  /**
+   * Present on the ADMIN response too, not just the public one — otherwise the
+   * download button is an anchor with no href.
+   */
+  fileUrl: string
+  publishedAt: string
+  /**
+   * Set once the report is revoked. The backend returns revoked rows as well,
+   * for the audit trail; the back office MUST filter them out of the active
+   * list (§ 3).
+   */
+  revokedAt: string | null
+}
+
+/**
+ * `GET /api/v1/transparency/attestations?page=1&take=50` → `data`.
+ *
+ * The pagination fields are NOT decoration. The backend defaults `take` to 20,
+ * and the back office then hides revoked rows on top of that, so a request
+ * without an explicit page size shows at most 20 reports — fewer once anything
+ * is revoked — while the public page lists up to 24. A report old enough to
+ * fall off that first page could not be revoked from here at all, even though
+ * the public could still download it. `total` is what tells the screen there is
+ * more to fetch, so it is read, not ignored.
+ */
+export interface AttestationListPage {
+  items: AttestationReport[]
+  page?: number
+  take?: number
+  total?: number
+}
+
+/**
+ * Step 1 request body → `POST /attestations/upload-url`.
+ *
+ * `period` is REQUIRED and must be `YYYY-MM`: the backend builds `fileKey` from
+ * it, and its `CreateAttestationUploadUrlDto` rejects a body without it. This is
+ * not an optional convenience field — sending nothing fails validation and the
+ * upload button dies on contact with the real API.
+ *
+ * `sizeBytes` is REQUIRED for a subtler reason (§ 3). The AWS presigner signs
+ * `content-length` (and, counter-intuitively, does NOT sign `content-type` —
+ * the SDK lists it as unsignable). The browser fills `Content-Length` itself
+ * from the real file size and an application cannot override it: it is a
+ * forbidden header. So if the backend has to guess a length, the signature
+ * never matches and storage answers 403 to EVERY upload. Send `file.size`.
+ */
+export interface AttestationUploadUrlInput {
+  period: string
+  /** `file.size`, in bytes. Capped at `ATTESTATION_MAX_FILE_BYTES` (5 MiB). */
+  sizeBytes: number
+}
+
+/** Step 1 response. */
+export interface AttestationUploadTicket {
+  uploadUrl: string
+  fileKey: string
+  /** ISO-8601 UTC. After this the presigned URL stops working. */
+  expiresAt: string
+  /**
+   * The headers the PUT in step 2 MUST send, verbatim.
+   *
+   * A presigned URL is signed together with a specific set of headers. Sending
+   * anything different — including a hand-written `Content-Type` that looks
+   * correct — makes the signature not match and storage rejects the upload.
+   * Never hardcode these; pass the map through as-is.
+   */
+  headers: Record<string, string>
+}
+
+/** Step 3 of the three-step upload → `POST /attestations` (JSON, NOT multipart). */
+export interface CreateAttestationInput {
+  period: string
+  title: string
+  fileKey: string
+}
+
+/**
+ * `error.code` values the attestation endpoints can return (§ 3).
+ *
+ * All four of the file-related ones are 422 — they describe something wrong
+ * with what the CLIENT did. A storage outage is NOT in this list on purpose:
+ * infrastructure failures stay 5xx and fail closed, because translating "the
+ * bucket is down" into a validation error would tell an operator to fix a file
+ * that has nothing wrong with it.
+ */
+export type AttestationErrorCode =
+  | 'ATTESTATION_PERIOD_EXISTS'
+  | 'INVALID_ATTESTATION_PERIOD'
+  /** `sizeBytes` above the shared 5 MiB ceiling, raised by step 1. */
+  | 'ATTESTATION_FILE_TOO_LARGE'
+  /** Step 3 was handed a `fileKey` the backend never issued. */
+  | 'INVALID_FILE_KEY'
+  /**
+   * Step 3 ran but the object is missing or zero-length — step 2 never landed.
+   * Registering anyway would publish a row whose public download is broken.
+   */
+  | 'ATTESTATION_FILE_NOT_UPLOADED'
+  /** The bytes in the bucket are not a PDF, whatever the file was named. */
+  | 'ATTESTATION_FILE_TYPE_INVALID'
+
+/**
+ * Every mutation under /api/v1/transparency (ledger entry, attestation upload,
+ * revoke) is ADMIN-only (§ 3). Reading is ADMIN + DEVELOPER and is gated at the
+ * route with `RoleGuard`, the same way /settings/threshold is — hiding the
+ * buttons alone would still leave the page reachable by URL.
+ */
+export function canManageTransparency(role: StaffRole): boolean {
+  return role === 'ADMIN'
+}
+
+/** Roles allowed to READ the transparency ledger (§ 3). */
+export const TRANSPARENCY_READ_ROLES: StaffRole[] = ['ADMIN', 'DEVELOPER']
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 1 — mint/burn request lifecycle (see sot/openapi.yaml § /api/v1/requests)
 //

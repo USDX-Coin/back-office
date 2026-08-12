@@ -43,6 +43,7 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/settings/rate` | SETTINGS | Rate | ADMIN + DEVELOPER (update is ADMIN-only) | View / update base rate + spread **beli/jual** (USDX-207) |
 | `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot, 422 VALIDATION_ERROR; non-admin read-only |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
+| `/transparency` | COMPLIANCE | Transparency | ADMIN + DEVELOPER via `RoleGuard` (recording is ADMIN-only) | Append-only **reserve ledger** — entry history table (event date / type / amount / reason / recorded by / recorded at, server-paginated), reserve balance read from the response's `balance` field, and an add-entry form (SEED/ADJUSTMENT, negative amounts allowed as corrections, reason min 10 chars and no control/bidi characters, non-future `occurredAt` judged in WIB) behind a confirm dialog that restates the amount and the resulting balance. POST carries an **`idempotencyKey`** (16-200 chars) minted once per form-filling attempt and re-sent unchanged on retry — **201** = new entry, **200** = safe replay of the SAME content, both success, while the same key with **different** content is **409 `LEDGER_IDEMPOTENCY_KEY_CONFLICT`** (nothing written) and is handled as an actionable failure: reload the balance, show it, then offer to re-send under a new key. After any non-422 failure the balance is re-read and shown before a retry is offered, and a commit is blocked while the balance is unknown. Monthly attestation PDFs use the three-step upload (`upload-url` with a REQUIRED `{ period, sizeBytes }` → `PUT` to storage using the ticket's `headers` verbatim → register `fileKey`), capped at **5 MiB** and content-sniffed for a real PDF header; the list is server-paginated and revoked reports are filtered out. Contract: `catatan/KONTRAK-API-TRANSPARANSI.md` |
 | `/settings/oncall` | SETTINGS | On-Call | **ADMIN only — including read** | Kontak on-call insiden uang (USDX-485, audit P1-18). CRUD nama / peran / kanal (PHONE·EMAIL·SLACK) / kategori insiden. Backend menyisipkan kontak yang cocok kategorinya ke dalam isi alarm kondisi uang; nol kontak → alarm tetap terkirim dengan peringatan eksplisit. Lebih ketat dari Settings lain karena `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per `sot/conventions.md § Audit Akses PII`) dan daftarnya menentukan siapa yang boleh menarik rem darurat payout |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
@@ -84,6 +85,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual
 │   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245, full 5-field snapshot)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
+│   │   ├── transparency/  # TransparencyPage + ReserveBalanceCard + LedgerEntryForm + LedgerConfirmDialog + LedgerHistoryTable + AttestationSection + upload/revoke dialogs (/transparency)
 │   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
 │   │   ├── multisig/      # MultisigListPage + MultisigDetailSheet + tabs + wallet actions (USDX-275) — self-hosted Safe queue, connect-wallet (wagmi/RainbowKit), sign EIP-712 + execute + simulate guard
 │   │   └── profile/       # ProfilePage
@@ -97,6 +99,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── explorerUrl.ts # Block explorer deep-links (base URL from /api/v1/chains)
 │   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
 │   │   ├── chainLinks.ts  # findChainConfig + resolveOnChainLinks (composes explorer/safe URLs)
+│   │   ├── transparency.ts # exact BigInt-cents money math + WIB day helpers + attestation revoke filter
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
 │   │   ├── handlers.ts    # REST handlers + inline settlement simulator
@@ -208,7 +211,12 @@ Sidebar `(N)` badge counts requests with status `PENDING_APPROVAL`. Counts are q
 
 ## Security
 
-- CSP meta tag in `index.html` restricts script/style/font/connect sources
+- CSP meta tag in `index.html` restricts script/style/font/connect sources.
+  **Anything the app `fetch`es needs its host in `connect-src`** — `img-src` does
+  not cover it. Guarded by `src/__tests__/csp.test.ts`, which reads the shipped
+  policy off disk, because neither jsdom nor MSW enforces CSP and no integration
+  test can catch a missing origin (USDX-292 Polygon RPC, then the transparency
+  upload host)
 - Security headers in `vite.config.ts`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
 - Auth is mocked via localStorage — **not production-ready**
 - All `target="_blank"` links should include `rel="noopener noreferrer"`

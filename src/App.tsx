@@ -1,5 +1,11 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, RouterProvider, Navigate, Outlet } from 'react-router'
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Navigate,
+  Outlet,
+  type RouteObject,
+} from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
@@ -19,6 +25,7 @@ import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
+import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import ProfilePage from '@/features/profile/ProfilePage'
@@ -51,8 +58,16 @@ const queryClient = new QueryClient({
 //   /burn/new           → Burn form
 //   /settings/rate      → Rate management
 //   /settings/threshold → Threshold management
+//   /transparency       → Reserve ledger + attestation reports (ADMIN + DEVELOPER)
 //   /profile            → Operator profile (no sidebar entry; navbar dropdown)
-const router = createBrowserRouter([
+//
+// EXPORTED so tests can assert against the configuration that actually ships.
+// A RoleGuard test that builds its own little route tree proves the component
+// works and nothing about which roles this app grants — widening the
+// /transparency guard to every role left the whole suite green.
+// See src/components/layout/__tests__/AuthGuard.test.tsx.
+// eslint-disable-next-line react-refresh/only-export-components
+export const appRoutes: RouteObject[] = [
   {
     element: <PublicRoute />,
     children: [{ path: '/login', element: <LoginPage /> }],
@@ -127,6 +142,18 @@ const router = createBrowserRouter([
           // same as Rate). No route-level RoleGuard so DEVELOPER can view.
           { path: '/settings/fee', element: <FeeConfigPage /> },
           {
+            // KONTRAK-API-TRANSPARANSI.md § 3: reading the reserve ledger is
+            // ADMIN + DEVELOPER. Gated at the ROUTE, like /settings/threshold —
+            // the ledger exposes internal `reason` text and staff names that
+            // never appear publicly, so hiding the buttons alone would still
+            // leave the data one URL away. Recording entries is ADMIN-only
+            // inside the page and the BE enforces that again (403).
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER']} />,
+            children: [
+              { path: '/transparency', element: <TransparencyPage /> },
+            ],
+          },
+          {
             // sot/phase-1.md L516 "Threshold Management — admin only" +
             // Linear USDX-53 AC3: non-ADMIN must redirect/403.
             element: <RoleGuard allowed={['ADMIN']} />,
@@ -192,7 +219,9 @@ const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/login" replace /> },
-])
+]
+
+const router = createBrowserRouter(appRoutes)
 
 export default function App() {
   return (
