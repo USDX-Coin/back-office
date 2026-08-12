@@ -273,6 +273,22 @@ describe('Sidebar @ USDX-50', () => {
     })
   })
 
+  // Sidebar outgrew the viewport once the Reporting + Troubleshooting sections
+  // landed, and MainLayout clips overflow (h-screen overflow-hidden) — so the
+  // nav itself must scroll. jsdom performs no layout, so guard the classes
+  // that make it scrollable (min-h-0 lets the flex child shrink below its
+  // content height; without it overflow-y-auto never engages).
+  describe('scrollable nav (sidebar taller than viewport)', () => {
+    test('nav scrolls independently of the pinned header/footer', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const nav = screen.getByRole('navigation')
+      expect(nav).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
+    })
+  })
+
   // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
   // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
   // unlike Mint/Burn the badge also renders for STAFF.
