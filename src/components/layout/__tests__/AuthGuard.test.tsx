@@ -1,7 +1,8 @@
 import { describe, test, expect } from 'vitest'
 import { screen } from '@testing-library/react'
-import { Route, Routes } from 'react-router'
+import { Route, Routes, type RouteObject } from 'react-router'
 import { RoleGuard } from '@/components/layout/AuthGuard'
+import { appRoutes } from '@/App'
 import { renderWithProviders } from '@/test/test-utils'
 
 // USDX-53 AC3: only ADMIN can reach /settings/threshold; non-ADMIN
@@ -102,6 +103,86 @@ describe('RoleGuard @ USDX-53', () => {
     test('ADMIN can reach /mint list', () => {
       renderMintTree('/mint', 'stf_1') // ADMIN
       expect(screen.getByText('MINT_LIST')).toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The guards above all build their OWN little route tree, which proves that
+// RoleGuard works and NOTHING about which roles this application actually
+// grants. Widening /transparency to ['ADMIN','DEVELOPER','STAFF','MANAGER'] in
+// App.tsx left every one of them green.
+//
+// The block below therefore pulls the guard element out of `appRoutes` — the
+// same array `createBrowserRouter` is handed — so the assertion is about what
+// ships, not about a copy of it written for the test.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The route object whose `children` declare `path`, i.e. its guard wrapper. */
+function findGuardFor(path: string, routes: RouteObject[]): RouteObject | null {
+  for (const route of routes) {
+    if (route.children?.some((child) => child.path === path)) return route
+    const nested = route.children ? findGuardFor(path, route.children) : null
+    if (nested) return nested
+  }
+  return null
+}
+
+describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)', () => {
+  const guard = findGuardFor('/transparency', appRoutes)
+
+  function renderRealGuard(staffId?: string) {
+    return renderWithProviders(
+      <Routes>
+        <Route element={guard?.element}>
+          <Route path="/transparency" element={<div>TRANSPARENCY_PAGE</div>} />
+        </Route>
+        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+      </Routes>,
+      { initialEntries: ['/transparency'], staffId },
+    )
+  }
+
+  test('the route is wrapped in a guard at all', () => {
+    // Deleting the RoleGuard wrapper would otherwise just make the tests below
+    // render an unguarded tree and pass.
+    expect(guard).not.toBeNull()
+    expect(guard?.element).toBeTruthy()
+  })
+
+  describe('positive — the contract grants READ to ADMIN + DEVELOPER', () => {
+    test('ADMIN reaches /transparency', () => {
+      renderRealGuard('stf_1') // Marcus Thorne, ADMIN
+      expect(screen.getByText('TRANSPARENCY_PAGE')).toBeInTheDocument()
+    })
+
+    test('DEVELOPER reaches /transparency', () => {
+      renderRealGuard('stf_3') // Marcus Aurelius, DEVELOPER
+      expect(screen.getByText('TRANSPARENCY_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative — everyone else is redirected', () => {
+    // Hiding the sidebar entry is not enough: the page lists the internal
+    // `reason` text of every ledger entry and the name of the staff member who
+    // filed it, none of which appears publicly. Without the route guard that
+    // data is one typed URL away for any authenticated operator.
+    test('STAFF is redirected to /dashboard', () => {
+      renderRealGuard('stf_4') // Sarah King, STAFF
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
+    })
+
+    test('MANAGER is redirected to /dashboard', () => {
+      renderRealGuard('stf_2') // Linda Chen, MANAGER
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
+    })
+
+    test('an unauthenticated visit is redirected', () => {
+      renderRealGuard()
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
   })
 })

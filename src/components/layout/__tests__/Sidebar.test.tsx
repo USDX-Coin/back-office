@@ -121,6 +121,52 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
     })
 
+    // Transparency lives under COMPLIANCE but carries the settings-level read
+    // gate. There is no draft state in this model — an entry is public the
+    // moment it is recorded — so the reason to restrict the menu is what the
+    // page EXPOSES: the internal `reason` of every ledger entry and the name of
+    // the staff member who filed it, neither of which appears publicly.
+    // Recording is ADMIN-only inside the page, and the route itself is guarded
+    // (see AuthGuard.test.tsx) — this only controls menu noise.
+    test('Compliance > Transparency visible to ADMIN and DEVELOPER, hidden for STAFF and MANAGER', () => {
+      const { unmount: unmountAdmin } = renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true, // ADMIN
+      })
+      expect(
+        screen.getByRole('link', { name: /^transparency$/i })
+      ).toHaveAttribute('href', '/transparency')
+      unmountAdmin()
+
+      // The half the old version of this test never actually checked, despite
+      // its name.
+      const { unmount: unmountDev } = renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_3', // Marcus Aurelius, DEVELOPER
+      })
+      expect(
+        screen.getByRole('link', { name: /^transparency$/i })
+      ).toHaveAttribute('href', '/transparency')
+      unmountDev()
+
+      const { unmount: unmountStaff } = renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF role
+      })
+      expect(
+        screen.queryByRole('link', { name: /^transparency$/i })
+      ).not.toBeInTheDocument()
+      unmountStaff()
+
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_2', // Linda Chen, MANAGER
+      })
+      expect(
+        screen.queryByRole('link', { name: /^transparency$/i })
+      ).not.toBeInTheDocument()
+    })
+
     // USDX-87: Manual Sync is an emergency recovery surface — every role
     // (incl. STAFF who has no Settings access) must see it.
     test('Troubleshooting > Manual Sync visible to STAFF role', () => {
