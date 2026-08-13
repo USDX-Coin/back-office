@@ -16,9 +16,27 @@ import {
   validateFeeConfigForm,
   validatePgFeeVaFlat,
   validateDisbursementFeeFlat,
+  validateLedgerAmount,
+  validateLedgerReason,
+  validateLedgerOccurredAt,
+  validateLedgerCurrency,
+  validateLedgerEntryType,
+  validateLedgerEntryForm,
+  isLedgerErrorCode,
+  isLedgerKeyConflict,
+  LEDGER_ERROR_FIELD,
+  validateAttestationFile,
+  validateAttestationUploadForm,
+  toDateInputValue,
+  ATTESTATION_MAX_FILE_BYTES,
+  ATTESTATION_MAX_FILE_LABEL,
+  ATTESTATION_NOT_A_PDF_MESSAGE,
+  isValidIdempotencyKey,
   validateOncallContactForm,
   TX_HASH_RE,
 } from '@/lib/validators'
+import { newIdempotencyKey } from '@/lib/transparency'
+import type { LedgerErrorCode } from '@/lib/types'
 
 describe('validateLoginForm', () => {
   describe('positive', () => {
@@ -769,6 +787,535 @@ describe('validateFeeConfigForm', () => {
     })
     test('disbursement flat accepts a valid flat amount', () => {
       expect(validateDisbursementFeeFlat('5000.00')).toBeNull()
+    })
+  })
+})
+
+// ─── Transparency: reserve ledger + attestation upload ──────────────────────
+// Each block below names the contract `error.code` it mirrors
+// (catatan/KONTRAK-API-TRANSPARANSI.md § 3). If the client and the server ever
+// disagree about one of these rules, the operator gets a 422 they could have
+// been warned about locally — so these tests are the guard on that seam.
+
+describe('validateLedgerAmount', () => {
+  describe('positive', () => {
+    test('accepts a 2-decimal amount', () => {
+      expect(validateLedgerAmount('100667.41')).toBeNull()
+    })
+    test('accepts an integer amount', () => {
+      expect(validateLedgerAmount('50000')).toBeNull()
+    })
+    // The contract is explicit: negative IS the correction mechanism, because
+    // the ledger has no UPDATE and no DELETE.
+    test('accepts a NEGATIVE amount — that is how a correction is filed', () => {
+      expect(validateLedgerAmount('-1250.75')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects zero (LEDGER_AMOUNT_ZERO)', () => {
+      expect(validateLedgerAmount('0')).toMatch(/cannot be zero/i)
+      expect(validateLedgerAmount('0.00')).toMatch(/cannot be zero/i)
+      expect(validateLedgerAmount('-0.00')).toMatch(/cannot be zero/i)
+    })
+    test('rejects more than 2 decimals (LEDGER_AMOUNT_INVALID)', () => {
+      expect(validateLedgerAmount('100.123')).toMatch(/2 decimal places/i)
+    })
+    test('rejects non-numeric text (LEDGER_AMOUNT_INVALID)', () => {
+      expect(validateLedgerAmount('seratus')).toMatch(/2 decimal places/i)
+    })
+    test('rejects thousands separators — the wire format has none', () => {
+      expect(validateLedgerAmount('1,250.00')).toMatch(/2 decimal places/i)
+    })
+    test('rejects an empty amount', () => {
+      expect(validateLedgerAmount('   ')).toMatch(/required/i)
+    })
+    // numeric(30,2) = 30 significant digits, 2 after the point. Postgres
+    // refuses a wider value outright and the backend reports it as
+    // LEDGER_AMOUNT_INVALID — so the operator should hear it before the trip.
+    test('rejects more than 28 digits before the decimal point', () => {
+      expect(validateLedgerAmount(`${'9'.repeat(29)}.00`)).toMatch(/28 digits/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('accepts an amount far beyond Number.MAX_SAFE_INTEGER (numeric(30,2))', () => {
+      expect(validateLedgerAmount('9007199254740993.99')).toBeNull()
+    })
+    test('accepts the smallest non-zero correction', () => {
+      expect(validateLedgerAmount('-0.01')).toBeNull()
+    })
+    test('accepts exactly 28 integer digits — the widest numeric(30,2) allows', () => {
+      expect(validateLedgerAmount(`${'9'.repeat(28)}.99`)).toBeNull()
+    })
+    test('counts significant digits only — leading zeros are not width', () => {
+      expect(validateLedgerAmount(`${'0'.repeat(10)}100.00`)).toBeNull()
+    })
+    test('applies the width rule to negatives too (the sign is not a digit)', () => {
+      expect(validateLedgerAmount(`-${'9'.repeat(28)}.99`)).toBeNull()
+      expect(validateLedgerAmount(`-${'9'.repeat(29)}.99`)).toMatch(/28 digits/i)
+    })
+  })
+})
+
+describe('validateLedgerReason', () => {
+  describe('positive', () => {
+    test('accepts a reason at the 10-character minimum', () => {
+      expect(validateLedgerReason('1234567890')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects a missing reason', () => {
+      expect(validateLedgerReason('')).toMatch(/required/i)
+    })
+    test('rejects a reason under 10 characters (LEDGER_REASON_TOO_SHORT)', () => {
+      expect(validateLedgerReason('setoran')).toMatch(/at least 10 characters/i)
+    })
+    test('counts trimmed length, so padding cannot buy the minimum', () => {
+      expect(validateLedgerReason('   abc    ')).toMatch(/at least 10 characters/i)
+    })
+  })
+
+  // `reason` is the audit record of why a public number moved — it is read
+  // months later by someone reconstructing a decision, so what is rendered has
+  // to be what was stored.
+  describe('edge cases: control and bidi characters', () => {
+    // Escape sequences, not literal characters: a raw NUL or RTL override in a
+    // source file is unreadable in review and can reorder the line it sits on —
+    // which is the very property being rejected here.
+    const NUL = '\u0000'
+    const RTL_OVERRIDE = '\u202E'
+
+    test('rejects a NUL, which trim() does not remove', () => {
+      // `NUL.trim()` is still one character long, so a length-only check reads
+      // ten NULs as a perfectly good ten-character reason.
+      expect(NUL.repeat(10).trim()).toHaveLength(10)
+      expect(validateLedgerReason(NUL.repeat(10))).toMatch(/control/i)
+      expect(validateLedgerReason(`Setoran giro${NUL} USD`)).toMatch(/control/i)
+    })
+
+    test('rejects an RTL override, which makes the text read differently from the bytes', () => {
+      expect(validateLedgerReason(`Koreksi ${RTL_OVERRIDE}nagnarukgnep`)).toMatch(
+        /text-direction|control/i
+      )
+    })
+
+    test('rejects the other bidi marks and isolates', () => {
+      // LRM, RLM, LRE, LRI, PDI — same class of problem as the override.
+      for (const ch of ['\u200E', '\u200F', '\u202A', '\u2066', '\u2069']) {
+        expect(validateLedgerReason(`Setoran giro USD${ch}`)).toMatch(
+          /text-direction|control/i
+        )
+      }
+    })
+
+    test('still accepts ordinary punctuation, accents and newlines', () => {
+      // The rule must not turn into "ASCII only" — Indonesian audit text uses
+      // all of these, and a newline is legitimate in a multi-line reason.
+      expect(
+        validateLedgerReason('Setoran giro USD \u2014 BNI\nRp 1.810.000.000 \u00F7 17.980,00')
+      ).toBeNull()
+    })
+  })
+})
+
+describe('validateLedgerOccurredAt', () => {
+  // 2026-08-09T17:30Z is already 2026-08-10 00:30 in WIB.
+  const earlyWibMorning = new Date('2026-08-09T17:30:00.000Z')
+
+  describe('positive', () => {
+    test('accepts a past date', () => {
+      expect(validateLedgerOccurredAt('2026-07-23', earlyWibMorning)).toBeNull()
+    })
+    // The reason the whole WIB helper exists — a UTC-based check would call
+    // this "the future" and reject an operator working the night shift.
+    test('accepts today-in-WIB even while UTC is still on yesterday', () => {
+      expect(validateLedgerOccurredAt('2026-08-10', earlyWibMorning)).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects an empty date', () => {
+      expect(validateLedgerOccurredAt('', earlyWibMorning)).toMatch(/required/i)
+    })
+    test('rejects a future date (LEDGER_DATE_IN_FUTURE)', () => {
+      expect(validateLedgerOccurredAt('2026-08-11', earlyWibMorning)).toMatch(/future/i)
+    })
+    test('rejects a non-ISO format', () => {
+      expect(validateLedgerOccurredAt('23/07/2026', earlyWibMorning)).toMatch(
+        /YYYY-MM-DD/i
+      )
+    })
+  })
+
+  describe('edge cases', () => {
+    test('rejects a date that does not exist on the calendar', () => {
+      expect(validateLedgerOccurredAt('2026-02-31', earlyWibMorning)).toMatch(
+        /real calendar date/i
+      )
+    })
+    test('accepts a leap day in a leap year', () => {
+      expect(
+        validateLedgerOccurredAt('2028-02-29', new Date('2028-03-01T00:00:00.000Z'))
+      ).toBeNull()
+    })
+  })
+})
+
+describe('validateLedgerCurrency', () => {
+  describe('positive', () => {
+    test('accepts USD', () => {
+      expect(validateLedgerCurrency('USD')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects any other currency (LEDGER_CURRENCY_UNSUPPORTED)', () => {
+      expect(validateLedgerCurrency('IDR')).toMatch(/only USD/i)
+    })
+    test('rejects lowercase — the contract says uppercase ISO-4217', () => {
+      expect(validateLedgerCurrency('usd')).toMatch(/only USD/i)
+    })
+    test('rejects an empty currency', () => {
+      expect(validateLedgerCurrency('')).toMatch(/required/i)
+    })
+  })
+})
+
+describe('validateLedgerEntryType', () => {
+  describe('positive', () => {
+    test('accepts the two selectable types', () => {
+      expect(validateLedgerEntryType('SEED')).toBeNull()
+      expect(validateLedgerEntryType('ADJUSTMENT')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects an unselected type', () => {
+      expect(validateLedgerEntryType('')).toMatch(/required/i)
+    })
+    // MINT/BURN/REDEEM exist in the enum but are reserved for automatic hooks —
+    // staff must never be able to file one by hand.
+    test('rejects the reserved automatic types (LEDGER_TYPE_NOT_ALLOWED)', () => {
+      expect(validateLedgerEntryType('MINT')).toMatch(/SEED or ADJUSTMENT/i)
+      expect(validateLedgerEntryType('BURN')).toMatch(/SEED or ADJUSTMENT/i)
+      expect(validateLedgerEntryType('REDEEM')).toMatch(/SEED or ADJUSTMENT/i)
+    })
+  })
+})
+
+describe('validateLedgerEntryForm', () => {
+  const now = new Date('2026-08-10T09:00:00.000Z')
+  const valid = {
+    entryType: 'SEED',
+    amount: '100667.41',
+    currency: 'USD',
+    reason: 'Setoran giro USD untuk cadangan awal',
+    occurredAt: '2026-07-23',
+  }
+
+  describe('positive', () => {
+    test('passes a fully valid entry', () => {
+      expect(validateLedgerEntryForm(valid, now)).toEqual({ valid: true, errors: {} })
+    })
+    test('passes a negative ADJUSTMENT', () => {
+      const result = validateLedgerEntryForm(
+        { ...valid, entryType: 'ADJUSTMENT', amount: '-1250.75' },
+        now
+      )
+      expect(result.valid).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('reports every broken rule at once, keyed by field', () => {
+      const result = validateLedgerEntryForm(
+        {
+          entryType: 'MINT',
+          amount: '0',
+          currency: 'IDR',
+          reason: 'oops',
+          occurredAt: '2099-01-01',
+        },
+        now
+      )
+      expect(result.valid).toBe(false)
+      expect(Object.keys(result.errors).sort()).toEqual([
+        'amount',
+        'currency',
+        'entryType',
+        'occurredAt',
+        'reason',
+      ])
+    })
+  })
+})
+
+describe('LEDGER_ERROR_FIELD / isLedgerErrorCode', () => {
+  describe('positive', () => {
+    // Every code in the contract's validation table must be PLACED — on a
+    // field, or deliberately at form level — otherwise a server 422 becomes an
+    // unattributed banner.
+    test('places every contract code', () => {
+      expect(LEDGER_ERROR_FIELD).toEqual({
+        LEDGER_AMOUNT_ZERO: 'amount',
+        LEDGER_AMOUNT_INVALID: 'amount',
+        LEDGER_REASON_TOO_SHORT: 'reason',
+        LEDGER_DATE_IN_FUTURE: 'occurredAt',
+        LEDGER_DATE_INVALID: 'occurredAt',
+        LEDGER_CURRENCY_UNSUPPORTED: 'currency',
+        LEDGER_TYPE_NOT_ALLOWED: 'entryType',
+        // `null` = no input owns this. The client minted a key outside
+        // 16–200 characters; the operator's fields are all correct, so this
+        // renders in the dialog rather than pointing at one of them.
+        LEDGER_IDEMPOTENCY_KEY_INVALID: null,
+        // Field-less for a different reason: every field may be right. The key
+        // is on an entry that says something else, and the fix is a new key —
+        // underlining Amount would send the operator to change the figure they
+        // had just finished correcting.
+        LEDGER_IDEMPOTENCY_KEY_CONFLICT: null,
+      })
+    })
+    test('recognises a contract code', () => {
+      expect(isLedgerErrorCode('LEDGER_REASON_TOO_SHORT')).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('does not claim unrelated codes', () => {
+      expect(isLedgerErrorCode('INTERNAL_ERROR')).toBe(false)
+      expect(isLedgerErrorCode('FORBIDDEN')).toBe(false)
+    })
+  })
+})
+
+describe('validateAttestationFile', () => {
+  const pdf = { name: 'atestasi.pdf', type: 'application/pdf', size: 1024 }
+
+  describe('positive', () => {
+    test('accepts a PDF within the size cap', () => {
+      expect(validateAttestationFile(pdf)).toBeNull()
+    })
+    test('accepts a .pdf whose MIME type the browser did not report', () => {
+      expect(validateAttestationFile({ ...pdf, type: '' })).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects a missing file', () => {
+      expect(validateAttestationFile(null)).toMatch(/required/i)
+    })
+    test('rejects a non-PDF MIME type', () => {
+      expect(
+        validateAttestationFile({ name: 'foto.png', type: 'image/png', size: 10 })
+      ).toMatch(/only pdf/i)
+    })
+    test('rejects a renamed non-PDF with no MIME type', () => {
+      expect(
+        validateAttestationFile({ name: 'laporan.docx', type: '', size: 10 })
+      ).toMatch(/only pdf/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('rejects an empty file', () => {
+      expect(validateAttestationFile({ ...pdf, size: 0 })).toMatch(/empty/i)
+    })
+    test('rejects a file above the cap', () => {
+      expect(
+        validateAttestationFile({ ...pdf, size: ATTESTATION_MAX_FILE_BYTES + 1 })
+      ).toMatch(/at most/i)
+    })
+    test('accepts a file exactly at the cap', () => {
+      expect(
+        validateAttestationFile({ ...pdf, size: ATTESTATION_MAX_FILE_BYTES })
+      ).toBeNull()
+    })
+
+    // The ceiling is the BACKEND's, not a UI preference: it signs the presigned
+    // URL for at most this many bytes and answers a larger `sizeBytes` with
+    // 422 ATTESTATION_FILE_TOO_LARGE. The two sides must hold the same number,
+    // so this pins the constant rather than trusting the copy next to it.
+    test('the cap is 5 MiB, matching the number the backend signs against', () => {
+      expect(ATTESTATION_MAX_FILE_BYTES).toBe(5 * 1024 * 1024)
+      expect(ATTESTATION_MAX_FILE_LABEL).toBe('5 MiB')
+    })
+    test('a 10 MB file — what the old copy promised — is refused', () => {
+      expect(
+        validateAttestationFile({ ...pdf, size: 10 * 1024 * 1024 })
+      ).toMatch(/at most 5 MiB/i)
+    })
+  })
+})
+
+// The name and the MIME type are the file's OWN claim about itself and both are
+// picker-controlled; `looksLikePdf` in lib/transparency.ts reads the bytes.
+describe('ATTESTATION_NOT_A_PDF_MESSAGE', () => {
+  test('names the content, not the extension — the operator renamed nothing wrong', () => {
+    expect(ATTESTATION_NOT_A_PDF_MESSAGE).toMatch(/not a PDF/i)
+  })
+})
+
+describe('isValidIdempotencyKey', () => {
+  describe('positive', () => {
+    test('accepts a key at the 16-character floor', () => {
+      expect(isValidIdempotencyKey('k'.repeat(16))).toBe(true)
+    })
+    test('accepts a key at the 200-character ceiling', () => {
+      expect(isValidIdempotencyKey('k'.repeat(200))).toBe(true)
+    })
+    // The one that actually ships.
+    test('accepts the UUID newIdempotencyKey mints', () => {
+      expect(isValidIdempotencyKey(newIdempotencyKey())).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    // The floor is the interesting bound. A key this lazy would be reused
+    // across unrelated attempts, and the backend would answer the second one
+    // with the first one's entry — silently dropping a real ledger row, which
+    // is a quieter failure than the duplicate the key exists to prevent.
+    test('rejects a throwaway key like "retry"', () => {
+      expect(isValidIdempotencyKey('retry')).toBe(false)
+    })
+    test('rejects one character under the floor', () => {
+      expect(isValidIdempotencyKey('k'.repeat(15))).toBe(false)
+    })
+    test('rejects one character over the ceiling', () => {
+      expect(isValidIdempotencyKey('k'.repeat(201))).toBe(false)
+    })
+  })
+})
+
+describe('LEDGER_ERROR_FIELD', () => {
+  test('covers every contract code, so no 422 can go unplaced', () => {
+    const codes: LedgerErrorCode[] = [
+      'LEDGER_AMOUNT_ZERO',
+      'LEDGER_AMOUNT_INVALID',
+      'LEDGER_REASON_TOO_SHORT',
+      'LEDGER_DATE_IN_FUTURE',
+      'LEDGER_DATE_INVALID',
+      'LEDGER_CURRENCY_UNSUPPORTED',
+      'LEDGER_TYPE_NOT_ALLOWED',
+      'LEDGER_IDEMPOTENCY_KEY_INVALID',
+      'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
+    ]
+    for (const code of codes) {
+      expect(isLedgerErrorCode(code)).toBe(true)
+      expect(LEDGER_ERROR_FIELD).toHaveProperty(code)
+    }
+  })
+
+  test('maps the idempotency-key code to NO field — the operator typed nothing wrong', () => {
+    // It is the client that minted a bad key. Pinning this on Amount or Reason
+    // would send an operator to correct a field that is already right.
+    expect(LEDGER_ERROR_FIELD.LEDGER_IDEMPOTENCY_KEY_INVALID).toBeNull()
+  })
+
+  // The 409 is field-less too, and for the sharper reason: it is raised when the
+  // operator has just CORRECTED a value. Sending them back to that field would
+  // point at the one thing that is now right.
+  test('maps the key CONFLICT to no field either', () => {
+    expect(LEDGER_ERROR_FIELD.LEDGER_IDEMPOTENCY_KEY_CONFLICT).toBeNull()
+  })
+
+  test('every OTHER code names a real form field', () => {
+    const fieldless = [
+      'LEDGER_IDEMPOTENCY_KEY_INVALID',
+      'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
+    ]
+    for (const [code, field] of Object.entries(LEDGER_ERROR_FIELD)) {
+      if (fieldless.includes(code)) continue
+      expect(field).toBeTruthy()
+    }
+  })
+})
+
+// The 409 needs a different response from the rest of the table — reload the
+// balance, then offer a new key — so the form has to be able to tell it apart
+// before it decides anything else.
+describe('isLedgerKeyConflict', () => {
+  describe('positive', () => {
+    test('recognises the conflict code', () => {
+      expect(isLedgerKeyConflict('LEDGER_IDEMPOTENCY_KEY_CONFLICT')).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('does not confuse it with the key LENGTH code', () => {
+      // Similar name, opposite handling: the length 422 is a definite "nothing
+      // was written" that needs no balance re-read at all.
+      expect(isLedgerKeyConflict('LEDGER_IDEMPOTENCY_KEY_INVALID')).toBe(false)
+    })
+    test('does not claim other codes', () => {
+      expect(isLedgerKeyConflict('LEDGER_AMOUNT_INVALID')).toBe(false)
+      expect(isLedgerKeyConflict('ATTESTATION_PERIOD_EXISTS')).toBe(false)
+    })
+  })
+})
+
+describe('validateAttestationUploadForm', () => {
+  const now = new Date(2026, 6, 15) // Jul 2026
+  const ok = {
+    period: '2026-07',
+    title: 'Laporan Atestasi Cadangan Juli 2026',
+    file: { name: 'atestasi.pdf', type: 'application/pdf', size: 2048 },
+  }
+
+  describe('positive', () => {
+    test('accepts the current period', () => {
+      expect(validateAttestationUploadForm(ok, now).valid).toBe(true)
+    })
+    test('accepts a past period', () => {
+      expect(validateAttestationUploadForm({ ...ok, period: '2025-12' }, now).valid).toBe(
+        true
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects a malformed period', () => {
+      const r = validateAttestationUploadForm({ ...ok, period: 'Juli 2026' }, now)
+      expect(r.valid).toBe(false)
+      expect(r.errors.period).toMatch(/YYYY-MM/i)
+    })
+    test('rejects a future period', () => {
+      const r = validateAttestationUploadForm({ ...ok, period: '2026-08' }, now)
+      expect(r.valid).toBe(false)
+      expect(r.errors.period).toMatch(/future/i)
+    })
+    test('rejects a blank title', () => {
+      const r = validateAttestationUploadForm({ ...ok, title: '  ' }, now)
+      expect(r.valid).toBe(false)
+      expect(r.errors.title).toBeDefined()
+    })
+    test('rejects a missing file', () => {
+      const r = validateAttestationUploadForm({ ...ok, file: null }, now)
+      expect(r.valid).toBe(false)
+      expect(r.errors.file).toBeDefined()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('rejects month 13', () => {
+      const r = validateAttestationUploadForm({ ...ok, period: '2026-13' }, now)
+      expect(r.valid).toBe(false)
+      expect(r.errors.period).toMatch(/YYYY-MM/i)
+    })
+  })
+})
+
+describe('toDateInputValue', () => {
+  describe('positive', () => {
+    test('formats a local date as YYYY-MM-DD', () => {
+      expect(toDateInputValue(new Date(2026, 0, 9))).toBe('2026-01-09')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('pads single-digit months and days', () => {
+      expect(toDateInputValue(new Date(2026, 8, 5))).toBe('2026-09-05')
     })
   })
 })

@@ -15,6 +15,9 @@ import type {
   UpdateRateConfig,
   FeeConfig,
   UpdateFeeConfig,
+  ReserveLedgerEntry,
+  CreateAttestationInput,
+  AttestationReport,
   RequestDetail,
   RequestListItem,
   OrderDetail,
@@ -23,7 +26,7 @@ import type {
   CreateOncallContact,
   UpdateOncallContact,
 } from '@/lib/types'
-import { canManageRate, canManageFeeConfig, canManageOncallContacts } from '@/lib/types'
+import { canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -39,10 +42,14 @@ import {
   createInitialRateHistory,
   createRateConfig,
   computeRateInfo,
-  createInitialFeeHistory,
-  createFeeConfig,
   createInitialOncallContacts,
   createOncallContact,
+  createInitialFeeHistory,
+  createFeeConfig,
+  createLedgerEntry,
+  createInitialLedgerEntries,
+  createAttestationReport,
+  createInitialAttestations,
   computeDashboardStats,
   customerToPhaseOneUser,
   createMintFromRequest,
@@ -55,11 +62,13 @@ let customerStore: Customer[] = createMockCustomerList()
 let staffStore: Staff[] = createMockStaffList()
 let otcMintStore: OtcMintTransaction[]
 let otcRedeemStore: OtcRedeemTransaction[]
+// USDX-485 — direktori kontak on-call insiden uang (audit P1-18).
+let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
-// USDX-485 — direktori kontak on-call insiden uang (audit P1-18).
-let oncallStore: OncallContact[] = createInitialOncallContacts()
+let reserveLedger: ReserveLedgerEntry[] = createInitialLedgerEntries()
+let attestations: AttestationReport[] = createInitialAttestations()
 let requestList: RequestListItem[]
 let requestDetails: Map<string, RequestDetail>
 ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
@@ -74,12 +83,17 @@ let kycReviews: Map<string, KycReviewLog[]>
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
+  oncallStore = createInitialOncallContacts()
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
-  oncallStore = createInitialOncallContacts()
+  reserveLedger = createInitialLedgerEntries()
+  attestations = createInitialAttestations()
+  ledgerIdempotency.clear()
+  issuedUploadTickets.clear()
+  storageObjects.clear()
   ;({ list: requestList, details: requestDetails } = createMockRequests(customerStore, staffStore))
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
@@ -306,81 +320,6 @@ export function verifyMockJwt(token: string): MockJwtClaims | null {
   }
 }
 
-// ─── Helper kontak on-call (USDX-485) ───
-
-function oncallForbidden() {
-  return HttpResponse.json(
-    {
-      status: 'error',
-      metadata: null,
-      data: null,
-      error: { code: 'FORBIDDEN', message: 'Only ADMIN can manage on-call contacts' },
-    },
-    { status: 403 }
-  )
-}
-
-function oncallNotFound() {
-  return HttpResponse.json(
-    {
-      status: 'error',
-      metadata: null,
-      data: null,
-      error: { code: 'ONCALL_CONTACT_NOT_FOUND', message: 'On-call contact not found' },
-    },
-    { status: 404 }
-  )
-}
-
-/**
- * Cermin UNIQUE (channel, contact_value) di backend: satu tujuan terdaftar sekali,
- * supaya "berapa orang yang sebenarnya on-call" tetap terjawab.
- */
-function oncallDuplicate(
-  channel: string,
-  contactValue: string,
-  ignoreId: string | null
-) {
-  const clash = oncallStore.some(
-    (c) => c.id !== ignoreId && c.channel === channel && c.contactValue === contactValue
-  )
-  if (!clash) return null
-  return HttpResponse.json(
-    {
-      status: 'error',
-      metadata: null,
-      data: null,
-      error: {
-        code: 'ONCALL_CONTACT_ALREADY_EXISTS',
-        message: 'A contact with this channel and value is already registered.',
-      },
-    },
-    { status: 409 }
-  )
-}
-
-function oncallBodyError(body: Partial<CreateOncallContact>) {
-  const problems: string[] = []
-  if (!body.name?.trim()) problems.push('name')
-  if (!body.role?.trim()) problems.push('role')
-  if (!body.channel) problems.push('channel')
-  if (!body.contactValue?.trim()) problems.push('contactValue')
-  if (!body.categories || body.categories.length === 0) problems.push('categories')
-  if (problems.length === 0) return null
-  return HttpResponse.json(
-    {
-      status: 'error',
-      metadata: null,
-      data: null,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: `Required and must be non-empty: ${problems.join(', ')}`,
-      },
-    },
-    { status: 422 }
-  )
-}
-
 function unauthorized(message = 'Invalid or missing token') {
   return HttpResponse.json(
     {
@@ -436,9 +375,330 @@ function authenticatedStaff(request: Request): Staff | null {
   return findStaffById(claims.sub) ?? null
 }
 
+// ─── Transparency error envelopes (/api/v1/transparency/*) ───
+// Codes + HTTP statuses come straight from the validation tables in
+// catatan/KONTRAK-API-TRANSPARANSI.md § 3.
+function transparencyError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+function transparencyForbidden() {
+  return transparencyError(403, 'FORBIDDEN', 'Only ADMIN can write transparency data')
+}
+
+/**
+ * A DTO/ValidationPipe rejection — a PLAIN 400, not a named 422.
+ *
+ * `V1_VALIDATION_422_ROUTES` in the backend's http-exception filter lists only
+ * `/api/v1/fee-config`, so where a transparency DTO does use class-validator its
+ * shape errors come back as NestJS's own 400. That is the ATTESTATION routes:
+ * `CreateAttestationUploadUrlDto` and friends carry `@IsString()`/`@IsInt()`, so
+ * a missing `period` or `sizeBytes` never reaches the service. A mock that
+ * answers a friendly 422 there trains the client to expect a code production
+ * cannot send.
+ *
+ * The LEDGER route is the opposite case and must not be lumped in with it:
+ * `CreateLedgerEntryDto` is `@Allow()`-only by design, so every condition —
+ * including a missing or mistyped field — exits the service as its own named
+ * 422. The only 400 left there is a body that is not JSON at all.
+ */
+function nestValidationError(messages: string[]) {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'BAD_REQUEST', message: messages.join(', ') },
+    },
+    { status: 400 }
+  )
+}
+
+/** numeric(30,2) → at most 28 digits before the decimal point. */
+const LEDGER_MAX_INT_DIGITS = 28
+/** Shared 5 MiB ceiling — the same number the presigner signs against. */
+const ATTESTATION_MAX_FILE_BYTES_MOCK = 5 * 1024 * 1024
+/** Every `fileKey` the backend hands out starts here. */
+const ATTESTATION_FILE_KEY_PREFIX = 'transparency/attestation/'
+/**
+ * Backend default when a client omits `take` — matches the number of reports
+ * the public page lists. Still small enough that a back office relying on it
+ * would lose sight of older reports, which is why the client asks explicitly.
+ */
+const ATTESTATION_DEFAULT_TAKE = 24
+/** `idempotencyKey` bounds the backend enforces (§ 3). */
+const LEDGER_IDEMPOTENCY_KEY_MIN = 16
+const LEDGER_IDEMPOTENCY_KEY_MAX = 200
+
+// Reserve balance = SUM(amount) over the WHOLE ledger (§ 1). Computed on
+// integer cents so a 30-digit numeric never touches a float.
+function ledgerBalanceAmount(entries: ReserveLedgerEntry[]): string {
+  let cents = 0n
+  for (const entry of entries) {
+    const [whole = '0', fraction = ''] = entry.amount.replace('-', '').split('.')
+    const magnitude = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+    cents += entry.amount.startsWith('-') ? -magnitude : magnitude
+  }
+  const negative = cents < 0n
+  const abs = negative ? -cents : cents
+  return `${negative ? '-' : ''}${abs / 100n}.${(abs % 100n).toString().padStart(2, '0')}`
+}
+
+// Mirror of the backend's WIB day rule (§ 3): "today" is UTC+7, so an entry
+// filed at 02:00 WIB is not treated as tomorrow.
+function wibTodayMock(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+// A real calendar date? `new Date(2026, 1, 31)` silently rolls over to Mar 3,
+// which is why the contract gives this its own code (LEDGER_DATE_INVALID).
+function isRealCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number]
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  )
+}
+
+// Presigned-upload bookkeeping for the fake storage host: upload URL → what
+// that URL was signed with.
+//
+// `contentLength` is in here because the presigner signs `content-length` and
+// does NOT sign `content-type` (the AWS SDK marks it unsignable). The browser
+// fills Content-Length from the real file and an application cannot override it,
+// so the ONLY way the signature can ever match is if step 1 was told the true
+// size. A stub that ignores length is why the missing `sizeBytes` looked fine
+// locally while every production upload would have been 403'd.
+interface IssuedUploadTicket {
+  headers: Record<string, string>
+  contentLength: number
+  fileKey: string
+}
+
+const issuedUploadTickets = new Map<string, IssuedUploadTicket>()
+
+/**
+ * The fake bucket's contents: fileKey → what actually landed there.
+ *
+ * Step 3 consults this the way the backend consults S3 before registering a
+ * report. Without it the mock would happily register a `fileKey` whose object
+ * was never uploaded — publishing a row whose public download is a dead link —
+ * and the two codes that exist for exactly that (ATTESTATION_FILE_NOT_UPLOADED,
+ * ATTESTATION_FILE_TYPE_INVALID) could never be produced locally.
+ */
+interface StoredObject {
+  size: number
+  isPdf: boolean
+}
+
+const storageObjects = new Map<string, StoredObject>()
+
+/**
+ * Idempotency ledger for POST /transparency/ledger: key → what was written under
+ * it. The backend keeps a unique index on the column; a repeat returns the row
+ * that already exists instead of appending a second one.
+ *
+ * The CONTENT is kept, not just the key, because a repeat is only a replay if
+ * the request is the same request. Same key + different content is a 409
+ * (§ 3) — the case where a 504 is followed by the operator fixing a typo, and a
+ * mock that compares keys alone answers it "200, here is your old entry" and
+ * hides the exact bug the 409 exists to expose.
+ *
+ * `createdBy` rides along because the backend compares it too: keys are not
+ * scoped per staff member, so a key reused across sessions would otherwise hand
+ * staff B the entry staff A wrote, with B's entry never stored.
+ */
+interface LedgerIdempotencyRecord {
+  entry: ReserveLedgerEntry
+  createdBy: string
+}
+
+const ledgerIdempotency = new Map<string, LedgerIdempotencyRecord>()
+
+/**
+ * Decimal money in the canonical `[-]<int>.<2 digits>` form — the form a
+ * `numeric(30,2)` column hands back.
+ *
+ * Used for BOTH storage and comparison, mirroring the backend: the column
+ * normalises what it stores, so "100667.4" is read back as "100667.40" and the
+ * two must not register as a content conflict. Done on strings, never through
+ * `Number()`, because a reserve figure can outrun float64 precision.
+ */
+function canonicalMoneyMock(value: string): string {
+  const trimmed = value.trim()
+  const negative = trimmed.startsWith('-')
+  const [intRaw = '', fracRaw = ''] = trimmed.replace(/^[-+]/, '').split('.')
+  const int = intRaw.replace(/^0+(?=\d)/, '') || '0'
+  const canonical = `${int}.${`${fracRaw}00`.slice(0, 2)}`
+  // "-0.00" and "0.00" are the same number; the sign only means something once
+  // a non-zero digit is present.
+  return negative && /[1-9]/.test(canonical) ? `-${canonical}` : canonical
+}
+
+// Storage rejects a signature mismatch with 403 and an XML body — deliberately
+// NOT the USDX JSON envelope, because this host is not the USDX API.
+function storageSignatureError(detail: string) {
+  return new HttpResponse(
+    `<?xml version="1.0" encoding="UTF-8"?><Error><Code>SignatureDoesNotMatch</Code><Message>${detail}</Message></Error>`,
+    { status: 403, headers: { 'Content-Type': 'application/xml' } }
+  )
+}
+
 // ─── Handlers ───
 
+function oncallForbidden() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN', message: 'Only ADMIN can manage on-call contacts' },
+    },
+    { status: 403 }
+  )
+}
+
+function oncallNotFound() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'ONCALL_CONTACT_NOT_FOUND', message: 'On-call contact not found' },
+    },
+    { status: 404 }
+  )
+}
+
+function oncallDuplicate(
+  channel: string,
+  contactValue: string,
+  ignoreId: string | null
+) {
+  const clash = oncallStore.some(
+    (c) => c.id !== ignoreId && c.channel === channel && c.contactValue === contactValue
+  )
+  if (!clash) return null
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'ONCALL_CONTACT_ALREADY_EXISTS',
+        message: 'A contact with this channel and value is already registered.',
+      },
+    },
+    { status: 409 }
+  )
+}
+
+function oncallBodyError(body: Partial<CreateOncallContact>) {
+  const problems: string[] = []
+  if (!body.name?.trim()) problems.push('name')
+  if (!body.role?.trim()) problems.push('role')
+  if (!body.channel) problems.push('channel')
+  if (!body.contactValue?.trim()) problems.push('contactValue')
+  if (!body.categories || body.categories.length === 0) problems.push('categories')
+  if (problems.length === 0) return null
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `Required and must be non-empty: ${problems.join(', ')}`,
+      },
+    },
+    { status: 422 }
+  )
+}
+
 export const handlers = [
+  // ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
+  //
+  // Backend menyimpan daftar ini dan menyisipkan kontak yang cocok kategorinya ke
+  // dalam isi alarm kondisi uang. SELURUH permukaannya — termasuk BACA — admin-only:
+  // `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per tabel role di
+  // sot/conventions.md § Audit Akses PII), dan daftar "siapa yang boleh menarik rem
+  // darurat payout" bukan pengetahuan yang perlu dibagikan lebih luas.
+  //
+  // Mock-served (tidak masuk INTEGRATION_PATHS di browser.ts) — endpoint BE-nya baru
+  // mendarat di PR backend yang menyertai tiket ini dan belum tentu sudah ter-deploy
+  // di dev saat halaman ini dipakai.
+  http.get('/api/v1/oncall-contacts', ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: [...oncallStore].sort((a, b) => a.name.localeCompare(b.name)),
+    })
+  }),
+
+  http.post('/api/v1/oncall-contacts', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const body = (await request.json()) as CreateOncallContact
+    const invalid = oncallBodyError(body)
+    if (invalid) return invalid
+    const duplicate = oncallDuplicate(body.channel, body.contactValue, null)
+    if (duplicate) return duplicate
+
+    const created = createOncallContact({ ...body, createdBy: operator.id })
+    oncallStore.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  http.patch('/api/v1/oncall-contacts/:id', async ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const index = oncallStore.findIndex((c) => c.id === params.id)
+    if (index === -1) return oncallNotFound()
+
+    const existing = oncallStore[index]!
+    const body = (await request.json()) as UpdateOncallContact
+    const next = { ...existing, ...body }
+    const invalid = oncallBodyError(next)
+    if (invalid) return invalid
+    const duplicate = oncallDuplicate(next.channel, next.contactValue, existing.id)
+    if (duplicate) return duplicate
+
+    const updated: OncallContact = {
+      ...next,
+      categories: [...next.categories],
+      updatedBy: operator.id,
+      updatedAt: new Date().toISOString(),
+    }
+    oncallStore[index] = updated
+    return HttpResponse.json({ status: 'success', metadata: null, data: updated })
+  }),
+
+  http.delete('/api/v1/oncall-contacts/:id', ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+
+    const index = oncallStore.findIndex((c) => c.id === params.id)
+    if (index === -1) return oncallNotFound()
+    oncallStore.splice(index, 1)
+    return HttpResponse.json({ status: 'success', metadata: null, data: null })
+  }),
+
   // ─── Auth ───
   // Response envelope follows sot/openapi.yaml § /api/v1/auth/login.
   http.post('/api/v1/auth/login', async ({ request }) => {
@@ -764,82 +1024,470 @@ export const handlers = [
     )
   }),
 
-  // ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
+  // ─── Transparency (/api/v1/transparency/*) ───
+  // APPEND-ONLY reserve ledger + attestation reports, per
+  // catatan/KONTRAK-API-TRANSPARANSI.md § 3. There is no update, no delete and
+  // no draft/publish state — a correction is a new entry with a negative
+  // amount. Writes are ADMIN-only; reads are open here for the same
+  // first-fetch-ordering reason as /api/v1/rate above (the route-level
+  // RoleGuard is what gates reading in the app).
   //
-  // Backend menyimpan daftar ini dan menyisipkan kontak yang cocok kategorinya ke
-  // dalam isi alarm kondisi uang. SELURUH permukaannya — termasuk BACA — admin-only:
-  // `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per tabel role di
-  // sot/conventions.md § Audit Akses PII), dan daftar "siapa yang boleh menarik rem
-  // darurat payout" bukan pengetahuan yang perlu dibagikan lebih luas.
-  //
-  // Mock-served (tidak masuk INTEGRATION_PATHS di browser.ts) — endpoint BE-nya baru
-  // mendarat di PR backend yang menyertai tiket ini dan belum tentu sudah ter-deploy
-  // di dev saat halaman ini dipakai.
-  http.get('/api/v1/oncall-contacts', ({ request }) => {
-    const operator = authenticatedStaff(request)
-    if (!operator) return unauthorized()
-    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+  // NOT in browser.ts INTEGRATION_PATHS yet — the backend is still being built.
+
+  http.get('/api/v1/transparency/ledger', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
+    const take = Math.max(1, Number(url.searchParams.get('take') ?? '50') || 50)
+
+    // Newest event first, then newest record — the order an operator reads a
+    // ledger in.
+    const ordered = [...reserveLedger].sort(
+      (a, b) =>
+        b.occurredAt.localeCompare(a.occurredAt) ||
+        b.createdAt.localeCompare(a.createdAt)
+    )
+    const start = (page - 1) * take
+
     return HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: [...oncallStore].sort((a, b) => a.name.localeCompare(b.name)),
+      data: {
+        entries: ordered.slice(start, start + take),
+        page,
+        take,
+        total: ordered.length,
+        // Balance of the ENTIRE ledger, not of this page.
+        balance: {
+          amount: ledgerBalanceAmount(reserveLedger),
+          currency: 'USD',
+        },
+      },
     })
   }),
 
-  http.post('/api/v1/oncall-contacts', async ({ request }) => {
+  http.post('/api/v1/transparency/ledger', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()
-    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    const body = (await request.json()) as CreateOncallContact
-    const invalid = oncallBodyError(body)
-    if (invalid) return invalid
-    const duplicate = oncallDuplicate(body.channel, body.contactValue, null)
-    if (duplicate) return duplicate
+    // Every field arrives as `unknown`, exactly as the backend sees it. Its DTO
+    // is `@Allow()` and nothing else — no `@IsString`, no `@Matches` — precisely
+    // so ValidationPipe never answers for this route and each condition can come
+    // back as its OWN named 422 (`ledger-entry.validation.ts`). A JSON number in
+    // `amount` is therefore 422 LEDGER_AMOUNT_INVALID, not a 400 and certainly
+    // not the 500 this mock used to raise on `amount.replace`.
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      // The one 400 this route can still produce: a body the JSON parser cannot
+      // read at all, rejected before Nest ever reaches the controller.
+      return nestValidationError(['Unexpected token in JSON at position 0'])
+    }
 
-    const created = createOncallContact({ ...body, createdBy: operator.id })
-    oncallStore.push(created)
+    // Order and codes follow `validateLedgerEntryInput` exactly — entryType,
+    // amount, reason, occurredAt, currency, idempotencyKey — because the order
+    // decides WHICH code a doubly-invalid body gets back.
+    const entryType = body.entryType
+    if (entryType !== 'SEED' && entryType !== 'ADJUSTMENT') {
+      return transparencyError(
+        422,
+        'LEDGER_TYPE_NOT_ALLOWED',
+        'entryType must be SEED or ADJUSTMENT'
+      )
+    }
+
+    // Money is a STRING in this contract. A JSON number is a float64 — the type
+    // the whole contract keeps money away from — and `regex.test(1000)` would
+    // silently coerce it and let it through.
+    // NOT trimmed either: the backend does not trim `amount`, so " 100.00 "
+    // fails its decimal check, and a mock that trims makes surrounding
+    // whitespace look harmless.
+    const amount = body.amount
+    if (typeof amount !== 'string' || !/^-?\d+(\.\d{1,2})?$/.test(amount)) {
+      return transparencyError(
+        422,
+        'LEDGER_AMOUNT_INVALID',
+        'amount must be a decimal string with at most 2 decimal places'
+      )
+    }
+    // numeric(30,2) — Postgres refuses a wider value outright. Counted the way
+    // the backend counts, WITHOUT stripping leading zeros: it measures the
+    // digits it was sent, so "0…0" padding is rejected there too.
+    const [wholePart = ''] = amount.replace('-', '').split('.')
+    if (wholePart.length > LEDGER_MAX_INT_DIGITS) {
+      return transparencyError(
+        422,
+        'LEDGER_AMOUNT_INVALID',
+        `amount cannot have more than ${LEDGER_MAX_INT_DIGITS} digits before the decimal point`
+      )
+    }
+    // "0", "0.00" and "-0.00" are all zero. Matched on the string rather than
+    // through `Number()`, which would round a 28-digit value on the way.
+    if (/^-?0(\.0{1,2})?$/.test(amount)) {
+      return transparencyError(422, 'LEDGER_AMOUNT_ZERO', 'amount cannot be zero')
+    }
+
+    // A non-string `reason` is not "missing": `.trim()` on a number is a
+    // TypeError, which would be a 500 where the backend answers 422.
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10) {
+      return transparencyError(
+        422,
+        'LEDGER_REASON_TOO_SHORT',
+        'reason must be at least 10 characters'
+      )
+    }
+
+    const occurredAt = body.occurredAt
+    if (
+      typeof occurredAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(occurredAt) ||
+      !isRealCalendarDate(occurredAt)
+    ) {
+      return transparencyError(
+        422,
+        'LEDGER_DATE_INVALID',
+        'occurredAt must be a real YYYY-MM-DD date'
+      )
+    }
+    if (occurredAt > wibTodayMock()) {
+      return transparencyError(
+        422,
+        'LEDGER_DATE_IN_FUTURE',
+        'occurredAt cannot be in the future'
+      )
+    }
+
+    // Case-insensitive, then stored uppercase — the backend normalises with
+    // `toUpperCase()` before comparing.
+    const currency = body.currency
+    if (typeof currency !== 'string' || currency.toUpperCase() !== 'USD') {
+      return transparencyError(
+        422,
+        'LEDGER_CURRENCY_UNSUPPORTED',
+        'Only USD is supported at this stage'
+      )
+    }
+
+    // Trimmed before the length check, and the trimmed value is what gets
+    // stored and looked up — same as the backend. The 16-character floor is the
+    // important half: a throwaway key like "retry" would collide between
+    // unrelated attempts, and a collision answers the second one with the first
+    // one's entry, silently losing a legitimate ledger row.
+    const idempotencyKey =
+      typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : ''
+    if (
+      idempotencyKey.length < LEDGER_IDEMPOTENCY_KEY_MIN ||
+      idempotencyKey.length > LEDGER_IDEMPOTENCY_KEY_MAX
+    ) {
+      return transparencyError(
+        422,
+        'LEDGER_IDEMPOTENCY_KEY_INVALID',
+        `idempotencyKey is required, ${LEDGER_IDEMPOTENCY_KEY_MIN}–${LEDGER_IDEMPOTENCY_KEY_MAX} characters`
+      )
+    }
+
+    const canonicalAmount = canonicalMoneyMock(amount)
+    const normalisedCurrency = currency.toUpperCase()
+
+    // A key already on file answers ONE of two ways, and telling them apart is
+    // the whole job:
+    //   same content  → replay. The first attempt wrote the row and lost its
+    //                   response, so hand back that row. 200, not 201 — nothing
+    //                   was created this time.
+    //   different     → 409, and nothing is written. Not a retry of that entry:
+    //                   the operator corrected something (the typo'd amount,
+    //                   most likely) after a timeout, and answering "success"
+    //                   with the OLD entry leaves the wrong figure standing on
+    //                   the public site with nothing on screen to say so.
+    // Amounts compare in canonical form because the column stores them that way
+    // — "100667.4" and "100667.40" are the same money, not a conflict.
+    const previous = ledgerIdempotency.get(idempotencyKey)
+    if (previous) {
+      const sameRequest =
+        previous.entry.entryType === entryType &&
+        canonicalMoneyMock(previous.entry.amount) === canonicalAmount &&
+        previous.entry.currency === normalisedCurrency &&
+        previous.entry.reason === reason &&
+        previous.entry.occurredAt === occurredAt &&
+        // Keys are not scoped per staff member. Without this, staff B reusing
+        // A's key is handed A's entry and B's own entry is never written.
+        previous.createdBy === operator.id
+      if (!sameRequest) {
+        return transparencyError(
+          409,
+          'LEDGER_IDEMPOTENCY_KEY_CONFLICT',
+          'This idempotencyKey is already used by an entry with DIFFERENT content. The existing entry was left untouched and nothing new was written — reload the balance and history, then re-send with a new key if this really is a different entry.'
+        )
+      }
+      return HttpResponse.json(
+        { status: 'success', metadata: null, data: previous.entry },
+        { status: 200 }
+      )
+    }
+
+    const created = createLedgerEntry({
+      entryType,
+      // Stored canonical, the way numeric(30,2) stores it.
+      amount: canonicalAmount,
+      currency: normalisedCurrency,
+      reason,
+      occurredAt,
+      createdByName: operator.name,
+      createdAt: new Date().toISOString(),
+    })
+    reserveLedger.push(created)
+    ledgerIdempotency.set(idempotencyKey, { entry: created, createdBy: operator.id })
     return HttpResponse.json(
       { status: 'success', metadata: null, data: created },
       { status: 201 }
     )
   }),
 
-  http.patch('/api/v1/oncall-contacts/:id', async ({ request, params }) => {
+  // Attestations — three-step upload (§ 3). Step 1 hands out a presigned URL.
+  //
+  // BOTH `period` and `sizeBytes` are REQUIRED, and each is required for its own
+  // reason:
+  //   `period`    — the backend derives `fileKey` from it.
+  //   `sizeBytes` — the presigner signs `content-length` with it. Absent, the
+  //                 backend signs a fixed length, the browser sends the real
+  //                 one, and storage 403s every upload.
+  // Missing either is a DTO failure, so the answer is a plain 400 and not a
+  // named 422 — transparency is not in V1_VALIDATION_422_ROUTES. The previous
+  // version of this mock replied 422 INVALID_ATTESTATION_PERIOD to a bodyless
+  // request, which is a code the real backend cannot produce for that case.
+  http.post('/api/v1/transparency/attestations/upload-url', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()
-    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    const index = oncallStore.findIndex((c) => c.id === params.id)
-    if (index === -1) return oncallNotFound()
-
-    const existing = oncallStore[index]!
-    const body = (await request.json()) as UpdateOncallContact
-    const next = { ...existing, ...body }
-    const invalid = oncallBodyError(next)
-    if (invalid) return invalid
-    const duplicate = oncallDuplicate(next.channel, next.contactValue, existing.id)
-    if (duplicate) return duplicate
-
-    const updated: OncallContact = {
-      ...next,
-      categories: [...next.categories],
-      updatedBy: operator.id,
-      updatedAt: new Date().toISOString(),
+    let body: { period?: unknown; sizeBytes?: unknown } | null = null
+    try {
+      body = (await request.json()) as { period?: unknown; sizeBytes?: unknown }
+    } catch {
+      body = null
     }
-    oncallStore[index] = updated
-    return HttpResponse.json({ status: 'success', metadata: null, data: updated })
+
+    const dtoErrors: string[] = []
+    if (typeof body?.period !== 'string' || body.period.trim() === '') {
+      dtoErrors.push('period should not be empty')
+    }
+    if (
+      typeof body?.sizeBytes !== 'number' ||
+      !Number.isInteger(body.sizeBytes) ||
+      body.sizeBytes <= 0
+    ) {
+      dtoErrors.push('sizeBytes must be a positive integer')
+    }
+    if (dtoErrors.length > 0) return nestValidationError(dtoErrors)
+
+    const period = (body!.period as string).trim()
+    const sizeBytes = body!.sizeBytes as number
+
+    // Service-level checks DO carry named codes (assertValidPeriod's pattern).
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+      return transparencyError(
+        422,
+        'INVALID_ATTESTATION_PERIOD',
+        'period must be a YYYY-MM value'
+      )
+    }
+    if (sizeBytes > ATTESTATION_MAX_FILE_BYTES_MOCK) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_TOO_LARGE',
+        `File must be at most ${ATTESTATION_MAX_FILE_BYTES_MOCK} bytes`
+      )
+    }
+
+    // The backend builds the key from `period` — mirror that so the fileKey the
+    // client registers in step 3 is traceable to the month it covers.
+    const fileKey = `${ATTESTATION_FILE_KEY_PREFIX}${period}-report.pdf`
+    const uploadUrl = `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`
+    const headers = { 'content-type': 'application/pdf' }
+
+    // Remember what this URL was "signed" with — headers AND length — so the PUT
+    // handler below can reject a mismatch the way real storage would.
+    issuedUploadTickets.set(uploadUrl, {
+      headers,
+      contentLength: sizeBytes,
+      fileKey,
+    })
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        uploadUrl,
+        fileKey,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        headers,
+      },
+    })
   }),
 
-  http.delete('/api/v1/oncall-contacts/:id', ({ request, params }) => {
+  // Step 2 — the client PUTs the bytes straight at the storage host. This
+  // handler stands in for that bucket; it is NOT part of the USDX API, which is
+  // exactly why the app must not send session cookies to it.
+  //
+  // It VERIFIES the signed headers. Real presigned URLs are signed together with
+  // a specific header set and answer a mismatch with SignatureDoesNotMatch. A
+  // mock that accepts any PUT would let a client hardcode its own headers, pass
+  // every test, and fail only in production — the same trap as the missing
+  // `period`.
+  http.put('https://storage.usdx.test/upload/*', async ({ request }) => {
+    const ticket = issuedUploadTickets.get(request.url)
+    if (!ticket) {
+      // No ticket was ever issued for this URL — an unsigned or forged upload.
+      return storageSignatureError('No signed ticket was issued for this URL')
+    }
+    for (const [name, expected] of Object.entries(ticket.headers)) {
+      const actual = request.headers.get(name)
+      if ((actual ?? '').toLowerCase() !== expected.toLowerCase()) {
+        return storageSignatureError(
+          `Header "${name}" was signed as "${expected}" but the request sent "${actual ?? '(absent)'}"`
+        )
+      }
+    }
+    // Content-Length is part of the signature and the BROWSER owns it: it is a
+    // forbidden header, so the client cannot set or fake it, it is simply the
+    // real byte count of the file. The signature therefore only matches when
+    // step 1 declared that same number as `sizeBytes`.
+    const body = await request.arrayBuffer()
+    const sent = body.byteLength
+    if (sent !== ticket.contentLength) {
+      return storageSignatureError(
+        `content-length was signed as ${ticket.contentLength} but the request sent ${sent}`
+      )
+    }
+
+    // The object now exists in the bucket. Step 3 reads this back, the way the
+    // backend HEADs/GETs the object before registering a report — which is what
+    // makes ATTESTATION_FILE_NOT_UPLOADED and ATTESTATION_FILE_TYPE_INVALID
+    // reachable at all.
+    const head = String.fromCharCode(...new Uint8Array(body.slice(0, 5)))
+    storageObjects.set(ticket.fileKey, { size: sent, isPdf: head === '%PDF-' })
+    return new HttpResponse(null, { status: 200 })
+  }),
+
+  // The list is PAGED, and `take` defaults to 20 exactly like the backend.
+  // A generous default here would hide the bug it is meant to expose: a client
+  // that asks for no page size sees 20 rows at most, fewer after revoked ones
+  // are filtered out, and silently loses access to everything older.
+  http.get('/api/v1/transparency/attestations', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
+    const takeParam = url.searchParams.get('take')
+    const take = Math.max(
+      1,
+      Number(takeParam ?? ATTESTATION_DEFAULT_TAKE) || ATTESTATION_DEFAULT_TAKE
+    )
+    const ordered = [...attestations].sort((a, b) => b.period.localeCompare(a.period))
+    const start = (page - 1) * take
+
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      // Revoked rows ARE included — the backend returns everything for the
+      // audit trail and the back office is responsible for filtering.
+      data: {
+        items: ordered.slice(start, start + take),
+        page,
+        take,
+        total: ordered.length,
+      },
+    })
+  }),
+
+  // Step 3 — register the uploaded object. JSON with `fileKey`, never multipart.
+  http.post('/api/v1/transparency/attestations', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()
-    if (!canManageOncallContacts(operator.role)) return oncallForbidden()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
 
-    const index = oncallStore.findIndex((c) => c.id === params.id)
-    if (index === -1) return oncallNotFound()
-    oncallStore.splice(index, 1)
-    return HttpResponse.json({ status: 'success', metadata: null, data: null })
+    const body = (await request.json()) as CreateAttestationInput
+
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period ?? '')) {
+      return transparencyError(
+        422,
+        'INVALID_ATTESTATION_PERIOD',
+        'period must be a YYYY-MM value'
+      )
+    }
+    if (!body.title?.trim() || !body.fileKey?.trim()) {
+      return nestValidationError(['title and fileKey should not be empty'])
+    }
+    // The backend only accepts a key it issued itself in step 1, so an
+    // arbitrary string cannot be registered as a published report.
+    if (!body.fileKey.startsWith(ATTESTATION_FILE_KEY_PREFIX)) {
+      return transparencyError(
+        422,
+        'INVALID_FILE_KEY',
+        `fileKey must start with ${ATTESTATION_FILE_KEY_PREFIX}`
+      )
+    }
+    // Only an ACTIVE report blocks the period — a revoked one may be replaced.
+    // Checked before the bucket lookups below: it is the cheap one, and a taken
+    // period makes the request dead no matter what the file turns out to be.
+    if (attestations.some((a) => a.period === body.period && a.revokedAt === null)) {
+      return transparencyError(
+        409,
+        'ATTESTATION_PERIOD_EXISTS',
+        `An active report already exists for ${body.period}`
+      )
+    }
+    // Registering a key whose object never landed would publish a report row
+    // whose public download is a dead link. The backend checks the bucket;
+    // so does this.
+    const stored = storageObjects.get(body.fileKey)
+    if (!stored || stored.size === 0) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_NOT_UPLOADED',
+        'No object was found at that fileKey — step 2 did not complete'
+      )
+    }
+    // Content type is judged from the BYTES, not from what step 2 claimed in a
+    // header. A renamed executable published under "Laporan Atestasi" is worse
+    // than a rejected upload.
+    if (!stored.isPdf) {
+      return transparencyError(
+        422,
+        'ATTESTATION_FILE_TYPE_INVALID',
+        'The uploaded object is not a PDF'
+      )
+    }
+
+    const created = createAttestationReport({
+      period: body.period,
+      title: body.title.trim(),
+      fileUrl: `https://storage.usdx.test/${body.fileKey}`,
+      publishedAt: new Date().toISOString(),
+      revokedAt: null,
+    })
+    attestations.push(created)
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: created },
+      { status: 201 }
+    )
+  }),
+
+  // Revoke — fills `revokedAt`, never removes the row.
+  http.delete('/api/v1/transparency/attestations/:id', ({ request, params }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+    if (!canManageTransparency(operator.role)) return transparencyForbidden()
+
+    const report = attestations.find((a) => a.id === params.id)
+    // An already-revoked report is a 404, not a second successful revoke. The
+    // backend scopes its lookup to active rows, so the row is simply not there
+    // to revoke — answering 200 taught the client that a double revoke is fine.
+    if (!report || report.revokedAt !== null) {
+      return transparencyError(404, 'NOT_FOUND', 'Attestation not found')
+    }
+    report.revokedAt = new Date().toISOString()
+    return HttpResponse.json({ status: 'success', metadata: null, data: report })
   }),
 
   // ─── Chain config — sot/api/chains.yaml § GET /api/v1/chains ───
