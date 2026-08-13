@@ -36,9 +36,13 @@ import { handlers } from './handlers'
 // lives entirely in BE (USDX-83). Vitest tests scope their own
 // `server.use(...)` overrides per scenario so no defaults are needed.
 //
-// Transparency (/api/v1/transparency/*) is deliberately ABSENT from the set
-// below: the backend is still being built, so the browser keeps using the MSW
-// handlers. Move those paths here once the BE endpoints are live.
+// Transparency: /api/v1/transparency/* went real on 13 Aug 2026, after the
+// integration pass against api-dev came back 5/5 on the runbook steps
+// (catatan/RILIS-TRANSPARANSI-ANGKA.md § Langkah 2 — list renders, 201 on a new
+// entry, 200 on an identical replay, 409 LEDGER_IDEMPOTENCY_KEY_CONFLICT on the
+// same key with different content, and the three-step attestation upload).
+// Handlers stay in handlers.ts so Vitest keeps its MSW-backed coverage; the
+// worker filter below drops them at runtime.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).
@@ -77,6 +81,12 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/kyc/:id/reviews',
   '/api/v1/kyc/:id/approve',
   '/api/v1/kyc/:id/reject',
+  // Transparency — append-only reserve ledger + attestation reports. Live on
+  // api-dev as of 13 Aug 2026 (see the note above the set).
+  '/api/v1/transparency/ledger',
+  '/api/v1/transparency/attestations',
+  '/api/v1/transparency/attestations/upload-url',
+  '/api/v1/transparency/attestations/:id',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

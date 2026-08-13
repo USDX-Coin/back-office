@@ -1032,7 +1032,8 @@ export const handlers = [
   // first-fetch-ordering reason as /api/v1/rate above (the route-level
   // RoleGuard is what gates reading in the app).
   //
-  // NOT in browser.ts INTEGRATION_PATHS yet — the backend is still being built.
+  // Real BE in the browser since 13 Aug 2026 (see src/mocks/browser.ts §
+  // INTEGRATION_PATHS); these handlers stay for Vitest coverage.
 
   http.get('/api/v1/transparency/ledger', ({ request }) => {
     const url = new URL(request.url)
