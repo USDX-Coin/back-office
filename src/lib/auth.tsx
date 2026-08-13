@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
-import { apiFetch, ApiError, configureApiFetch } from './apiFetch'
+import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
   user: Staff | null
@@ -21,7 +21,9 @@ const AuthContext = createContext<AuthContextType | null>(null)
 const STORAGE_KEY = 'usdx_auth_user'
 const LOGIN_ENDPOINT = '/api/v1/auth/login'
 const LOGOUT_ENDPOINT = '/api/v1/auth/logout'
-const ME_ENDPOINT = '/api/v1/auth/me'
+// Re-exported from apiFetch so the identity endpoint has exactly one spelling:
+// apiFetch keys its "is the session really dead?" 401 re-check on the same path.
+const ME_ENDPOINT = AUTH_ME_PATH
 
 // Persisted profile shape. `version` gates migrations; anything below the
 // current version — including the pre-USDX-392 shapes (v1–v4) that embedded a

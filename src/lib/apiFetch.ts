@@ -7,7 +7,8 @@
 // - Unwraps SuccessResponse `{ status, metadata, data }` envelope and returns `data`.
 // - Throws ApiError for non-2xx responses with the SoT ErrorResponse shape.
 // - Notifies a registered "unauthorized" callback on 401 so AuthProvider can
-//   clear the session without this module taking a React dependency.
+//   clear the session without this module taking a React dependency — but only
+//   after confirming the session is genuinely dead (see `handleUnauthorized`).
 
 import { env } from './env'
 
@@ -21,6 +22,65 @@ let bindings: AuthBindings = {
 
 export function configureApiFetch(next: AuthBindings) {
   bindings = next
+}
+
+// The auth-identity endpoint (sot/openapi.yaml § /api/v1/auth/me). This is the
+// single source of truth for "is the session alive?" — `auth.tsx` imports it for
+// its boot validation too, so the string can't drift between the two.
+export const AUTH_ME_PATH = '/api/v1/auth/me'
+
+function isAuthMePath(path: string): boolean {
+  return path === AUTH_ME_PATH || path.startsWith(`${AUTH_ME_PATH}?`)
+}
+
+// In-flight session re-check, shared by every caller that hits a 401 while it
+// runs. TanStack Query's refetch-on-window-focus fires every mounted query at
+// once, so without this a single stale cookie would fan out into one /auth/me
+// per query (and one logout per query).
+let sessionRecheck: Promise<void> | null = null
+
+// USDX desk properties share a session cookie across environments, so a request
+// can come back 401 for cross-audience reasons while the desk session is still
+// perfectly valid. Treating every 401 as "session dead" turned a single stray
+// 401 into a full sign-out the moment the operator returned to the tab.
+//
+// Rule: a 401 from /auth/me *is* the session being dead — log out immediately.
+// A 401 from anything else is only a suspicion; re-verify against /auth/me once
+// and log out only if that also 401s. The re-check deliberately uses raw
+// `fetch`, not `apiFetch`, so it can never re-enter this handler — the 401 it
+// observes is the terminal signal, not the start of another round.
+async function runSessionRecheck(): Promise<void> {
+  let sessionDead = false
+  try {
+    const response = await fetch(`${env.apiUrl}${AUTH_ME_PATH}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+    sessionDead = response.status === 401
+  } catch {
+    // The re-check never reached the server (offline / DNS / CORS). We can't
+    // prove the session is dead, and signing the operator out mid-form on a
+    // flaky network is the worse failure — keep the session.
+    sessionDead = false
+  }
+  if (sessionDead) bindings.onUnauthorized()
+}
+
+async function handleUnauthorized(path: string): Promise<void> {
+  if (isAuthMePath(path)) {
+    bindings.onUnauthorized()
+    return
+  }
+  if (!sessionRecheck) {
+    sessionRecheck = runSessionRecheck().finally(() => {
+      sessionRecheck = null
+    })
+  }
+  // `runSessionRecheck` swallows transport failures itself; the `.catch` only
+  // guards against a throwing `onUnauthorized` binding poisoning the other
+  // callers that joined this same in-flight re-check. Every caller must still
+  // go on to throw its own ApiError.
+  await sessionRecheck.catch(() => {})
 }
 
 export class ApiError extends Error {
@@ -78,7 +138,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   })
 
   if (response.status === 401) {
-    bindings.onUnauthorized()
+    await handleUnauthorized(path)
   }
 
   if (response.status === 204) {
@@ -131,7 +191,7 @@ export async function apiFetchRaw<TEnvelope>(
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
-  if (response.status === 401) bindings.onUnauthorized()
+  if (response.status === 401) await handleUnauthorized(path)
 
   let payload: unknown
   try {
@@ -155,8 +215,8 @@ export async function apiFetchRaw<TEnvelope>(
 
 // Variant of apiFetch for file downloads (CSV reports per sot/api/reporting.yaml).
 // Returns the raw Blob + filename parsed from `Content-Disposition`. Errors are
-// still routed through ApiError; on 401 the unauthorized callback fires so the
-// session clears like with the JSON variants.
+// still routed through ApiError; a 401 goes through the same re-verified
+// unauthorized handling as the JSON variants.
 export interface BlobResponse {
   blob: Blob
   filename: string | null
@@ -195,7 +255,7 @@ export async function apiFetchBlob(
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
-  if (response.status === 401) bindings.onUnauthorized()
+  if (response.status === 401) await handleUnauthorized(path)
 
   if (!response.ok) {
     // Error responses still follow SoT ErrorResponse JSON shape — try to parse.
