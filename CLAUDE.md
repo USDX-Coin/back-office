@@ -100,6 +100,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
 │   │   ├── chainLinks.ts  # findChainConfig + resolveOnChainLinks (composes explorer/safe URLs)
 │   │   ├── transparency.ts # exact BigInt-cents money math + WIB day helpers + attestation revoke filter
+│   │   ├── queryConfig.ts # QueryClient defaults (staleTime 0 — see below) + the desk poll cadences + the money-flow invalidation fan-out
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API
 │   │   ├── handlers.ts    # REST handlers + inline settlement simulator

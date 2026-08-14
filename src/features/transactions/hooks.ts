@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { isOrderTerminal } from '@/lib/status'
+import { POLL_ACTIVE_MS, POLL_LIST_MS } from '@/lib/queryConfig'
 import type {
   OrderDetail,
   OrderListItem,
+  OrderStatus,
   PhaseOnePaginatedResponse,
   PhaseOneSuccessResponse,
 } from '@/lib/types'
@@ -45,14 +47,22 @@ function fetchOrderList(
   )
 }
 
+/**
+ * Poll only while a row is still moving through the payment/Safe lifecycle,
+ * then stop (mirrors the mint/burn list polling, USDX-27). Exported so the
+ * "settled data stops polling" rule can be asserted without a timer.
+ */
+export function orderListPollInterval(
+  rows: Pick<OrderListItem, 'status'>[] | undefined,
+): number | false {
+  return (rows ?? []).some((r) => !isOrderTerminal(r.status)) ? POLL_LIST_MS : false
+}
+
 export function useOrderList(filters: OrderListFilters) {
   return useQuery({
     queryKey: ['orders', 'list', filters],
     queryFn: () => fetchOrderList(filters),
-    // Poll only while a row is still moving through the payment/Safe lifecycle,
-    // then stop (mirrors the mint/burn list polling, USDX-27).
-    refetchInterval: (query) =>
-      (query.state.data?.data ?? []).some((r) => !isOrderTerminal(r.status)) ? 20_000 : false,
+    refetchInterval: (query) => orderListPollInterval(query.state.data?.data),
     refetchOnWindowFocus: true,
   })
 }
@@ -61,15 +71,17 @@ function fetchOrderDetail(id: string): Promise<PhaseOneSuccessResponse<OrderDeta
   return apiFetchRaw<PhaseOneSuccessResponse<OrderDetail>>(`/api/v1/orders/${id}`)
 }
 
+/** The open detail modal is what the operator is watching → active cadence. */
+export function orderDetailPollInterval(status: OrderStatus | undefined): number | false {
+  return status && !isOrderTerminal(status) ? POLL_ACTIVE_MS : false
+}
+
 export function useOrderDetail(id: string | null) {
   return useQuery({
     queryKey: ['orders', 'detail', id],
     queryFn: () => fetchOrderDetail(id as string),
     enabled: Boolean(id),
-    refetchInterval: (query) => {
-      const status = query.state.data?.data?.status
-      return status && !isOrderTerminal(status) ? 20_000 : false
-    },
+    refetchInterval: (query) => orderDetailPollInterval(query.state.data?.data?.status),
     refetchOnWindowFocus: true,
   })
 }

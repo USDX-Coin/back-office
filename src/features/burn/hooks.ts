@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import { isRequestTerminal } from '@/lib/status'
+import { POLL_LIST_MS } from '@/lib/queryConfig'
 import type {
   BurnRequest,
   CreateBurnRequest,
@@ -58,7 +59,9 @@ export function useBurnList(filters: BurnListFilters) {
     queryFn: () => fetchBurnList(filters),
     // USDX-27: poll only while some row is still non-terminal (see useMintList).
     refetchInterval: (query) =>
-      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status)) ? 20_000 : false,
+      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status))
+        ? POLL_LIST_MS
+        : false,
     refetchOnWindowFocus: true,
   })
 }

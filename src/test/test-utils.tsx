@@ -2,6 +2,7 @@ import { render, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { AuthProvider } from '@/lib/auth'
+import { QUERY_DEFAULTS } from '@/lib/queryConfig'
 import { ThemeProvider } from '@/lib/theme'
 import { getDefaultStaff, findStaffById, issueMockJwt } from '@/mocks/handlers'
 import type { ReactNode } from 'react'
@@ -12,10 +13,15 @@ interface WrapperOptions {
   staffId?: string
 }
 
+// Same defaults the app ships (src/lib/queryConfig.ts) so tests can't pass
+// against a configuration nobody runs — only the two test-only overrides
+// differ: no retries (a failing assertion should fail fast, not after a
+// backoff) and no cache retention between tests.
 export function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
+        ...QUERY_DEFAULTS,
         retry: false,
         gcTime: 0,
       },

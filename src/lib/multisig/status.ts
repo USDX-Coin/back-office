@@ -63,6 +63,45 @@ export function isSafeTxTerminal(status: SafeTxStatus): boolean {
   return status === 'EXECUTED' || status === 'FAILED' || status === 'CANCELLED'
 }
 
+// Lifecycle position. A SafeTx only ever moves FORWARD — collecting signatures,
+// then executable, then broadcast, then settled. Nothing in multisig.yaml walks
+// one backwards (a signature is never withdrawn), which is what makes the
+// reconciliation below sound.
+const safeTxStatusOrderMap: Record<SafeTxStatus, number> = {
+  PENDING_SIGN: 0,
+  READY_TO_EXECUTE: 1,
+  CONFIRMING: 2,
+  // The three terminals share a rank: they're mutually exclusive endings, and
+  // none is "more advanced" than another.
+  EXECUTED: 3,
+  FAILED: 3,
+  CANCELLED: 3,
+}
+
+export function safeTxStatusOrder(status: SafeTxStatus): number {
+  return safeTxStatusOrderMap[status] ?? 0
+}
+
+/**
+ * Reconcile two independently-fetched views of the SAME transaction.
+ *
+ * The queue list and the detail drawer are separate queries on separate poll
+ * clocks, so they routinely disagree by a few seconds. Because a SafeTx only
+ * moves forward, the more advanced of the two is the true one — and the UI must
+ * follow the true one, not whichever query happens to be older. Without this,
+ * the drawer offered "Connect wallet" + "Sign (EIP-712)" on a transaction the
+ * row behind it already showed as Confirming.
+ *
+ * `primary` wins ties, so an absent/equal second opinion changes nothing.
+ */
+export function mostAdvancedSafeTxStatus(
+  primary: SafeTxStatus,
+  other: SafeTxStatus | null | undefined,
+): SafeTxStatus {
+  if (!other) return primary
+  return safeTxStatusOrder(other) > safeTxStatusOrder(primary) ? other : primary
+}
+
 // A SafeTx accepts more signatures only while collecting / not yet executed
 // (multisig.yaml confirm 409 SAFE_TX_NOT_SIGNABLE: only PENDING_SIGN /
 // READY_TO_EXECUTE). READY_TO_EXECUTE stays signable so extra owners can add

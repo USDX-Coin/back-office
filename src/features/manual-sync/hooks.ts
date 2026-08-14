@@ -2,6 +2,7 @@
 // SoT: sot/api/manual-sync.yaml (list / verify / execute).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, apiFetch } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews, POLL_LIST_MS } from '@/lib/queryConfig'
 import type {
   ManualSyncItem,
   ManualSyncTxHashBody,
@@ -44,7 +45,7 @@ export function useManualSyncList(filters: ManualSyncListFilters) {
     queryKey: ['manual-sync', 'list', filters],
     queryFn: () => fetchManualSyncList(filters),
     refetchInterval: (query) =>
-      (query.state.data ?? []).length > 0 ? 20_000 : false,
+      (query.state.data ?? []).length > 0 ? POLL_LIST_MS : false,
     refetchOnWindowFocus: true,
   })
 }
@@ -108,15 +109,13 @@ export function isInvalidStatusError(
 export function useExecuteSync(id: string | null) {
   const qc = useQueryClient()
   // Row leaves the Manual Sync list once it's no longer PENDING_APPROVAL/
-  // APPROVED; also bust the mint/burn lists + sidebar pending badges, plus the
-  // consumer orders list (USDX-206) since a `mint_order` execute flips it to
-  // COMPLETED there too.
+  // APPROVED; the mint/burn lists, sidebar pending badges, consumer orders
+  // (USDX-206 — a `mint_order` execute flips it to COMPLETED there too) and the
+  // dashboard KPIs all show the same event, so they go through the shared
+  // money-flow fan-out (src/lib/queryConfig.ts).
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['manual-sync'] })
-    qc.invalidateQueries({ queryKey: ['mint'] })
-    qc.invalidateQueries({ queryKey: ['burn'] })
-    qc.invalidateQueries({ queryKey: ['requests'] })
-    qc.invalidateQueries({ queryKey: ['orders'] })
+    void qc.invalidateQueries({ queryKey: ['manual-sync'] })
+    invalidateMoneyFlowViews(qc)
   }
   return useMutation({
     mutationFn: (body: ManualSyncTxHashBody) => postExecute(id as string, body),
