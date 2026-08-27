@@ -10,6 +10,7 @@ import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { buildOrderFilterDefs, ORDER_COLUMN_CONFIG } from './filterDefs'
 import { formatIdrAmount, formatShortDate } from '@/lib/format'
+import { PARTNER_CUSTOMER_EMAIL_LABEL } from '@/lib/pii'
 import {
   getOrderStatusConfig,
   getPaymentStatusConfig,
@@ -50,6 +51,8 @@ export default function TransactionsListPage() {
   const redeemStatus = params.searchParams.get('redeemStatus') ?? ''
   const paymentStatus = params.searchParams.get('paymentStatus') ?? ''
   const safeStatus = params.searchParams.get('safeStatus') ?? ''
+  // USDX-547 — partner vs retail population. Applies to both order types.
+  const ownerType = params.searchParams.get('ownerType') ?? ''
   // `userId` is a programmatic (deep-link) filter — no visible control, but we
   // honour it when present (e.g. arriving from a user detail page).
   const userId = params.searchParams.get('userId') ?? ''
@@ -67,6 +70,7 @@ export default function TransactionsListPage() {
     redeemStatus: isRedeem ? redeemStatus || undefined : undefined,
     paymentStatus: isRedeem ? undefined : paymentStatus || undefined,
     safeStatus: isRedeem ? undefined : safeStatus || undefined,
+    ownerType: ownerType || undefined,
     userId: userId || undefined,
   })
 
@@ -78,9 +82,10 @@ export default function TransactionsListPage() {
   // Status options + Payment/Safe filters depend on the selected type
   // (USDX-245 dropdown; USDX-254 sends redeem status via `redeemStatus`).
   const orderFilterDefs = buildOrderFilterDefs(type)
-  const filterValues = { type, status, redeemStatus, paymentStatus, safeStatus }
+  const filterValues = { type, ownerType, status, redeemStatus, paymentStatus, safeStatus }
   const hasFilters = Boolean(
     type ||
+      ownerType ||
       userId ||
       (isRedeem ? redeemStatus : status || paymentStatus || safeStatus),
   )
@@ -107,14 +112,49 @@ export default function TransactionsListPage() {
     {
       id: 'user',
       header: 'User',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={row.original.userEmail} size="sm" />
-          <span className="break-all text-[12.5px] font-medium">
-            {row.original.userEmail}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        // The backend sends the literal marker `(partner customer)` when the
+        // order has no `users` row (USDX-571). It is a label, not a person, so
+        // it gets no avatar — an initial derived from "(" is noise — and it is
+        // dimmed to read as metadata rather than as an address.
+        const email = row.original.userEmail
+        if (email === PARTNER_CUSTOMER_EMAIL_LABEL) {
+          return (
+            <span className="text-[12.5px] italic text-muted-foreground">{email}</span>
+          )
+        }
+        return (
+          <div className="flex items-center gap-2.5">
+            <Avatar name={email} size="sm" />
+            <span className="break-all text-[12.5px] font-medium">{email}</span>
+          </div>
+        )
+      },
+    },
+    {
+      // USDX-547 — "which partner is this order from". The `(partner customer)`
+      // marker in the User column only explains why that cell is not an email;
+      // it does not say who to contact, and for a partner order the party to
+      // contact is the PARTNER, never its customer.
+      id: 'partner',
+      header: 'Partner',
+      cell: ({ row }) => {
+        const partner = row.original.partner
+        // Retail orders render an EMPTY cell — deliberately not "—" and not
+        // "N/A". Both read as "this value failed to load"; empty reads as
+        // "this concept does not apply", which is the truth for retail.
+        if (!partner) return null
+        return (
+          <div className="flex flex-col leading-tight">
+            <span className="text-[12.5px] font-medium">{partner.displayName}</span>
+            {/* `code` is what appears in transaction references and survives a
+                change of legal name, so it is worth the second line. */}
+            <span className="font-mono text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+              {partner.code}
+            </span>
+          </div>
+        )
+      },
     },
     {
       accessorKey: 'amount',
@@ -273,6 +313,8 @@ export default function TransactionsListPage() {
                 const nextIsRedeem = next.type === 'REDEEM'
                 params.updateParams({
                   type: next.type || null,
+                  // Owner is independent of type — never cleared by a type switch.
+                  ownerType: next.ownerType || null,
                   // Mint status only when not redeem; redeemStatus only when redeem.
                   status: typeChanged || nextIsRedeem ? null : next.status || null,
                   redeemStatus:

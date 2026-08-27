@@ -357,4 +357,63 @@ describe('Sidebar @ USDX-50', () => {
       expect(badge).toHaveTextContent('2')
     })
   })
+
+  // USDX-546 — KYB Review joins the same COMPLIANCE group, with the same
+  // visibility rule as KYC Review (all roles read; acting is gated inside the
+  // detail). Its own entry rather than a tab under KYC: the two carry different
+  // data and KYB additionally has a manual data-entry form.
+  describe('USDX-546 — COMPLIANCE / KYB Review', () => {
+    function kybCount(total: number) {
+      return http.get('/api/v1/kyb', () =>
+        HttpResponse.json({
+          status: 'success',
+          metadata: { page: 1, limit: 1, total },
+          data: [],
+        })
+      )
+    }
+
+    test('renders a KYB Review link to /kyb (admin)', () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(screen.getByRole('link', { name: /kyb review/i })).toHaveAttribute(
+        'href',
+        '/kyb'
+      )
+    })
+
+    test('shows (N) badge with the PENDING record count', async () => {
+      server.use(kybCount(4))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const badge = await screen.findByTestId('nav-badge-kyb')
+      expect(badge).toHaveTextContent('4')
+    })
+
+    test('hides the badge when the PENDING count is 0', async () => {
+      server.use(kybCount(0))
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      await screen.findByRole('link', { name: /kyb review/i })
+      expect(screen.queryByTestId('nav-badge-kyb')).not.toBeInTheDocument()
+    })
+
+    test.each([
+      ['STAFF', 'stf_4'],
+      ['MANAGER', 'stf_2'],
+      ['DEVELOPER', 'stf_3'],
+    ])('%s also sees KYB Review', (_role, staffId) => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId,
+      })
+      expect(screen.getByRole('link', { name: /kyb review/i })).toBeInTheDocument()
+    })
+  })
 })

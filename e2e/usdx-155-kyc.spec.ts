@@ -55,6 +55,18 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(dialog.getByAltText('KTP photo')).toBeVisible()
       await expect(dialog.getByAltText('Selfie with KTP')).toBeVisible()
 
+      // USDX-545 — the CDD block is on the review screen. Without it the
+      // reviewer decides without seeing the data that was just collected.
+      await expect(dialog.getByText(/customer due diligence/i)).toBeVisible()
+      await expect(dialog.getByText('Civil servant')).toBeVisible()
+      await expect(dialog.getByText('Business')).toBeVisible()
+      await expect(dialog.getByText('Rp 500 juta – 1 miliar')).toBeVisible()
+      await expect(dialog.getByText('Remittance')).toBeVisible()
+      await expect(dialog.getByText('Not a PEP')).toBeVisible()
+      // The operator here is ADMIN, so NPWP is readable (masking for other roles
+      // is covered by the unit tests, which can pick a role per render).
+      await expect(dialog.getByText('123456789012345')).toBeVisible()
+
       await page.keyboard.press('Escape')
       await expect(page).toHaveURL(/\/kyc$/)
       await expect(page.getByRole('dialog')).toBeHidden()

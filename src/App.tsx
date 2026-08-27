@@ -17,6 +17,8 @@ import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
 import KycListPage from '@/features/kyc/KycListPage'
+import KybListPage from '@/features/kyb/KybListPage'
+import KybFormPage from '@/features/kyb/KybFormPage'
 import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
@@ -88,6 +90,14 @@ export const appRoutes: RouteObject[] = [
           // (USDX-155); BE enforces 403 for Developer regardless.
           { path: '/kyc', element: <KycListPage /> },
           { path: '/kyc/:id', element: <KycListPage /> },
+          // USDX-546 — KYB review. Same visibility rule as KYC: the queue is
+          // readable by every back-office role and the ACTIONS are gated inside
+          // (DEVELOPER is view-only; the backend enforces 403 regardless), so no
+          // RoleGuard here. `/kyb/new` exists because KYB is a MANUAL flow —
+          // nothing but an operator creates these records.
+          { path: '/kyb', element: <KybListPage /> },
+          { path: '/kyb/new', element: <KybFormPage /> },
+          { path: '/kyb/:id', element: <KybListPage /> },
           // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
           // consumer-order monitoring, read-only, visible to every backoffice
           // role (no RoleGuard — like KYC). `/transactions/:id` re-renders the

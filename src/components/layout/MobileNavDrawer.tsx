@@ -11,6 +11,7 @@ import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { usePendingKycCount } from '@/features/kyc/hooks'
+import { usePendingKybCount } from '@/features/kyb/hooks'
 import { cn } from '@/lib/utils'
 import {
   visibleNavSections,
@@ -38,12 +39,15 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
   const burnPending = usePendingBurnCount({ enabled: canViewLists })
   // USDX-154 — KYC badge has no role gate (list is staff-accessible).
   const kycPending = usePendingKycCount()
+  // USDX-546 — KYB badge, no role gate (same as KYC).
+  const kybPending = usePendingKybCount()
   const sections = visibleNavSections(user)
 
   function badgeFor(key?: BadgeKey): number {
     if (key === 'mint') return mintPending.data ?? 0
     if (key === 'burn') return burnPending.data ?? 0
     if (key === 'kyc') return kycPending.data ?? 0
+    if (key === 'kyb') return kybPending.data ?? 0
     return 0
   }
 

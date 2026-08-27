@@ -886,3 +886,204 @@ export function validateOncallContactForm(input: {
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — KYB (business entity due diligence), manual back-office entry.
+//
+// KYB has no consumer app behind it: a USDX operator types the entity's data in
+// from documents (decision Mas Yan — KYB manual, bukan API). So this validation
+// is the first gate the data meets, and the rule that matters most is not "is
+// this field filled":
+//
+//   UBO ownership. A KYB record with no UBO is not a due-diligence record at
+//   all — the entire point is knowing who ultimately owns the entity. And the
+//   declared percentages cannot exceed 100: a sheet claiming two people own 80%
+//   each is a misreading of the deed, and catching it here costs nothing
+//   compared with catching it in an audit.
+//
+// The reject reason rule lives at the bottom of this file and is applied by the
+// mutation hook as well as the dialog — see `useRejectKyb`.
+// ─────────────────────────────────────────────────────────────────────────────
+const MAX_KYB_TEXT_LEN = 255
+const MAX_KYB_ADDRESS_LEN = 500
+const MAX_KYB_UBOS = 20
+// NIB is 13 digits, but older records carry a TDP/SIUP number, so the rule is
+// "digits and dashes, 8-30 chars" rather than a strict NIB mask — refusing a
+// legitimate legacy number would push the operator to type a fake one.
+const KYB_REGISTRATION_RE = /^[0-9-]{8,30}$/
+// NPWP badan: 15 digits (pre-2024) or 16 (NIK-based); punctuation optional.
+const KYB_TAX_ID_RE = /^[0-9.\-\s]{15,25}$/
+const KYB_ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+export interface KybUboFormInput {
+  firstName: string
+  lastName: string
+  ownershipPct: string
+  identityNumber: string
+  country: string
+  addressLine1: string
+  addressLine2: string
+}
+
+export interface KybFormInput {
+  userId: string
+  entityName: string
+  entityForm: string
+  country: string
+  registrationNumber: string
+  taxId: string
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string
+  operationalAddress: string
+  website: string
+  phone: string
+  ubos: KybUboFormInput[]
+}
+
+/**
+ * UBO errors are keyed `ubo.<index>.<field>` so the form can put each message
+ * beside the input that produced it. A flat `ubos` key would tell the operator
+ * "something in the UBO list is wrong" about a list of twenty rows.
+ */
+export function kybUboErrorKey(index: number, field: string): string {
+  return `ubo.${index}.${field}`
+}
+
+export function validateKybForm(input: KybFormInput): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (!input.userId.trim()) errors.userId = 'Legal-entity user is required'
+
+  if (!input.entityName.trim()) {
+    errors.entityName = 'Entity name is required'
+  } else if (input.entityName.length > MAX_KYB_TEXT_LEN) {
+    errors.entityName = `Entity name must be under ${MAX_KYB_TEXT_LEN} characters`
+  }
+
+  if (!input.entityForm.trim()) errors.entityForm = 'Legal form is required'
+  if (!input.country.trim()) errors.country = 'Country is required'
+
+  if (!input.registrationNumber.trim()) {
+    errors.registrationNumber = 'Registration number (NIB) is required'
+  } else if (!KYB_REGISTRATION_RE.test(input.registrationNumber.trim())) {
+    errors.registrationNumber = 'Registration number must be 8-30 digits (dashes allowed)'
+  }
+
+  if (!input.taxId.trim()) {
+    errors.taxId = 'Entity NPWP is required'
+  } else if (!KYB_TAX_ID_RE.test(input.taxId.trim())) {
+    errors.taxId = 'NPWP must be 15-16 digits (dots / dashes allowed)'
+  }
+
+  if (!input.establishmentDate.trim()) {
+    errors.establishmentDate = 'Establishment date is required'
+  } else if (!KYB_ISO_DATE_RE.test(input.establishmentDate.trim())) {
+    errors.establishmentDate = 'Establishment date must be YYYY-MM-DD'
+  } else if (isFutureWibDate(input.establishmentDate.trim())) {
+    // An entity cannot have been established tomorrow. Judged in WIB, like every
+    // other date in this app (lib/transparency.ts).
+    errors.establishmentDate = 'Establishment date cannot be in the future'
+  }
+
+  if (!input.businessSector.trim()) {
+    errors.businessSector = 'Business sector is required'
+  } else if (input.businessSector.length > MAX_KYB_TEXT_LEN) {
+    errors.businessSector = `Business sector must be under ${MAX_KYB_TEXT_LEN} characters`
+  }
+
+  if (!input.registeredAddress.trim()) {
+    errors.registeredAddress = 'Registered address is required'
+  } else if (input.registeredAddress.length > MAX_KYB_ADDRESS_LEN) {
+    errors.registeredAddress = `Registered address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+  }
+
+  if (!input.operationalAddress.trim()) {
+    errors.operationalAddress = 'Operational address is required'
+  } else if (input.operationalAddress.length > MAX_KYB_ADDRESS_LEN) {
+    errors.operationalAddress = `Operational address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+  }
+
+  // Website is optional (the `kyb.website` column is nullable); only its shape
+  // is checked when present.
+  const website = input.website.trim()
+  if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(website)) {
+    errors.website = 'Website must start with http:// or https://'
+  }
+
+  if (!input.phone.trim()) {
+    errors.phone = 'Phone is required'
+  } else if (!PHONE_RE.test(input.phone.trim())) {
+    errors.phone = 'Phone must be 10-15 digits (leading + allowed)'
+  }
+
+  // ── UBOs ──
+  if (input.ubos.length === 0) {
+    errors.ubos = 'At least one UBO is required'
+  } else if (input.ubos.length > MAX_KYB_UBOS) {
+    errors.ubos = `At most ${MAX_KYB_UBOS} UBOs`
+  }
+
+  let ownershipTotal = 0
+  let ownershipParsable = input.ubos.length > 0
+  input.ubos.forEach((ubo, i) => {
+    if (!ubo.firstName.trim())
+      errors[kybUboErrorKey(i, 'firstName')] = 'First name is required'
+    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Last name is required'
+
+    const pctRaw = ubo.ownershipPct.trim()
+    const pct = Number(pctRaw)
+    if (!pctRaw) {
+      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % is required'
+      ownershipParsable = false
+    } else if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % must be between 0 and 100'
+      ownershipParsable = false
+    } else {
+      ownershipTotal += pct
+    }
+
+    // KTP is 16 digits, a passport number is shorter. This is PII the operator is
+    // copying off a document, so a length/charset check is the most that can be
+    // verified here.
+    const idNumber = ubo.identityNumber.trim()
+    if (!idNumber) {
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number is required'
+    } else if (!/^[0-9]{8,20}$/.test(idNumber)) {
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number must be 8-20 digits'
+    }
+
+    if (!ubo.country.trim()) errors[kybUboErrorKey(i, 'country')] = 'Country is required'
+    if (!ubo.addressLine1.trim())
+      errors[kybUboErrorKey(i, 'addressLine1')] = 'Address is required'
+  })
+
+  // Only meaningful once every row parsed — otherwise the total is a partial sum
+  // and the message would blame the wrong thing.
+  if (ownershipParsable && ownershipTotal > 100.0001) {
+    errors.ubos = `Declared ownership totals ${ownershipTotal.toFixed(2)}% — it cannot exceed 100%`
+  }
+
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+export const KYB_REJECT_REASON_MAX = 500
+
+/**
+ * The reject-reason rule as a pure function, so the dialog, the mutation hook and
+ * the tests all read the SAME rule. Returning the trimmed value is the point: a
+ * caller cannot accidentally send `"   "` past a `valid` check.
+ */
+export function validateKybRejectReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (trimmed.length > KYB_REJECT_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Reason must be at most ${KYB_REJECT_REASON_MAX} characters`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}

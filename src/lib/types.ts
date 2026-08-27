@@ -711,14 +711,58 @@ export type VaBank =
   | 'PERMATA'
   | 'MAYBANK'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-547 — partner ownership on an order (migration 0076 already landed:
+// mint_orders / redeem_orders carry partner_id + partner_customer_id +
+// on_behalf_of + external_reference, and user_id became NULLABLE).
+//
+// Why a nested object and not a bare `partnerId`: an order row only holds the
+// UUID, and a UUID answers nothing an operator can act on. What ops needs when
+// a partner order goes wrong is WHO TO CALL, and that is the partner — the
+// partner's customer has no relationship with USDX at all (their CDD lives at
+// the partner, and they receive no notification from us). So the row must carry
+// the resolved `partners` row, which is a LEFT JOIN on the backend side: retail
+// orders have no partner_id and an INNER JOIN would drop them from the list.
+//
+// `code` travels alongside `displayName` because `code` is what gets printed in
+// transaction references and stays put when the legal name changes by deed,
+// while `displayName` is the human-readable one.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface OrderPartnerRef {
+  id: string
+  /** Immutable slug used in transaction references (`partners.code`). */
+  code: string
+  /** Legal/display name — may change by deed (`partners.display_name`). */
+  displayName: string
+}
+
+/** `mint_orders.on_behalf_of` / `redeem_orders.on_behalf_of` (migration 0076). */
+export type OrderOnBehalfOf = 'SELF' | 'CUSTOMER'
+
 // sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row (union mint +
 // redeem). MINT-only fields (totalPayIdr, paymentStatus, safeStatus) are null
 // for redeem; netPayoutIdr is null for mint.
 export interface OrderListItem {
   id: string
+  /**
+   * NULL for an order owned by a partner customer — `mint_orders.user_id` /
+   * `redeem_orders.user_id` became nullable in migration 0076 precisely for
+   * that case. Retail orders always carry it.
+   */
+  userId: string | null
   type: TransactionType
-  userId: string
+  /**
+   * Retail: the customer's email (masked for non-ADMIN by the backend,
+   * USDX-487). Partner-customer orders have no `users` row at all, so the
+   * backend sends the literal marker `(partner customer)` — deliberately not an
+   * email and not an empty string (USDX-571). Read the Partner column beside it
+   * to learn which partner the order belongs to.
+   */
   userEmail: string
+  /** Resolved `partners` row (LEFT JOIN). NULL for retail orders — USDX-547. */
+  partner: OrderPartnerRef | null
+  /** SELF = the partner's own order; CUSTOMER = on behalf of its customer. NULL for retail. */
+  onBehalfOf: OrderOnBehalfOf | null
   /** Decimal USDX. */
   amount: string
   /** MINT: total the user pays (IDR; null until a channel is chosen). REDEEM: null. */
@@ -741,8 +785,25 @@ export interface OrderListItem {
 export interface OrderDetail {
   id: string
   type: TransactionType
-  userId: string
+  /** NULL for a partner-customer order (migration 0076 made user_id nullable). */
+  userId: string | null
+  /** `(partner customer)` when the order has no `users` row — see OrderListItem. */
   userEmail: string
+  /** Resolved `partners` row (LEFT JOIN). NULL for retail orders — USDX-547. */
+  partner: OrderPartnerRef | null
+  /** SELF = partner's own order; CUSTOMER = on behalf of its customer. NULL for retail. */
+  onBehalfOf: OrderOnBehalfOf | null
+  /**
+   * `partner_customers.id` — only when onBehalfOf = CUSTOMER. Shown so ops can
+   * quote it back to the partner; it is an opaque id, NOT customer identity.
+   */
+  partnerCustomerId: string | null
+  /**
+   * The partner's OWN order number (`external_reference`). This is the number
+   * the partner quotes when it reports a problem, so ops has to be able to see
+   * (and search) it. NULL for retail orders.
+   */
+  externalReference: string | null
   /** MINT: address tujuan. REDEEM: wallet sumber burn (null sampai BURNED). */
   userAddress: string | null
   chain: string
@@ -999,6 +1060,47 @@ export interface KycListItem {
 // sot/api/kyc.yaml § IdentityType — Week 1 only KTP; DRIVER_LICENSE deferred.
 export type KycIdentityType = 'KTP' | 'DRIVER_LICENSE'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-545 — CDD value sets for retail KYC.
+//
+// These are COPIED, value for value, from the partner cluster
+// (`backend/src/database/schema/partner/partner-customer-kyc.ts` §
+// "CDD value sets": partner_occupation / partner_source_of_funds /
+// partner_annual_income_range / partner_transaction_purpose). Copied and not
+// merely "similar" on purpose: the partner API already obliges partners to hand
+// over a full CDD block for their customers, so if retail is judged on a
+// different or smaller set, one legal entity ends up running TWO CDD standards
+// — with the weaker one applied to the customers who deal with USDX directly.
+// A combined report or a sanctions sweep would then have to handle two shapes
+// of data for the same question.
+//
+// The income labels carry the resolved spelling (UNDER_ / FROM_..._TO_ / OVER_).
+// The earlier partner draft had `100M_500M` / `500M_1B`, which a generated
+// client turns into an illegal enum member name — do not reintroduce a value
+// that starts with a digit (sot/conventions.md § Naming Conventions).
+// ─────────────────────────────────────────────────────────────────────────────
+export type KycOccupation =
+  | 'PRIVATE_EMPLOYEE'
+  | 'SELF_EMPLOYED'
+  | 'CIVIL_SERVANT'
+  | 'STUDENT'
+  | 'OTHER'
+
+export type KycSourceOfFunds =
+  | 'SALARY'
+  | 'BUSINESS'
+  | 'INVESTMENT'
+  | 'INHERITANCE'
+  | 'OTHER'
+
+export type KycAnnualIncomeRange =
+  | 'UNDER_100M'
+  | 'FROM_100M_TO_500M'
+  | 'FROM_500M_TO_1B'
+  | 'OVER_1B'
+
+export type KycTransactionPurpose = 'INVESTMENT' | 'PAYMENT' | 'REMITTANCE' | 'OTHER'
+
 // sot/api/kyc.yaml § KycReviewAction — append-only audit log actions.
 export type KycReviewAction =
   | 'SUBMITTED'
@@ -1032,6 +1134,29 @@ export interface KycDetail {
   ktpPhotoUrl: string | null
   selfiePhotoUrl: string | null
   urlExpiresAt: string | null
+  // ── CDD block (USDX-545) ──────────────────────────────────────────────────
+  // Nullable across the board, and not only because the retention sweeper NULLs
+  // PII: every customer VERIFIED before this ticket shipped has an empty CDD
+  // block, and how those are treated (left alone / asked at the next
+  // transaction / a fill-in campaign) is an open PM decision. The review page
+  // must therefore render "—" for a missing value rather than assume presence.
+  occupation: KycOccupation | null
+  sourceOfFunds: KycSourceOfFunds | null
+  annualIncomeRange: KycAnnualIncomeRange | null
+  transactionPurpose: KycTransactionPurpose | null
+  /**
+   * Indonesian tax number. **PII** — ciphertext at rest, decrypted for render,
+   * and role-gated to ADMIN in the UI (`canReadCustomerPii`).
+   */
+  npwp: string | null
+  /** `true` = the customer or a close relative holds public office. */
+  pepStatus: boolean | null
+  /**
+   * Free text describing the PEP relationship, expected only when
+   * `pepStatus === true`. **PII** — it names a real person and their office, so
+   * it is gated exactly like `npwp`.
+   */
+  pepRelation: string | null
   rejectionReason: string | null
   submittedAt: string | null
   reviewedBy: string | null
@@ -1052,6 +1177,169 @@ export interface KycReviewLog {
   reason: string | null
   ipAddress: string | null
   createdAt: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — KYB (business entity due diligence), MANUAL back-office flow.
+//
+// Two facts shape this contract, both verified in the 27 Aug correction on the
+// ticket:
+//   1. A LEGAL_ENTITY account can ALREADY be created today by an ADMIN through
+//      `POST /api/v1/users` (its DTO validates `["INDIVIDUAL","LEGAL_ENTITY"]`
+//      and the service rejects nothing). What is missing is a place to KEEP the
+//      entity's due-diligence data — `kyb` / `kyc_ubo` are declared in
+//      `backend/src/database/schema/kyc.ts` but never exported, so they do not
+//      exist in the database (`SELECT tablename FROM pg_tables …` → 0 rows).
+//   2. KYB is a MANUAL flow, not a public API (decision Mas Yan). There is no
+//      consumer app submitting this: a USDX operator types it in. That is why
+//      this feature has a FORM as well as a review action, unlike retail KYC.
+//
+// Field names mirror the (to-be-corrected) `kyb` / `kyc_ubo` declarations so the
+// FE is not inventing a second vocabulary. The review lifecycle reuses
+// `KycStatus`, matching what `partner_customer_kyc.status` already does.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `kyb.entity_type` — legal form of the entity (not `users.entity_type`). */
+export type KybEntityForm = 'PT' | 'CV' | 'YAYASAN' | 'KOPERASI' | 'FIRMA' | 'OTHER'
+
+/**
+ * The five FIXED document slots — response keys of `KybDetail.documents`,
+ * camelCase per `sot/conventions.md`.
+ *
+ * The backend keeps these as one path column per document type (`akte_path`,
+ * `nib_path`, `npwp_path`, `sk_kemenkumham_path`, `ktp_direksi_path` — PR #271
+ * commit 5dc7254, migration 0077), NOT as a row-per-file table. Consequences the
+ * FE has to live with, none of them cosmetic:
+ *
+ *   1. There is no `OTHER`. A sixth kind has no column to land in.
+ *   2. There is no `fileName` and no `sizeBytes` — the columns do not exist. The
+ *      reviewer identifies a document by its SLOT LABEL instead, which is the
+ *      more useful fact anyway ("Akta Pendirian" beats "scan_0142.pdf").
+ *   3. A slot holds at most one document.
+ */
+export type KybDocumentSlot =
+  | 'akte'
+  | 'nib'
+  | 'npwp'
+  | 'skKemenkumham'
+  | 'ktpDireksi'
+
+/**
+ * A filled slot — a presigned GET and nothing else. The expiry is NOT per slot:
+ * it is stamped once on `KybDetail.urlExpiresAt`, which is `null` when no URL was
+ * minted at all.
+ */
+export interface KybDocumentRef {
+  url: string
+}
+
+/**
+ * Every slot is always present, in the order above — `null` means the slot is
+ * EMPTY TO THIS VIEWER, never "absent from the response". A `Record` (not a
+ * `Partial`) so a forgotten slot is a build error rather than a silently blank
+ * row.
+ *
+ * Two things `null` cannot distinguish, and the UI must not claim otherwise:
+ *
+ *   - an object purged by the retention sweeper from one never uploaded (the old
+ *     array shape separated these via `url: null`; path columns do not);
+ *   - "nothing on file" from "your role is not given the URL" — the DEVELOPER
+ *     role never receives presigned document URLs, so for a developer ALL FIVE
+ *     slots read `null` whatever the record actually holds.
+ */
+export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
+
+/**
+ * Ultimate beneficial owner (`kyc_ubo`). `identityNumber` is PII: ciphertext at
+ * rest, decrypted for render, ADMIN-only in the UI (`canReadCustomerPii`).
+ */
+export interface KybUbo {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  /** Decimal percent, e.g. "25.50" (`kyc_ubo.ownership_pct numeric(5,2)`). */
+  ownershipPct: string
+  identityType: KycIdentityType
+  /** **PII** — ADMIN-only in the UI. */
+  identityNumber: string | null
+  country: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+}
+
+/** GET /api/v1/kyb row — no PII at list level (same rule as the KYC list). */
+export interface KybListItem {
+  id: string
+  userId: string
+  userEmail: string
+  entityName: string
+  /** `kyb.registration_number` — NIB. Not PII (it identifies a company). */
+  registrationNumber: string
+  status: KycStatus
+  uboCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewedByName: string | null
+}
+
+/** GET /api/v1/kyb/:id — the full record the reviewer decides on. */
+export interface KybDetail {
+  id: string
+  userId: string
+  userEmail: string
+  status: KycStatus
+  entityName: string
+  entityForm: KybEntityForm
+  country: string
+  registrationNumber: string
+  /** Entity NPWP. A company tax number, not a person's — not role-gated. */
+  taxId: string
+  /** ISO `YYYY-MM-DD`. */
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string
+  operationalAddress: string
+  website: string | null
+  phone: string | null
+  ubos: KybUbo[]
+  documents: KybDocuments
+  /** Presigned document URLs share one expiry stamp, like the KYC photos. */
+  urlExpiresAt: string | null
+  rejectionReason: string | null
+  submittedAt: string | null
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface KybUboInput {
+  firstName: string
+  lastName: string
+  ownershipPct: string
+  identityType: KycIdentityType
+  identityNumber: string
+  country: string
+  addressLine1: string
+  addressLine2?: string
+}
+
+/** POST /api/v1/kyb — operator-entered record for an existing LEGAL_ENTITY user. */
+export interface CreateKybBody {
+  userId: string
+  entityName: string
+  entityForm: KybEntityForm
+  country: string
+  registrationNumber: string
+  taxId: string
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string
+  operationalAddress: string
+  website?: string
+  phone: string
+  ubos: KybUboInput[]
 }
 
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───

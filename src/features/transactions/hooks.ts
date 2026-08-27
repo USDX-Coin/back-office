@@ -27,6 +27,16 @@ export interface OrderListFilters {
   paymentStatus?: string
   safeStatus?: string
   userId?: string
+  /**
+   * USDX-547 — `PARTNER` = only orders with a `partner_id`, `RETAIL` = only
+   * orders without one. Omitted = both.
+   *
+   * FE-ahead drift: `sot/api/orders.yaml` does not list this param yet, and the
+   * backend side is part of USDX-547. Filtering client-side instead was
+   * rejected — the list is server-paginated, so a client filter would silently
+   * hide rows on other pages and report the wrong total.
+   */
+  ownerType?: string
 }
 
 function buildQuery(filters: OrderListFilters): string {

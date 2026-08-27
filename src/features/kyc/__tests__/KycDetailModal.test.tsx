@@ -39,6 +39,16 @@ const makeDetail = (overrides: Partial<KycDetail> = {}): KycDetail => ({
   ktpPhotoUrl: 'https://t3.storageapi.dev/usdx-kyc/ktp.jpg?sig=abc',
   selfiePhotoUrl: 'https://t3.storageapi.dev/usdx-kyc/selfie.jpg?sig=def',
   urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+  // CDD block (USDX-545). Populated in the base fixture so the existing
+  // assertions run against a realistic record; the CDD-specific tests below
+  // override individual fields.
+  occupation: 'PRIVATE_EMPLOYEE',
+  sourceOfFunds: 'SALARY',
+  annualIncomeRange: 'FROM_100M_TO_500M',
+  transactionPurpose: 'INVESTMENT',
+  npwp: '123456789012345',
+  pepStatus: false,
+  pepRelation: null,
   rejectionReason: null,
   submittedAt: '2026-06-01T03:00:00Z',
   reviewedBy: null,
@@ -378,6 +388,181 @@ describe('KycDetailModal @ USDX-155', () => {
       await within(dialog).findByText('Viewed')
       // Actor is the DEVELOPER staff (Marcus Aurelius — stf_3).
       expect(within(dialog).getAllByText('Marcus Aurelius').length).toBeGreaterThan(0)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-545 — the CDD block on the review page.
+//
+// The reason this has to be on screen at all: without it the reviewer decides
+// without seeing the data that was just collected. And two of the fields (NPWP,
+// PEP relation) are PII, gated to ADMIN by `canReadCustomerPii` — the same
+// predicate the backend uses (USDX-487), not a rule invented here.
+//
+// Mock staff roles: stf_1 = ADMIN (default), stf_2 = MANAGER, stf_3 = DEVELOPER,
+// stf_4 = STAFF.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NPWP = '123456789012345'
+const PEP_RELATION = 'Kakak — anggota DPRD Provinsi Jakarta'
+
+const cddDetail = (overrides: Partial<KycDetail> = {}): KycDetail =>
+  makeDetail({
+    occupation: 'CIVIL_SERVANT',
+    sourceOfFunds: 'BUSINESS',
+    annualIncomeRange: 'FROM_500M_TO_1B',
+    transactionPurpose: 'REMITTANCE',
+    npwp: NPWP,
+    pepStatus: true,
+    pepRelation: PEP_RELATION,
+    ...overrides,
+  })
+
+describe('KycDetailModal @ USDX-545 — CDD fields', () => {
+  describe('positive', () => {
+    test('renders every new CDD field with a human label', async () => {
+      stubDetail(cddDetail())
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(within(dialog).getByText('Civil servant')).toBeInTheDocument()
+      expect(within(dialog).getByText('Business')).toBeInTheDocument()
+      expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
+      expect(within(dialog).getByText('Remittance')).toBeInTheDocument()
+      // Field labels, so a reviewer can find them.
+      expect(within(dialog).getByText('Occupation')).toBeInTheDocument()
+      expect(within(dialog).getByText('Source of funds')).toBeInTheDocument()
+      expect(within(dialog).getByText('Annual income')).toBeInTheDocument()
+      expect(within(dialog).getByText('Transaction purpose')).toBeInTheDocument()
+      expect(within(dialog).getByText('NPWP')).toBeInTheDocument()
+      expect(within(dialog).getByText('PEP status')).toBeInTheDocument()
+      expect(within(dialog).getByText('PEP relation')).toBeInTheDocument()
+    })
+
+    test('ADMIN sees NPWP and the PEP relation in full', async () => {
+      stubDetail(cddDetail())
+      renderModal() // default staff = stf_1 = ADMIN
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(within(dialog).getByText(NPWP)).toBeInTheDocument()
+      expect(within(dialog).getByText(PEP_RELATION)).toBeInTheDocument()
+      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+    })
+
+    test('a PEP hit is emphasised, not rendered as one more row of text', async () => {
+      // A PEP match changes what the reviewer is supposed to do next, so it must
+      // not read like any other field.
+      stubDetail(cddDetail())
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      expect(
+        await within(dialog).findByText(/politically exposed person/i),
+      ).toBeInTheDocument()
+    })
+
+    test('a non-PEP customer reads "Not a PEP", not a blank', async () => {
+      stubDetail(cddDetail({ pepStatus: false, pepRelation: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      expect(await within(dialog).findByText('Not a PEP')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test.each([
+      ['MANAGER', 'stf_2'],
+      ['DEVELOPER', 'stf_3'],
+      ['STAFF', 'stf_4'],
+    ])('%s sees NPWP and the PEP relation MASKED', async (_role, staffId) => {
+      stubDetail(cddDetail())
+      renderModal({ staffId })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      // The values themselves must not be on screen…
+      expect(within(dialog).queryByText(NPWP)).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(PEP_RELATION)).not.toBeInTheDocument()
+      // …but the reviewer is told a value EXISTS and is withheld, rather than
+      // being shown a dash that reads as "not collected".
+      expect(within(dialog).getAllByText('***')).toHaveLength(2)
+      expect(within(dialog).getAllByText(/admin only/i)).toHaveLength(2)
+    })
+
+    test('a masked view still shows the non-PII CDD values', async () => {
+      // Only NPWP and the PEP relation are PII. Masking the enum answers too
+      // would defeat the purpose of putting the CDD block on the page.
+      stubDetail(cddDetail())
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(within(dialog).getByText('Civil servant')).toBeInTheDocument()
+      expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/politically exposed person/i),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a submission with an EMPTY CDD block says so instead of looking broken', async () => {
+      // Every customer VERIFIED before this ticket has no CDD data. How those are
+      // filled in is an open PM decision, so the page must state the gap.
+      stubDetail(
+        cddDetail({
+          occupation: null,
+          sourceOfFunds: null,
+          annualIncomeRange: null,
+          transactionPurpose: null,
+          npwp: null,
+          pepStatus: null,
+          pepRelation: null,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(within(dialog).getByText(/predates the CDD fields/i)).toBeInTheDocument()
+      // Nothing is masked — there is nothing to withhold.
+      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+    })
+
+    test('pepStatus false counts as collected — no "predates" note', async () => {
+      // `false` is a real answer. Treating it as "missing" would tell the reviewer
+      // the customer was never asked.
+      stubDetail(
+        cddDetail({
+          occupation: null,
+          sourceOfFunds: null,
+          annualIncomeRange: null,
+          transactionPurpose: null,
+          npwp: null,
+          pepStatus: false,
+          pepRelation: null,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(
+        within(dialog).queryByText(/predates the CDD fields/i),
+      ).not.toBeInTheDocument()
+    })
+
+    test('a null NPWP renders a dash for a non-ADMIN, never "***"', async () => {
+      // "not collected" and "withheld" are different facts and must not collapse
+      // into one rendering.
+      stubDetail(cddDetail({ npwp: null, pepRelation: null }))
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
     })
   })
 })
