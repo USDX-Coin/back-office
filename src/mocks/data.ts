@@ -8,6 +8,10 @@ import type {
   KycListItem,
   KycReviewLog,
   KycStatus,
+  KycOccupation,
+  KycSourceOfFunds,
+  KycAnnualIncomeRange,
+  KycTransactionPurpose,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -41,6 +45,13 @@ import type {
   PhaseOneUserWallet,
   OrderListItem,
   OrderDetail,
+  OrderPartnerRef,
+  OrderOnBehalfOf,
+  KybListItem,
+  KybDetail,
+  KybUbo,
+  KybDocument,
+  KybEntityForm,
   MintPaymentStatus,
   MintSafeStatus,
   MintOrderStatus,
@@ -48,6 +59,7 @@ import type {
   PaymentChannel,
   VaBank,
 } from '@/lib/types'
+import { PARTNER_CUSTOMER_EMAIL_LABEL } from '@/lib/pii'
 
 // Pseudo-random but deterministic seeded helpers
 function seededHex(length: number, seed: number): string {
@@ -603,7 +615,7 @@ const RATE_USED = '16250'
 
 let requestIdCounter = 1
 
-function uuidLike(seed: number, prefix = ''): string {
+export function uuidLike(seed: number, prefix = ''): string {
   const hex = seededHex(32, seed)
   return `${prefix}${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
@@ -972,9 +984,76 @@ function idrDecimal(n: number): string {
   return n.toFixed(2)
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-547 — partner-owned orders in the mock store.
+//
+// Two partners so the list shows that the column distinguishes them rather than
+// just proving "some partner". `code` is a DNS label (it doubles as the checkout
+// subdomain) and is treated as immutable; `displayName` is the legal name and
+// may change by deed — that split is why both are shown in the UI.
+// ─────────────────────────────────────────────────────────────────────────────
+const MOCK_PARTNERS: OrderPartnerRef[] = [
+  { id: uuidLike(60_100), code: 'juara', displayName: 'PT Juara Remiten Indonesia' },
+  { id: uuidLike(60_200), code: 'sinarpay', displayName: 'PT Sinar Payment Hub' },
+]
+
+/** Everything about an order that changes when a partner owns it. */
+interface OrderOwnership {
+  userId: string | null
+  userEmail: string
+  partner: OrderPartnerRef | null
+  onBehalfOf: OrderOnBehalfOf | null
+  partnerCustomerId: string | null
+  externalReference: string | null
+}
+
+function retailOwnership(user: Customer): OrderOwnership {
+  return {
+    userId: user.id,
+    userEmail: user.email,
+    partner: null,
+    onBehalfOf: null,
+    partnerCustomerId: null,
+    externalReference: null,
+  }
+}
+
+/**
+ * A partner order, alternating the two shapes that actually differ in the data:
+ *
+ *   onBehalfOf = SELF     → the partner mints for itself. It DOES have a `users`
+ *                           row (a partner hangs off one LEGAL_ENTITY user), so
+ *                           `user_id` and a real email are present.
+ *   onBehalfOf = CUSTOMER → the owner is a `partner_customers` row, which has no
+ *                           `users` row at all. `user_id` is NULL (exactly what
+ *                           migration 0076 relaxed it for) and the backend sends
+ *                           the `(partner customer)` marker in `userEmail`.
+ *
+ * Seeding both is what makes the difference testable: a mock where every partner
+ * order looked the same would hide whichever branch is wrong.
+ */
+function partnerOwnership(seed: number): OrderOwnership {
+  const partner = MOCK_PARTNERS[seed % MOCK_PARTNERS.length]!
+  const forCustomer = seed % 2 === 1
+  return {
+    userId: forCustomer ? null : uuidLike(seed + 61_000),
+    userEmail: forCustomer
+      ? PARTNER_CUSTOMER_EMAIL_LABEL
+      : `ops@${partner.code}.co.id`,
+    partner,
+    onBehalfOf: forCustomer ? 'CUSTOMER' : 'SELF',
+    partnerCustomerId: forCustomer ? uuidLike(seed + 62_000) : null,
+    // The partner's OWN order number. Long enough that a middle-truncating
+    // renderer would eat the sequence part — which is why the detail modal
+    // shows it in full.
+    externalReference: `${partner.code.toUpperCase()}-ORD-2026-${String(seed).padStart(6, '0')}`,
+  }
+}
+
 function createOrderPair(
   user: Customer,
   seed: number,
+  ownership: OrderOwnership = retailOwnership(user),
 ): { list: OrderListItem; detail: OrderDetail } {
   const id = uuidLike(seed + 30_000)
   const idempotencyKey = `mint_${seededHex(20, seed + 31_000)}`
@@ -1021,8 +1100,10 @@ function createOrderPair(
   const list: OrderListItem = {
     id,
     type: 'MINT',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
     amount,
     totalPayIdr,
     netPayoutIdr: null,
@@ -1036,8 +1117,12 @@ function createOrderPair(
   const detail: OrderDetail = {
     id,
     type: 'MINT',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
+    partnerCustomerId: ownership.partnerCustomerId,
+    externalReference: ownership.externalReference,
     userAddress,
     chain: 'polygon',
     idempotencyKey,
@@ -1116,6 +1201,7 @@ const REDEEM_STATES: RedeemLifecycleState[] = [
 function createRedeemOrderPair(
   user: Customer,
   seed: number,
+  ownership: OrderOwnership = retailOwnership(user),
 ): { list: OrderListItem; detail: OrderDetail } {
   const id = uuidLike(seed + 40_000)
   const redeemId = bytes32(seed + 41_000)
@@ -1162,8 +1248,10 @@ function createRedeemOrderPair(
   const list: OrderListItem = {
     id,
     type: 'REDEEM',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
     amount,
     totalPayIdr: null,
     netPayoutIdr,
@@ -1177,8 +1265,12 @@ function createRedeemOrderPair(
   const detail: OrderDetail = {
     id,
     type: 'REDEEM',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
+    partnerCustomerId: ownership.partnerCustomerId,
+    externalReference: ownership.externalReference,
     userAddress,
     chain: 'polygon',
     amount,
@@ -1235,6 +1327,12 @@ export function createMockOrders(
   customers: Customer[],
   count = 48,
   redeemCount = 24,
+  // USDX-547 — partner-owned rows sit in the SAME store as retail, because that
+  // is the situation the Partner column and the Owner filter exist for: the two
+  // populations share one table and an ops question is about one of them. A
+  // separate store would make the mock easier and the feature untested.
+  partnerMintCount = 8,
+  partnerRedeemCount = 4,
 ): { list: OrderListItem[]; details: Map<string, OrderDetail> } {
   const list: OrderListItem[] = []
   const details = new Map<string, OrderDetail>()
@@ -1251,6 +1349,22 @@ export function createMockOrders(
     const seed = i + 1
     const user = customers[i % customers.length]!
     const pair = createRedeemOrderPair(user, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  // Partner mint. Seeds are offset so the ids never collide with the retail rows
+  // above (both factories derive the id from the seed).
+  for (let i = 0; i < partnerMintCount; i++) {
+    const seed = i + 1 + count
+    const user = customers[i % customers.length]!
+    const pair = createOrderPair(user, seed, partnerOwnership(seed))
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  for (let i = 0; i < partnerRedeemCount; i++) {
+    const seed = i + 1 + redeemCount
+    const user = customers[i % customers.length]!
+    const pair = createRedeemOrderPair(user, seed, partnerOwnership(seed))
     list.push(pair.list)
     details.set(pair.list.id, pair.detail)
   }
@@ -1495,6 +1609,35 @@ export function createMockKycList(count = 24): KycListItem[] {
 const BIRTH_PLACES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Yogyakarta']
 const STREETS = ['Jl. Sudirman', 'Jl. Gatot Subroto', 'Jl. Thamrin', 'Jl. Diponegoro', 'Jl. Asia Afrika']
 
+// USDX-545 — CDD value sets, copied from the partner cluster so retail and
+// partner customers are judged on the same data (see lib/types.ts § CDD).
+const KYC_OCCUPATIONS: KycOccupation[] = [
+  'PRIVATE_EMPLOYEE',
+  'SELF_EMPLOYED',
+  'CIVIL_SERVANT',
+  'STUDENT',
+  'OTHER',
+]
+const KYC_SOURCES_OF_FUNDS: KycSourceOfFunds[] = [
+  'SALARY',
+  'BUSINESS',
+  'INVESTMENT',
+  'INHERITANCE',
+  'OTHER',
+]
+const KYC_INCOME_RANGES: KycAnnualIncomeRange[] = [
+  'UNDER_100M',
+  'FROM_100M_TO_500M',
+  'FROM_500M_TO_1B',
+  'OVER_1B',
+]
+const KYC_TRANSACTION_PURPOSES: KycTransactionPurpose[] = [
+  'INVESTMENT',
+  'PAYMENT',
+  'REMITTANCE',
+  'OTHER',
+]
+
 let kycReviewIdCounter = 1
 
 export function createKycReviewLog(overrides: Partial<KycReviewLog> = {}): KycReviewLog {
@@ -1543,6 +1686,38 @@ export function createKycDetail(
     ktpPhotoUrl: mockPresignedUrl(item.userId, 'ktp', seed + 75000),
     selfiePhotoUrl: mockPresignedUrl(item.userId, 'selfie', seed + 76000),
     urlExpiresAt: null,
+    // ── CDD block (USDX-545) ────────────────────────────────────────────────
+    // Every 5th row is left with an EMPTY CDD block on purpose. Those stand for
+    // the customers who were VERIFIED before this ticket shipped: their CDD
+    // fields are genuinely null, and how they get filled is still an open PM
+    // decision. A mock where every row is complete would hide the case where the
+    // review page has to render "not collected" without looking broken.
+    ...(seed % 5 === 0
+      ? {
+          occupation: null,
+          sourceOfFunds: null,
+          annualIncomeRange: null,
+          transactionPurpose: null,
+          npwp: null,
+          pepStatus: null,
+          pepRelation: null,
+        }
+      : {
+          occupation: KYC_OCCUPATIONS[seed % KYC_OCCUPATIONS.length]!,
+          sourceOfFunds: KYC_SOURCES_OF_FUNDS[seed % KYC_SOURCES_OF_FUNDS.length]!,
+          annualIncomeRange: KYC_INCOME_RANGES[seed % KYC_INCOME_RANGES.length]!,
+          transactionPurpose:
+            KYC_TRANSACTION_PURPOSES[seed % KYC_TRANSACTION_PURPOSES.length]!,
+          // 15-digit NPWP (pre-2024 format, still what most people carry).
+          npwp: `${seededBankAccount(seed + 1)}${String(seed % 1000).padStart(3, '0')}`,
+          // Roughly one in seven is flagged PEP — enough that the reviewer sees
+          // the branch, rare enough that it stays the exception it is.
+          pepStatus: seed % 7 === 0,
+          pepRelation:
+            seed % 7 === 0
+              ? `Kakak — anggota DPRD Provinsi ${BIRTH_PLACES[seed % BIRTH_PLACES.length]!}`
+              : null,
+        }),
     rejectionReason:
       item.status === 'REJECTED'
         ? 'Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas'
@@ -1602,6 +1777,138 @@ export function createMockKycDetailState(list: KycListItem[]): {
     reviews.set(item.id, createMockKycReviews(detail))
   })
   return { details, reviews }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — KYB records (business-entity due diligence), manual entry.
+//
+// ⚠ These stand in for a backend that does not exist yet: `kyb` and `kyc_ubo`
+// are declared in `backend/src/database/schema/kyc.ts` but never exported from
+// `schema/index.ts`, so no table was ever created (verified on dev — 0 rows in
+// pg_tables). Field names follow those declarations so the mock is a contract
+// proposal, not an invention.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const KYB_ENTITY_NAMES = [
+  'PT Juara Remiten Indonesia',
+  'PT Sinar Payment Hub',
+  'PT Mitra Kirim Nusantara',
+  'CV Berkah Digital',
+  'PT Arta Sentosa Teknologi',
+]
+const KYB_SECTORS = [
+  'Jasa pengiriman uang',
+  'Teknologi finansial',
+  'Perdagangan digital',
+  'Konsultan teknologi',
+]
+const KYB_ENTITY_FORMS: KybEntityForm[] = ['PT', 'PT', 'PT', 'CV', 'PT']
+
+function createKybUbo(seed: number, index: number, ownershipPct: string): KybUbo {
+  const name = CUSTOMER_NAMES[(seed + index) % CUSTOMER_NAMES.length]!
+  const [firstName, lastName] = splitName(name)
+  return {
+    id: uuidLike(seed * 10 + index + 90_000),
+    firstName,
+    lastName: lastName || 'Wijaya',
+    ownershipPct,
+    identityType: 'KTP',
+    // Decrypted plaintext, as the backend would return it — the FRONT END is what
+    // gates it by role (lib/pii.ts). The mock is not the enforcement point.
+    identityNumber: `3171${seededBankAccount(seed + index)}`,
+    country: 'ID',
+    addressLine1: `${STREETS[(seed + index) % STREETS.length]!} No. ${1 + ((seed + index) % 90)}`,
+    addressLine2: null,
+  }
+}
+
+function createKybDocument(seed: number, kind: KybDocument['kind']): KybDocument {
+  return {
+    id: uuidLike(seed + 95_000 + kind.length),
+    kind,
+    fileName: `${kind.toLowerCase()}-${seed}.pdf`,
+    url: `https://t3.storageapi.dev/usdx-kyb/kyb/${seed}/${kind.toLowerCase()}.pdf?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`,
+    sizeBytes: 180_000 + seed * 1_137,
+    uploadedAt: pastDateRecent(seed % 20),
+  }
+}
+
+export function createKybDetail(seed: number, overrides: Partial<KybDetail> = {}): KybDetail {
+  const status: KycStatus = (['PENDING', 'VERIFIED', 'REJECTED'] as const)[seed % 3]!
+  const reviewed = status !== 'PENDING'
+  const entityName = KYB_ENTITY_NAMES[seed % KYB_ENTITY_NAMES.length]!
+  const submittedAt = pastDateRecent(seed % 30)
+  // Split ownership across two UBOs for most records, one for the rest — and for
+  // one seed leave the list EMPTY, so the "record with no UBO" state (which must
+  // not be approvable) is visible in dev instead of only in a test.
+  const ubos =
+    seed % 6 === 0
+      ? []
+      : seed % 2 === 0
+        ? [createKybUbo(seed, 0, '60.00'), createKybUbo(seed, 1, '40.00')]
+        : [createKybUbo(seed, 0, '100.00')]
+  return {
+    id: uuidLike(seed + 88_000),
+    userId: uuidLike(seed + 89_000),
+    userEmail: `legal${seed}@${entityName.split(' ')[1]?.toLowerCase() ?? 'entity'}.co.id`,
+    status,
+    entityName,
+    entityForm: KYB_ENTITY_FORMS[seed % KYB_ENTITY_FORMS.length]!,
+    country: 'ID',
+    registrationNumber: `${8120000000000 + seed}`,
+    taxId: `0${seededBankAccount(seed + 3)}${String(seed % 100).padStart(2, '0')}`,
+    establishmentDate: `20${10 + (seed % 14)}-${String(1 + (seed % 12)).padStart(2, '0')}-${String(1 + (seed % 28)).padStart(2, '0')}`,
+    businessSector: KYB_SECTORS[seed % KYB_SECTORS.length]!,
+    registeredAddress: `${STREETS[seed % STREETS.length]!} No. ${10 + (seed % 80)}, Jakarta`,
+    operationalAddress: `${STREETS[(seed + 2) % STREETS.length]!} No. ${5 + (seed % 60)}, Jakarta`,
+    website: seed % 3 === 0 ? null : `https://${entityName.split(' ')[1]?.toLowerCase() ?? 'entity'}.co.id`,
+    phone: `+6221${String(4_000_000 + ((seed * 977) % 999_999))}`,
+    ubos,
+    documents:
+      seed % 4 === 0 ? [] : [createKybDocument(seed, 'AKTA_PENDIRIAN'), createKybDocument(seed, 'NIB')],
+    urlExpiresAt: null,
+    rejectionReason:
+      status === 'REJECTED'
+        ? 'Akta pendirian tidak terbaca, mohon unggah ulang hasil scan yang jelas'
+        : null,
+    submittedAt,
+    reviewedBy: reviewed ? uuidLike(seed + 91_000) : null,
+    reviewedByName: reviewed ? KYC_REVIEWER_NAMES[seed % KYC_REVIEWER_NAMES.length]! : null,
+    reviewedAt: reviewed ? pastDateRecent(seed % 15) : null,
+    createdAt: submittedAt,
+    updatedAt: submittedAt,
+    ...overrides,
+  }
+}
+
+/** List row derived from a detail — the two can never disagree this way. */
+export function kybListItemFrom(detail: KybDetail): KybListItem {
+  return {
+    id: detail.id,
+    userId: detail.userId,
+    userEmail: detail.userEmail,
+    entityName: detail.entityName,
+    registrationNumber: detail.registrationNumber,
+    status: detail.status,
+    uboCount: detail.ubos.length,
+    submittedAt: detail.submittedAt,
+    reviewedAt: detail.reviewedAt,
+    reviewedByName: detail.reviewedByName,
+  }
+}
+
+export function createMockKybState(count = 9): {
+  list: KybListItem[]
+  details: Map<string, KybDetail>
+} {
+  const details = new Map<string, KybDetail>()
+  const list: KybListItem[] = []
+  for (let i = 0; i < count; i++) {
+    const detail = createKybDetail(i + 1)
+    details.set(detail.id, detail)
+    list.push(kybListItemFrom(detail))
+  }
+  return { list, details }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

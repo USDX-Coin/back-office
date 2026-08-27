@@ -22,6 +22,9 @@ import type {
   RequestListItem,
   OrderDetail,
   OrderListItem,
+  KybDetail,
+  KybDocument,
+  KybListItem,
   OncallContact,
   CreateOncallContact,
   UpdateOncallContact,
@@ -32,6 +35,10 @@ import {
   createMockCustomerList,
   createMockKycDetailState,
   createMockKycList,
+  createKybDetail,
+  createMockKybState,
+  kybListItemFrom,
+  uuidLike,
   createMockStaffList,
   createMockOtcTransactions,
   createMockChainConfigs,
@@ -79,6 +86,10 @@ let kycList: KycListItem[] = createMockKycList()
 let kycDetails: Map<string, KycDetail>
 let kycReviews: Map<string, KycReviewLog[]>
 ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
+// USDX-546 — KYB. Mock-only: the backend has no `kyb` table yet.
+let kybList: KybListItem[]
+let kybDetails: Map<string, KybDetail>
+;({ list: kybList, details: kybDetails } = createMockKybState())
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -98,6 +109,7 @@ export function resetMockData() {
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
+  ;({ list: kybList, details: kybDetails } = createMockKybState())
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -244,6 +256,52 @@ function kycForbidden() {
     { status: 403 }
   )
 }
+
+// USDX-546 — KYB error shapes. Same envelope + codes as the KYC review
+// endpoints, because the two flows are the same shape of decision.
+function kybNotFound() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'NOT_FOUND', message: 'KYB record not found' },
+    },
+    { status: 404 }
+  )
+}
+
+function kybForbidden() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: { code: 'FORBIDDEN', message: 'Developer role cannot create or review KYB' },
+    },
+    { status: 403 }
+  )
+}
+
+function kybInvalidStatus() {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'INVALID_STATUS',
+        message: 'KYB status is not PENDING (it may have been reviewed concurrently)',
+      },
+    },
+    { status: 409 }
+  )
+}
+
+/** Object-key prefix for KYB documents — mirrors ATTESTATION_FILE_KEY_PREFIX. */
+const KYB_FILE_KEY_PREFIX = 'kyb/document/'
+/** 10 MiB — must match KYB_DOCUMENT_MAX_BYTES in features/kyb/hooks.ts. */
+const KYB_DOCUMENT_MAX_BYTES_MOCK = 10 * 1024 * 1024
 
 function kycInvalidStatus() {
   return HttpResponse.json(
@@ -1718,6 +1776,297 @@ export const handlers = [
     return HttpResponse.json({ status: 'success', metadata: null, data: listRow ?? detail })
   }),
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // USDX-546 — KYB review. MOCK-ONLY: there is no backend for these paths yet
+  // (the `kyb` / `kyc_ubo` tables are declared but not exported, so they were
+  // never created — verified on dev). Deliberately NOT added to
+  // INTEGRATION_PATHS in browser.ts, which is the record of what is live.
+  //
+  // The stubs are as strict as the backend should be, on purpose: the
+  // reject-without-reason case is an acceptance criterion, and a permissive mock
+  // would let the front end pass locally while the real rule went unimplemented.
+  // ─────────────────────────────────────────────────────────────────────────
+  http.get('/api/v1/kyb', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.max(1, Number(url.searchParams.get('limit') || '10'))
+    const status = url.searchParams.get('status')
+    const search = url.searchParams.get('search')?.trim().toLowerCase()
+
+    let rows = [...kybList]
+    if (status) rows = rows.filter((r) => r.status === status)
+    if (search)
+      rows = rows.filter(
+        (r) =>
+          r.entityName.toLowerCase().includes(search) ||
+          r.userEmail.toLowerCase().includes(search),
+      )
+    // Oldest first — the same fairness ordering as the KYC queue.
+    rows.sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
+
+    const start = (page - 1) * limit
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: rows.length },
+      data: rows.slice(start, start + limit),
+    })
+  }),
+
+  http.get('/api/v1/kyb/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const detail = kybDetails.get(String(params.id))
+    if (!detail) return kybNotFound()
+    // Presigned document URLs get their expiry stamped at serve time (TTL 5 min),
+    // exactly like the KYC photos.
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        ...detail,
+        urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+    })
+  }),
+
+  http.post('/api/v1/kyb', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kybForbidden()
+
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+
+    const required = [
+      'userId',
+      'entityName',
+      'entityForm',
+      'country',
+      'registrationNumber',
+      'taxId',
+      'establishmentDate',
+      'businessSector',
+      'registeredAddress',
+      'operationalAddress',
+      'phone',
+    ]
+    for (const field of required) {
+      if (typeof body[field] !== 'string' || !(body[field] as string).trim()) {
+        return phaseOneBadRequest(`${field} is required`)
+      }
+    }
+    const ubos = Array.isArray(body.ubos) ? (body.ubos as Record<string, unknown>[]) : []
+    // A KYB record with no UBO has no due-diligence subject. Refused at the API,
+    // not only in the form.
+    if (ubos.length === 0) return phaseOneBadRequest('At least one UBO is required')
+    const ownershipTotal = ubos.reduce((sum, u) => sum + Number(u.ownershipPct ?? 0), 0)
+    if (ownershipTotal > 100.0001) {
+      return phaseOneBadRequest('Declared UBO ownership cannot exceed 100%')
+    }
+
+    const now = new Date().toISOString()
+    const seed = kybList.length + 1
+    const detail: KybDetail = {
+      ...createKybDetail(seed),
+      id: uuidLike(seed + 98_000),
+      userId: String(body.userId),
+      status: 'PENDING',
+      entityName: String(body.entityName),
+      entityForm: String(body.entityForm) as KybDetail['entityForm'],
+      country: String(body.country),
+      registrationNumber: String(body.registrationNumber),
+      taxId: String(body.taxId),
+      establishmentDate: String(body.establishmentDate),
+      businessSector: String(body.businessSector),
+      registeredAddress: String(body.registeredAddress),
+      operationalAddress: String(body.operationalAddress),
+      website: typeof body.website === 'string' ? body.website : null,
+      phone: String(body.phone),
+      ubos: ubos.map((u, i) => ({
+        id: uuidLike(seed * 10 + i + 99_000),
+        firstName: String(u.firstName ?? ''),
+        lastName: String(u.lastName ?? ''),
+        ownershipPct: String(u.ownershipPct ?? '0'),
+        identityType: 'KTP',
+        identityNumber: String(u.identityNumber ?? ''),
+        country: String(u.country ?? 'ID'),
+        addressLine1: String(u.addressLine1 ?? ''),
+        addressLine2: typeof u.addressLine2 === 'string' ? u.addressLine2 : null,
+      })),
+      documents: [],
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedByName: null,
+      reviewedAt: null,
+      submittedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }
+    kybDetails.set(detail.id, detail)
+    kybList.push(kybListItemFrom(detail))
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: detail },
+      { status: 201 },
+    )
+  }),
+
+  http.post('/api/v1/kyb/:id/approve', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kybForbidden()
+    const detail = kybDetails.get(String(params.id))
+    if (!detail) return kybNotFound()
+    if (detail.status !== 'PENDING') return kybInvalidStatus()
+    const now = new Date().toISOString()
+    detail.status = 'VERIFIED'
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kybList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'VERIFIED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: listRow ?? kybListItemFrom(detail),
+    })
+  }),
+
+  http.post('/api/v1/kyb/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kybForbidden()
+    const detail = kybDetails.get(String(params.id))
+    if (!detail) return kybNotFound()
+    if (detail.status !== 'PENDING') return kybInvalidStatus()
+
+    let body: { reason?: unknown }
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+    // THE rule of this ticket: a rejection without a stated reason is refused by
+    // the API, not merely discouraged by the dialog. Whitespace is trimmed first
+    // so `"   "` cannot pass as a reason.
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 1 || reason.length > 500) {
+      return phaseOneBadRequest('reason must be 1–500 characters', 'BAD_REQUEST')
+    }
+    const now = new Date().toISOString()
+    detail.status = 'REJECTED'
+    detail.rejectionReason = reason
+    detail.reviewedBy = staff.id
+    detail.reviewedByName = staff.name
+    detail.reviewedAt = now
+    detail.updatedAt = now
+    const listRow = kybList.find((r) => r.id === detail.id)
+    if (listRow) {
+      listRow.status = 'REJECTED'
+      listRow.reviewedAt = now
+      listRow.reviewedByName = staff.name
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: listRow ?? kybListItemFrom(detail),
+    })
+  }),
+
+  // Three-step document upload, step 1. Reuses the same fake storage host as the
+  // transparency attestations so the signed-header + content-length checks in
+  // that PUT handler apply here too.
+  http.post('/api/v1/kyb/:id/documents/upload-url', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kybForbidden()
+    const detail = kybDetails.get(String(params.id))
+    if (!detail) return kybNotFound()
+
+    let body: { kind?: unknown; sizeBytes?: unknown }
+    try {
+      body = (await request.json()) as { kind?: unknown; sizeBytes?: unknown }
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+    if (typeof body.kind !== 'string') return phaseOneBadRequest('kind is required')
+    // `sizeBytes` is required for the same reason as the attestation flow: the
+    // presigner signs content-length and the browser fills that header itself.
+    if (typeof body.sizeBytes !== 'number' || body.sizeBytes <= 0) {
+      return phaseOneBadRequest('sizeBytes is required')
+    }
+    if (body.sizeBytes > KYB_DOCUMENT_MAX_BYTES_MOCK) {
+      return phaseOneBadRequest(
+        `File must be at most ${KYB_DOCUMENT_MAX_BYTES_MOCK} bytes`,
+        'KYB_DOCUMENT_TOO_LARGE',
+      )
+    }
+
+    const fileKey = `${KYB_FILE_KEY_PREFIX}${detail.id}/${body.kind.toLowerCase()}-${Date.now()}`
+    const uploadUrl = `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`
+    const headers = { 'content-type': 'application/octet-stream' }
+    issuedUploadTickets.set(uploadUrl, {
+      headers,
+      contentLength: body.sizeBytes,
+      fileKey,
+    })
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: {
+        uploadUrl,
+        fileKey,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        headers,
+      },
+    })
+  }),
+
+  // Step 3 — register the uploaded object against the record.
+  http.post('/api/v1/kyb/:id/documents', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (staff.role === 'DEVELOPER') return kybForbidden()
+    const detail = kybDetails.get(String(params.id))
+    if (!detail) return kybNotFound()
+
+    let body: { kind?: unknown; fileKey?: unknown; fileName?: unknown }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
+    }
+    if (typeof body.fileKey !== 'string' || !body.fileKey.startsWith(KYB_FILE_KEY_PREFIX)) {
+      return phaseOneBadRequest(`fileKey must start with ${KYB_FILE_KEY_PREFIX}`)
+    }
+    // The object must actually exist in the bucket — otherwise the record would
+    // list a document whose download is a dead link.
+    const stored = storageObjects.get(body.fileKey)
+    if (!stored) {
+      return phaseOneBadRequest('The file was never uploaded', 'KYB_DOCUMENT_NOT_UPLOADED')
+    }
+
+    const doc: KybDocument = {
+      id: uuidLike(detail.documents.length + 97_000),
+      kind: String(body.kind ?? 'OTHER') as KybDocument['kind'],
+      fileName: String(body.fileName ?? 'document'),
+      url: `https://t3.storageapi.dev/usdx-kyb/${body.fileKey}?X-Amz-Expires=300`,
+      sizeBytes: stored.size,
+      uploadedAt: new Date().toISOString(),
+    }
+    detail.documents.push(doc)
+    detail.updatedAt = doc.uploadedAt
+    return HttpResponse.json({ status: 'success', metadata: null, data: doc }, { status: 201 })
+  }),
+
   // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
   http.get('/api/v1/dashboard/stats', () =>
     HttpResponse.json({
@@ -1760,6 +2109,13 @@ export const handlers = [
     const paymentStatus = url.searchParams.get('paymentStatus')
     const safeStatus = url.searchParams.get('safeStatus')
     const userId = url.searchParams.get('userId')
+    // USDX-547 — partner vs retail population. Validated rather than silently
+    // ignored: a typo that quietly returns EVERYTHING is the failure mode where
+    // an operator believes they are looking at partner orders only.
+    const ownerType = url.searchParams.get('ownerType')
+    if (ownerType !== null && ownerType !== 'PARTNER' && ownerType !== 'RETAIL') {
+      return phaseOneBadRequest('ownerType must be PARTNER or RETAIL')
+    }
 
     let rows = [...orderList]
     if (type) rows = rows.filter((r) => r.type === type)
@@ -1768,6 +2124,11 @@ export const handlers = [
     if (paymentStatus) rows = rows.filter((r) => r.paymentStatus === paymentStatus)
     if (safeStatus) rows = rows.filter((r) => r.safeStatus === safeStatus)
     if (userId) rows = rows.filter((r) => r.userId === userId)
+    // Partner-ness is decided by `partner_id` being present, NOT by the email
+    // marker: a partner's own (`SELF`) order carries a real email and must still
+    // count as a partner order.
+    if (ownerType === 'PARTNER') rows = rows.filter((r) => r.partner !== null)
+    if (ownerType === 'RETAIL') rows = rows.filter((r) => r.partner === null)
 
     const start = (page - 1) * take
     const data = rows.slice(start, start + take)

@@ -28,7 +28,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canReviewKyc, useAuth } from '@/lib/auth'
+import {
+  ANNUAL_INCOME_LABELS,
+  OCCUPATION_LABELS,
+  SOURCE_OF_FUNDS_LABELS,
+  TRANSACTION_PURPOSE_LABELS,
+  labelFor,
+} from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
+import { isPiiWithheld, presentPii } from '@/lib/pii'
 import { getKycStatusConfig } from '@/lib/status'
 import type {
   EntityType,
@@ -36,6 +44,7 @@ import type {
   KycListItem,
   KycReviewAction,
   KycReviewLog,
+  Staff,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
@@ -85,6 +94,59 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       </p>
       <div className="mt-1 text-[13px] text-foreground">{children}</div>
     </div>
+  )
+}
+
+/**
+ * USDX-545 — one PII field, gated on the viewer's role.
+ *
+ * Three states, deliberately distinguishable:
+ *   value present + ADMIN     → the value
+ *   value present + non-ADMIN → `***` plus an "ADMIN only" hint, so the reviewer
+ *                               knows a value EXISTS and they are not cleared to
+ *                               see it
+ *   no value                  → em dash — "not collected" (or already cleared by
+ *                               the retention sweeper), which is a different fact
+ *                               from "withheld" and must not look the same
+ *
+ * The rule itself lives in `lib/pii.ts` (mirror of the backend's
+ * `canReadCustomerPii`, USDX-487) — never re-derived from `user.role` here.
+ */
+function PiiField({
+  label,
+  value,
+  staff,
+}: {
+  label: string
+  value: string | null
+  staff: Staff | null
+}) {
+  const shown = presentPii(value, staff)
+  const withheld = isPiiWithheld(value, staff)
+  return (
+    <Field label={label}>
+      {shown === null ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        <span className="flex flex-wrap items-baseline gap-1.5">
+          <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
+          {withheld && (
+            <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+              admin only
+            </span>
+          )}
+        </span>
+      )}
+    </Field>
+  )
+}
+
+/** Plain (non-PII) CDD value → its label, or an em dash when not collected. */
+function CddField({ label, value }: { label: string; value: string | null }) {
+  return (
+    <Field label={label}>
+      {value ?? <span className="text-muted-foreground">—</span>}
+    </Field>
   )
 }
 
@@ -304,6 +366,18 @@ export default function KycDetailModal({
   const fullName = detail
     ? [detail.firstName, detail.lastName].filter(Boolean).join(' ') || '—'
     : null
+  // "Was any CDD collected at all?" — drives the explanatory note, not the
+  // rendering of the fields themselves. `pepStatus` is a boolean, so `false` is
+  // a real answer and must count as collected; only `null` means "never asked".
+  const hasCdd = Boolean(
+    detail &&
+      (detail.occupation !== null ||
+        detail.sourceOfFunds !== null ||
+        detail.annualIncomeRange !== null ||
+        detail.transactionPurpose !== null ||
+        detail.npwp !== null ||
+        detail.pepStatus !== null),
+  )
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -397,6 +471,68 @@ export default function KycDetailModal({
                     <Field label="Submissions">
                       <span className="tabular-nums">{detail.submissionCount}</span>
                     </Field>
+                  </div>
+
+                  {/* CDD (USDX-545). Rendered ALWAYS, even when every field is
+                      empty: the reviewer has to be able to see that the CDD data
+                      is missing. Hiding the section when it is empty would put
+                      the reviewer back where this ticket started — deciding
+                      without looking at what was collected. */}
+                  <div className="space-y-2">
+                    <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+                      Customer due diligence
+                    </p>
+                    {!hasCdd && (
+                      <p className="text-[12px] text-muted-foreground">
+                        No CDD data on this submission — it predates the CDD fields
+                        (USDX-545). Occupation, source of funds, income, purpose,
+                        NPWP and PEP status were never collected for this customer.
+                      </p>
+                    )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <CddField
+                        label="Occupation"
+                        value={labelFor(detail.occupation, OCCUPATION_LABELS)}
+                      />
+                      <CddField
+                        label="Source of funds"
+                        value={labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS)}
+                      />
+                      <CddField
+                        label="Annual income"
+                        value={labelFor(detail.annualIncomeRange, ANNUAL_INCOME_LABELS)}
+                      />
+                      <CddField
+                        label="Transaction purpose"
+                        value={labelFor(
+                          detail.transactionPurpose,
+                          TRANSACTION_PURPOSE_LABELS,
+                        )}
+                      />
+                      {/* NPWP is PII — ADMIN only (lib/pii.ts). */}
+                      <PiiField label="NPWP" value={detail.npwp} staff={user} />
+                      <Field label="PEP status">
+                        {detail.pepStatus === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : detail.pepStatus ? (
+                          // Emphasised: a PEP hit changes what the reviewer is
+                          // supposed to do, so it must not read like any other row.
+                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-[11.5px] font-medium text-warning">
+                            <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                            Politically exposed person
+                          </span>
+                        ) : (
+                          'Not a PEP'
+                        )}
+                      </Field>
+                      {/* PEP relation names a real person and their office — PII,
+                          gated exactly like NPWP. */}
+                      <PiiField
+                        label="PEP relation"
+                        value={detail.pepRelation}
+                        staff={user}
+                      />
+                    </div>
                   </div>
 
                   {/* Photos — presigned GET URLs, TTL 5 min */}

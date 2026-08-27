@@ -36,6 +36,19 @@ const PAYMENT_STATUS_OPTIONS: FilterOption[] = [
   { value: 'EXPIRED', label: 'Expired' },
 ]
 
+// USDX-547 — "which population am I looking at". The moment partner orders
+// exist, retail and partner rows share one table, and an ops question is almost
+// always about one of them: a partner order that goes wrong is chased with the
+// PARTNER, a retail order with the customer. Without this the operator scans a
+// mixed list by eye.
+//
+// Two values rather than a checkbox because "all" has to stay reachable and a
+// tri-state checkbox reads worse than a three-option select ("All" = no param).
+const OWNER_TYPE_OPTIONS: FilterOption[] = [
+  { value: 'PARTNER', label: 'Partner orders' },
+  { value: 'RETAIL', label: 'Retail orders' },
+]
+
 const SAFE_STATUS_OPTIONS: FilterOption[] = [
   { value: 'NONE', label: 'None' },
   { value: 'PENDING_APPROVAL', label: 'Pending approval' },
@@ -57,6 +70,9 @@ export function buildOrderFilterDefs(type: string): FilterDef[] {
   const isRedeem = type === 'REDEEM'
   const defs: FilterDef[] = [
     { kind: 'select', key: 'type', label: 'Type', options: TYPE_OPTIONS },
+    // Owner sits next to Type because it is the same kind of question ("which
+    // rows"), and it applies to mint and redeem alike — a partner can do both.
+    { kind: 'select', key: 'ownerType', label: 'Owner', options: OWNER_TYPE_OPTIONS },
     isRedeem
       ? { kind: 'select', key: 'redeemStatus', label: 'Status', options: REDEEM_STATUS_OPTIONS }
       : { kind: 'select', key: 'status', label: 'Status', options: MINT_STATUS_OPTIONS },
@@ -80,6 +96,11 @@ export const ORDER_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'createdAt', label: 'Date', required: true },
   { key: 'type', label: 'Type' },
   { key: 'user', label: 'User', required: true },
+  // USDX-547 — its own column, NOT a value squeezed into `user`. The user cell
+  // holds an email; putting a partner name there is the same semantic mistake
+  // as the `(partner customer)` marker, only better disguised. Not `required`:
+  // an ops team with no partners yet can hide it.
+  { key: 'partner', label: 'Partner' },
   { key: 'amount', label: 'Amount', required: true },
   { key: 'totalPayIdr', label: 'Total pay (IDR)' },
   { key: 'netPayoutIdr', label: 'Net payout (IDR)' },

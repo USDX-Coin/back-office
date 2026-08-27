@@ -5,6 +5,7 @@ import {
   Coins,
   Flame,
   ShieldCheck,
+  Building2,
   TrendingUp,
   Sliders,
   CalendarDays,
@@ -26,7 +27,7 @@ import {
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn' | 'kyc'
+export type BadgeKey = 'mint' | 'burn' | 'kyc' | 'kyb'
 
 export interface NavItem {
   to: string
@@ -98,6 +99,12 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Compliance',
     items: [
       { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
+      // USDX-546 — KYB Review sits beside KYC Review and follows the same
+      // visibility rule (all roles read; DEVELOPER cannot act). Its own entry
+      // rather than a tab inside KYC: the two carry different data (an entity
+      // plus its UBOs versus one person) and KYB additionally has a data-entry
+      // form, because KYB is manual.
+      { to: '/kyb', label: 'KYB Review', icon: Building2, badgeKey: 'kyb' },
       // Transparency: the append-only reserve ledger + attestation reports
       // behind the public usdx.co.id figures. Read audience is ADMIN +
       // DEVELOPER (KONTRAK-API-TRANSPARANSI.md § 3), which is exactly what
