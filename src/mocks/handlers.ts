@@ -1,10 +1,5 @@
 import { http, HttpResponse } from 'msw'
 import { isAddress } from 'viem'
-import {
-  KYB_DOCUMENT_SLOTS,
-  KYB_DOCUMENT_SLOT_KEYS,
-  isKybDocumentKind,
-} from '@/lib/cdd'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
@@ -28,7 +23,6 @@ import type {
   OrderDetail,
   OrderListItem,
   KybDetail,
-  KybDocumentKind,
   KybDocumentSlot,
   KybListItem,
   OncallContact,
@@ -264,6 +258,36 @@ function kycForbidden() {
   )
 }
 
+// USDX-546 — the document slots approval REQUIRES, mirroring the backend gate
+// (PR #271, commit 307a292). `skKemenkumham` is deliberately absent: it is
+// conditional — a CV or a firma has none — and the backend pins that in its own
+// test. The list lives HERE, in the mock, and NOT in production code: the
+// production screen highlights whatever the server names in `details.missing`, so
+// the rule has exactly one enforcement point and cannot drift into disagreeing
+// with itself.
+const KYB_REQUIRED_DOCUMENT_SLOTS: KybDocumentSlot[] = [
+  'akte',
+  'nib',
+  'npwp',
+  'ktpDireksi',
+]
+
+function kybDocumentsIncomplete(missing: KybDocumentSlot[]) {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: {
+        code: 'KYB_DOCUMENTS_INCOMPLETE',
+        message: `Dokumen wajib belum lengkap: ${missing.join(', ')}.`,
+        details: { missing },
+      },
+    },
+    { status: 409 },
+  )
+}
+
 // USDX-546 — KYB error shapes. Same envelope + codes as the KYC review
 // endpoints, because the two flows are the same shape of decision.
 function kybNotFound() {
@@ -305,24 +329,6 @@ function kybInvalidStatus() {
   )
 }
 
-/** Object-key prefix for KYB documents — mirrors ATTESTATION_FILE_KEY_PREFIX. */
-const KYB_FILE_KEY_PREFIX = 'kyb/document/'
-
-/** The five `kind` values the upload endpoint accepts, for the error message. */
-const KYB_DOCUMENT_KINDS = KYB_DOCUMENT_SLOT_KEYS.map(
-  (slot) => KYB_DOCUMENT_SLOTS[slot].kind,
-)
-
-/** `NPWP` → `npwp`, `SK_KEMENKUMHAM` → `skKemenkumham`: kind → response key. */
-function kybSlotForKind(kind: KybDocumentKind): KybDocumentSlot {
-  const slot = KYB_DOCUMENT_SLOT_KEYS.find((s) => KYB_DOCUMENT_SLOTS[s].kind === kind)
-  // Unreachable: `isKybDocumentKind` gates every caller. Thrown rather than
-  // defaulted, because defaulting would write the wrong column.
-  if (!slot) throw new Error(`no KYB document slot for kind ${kind}`)
-  return slot
-}
-/** 10 MiB — must match KYB_DOCUMENT_MAX_BYTES in features/kyb/hooks.ts. */
-const KYB_DOCUMENT_MAX_BYTES_MOCK = 10 * 1024 * 1024
 
 function kycInvalidStatus() {
   return HttpResponse.json(
@@ -1942,6 +1948,12 @@ export const handlers = [
     const detail = kybDetails.get(String(params.id))
     if (!detail) return kybNotFound()
     if (detail.status !== 'PENDING') return kybInvalidStatus()
+    // Every missing required document in ONE response, so the reviewer learns the
+    // whole list at once instead of one refused approve at a time.
+    const missing = KYB_REQUIRED_DOCUMENT_SLOTS.filter(
+      (slot) => detail.documents[slot] === null,
+    )
+    if (missing.length > 0) return kybDocumentsIncomplete(missing)
     const now = new Date().toISOString()
     detail.status = 'VERIFIED'
     detail.reviewedBy = staff.id
@@ -2002,104 +2014,18 @@ export const handlers = [
     })
   }),
 
-  // Three-step document upload, step 1. Reuses the same fake storage host as the
-  // transparency attestations so the signed-header + content-length checks in
-  // that PUT handler apply here too.
-  http.post('/api/v1/kyb/:id/documents/upload-url', async ({ request, params }) => {
-    const staff = authenticatedStaff(request)
-    if (!staff) return unauthorized()
-    if (staff.role === 'DEVELOPER') return kybForbidden()
-    const detail = kybDetails.get(String(params.id))
-    if (!detail) return kybNotFound()
-
-    let body: { kind?: unknown; sizeBytes?: unknown }
-    try {
-      body = (await request.json()) as { kind?: unknown; sizeBytes?: unknown }
-    } catch {
-      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
-    }
-    // One of the FIVE fixed slots, or nothing. The backend keeps a path column
-    // per document type (migration 0077) — a kind outside that set has nowhere to
-    // land, so it is refused here rather than accepted and silently dropped.
-    if (!isKybDocumentKind(body.kind)) {
-      return phaseOneBadRequest(
-        `kind must be one of ${KYB_DOCUMENT_KINDS.join(', ')}`,
-        'KYB_DOCUMENT_KIND_INVALID',
-      )
-    }
-    // `sizeBytes` is required for the same reason as the attestation flow: the
-    // presigner signs content-length and the browser fills that header itself.
-    if (typeof body.sizeBytes !== 'number' || body.sizeBytes <= 0) {
-      return phaseOneBadRequest('sizeBytes is required')
-    }
-    if (body.sizeBytes > KYB_DOCUMENT_MAX_BYTES_MOCK) {
-      return phaseOneBadRequest(
-        `File must be at most ${KYB_DOCUMENT_MAX_BYTES_MOCK} bytes`,
-        'KYB_DOCUMENT_TOO_LARGE',
-      )
-    }
-
-    const fileKey = `${KYB_FILE_KEY_PREFIX}${detail.id}/${body.kind.toLowerCase()}-${Date.now()}`
-    const uploadUrl = `https://storage.usdx.test/upload/${encodeURIComponent(fileKey)}`
-    const headers = { 'content-type': 'application/octet-stream' }
-    issuedUploadTickets.set(uploadUrl, {
-      headers,
-      contentLength: body.sizeBytes,
-      fileKey,
-    })
-    return HttpResponse.json({
-      status: 'success',
-      metadata: null,
-      data: {
-        uploadUrl,
-        fileKey,
-        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-        headers,
-      },
-    })
-  }),
-
-  // Step 3 — register the uploaded object against the record.
-  http.post('/api/v1/kyb/:id/documents', async ({ request, params }) => {
-    const staff = authenticatedStaff(request)
-    if (!staff) return unauthorized()
-    if (staff.role === 'DEVELOPER') return kybForbidden()
-    const detail = kybDetails.get(String(params.id))
-    if (!detail) return kybNotFound()
-
-    let body: { kind?: unknown; fileKey?: unknown }
-    try {
-      body = (await request.json()) as typeof body
-    } catch {
-      return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
-    }
-    if (!isKybDocumentKind(body.kind)) {
-      return phaseOneBadRequest(
-        `kind must be one of ${KYB_DOCUMENT_KINDS.join(', ')}`,
-        'KYB_DOCUMENT_KIND_INVALID',
-      )
-    }
-    if (typeof body.fileKey !== 'string' || !body.fileKey.startsWith(KYB_FILE_KEY_PREFIX)) {
-      return phaseOneBadRequest(`fileKey must start with ${KYB_FILE_KEY_PREFIX}`)
-    }
-    // The object must actually exist in the bucket — otherwise the record would
-    // point a slot at a download that is a dead link.
-    if (!storageObjects.has(body.fileKey)) {
-      return phaseOneBadRequest('The file was never uploaded', 'KYB_DOCUMENT_NOT_UPLOADED')
-    }
-
-    // One path column per document type: writing a slot REPLACES whatever it
-    // held. There is no list to append to, and no file name or size is kept.
-    const slot = kybSlotForKind(body.kind)
-    detail.documents[slot] = {
-      url: `https://t3.storageapi.dev/usdx-kyb/${body.fileKey}?X-Amz-Expires=300`,
-    }
-    detail.updatedAt = new Date().toISOString()
-    return HttpResponse.json(
-      { status: 'success', metadata: null, data: detail.documents },
-      { status: 201 },
-    )
-  }),
+  // NO document upload handlers, on purpose.
+  //
+  // `POST /api/v1/kyb/:id/documents/upload-url` and `POST /api/v1/kyb/:id/
+  // documents` do not exist in any backend: PR #271 (commit 5dc7254) added the
+  // five path columns and the `documents` map on the read, but no presign route,
+  // and the only presign endpoint in the repo is the CONSUMER one
+  // (`POST /api/v2/storage/presigned-upload`, `docKind` = `ktp | selfie`). A mock
+  // for a route nobody implemented is worse than none: it would pass its tests,
+  // work in dev, and 404 the first time a reviewer used it for real.
+  //
+  // Today a document path reaches a KYB record only through the body of
+  // `POST /api/v1/kyb`.
 
   // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───
   http.get('/api/v1/dashboard/stats', () =>

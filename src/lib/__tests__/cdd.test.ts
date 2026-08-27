@@ -156,37 +156,29 @@ describe('KYB document slots', () => {
     test('should label every slot in Indonesian, as the reviewer reads it', () => {
       // The label is what the reviewer identifies the document by — the backend
       // stores no file name, so there is nothing else to show.
-      expect(KYB_DOCUMENT_SLOTS.akte.label).toBe('Akta Pendirian')
-      expect(KYB_DOCUMENT_SLOTS.nib.label).toBe('NIB')
-      expect(KYB_DOCUMENT_SLOTS.npwp.label).toBe('NPWP Badan')
-      expect(KYB_DOCUMENT_SLOTS.skKemenkumham.label).toBe('SK Kemenkumham')
-      expect(KYB_DOCUMENT_SLOTS.ktpDireksi.label).toBe('KTP Pengurus')
-    })
-
-    test('should map each slot to the upload-url `kind` the backend accepts', () => {
-      expect(KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind)).toEqual([
-        'AKTA_PENDIRIAN',
-        'NIB',
-        'NPWP',
-        'SK_KEMENKUMHAM',
-        'KTP_DIREKSI',
-      ])
+      expect(KYB_DOCUMENT_SLOTS.akte).toBe('Akta Pendirian')
+      expect(KYB_DOCUMENT_SLOTS.nib).toBe('NIB')
+      expect(KYB_DOCUMENT_SLOTS.npwp).toBe('NPWP Badan')
+      expect(KYB_DOCUMENT_SLOTS.skKemenkumham).toBe('SK Kemenkumham')
+      expect(KYB_DOCUMENT_SLOTS.ktpDireksi).toBe('KTP Pengurus')
     })
   })
 
   describe('negative', () => {
     test('should have no OTHER slot — the backend has no column for it', () => {
-      // An `OTHER` upload had nowhere to land: it would 400, or worse, silently
-      // overwrite another slot.
+      // An `OTHER` document had nowhere to land: no column, no path, no slot.
       expect(KYB_DOCUMENT_SLOT_KEYS).not.toContain('other')
-      expect(
-        KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind),
-      ).not.toContain('OTHER')
+      expect(KYB_DOCUMENT_SLOT_KEYS).toHaveLength(5)
     })
 
-    test('should never point two slots at the same column', () => {
-      const kinds = KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind)
-      expect(new Set(kinds).size).toBe(kinds.length)
+    test('should carry no upload `kind` vocabulary — there is no endpoint', () => {
+      // No back-office presign route for KYB documents exists in any backend
+      // (PR #271 added the columns and the read, not an upload). A `kind` enum
+      // with nothing behind it reads like a working upload path, which is the
+      // exact impression this file must not create.
+      for (const key of KYB_DOCUMENT_SLOT_KEYS) {
+        expect(typeof KYB_DOCUMENT_SLOTS[key]).toBe('string')
+      }
     })
   })
 
@@ -201,7 +193,7 @@ describe('KYB document slots', () => {
 
     test('should give every slot a non-empty label', () => {
       for (const key of KYB_DOCUMENT_SLOT_KEYS) {
-        expect(KYB_DOCUMENT_SLOTS[key].label.trim().length).toBeGreaterThan(0)
+        expect(KYB_DOCUMENT_SLOTS[key].trim().length).toBeGreaterThan(0)
       }
     })
   })

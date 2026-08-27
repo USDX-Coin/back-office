@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
@@ -47,12 +47,6 @@ const SLOT_LABELS = [
   'SK Kemenkumham',
   'KTP Pengurus',
 ] as const
-
-/** A real PNG header — the upload sniffs magic bytes, not the name or the type. */
-function pngFile(name = 'scan.png'): File {
-  const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
-  return new File([bytes], name, { type: 'image/png' })
-}
 
 const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
   id: KYB_ID,
@@ -160,44 +154,23 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(4)
     })
 
-    test('uploading into a slot sends THAT slot\'s kind, and no file name', async () => {
-      // The load-bearing test for this contract. The backend keeps one PATH
-      // COLUMN per document type, so `kind` decides which column is written —
-      // a single hardcoded kind would file every document under one slot and
-      // overwrite the previous one. `fileName` / `sizeBytes` are not sent because
-      // there is nowhere to store them.
+    test('offers NO upload control — not even to an ADMIN', async () => {
+      // There is no back-office endpoint to presign a KYB document against: PR
+      // #271 added the five path columns and the `documents` map on the read, and
+      // the only presign route in the repo is the CONSUMER one (`docKind` =
+      // `ktp | selfie`). A button here would 404 for real while passing every
+      // test against a mock, so the screen says read-only instead of offering one.
       stubDetail(makeDetail())
-      const ticketBodies: unknown[] = []
-      const registerBodies: unknown[] = []
-      server.use(
-        http.post(`/api/v1/kyb/${KYB_ID}/documents/upload-url`, async ({ request }) => {
-          ticketBodies.push(await request.json())
-          return ok({
-            uploadUrl: 'https://storage.usdx.test/upload/kyb-doc',
-            fileKey: 'kyb/document/npwp-1',
-            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-            headers: { 'content-type': 'application/octet-stream' },
-          })
-        }),
-        http.put('https://storage.usdx.test/upload/kyb-doc', () => new HttpResponse(null, { status: 200 })),
-        http.post(`/api/v1/kyb/${KYB_ID}/documents`, async ({ request }) => {
-          registerBodies.push(await request.json())
-          return ok({ ...NO_DOCUMENTS, npwp: { url: 'https://t3.storageapi.dev/usdx-kyb/npwp.pdf' } })
-        }),
-      )
-      renderModal()
+      renderModal() // stf_1 = ADMIN, the most privileged role there is
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      // fireEvent (not user.upload) so the input's `accept` filter does not
-      // silently drop the fixture — same reason as the attestation tests.
-      fireEvent.change(within(dialog).getByLabelText(/upload npwp badan/i), {
-        target: { files: [pngFile()] },
-      })
-
-      await waitFor(() => expect(registerBodies).toHaveLength(1))
-      expect(ticketBodies[0]).toMatchObject({ kind: 'NPWP' })
-      expect(registerBodies[0]).toEqual({ kind: 'NPWP', fileKey: 'kyb/document/npwp-1' })
+      const docs = within(dialog).getByTestId('kyb-documents')
+      expect(within(docs).queryByRole('button')).not.toBeInTheDocument()
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
+      expect(
+        within(dialog).getByText(/no endpoint to upload one from the back office/i),
+      ).toBeInTheDocument()
     })
 
     test('reject WITH a reason sends the reason and closes the modal', async () => {
@@ -336,33 +309,6 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(detail.rejectionReason).toBeNull()
     })
 
-    test('the API refuses a document kind the backend has no column for', async () => {
-      // The backend keeps FIVE fixed path columns (migration 0077). `OTHER` — or
-      // any kind the FE might invent — has nowhere to land, so it is refused at
-      // the API rather than accepted and dropped.
-      authenticateAs('stf_1')
-      const list = await fetch('/api/v1/kyb?limit=1&status=PENDING')
-      const { data } = (await list.json()) as { data: { id: string }[] }
-      const seededId = data[0]!.id
-
-      for (const kind of ['OTHER', 'AKTA', 'ktp_direksi', '']) {
-        const res = await fetch(`/api/v1/kyb/${seededId}/documents/upload-url`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ kind, sizeBytes: 1024 }),
-        })
-        expect(res.status).toBe(400)
-      }
-
-      // …and one of the five is accepted, so the check is not simply refusing all.
-      const okRes = await fetch(`/api/v1/kyb/${seededId}/documents/upload-url`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind: 'KTP_DIREKSI', sizeBytes: 1024 }),
-      })
-      expect(okRes.status).toBe(200)
-    })
-
     test('DEVELOPER sees Approve / Reject disabled with a view-only hint', async () => {
       stubDetail(makeDetail())
       renderModal({ staffId: 'stf_3' })
@@ -372,8 +318,27 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getByRole('button', { name: /^reject$/i })).toBeDisabled()
       expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeDisabled()
       // …and no upload control on any of the five slots either.
-      expect(within(dialog).queryAllByLabelText(/^upload /i)).toHaveLength(0)
-      expect(within(dialog).queryAllByLabelText(/^replace /i)).toHaveLength(0)
+      const devDocs = within(dialog).getByTestId('kyb-documents')
+      expect(within(devDocs).queryByRole('button')).not.toBeInTheDocument()
+      expect(devDocs.querySelectorAll('input[type="file"]')).toHaveLength(0)
+    })
+
+    test('DEVELOPER is NOT told an empty slot means the document is missing', async () => {
+      // The DEVELOPER role is never handed presigned document URLs, so all five
+      // slots arrive `null` whatever the record holds. Printing "Not uploaded"
+      // there would be a false statement a reviewer could act on — chasing a
+      // partner for a document that is already on file.
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      renderModal({ staffId: 'stf_3' }) // DEVELOPER
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('PT Juara Remiten Indonesia')
+
+      const docs = within(dialog).getByTestId('kyb-documents')
+      expect(within(docs).queryByText(/not uploaded/i)).not.toBeInTheDocument()
+      expect(within(docs).getAllByText(/not shown to your role/i)).toHaveLength(5)
+      expect(
+        within(dialog).getByText(/does not mean the document is missing/i),
+      ).toBeInTheDocument()
     })
 
     test('non-ADMIN sees the UBO identity number MASKED', async () => {
@@ -397,6 +362,57 @@ describe('KybDetailModal @ USDX-546', () => {
 
       expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
       expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+    })
+
+    test('a refused approve points at the documents the reviewer must chase', async () => {
+      // The backend refuses an approve while a REQUIRED slot is empty and names
+      // every missing one in a single response (`details.missing`, same keys as
+      // `documents`). Rendering that is the difference between "ask the customer
+      // for the NPWP and the director's KTP" and "try again".
+      const user = userEvent.setup()
+      stubDetail(makeDetail({ documents: { ...NO_DOCUMENTS, akte: { url: AKTA_URL } } }))
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/approve`, () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'KYB_DOCUMENTS_INCOMPLETE',
+                message: 'Dokumen wajib belum lengkap: nib, npwp, ktpDireksi.',
+                details: { missing: ['nib', 'npwp', 'ktpDireksi'] },
+              },
+            },
+            { status: 409 },
+          ),
+        ),
+      )
+      const { onOpenChange } = renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('PT Juara Remiten Indonesia')
+
+      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      const confirm = await screen.findByRole('dialog', {
+        name: /approve this kyb record/i,
+      })
+      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+
+      const banner = await within(dialog).findByTestId('kyb-documents-incomplete')
+      expect(banner).toHaveTextContent(/NIB/)
+      expect(banner).toHaveTextContent(/NPWP Badan/)
+      expect(banner).toHaveTextContent(/KTP Pengurus/)
+      // SK Kemenkumham is empty on this record but does NOT gate approval (a CV
+      // has none), so the server left it out and neither may the screen add it.
+      expect(banner).not.toHaveTextContent(/Kemenkumham/)
+      // The rows themselves are marked, so the banner is not the only signal.
+      expect(within(dialog).getAllByTestId('kyb-document-missing')).toHaveLength(3)
+      // The record stays open — nothing was reviewed, and this is not the
+      // "someone else got there first" 409.
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(
+        within(dialog).queryByText(/already reviewed by someone else/i),
+      ).not.toBeInTheDocument()
     })
   })
 
@@ -424,6 +440,67 @@ describe('KybDetailModal @ USDX-546', () => {
           if (value !== null) expect(Object.keys(value)).toEqual(['url'])
         }
       }
+    })
+
+    test('the API refuses approval while a required document is missing, and names them all', async () => {
+      // Same rule one layer down, and the reason `details.missing` exists: the
+      // reviewer must learn the whole list at once, not one refused approve at a
+      // time. Required = akte · nib · npwp · ktpDireksi.
+      authenticateAs('stf_1')
+      const list = await fetch('/api/v1/kyb?limit=50&status=PENDING')
+      const { data } = (await list.json()) as { data: { id: string }[] }
+
+      // Find a seeded PENDING record with nothing uploaded at all.
+      let emptyId: string | null = null
+      for (const row of data) {
+        const res = await fetch(`/api/v1/kyb/${row.id}`)
+        const { data: detail } = (await res.json()) as { data: KybDetail }
+        if (Object.values(detail.documents).every((d) => d === null)) {
+          emptyId = row.id
+          break
+        }
+      }
+      expect(emptyId).not.toBeNull()
+
+      const refused = await fetch(`/api/v1/kyb/${emptyId}/approve`, { method: 'POST' })
+      expect(refused.status).toBe(409)
+      const body = (await refused.json()) as {
+        error: { code: string; details: { missing: string[] } }
+      }
+      expect(body.error.code).toBe('KYB_DOCUMENTS_INCOMPLETE')
+      expect(body.error.details.missing).toEqual(['akte', 'nib', 'npwp', 'ktpDireksi'])
+
+      // And the record is untouched — still PENDING.
+      const after = await fetch(`/api/v1/kyb/${emptyId}`)
+      const { data: detail } = (await after.json()) as { data: KybDetail }
+      expect(detail.status).toBe('PENDING')
+    })
+
+    test('SK Kemenkumham alone does NOT block approval — a CV has none', async () => {
+      // The one required-document rule that is conditional. If the mock (or the
+      // screen) treated all five slots as mandatory, every CV and firma would be
+      // unapprovable, which is a worse failure than a missing warning.
+      authenticateAs('stf_1')
+      const list = await fetch('/api/v1/kyb?limit=50&status=PENDING')
+      const { data } = (await list.json()) as { data: { id: string }[] }
+
+      let cvId: string | null = null
+      for (const row of data) {
+        const res = await fetch(`/api/v1/kyb/${row.id}`)
+        const { data: detail } = (await res.json()) as { data: KybDetail }
+        const d = detail.documents
+        if (d.akte && d.nib && d.npwp && d.ktpDireksi && d.skKemenkumham === null) {
+          cvId = row.id
+          break
+        }
+      }
+      expect(cvId).not.toBeNull()
+
+      const res = await fetch(`/api/v1/kyb/${cvId}/approve`, { method: 'POST' })
+      expect(res.status).toBe(200)
+      const after = await fetch(`/api/v1/kyb/${cvId}`)
+      const { data: detail } = (await after.json()) as { data: KybDetail }
+      expect(detail.status).toBe('VERIFIED')
     })
 
     test('a record with NO UBO is called out as not approvable as it stands', async () => {

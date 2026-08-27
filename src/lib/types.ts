@@ -1203,28 +1203,20 @@ export interface KycReviewLog {
 export type KybEntityForm = 'PT' | 'CV' | 'YAYASAN' | 'KOPERASI' | 'FIRMA' | 'OTHER'
 
 /**
- * The five FIXED document slots.
+ * The five FIXED document slots — response keys of `KybDetail.documents`,
+ * camelCase per `sot/conventions.md`.
  *
  * The backend keeps these as one path column per document type (`akte_path`,
- * `nib_path`, `npwp_path`, `sk_kemenkumham_path`, `ktp_direksi_path` — PR #271,
- * migration 0077), NOT as a row-per-file table. Three consequences the FE has to
- * live with, none of them cosmetic:
+ * `nib_path`, `npwp_path`, `sk_kemenkumham_path`, `ktp_direksi_path` — PR #271
+ * commit 5dc7254, migration 0077), NOT as a row-per-file table. Consequences the
+ * FE has to live with, none of them cosmetic:
  *
- *   1. There is no `OTHER`. A sixth kind has no column to land in, so it is
- *      refused rather than accepted and dropped.
+ *   1. There is no `OTHER`. A sixth kind has no column to land in.
  *   2. There is no `fileName` and no `sizeBytes` — the columns do not exist. The
  *      reviewer identifies a document by its SLOT LABEL instead, which is the
  *      more useful fact anyway ("Akta Pendirian" beats "scan_0142.pdf").
- *   3. A slot holds at most one document; uploading again REPLACES it.
+ *   3. A slot holds at most one document.
  */
-export type KybDocumentKind =
-  | 'AKTA_PENDIRIAN'
-  | 'NIB'
-  | 'NPWP'
-  | 'SK_KEMENKUMHAM'
-  | 'KTP_DIREKSI'
-
-/** Response keys of `KybDetail.documents` — camelCase per `sot/conventions.md`. */
 export type KybDocumentSlot =
   | 'akte'
   | 'nib'
@@ -1233,22 +1225,27 @@ export type KybDocumentSlot =
   | 'ktpDireksi'
 
 /**
- * A filled slot. Presigned GET, short TTL — same treatment as the KYC photos,
- * with the expiry stamped once on `KybDetail.urlExpiresAt`.
- *
- * Note what this contract CANNOT express: an object purged by the retention
- * sweeper is indistinguishable from one that was never uploaded, because both
- * arrive as `null`. The old array shape separated the two via `url: null`; the
- * path-column shape does not, and the FE must not pretend otherwise.
+ * A filled slot — a presigned GET and nothing else. The expiry is NOT per slot:
+ * it is stamped once on `KybDetail.urlExpiresAt`, which is `null` when no URL was
+ * minted at all.
  */
 export interface KybDocumentRef {
   url: string
 }
 
 /**
- * Every slot is always present — `null` means "not uploaded", never "absent from
- * the response". A `Record` (not a `Partial`) so a forgotten slot is a build
- * error rather than a silently blank row.
+ * Every slot is always present, in the order above — `null` means the slot is
+ * EMPTY TO THIS VIEWER, never "absent from the response". A `Record` (not a
+ * `Partial`) so a forgotten slot is a build error rather than a silently blank
+ * row.
+ *
+ * Two things `null` cannot distinguish, and the UI must not claim otherwise:
+ *
+ *   - an object purged by the retention sweeper from one never uploaded (the old
+ *     array shape separated these via `url: null`; path columns do not);
+ *   - "nothing on file" from "your role is not given the URL" — the DEVELOPER
+ *     role never receives presigned document URLs, so for a developer ALL FIVE
+ *     slots read `null` whatever the record actually holds.
  */
 export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
 
@@ -1315,15 +1312,6 @@ export interface KybDetail {
   reviewedAt: string | null
   createdAt: string
   updatedAt: string
-}
-
-/** POST /api/v1/kyb/:id/documents/upload-url — step 1 of the three-step upload. */
-export interface KybDocumentUploadTicket {
-  uploadUrl: string
-  fileKey: string
-  expiresAt: string
-  /** Signed headers — sent to storage VERBATIM (see transparency § upload). */
-  headers: Record<string, string>
 }
 
 export interface KybUboInput {

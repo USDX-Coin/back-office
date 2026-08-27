@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Copy, FileText, Upload } from 'lucide-react'
+import { Copy, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -30,18 +30,13 @@ import {
   labelFor,
 } from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
+import { parseKybDocumentsIncomplete } from '@/lib/kybDocumentsError'
 import { isPiiWithheld, presentPii } from '@/lib/pii'
 import { getKycStatusConfig } from '@/lib/status'
 import type { KybDocumentSlot, KybDocuments, KybListItem, KybUbo, Staff } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { KYB_REJECT_REASON_MAX, validateKybRejectReason } from '@/lib/validators'
-import {
-  KYB_DOCUMENT_MAX_BYTES,
-  useApproveKyb,
-  useKybDetail,
-  useRejectKyb,
-  useUploadKybDocument,
-} from './hooks'
+import { useApproveKyb, useKybDetail, useRejectKyb } from './hooks'
 
 interface KybDetailModalProps {
   kybId: string | null
@@ -142,35 +137,47 @@ function UboCard({ ubo, index, staff }: { ubo: KybUbo; index: number; staff: Sta
  * of what was uploaded. Showing an invented name would be worse than showing
  * none: the reviewer would take it for the real one.
  *
- * An empty slot says "Not uploaded" out loud rather than rendering a blank row,
- * so "nothing here yet" cannot be read as "nothing needed here".
+ * READ-ONLY, and that is not an omission: no back-office endpoint exists to
+ * presign a KYB document, so an upload button here would 404 against the real
+ * API. See the comment at the foot of `./hooks.ts`.
+ *
+ * An empty slot says so out loud rather than rendering a blank row, so "nothing
+ * here yet" cannot be read as "nothing needed here". What it says depends on the
+ * viewer: a DEVELOPER is never given presigned URLs, so for that role `null`
+ * means "not shown to you" and may well be a document that IS on file — claiming
+ * "not uploaded" there would be a lie the reviewer could act on.
  */
 function DocumentSlotRow({
   slot,
   documents,
-  canUpload,
-  uploading,
-  busy,
-  onPick,
+  urlsWithheld,
+  missing,
 }: {
   slot: KybDocumentSlot
   documents: KybDocuments
-  canUpload: boolean
-  /** This slot's upload is in flight. */
-  uploading: boolean
-  /** SOME slot's upload is in flight — every slot is held until it settles. */
-  busy: boolean
-  onPick: (slot: KybDocumentSlot, file: File) => void
+  /** The viewer's role never receives document URLs — `null` proves nothing. */
+  urlsWithheld: boolean
+  /** The server named this slot when it refused the approve. */
+  missing: boolean
 }) {
-  const { label } = KYB_DOCUMENT_SLOTS[slot]
+  const label = KYB_DOCUMENT_SLOTS[slot]
   const doc = documents[slot]
-  const verb = doc ? 'Replace' : 'Upload'
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+    <li
+      {...(missing ? { 'data-testid': 'kyb-document-missing' } : {})}
+      className={cn(
+        'flex flex-wrap items-center gap-2 rounded-md border px-3 py-2',
+        missing ? 'border-destructive/60 bg-destructive/5' : 'border-border',
+      )}
+    >
       <FileText
         className={cn(
           'h-3.5 w-3.5 shrink-0',
-          doc ? 'text-primary' : 'text-muted-foreground/60',
+          missing
+            ? 'text-destructive'
+            : doc
+              ? 'text-primary'
+              : 'text-muted-foreground/60',
         )}
       />
       {doc ? (
@@ -183,45 +190,30 @@ function DocumentSlotRow({
           {label}
         </a>
       ) : (
-        <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
-      )}
-      {!doc && (
-        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-          Not uploaded
-        </span>
-      )}
-      {canUpload && (
-        // A styled <label> wrapping a visually hidden input, rather than a button
-        // driving a shared hidden input: the file's slot is then bound by the
-        // element the operator actually clicked, so no state can go stale between
-        // the click and the picker returning.
-        <label
+        <span
           className={cn(
-            'ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-[11px] text-foreground hover:bg-muted',
-            busy && 'pointer-events-none opacity-60',
+            'text-[12.5px] font-medium',
+            missing ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          <Upload className={cn('h-3 w-3', uploading && 'animate-pulse')} />
-          {uploading ? 'Uploading…' : verb}
-          <input
-            type="file"
-            accept="application/pdf,image/jpeg,image/png"
-            aria-label={`${verb} ${label}`}
-            // Every slot is held, not just this one: `useUploadKybDocument` is one
-            // mutation, so a second pick mid-flight would move the "Uploading…"
-            // indicator to the new slot and leave the first upload finishing
-            // invisibly.
-            disabled={busy}
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              // Reset so picking the SAME file again still fires a change event —
-              // a retry after a failed upload is the common case.
-              event.target.value = ''
-              if (file) onPick(slot, file)
-            }}
-          />
-        </label>
+          {label}
+        </span>
+      )}
+      {!doc && (
+        <span
+          className={cn(
+            'rounded-sm px-1.5 py-0.5 text-[10.5px] uppercase tracking-[0.04em]',
+            missing
+              ? 'bg-destructive/10 font-medium text-destructive'
+              : 'bg-muted text-muted-foreground',
+          )}
+        >
+          {missing
+            ? 'Required — not uploaded'
+            : urlsWithheld
+              ? 'Not shown to your role'
+              : 'Not uploaded'}
+        </span>
       )}
     </li>
   )
@@ -236,8 +228,8 @@ function DocumentSlotRow({
  * would be a maintenance cost with no payoff.
  *
  * Two things differ, both because KYB is a MANUAL flow:
- *   - documents can be UPLOADED here (there is no consumer app to send them),
- *     into the five FIXED slots the backend keeps as path columns;
+ *   - documents are shown as the five FIXED slots the backend keeps as path
+ *     columns, read-only (there is no endpoint to upload one — see `./hooks.ts`);
  *   - the record's UBOs are shown as cards rather than a photo pair.
  */
 export default function KybDetailModal({
@@ -256,11 +248,15 @@ export default function KybDetailModal({
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState('')
+  // Slots the SERVER named when it refused the approve. `null` = no such refusal;
+  // `[]` = refused but the payload named nothing, which still has to be said.
+  const [missingDocuments, setMissingDocuments] = useState<KybDocumentSlot[] | null>(
+    null,
+  )
 
   const approve = useApproveKyb()
   const reject = useRejectKyb()
-  const upload = useUploadKybDocument()
-  const isMutating = approve.isPending || reject.isPending || upload.isPending
+  const isMutating = approve.isPending || reject.isPending
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -268,11 +264,28 @@ export default function KybDetailModal({
     setRejectOpen(false)
     setReason('')
     setReasonError('')
+    setMissingDocuments(null)
   }, [kybId, open])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   function handleMutationError(err: unknown) {
     setConfirmApproveOpen(false)
+    // Checked BEFORE the generic 409 branch. Both are 409s, and treating this one
+    // as "someone else reviewed it" would refetch the record, tell the reviewer
+    // something untrue, and hide the only actionable fact in the response — which
+    // documents are missing.
+    const missing = parseKybDocumentsIncomplete(err)
+    if (missing !== null) {
+      setMissingDocuments(missing)
+      toast.error(
+        missing.length > 0
+          ? `Cannot approve — missing: ${missing
+              .map((slot) => KYB_DOCUMENT_SLOTS[slot])
+              .join(', ')}`
+          : 'Cannot approve — required documents are missing.',
+      )
+      return
+    }
     if (err instanceof ApiError && err.status === 409) {
       toast.error('This record was already reviewed by someone else — refreshing')
       setRejectOpen(false)
@@ -288,6 +301,7 @@ export default function KybDetailModal({
 
   function handleApprove() {
     if (!kybId) return
+    setMissingDocuments(null)
     approve.mutate(kybId, {
       onSuccess: () => {
         toast.success('KYB approved')
@@ -320,21 +334,6 @@ export default function KybDetailModal({
     )
   }
 
-  function handleFilePicked(slot: KybDocumentSlot, file: File) {
-    if (!kybId) return
-    const { kind, label } = KYB_DOCUMENT_SLOTS[slot]
-    upload.mutate(
-      // The slot the operator clicked IS the kind — there is no unclassified
-      // upload any more, because the backend has no column to keep one in.
-      { kybId, kind, file },
-      {
-        onSuccess: () => toast.success(`${label} uploaded`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'Upload failed'),
-      },
-    )
-  }
-
   const status = detail?.status ?? listItem?.status ?? null
   const actionable = detail?.status === 'PENDING'
   const ownershipTotal = (detail?.ubos ?? []).reduce(
@@ -344,6 +343,11 @@ export default function KybDetailModal({
   const uploadedCount = KYB_DOCUMENT_SLOT_KEYS.filter(
     (slot) => detail?.documents?.[slot] != null,
   ).length
+  // The DEVELOPER role is never given presigned document URLs, so every slot
+  // arrives `null` for it regardless of what the record holds. Taken from the
+  // same predicate that already marks the role view-only, rather than a second
+  // role test that could drift from it.
+  const urlsWithheld = !canReview
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -508,34 +512,53 @@ export default function KybDetailModal({
                   {/* Five FIXED slots, always all five — the backend keeps one
                       path column per document type, so there is no list to be
                       empty and no file name or size to show. An unfilled slot is
-                      a labelled row saying "Not uploaded", which is what tells
-                      the reviewer WHAT is missing. */}
+                      a labelled row that says so, which is what tells the
+                      reviewer WHAT is missing. Read-only — no endpoint exists to
+                      upload one. */}
                   <Section
                     title={`Documents (${uploadedCount} of ${KYB_DOCUMENT_SLOT_KEYS.length})`}
                   >
+                    {missingDocuments !== null && (
+                      <p
+                        data-testid="kyb-documents-incomplete"
+                        className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+                      >
+                        {missingDocuments.length > 0 ? (
+                          <>
+                            Approval was refused — these required documents are not
+                            on file:{' '}
+                            <strong>
+                              {missingDocuments
+                                .map((slot) => KYB_DOCUMENT_SLOTS[slot])
+                                .join(', ')}
+                            </strong>
+                            . Ask the customer for them before approving again.
+                          </>
+                        ) : (
+                          <>
+                            Approval was refused because required documents are not
+                            on file. The response did not say which — reload the
+                            record and try again.
+                          </>
+                        )}
+                      </p>
+                    )}
                     <ul className="space-y-1.5" data-testid="kyb-documents">
                       {KYB_DOCUMENT_SLOT_KEYS.map((slot) => (
                         <DocumentSlotRow
                           key={slot}
                           slot={slot}
                           documents={detail.documents}
-                          canUpload={canReview}
-                          uploading={
-                            upload.isPending &&
-                            upload.variables?.kind === KYB_DOCUMENT_SLOTS[slot].kind
-                          }
-                          busy={upload.isPending}
-                          onPick={handleFilePicked}
+                          urlsWithheld={urlsWithheld}
+                          missing={(missingDocuments ?? []).includes(slot)}
                         />
                       ))}
                     </ul>
-                    {canReview && (
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        PDF / JPEG / PNG, max{' '}
-                        {Math.floor(KYB_DOCUMENT_MAX_BYTES / (1024 * 1024))} MB.
-                        Uploading into a filled slot replaces what is there.
-                      </p>
-                    )}
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {urlsWithheld
+                        ? 'Your role is not given document links — an empty slot here does not mean the document is missing.'
+                        : 'Read-only: documents reach a record when it is created. There is no endpoint to upload one from the back office yet.'}
+                    </p>
                   </Section>
 
                   {(detail.rejectionReason || detail.reviewedAt) && (

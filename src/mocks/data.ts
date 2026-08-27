@@ -1825,6 +1825,10 @@ function createKybUbo(seed: number, index: number, ownershipPct: string): KybUbo
   }
 }
 
+/** Stand-in presigned URL for the two explicitly pinned records below. */
+const KYB_DOCUMENT_STUB_URL =
+  'https://t3.storageapi.dev/usdx-kyb/kyb/fixed/document.pdf?X-Amz-Expires=300'
+
 function kybDocumentRef(seed: number, slot: KybDocumentSlot): KybDocumentRef {
   return {
     url: `https://t3.storageapi.dev/usdx-kyb/kyb/${seed}/${slot}.pdf?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`,
@@ -1924,11 +1928,49 @@ export function createMockKybState(count = 9): {
 } {
   const details = new Map<string, KybDetail>()
   const list: KybListItem[] = []
-  for (let i = 0; i < count; i++) {
-    const detail = createKybDetail(i + 1)
+  const add = (detail: KybDetail) => {
     details.set(detail.id, detail)
     list.push(kybListItemFrom(detail))
   }
+  for (let i = 0; i < count; i++) add(createKybDetail(i + 1))
+
+  // Two PENDING records pinned EXPLICITLY rather than left to whichever seed
+  // happens to produce them, because both are states the approve gate turns on
+  // and a reviewer should meet them in dev, not only in a test:
+  //
+  //   - nothing uploaded at all → approval refused, all four required slots named;
+  //   - the four required documents present and SK Kemenkumham empty → approval
+  //     ALLOWED. SK Kemenkumham is conditional (a CV or a firma has none), so
+  //     treating it as mandatory would make every CV unapprovable.
+  const filled = { url: KYB_DOCUMENT_STUB_URL }
+  add(
+    createKybDetail(count + 1, {
+      status: 'PENDING',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedByName: null,
+      reviewedAt: null,
+      documents: emptyKybDocuments(),
+    }),
+  )
+  add(
+    createKybDetail(count + 2, {
+      status: 'PENDING',
+      rejectionReason: null,
+      reviewedBy: null,
+      reviewedByName: null,
+      reviewedAt: null,
+      entityName: 'CV Berkah Digital',
+      entityForm: 'CV',
+      documents: {
+        akte: filled,
+        nib: filled,
+        npwp: filled,
+        skKemenkumham: null,
+        ktpDireksi: filled,
+      },
+    }),
+  )
   return { list, details }
 }
 

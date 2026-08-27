@@ -4,8 +4,6 @@ import { validateKybRejectReason } from '@/lib/validators'
 import type {
   CreateKybBody,
   KybDetail,
-  KybDocumentKind,
-  KybDocumentUploadTicket,
   KybListItem,
   PhaseOnePaginatedResponse,
 } from '@/lib/types'
@@ -161,98 +159,17 @@ export function useRejectKyb() {
   })
 }
 
-export interface UploadKybDocumentInput {
-  kybId: string
-  /**
-   * Which of the five fixed slots to write. The backend keeps a path column per
-   * document type, so this is not a label — it selects the column, and uploading
-   * the same kind twice REPLACES the earlier file.
-   */
-  kind: KybDocumentKind
-  file: File
-}
-
-/** 10 MiB — deed scans run larger than an attestation PDF (which is capped at 5). */
-export const KYB_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
-
-const PDF_MAGIC = '%PDF-'
-
-/**
- * Accepts PDF, JPEG and PNG, decided by SNIFFING THE BYTES rather than trusting
- * the name or the MIME type — both are picker-controlled. Same reasoning as the
- * attestation upload, which sniffs `%PDF-` for exactly this reason.
- */
-export async function isAcceptedKybDocument(file: File): Promise<boolean> {
-  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
-  const asAscii = String.fromCharCode(...head.slice(0, PDF_MAGIC.length))
-  if (asAscii === PDF_MAGIC) return true
-  // JPEG: FF D8 FF. PNG: 89 50 4E 47 0D 0A 1A 0A.
-  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return true
-  const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-  return pngMagic.every((byte, i) => head[i] === byte)
-}
-
-/**
- * The three-step upload, identical in shape to the attestation flow
- * (`features/transparency/hooks.ts`): ask for a signed URL, PUT the bytes
- * straight to storage, then register the `fileKey`. The API never receives the
- * file itself.
- *
- * `sizeBytes` is REQUIRED in step 1 because the presigner signs `content-length`
- * and the browser fills that header itself from the real file (it is a forbidden
- * header, so we cannot set it). A backend left to guess the length signs one that
- * can never match, and storage answers 403 to every upload — a mistake this repo
- * has already paid for once.
- */
-export function useUploadKybDocument() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ kybId, kind, file }: UploadKybDocumentInput) => {
-      if (file.size > KYB_DOCUMENT_MAX_BYTES) {
-        throw new Error(
-          `File is larger than ${Math.floor(KYB_DOCUMENT_MAX_BYTES / (1024 * 1024))} MiB.`,
-        )
-      }
-      if (!(await isAcceptedKybDocument(file))) {
-        throw new Error('Only PDF, JPEG or PNG files are accepted.')
-      }
-
-      const ticket = await apiFetch<KybDocumentUploadTicket>(
-        `/api/v1/kyb/${kybId}/documents/upload-url`,
-        { method: 'POST', body: { kind, sizeBytes: file.size } },
-      )
-
-      // Bytes go straight to storage with the ticket's headers VERBATIM — a
-      // presigned URL is signed together with its header set, so inventing even
-      // an obviously-correct Content-Type changes the signature and storage
-      // rejects the upload. `credentials: 'omit'` keeps the httpOnly staff
-      // session cookie from travelling to a third-party bucket.
-      const response = await fetch(ticket.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        credentials: 'omit',
-        headers: ticket.headers,
-      })
-      if (!response.ok) {
-        throw new Error(
-          `Upload to storage failed (${response.status}). The document was not attached.`,
-        )
-      }
-
-      // No `fileName` and no `sizeBytes`: the backend has no column for either,
-      // so sending them would be inventing a contract. The response body is not
-      // read — the detail query is invalidated straight after, and the presigned
-      // URL is minted per GET anyway.
-      await apiFetch<unknown>(`/api/v1/kyb/${kybId}/documents`, {
-        method: 'POST',
-        body: { kind, fileKey: ticket.fileKey },
-      })
-    },
-    onSuccess: (_result, { kybId }) => {
-      // The document list lives on the detail, so this one DOES refetch — the
-      // operator just changed the record and needs to see the result. The extra
-      // audit row is the honest consequence of a real view.
-      qc.invalidateQueries({ queryKey: ['kyb', 'detail', kybId] })
-    },
-  })
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// No document upload hook, on purpose.
+//
+// There is no back-office endpoint to presign a KYB document against. PR #271
+// (commit 5dc7254) added the five path COLUMNS and the `documents` map on the
+// read, but no `upload-url` route — and the only presign endpoint that exists in
+// the backend, `POST /api/v2/storage/presigned-upload`, is the CONSUMER one, with
+// `docKind` limited to `ktp | selfie`. Today a document path reaches the record
+// only through the body of `POST /api/v1/kyb`.
+//
+// A three-step upload hook served by an MSW handler would pass its tests, work in
+// dev, and 404 the first time a reviewer used it against the real API. Absent is
+// the honest state; the review screen says so rather than offering a button.
+// ─────────────────────────────────────────────────────────────────────────────

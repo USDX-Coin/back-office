@@ -18,7 +18,6 @@ import type {
   KycOccupation,
   KycSourceOfFunds,
   KycTransactionPurpose,
-  KybDocumentKind,
   KybDocumentSlot,
   KybEntityForm,
 } from './types'
@@ -65,31 +64,28 @@ export const KYB_ENTITY_FORM_LABELS: Record<KybEntityForm, string> = {
 }
 
 /**
- * The five fixed KYB document slots — one entry per backend path column
- * (PR #271, migration 0077). This is the ONLY place the front end names them.
+ * Label for each of the five fixed KYB document slots — one entry per backend
+ * path column (PR #271 commit 5dc7254, migration 0077). This is the ONLY place
+ * the front end names them.
  *
- * `slot` is the key in the `documents` map of `GET /api/v1/kyb/:id`; `kind` is
- * the value `POST /api/v1/kyb/:id/documents/upload-url` accepts. They differ
- * (`akte` vs `AKTA_PENDIRIAN`) because the response is camelCase and the upload
- * enum is UPPER_SNAKE, so the pairing is written down here rather than derived
- * by a string transform that would break on the next slot.
- *
- * Labels are Indonesian on purpose: the backend stores no file name, so the
- * label is what the reviewer identifies the document by, and these are the names
+ * Labels are Indonesian on purpose: the backend stores no file name, so the label
+ * is the only thing that identifies the document, and these are the names printed
  * on the documents themselves.
+ *
+ * There is deliberately NO upload `kind` vocabulary here. No back-office presign
+ * endpoint for KYB documents exists in any backend — `POST /api/v2/storage/
+ * presigned-upload` is the CONSUMER one and its `docKind` is `ktp | selfie`. A
+ * `kind` enum with no endpoint behind it would read like a working upload path.
  *
  * Typed as a `Record<KybDocumentSlot, …>` so adding a slot to the union without
  * naming it here fails the build.
  */
-export const KYB_DOCUMENT_SLOTS: Record<
-  KybDocumentSlot,
-  { kind: KybDocumentKind; label: string }
-> = {
-  akte: { kind: 'AKTA_PENDIRIAN', label: 'Akta Pendirian' },
-  nib: { kind: 'NIB', label: 'NIB' },
-  npwp: { kind: 'NPWP', label: 'NPWP Badan' },
-  skKemenkumham: { kind: 'SK_KEMENKUMHAM', label: 'SK Kemenkumham' },
-  ktpDireksi: { kind: 'KTP_DIREKSI', label: 'KTP Pengurus' },
+export const KYB_DOCUMENT_SLOTS: Record<KybDocumentSlot, string> = {
+  akte: 'Akta Pendirian',
+  nib: 'NIB',
+  npwp: 'NPWP Badan',
+  skKemenkumham: 'SK Kemenkumham',
+  ktpDireksi: 'KTP Pengurus',
 }
 
 /**
@@ -100,11 +96,6 @@ export const KYB_DOCUMENT_SLOTS: Record<
 export const KYB_DOCUMENT_SLOT_KEYS = Object.keys(
   KYB_DOCUMENT_SLOTS,
 ) as KybDocumentSlot[]
-
-/** True for the five `kind` values the upload endpoint accepts, false otherwise. */
-export function isKybDocumentKind(value: unknown): value is KybDocumentKind {
-  return KYB_DOCUMENT_SLOT_KEYS.some((slot) => KYB_DOCUMENT_SLOTS[slot].kind === value)
-}
 
 /** `PRIVATE_EMPLOYEE` → `Private employee`. Fallback for unmapped enum values. */
 export function formatEnumLabel(value: string): string {
