@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Copy, FileText, Paperclip, Upload } from 'lucide-react'
+import { Copy, FileText, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -23,11 +23,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canReviewKyc, useAuth } from '@/lib/auth'
-import { KYB_DOCUMENT_KIND_LABELS, KYB_ENTITY_FORM_LABELS, labelFor } from '@/lib/cdd'
+import {
+  KYB_DOCUMENT_SLOTS,
+  KYB_DOCUMENT_SLOT_KEYS,
+  KYB_ENTITY_FORM_LABELS,
+  labelFor,
+} from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
 import { isPiiWithheld, presentPii } from '@/lib/pii'
 import { getKycStatusConfig } from '@/lib/status'
-import type { KybListItem, KybUbo, Staff } from '@/lib/types'
+import type { KybDocumentSlot, KybDocuments, KybListItem, KybUbo, Staff } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { KYB_REJECT_REASON_MAX, validateKybRejectReason } from '@/lib/validators'
 import {
@@ -129,11 +134,97 @@ function UboCard({ ubo, index, staff }: { ubo: KybUbo; index: number; staff: Sta
   )
 }
 
-/** Bytes → a short human size for the document list. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+/**
+ * One of the five fixed document slots.
+ *
+ * The label — not a file name — is the identity of the row, because the backend
+ * keeps a path column per document type and stores neither the name nor the size
+ * of what was uploaded. Showing an invented name would be worse than showing
+ * none: the reviewer would take it for the real one.
+ *
+ * An empty slot says "Not uploaded" out loud rather than rendering a blank row,
+ * so "nothing here yet" cannot be read as "nothing needed here".
+ */
+function DocumentSlotRow({
+  slot,
+  documents,
+  canUpload,
+  uploading,
+  busy,
+  onPick,
+}: {
+  slot: KybDocumentSlot
+  documents: KybDocuments
+  canUpload: boolean
+  /** This slot's upload is in flight. */
+  uploading: boolean
+  /** SOME slot's upload is in flight — every slot is held until it settles. */
+  busy: boolean
+  onPick: (slot: KybDocumentSlot, file: File) => void
+}) {
+  const { label } = KYB_DOCUMENT_SLOTS[slot]
+  const doc = documents[slot]
+  const verb = doc ? 'Replace' : 'Upload'
+  return (
+    <li className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+      <FileText
+        className={cn(
+          'h-3.5 w-3.5 shrink-0',
+          doc ? 'text-primary' : 'text-muted-foreground/60',
+        )}
+      />
+      {doc ? (
+        <a
+          href={doc.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12.5px] font-medium text-primary hover:underline"
+        >
+          {label}
+        </a>
+      ) : (
+        <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
+      )}
+      {!doc && (
+        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+          Not uploaded
+        </span>
+      )}
+      {canUpload && (
+        // A styled <label> wrapping a visually hidden input, rather than a button
+        // driving a shared hidden input: the file's slot is then bound by the
+        // element the operator actually clicked, so no state can go stale between
+        // the click and the picker returning.
+        <label
+          className={cn(
+            'ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-[11px] text-foreground hover:bg-muted',
+            busy && 'pointer-events-none opacity-60',
+          )}
+        >
+          <Upload className={cn('h-3 w-3', uploading && 'animate-pulse')} />
+          {uploading ? 'Uploading…' : verb}
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            aria-label={`${verb} ${label}`}
+            // Every slot is held, not just this one: `useUploadKybDocument` is one
+            // mutation, so a second pick mid-flight would move the "Uploading…"
+            // indicator to the new slot and leave the first upload finishing
+            // invisibly.
+            disabled={busy}
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              // Reset so picking the SAME file again still fires a change event —
+              // a retry after a failed upload is the common case.
+              event.target.value = ''
+              if (file) onPick(slot, file)
+            }}
+          />
+        </label>
+      )}
+    </li>
+  )
 }
 
 /**
@@ -145,7 +236,8 @@ function formatBytes(bytes: number): string {
  * would be a maintenance cost with no payoff.
  *
  * Two things differ, both because KYB is a MANUAL flow:
- *   - documents can be ATTACHED here (there is no consumer app to upload them);
+ *   - documents can be UPLOADED here (there is no consumer app to send them),
+ *     into the five FIXED slots the backend keeps as path columns;
  *   - the record's UBOs are shown as cards rather than a photo pair.
  */
 export default function KybDetailModal({
@@ -164,7 +256,6 @@ export default function KybDetailModal({
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const approve = useApproveKyb()
   const reject = useRejectKyb()
@@ -229,19 +320,15 @@ export default function KybDetailModal({
     )
   }
 
-  function handleFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    // Reset the input so picking the SAME file again still fires a change event
-    // (a retry after a failed upload is the common case).
-    event.target.value = ''
-    if (!file || !kybId) return
+  function handleFilePicked(slot: KybDocumentSlot, file: File) {
+    if (!kybId) return
+    const { kind, label } = KYB_DOCUMENT_SLOTS[slot]
     upload.mutate(
-      // `OTHER` until the operator classifies it: the alternative is blocking the
-      // upload behind a kind picker, and an unclassified attached document beats
-      // a classified missing one.
-      { kybId, kind: 'OTHER', file },
+      // The slot the operator clicked IS the kind — there is no unclassified
+      // upload any more, because the backend has no column to keep one in.
+      { kybId, kind, file },
       {
-        onSuccess: () => toast.success('Document attached'),
+        onSuccess: () => toast.success(`${label} uploaded`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : 'Upload failed'),
       },
@@ -254,6 +341,9 @@ export default function KybDetailModal({
     (sum, ubo) => sum + Number(ubo.ownershipPct || 0),
     0,
   )
+  const uploadedCount = KYB_DOCUMENT_SLOT_KEYS.filter(
+    (slot) => detail?.documents?.[slot] != null,
+  ).length
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -415,79 +505,36 @@ export default function KybDetailModal({
                     )}
                   </Section>
 
-                  <Section title={`Documents (${detail.documents.length})`}>
-                    {detail.documents.length === 0 ? (
-                      <p className="text-[12.5px] text-muted-foreground">
-                        No documents attached yet.
-                      </p>
-                    ) : (
-                      <ul className="space-y-1.5">
-                        {detail.documents.map((doc) => (
-                          <li
-                            key={doc.id}
-                            className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2"
-                          >
-                            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            <span className="text-[12.5px] font-medium">
-                              {labelFor(doc.kind, KYB_DOCUMENT_KIND_LABELS)}
-                            </span>
-                            {doc.url ? (
-                              <a
-                                href={doc.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="break-all text-[12px] text-primary hover:underline"
-                              >
-                                {doc.fileName}
-                              </a>
-                            ) : (
-                              <span className="break-all text-[12px] text-muted-foreground line-through">
-                                {doc.fileName}
-                              </span>
-                            )}
-                            <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
-                              {formatBytes(doc.sizeBytes)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {canReview && (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="application/pdf,image/jpeg,image/png"
-                          onChange={handleFilePicked}
-                          className="hidden"
-                          aria-label="Attach KYB document"
-                          data-testid="kyb-document-input"
+                  {/* Five FIXED slots, always all five — the backend keeps one
+                      path column per document type, so there is no list to be
+                      empty and no file name or size to show. An unfilled slot is
+                      a labelled row saying "Not uploaded", which is what tells
+                      the reviewer WHAT is missing. */}
+                  <Section
+                    title={`Documents (${uploadedCount} of ${KYB_DOCUMENT_SLOT_KEYS.length})`}
+                  >
+                    <ul className="space-y-1.5" data-testid="kyb-documents">
+                      {KYB_DOCUMENT_SLOT_KEYS.map((slot) => (
+                        <DocumentSlotRow
+                          key={slot}
+                          slot={slot}
+                          documents={detail.documents}
+                          canUpload={canReview}
+                          uploading={
+                            upload.isPending &&
+                            upload.variables?.kind === KYB_DOCUMENT_SLOTS[slot].kind
+                          }
+                          busy={upload.isPending}
+                          onPick={handleFilePicked}
                         />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1.5 text-[12px]"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={upload.isPending}
-                        >
-                          {upload.isPending ? (
-                            <>
-                              <Upload className="h-3 w-3 animate-pulse" />
-                              Uploading…
-                            </>
-                          ) : (
-                            <>
-                              <Paperclip className="h-3 w-3" />
-                              Attach document
-                            </>
-                          )}
-                        </Button>
-                        <span className="text-[11px] text-muted-foreground">
-                          PDF / JPEG / PNG, max{' '}
-                          {Math.floor(KYB_DOCUMENT_MAX_BYTES / (1024 * 1024))} MB
-                        </span>
-                      </div>
+                      ))}
+                    </ul>
+                    {canReview && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        PDF / JPEG / PNG, max{' '}
+                        {Math.floor(KYB_DOCUMENT_MAX_BYTES / (1024 * 1024))} MB.
+                        Uploading into a filled slot replaces what is there.
+                      </p>
                     )}
                   </Section>
 

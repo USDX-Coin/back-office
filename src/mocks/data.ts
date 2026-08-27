@@ -50,7 +50,9 @@ import type {
   KybListItem,
   KybDetail,
   KybUbo,
-  KybDocument,
+  KybDocumentRef,
+  KybDocuments,
+  KybDocumentSlot,
   KybEntityForm,
   MintPaymentStatus,
   MintSafeStatus,
@@ -59,6 +61,7 @@ import type {
   PaymentChannel,
   VaBank,
 } from '@/lib/types'
+import { KYB_DOCUMENT_SLOT_KEYS } from '@/lib/cdd'
 import { PARTNER_CUSTOMER_EMAIL_LABEL } from '@/lib/pii'
 
 // Pseudo-random but deterministic seeded helpers
@@ -1822,15 +1825,34 @@ function createKybUbo(seed: number, index: number, ownershipPct: string): KybUbo
   }
 }
 
-function createKybDocument(seed: number, kind: KybDocument['kind']): KybDocument {
+function kybDocumentRef(seed: number, slot: KybDocumentSlot): KybDocumentRef {
   return {
-    id: uuidLike(seed + 95_000 + kind.length),
-    kind,
-    fileName: `${kind.toLowerCase()}-${seed}.pdf`,
-    url: `https://t3.storageapi.dev/usdx-kyb/kyb/${seed}/${kind.toLowerCase()}.pdf?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`,
-    sizeBytes: 180_000 + seed * 1_137,
-    uploadedAt: pastDateRecent(seed % 20),
+    url: `https://t3.storageapi.dev/usdx-kyb/kyb/${seed}/${slot}.pdf?X-Amz-Expires=300&X-Amz-Signature=${seededHex(32, seed)}`,
   }
+}
+
+/**
+ * The FIXED five-slot map the backend sends — every key always present, `null`
+ * where nothing has been uploaded (there is no file name and no size to send:
+ * migration 0077 keeps a path column per document type and nothing else).
+ *
+ * Filling the first `seed % 6` slots walks every mixture across the seeded
+ * records, including the two that matter in dev: nothing uploaded at all, and a
+ * complete set.
+ */
+export function emptyKybDocuments(): KybDocuments {
+  const documents = {} as KybDocuments
+  for (const slot of KYB_DOCUMENT_SLOT_KEYS) documents[slot] = null
+  return documents
+}
+
+function createKybDocuments(seed: number): KybDocuments {
+  const filled = seed % (KYB_DOCUMENT_SLOT_KEYS.length + 1)
+  const documents = {} as KybDocuments
+  KYB_DOCUMENT_SLOT_KEYS.forEach((slot, index) => {
+    documents[slot] = index < filled ? kybDocumentRef(seed, slot) : null
+  })
+  return documents
 }
 
 export function createKybDetail(seed: number, overrides: Partial<KybDetail> = {}): KybDetail {
@@ -1864,8 +1886,7 @@ export function createKybDetail(seed: number, overrides: Partial<KybDetail> = {}
     website: seed % 3 === 0 ? null : `https://${entityName.split(' ')[1]?.toLowerCase() ?? 'entity'}.co.id`,
     phone: `+6221${String(4_000_000 + ((seed * 977) % 999_999))}`,
     ubos,
-    documents:
-      seed % 4 === 0 ? [] : [createKybDocument(seed, 'AKTA_PENDIRIAN'), createKybDocument(seed, 'NIB')],
+    documents: createKybDocuments(seed),
     urlExpiresAt: null,
     rejectionReason:
       status === 'REJECTED'

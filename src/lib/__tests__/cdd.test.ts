@@ -1,6 +1,8 @@
 import { describe, test, expect } from 'vitest'
 import {
   ANNUAL_INCOME_LABELS,
+  KYB_DOCUMENT_SLOTS,
+  KYB_DOCUMENT_SLOT_KEYS,
   OCCUPATION_LABELS,
   SOURCE_OF_FUNDS_LABELS,
   TRANSACTION_PURPOSE_LABELS,
@@ -122,6 +124,84 @@ describe('CDD enum value sets', () => {
         for (const label of Object.values(map)) {
           expect(label.trim().length).toBeGreaterThan(0)
         }
+      }
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — the KYB document slots.
+//
+// The backend (PR #271, migration 0077) keeps documents as FIXED PATH COLUMNS,
+// one per document type — not as a row-per-file table. There are therefore
+// exactly five slots, no `OTHER`, and no place to store a file name or a size.
+// This table is the single place the FE names them, so a sixth kind cannot be
+// invented in a component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('KYB document slots', () => {
+  describe('positive', () => {
+    test('should expose the five response keys of GET /api/v1/kyb/:id, in reading order', () => {
+      // These are the keys of `documents` in the response, verbatim. A typo here
+      // renders an always-empty slot for a document that WAS uploaded.
+      expect(KYB_DOCUMENT_SLOT_KEYS).toEqual([
+        'akte',
+        'nib',
+        'npwp',
+        'skKemenkumham',
+        'ktpDireksi',
+      ])
+    })
+
+    test('should label every slot in Indonesian, as the reviewer reads it', () => {
+      // The label is what the reviewer identifies the document by — the backend
+      // stores no file name, so there is nothing else to show.
+      expect(KYB_DOCUMENT_SLOTS.akte.label).toBe('Akta Pendirian')
+      expect(KYB_DOCUMENT_SLOTS.nib.label).toBe('NIB')
+      expect(KYB_DOCUMENT_SLOTS.npwp.label).toBe('NPWP Badan')
+      expect(KYB_DOCUMENT_SLOTS.skKemenkumham.label).toBe('SK Kemenkumham')
+      expect(KYB_DOCUMENT_SLOTS.ktpDireksi.label).toBe('KTP Pengurus')
+    })
+
+    test('should map each slot to the upload-url `kind` the backend accepts', () => {
+      expect(KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind)).toEqual([
+        'AKTA_PENDIRIAN',
+        'NIB',
+        'NPWP',
+        'SK_KEMENKUMHAM',
+        'KTP_DIREKSI',
+      ])
+    })
+  })
+
+  describe('negative', () => {
+    test('should have no OTHER slot — the backend has no column for it', () => {
+      // An `OTHER` upload had nowhere to land: it would 400, or worse, silently
+      // overwrite another slot.
+      expect(KYB_DOCUMENT_SLOT_KEYS).not.toContain('other')
+      expect(
+        KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind),
+      ).not.toContain('OTHER')
+    })
+
+    test('should never point two slots at the same column', () => {
+      const kinds = KYB_DOCUMENT_SLOT_KEYS.map((k) => KYB_DOCUMENT_SLOTS[k].kind)
+      expect(new Set(kinds).size).toBe(kinds.length)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should keep the ordered key list and the slot table in step', () => {
+      // The order list is derived from the table, so a slot can never be added to
+      // one and forgotten in the other — this pins that.
+      expect([...KYB_DOCUMENT_SLOT_KEYS].sort()).toEqual(
+        Object.keys(KYB_DOCUMENT_SLOTS).sort(),
+      )
+    })
+
+    test('should give every slot a non-empty label', () => {
+      for (const key of KYB_DOCUMENT_SLOT_KEYS) {
+        expect(KYB_DOCUMENT_SLOTS[key].label.trim().length).toBeGreaterThan(0)
       }
     })
   })

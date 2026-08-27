@@ -4,7 +4,6 @@ import { validateKybRejectReason } from '@/lib/validators'
 import type {
   CreateKybBody,
   KybDetail,
-  KybDocument,
   KybDocumentKind,
   KybDocumentUploadTicket,
   KybListItem,
@@ -164,6 +163,11 @@ export function useRejectKyb() {
 
 export interface UploadKybDocumentInput {
   kybId: string
+  /**
+   * Which of the five fixed slots to write. The backend keeps a path column per
+   * document type, so this is not a label — it selects the column, and uploading
+   * the same kind twice REPLACES the earlier file.
+   */
   kind: KybDocumentKind
   file: File
 }
@@ -235,12 +239,16 @@ export function useUploadKybDocument() {
         )
       }
 
-      return apiFetch<KybDocument>(`/api/v1/kyb/${kybId}/documents`, {
+      // No `fileName` and no `sizeBytes`: the backend has no column for either,
+      // so sending them would be inventing a contract. The response body is not
+      // read — the detail query is invalidated straight after, and the presigned
+      // URL is minted per GET anyway.
+      await apiFetch<unknown>(`/api/v1/kyb/${kybId}/documents`, {
         method: 'POST',
-        body: { kind, fileKey: ticket.fileKey, fileName: file.name },
+        body: { kind, fileKey: ticket.fileKey },
       })
     },
-    onSuccess: (_doc, { kybId }) => {
+    onSuccess: (_result, { kybId }) => {
       // The document list lives on the detail, so this one DOES refetch — the
       // operator just changed the record and needs to see the result. The extra
       // audit row is the honest consequence of a real view.

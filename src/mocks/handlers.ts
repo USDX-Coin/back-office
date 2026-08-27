@@ -1,5 +1,10 @@
 import { http, HttpResponse } from 'msw'
 import { isAddress } from 'viem'
+import {
+  KYB_DOCUMENT_SLOTS,
+  KYB_DOCUMENT_SLOT_KEYS,
+  isKybDocumentKind,
+} from '@/lib/cdd'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
   Customer,
@@ -23,7 +28,8 @@ import type {
   OrderDetail,
   OrderListItem,
   KybDetail,
-  KybDocument,
+  KybDocumentKind,
+  KybDocumentSlot,
   KybListItem,
   OncallContact,
   CreateOncallContact,
@@ -37,6 +43,7 @@ import {
   createMockKycList,
   createKybDetail,
   createMockKybState,
+  emptyKybDocuments,
   kybListItemFrom,
   uuidLike,
   createMockStaffList,
@@ -300,6 +307,20 @@ function kybInvalidStatus() {
 
 /** Object-key prefix for KYB documents — mirrors ATTESTATION_FILE_KEY_PREFIX. */
 const KYB_FILE_KEY_PREFIX = 'kyb/document/'
+
+/** The five `kind` values the upload endpoint accepts, for the error message. */
+const KYB_DOCUMENT_KINDS = KYB_DOCUMENT_SLOT_KEYS.map(
+  (slot) => KYB_DOCUMENT_SLOTS[slot].kind,
+)
+
+/** `NPWP` → `npwp`, `SK_KEMENKUMHAM` → `skKemenkumham`: kind → response key. */
+function kybSlotForKind(kind: KybDocumentKind): KybDocumentSlot {
+  const slot = KYB_DOCUMENT_SLOT_KEYS.find((s) => KYB_DOCUMENT_SLOTS[s].kind === kind)
+  // Unreachable: `isKybDocumentKind` gates every caller. Thrown rather than
+  // defaulted, because defaulting would write the wrong column.
+  if (!slot) throw new Error(`no KYB document slot for kind ${kind}`)
+  return slot
+}
 /** 10 MiB — must match KYB_DOCUMENT_MAX_BYTES in features/kyb/hooks.ts. */
 const KYB_DOCUMENT_MAX_BYTES_MOCK = 10 * 1024 * 1024
 
@@ -1897,7 +1918,7 @@ export const handlers = [
         addressLine1: String(u.addressLine1 ?? ''),
         addressLine2: typeof u.addressLine2 === 'string' ? u.addressLine2 : null,
       })),
-      documents: [],
+      documents: emptyKybDocuments(),
       rejectionReason: null,
       reviewedBy: null,
       reviewedByName: null,
@@ -1997,7 +2018,15 @@ export const handlers = [
     } catch {
       return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
     }
-    if (typeof body.kind !== 'string') return phaseOneBadRequest('kind is required')
+    // One of the FIVE fixed slots, or nothing. The backend keeps a path column
+    // per document type (migration 0077) — a kind outside that set has nowhere to
+    // land, so it is refused here rather than accepted and silently dropped.
+    if (!isKybDocumentKind(body.kind)) {
+      return phaseOneBadRequest(
+        `kind must be one of ${KYB_DOCUMENT_KINDS.join(', ')}`,
+        'KYB_DOCUMENT_KIND_INVALID',
+      )
+    }
     // `sizeBytes` is required for the same reason as the attestation flow: the
     // presigner signs content-length and the browser fills that header itself.
     if (typeof body.sizeBytes !== 'number' || body.sizeBytes <= 0) {
@@ -2038,33 +2067,38 @@ export const handlers = [
     const detail = kybDetails.get(String(params.id))
     if (!detail) return kybNotFound()
 
-    let body: { kind?: unknown; fileKey?: unknown; fileName?: unknown }
+    let body: { kind?: unknown; fileKey?: unknown }
     try {
       body = (await request.json()) as typeof body
     } catch {
       return phaseOneBadRequest('Invalid JSON body', 'BAD_REQUEST')
     }
+    if (!isKybDocumentKind(body.kind)) {
+      return phaseOneBadRequest(
+        `kind must be one of ${KYB_DOCUMENT_KINDS.join(', ')}`,
+        'KYB_DOCUMENT_KIND_INVALID',
+      )
+    }
     if (typeof body.fileKey !== 'string' || !body.fileKey.startsWith(KYB_FILE_KEY_PREFIX)) {
       return phaseOneBadRequest(`fileKey must start with ${KYB_FILE_KEY_PREFIX}`)
     }
     // The object must actually exist in the bucket — otherwise the record would
-    // list a document whose download is a dead link.
-    const stored = storageObjects.get(body.fileKey)
-    if (!stored) {
+    // point a slot at a download that is a dead link.
+    if (!storageObjects.has(body.fileKey)) {
       return phaseOneBadRequest('The file was never uploaded', 'KYB_DOCUMENT_NOT_UPLOADED')
     }
 
-    const doc: KybDocument = {
-      id: uuidLike(detail.documents.length + 97_000),
-      kind: String(body.kind ?? 'OTHER') as KybDocument['kind'],
-      fileName: String(body.fileName ?? 'document'),
+    // One path column per document type: writing a slot REPLACES whatever it
+    // held. There is no list to append to, and no file name or size is kept.
+    const slot = kybSlotForKind(body.kind)
+    detail.documents[slot] = {
       url: `https://t3.storageapi.dev/usdx-kyb/${body.fileKey}?X-Amz-Expires=300`,
-      sizeBytes: stored.size,
-      uploadedAt: new Date().toISOString(),
     }
-    detail.documents.push(doc)
-    detail.updatedAt = doc.uploadedAt
-    return HttpResponse.json({ status: 'success', metadata: null, data: doc }, { status: 201 })
+    detail.updatedAt = new Date().toISOString()
+    return HttpResponse.json(
+      { status: 'success', metadata: null, data: detail.documents },
+      { status: 201 },
+    )
   }),
 
   // ─── Dashboard stats — sot/openapi.yaml § /api/v1/dashboard/stats ───

@@ -1,12 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { findStaffById, issueMockJwt, resetMockData } from '@/mocks/handlers'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
 import { renderWithProviders } from '@/test/test-utils'
-import type { KybDetail } from '@/lib/types'
+import type { KybDetail, KybDocuments } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-546 — KYB review detail.
@@ -28,6 +28,31 @@ afterAll(() => server.close())
 
 const KYB_ID = 'kyb_detail_1'
 const UBO_IDENTITY = '3171234567890123'
+const AKTA_URL = 'https://t3.storageapi.dev/usdx-kyb/akta.pdf?sig=x'
+
+/** Every slot present, every slot empty — the shape the backend always sends. */
+const NO_DOCUMENTS: KybDocuments = {
+  akte: null,
+  nib: null,
+  npwp: null,
+  skKemenkumham: null,
+  ktpDireksi: null,
+}
+
+/** The five labels a reviewer reads, in the order they are rendered. */
+const SLOT_LABELS = [
+  'Akta Pendirian',
+  'NIB',
+  'NPWP Badan',
+  'SK Kemenkumham',
+  'KTP Pengurus',
+] as const
+
+/** A real PNG header — the upload sniffs magic bytes, not the name or the type. */
+function pngFile(name = 'scan.png'): File {
+  const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
+  return new File([bytes], name, { type: 'image/png' })
+}
 
 const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
   id: KYB_ID,
@@ -69,16 +94,7 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
       addressLine2: null,
     },
   ],
-  documents: [
-    {
-      id: 'doc_1',
-      kind: 'AKTA_PENDIRIAN',
-      fileName: 'akta-juara.pdf',
-      url: 'https://t3.storageapi.dev/usdx-kyb/akta.pdf?sig=x',
-      sizeBytes: 240_000,
-      uploadedAt: '2026-06-01T03:00:00Z',
-    },
-  ],
+  documents: { ...NO_DOCUMENTS, akte: { url: AKTA_URL } },
   urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
   rejectionReason: null,
   submittedAt: '2026-06-01T03:00:00Z',
@@ -132,9 +148,56 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(
         within(dialog).getByText(/declared ownership total: 100\.00%/i),
       ).toBeInTheDocument()
-      // Documents.
-      expect(within(dialog).getByText('Akta pendirian')).toBeInTheDocument()
-      expect(within(dialog).getByText('akta-juara.pdf')).toBeInTheDocument()
+      // Documents — five FIXED slots, always all five, labelled in Indonesian.
+      expect(within(dialog).getByText(/documents \(1 of 5\)/i)).toBeInTheDocument()
+      for (const label of SLOT_LABELS) {
+        expect(within(dialog).getByText(label)).toBeInTheDocument()
+      }
+      // The uploaded one is the link; the other four say so out loud.
+      expect(
+        within(dialog).getByRole('link', { name: 'Akta Pendirian' }),
+      ).toHaveAttribute('href', AKTA_URL)
+      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(4)
+    })
+
+    test('uploading into a slot sends THAT slot\'s kind, and no file name', async () => {
+      // The load-bearing test for this contract. The backend keeps one PATH
+      // COLUMN per document type, so `kind` decides which column is written —
+      // a single hardcoded kind would file every document under one slot and
+      // overwrite the previous one. `fileName` / `sizeBytes` are not sent because
+      // there is nowhere to store them.
+      stubDetail(makeDetail())
+      const ticketBodies: unknown[] = []
+      const registerBodies: unknown[] = []
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/upload-url`, async ({ request }) => {
+          ticketBodies.push(await request.json())
+          return ok({
+            uploadUrl: 'https://storage.usdx.test/upload/kyb-doc',
+            fileKey: 'kyb/document/npwp-1',
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/octet-stream' },
+          })
+        }),
+        http.put('https://storage.usdx.test/upload/kyb-doc', () => new HttpResponse(null, { status: 200 })),
+        http.post(`/api/v1/kyb/${KYB_ID}/documents`, async ({ request }) => {
+          registerBodies.push(await request.json())
+          return ok({ ...NO_DOCUMENTS, npwp: { url: 'https://t3.storageapi.dev/usdx-kyb/npwp.pdf' } })
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('PT Juara Remiten Indonesia')
+
+      // fireEvent (not user.upload) so the input's `accept` filter does not
+      // silently drop the fixture — same reason as the attestation tests.
+      fireEvent.change(within(dialog).getByLabelText(/upload npwp badan/i), {
+        target: { files: [pngFile()] },
+      })
+
+      await waitFor(() => expect(registerBodies).toHaveLength(1))
+      expect(ticketBodies[0]).toMatchObject({ kind: 'NPWP' })
+      expect(registerBodies[0]).toEqual({ kind: 'NPWP', fileKey: 'kyb/document/npwp-1' })
     })
 
     test('reject WITH a reason sends the reason and closes the modal', async () => {
@@ -273,6 +336,33 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(detail.rejectionReason).toBeNull()
     })
 
+    test('the API refuses a document kind the backend has no column for', async () => {
+      // The backend keeps FIVE fixed path columns (migration 0077). `OTHER` — or
+      // any kind the FE might invent — has nowhere to land, so it is refused at
+      // the API rather than accepted and dropped.
+      authenticateAs('stf_1')
+      const list = await fetch('/api/v1/kyb?limit=1&status=PENDING')
+      const { data } = (await list.json()) as { data: { id: string }[] }
+      const seededId = data[0]!.id
+
+      for (const kind of ['OTHER', 'AKTA', 'ktp_direksi', '']) {
+        const res = await fetch(`/api/v1/kyb/${seededId}/documents/upload-url`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind, sizeBytes: 1024 }),
+        })
+        expect(res.status).toBe(400)
+      }
+
+      // …and one of the five is accepted, so the check is not simply refusing all.
+      const okRes = await fetch(`/api/v1/kyb/${seededId}/documents/upload-url`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'KTP_DIREKSI', sizeBytes: 1024 }),
+      })
+      expect(okRes.status).toBe(200)
+    })
+
     test('DEVELOPER sees Approve / Reject disabled with a view-only hint', async () => {
       stubDetail(makeDetail())
       renderModal({ staffId: 'stf_3' })
@@ -281,10 +371,9 @@ describe('KybDetailModal @ USDX-546', () => {
 
       expect(within(dialog).getByRole('button', { name: /^reject$/i })).toBeDisabled()
       expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeDisabled()
-      // …and no upload control either.
-      expect(
-        within(dialog).queryByRole('button', { name: /attach document/i }),
-      ).not.toBeInTheDocument()
+      // …and no upload control on any of the five slots either.
+      expect(within(dialog).queryAllByLabelText(/^upload /i)).toHaveLength(0)
+      expect(within(dialog).queryAllByLabelText(/^replace /i)).toHaveLength(0)
     })
 
     test('non-ADMIN sees the UBO identity number MASKED', async () => {
@@ -312,6 +401,31 @@ describe('KybDetailModal @ USDX-546', () => {
   })
 
   describe('edge cases', () => {
+    test('the seeded records always carry all five document slots, present or null', async () => {
+      // The response shape is a FIXED MAP, never a list: a missing key would have
+      // the FE render nothing at all for that document instead of "not uploaded".
+      authenticateAs('stf_1')
+      const list = await fetch('/api/v1/kyb?limit=50')
+      const { data } = (await list.json()) as { data: { id: string }[] }
+      expect(data.length).toBeGreaterThan(0)
+
+      for (const row of data) {
+        const res = await fetch(`/api/v1/kyb/${row.id}`)
+        const { data: detail } = (await res.json()) as { data: KybDetail }
+        expect(Object.keys(detail.documents)).toEqual([
+          'akte',
+          'nib',
+          'npwp',
+          'skKemenkumham',
+          'ktpDireksi',
+        ])
+        for (const value of Object.values(detail.documents)) {
+          // Only a presigned URL — no file name, no size: the backend stores none.
+          if (value !== null) expect(Object.keys(value)).toEqual(['url'])
+        }
+      }
+    })
+
     test('a record with NO UBO is called out as not approvable as it stands', async () => {
       // Without a UBO there is nothing to run due diligence on. A neutral "none
       // yet" would let a reviewer approve an empty record.
@@ -362,18 +476,32 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getByText(/akta tidak terbaca/i)).toBeInTheDocument()
     })
 
-    test('a purged document is listed but not linked', async () => {
-      stubDetail(
-        makeDetail({
-          documents: [{ ...makeDetail().documents[0]!, url: null }],
-        }),
-      )
+    test('a record with nothing uploaded still shows all five labelled slots', async () => {
+      // `null` per slot is the normal state of a fresh record, not an error — but
+      // it must READ as "belum diunggah" rather than as five blank rows, which is
+      // what a reviewer would otherwise mistake for "nothing required here".
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      const fileName = within(dialog).getByText('akta-juara.pdf')
-      expect(fileName.tagName).not.toBe('A')
+      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      for (const label of SLOT_LABELS) {
+        expect(within(dialog).getByText(label)).toBeInTheDocument()
+      }
+      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(5)
+      // Nothing to open: an empty slot must not render a dead link.
+      const docs = within(dialog).getByTestId('kyb-documents')
+      expect(within(docs).queryAllByRole('link')).toHaveLength(0)
+    })
+
+    test('an empty slot renders its label as plain text, never as a dead link', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('PT Juara Remiten Indonesia')
+
+      expect(within(dialog).getByText('Akta Pendirian').tagName).not.toBe('A')
     })
   })
 })
