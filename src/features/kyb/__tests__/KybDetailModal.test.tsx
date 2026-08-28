@@ -365,12 +365,17 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      // Six masked entity fields: name, NIB, NPWP, both addresses, phone.
-      expect(within(dialog).getAllByText(/not shown to your role/i).length).toBeGreaterThanOrEqual(6)
+      // Scoped to the ENTITY block on purpose: the documents section emits the
+      // same phrase for its five slots and its header, so a dialog-wide count
+      // stays green even with the withheld branch deleted. (It did — found by
+      // mutating `EntityValue` and watching this assertion survive.)
+      const entity = within(dialog).getByTestId('kyb-entity')
+      // Exactly six: name, NIB, NPWP, registered + operational address, phone.
+      expect(within(entity).getAllByText(/not shown to your role/i)).toHaveLength(6)
       // Plaintext metadata is NOT masked and must still be readable — it is what
       // a developer investigating a record actually needs.
-      expect(within(dialog).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
-      expect(within(dialog).getByText('2018-04-12')).toBeInTheDocument()
+      expect(within(entity).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
+      expect(within(entity).getByText('2018-04-12')).toBeInTheDocument()
     })
 
     test('a genuinely empty entity field is an em dash, never "withheld"', async () => {

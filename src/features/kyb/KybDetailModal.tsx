@@ -472,7 +472,7 @@ export default function KybDetailModal({
                       and `businessSector` are plaintext metadata and are not
                       masked — they render directly. */}
                   <Section title="Entity">
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2" data-testid="kyb-entity">
                       <Field label="Entity name">
                         <EntityValue value={detail.entityName} />
                       </Field>
