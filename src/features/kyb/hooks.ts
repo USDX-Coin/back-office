@@ -11,28 +11,35 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-546 — KYB review, MANUAL back-office flow.
 //
-// ⚠ WAITING ON BACKEND. None of these endpoints exists yet: the `kyb` and
-// `kyc_ubo` tables are declared in `backend/src/database/schema/kyc.ts` but not
-// exported from `schema/index.ts`, so they have never been created in the
-// database (verified on dev: `SELECT tablename FROM pg_tables WHERE tablename IN
-// ('kyb','kyc_ubo')` → 0 rows). The backend half is the other side of USDX-546
-// and is being built in parallel.
+// LIVE on the real backend. The tables landed with backend PR #271 (merged
+// 27 Aug 2026, migration `0077_usdx_546_kyb_kyc_ubo_reviews`) and the document
+// endpoints with PR #275 (28 Aug), so `/api/v1/kyb*` is in `INTEGRATION_PATHS`
+// (`src/mocks/browser.ts`) and the KYB MSW handlers were DELETED rather than left
+// idle — two sources of truth for one screen is how the next person gets misled.
 //
-// Until it lands these calls are served by the MSW handlers, which is why
-// `/api/v1/kyb*` is deliberately ABSENT from `INTEGRATION_PATHS` in
-// `src/mocks/browser.ts` — that set is the record of which paths are live on the
-// real backend, and adding one early makes the page 404 in the browser.
+// Verified read-only against api-dev on 28 Aug 2026: `GET /api/v1/kyb` answers
+// `{"status":"success","metadata":{"page":1,"limit":3,"total":0},"data":[]}`,
+// `GET /api/v1/kyb/<unknown-uuid>` answers `404 NOT_FOUND / KYB_NOT_FOUND`, and
+// an unknown route on the same host answers `Cannot GET …` — so these paths
+// exist rather than falling through to a catch-all.
 //
-// The paths and payload shapes mirror the KYC review endpoints one for one, so
-// the backend has a template rather than a guess. The exact request list is in
-// the PR under "Backend Integration Notes".
+// Server-side role matrix (`kyb.controller.ts`): reads are STAFF / MANAGER /
+// ADMIN / DEVELOPER; every write is STAFF / MANAGER / ADMIN and DEVELOPER gets
+// 403. DEVELOPER additionally never receives decrypted entity PII or presigned
+// document URLs, which is why the review screen's wording is role-aware.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface KybListFilters {
   page?: number
   limit?: number
   status?: string
-  /** Substring match on entity name / user email. */
+  /**
+   * Server-side match on `users.email` / `users.name` — BOTH plaintext. It does
+   * NOT reach the entity name or the NIB: those columns are encrypted with a
+   * random IV, so an `ILIKE` over them returns nothing by construction
+   * (`ListKybQueryDto`, and `sot/conventions.md § Search / Blind Index PII`
+   * says not to add a blind index pre-emptively).
+   */
   search?: string
 }
 
@@ -106,12 +113,19 @@ function useInvalidateAfterKybReview() {
   }
 }
 
-/** POST /api/v1/kyb — create the record for an existing LEGAL_ENTITY user. */
+/**
+ * POST /api/v1/kyb — create the record for an existing LEGAL_ENTITY user.
+ *
+ * Answers a `KybListItem`, NOT a `KybDetail`: creating a record is not an act of
+ * reading its PII, so the backend returns the queue row and writes no
+ * `pii_access_audit` entry. The form only needs `id` to navigate into the review
+ * modal, which then does the audited read.
+ */
 export function useCreateKyb() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: CreateKybBody) =>
-      apiFetch<KybDetail>('/api/v1/kyb', { method: 'POST', body }),
+      apiFetch<KybListItem>('/api/v1/kyb', { method: 'POST', body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['kyb', 'list'] })
       qc.invalidateQueries({ queryKey: ['kyb', 'pending-count'] })
@@ -160,16 +174,22 @@ export function useRejectKyb() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// No document upload hook, on purpose.
+// No document upload hook YET — and the reason changed on 28 Aug 2026.
 //
-// There is no back-office endpoint to presign a KYB document against. PR #271
-// (commit 5dc7254) added the five path COLUMNS and the `documents` map on the
-// read, but no `upload-url` route — and the only presign endpoint that exists in
-// the backend, `POST /api/v2/storage/presigned-upload`, is the CONSUMER one, with
-// `docKind` limited to `ktp | selfie`. Today a document path reaches the record
-// only through the body of `POST /api/v1/kyb`.
+// It used to be that no endpoint existed. That is no longer true: backend PR #275
+// shipped `POST /api/v1/kyb/:id/documents/presign` and `POST /api/v1/kyb/:id/
+// documents`, both live on api-dev, both STAFF / MANAGER / ADMIN, both gated on
+// the record still being PENDING. The reason there is no hook here is now scope:
+// this change connects the review flow and deletes the mock, and a three-step
+// upload (presign → PUT the bytes with the ticket's headers verbatim → attach the
+// object key) is its own surface with its own failure modes — magic-byte
+// sniffing, the signed Content-Length, `credentials: 'omit'` so the desk session
+// cookie never reaches the bucket host.
 //
-// A three-step upload hook served by an MSW handler would pass its tests, work in
-// dev, and 404 the first time a reviewer used it against the real API. Absent is
-// the honest state; the review screen says so rather than offering a button.
+// The consequence is worth stating plainly rather than leaving for someone to
+// discover: with no upload here and no `*Path` field on the create form, a KYB
+// record entered from the back office has all five slots empty, so `approve`
+// answers `409 KYB_DOCUMENTS_INCOMPLETE` every time and NO record can reach
+// VERIFIED from this UI. Reject works; approve cannot. That is a follow-up
+// ticket, not a hidden defect.
 // ─────────────────────────────────────────────────────────────────────────────

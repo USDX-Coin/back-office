@@ -18,13 +18,20 @@ export const KYB_FILTER_DEFS: FilterDef[] = [
   },
 ]
 
-/** Column ids must match the ColumnDef ids in KybListPage. */
+/**
+ * Column ids must match the ColumnDef ids in KybListPage.
+ *
+ * No NIB and no UBO count: `GET /api/v1/kyb` returns neither. The entity name and
+ * the NIB are encrypted columns the list query cannot read, and the UBO count is
+ * not in the payload — the zero-UBO condition is enforced at approve
+ * (`409 KYB_NO_UBO`) and shown on the review screen instead.
+ */
 export const KYB_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'id', label: 'ID', required: true },
-  { key: 'entityName', label: 'Entity', required: true },
-  { key: 'registrationNumber', label: 'NIB' },
+  { key: 'userName', label: 'Entity', required: true },
   { key: 'userEmail', label: 'Account email' },
-  { key: 'uboCount', label: 'UBOs' },
+  { key: 'entityForm', label: 'Legal form' },
   { key: 'status', label: 'Status' },
   { key: 'submittedAt', label: 'Submitted At' },
+  { key: 'submissionCount', label: 'Submissions' },
 ]

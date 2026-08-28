@@ -54,12 +54,23 @@ export const TRANSACTION_PURPOSE_LABELS: Record<KycTransactionPurpose, string> =
   OTHER: 'Other',
 }
 
+/**
+ * One label per value of the `kyb_entity_form` pg enum, in ITS order — the form's
+ * legal-form select is derived from this map's key order, so the operator reads
+ * the same sequence the database declares. Typed `Record<KybEntityForm, …>` so a
+ * value added to the union without a label fails the build (USDX-546: the union
+ * was four values short of the enum, and this map is what proved it).
+ */
 export const KYB_ENTITY_FORM_LABELS: Record<KybEntityForm, string> = {
   PT: 'PT (Perseroan Terbatas)',
+  PT_PERORANGAN: 'PT Perorangan',
   CV: 'CV (Commanditaire Vennootschap)',
-  YAYASAN: 'Yayasan',
-  KOPERASI: 'Koperasi',
   FIRMA: 'Firma',
+  KOPERASI: 'Koperasi',
+  YAYASAN: 'Yayasan',
+  PERKUMPULAN: 'Perkumpulan',
+  BUMN: 'BUMN',
+  BUMD: 'BUMD',
   OTHER: 'Other',
 }
 
