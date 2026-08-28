@@ -879,15 +879,25 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
 
       // HEIC is accepted for a KYC photo and refused for a KYB document, so this
       // is exactly the file an operator would reasonably expect to work.
+      // `....ftypheic` — a real HEIC header, so the file is refused by the TYPE
+      // rule and not incidentally by the byte sniff.
       pickFile(
         dialog,
         'NPWP Badan',
-        fileWithBytes('npwp.heic', 'image/heic', [0x00, 0x00, 0x00, 0x18]),
+        fileWithBytes(
+          'npwp.heic',
+          'image/heic',
+          [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63],
+        ),
       )
 
       const error = await within(dialog).findByTestId('kyb-upload-error-npwp')
       expect(error).toHaveTextContent(/PDF/)
       expect(error).toHaveTextContent(/PNG/)
+      // Wording unique to the type rule: if HEIC were let through the whitelist
+      // the row would show the CONTENTS message instead, and this passes only
+      // because the type gate is the one that refused.
+      expect(error).toHaveTextContent(/can be uploaded as KYB documents/i)
       expect(be.calls).toEqual([])
     })
 
