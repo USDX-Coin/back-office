@@ -1182,25 +1182,43 @@ export interface KycReviewLog {
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-546 — KYB (business entity due diligence), MANUAL back-office flow.
 //
-// Two facts shape this contract, both verified in the 27 Aug correction on the
-// ticket:
-//   1. A LEGAL_ENTITY account can ALREADY be created today by an ADMIN through
-//      `POST /api/v1/users` (its DTO validates `["INDIVIDUAL","LEGAL_ENTITY"]`
-//      and the service rejects nothing). What is missing is a place to KEEP the
-//      entity's due-diligence data — `kyb` / `kyc_ubo` are declared in
-//      `backend/src/database/schema/kyc.ts` but never exported, so they do not
-//      exist in the database (`SELECT tablename FROM pg_tables …` → 0 rows).
-//   2. KYB is a MANUAL flow, not a public API (decision Mas Yan). There is no
-//      consumer app submitting this: a USDX operator types it in. That is why
-//      this feature has a FORM as well as a review action, unlike retail KYC.
+// LIVE against the real backend since 28 Aug 2026. The tables exist (backend PR
+// #271, migration `0077_usdx_546_kyb_kyc_ubo_reviews`) and six endpoints answer
+// on api-dev: list, detail, reviews, document presign, document attach, approve,
+// reject. Every type below was reconciled FIELD BY FIELD against
+// `backend/src/modules/kyb/kyb.types.ts` on `origin/dev`, not against the shape
+// that was agreed in messages while the backend was still being written — the
+// two disagreed, and the notes mark where.
 //
-// Field names mirror the (to-be-corrected) `kyb` / `kyc_ubo` declarations so the
-// FE is not inventing a second vocabulary. The review lifecycle reuses
-// `KycStatus`, matching what `partner_customer_kyc.status` already does.
+// KYB is still a MANUAL flow (decision Mas Yan): no consumer app submits it, an
+// operator types it in, which is why this feature has a FORM as well as a review
+// action. `POST /api/v2/auth/register` continues to refuse `LEGAL_ENTITY`.
+//
+// The review lifecycle reuses `KycStatus` — the backend's `KybStatus` is the same
+// four values off the same pg enum (`kyc_status`), so one type is correct here,
+// not a convenience.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** `kyb.entity_type` — legal form of the entity (not `users.entity_type`). */
-export type KybEntityForm = 'PT' | 'CV' | 'YAYASAN' | 'KOPERASI' | 'FIRMA' | 'OTHER'
+/**
+ * `kyb.entity_form` — legal form of the entity (not `users.entity_type`).
+ *
+ * All TEN values of the `kyb_entity_form` pg enum, in its declared order. The
+ * front end previously listed six; the four it omitted (`PT_PERORANGAN`,
+ * `PERKUMPULAN`, `BUMN`, `BUMD`) are storable today, so a record carrying one
+ * would have rendered through the unmapped-label fallback and — worse — could
+ * not have been entered from the form at all.
+ */
+export type KybEntityForm =
+  | 'PT'
+  | 'PT_PERORANGAN'
+  | 'CV'
+  | 'FIRMA'
+  | 'KOPERASI'
+  | 'YAYASAN'
+  | 'PERKUMPULAN'
+  | 'BUMN'
+  | 'BUMD'
+  | 'OTHER'
 
 /**
  * The five FIXED document slots — response keys of `KybDetail.documents`,
@@ -1252,6 +1270,13 @@ export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
 /**
  * Ultimate beneficial owner (`kyc_ubo`). `identityNumber` is PII: ciphertext at
  * rest, decrypted for render, ADMIN-only in the UI (`canReadCustomerPii`).
+ *
+ * A deliberate SUBSET of the response. `GET /api/v1/kyb/:id` also returns
+ * `livenessStatus`, `disdukcapilStatus`, `identityPhotoUrl` and `selfiePhotoUrl`
+ * per UBO. Nothing writes them yet — the manual-entry form collects no UBO photo
+ * and there is no liveness check in a manual flow — so the review screen would
+ * be rendering four permanently empty rows. Listed here so the next reader knows
+ * they exist on the wire rather than discovering it in a network tab.
  */
 export interface KybUbo {
   id: string
@@ -1267,38 +1292,68 @@ export interface KybUbo {
   addressLine2: string | null
 }
 
-/** GET /api/v1/kyb row — no PII at list level (same rule as the KYC list). */
+/**
+ * GET /api/v1/kyb row — carries NO ciphertext column at all, and that is the
+ * shape of the response, not a simplification of it.
+ *
+ * The review QUEUE therefore cannot show the entity's registered name or its
+ * NIB: `kyb.entity_name` and `kyb.registration_number` are encrypted with a
+ * random IV, so the list query can neither select nor search them. What it shows
+ * instead is `userName` — `users.name`, plaintext, and the backend's own comment
+ * calls it "nama badan usaha yang tampil di antrean review".
+ *
+ * `uboCount` does not exist either: the zero-UBO condition is enforced at
+ * approve (`409 KYB_NO_UBO`) and shown on the detail screen.
+ */
 export interface KybListItem {
   id: string
   userId: string
+  /** Masked for non-ADMIN by the backend (`presentCustomerEmail`, USDX-372). */
   userEmail: string
-  entityName: string
-  /** `kyb.registration_number` — NIB. Not PII (it identifies a company). */
-  registrationNumber: string
+  /** `users.name` — plaintext, the entity's name as the queue displays it. */
+  userName: string | null
+  entityForm: KybEntityForm
   status: KycStatus
-  uboCount: number
+  /** How many times this record has been filed. Same field as the KYC queue. */
+  submissionCount: number
   submittedAt: string | null
   reviewedAt: string | null
   reviewedByName: string | null
 }
 
-/** GET /api/v1/kyb/:id — the full record the reviewer decides on. */
+/**
+ * GET /api/v1/kyb/:id — the full record the reviewer decides on.
+ *
+ * Every entity PII field is `string | null`, and both halves of that union are
+ * reachable in production, for reasons that must not be collapsed:
+ *   - `null` — the column is genuinely empty, or the retention sweeper cleared it;
+ *   - `'***'` — the backend WITHHELD it. Entity PII (`entityName`,
+ *     `registrationNumber`, `taxId`, both addresses, `phone`) is decrypted only
+ *     for STAFF / MANAGER / ADMIN; the DEVELOPER role receives `'***'` in every
+ *     one of those fields (`maskFields` in `kyb.service.ts`).
+ *
+ * Note `taxId` IS role-gated server-side, despite being a company number: it is
+ * one of the six encrypted `kyb` columns, so the backend masks it with the rest.
+ */
 export interface KybDetail {
   id: string
   userId: string
   userEmail: string
+  /** `users.name` — plaintext, present on the detail as well as the list. */
+  userName: string | null
   status: KycStatus
-  entityName: string
+  submissionCount: number
+  entityName: string | null
   entityForm: KybEntityForm
   country: string
-  registrationNumber: string
-  /** Entity NPWP. A company tax number, not a person's — not role-gated. */
-  taxId: string
+  registrationNumber: string | null
+  /** Entity NPWP — encrypted at rest, so role-gated by the backend too. */
+  taxId: string | null
   /** ISO `YYYY-MM-DD`. */
   establishmentDate: string
   businessSector: string
-  registeredAddress: string
-  operationalAddress: string
+  registeredAddress: string | null
+  operationalAddress: string | null
   website: string | null
   phone: string | null
   ubos: KybUbo[]

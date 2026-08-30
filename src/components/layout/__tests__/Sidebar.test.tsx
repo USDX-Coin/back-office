@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import Sidebar from '@/components/layout/Sidebar'
@@ -372,6 +372,13 @@ describe('Sidebar @ USDX-50', () => {
         })
       )
     }
+
+    // `/api/v1/kyb` is real-backend-only now — its MSW handler was deleted with
+    // USDX-546 — so the badge query has nothing to answer it unless a test says
+    // so. Stub zero by default; the tests that care about the number override it.
+    beforeEach(() => {
+      server.use(kybCount(0))
+    })
 
     test('renders a KYB Review link to /kyb (admin)', () => {
       renderWithProviders(<Sidebar />, {

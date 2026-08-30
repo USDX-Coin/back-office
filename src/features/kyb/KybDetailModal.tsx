@@ -31,7 +31,7 @@ import {
 } from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
 import { parseKybDocumentsIncomplete } from '@/lib/kybDocumentsError'
-import { isPiiWithheld, presentPii } from '@/lib/pii'
+import { isPiiWithheld, PII_MASK, presentPii } from '@/lib/pii'
 import { getKycStatusConfig } from '@/lib/status'
 import type { KybDocumentSlot, KybDocuments, KybListItem, KybUbo, Staff } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,39 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
+
+/**
+ * An entity PII field as it arrives from `GET /api/v1/kyb/:id`, which sends one
+ * of THREE things and the screen must not flatten them into one:
+ *
+ *   - a value        → show it;
+ *   - `'***'`        → the backend WITHHELD it (DEVELOPER role — `maskFields` in
+ *                      `kyb.service.ts` masks all six encrypted `kyb` columns).
+ *                      Say so, or a reviewer reads three asterisks as the data;
+ *   - `null`         → the column is genuinely empty, or the retention sweeper
+ *                      cleared it. An em dash, never "hidden".
+ *
+ * The mask token is the backend's (`PII_MASK`), so the comparison is against the
+ * shared constant rather than a literal typed twice.
+ */
+function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) {
+  if (value === null || value === '') return <Dim />
+  if (value === PII_MASK) {
+    return (
+      <span className="flex flex-wrap items-baseline gap-1.5">
+        <span className="font-mono text-[12.5px]">{PII_MASK}</span>
+        <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+          not shown to your role
+        </span>
+      </span>
+    )
+  }
+  return mono ? (
+    <span className="break-all font-mono text-[12.5px] tabular-nums">{value}</span>
+  ) : (
+    <>{value}</>
+  )
+}
 
 /** UBO identity numbers are PII — ADMIN only, same gate as the KYC NPWP field. */
 function PiiValue({ value, staff }: { value: string | null; staff: Staff | null }) {
@@ -137,9 +170,11 @@ function UboCard({ ubo, index, staff }: { ubo: KybUbo; index: number; staff: Sta
  * of what was uploaded. Showing an invented name would be worse than showing
  * none: the reviewer would take it for the real one.
  *
- * READ-ONLY, and that is not an omission: no back-office endpoint exists to
- * presign a KYB document, so an upload button here would 404 against the real
- * API. See the comment at the foot of `./hooks.ts`.
+ * READ-ONLY. The endpoints to change that DO exist now (backend PR #275:
+ * `POST :id/documents/presign` then `POST :id/documents`); wiring the three-step
+ * upload is a follow-up, and the consequence is stated at the foot of
+ * `./hooks.ts` — with all five slots empty, approve can only ever answer
+ * `409 KYB_DOCUMENTS_INCOMPLETE`.
  *
  * An empty slot says so out loud rather than rendering a blank row, so "nothing
  * here yet" cannot be read as "nothing needed here". What it says depends on the
@@ -430,32 +465,40 @@ export default function KybDetailModal({
                 </div>
               ) : detail ? (
                 <>
+                  {/* Every field the backend keeps encrypted goes through
+                      `EntityValue`, because for the DEVELOPER role each of them
+                      arrives as `'***'` and rendering that raw would read as the
+                      value itself. `country`, `entityForm`, `establishmentDate`
+                      and `businessSector` are plaintext metadata and are not
+                      masked — they render directly. */}
                   <Section title="Entity">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="Entity name">{detail.entityName}</Field>
+                    <div className="grid gap-4 sm:grid-cols-2" data-testid="kyb-entity">
+                      <Field label="Entity name">
+                        <EntityValue value={detail.entityName} />
+                      </Field>
                       <Field label="Legal form">
                         {labelFor(detail.entityForm, KYB_ENTITY_FORM_LABELS) ?? <Dim />}
                       </Field>
                       <Field label="Registration number (NIB)">
-                        <span className="font-mono text-[12.5px] tabular-nums">
-                          {detail.registrationNumber}
-                        </span>
+                        <EntityValue value={detail.registrationNumber} mono />
                       </Field>
-                      {/* Entity NPWP is a COMPANY tax number, not a person's —
-                          it is not role-gated. The UBO identity numbers below
-                          are. */}
+                      {/* Entity NPWP is a COMPANY tax number, but it is one of
+                          the six ENCRYPTED `kyb` columns, so the backend masks it
+                          alongside the rest for a role that may not read PII. */}
                       <Field label="Entity NPWP">
-                        <span className="font-mono text-[12.5px] tabular-nums">
-                          {detail.taxId}
-                        </span>
+                        <EntityValue value={detail.taxId} mono />
                       </Field>
                       <Field label="Established">{detail.establishmentDate}</Field>
                       <Field label="Business sector">{detail.businessSector}</Field>
                       <Field label="Country">{detail.country}</Field>
-                      <Field label="Phone">{detail.phone ?? <Dim />}</Field>
-                      <Field label="Registered address">{detail.registeredAddress}</Field>
+                      <Field label="Phone">
+                        <EntityValue value={detail.phone} />
+                      </Field>
+                      <Field label="Registered address">
+                        <EntityValue value={detail.registeredAddress} />
+                      </Field>
                       <Field label="Operational address">
-                        {detail.operationalAddress}
+                        <EntityValue value={detail.operationalAddress} />
                       </Field>
                       <Field label="Website">
                         {detail.website ? (
@@ -516,7 +559,16 @@ export default function KybDetailModal({
                       reviewer WHAT is missing. Read-only — no endpoint exists to
                       upload one. */}
                   <Section
-                    title={`Documents (${uploadedCount} of ${KYB_DOCUMENT_SLOT_KEYS.length})`}
+                    title={
+                      urlsWithheld
+                        ? // "0 of 5" would be a false statement for this role:
+                          // no presigned URL is ever minted for it, so every slot
+                          // reads `null` however many documents are on file. The
+                          // count is unknowable here, and saying so is the only
+                          // honest header.
+                          `Documents (${KYB_DOCUMENT_SLOT_KEYS.length} slots — count not shown to your role)`
+                        : `Documents (${uploadedCount} of ${KYB_DOCUMENT_SLOT_KEYS.length})`
+                    }
                   >
                     {missingDocuments !== null && (
                       <p
@@ -557,7 +609,7 @@ export default function KybDetailModal({
                     <p className="mt-2 text-[11px] text-muted-foreground">
                       {urlsWithheld
                         ? 'Your role is not given document links — an empty slot here does not mean the document is missing.'
-                        : 'Read-only: documents reach a record when it is created. There is no endpoint to upload one from the back office yet.'}
+                        : 'Read-only on this screen: uploading from the back office is a follow-up ticket, so an empty slot stays empty and approval stays blocked until then.'}
                     </p>
                   </Section>
 

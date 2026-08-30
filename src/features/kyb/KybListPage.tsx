@@ -12,14 +12,24 @@ import { Button } from '@/components/ui/button'
 import { KYB_COLUMN_CONFIG, KYB_FILTER_DEFS } from './filterDefs'
 import KybDetailModal from './KybDetailModal'
 import { canReviewKyc, useAuth } from '@/lib/auth'
+import { KYB_ENTITY_FORM_LABELS, labelFor } from '@/lib/cdd'
 import { formatShortDate } from '@/lib/format'
 import { getKycStatusConfig } from '@/lib/status'
-import type { KybListItem } from '@/lib/types'
+import type { KybEntityForm, KybListItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useKybList } from './hooks'
 
 // Same page size as the KYC queue.
 const PAGE_SIZE = 10
+
+/**
+ * How a row names itself to a screen reader. `userName` may be null, and the
+ * account email is then the only identifier the response carries — the entity's
+ * registered name is not in the list payload at all (encrypted column).
+ */
+function rowLabel(row: KybListItem): string {
+  return row.userName ?? row.userEmail
+}
 
 /**
  * USDX-546 — KYB review queue.
@@ -62,20 +72,22 @@ export default function KybListPage() {
       cell: ({ row }) => <RequestIdCell id={row.original.id} />,
     },
     {
-      accessorKey: 'entityName',
+      // `users.name`, NOT `kyb.entity_name`. The registered name is encrypted
+      // with a random IV, so the list query can neither select nor search it —
+      // `GET /api/v1/kyb` carries no ciphertext column at all, by design
+      // (`kyb.types.ts`). This is the name the backend puts in the queue for
+      // exactly that reason, and the NIB column that used to sit beside it was
+      // reading a field the response has never contained.
+      accessorKey: 'userName',
       header: 'Entity',
-      cell: ({ getValue }) => (
-        <span className="font-medium">{getValue() as string}</span>
-      ),
-    },
-    {
-      accessorKey: 'registrationNumber',
-      header: 'NIB',
-      cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
-          {getValue() as string}
-        </span>
-      ),
+      cell: ({ getValue }) => {
+        const name = getValue() as string | null
+        return name ? (
+          <span className="font-medium">{name}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )
+      },
     },
     {
       accessorKey: 'userEmail',
@@ -87,24 +99,13 @@ export default function KybListPage() {
       ),
     },
     {
-      accessorKey: 'uboCount',
-      header: 'UBOs',
-      cell: ({ getValue }) => {
-        const count = getValue() as number
-        return (
-          <span
-            className={cn(
-              'font-mono text-[12px] tabular-nums',
-              // Zero UBOs means the record cannot be approved as it stands —
-              // knowing who ultimately owns the entity IS the due diligence. Flag
-              // it in the list so the reviewer does not open it to find out.
-              count === 0 && 'font-medium text-destructive',
-            )}
-          >
-            {count}
-          </span>
-        )
-      },
+      accessorKey: 'entityForm',
+      header: 'Legal form',
+      cell: ({ getValue }) => (
+        <span className="text-[12.5px] text-muted-foreground">
+          {labelFor(getValue() as KybEntityForm, KYB_ENTITY_FORM_LABELS) ?? '—'}
+        </span>
+      ),
     },
     {
       accessorKey: 'status',
@@ -137,6 +138,15 @@ export default function KybListPage() {
       },
     },
     {
+      accessorKey: 'submissionCount',
+      header: 'Submissions',
+      cell: ({ getValue }) => (
+        <span className="font-mono text-[12px] tabular-nums">
+          {getValue() as number}
+        </span>
+      ),
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
@@ -147,7 +157,7 @@ export default function KybListPage() {
             navigate(`/kyb/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`Review KYB record for ${row.original.entityName}`}
+          aria-label={`Review KYB record for ${rowLabel(row.original)}`}
         >
           <Eye className="h-3.5 w-3.5" />
           Review
@@ -204,7 +214,10 @@ export default function KybListPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search entity or account email…',
+              // Deliberately not "search entity name": the server matches
+              // `users.name` and `users.email` only. `kyb.entity_name` is
+              // ciphertext, so promising to search it would promise nothing.
+              placeholder: 'Search account name or email…',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             filter={{
@@ -223,7 +236,7 @@ export default function KybListPage() {
         hasFilters={hasFilters}
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/kyb/${r.id}`)}
-        rowAriaLabel={(r) => `Open KYB record for ${r.entityName}`}
+        rowAriaLabel={(r) => `Open KYB record for ${rowLabel(r)}`}
       />
 
       <KybDetailModal

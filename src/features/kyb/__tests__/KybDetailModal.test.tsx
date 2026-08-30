@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
-import { findStaffById, issueMockJwt, resetMockData } from '@/mocks/handlers'
+import { resetMockData } from '@/mocks/handlers'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
 import { renderWithProviders } from '@/test/test-utils'
 import type { KybDetail, KybDocuments } from '@/lib/types'
@@ -52,7 +52,9 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
   id: KYB_ID,
   userId: 'usr_legal_1',
   userEmail: 'legal@juara.co.id',
+  userName: 'PT Juara Remiten Indonesia',
   status: 'PENDING',
+  submissionCount: 1,
   entityName: 'PT Juara Remiten Indonesia',
   entityForm: 'PT',
   country: 'ID',
@@ -100,6 +102,35 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
   ...overrides,
 })
 
+/**
+ * What `GET /api/v1/kyb/:id` ACTUALLY returns to a DEVELOPER.
+ *
+ * Not a convenience fixture: `maskFields` in `kyb.service.ts` replaces all six
+ * encrypted `kyb` columns with the `'***'` token for any role outside
+ * STAFF / MANAGER / ADMIN, and `presignAll` is never called, so every document
+ * slot is `null`. Testing the DEVELOPER view against an ADMIN-shaped payload
+ * would assert the screen is honest about data it would never receive.
+ */
+const makeDeveloperDetail = (overrides: Partial<KybDetail> = {}): KybDetail =>
+  makeDetail({
+    entityName: '***',
+    registrationNumber: '***',
+    taxId: '***',
+    registeredAddress: '***',
+    operationalAddress: '***',
+    phone: '***',
+    ubos: makeDetail().ubos.map((ubo) => ({
+      ...ubo,
+      firstName: '***',
+      lastName: '***',
+      identityNumber: '***',
+      addressLine1: '***',
+    })),
+    documents: NO_DOCUMENTS,
+    urlExpiresAt: null,
+    ...overrides,
+  })
+
 const ok = (data: unknown) =>
   HttpResponse.json({ status: 'success', metadata: null, data })
 
@@ -114,13 +145,6 @@ function renderModal(opts: { staffId?: string } = {}) {
     { initialEntries: ['/kyb'], authenticated: true, staffId: opts.staffId },
   )
   return { onOpenChange, ...utils }
-}
-
-/** Seed the mock session cookie for a bare `fetch` (no React involved). */
-function authenticateAs(staffId: string) {
-  const staff = findStaffById(staffId)
-  if (!staff) throw new Error(`unknown mock staff ${staffId}`)
-  document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
 }
 
 describe('KybDetailModal @ USDX-546', () => {
@@ -154,12 +178,13 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(4)
     })
 
-    test('offers NO upload control — not even to an ADMIN', async () => {
-      // There is no back-office endpoint to presign a KYB document against: PR
-      // #271 added the five path columns and the `documents` map on the read, and
-      // the only presign route in the repo is the CONSUMER one (`docKind` =
-      // `ktp | selfie`). A button here would 404 for real while passing every
-      // test against a mock, so the screen says read-only instead of offering one.
+    test('offers NO upload control, and says why rather than looking broken', async () => {
+      // The endpoints now exist (backend PR #275: `:id/documents/presign` then
+      // `:id/documents`) — wiring the three-step upload is a follow-up. What must
+      // NOT happen meanwhile is a slot that simply sits there: a reviewer would
+      // read an empty row as a control that failed to render. The note also has
+      // to state the consequence, because approve is blocked until a document
+      // arrives and nothing on this screen can put one there.
       stubDetail(makeDetail())
       renderModal() // stf_1 = ADMIN, the most privileged role there is
       const dialog = await screen.findByRole('dialog')
@@ -169,7 +194,7 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(docs).queryByRole('button')).not.toBeInTheDocument()
       expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
       expect(
-        within(dialog).getByText(/no endpoint to upload one from the back office/i),
+        within(dialog).getByText(/approval stays blocked until then/i),
       ).toBeInTheDocument()
     })
 
@@ -285,35 +310,11 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(rejectCalls).toBe(0)
     })
 
-    test('the API refuses a reasonless rejection even when the UI is bypassed', async () => {
-      // Same rule, one layer down. The FE guard is not the enforcement point —
-      // this is what makes "ditegakkan, bukan hanya di UI" true.
-      authenticateAs('stf_1')
-      const list = await fetch('/api/v1/kyb?limit=1&status=PENDING')
-      const { data } = (await list.json()) as { data: { id: string }[] }
-      const seededId = data[0]!.id
-
-      for (const body of [{}, { reason: '' }, { reason: '   ' }]) {
-        const res = await fetch(`/api/v1/kyb/${seededId}/reject`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        })
-        expect(res.status).toBe(400)
-      }
-
-      // And the record is untouched — still PENDING, still no reason.
-      const after = await fetch(`/api/v1/kyb/${seededId}`)
-      const { data: detail } = (await after.json()) as { data: KybDetail }
-      expect(detail.status).toBe('PENDING')
-      expect(detail.rejectionReason).toBeNull()
-    })
-
     test('DEVELOPER sees Approve / Reject disabled with a view-only hint', async () => {
-      stubDetail(makeDetail())
+      stubDetail(makeDeveloperDetail())
       renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByTestId('kyb-documents')
 
       expect(within(dialog).getByRole('button', { name: /^reject$/i })).toBeDisabled()
       expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeDisabled()
@@ -328,17 +329,68 @@ describe('KybDetailModal @ USDX-546', () => {
       // slots arrive `null` whatever the record holds. Printing "Not uploaded"
       // there would be a false statement a reviewer could act on — chasing a
       // partner for a document that is already on file.
-      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      stubDetail(makeDeveloperDetail())
       renderModal({ staffId: 'stf_3' }) // DEVELOPER
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      const docs = await within(dialog).findByTestId('kyb-documents')
 
-      const docs = within(dialog).getByTestId('kyb-documents')
       expect(within(docs).queryByText(/not uploaded/i)).not.toBeInTheDocument()
       expect(within(docs).getAllByText(/not shown to your role/i)).toHaveLength(5)
       expect(
         within(dialog).getByText(/does not mean the document is missing/i),
       ).toBeInTheDocument()
+    })
+
+    test('DEVELOPER is not shown an uploaded-document COUNT it cannot know', async () => {
+      // "0 of 5" is the tempting header and it is a lie for this role: no
+      // presigned URL is minted for it, so the count on screen would be the
+      // count of URLs handed out, not the count of documents on file.
+      stubDetail(makeDeveloperDetail())
+      renderModal({ staffId: 'stf_3' })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      expect(within(dialog).queryByText(/documents \(0 of 5\)/i)).not.toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/count not shown to your role/i),
+      ).toBeInTheDocument()
+    })
+
+    test('DEVELOPER reads withheld entity PII as withheld, not as the value', async () => {
+      // The backend sends the literal string `'***'` for every encrypted `kyb`
+      // column. Rendered raw it looks like the registered name IS three
+      // asterisks; the row has to say the field was withheld.
+      stubDetail(makeDeveloperDetail())
+      renderModal({ staffId: 'stf_3' })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      // Scoped to the ENTITY block on purpose: the documents section emits the
+      // same phrase for its five slots and its header, so a dialog-wide count
+      // stays green even with the withheld branch deleted. (It did — found by
+      // mutating `EntityValue` and watching this assertion survive.)
+      const entity = within(dialog).getByTestId('kyb-entity')
+      // Exactly six: name, NIB, NPWP, registered + operational address, phone.
+      expect(within(entity).getAllByText(/not shown to your role/i)).toHaveLength(6)
+      // Plaintext metadata is NOT masked and must still be readable — it is what
+      // a developer investigating a record actually needs.
+      expect(within(entity).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
+      expect(within(entity).getByText('2018-04-12')).toBeInTheDocument()
+    })
+
+    test('a genuinely empty entity field is an em dash, never "withheld"', async () => {
+      // `null` and `'***'` are different facts: the retention sweeper clearing a
+      // column is not the same as a role being refused it, and a reviewer acts
+      // differently on each.
+      stubDetail(makeDetail({ phone: null, website: null }))
+      renderModal() // ADMIN — nothing is withheld from this role
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('PT Juara Remiten Indonesia')
+
+      expect(
+        within(dialog).queryByText(/not shown to your role/i),
+      ).not.toBeInTheDocument()
+      expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2)
     })
 
     test('non-ADMIN sees the UBO identity number MASKED', async () => {
@@ -417,92 +469,6 @@ describe('KybDetailModal @ USDX-546', () => {
   })
 
   describe('edge cases', () => {
-    test('the seeded records always carry all five document slots, present or null', async () => {
-      // The response shape is a FIXED MAP, never a list: a missing key would have
-      // the FE render nothing at all for that document instead of "not uploaded".
-      authenticateAs('stf_1')
-      const list = await fetch('/api/v1/kyb?limit=50')
-      const { data } = (await list.json()) as { data: { id: string }[] }
-      expect(data.length).toBeGreaterThan(0)
-
-      for (const row of data) {
-        const res = await fetch(`/api/v1/kyb/${row.id}`)
-        const { data: detail } = (await res.json()) as { data: KybDetail }
-        expect(Object.keys(detail.documents)).toEqual([
-          'akte',
-          'nib',
-          'npwp',
-          'skKemenkumham',
-          'ktpDireksi',
-        ])
-        for (const value of Object.values(detail.documents)) {
-          // Only a presigned URL — no file name, no size: the backend stores none.
-          if (value !== null) expect(Object.keys(value)).toEqual(['url'])
-        }
-      }
-    })
-
-    test('the API refuses approval while a required document is missing, and names them all', async () => {
-      // Same rule one layer down, and the reason `details.missing` exists: the
-      // reviewer must learn the whole list at once, not one refused approve at a
-      // time. Required = akte · nib · npwp · ktpDireksi.
-      authenticateAs('stf_1')
-      const list = await fetch('/api/v1/kyb?limit=50&status=PENDING')
-      const { data } = (await list.json()) as { data: { id: string }[] }
-
-      // Find a seeded PENDING record with nothing uploaded at all.
-      let emptyId: string | null = null
-      for (const row of data) {
-        const res = await fetch(`/api/v1/kyb/${row.id}`)
-        const { data: detail } = (await res.json()) as { data: KybDetail }
-        if (Object.values(detail.documents).every((d) => d === null)) {
-          emptyId = row.id
-          break
-        }
-      }
-      expect(emptyId).not.toBeNull()
-
-      const refused = await fetch(`/api/v1/kyb/${emptyId}/approve`, { method: 'POST' })
-      expect(refused.status).toBe(409)
-      const body = (await refused.json()) as {
-        error: { code: string; details: { missing: string[] } }
-      }
-      expect(body.error.code).toBe('KYB_DOCUMENTS_INCOMPLETE')
-      expect(body.error.details.missing).toEqual(['akte', 'nib', 'npwp', 'ktpDireksi'])
-
-      // And the record is untouched — still PENDING.
-      const after = await fetch(`/api/v1/kyb/${emptyId}`)
-      const { data: detail } = (await after.json()) as { data: KybDetail }
-      expect(detail.status).toBe('PENDING')
-    })
-
-    test('SK Kemenkumham alone does NOT block approval — a CV has none', async () => {
-      // The one required-document rule that is conditional. If the mock (or the
-      // screen) treated all five slots as mandatory, every CV and firma would be
-      // unapprovable, which is a worse failure than a missing warning.
-      authenticateAs('stf_1')
-      const list = await fetch('/api/v1/kyb?limit=50&status=PENDING')
-      const { data } = (await list.json()) as { data: { id: string }[] }
-
-      let cvId: string | null = null
-      for (const row of data) {
-        const res = await fetch(`/api/v1/kyb/${row.id}`)
-        const { data: detail } = (await res.json()) as { data: KybDetail }
-        const d = detail.documents
-        if (d.akte && d.nib && d.npwp && d.ktpDireksi && d.skKemenkumham === null) {
-          cvId = row.id
-          break
-        }
-      }
-      expect(cvId).not.toBeNull()
-
-      const res = await fetch(`/api/v1/kyb/${cvId}/approve`, { method: 'POST' })
-      expect(res.status).toBe(200)
-      const after = await fetch(`/api/v1/kyb/${cvId}`)
-      const { data: detail } = (await after.json()) as { data: KybDetail }
-      expect(detail.status).toBe('VERIFIED')
-    })
-
     test('a record with NO UBO is called out as not approvable as it stands', async () => {
       // Without a UBO there is nothing to run due diligence on. A neutral "none
       // yet" would let a reviewer approve an empty record.

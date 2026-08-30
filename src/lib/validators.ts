@@ -904,16 +904,34 @@ export function validateOncallContactForm(input: {
 // The reject reason rule lives at the bottom of this file and is applied by the
 // mutation hook as well as the dialog — see `useRejectKyb`.
 // ─────────────────────────────────────────────────────────────────────────────
-const MAX_KYB_TEXT_LEN = 255
-const MAX_KYB_ADDRESS_LEN = 500
-const MAX_KYB_UBOS = 20
-// NIB is 13 digits, but older records carry a TDP/SIUP number, so the rule is
-// "digits and dashes, 8-30 chars" rather than a strict NIB mask — refusing a
-// legitimate legacy number would push the operator to type a fake one.
-const KYB_REGISTRATION_RE = /^[0-9-]{8,30}$/
-// NPWP badan: 15 digits (pre-2024) or 16 (NIK-based); punctuation optional.
+//
+// USDX-546 — every ceiling below is now the BACKEND's ceiling, not a guess.
+// `POST /api/v1/kyb` is live on dev (backend PR #271), so a limit that is wider
+// here than in `CreateKybDto` does not "allow more": it trades an inline message
+// the operator can act on for a 400 that arrives after the whole form was typed.
+// Sources are named per constant so the next edit can check them.
+const MAX_KYB_NAME_LEN = 255 // CreateKybDto @MaxLength(255) — entityName
+const MIN_KYB_NAME_LEN = 3 // CreateKybDto @MinLength(3)
+const MAX_KYB_SECTOR_LEN = 120 // CreateKybDto @MaxLength(120)
+const MAX_KYB_ADDRESS_LEN = 255 // CreateKybDto @MaxLength(255) — entity + UBO
+const MAX_KYB_WEBSITE_LEN = 255 // CreateKybDto @MaxLength(255)
+const MAX_KYB_UBOS = 20 // CreateKybDto @ArrayMaxSize(20)
+// NIB: DIGITS ONLY. `@IsNumberString({ no_symbols: true })` — the backend
+// normalises the value to digits before hashing it, so "8120-0123-45678" and
+// "812001234 5678" are the same company; accepting punctuation here would let an
+// operator file a spelling the API refuses.
+const KYB_REGISTRATION_RE = /^[0-9]{8,32}$/
+// NPWP badan: 15 digits (pre-2024) or 16 (NIK-based); punctuation optional. The
+// DTO only asks for 8-32 characters, so this stays the stricter of the two.
 const KYB_TAX_ID_RE = /^[0-9.\-\s]{15,25}$/
 const KYB_ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+// ISO 3166-1 alpha-2, matching the DTO regex AND the `kyb_country_iso3166`
+// CHECK constraint. Uppercase only — the constraint is on the stored value.
+const KYB_COUNTRY_RE = /^[A-Z]{2}$/
+// 0.01-100.00 with AT MOST two decimals — `kyc_ubo.ownership_pct` is
+// `numeric(5,2)`, so a third decimal is rounded away by Postgres and the figure
+// on screen stops being the figure on file. Same regex as the DTO.
+const KYB_OWNERSHIP_PCT_RE = /^(100(\.0{1,2})?|[1-9]\d?(\.\d{1,2})?|0\.(0[1-9]|[1-9]\d?))$/
 
 export interface KybUboFormInput {
   firstName: string
@@ -957,17 +975,24 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
 
   if (!input.entityName.trim()) {
     errors.entityName = 'Entity name is required'
-  } else if (input.entityName.length > MAX_KYB_TEXT_LEN) {
-    errors.entityName = `Entity name must be under ${MAX_KYB_TEXT_LEN} characters`
+  } else if (input.entityName.trim().length < MIN_KYB_NAME_LEN) {
+    errors.entityName = `Entity name must be at least ${MIN_KYB_NAME_LEN} characters`
+  } else if (input.entityName.length > MAX_KYB_NAME_LEN) {
+    errors.entityName = `Entity name must be under ${MAX_KYB_NAME_LEN} characters`
   }
 
   if (!input.entityForm.trim()) errors.entityForm = 'Legal form is required'
-  if (!input.country.trim()) errors.country = 'Country is required'
+
+  if (!input.country.trim()) {
+    errors.country = 'Country is required'
+  } else if (!KYB_COUNTRY_RE.test(input.country.trim())) {
+    errors.country = 'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+  }
 
   if (!input.registrationNumber.trim()) {
     errors.registrationNumber = 'Registration number (NIB) is required'
   } else if (!KYB_REGISTRATION_RE.test(input.registrationNumber.trim())) {
-    errors.registrationNumber = 'Registration number must be 8-30 digits (dashes allowed)'
+    errors.registrationNumber = 'Registration number must be 8-32 digits, no dashes or spaces'
   }
 
   if (!input.taxId.trim()) {
@@ -988,8 +1013,8 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
 
   if (!input.businessSector.trim()) {
     errors.businessSector = 'Business sector is required'
-  } else if (input.businessSector.length > MAX_KYB_TEXT_LEN) {
-    errors.businessSector = `Business sector must be under ${MAX_KYB_TEXT_LEN} characters`
+  } else if (input.businessSector.length > MAX_KYB_SECTOR_LEN) {
+    errors.businessSector = `Business sector must be under ${MAX_KYB_SECTOR_LEN} characters`
   }
 
   if (!input.registeredAddress.trim()) {
@@ -1009,6 +1034,8 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
   const website = input.website.trim()
   if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(website)) {
     errors.website = 'Website must start with http:// or https://'
+  } else if (website.length > MAX_KYB_WEBSITE_LEN) {
+    errors.website = `Website must be under ${MAX_KYB_WEBSITE_LEN} characters`
   }
 
   if (!input.phone.trim()) {
@@ -1036,8 +1063,12 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     if (!pctRaw) {
       errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % is required'
       ownershipParsable = false
-    } else if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
-      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % must be between 0 and 100'
+    } else if (!KYB_OWNERSHIP_PCT_RE.test(pctRaw)) {
+      // One rule, two failures it has to separate: out of range, and more
+      // precision than `numeric(5,2)` can hold. Both are 400s from the API, and
+      // the second one is the surprising one — say which it is.
+      errors[kybUboErrorKey(i, 'ownershipPct')] =
+        'Ownership % must be a decimal between 0.01 and 100.00 with at most 2 decimals'
       ownershipParsable = false
     } else {
       ownershipTotal += pct
@@ -1053,9 +1084,23 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
       errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number must be 8-20 digits'
     }
 
-    if (!ubo.country.trim()) errors[kybUboErrorKey(i, 'country')] = 'Country is required'
-    if (!ubo.addressLine1.trim())
+    if (!ubo.country.trim()) {
+      errors[kybUboErrorKey(i, 'country')] = 'Country is required'
+    } else if (!KYB_COUNTRY_RE.test(ubo.country.trim())) {
+      errors[kybUboErrorKey(i, 'country')] =
+        'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    }
+
+    if (!ubo.addressLine1.trim()) {
       errors[kybUboErrorKey(i, 'addressLine1')] = 'Address is required'
+    } else if (ubo.addressLine1.length > MAX_KYB_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'addressLine1')] =
+        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    }
+    if (ubo.addressLine2.length > MAX_KYB_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'addressLine2')] =
+        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    }
   })
 
   // Only meaningful once every row parsed — otherwise the total is a partial sum
@@ -1070,6 +1115,16 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
 export const KYB_REJECT_REASON_MAX = 500
 
 /**
+ * Ten characters, and it is not a style preference: `RejectKybDto` declares
+ * `@MinLength(10)`, the service re-checks it (`REJECTION_REASON_TOO_SHORT`), and
+ * TWO database CHECKs refuse anything shorter after trimming
+ * (`kyb_rejected_requires_reason`, `kyb_reviews_rejected_requires_reason`).
+ * Mirroring it here is what keeps the operator's typed text on screen instead of
+ * trading it for a 400 — and "no" is not a reason the entity can act on anyway.
+ */
+export const KYB_REJECT_REASON_MIN = 10
+
+/**
  * The reject-reason rule as a pure function, so the dialog, the mutation hook and
  * the tests all read the SAME rule. Returning the trimmed value is the point: a
  * caller cannot accidentally send `"   "` past a `valid` check.
@@ -1079,6 +1134,12 @@ export function validateKybRejectReason(
 ): { valid: true; reason: string } | { valid: false; error: string } {
   const trimmed = reason.trim()
   if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (trimmed.length < KYB_REJECT_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Reason must be at least ${KYB_REJECT_REASON_MIN} characters — the entity is told this`,
+    }
+  }
   if (trimmed.length > KYB_REJECT_REASON_MAX) {
     return {
       valid: false,

@@ -11,6 +11,13 @@ import { renderWithProviders } from '@/test/test-utils'
 import type { KybListItem } from '@/lib/types'
 
 // USDX-546 — KYB review queue + the hook-level reject guard.
+//
+// `/api/v1/kyb` is served by the REAL backend and its MSW handler is gone, so
+// every test here stubs the endpoint it exercises. The row shape below is copied
+// field for field from `backend/src/modules/kyb/kyb.types.ts § KybListItem` —
+// notably it carries NO `entityName`, NO `registrationNumber` and NO `uboCount`:
+// the first two are encrypted columns the list query cannot read and the third is
+// not in the payload at all.
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -23,10 +30,10 @@ const row = (overrides: Partial<KybListItem> = {}): KybListItem => ({
   id: 'kyb_1',
   userId: 'usr_legal_1',
   userEmail: 'legal@juara.co.id',
-  entityName: 'PT Juara Remiten Indonesia',
-  registrationNumber: '8120012345678',
+  userName: 'PT Juara Remiten Indonesia',
+  entityForm: 'PT',
   status: 'PENDING',
-  uboCount: 2,
+  submissionCount: 1,
   submittedAt: '2026-06-01T03:00:00Z',
   reviewedAt: null,
   reviewedByName: null,
@@ -64,9 +71,22 @@ describe('KybListPage @ USDX-546', () => {
     test('renders a row from GET /api/v1/kyb', async () => {
       server.use(http.get('/api/v1/kyb', () => okList([row()])))
       setup()
+      // The Entity column reads `userName` — `users.name`, the only plaintext
+      // name the list response carries.
       expect(await screen.findByText('PT Juara Remiten Indonesia')).toBeInTheDocument()
-      expect(screen.getByText('8120012345678')).toBeInTheDocument()
       expect(screen.getByText('legal@juara.co.id')).toBeInTheDocument()
+      expect(screen.getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
+    })
+
+    test('renders an em dash when the account has no name, not a blank cell', async () => {
+      // `userName` is nullable in the response. A blank cell reads as "failed to
+      // load"; the row still has to be openable and identifiable by email.
+      server.use(http.get('/api/v1/kyb', () => okList([row({ userName: null })])))
+      setup()
+      expect(await screen.findByText('legal@juara.co.id')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /review kyb record for legal@juara\.co\.id/i }),
+      ).toBeInTheDocument()
     })
 
     test('a reviewer can reach the manual-entry form — KYB has no self-service submit', async () => {
@@ -113,7 +133,7 @@ describe('KybListPage @ USDX-546', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.type(screen.getByPlaceholderText(/search entity/i), 'juara')
+      await user.type(screen.getByPlaceholderText(/search account name/i), 'juara')
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=juara'))).toBe(true),
       )
@@ -159,14 +179,17 @@ describe('KybListPage @ USDX-546', () => {
   })
 
   describe('edge cases', () => {
-    test('a record with zero UBOs is flagged in the list', async () => {
-      // Surfaced in the list so a reviewer does not open the record to discover it
-      // cannot be approved.
-      server.use(http.get('/api/v1/kyb', () => okList([row({ uboCount: 0 })])))
+    test('an entity form the label map does not know still renders readably', async () => {
+      // `kyb_entity_form` is a pg enum, so a value added backend-first can arrive
+      // before this build knows it. `labelFor` falls back to a humanised form
+      // rather than rendering the raw enum or an empty cell.
+      server.use(
+        http.get('/api/v1/kyb', () =>
+          okList([row({ entityForm: 'PT_PERORANGAN' }), row({ id: 'kyb_2' })]),
+        ),
+      )
       setup()
-      await screen.findByText('PT Juara Remiten Indonesia')
-      const cell = screen.getByText('0')
-      expect(cell.className).toMatch(/destructive/)
+      expect(await screen.findByText('PT Perorangan')).toBeInTheDocument()
     })
 
     test('renders the empty state when there are no records', async () => {
@@ -240,6 +263,24 @@ describe('useRejectKyb @ USDX-546', () => {
       await user.click(screen.getByRole('button', { name: /reject directly/i }))
 
       expect(await screen.findByText(/rejection reason is required/i)).toBeInTheDocument()
+      expect(calls).toBe(0)
+    })
+    test('refuses a reason under ten characters WITHOUT issuing a request', async () => {
+      // `RejectKybDto` declares @MinLength(10) and two DB CHECKs enforce it, so
+      // sending "palsu" could only earn a 400. Refusing at the hook keeps the
+      // guard in front of every caller, not just the dialog.
+      const user = userEvent.setup()
+      let calls = 0
+      server.use(
+        http.post('/api/v1/kyb/kyb_1/reject', () => {
+          calls++
+          return HttpResponse.json({ status: 'success', metadata: null, data: {} })
+        }),
+      )
+      renderWithProviders(<RejectHarness reason="palsu" />, { authenticated: true })
+      await user.click(screen.getByRole('button', { name: /reject directly/i }))
+
+      expect(await screen.findByText(/at least 10 characters/i)).toBeInTheDocument()
       expect(calls).toBe(0)
     })
   })

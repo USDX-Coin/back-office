@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
 import { server } from '@/mocks/server'
 import {
+  handlers,
   resetMockData,
   clearActiveRequestsForTests,
   flushSettlement,
@@ -470,5 +471,45 @@ describe('Auth via session cookie (USDX-392)', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe('success')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — the KYB screen has ONE source of truth: the real backend.
+//
+// This is the runtime-effective half of that decision. `INTEGRATION_PATHS` in
+// `browser.ts` only filters handlers OUT of the browser worker — it has no effect
+// under Vitest and none at all once a handler no longer exists. What actually
+// guarantees no mock can answer for `/api/v1/kyb*`, in the browser or in a test,
+// is that the handlers were deleted. Assert that, not the documentation.
+//
+// The failure this closes is specific: with a stale mock still registered, a
+// reviewer opening /kyb in dev sees eleven convincing seeded records and cannot
+// tell that the backend was never called.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('KYB is served by the real backend, not by MSW', () => {
+  describe('negative', () => {
+    test('no handler is registered for any /api/v1/kyb path', () => {
+      const kybHandlers = handlers
+        .map((h) => (h as { info?: { path?: unknown; method?: unknown } }).info)
+        .filter((info) => typeof info?.path === 'string' && info.path.startsWith('/api/v1/kyb'))
+        .map((info) => `${String(info?.method)} ${String(info?.path)}`)
+
+      expect(kybHandlers).toEqual([])
+    })
+  })
+
+  describe('positive', () => {
+    test('the KYC handlers ARE still registered — this is not a blanket deletion', () => {
+      // Guards the assertion above from passing for the wrong reason (a broken
+      // `info` shape, an empty handler list). KYC is also live on the real
+      // backend but deliberately KEEPS its handlers for Vitest coverage.
+      const kycPaths = handlers
+        .map((h) => (h as { info?: { path?: unknown } }).info?.path)
+        .filter((path): path is string => typeof path === 'string')
+        .filter((path) => path.startsWith('/api/v1/kyc'))
+
+      expect(kycPaths.length).toBeGreaterThan(0)
+    })
   })
 })
