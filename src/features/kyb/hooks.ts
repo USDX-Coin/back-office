@@ -1,9 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import {
+  declaredContentType,
+  KYB_DOCUMENT_SLOT_DOC_KINDS,
+  KYB_DOCUMENT_TYPE_LABEL,
+} from '@/lib/kybDocumentUpload'
 import { validateKybRejectReason } from '@/lib/validators'
 import type {
   CreateKybBody,
   KybDetail,
+  KybDocumentAttachBody,
+  KybDocumentPresignBody,
+  KybDocumentSlot,
+  KybDocumentUploadResult,
+  KybDocumentUploadTicket,
   KybListItem,
   PhaseOnePaginatedResponse,
 } from '@/lib/types'
@@ -174,22 +184,150 @@ export function useRejectKyb() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// No document upload hook YET — and the reason changed on 28 Aug 2026.
+// Document upload — the three-step flow (USDX-546).
 //
-// It used to be that no endpoint existed. That is no longer true: backend PR #275
-// shipped `POST /api/v1/kyb/:id/documents/presign` and `POST /api/v1/kyb/:id/
-// documents`, both live on api-dev, both STAFF / MANAGER / ADMIN, both gated on
-// the record still being PENDING. The reason there is no hook here is now scope:
-// this change connects the review flow and deletes the mock, and a three-step
-// upload (presign → PUT the bytes with the ticket's headers verbatim → attach the
-// object key) is its own surface with its own failure modes — magic-byte
-// sniffing, the signed Content-Length, `credentials: 'omit'` so the desk session
-// cookie never reaches the bucket host.
+//   1. POST /api/v1/kyb/:id/documents/presign  { docKind, fileType, sizeBytes }
+//                                             → { uploadUrl, objectKey, expiresAt, headers }
+//   2. PUT  <uploadUrl>                        the bytes + the ticket's headers, VERBATIM
+//   3. POST /api/v1/kyb/:id/documents          { docKind, objectKey }
+//                                             → { id, docKind, objectKey, uploaded }
 //
-// The consequence is worth stating plainly rather than leaving for someone to
-// discover: with no upload here and no `*Path` field on the create form, a KYB
-// record entered from the back office has all five slots empty, so `approve`
-// answers `409 KYB_DOCUMENTS_INCOMPLETE` every time and NO record can reach
-// VERIFIED from this UI. Reject works; approve cannot. That is a follow-up
-// ticket, not a hidden defect.
+// This is what closes the gap the review screen used to state out loud: with all
+// five slots empty, `approve` could only ever answer `409
+// KYB_DOCUMENTS_INCOMPLETE`, so no entity could reach VERIFIED from the back
+// office. The four REQUIRED slots now have a way in.
+//
+// Both endpoints are STAFF / MANAGER / ADMIN (DEVELOPER → 403) and both refuse a
+// record that is not PENDING (`409 INVALID_STATUS`) — the same gates as approve /
+// reject, enforced server-side in `kyb.service.ts`. The screen mirrors them so
+// nobody is offered a control that can only fail.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export interface UploadKybDocumentInput {
+  kybId: string
+  slot: KybDocumentSlot
+  file: File
+}
+
+/** True once the presigned URL is past its stated lifetime. */
+function isTicketExpired(ticket: KybDocumentUploadTicket, now: number = Date.now()): boolean {
+  const expiry = Date.parse(ticket.expiresAt)
+  return Number.isFinite(expiry) && expiry <= now
+}
+
+/**
+ * Step 2 — the bytes go STRAIGHT to the bucket, never through the API.
+ *
+ * A bare `fetch`, not `apiFetch`, and each difference is load-bearing:
+ *   - `uploadUrl` is absolute on the storage host (`https://t3.storageapi.dev`),
+ *     while `apiFetch` prepends `env.apiUrl`;
+ *   - `credentials: 'omit'` — `apiFetch` attaches the httpOnly desk session
+ *     cookie to every call, and shipping that cookie to a third-party bucket
+ *     would leak the staff session outside the API's origin. A signed URL needs
+ *     no cookie;
+ *   - the ticket's `headers` are sent VERBATIM. A presigned URL is signed
+ *     together with a specific header set, so inventing a `Content-Type` here —
+ *     even the obviously-correct one — changes the signature and storage refuses
+ *     the write. It would pass every local test (a mock verifies no signature)
+ *     and fail only in production.
+ *
+ * `Content-Length` is signed too and is deliberately NOT set: it is a forbidden
+ * header, so the browser owns it and fills it from the real file. That is why
+ * step 1 must declare `sizeBytes` — the only way the signature and the header
+ * can agree.
+ *
+ * The storage host has to be in the index.html CSP `connect-src`. It is (added
+ * for the transparency attestation upload, and locked by
+ * `src/__tests__/csp.test.ts`); `img-src` governs `<img>`, not `fetch`, so
+ * without it the browser blocks the PUT before it is sent and the operator sees
+ * a bare `TypeError: Failed to fetch`.
+ */
+async function putDocumentToStorage(
+  ticket: KybDocumentUploadTicket,
+  file: File,
+): Promise<void> {
+  if (isTicketExpired(ticket)) {
+    throw new Error(
+      'The upload link expired before the file could be sent. Pick the file again.',
+    )
+  }
+
+  const response = await fetch(ticket.uploadUrl, {
+    method: 'PUT',
+    body: file,
+    credentials: 'omit',
+    headers: ticket.headers,
+  })
+
+  if (!response.ok) {
+    // A 5 MiB file on a slow line can outlive a 5-minute ticket. Saying so beats
+    // a bare 403, which reads like a permission problem the operator cannot fix.
+    if (isTicketExpired(ticket)) {
+      throw new Error(
+        'The upload link expired before the file finished sending. Pick the file again.',
+      )
+    }
+    throw new Error(
+      `Storage refused the upload (${response.status}). The document was NOT attached to this record.`,
+    )
+  }
+}
+
+/**
+ * All three steps in ONE mutation, so the screen has a single pending flag per
+ * slot and a single place failures surface.
+ *
+ * Order matters for what is left behind on failure: a failure in step 2 or 3
+ * leaves an orphaned object in the bucket (the backend's cleanup problem), but
+ * NO path is written on the KYB row unless the bytes really landed and the
+ * server re-checked them. The reverse — a path pointing at nothing — is the one
+ * that would make a reviewer approve an entity whose document cannot be opened.
+ *
+ * Deliberately does NOT invalidate `['kyb','detail',id]`: re-reading the detail
+ * writes a `pii_access_audit` row (it decrypts entity PII and mints presigned
+ * URLs), so five uploads would manufacture five audited reads nobody asked for.
+ * The `uploaded` map in the response already states which slots are on file, and
+ * the screen offers ONE explicit reload when the operator wants the links.
+ */
+export function useUploadKybDocument() {
+  return useMutation({
+    mutationFn: async ({
+      kybId,
+      slot,
+      file,
+    }: UploadKybDocumentInput): Promise<KybDocumentUploadResult> => {
+      const docKind = KYB_DOCUMENT_SLOT_DOC_KINDS[slot]
+      // `fileType` is the type the file really claims (browser MIME, or the
+      // extension when the browser reported none) — not `file.type` raw, which
+      // is `''` for many drag-and-dropped files and would earn a 400 from the
+      // server's whitelist for a perfectly valid scan.
+      const fileType = declaredContentType(file)
+      if (!fileType) {
+        throw new Error(
+          `Only ${KYB_DOCUMENT_TYPE_LABEL} files can be uploaded as KYB documents`,
+        )
+      }
+
+      const presignBody: KybDocumentPresignBody = {
+        docKind,
+        fileType,
+        sizeBytes: file.size,
+      }
+      const ticket = await apiFetch<KybDocumentUploadTicket>(
+        `/api/v1/kyb/${kybId}/documents/presign`,
+        { method: 'POST', body: presignBody },
+      )
+
+      await putDocumentToStorage(ticket, file)
+
+      const attachBody: KybDocumentAttachBody = {
+        docKind,
+        objectKey: ticket.objectKey,
+      }
+      return apiFetch<KybDocumentUploadResult>(`/api/v1/kyb/${kybId}/documents`, {
+        method: 'POST',
+        body: attachBody,
+      })
+    },
+  })
+}

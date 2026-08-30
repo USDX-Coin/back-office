@@ -1397,6 +1397,74 @@ export interface CreateKybBody {
   ubos: KybUboInput[]
 }
 
+/**
+ * `docKind` — the REQUEST vocabulary for the same five documents whose RESPONSE
+ * slots are `KybDocumentSlot`. Two spellings, deliberately, and they are not
+ * interchangeable: the response is camelCase per `sot/conventions.md`, while
+ * `docKind` is lower snake_case because it is a storage doc kind, shared with
+ * the consumer path (`ktp`, `selfie`) and used verbatim inside the object key
+ * (`kyc/{userId}/{docKind}/{uuid}.{ext}`).
+ *
+ * `sot/api/storage.yaml#PresignedDocKind` pins the first two literally
+ * (`kyb_akte`, `kyb_nib`); the other three follow the same
+ * `kyb_<column without _path>` shape and are not written in `sot/` yet — the
+ * backend reports that gap as a PM item (`KYB_DOC_KINDS`, storage.constants.ts).
+ * Values transcribed from there, not invented here.
+ *
+ * The mapping slot → kind lives once, in `KYB_DOCUMENT_SLOT_DOC_KINDS`
+ * (`src/lib/kybDocumentUpload.ts`).
+ */
+export type KybDocKind =
+  | 'kyb_akte'
+  | 'kyb_nib'
+  | 'kyb_npwp'
+  | 'kyb_sk_kemenkumham'
+  | 'kyb_ktp_direksi'
+
+/**
+ * POST /api/v1/kyb/:id/documents/presign — step 1 of 3.
+ *
+ * `sizeBytes` is NOT optional and not advisory: the backend signs it into the
+ * presigned PUT as `Content-Length` (`generatePresignedUploadUrl`). The browser
+ * fills that header itself from the real file and forbids overriding it, so a
+ * size that disagrees makes storage refuse every upload with a signature error.
+ */
+export interface KybDocumentPresignBody {
+  docKind: KybDocKind
+  /** MIME type. Server whitelist per docKind: `application/pdf | image/jpeg | image/png`. */
+  fileType: string
+  /** `file.size`. Server cap 5 MiB → `400 FILE_SIZE_EXCEEDED`. */
+  sizeBytes: number
+}
+
+/** Response of the presign call — the ticket the PUT in step 2 must honour. */
+export interface KybDocumentUploadTicket {
+  uploadUrl: string
+  objectKey: string
+  expiresAt: string
+  /** Send these VERBATIM on the PUT; they are part of what the URL was signed over. */
+  headers: Record<string, string>
+}
+
+/** POST /api/v1/kyb/:id/documents — step 3 of 3, registers the uploaded key. */
+export interface KybDocumentAttachBody {
+  docKind: KybDocKind
+  objectKey: string
+}
+
+/**
+ * Response of the attach call. `uploaded` is the state of all five slots AFTER
+ * this upload, straight from the row the server just wrote — so the screen can
+ * say which documents are on file without a second, PII-audited read of the
+ * detail. It carries no URL, because nothing is rendered from it.
+ */
+export interface KybDocumentUploadResult {
+  id: string
+  docKind: KybDocKind
+  objectKey: string
+  uploaded: Record<KybDocumentSlot, boolean>
+}
+
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
 // USDX-46: forms now submit `userId` (operator picks from existing users)
 // + `amountCurrency` (USD/IDR — BE converts IDR using current rate).

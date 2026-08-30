@@ -83,10 +83,11 @@ export const KYB_ENTITY_FORM_LABELS: Record<KybEntityForm, string> = {
  * is the only thing that identifies the document, and these are the names printed
  * on the documents themselves.
  *
- * There is deliberately NO upload `kind` vocabulary here. No back-office presign
- * endpoint for KYB documents exists in any backend — `POST /api/v2/storage/
- * presigned-upload` is the CONSUMER one and its `docKind` is `ktp | selfie`. A
- * `kind` enum with no endpoint behind it would read like a working upload path.
+ * The upload `docKind` for each slot is a SEPARATE vocabulary and lives in
+ * `KYB_DOCUMENT_SLOT_DOC_KINDS` (`src/lib/kybDocumentUpload.ts`) next to the
+ * size and type limits it travels with — the response says `akte`, the request
+ * says `kyb_akte`, and keeping the two maps apart is how each stays readable
+ * against the backend file it was transcribed from.
  *
  * Typed as a `Record<KybDocumentSlot, …>` so adding a slot to the union without
  * naming it here fails the build.

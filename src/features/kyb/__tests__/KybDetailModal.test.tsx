@@ -1,12 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
+import { KYB_DOCUMENT_ACCEPT_ATTR } from '@/lib/kybDocumentUpload'
 import { renderWithProviders } from '@/test/test-utils'
-import type { KybDetail, KybDocuments } from '@/lib/types'
+import type { KybDetail, KybDocuments, KycStatus } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-546 — KYB review detail.
@@ -178,24 +179,30 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(4)
     })
 
-    test('offers NO upload control, and says why rather than looking broken', async () => {
-      // The endpoints now exist (backend PR #275: `:id/documents/presign` then
-      // `:id/documents`) — wiring the three-step upload is a follow-up. What must
-      // NOT happen meanwhile is a slot that simply sits there: a reviewer would
-      // read an empty row as a control that failed to render. The note also has
-      // to state the consequence, because approve is blocked until a document
-      // arrives and nothing on this screen can put one there.
+    test('every slot carries its own upload, named so the five are told apart', async () => {
+      // Five identical "Upload" controls would be unusable with a screen reader
+      // and untestable by name. Each picker is labelled with the document it
+      // fills, which is also the only identity a KYB document has (the backend
+      // stores no file name).
       stubDetail(makeDetail())
-      renderModal() // stf_1 = ADMIN, the most privileged role there is
+      renderModal() // stf_1 = ADMIN
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       const docs = within(dialog).getByTestId('kyb-documents')
-      expect(within(docs).queryByRole('button')).not.toBeInTheDocument()
-      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
-      expect(
-        within(dialog).getByText(/approval stays blocked until then/i),
-      ).toBeInTheDocument()
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(5)
+      SLOT_LABELS.forEach((label) => {
+        const input = within(docs).getByLabelText(
+          new RegExp(`(upload|replace) ${label}`, 'i'),
+        )
+        expect(input).toHaveAttribute('type', 'file')
+        // The picker must not offer a type the server refuses: `image/heic` is
+        // fine for a KYC photo and NOT for a KYB document.
+        expect(input.getAttribute('accept')).toBe(KYB_DOCUMENT_ACCEPT_ATTR)
+        expect(input.getAttribute('accept')).not.toMatch(/heic/i)
+      })
+      // The limits stated on screen are the server's own numbers.
+      expect(within(dialog).getByText(/up to 5 MiB each/i)).toBeInTheDocument()
     })
 
     test('reject WITH a reason sends the reason and closes the modal', async () => {
@@ -545,6 +552,600 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       expect(within(dialog).getByText('Akta Pendirian').tagName).not.toBe('A')
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — document upload, the three-step flow.
+//
+// The load-bearing test in this block is the CHAIN one: four required documents
+// uploaded, then approve SUCCEEDS and the entity is VERIFIED. Every other test
+// here checks a part; only that one checks that the parts join up, which is the
+// whole reason this screen existed in a state where `approve` could not succeed
+// even once.
+//
+// The stubs below implement the DEPLOYED backend's own rules, transcribed from
+// `backend@origin/dev` after PR #275 — not a permissive mock:
+//   presign  gates on PENDING, 5 MiB, the PDF/JPEG/PNG whitelist per docKind;
+//   attach   gates on PENDING and writes exactly one `kyb.*_path` column;
+//   approve  refuses with `409 KYB_DOCUMENTS_INCOMPLETE` + `details.missing`
+//            while any of akte / nib / npwp / ktpDireksi is unset
+//            (`REQUIRED_KYB_DOCUMENTS`, kyb.service.ts — skKemenkumham is NOT in
+//            it: a CV has none), and answers VERIFIED once all four are there.
+// A permissive mock is what lets a client bug pass locally and fail at the desk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OWNER_ID = 'usr_legal_1'
+const BUCKET = 'https://t3.storageapi.dev/usdx-kyc-dev'
+
+/** The four the backend requires; skKemenkumham is deliberately absent. */
+const REQUIRED_SLOTS = ['akte', 'nib', 'npwp', 'ktpDireksi'] as const
+
+function fileWithBytes(name: string, type: string, head: number[], size = 512) {
+  const bytes = new Uint8Array(size)
+  bytes.set(head, 0)
+  return new File([bytes], name, { type })
+}
+
+const PDF_BYTES = [0x25, 0x50, 0x44, 0x46, 0x2d] // %PDF-
+const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+const ZIP_BYTES = [0x50, 0x4b, 0x03, 0x04] // PK.. — a ZIP wearing a .pdf name
+
+const pdfFile = (name = 'akta.pdf', size = 512) =>
+  fileWithBytes(name, 'application/pdf', PDF_BYTES, size)
+
+/** Picks a file into the slot's input the way a browser file dialog does. */
+function pickFile(dialog: HTMLElement, label: string, file: File) {
+  const input = within(dialog).getByLabelText(
+    new RegExp(`(upload|replace) ${label}`, 'i'),
+  )
+  fireEvent.change(input, { target: { files: [file] } })
+}
+
+/**
+ * A stand-in for the deployed backend's KYB document + approve behaviour.
+ * Returns the call log so a test can assert WHAT was sent, not only that
+ * something was.
+ */
+function stubDocumentBackend(options: { status?: KycStatus } = {}) {
+  const paths: Record<string, string | null> = {
+    akte: null,
+    nib: null,
+    npwp: null,
+    skKemenkumham: null,
+    ktpDireksi: null,
+  }
+  const slotOf: Record<string, string> = {
+    kyb_akte: 'akte',
+    kyb_nib: 'nib',
+    kyb_npwp: 'npwp',
+    kyb_sk_kemenkumham: 'skKemenkumham',
+    kyb_ktp_direksi: 'ktpDireksi',
+  }
+  const calls: string[] = []
+  const presignBodies: Record<string, unknown>[] = []
+  const attachBodies: Record<string, unknown>[] = []
+  const putHeaders: Record<string, string>[] = []
+  const approveResults: Array<{ status: number; body: unknown }> = []
+  const status = options.status ?? 'PENDING'
+  let keySeq = 0
+
+  const uploadedMap = () =>
+    Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, v !== null]))
+
+  server.use(
+    http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, async ({ request }) => {
+      calls.push('presign')
+      const body = (await request.json()) as Record<string, unknown>
+      presignBodies.push(body)
+      if (status !== 'PENDING') {
+        return errorResponse(409, 'INVALID_STATUS', 'INVALID_STATUS')
+      }
+      if ((body.sizeBytes as number) > 5 * 1024 * 1024) {
+        return errorResponse(400, 'FILE_SIZE_EXCEEDED', 'Ukuran melewati batas.')
+      }
+      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(body.fileType as string)) {
+        return errorResponse(
+          400,
+          'FILE_TYPE_NOT_ALLOWED',
+          `fileType "${body.fileType}" tidak diizinkan.`,
+        )
+      }
+      keySeq += 1
+      const ext = (body.fileType as string) === 'application/pdf' ? 'pdf' : 'png'
+      return ok({
+        // `kyc/{userId PEMILIK berkas}/{docKind}/{uuid}.{ext}` — the owner's id,
+        // not the operator's, because the retention sweeper deletes per subject.
+        objectKey: `kyc/${OWNER_ID}/${body.docKind}/key-${keySeq}.${ext}`,
+        uploadUrl: `${BUCKET}/signed-${keySeq}`,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        // NOT just `Content-Type`: a client that hardcodes the header set it
+        // thinks is right would break the signature, and only a stub that hands
+        // back something unexpected can catch that.
+        headers: {
+          'content-type': body.fileType as string,
+          'x-amz-meta-doc-kind': body.docKind as string,
+        },
+      })
+    }),
+    http.put(`${BUCKET}/:key`, ({ request }) => {
+      calls.push('put')
+      putHeaders.push({
+        'content-type': request.headers.get('content-type') ?? '',
+        'x-amz-meta-doc-kind': request.headers.get('x-amz-meta-doc-kind') ?? '',
+      })
+      return new HttpResponse(null, { status: 200 })
+    }),
+    http.post(`/api/v1/kyb/${KYB_ID}/documents`, async ({ request }) => {
+      calls.push('attach')
+      const body = (await request.json()) as Record<string, unknown>
+      attachBodies.push(body)
+      if (status !== 'PENDING') {
+        return errorResponse(409, 'INVALID_STATUS', 'INVALID_STATUS')
+      }
+      const slot = slotOf[body.docKind as string]
+      paths[slot] = body.objectKey as string
+      return ok({
+        id: KYB_ID,
+        docKind: body.docKind,
+        objectKey: body.objectKey,
+        uploaded: uploadedMap(),
+      })
+    }),
+    http.post(`/api/v1/kyb/${KYB_ID}/approve`, () => {
+      calls.push('approve')
+      const missing = REQUIRED_SLOTS.filter((slot) => paths[slot] === null)
+      if (missing.length > 0) {
+        const result = {
+          status: 409,
+          body: {
+            code: 'KYB_DOCUMENTS_INCOMPLETE',
+            message: `Dokumen wajib belum lengkap: ${missing.join(', ')}.`,
+            details: { missing },
+          },
+        }
+        approveResults.push(result)
+        return HttpResponse.json(
+          { status: 'error', metadata: null, data: null, error: result.body },
+          { status: 409 },
+        )
+      }
+      const body = { id: KYB_ID, status: 'VERIFIED' }
+      approveResults.push({ status: 200, body })
+      return ok(body)
+    }),
+  )
+
+  return { calls, presignBodies, attachBodies, putHeaders, approveResults, paths }
+}
+
+function errorResponse(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status },
+  )
+}
+
+describe('KybDetailModal — document upload @ USDX-546', () => {
+  describe('positive', () => {
+    test('runs the THREE steps in order: presign the kind, PUT with the ticket headers, attach the key', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf', 4096))
+
+      await waitFor(() => expect(be.calls).toEqual(['presign', 'put', 'attach']))
+      // Step 1 must carry all three fields. `sizeBytes` is signed as
+      // Content-Length: the browser fills that header from the real file and
+      // forbids overriding it, so a guessed size makes storage refuse every PUT.
+      expect(be.presignBodies[0]).toEqual({
+        docKind: 'kyb_akte',
+        fileType: 'application/pdf',
+        sizeBytes: 4096,
+      })
+      // Step 2 must send the ticket's headers VERBATIM — a presigned URL is
+      // signed over them, and inventing our own only fails in production.
+      expect(be.putHeaders[0]).toEqual({
+        'content-type': 'application/pdf',
+        'x-amz-meta-doc-kind': 'kyb_akte',
+      })
+      // Step 3 is JSON carrying the key the server itself minted — the file
+      // never passes through the API.
+      expect(be.attachBodies[0]).toEqual({
+        docKind: 'kyb_akte',
+        objectKey: `kyc/${OWNER_ID}/kyb_akte/key-1.pdf`,
+      })
+    })
+
+    test('the slot flips from empty to filled and the header count follows', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+
+      expect(
+        await within(dialog).findByText(/documents \(1 of 5\)/i),
+      ).toBeInTheDocument()
+      // "Uploaded" and not a link: the record on screen was read BEFORE the
+      // upload, so no presigned URL exists for it yet. Rendering one would mean
+      // inventing it.
+      expect(within(dialog).getByText(/uploaded — reload to open/i)).toBeInTheDocument()
+      expect(
+        within(dialog).getByRole('button', { name: /reload record/i }),
+      ).toBeInTheDocument()
+    })
+
+    test('CHAIN: the four required documents uploaded, then Approve SUCCEEDS and the entity is VERIFIED', async () => {
+      // This is the acceptance test of the whole ticket. Before this change the
+      // five slots had no way to be filled, so `approve` answered
+      // `409 KYB_DOCUMENTS_INCOMPLETE` every single time and NO entity could
+      // reach VERIFIED from the back office. Each half worked; the join did not.
+      const user = userEvent.setup()
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      const { onOpenChange } = renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      // 1. Approve with nothing on file — the server refuses and names the four.
+      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      const firstConfirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
+      await user.click(within(firstConfirm).getByRole('button', { name: /^approve$/i }))
+      await waitFor(() => expect(be.approveResults).toHaveLength(1))
+      expect(be.approveResults[0].status).toBe(409)
+      expect(await screen.findByTestId('kyb-documents-incomplete')).toBeInTheDocument()
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+      // 2. Upload the four REQUIRED documents. SK Kemenkumham is left empty on
+      //    purpose — it is conditional (a CV has none) and must not gate.
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
+      await waitFor(() => expect(be.paths.akte).not.toBeNull())
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+      await waitFor(() => expect(be.paths.nib).not.toBeNull())
+      pickFile(dialog, 'NPWP Badan', pdfFile('npwp.pdf'))
+      await waitFor(() => expect(be.paths.npwp).not.toBeNull())
+      pickFile(dialog, 'KTP Pengurus', fileWithBytes('ktp.png', 'image/png', PNG_BYTES))
+      await waitFor(() => expect(be.paths.ktpDireksi).not.toBeNull())
+      expect(be.paths.skKemenkumham).toBeNull()
+      expect(await within(dialog).findByText(/documents \(4 of 5\)/i)).toBeInTheDocument()
+
+      // 3. Approve again — now it goes through.
+      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      const secondConfirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
+      await user.click(within(secondConfirm).getByRole('button', { name: /^approve$/i }))
+
+      await waitFor(() => expect(be.approveResults).toHaveLength(2))
+      expect(be.approveResults[1]).toEqual({
+        status: 200,
+        body: { id: KYB_ID, status: 'VERIFIED' },
+      })
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    })
+
+    test('an uploaded slot stops being highlighted as missing', async () => {
+      const user = userEvent.setup()
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      const confirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
+      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+      expect(await screen.findAllByTestId('kyb-document-missing')).toHaveLength(4)
+
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
+
+      // Leaving the row red after the document landed is how an operator ends up
+      // asking the entity for a file it already sent.
+      await waitFor(() =>
+        expect(screen.getAllByTestId('kyb-document-missing')).toHaveLength(3),
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('a file over 5 MiB is refused BEFORE anything is signed for', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf', 5 * 1024 * 1024 + 1))
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-nib')
+      expect(error).toHaveTextContent(/5 MiB/)
+      // The point of checking locally: the operator does not wait for a 5 MiB
+      // upload only to be told no. Nothing left the browser.
+      expect(be.calls).toEqual([])
+    })
+
+    test('a type outside PDF / JPG / PNG is refused, and the message names the rule', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      // HEIC is accepted for a KYC photo and refused for a KYB document, so this
+      // is exactly the file an operator would reasonably expect to work.
+      // `....ftypheic` — a real HEIC header, so the file is refused by the TYPE
+      // rule and not incidentally by the byte sniff.
+      pickFile(
+        dialog,
+        'NPWP Badan',
+        fileWithBytes(
+          'npwp.heic',
+          'image/heic',
+          [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63],
+        ),
+      )
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-npwp')
+      expect(error).toHaveTextContent(/PDF/)
+      expect(error).toHaveTextContent(/PNG/)
+      // Wording unique to the type rule: if HEIC were let through the whitelist
+      // the row would show the CONTENTS message instead, and this passes only
+      // because the type gate is the one that refused.
+      expect(error).toHaveTextContent(/can be uploaded as KYB documents/i)
+      expect(be.calls).toEqual([])
+    })
+
+    test('a .pdf whose BYTES are a ZIP is refused, and told it is the contents', async () => {
+      // The smuggling case the backend added magic-byte sniffing for. Both the
+      // extension and the Content-Type are chosen by whoever picked the file;
+      // the first bytes are not. Catching it here also tells the operator WHAT
+      // the file really is, which the server's 400 does not.
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(
+        dialog,
+        'Akta Pendirian',
+        fileWithBytes('akta.pdf', 'application/pdf', ZIP_BYTES),
+      )
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-akte')
+      expect(error).toHaveTextContent(/contents/i)
+      expect(be.calls).toEqual([])
+    })
+
+    test('a presign refusal is shown with its cause, not as a generic failure', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const calls: string[] = []
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, () => {
+          calls.push('presign')
+          return errorResponse(
+            400,
+            'FILE_TYPE_NOT_ALLOWED',
+            'fileType "application/pdf" tidak diizinkan.',
+          )
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-nib')
+      expect(error).toHaveTextContent(/file type/i)
+      expect(error).not.toHaveTextContent(/request failed/i)
+      expect(calls).toEqual(['presign'])
+    })
+
+    test('a storage PUT that fails says storage — and NO object key is attached', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const calls: string[] = []
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, () => {
+          calls.push('presign')
+          return ok({
+            objectKey: `kyc/${OWNER_ID}/kyb_nib/key-1.pdf`,
+            uploadUrl: `${BUCKET}/signed-1`,
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
+        }),
+        http.put(`${BUCKET}/:key`, () => {
+          calls.push('put')
+          return new HttpResponse(null, { status: 403 })
+        }),
+        http.post(`/api/v1/kyb/${KYB_ID}/documents`, () => {
+          calls.push('attach')
+          return ok({})
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-nib')
+      expect(error).toHaveTextContent(/storage/i)
+      // A path pointing at bytes that never landed is the failure that would let
+      // a reviewer approve an entity whose document cannot be opened.
+      expect(calls).toEqual(['presign', 'put'])
+      expect(within(dialog).queryByText(/uploaded — reload to open/i)).not.toBeInTheDocument()
+    })
+
+    test('an attach refusal passes the server reason through, since only it names the defect', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, () =>
+          ok({
+            objectKey: `kyc/${OWNER_ID}/kyb_akte/key-1.pdf`,
+            uploadUrl: `${BUCKET}/signed-1`,
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          }),
+        ),
+        http.put(`${BUCKET}/:key`, () => new HttpResponse(null, { status: 200 })),
+        http.post(`/api/v1/kyb/${KYB_ID}/documents`, () =>
+          errorResponse(
+            400,
+            'KYB_FILE_INVALID',
+            'Dokumen kyb_akte tidak valid: Storage object content bytes look like "application/zip"',
+          ),
+        ),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-akte')
+      expect(error).toHaveTextContent(/tidak valid/)
+      expect(error).toHaveTextContent(/application\/zip/)
+    })
+
+    test('DEVELOPER is offered no upload control at all', async () => {
+      // The endpoints are STAFF / MANAGER / ADMIN; DEVELOPER gets 403 and is
+      // never handed a presigned URL either. A picker for that role could only
+      // ever end in an error it cannot act on.
+      stubDetail(makeDeveloperDetail())
+      renderModal({ staffId: 'stf_3' })
+      const dialog = await screen.findByRole('dialog')
+      const docs = await within(dialog).findByTestId('kyb-documents')
+
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
+      expect(within(docs).queryByText(/^upload$/i)).not.toBeInTheDocument()
+    })
+
+    test('a record already reviewed offers no upload control', async () => {
+      // Server-side: both endpoints answer `409 INVALID_STATUS` for anything but
+      // PENDING. A decided file must not have its evidence changed underneath
+      // the decision.
+      stubDetail(makeDetail({ status: 'VERIFIED', documents: NO_DOCUMENTS }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const docs = await within(dialog).findByTestId('kyb-documents')
+
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
+      expect(
+        within(dialog).getByText(/only be changed while the record is awaiting review/i),
+      ).toBeInTheDocument()
+    })
+
+    test('a REJECTED record offers no upload control either', async () => {
+      stubDetail(
+        makeDetail({
+          status: 'REJECTED',
+          rejectionReason: 'Akta tidak terbaca sama sekali',
+          documents: NO_DOCUMENTS,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const docs = await within(dialog).findByTestId('kyb-documents')
+
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a STAFF operator — the least privileged role that may decide — can upload', async () => {
+      // `canReviewKyc` is "not DEVELOPER", so STAFF must be exercised too: a gate
+      // written as an ADMIN check would pass every test above and lock out the
+      // people who actually work the queue.
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const be = stubDocumentBackend()
+      renderModal({ staffId: 'stf_5' }) // Sarah King, STAFF
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'NPWP Badan', pdfFile('npwp.pdf'))
+
+      await waitFor(() => expect(be.calls).toEqual(['presign', 'put', 'attach']))
+      expect(be.presignBodies[0]).toMatchObject({ docKind: 'kyb_npwp' })
+    })
+
+    test('an expired ticket is never PUT to — the failure is named, not a bare 403', async () => {
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      const calls: string[] = []
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, () => {
+          calls.push('presign')
+          return ok({
+            objectKey: `kyc/${OWNER_ID}/kyb_nib/key-1.pdf`,
+            uploadUrl: `${BUCKET}/signed-1`,
+            // 5-minute TTL, already spent — a slow line and a 5 MiB file reach
+            // this, and storage would answer 403 as if it were a permissions
+            // problem the operator could fix.
+            expiresAt: new Date(Date.now() - 1_000).toISOString(),
+            headers: { 'content-type': 'application/pdf' },
+          })
+        }),
+        http.put(`${BUCKET}/:key`, () => {
+          calls.push('put')
+          return new HttpResponse(null, { status: 200 })
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+
+      const error = await within(dialog).findByTestId('kyb-upload-error-nib')
+      expect(error).toHaveTextContent(/expired/i)
+      expect(calls).toEqual(['presign'])
+    })
+
+    test('an already-filled slot offers Replace, and replacing keeps the same docKind', async () => {
+      // `attachDocument` overwrites the path column, so replacing a wrong scan
+      // is legitimate while the record is PENDING — and it must land in the SAME
+      // column, not a new one.
+      stubDetail(makeDetail()) // akte already has a URL
+      const be = stubDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta-benar.pdf'))
+
+      await waitFor(() => expect(be.attachBodies).toHaveLength(1))
+      expect(be.attachBodies[0]).toMatchObject({ docKind: 'kyb_akte' })
+    })
+
+    test('picking the SAME file again after a failure retries instead of doing nothing', async () => {
+      // A file input does not fire `change` when the value has not changed, so
+      // without clearing it the operator's second attempt at the same file is
+      // silently ignored and the stale error reads as permanent.
+      stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
+      let attempts = 0
+      server.use(
+        http.post(`/api/v1/kyb/${KYB_ID}/documents/presign`, () => {
+          attempts += 1
+          return errorResponse(400, 'KYB_FILE_NOT_FOUND', 'tidak ditemukan')
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      const file = pdfFile('nib.pdf')
+      pickFile(dialog, 'NIB', file)
+      await within(dialog).findByTestId('kyb-upload-error-nib')
+      pickFile(dialog, 'NIB', file)
+
+      await waitFor(() => expect(attempts).toBe(2))
     })
   })
 })
