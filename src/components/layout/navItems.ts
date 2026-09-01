@@ -16,6 +16,7 @@ import {
   KeyRound,
   Landmark,
   PhoneCall,
+  ShieldAlert,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -27,7 +28,7 @@ import {
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn' | 'kyc' | 'kyb'
+export type BadgeKey = 'mint' | 'burn' | 'kyc' | 'kyb' | 'screening'
 
 export interface NavItem {
   to: string
@@ -105,6 +106,13 @@ export const NAV_SECTIONS: NavSection[] = [
       // plus its UBOs versus one person) and KYB additionally has a data-entry
       // form, because KYB is manual.
       { to: '/kyb', label: 'KYB Review', icon: Building2, badgeKey: 'kyb' },
+      // USDX-588 — antrean screening DTTOT & DPPSPM. Aturan visibilitas sama
+      // dengan KYC/KYB: semua role membaca antrean, memutuskan digerbangi di
+      // dalam. Badge `(N)` menghitung temuan yang MASIH MENAHAN subjeknya
+      // (`open=true`), bukan yang belum disentuh — temuan yang sudah diputus
+      // CONFIRMED_MATCH tetap menahan, dan angka yang mengecualikannya akan
+      // menyatakan pekerjaan sudah selesai padahal ada nasabah yang tertahan.
+      { to: '/screening', label: 'Screening', icon: ShieldAlert, badgeKey: 'screening' },
       // Transparency: the append-only reserve ledger + attestation reports
       // behind the public usdx.co.id figures. Read audience is ADMIN +
       // DEVELOPER (KONTRAK-API-TRANSPARANSI.md § 3), which is exactly what

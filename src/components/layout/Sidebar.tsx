@@ -4,6 +4,7 @@ import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { usePendingKycCount } from '@/features/kyc/hooks'
 import { usePendingKybCount } from '@/features/kyb/hooks'
+import { useOpenScreeningCount } from '@/features/screening/hooks'
 import { cn } from '@/lib/utils'
 import {
   visibleNavSections,
@@ -28,6 +29,9 @@ export default function Sidebar() {
   // USDX-546 — same reasoning as the KYC badge: the KYB queue is readable by
   // every role, so no `enabled` gate.
   const kybPending = usePendingKybCount()
+  // USDX-588 — alasan sama: antrean screening terbuka untuk semua role, jadi
+  // tidak ada gerbang `enabled`.
+  const screeningOpen = useOpenScreeningCount()
 
   const sections = visibleNavSections(user)
 
@@ -36,6 +40,7 @@ export default function Sidebar() {
     if (key === 'burn') return burnPending.data ?? 0
     if (key === 'kyc') return kycPending.data ?? 0
     if (key === 'kyb') return kybPending.data ?? 0
+    if (key === 'screening') return screeningOpen.data ?? 0
     return 0
   }
 
