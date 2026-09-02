@@ -33,6 +33,12 @@ const makeDetail = (overrides: Partial<KycDetail> = {}): KycDetail => ({
   birthPlace: 'Jakarta',
   identityType: 'KTP',
   identityNumber: '3171234567890123',
+  // Identitas Pasal 25 (1) a angka 1 (USDX-583/584).
+  nationality: 'ID',
+  gender: 'PEREMPUAN',
+  maritalStatus: 'BELUM_KAWIN',
+  mothersMaidenName: 'Siti Rohmah',
+  aliasName: null,
   country: 'ID',
   addressLine1: 'Jl. Sudirman No. 1',
   addressLine2: 'RT 1/RW 2',
@@ -42,10 +48,14 @@ const makeDetail = (overrides: Partial<KycDetail> = {}): KycDetail => ({
   // CDD block (USDX-545). Populated in the base fixture so the existing
   // assertions run against a realistic record; the CDD-specific tests below
   // override individual fields.
-  occupation: 'PRIVATE_EMPLOYEE',
+  occupation: 'KARYAWAN_SWASTA',
   sourceOfFunds: 'SALARY',
   annualIncomeRange: 'FROM_100M_TO_500M',
+  netWorthRange: 'FROM_500M_TO_2B',
   transactionPurpose: 'INVESTMENT',
+  sourceOfWealth: 'SALARY_ACCUMULATION',
+  employerAddress: 'Jl. Gatot Subroto No. 12, Jakarta Selatan',
+  employerPhone: '02170000001',
   npwp: '123456789012345',
   pepStatus: false,
   pepRelation: null,
@@ -95,6 +105,24 @@ function renderModal(opts: { staffId?: string } = {}) {
   return { onOpenChange, ...utils }
 }
 
+/**
+ * Queries scoped to ONE field.
+ *
+ * USDX-587 put six PII fields on this screen, so `***` anywhere in the dialog no
+ * longer proves which one was withheld — a dialog-wide count stays green with
+ * the role gate on any single field removed. Every masking assertion below is
+ * therefore made against the field it is about.
+ */
+const field = (scope: HTMLElement, testId: string) =>
+  within(within(scope).getByTestId(testId))
+
+/** The field shows `***` AND says the value is withheld, not merely absent. */
+function expectMasked(scope: HTMLElement, testId: string) {
+  const f = field(scope, testId)
+  expect(f.getByText('***')).toBeInTheDocument()
+  expect(f.getByText(/admin only/i)).toBeInTheDocument()
+}
+
 describe('KycDetailModal @ USDX-155', () => {
   describe('positive', () => {
     test('AC — renders decrypted PII plaintext from GET /v1/kyc/:id', async () => {
@@ -103,11 +131,17 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
       expect(within(dialog).getByText('Alice Anderson')).toBeInTheDocument()
-      expect(within(dialog).getByText(/1995-03-15/)).toBeInTheDocument()
-      expect(within(dialog).getByText(/Jakarta/)).toBeInTheDocument()
-      expect(within(dialog).getByText(/3171234567890123/)).toBeInTheDocument()
+      // Scoped: `employerAddress` (USDX-587) also names Jakarta, so an unscoped
+      // `/Jakarta/` no longer proves the BIRTH PLACE is on screen.
+      expect(field(dialog, 'kyc-dob').getByText(/1995-03-15/)).toBeInTheDocument()
+      expect(field(dialog, 'kyc-dob').getByText(/Jakarta/)).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-identity-number').getByText(/3171234567890123/),
+      ).toBeInTheDocument()
       expect(within(dialog).getByText(/Jl\. Sudirman No\. 1/)).toBeInTheDocument()
-      expect(within(dialog).getByText('ID')).toBeInTheDocument()
+      // Scoped: `nationality` (USDX-587) is also `ID`, so an unscoped lookup now
+      // matches two fields and proves neither.
+      expect(field(dialog, 'kyc-country').getByText('ID')).toBeInTheDocument()
     })
 
     test('AC — KTP + selfie photos render from presigned URLs with expiry countdown', async () => {
@@ -409,10 +443,12 @@ const PEP_RELATION = 'Kakak — anggota DPRD Provinsi Jakarta'
 
 const cddDetail = (overrides: Partial<KycDetail> = {}): KycDetail =>
   makeDetail({
-    occupation: 'CIVIL_SERVANT',
+    occupation: 'PEGAWAI_NEGERI_SIPIL',
     sourceOfFunds: 'BUSINESS',
     annualIncomeRange: 'FROM_500M_TO_1B',
+    netWorthRange: 'FROM_2B_TO_10B',
     transactionPurpose: 'REMITTANCE',
+    sourceOfWealth: 'BUSINESS_OWNERSHIP',
     npwp: NPWP,
     pepStatus: true,
     pepRelation: PEP_RELATION,
@@ -427,7 +463,12 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
-      expect(within(dialog).getByText('Civil servant')).toBeInTheDocument()
+      // Label Permendagri, bukan kode enum: `PEGAWAI_NEGERI_SIPIL` di layar
+      // memaksa petugas menerjemahkan sendiri sebelum bisa mencocokkannya
+      // dengan kolom "Pekerjaan" di KTP nasabah.
+      expect(
+        field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
+      ).toBeInTheDocument()
       expect(within(dialog).getByText('Business')).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
       expect(within(dialog).getByText('Remittance')).toBeInTheDocument()
@@ -486,9 +527,11 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       expect(within(dialog).queryByText(NPWP)).not.toBeInTheDocument()
       expect(within(dialog).queryByText(PEP_RELATION)).not.toBeInTheDocument()
       // …but the reviewer is told a value EXISTS and is withheld, rather than
-      // being shown a dash that reads as "not collected".
-      expect(within(dialog).getAllByText('***')).toHaveLength(2)
-      expect(within(dialog).getAllByText(/admin only/i)).toHaveLength(2)
+      // being shown a dash that reads as "not collected". Asserted PER FIELD:
+      // a dialog-wide count of `***` is satisfied by the five other PII fields
+      // on this screen even with one gate removed.
+      expectMasked(dialog, 'kyc-npwp')
+      expectMasked(dialog, 'kyc-pep-relation')
     })
 
     test('a masked view still shows the non-PII CDD values', async () => {
@@ -499,7 +542,9 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
-      expect(within(dialog).getByText('Civil servant')).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
+      ).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
       expect(
         within(dialog).getByText(/politically exposed person/i),
@@ -516,7 +561,11 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
           occupation: null,
           sourceOfFunds: null,
           annualIncomeRange: null,
+          netWorthRange: null,
           transactionPurpose: null,
+          sourceOfWealth: null,
+          employerAddress: null,
+          employerPhone: null,
           npwp: null,
           pepStatus: null,
           pepRelation: null,
@@ -524,11 +573,13 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      const cdd = within(dialog).getByTestId('kyc-cdd')
 
-      expect(within(dialog).getByText(/predates the CDD fields/i)).toBeInTheDocument()
-      // Nothing is masked — there is nothing to withhold.
-      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+      expect(within(cdd).getByText(/predates the CDD fields/i)).toBeInTheDocument()
+      // Nothing is masked — there is nothing to withhold. Scoped to the CDD
+      // block: the identity grid above carries its own PII, which this record
+      // still has and which says nothing about the CDD answers.
+      expect(within(cdd).queryByText('***')).not.toBeInTheDocument()
     })
 
     test('pepStatus false counts as collected — no "predates" note', async () => {
@@ -539,7 +590,11 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
           occupation: null,
           sourceOfFunds: null,
           annualIncomeRange: null,
+          netWorthRange: null,
           transactionPurpose: null,
+          sourceOfWealth: null,
+          employerAddress: null,
+          employerPhone: null,
           npwp: null,
           pepStatus: false,
           pepRelation: null,
@@ -562,7 +617,283 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
-      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+      // Scoped to the two fields this record emptied — the same MANAGER is still
+      // being shown `***` for the PII this customer DID provide, and an
+      // unscoped query cannot tell the two apart.
+      expect(field(dialog, 'kyc-npwp').queryByText('***')).not.toBeInTheDocument()
+      expect(field(dialog, 'kyc-npwp').getByText('—')).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-pep-relation').queryByText('***'),
+      ).not.toBeInTheDocument()
+      expect(field(dialog, 'kyc-pep-relation').getByText('—')).toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-587 — the identity and CDD fields the customer answers and the reviewer
+// could not see.
+//
+// USDX-583/584 added nine columns and made them REQUIRED at submit, but never
+// surfaced them here: the customer filled them in, the ciphertext was stored,
+// and the officer approved without ever being able to look at them. Rendering
+// them IS the ticket, and POJK 8/2023 Pasal 63 ayat (2) huruf c is what makes it
+// a compliance requirement rather than a nicety.
+//
+// The two FINDINGS below are the part that is not a field: each value is legal
+// on its own and only the PAIRING is a problem, which is exactly what a flat
+// list of fields hides.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ALIAS = 'Ratu Ayu'
+const MOTHERS_MAIDEN = 'Siti Rohmah'
+const EMPLOYER_ADDRESS = 'Jl. Gatot Subroto No. 12, Jakarta Selatan'
+const EMPLOYER_PHONE = '02170000001'
+
+/** A record whose nine new answers are all present. */
+const fullDetail = (overrides: Partial<KycDetail> = {}): KycDetail =>
+  makeDetail({
+    nationality: 'ID',
+    gender: 'PEREMPUAN',
+    maritalStatus: 'KAWIN',
+    mothersMaidenName: MOTHERS_MAIDEN,
+    aliasName: ALIAS,
+    netWorthRange: 'FROM_2B_TO_10B',
+    sourceOfWealth: 'BUSINESS_OWNERSHIP',
+    employerAddress: EMPLOYER_ADDRESS,
+    employerPhone: EMPLOYER_PHONE,
+    ...overrides,
+  })
+
+describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () => {
+  describe('positive', () => {
+    test('renders the new identity answers as labels, not as enum values', async () => {
+      // `PEREMPUAN` / `KAWIN` on screen would make the officer translate before
+      // they can compare the answer with the KTP the customer uploaded below.
+      stubDetail(fullDetail())
+      renderModal() // ADMIN
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('alice.anderson@example.com')
+
+      expect(field(dialog, 'kyc-nationality').getByText('ID')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-gender').getByText('Perempuan')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-marital-status').getByText('Kawin')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-alias-name').getByText(ALIAS)).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-mothers-maiden-name').getByText(MOTHERS_MAIDEN),
+      ).toBeInTheDocument()
+    })
+
+    test('renders the new CDD answers, employer contact included', async () => {
+      stubDetail(fullDetail())
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const cdd = within(dialog).getByTestId('kyc-cdd')
+
+      expect(
+        within(within(cdd).getByTestId('kyc-net-worth')).getByText(
+          'Rp 2 miliar – 10 miliar',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        within(within(cdd).getByTestId('kyc-source-of-wealth')).getByText(
+          'Kepemilikan usaha',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-employer-address').getByText(EMPLOYER_ADDRESS),
+      ).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-employer-phone').getByText(EMPLOYER_PHONE),
+      ).toBeInTheDocument()
+    })
+
+    test('renders occupation as its Permendagri label, never the enum value', async () => {
+      // The list is the one Dukcapil prints in the KTP "Pekerjaan" column, which
+      // is the document the officer is holding this answer against.
+      stubDetail(fullDetail({ occupation: 'ANGGOTA_DPRD_PROVINSI', pepStatus: true }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      const occupation = field(dialog, 'kyc-occupation')
+      expect(occupation.getByText('Anggota DPRD Provinsi')).toBeInTheDocument()
+      expect(occupation.queryByText('ANGGOTA_DPRD_PROVINSI')).not.toBeInTheDocument()
+    })
+
+    test('flags a public-office occupation answered as NOT a PEP', async () => {
+      // Permendagri 48-63 is the domestic PEP scope of Pasal 2 ayat (2) huruf b.
+      // Both answers are legal on their own; the PAIRING is what has to be
+      // checked before approve, and a flat field list hides it completely.
+      stubDetail(fullDetail({ occupation: 'BUPATI', pepStatus: false, pepRelation: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const finding = await within(dialog).findByTestId('kyc-finding-pep-occupation')
+      expect(finding).toHaveTextContent(/jabatan publik/i)
+      expect(finding).toHaveTextContent(/bukan PEP/i)
+    })
+
+    test('flags a PEP with no source of wealth', async () => {
+      // Pasal 37 ayat (1) huruf d requires the periodic EDD to analyse source of
+      // funds AND source of wealth — an empty answer there is a finding, not an
+      // ordinary blank cell.
+      stubDetail(fullDetail({ pepStatus: true, pepRelation: PEP_RELATION, sourceOfWealth: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const finding = await within(dialog).findByTestId(
+        'kyc-finding-pep-source-of-wealth',
+      )
+      expect(finding).toHaveTextContent(/sumber kekayaan/i)
+    })
+  })
+
+  describe('negative', () => {
+    test.each([
+      ['MANAGER', 'stf_2'],
+      ['DEVELOPER', 'stf_3'],
+      ['STAFF', 'stf_4'],
+    ])('%s sees the new PII fields MASKED, one by one', async (_role, staffId) => {
+      // Same gate as NPWP (`canReadCustomerPii`, ADMIN only): a maiden name, an
+      // alias and a workplace address each identify a person on their own.
+      stubDetail(fullDetail())
+      renderModal({ staffId })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      for (const value of [ALIAS, MOTHERS_MAIDEN, EMPLOYER_ADDRESS, EMPLOYER_PHONE]) {
+        expect(within(dialog).queryByText(value)).not.toBeInTheDocument()
+      }
+      expectMasked(dialog, 'kyc-alias-name')
+      expectMasked(dialog, 'kyc-mothers-maiden-name')
+      expectMasked(dialog, 'kyc-employer-address')
+      expectMasked(dialog, 'kyc-employer-phone')
+    })
+
+    test('a non-ADMIN still reads every non-PII answer', async () => {
+      // Masking the closed-value answers too would defeat the point of putting
+      // them on the page: nationality, gender, marital status, net worth and
+      // source of wealth are not identifiers.
+      stubDetail(fullDetail())
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(field(dialog, 'kyc-nationality').getByText('ID')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-gender').getByText('Perempuan')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-marital-status').getByText('Kawin')).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-net-worth').getByText('Rp 2 miliar – 10 miliar'),
+      ).toBeInTheDocument()
+      expect(
+        field(dialog, 'kyc-source-of-wealth').getByText('Kepemilikan usaha'),
+      ).toBeInTheDocument()
+    })
+
+    test('does NOT flag a public-office occupation the customer confirmed as PEP', async () => {
+      // Answers that agree are not a finding. Raising one here would make the
+      // highlight fire on every genuine PEP file and stop being read.
+      stubDetail(fullDetail({ occupation: 'BUPATI', pepStatus: true, pepRelation: PEP_RELATION }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-occupation'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('does NOT flag a PEP whose source of wealth IS on file', async () => {
+      stubDetail(
+        fullDetail({
+          pepStatus: true,
+          pepRelation: PEP_RELATION,
+          sourceOfWealth: 'INVESTMENT_RETURN',
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-source-of-wealth'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('does NOT flag an ordinary occupation answered as not a PEP', async () => {
+      stubDetail(fullDetail({ occupation: 'KARYAWAN_SWASTA', pepStatus: false }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-occupation'),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a public-office occupation with pepStatus NULL is not a contradiction', async () => {
+      // `null` means the question was never asked (a record submitted before
+      // USDX-545), not an answer that conflicts with the occupation. Flagging it
+      // would put a "check this" banner on every legacy file at once and train
+      // the officer to scroll past the one that matters.
+      stubDetail(fullDetail({ occupation: 'BUPATI', pepStatus: null, pepRelation: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-occupation'),
+      ).not.toBeInTheDocument()
+      // …and the missing-source-of-wealth finding is not raised either: that one
+      // is about PEPs, and this customer has not said they are one.
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-source-of-wealth'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('both findings can stand at once without hiding each other', async () => {
+      stubDetail(
+        fullDetail({ occupation: 'GUBERNUR', pepStatus: false, sourceOfWealth: null }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      await within(dialog).findByTestId('kyc-finding-pep-occupation')
+      // Only the occupation finding: `pepStatus` is false, so there is no PEP to
+      // demand a source of wealth from.
+      expect(
+        within(dialog).queryByTestId('kyc-finding-pep-source-of-wealth'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('an unanswered new field is an em dash, not a blank cell', async () => {
+      // A blank reads as "the screen is broken"; the dash reads as "not
+      // collected", which is a fact the reviewer can act on.
+      stubDetail(
+        fullDetail({
+          nationality: null,
+          gender: null,
+          maritalStatus: null,
+          netWorthRange: null,
+          sourceOfWealth: null,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText(/customer due diligence/i)
+
+      for (const id of [
+        'kyc-nationality',
+        'kyc-gender',
+        'kyc-marital-status',
+        'kyc-net-worth',
+        'kyc-source-of-wealth',
+      ]) {
+        expect(field(dialog, id).getByText('—')).toBeInTheDocument()
+      }
     })
   })
 })

@@ -7,7 +7,7 @@ import { resetMockData } from '@/mocks/handlers'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
 import { KYB_DOCUMENT_ACCEPT_ATTR } from '@/lib/kybDocumentUpload'
 import { renderWithProviders } from '@/test/test-utils'
-import type { KybDetail, KybDocuments, KycStatus } from '@/lib/types'
+import type { KybDetail, KybDocuments, KybUbo, KycStatus } from '@/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-546 — KYB review detail.
@@ -67,6 +67,10 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
   operationalAddress: 'Jl. Thamrin No. 5, Jakarta',
   website: 'https://juara.co.id',
   phone: '+622140001234',
+  incorporationPlace: 'Jakarta Selatan',
+  isMicroOrSmall: false,
+  sourceOfFunds: 'BUSINESS',
+  transactionPurpose: 'INVESTMENT',
   ubos: [
     {
       id: 'ubo_1',
@@ -78,6 +82,28 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
       country: 'ID',
       addressLine1: 'Jl. Sudirman No. 1',
       addressLine2: null,
+      // Pasal 33 (3) selengkapnya (USDX-584/602) — UBO #1 LENGKAP, jadi setiap
+      // baris kartunya punya nilai untuk diperiksa assertion.
+      aliasName: null,
+      birthPlace: 'Bandung',
+      dob: '1980-02-20',
+      employerAddress: 'Jl. Asia Afrika No. 8, Bandung',
+      employerPhone: '02270000002',
+      nationality: 'ID',
+      occupation: 'WIRASWASTA',
+      gender: 'LAKI_LAKI',
+      maritalStatus: 'KAWIN',
+      sourceOfFunds: 'BUSINESS',
+      annualIncomeRange: 'OVER_1B',
+      netWorthRange: 'FROM_2B_TO_10B',
+      legalRelationship: 'SURAT_PERJANJIAN',
+      legalRelationshipDocUrl: 'https://t3.storageapi.dev/usdx-kyb/rel-1.pdf?sig=r1',
+      customerDeclarationDocUrl: 'https://t3.storageapi.dev/usdx-kyb/decl-1.pdf?sig=d1',
+      cascadeStep: 'KEPEMILIKAN',
+      livenessStatus: null,
+      disdukcapilStatus: null,
+      identityPhotoUrl: 'https://t3.storageapi.dev/usdx-kyb/ktp-1.jpg?sig=k1',
+      selfiePhotoUrl: 'https://t3.storageapi.dev/usdx-kyb/self-1.jpg?sig=s1',
     },
     {
       id: 'ubo_2',
@@ -89,6 +115,30 @@ const makeDetail = (overrides: Partial<KybDetail> = {}): KybDetail => ({
       country: 'ID',
       addressLine1: 'Jl. Thamrin No. 2',
       addressLine2: null,
+      // UBO #2 sengaja BELUM lengkap: jenis hubungan hukum terisi tapi
+      // dokumennya tidak ada, dan pernyataan nasabahnya juga tidak ada. Itu dua
+      // keadaan yang harus disorot kartunya, dan mock yang selalu lengkap
+      // membuat cabang itu tidak pernah teruji.
+      aliasName: 'Siti R.',
+      birthPlace: 'Surabaya',
+      dob: '1986-11-03',
+      employerAddress: null,
+      employerPhone: null,
+      nationality: 'ID',
+      occupation: 'ANGGOTA_DPRD_PROVINSI',
+      gender: 'PEREMPUAN',
+      maritalStatus: 'CERAI_HIDUP',
+      sourceOfFunds: 'SALARY',
+      annualIncomeRange: 'FROM_500M_TO_1B',
+      netWorthRange: null,
+      legalRelationship: 'SURAT_KUASA',
+      legalRelationshipDocUrl: null,
+      customerDeclarationDocUrl: null,
+      cascadeStep: 'PENGENDALIAN_BENTUK_LAIN',
+      livenessStatus: null,
+      disdukcapilStatus: null,
+      identityPhotoUrl: null,
+      selfiePhotoUrl: null,
     },
   ],
   documents: { ...NO_DOCUMENTS, akte: { url: AKTA_URL } },
@@ -138,6 +188,16 @@ const ok = (data: unknown) =>
 function stubDetail(detail: KybDetail) {
   server.use(http.get(`/api/v1/kyb/${KYB_ID}`, () => ok(detail)))
 }
+
+/**
+ * Queries scoped to ONE field of ONE UBO card.
+ *
+ * USDX-587 put four PII fields on every card, so `***` anywhere in the dialog no
+ * longer proves which one was withheld — a dialog-wide count stays green with the
+ * role gate on any single field removed. Masking is therefore asserted per field.
+ */
+const uboField = (card: HTMLElement, testId: string) =>
+  within(within(card).getByTestId(testId))
 
 function renderModal(opts: { staffId?: string } = {}) {
   const onOpenChange = vi.fn()
@@ -382,7 +442,9 @@ describe('KybDetailModal @ USDX-546', () => {
       // Plaintext metadata is NOT masked and must still be readable — it is what
       // a developer investigating a record actually needs.
       expect(within(entity).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
-      expect(within(entity).getByText('2018-04-12')).toBeInTheDocument()
+      const established = within(entity).getByTestId('kyb-established')
+      expect(within(established).getByText('2018-04-12')).toBeInTheDocument()
+      expect(within(established).getByText('Jakarta Selatan')).toBeInTheDocument()
     })
 
     test('a genuinely empty entity field is an em dash, never "withheld"', async () => {
@@ -409,8 +471,16 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       expect(within(dialog).queryByText(UBO_IDENTITY)).not.toBeInTheDocument()
-      expect(within(dialog).getAllByText('***')).toHaveLength(2)
-      expect(within(dialog).getAllByText(/admin only/i)).toHaveLength(2)
+      // Asserted on the identity field of EACH card: a dialog-wide count of
+      // `***` is satisfied by the other UBO PII (birth, employer address and
+      // phone, USDX-587) even with this gate removed.
+      const cards = within(dialog).getAllByTestId('kyb-ubo')
+      expect(cards).toHaveLength(2)
+      for (const card of cards) {
+        const identity = uboField(card, 'kyb-ubo-identity')
+        expect(identity.getByText('***')).toBeInTheDocument()
+        expect(identity.getByText(/admin only/i)).toBeInTheDocument()
+      }
     })
 
     test('ADMIN sees the UBO identity number in full', async () => {
@@ -420,7 +490,9 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
+      // ADMIN may read every PII on the screen, UBO cards included.
       expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/admin only/i)).not.toBeInTheDocument()
     })
 
     test('a refused approve points at the documents the reviewer must chase', async () => {
@@ -1146,6 +1218,244 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       pickFile(dialog, 'NIB', file)
 
       await waitFor(() => expect(attempts).toBe(2))
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-587 — Pasal 33 ayat (3) selengkapnya on the UBO card, plus the three
+// entity answers USDX-584 stored and never showed.
+//
+// Pasal 33 ayat (12) obliges the PJK to REFUSE the business relationship when a
+// UBO's identity cannot be established — a decision that cannot be taken from
+// four columns. The two card-level findings exist because the article asks for
+// the legal relationship to be "ditunjukkan dengan" a document: a relationship
+// TYPE with no artefact behind it is a different state from an unanswered one,
+// and the customer declaration (huruf e) is what approve is refused over.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** UBO #1 in `makeDetail` — complete, so every row of the card has a value. */
+const COMPLETE_UBO = () => makeDetail().ubos[0]!
+/** UBO #2 — legal-relationship type filled in, artefacts missing. */
+const INCOMPLETE_UBO = () => makeDetail().ubos[1]!
+
+const withUbos = (ubos: KybUbo[]) => makeDetail({ ubos })
+
+describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity', () => {
+  describe('positive', () => {
+    test('renders every Pasal 33 (3) answer on the UBO card', async () => {
+      stubDetail(withUbos([COMPLETE_UBO()]))
+      renderModal() // ADMIN
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      // Huruf a — identity.
+      expect(uboField(card, 'kyb-ubo-birth').getByText(/Bandung, 1980-02-20/)).toBeInTheDocument()
+      expect(within(card).getByText('Wiraswasta')).toBeInTheDocument()
+      expect(within(card).getByText('Laki-laki')).toBeInTheDocument()
+      expect(within(card).getByText('Kawin')).toBeInTheDocument()
+      expect(
+        uboField(card, 'kyb-ubo-employer-address').getByText(
+          'Jl. Asia Afrika No. 8, Bandung',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        uboField(card, 'kyb-ubo-employer-phone').getByText('02270000002'),
+      ).toBeInTheDocument()
+      // Huruf b & c — the UBO's own financial profile, not the entity's.
+      expect(within(card).getByText('> Rp 1 miliar')).toBeInTheDocument()
+      expect(within(card).getByText('Rp 2 miliar – 10 miliar')).toBeInTheDocument()
+      // Huruf d — the legal relationship, as its Pasal 33 wording.
+      expect(
+        uboField(card, 'kyb-ubo-legal-relationship').getByText('Surat perjanjian'),
+      ).toBeInTheDocument()
+      // Which cascading-test step led to this person — the examiner's first
+      // question, and the one the rest of the card cannot answer.
+      expect(within(card).getByText(/Kepemilikan — Pasal 33 \(2\)/)).toBeInTheDocument()
+      // Huruf d & e artefacts are links, not checkboxes.
+      expect(within(card).getAllByRole('link', { name: /buka dokumen/i })).toHaveLength(4)
+    })
+
+    test('flags a UBO whose legal relationship has no document behind it', async () => {
+      stubDetail(withUbos([INCOMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_2' }) // MANAGER — presigned URLs ARE issued
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(
+        within(card).getByTestId('kyb-ubo-finding-legal-doc'),
+      ).toHaveTextContent(/ditunjukkan dengan/i)
+    })
+
+    test('flags a UBO with no customer declaration — the reason approve will 409', async () => {
+      stubDetail(withUbos([INCOMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(
+        within(card).getByTestId('kyb-ubo-finding-declaration'),
+      ).toHaveTextContent(/huruf e/i)
+    })
+
+    test('renders the entity answers stored by USDX-584 but never shown', async () => {
+      stubDetail(makeDetail())
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const entity = await within(dialog).findByTestId('kyb-entity')
+
+      // Pasal 25 (1) b angka 5 — "tempat DAN tanggal", both halves.
+      const established = within(entity).getByTestId('kyb-established')
+      expect(within(established).getByText('2018-04-12')).toBeInTheDocument()
+      expect(within(established).getByText('Jakarta Selatan')).toBeInTheDocument()
+      // Angka 8 & 9.
+      expect(within(entity).getByText('Business')).toBeInTheDocument()
+      expect(within(entity).getByText('Investment')).toBeInTheDocument()
+    })
+
+    test('states the CONSEQUENCE of the business scale, not the boolean', async () => {
+      // `isMicroOrSmall` decides which document set Pasal 27 ayat (1) demands —
+      // huruf a for everyone, huruf b for five more documents on top. A `true`
+      // in a cell tells the officer nothing about what to chase.
+      stubDetail(makeDetail({ isMicroOrSmall: true }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const note = await within(dialog).findByTestId('kyb-business-scale')
+      expect(note).toHaveTextContent(/usaha mikro\/kecil/i)
+      expect(note).toHaveTextContent(/huruf a/i)
+      expect(note).not.toHaveTextContent(/huruf b/i)
+    })
+  })
+
+  describe('negative', () => {
+    test('does NOT flag a UBO whose relationship and declaration are both on file', async () => {
+      // A complete card raising warnings would train the officer to ignore them.
+      stubDetail(withUbos([COMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(
+        within(card).queryByTestId('kyb-ubo-finding-legal-doc'),
+      ).not.toBeInTheDocument()
+      expect(
+        within(card).queryByTestId('kyb-ubo-finding-declaration'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('does NOT flag anything for DEVELOPER — that role is never issued the URLs', async () => {
+      // DEVELOPER receives `null` for every presigned URL whatever is on file, so
+      // "the document is missing" would be a false statement the officer could
+      // act on. `null` only means "missing" for a role that would have been given
+      // a URL if one existed.
+      stubDetail(withUbos([INCOMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_3' })
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(
+        within(card).queryByTestId('kyb-ubo-finding-legal-doc'),
+      ).not.toBeInTheDocument()
+      expect(
+        within(card).queryByTestId('kyb-ubo-finding-declaration'),
+      ).not.toBeInTheDocument()
+      expect(within(card).getAllByText(/not shown to your role/i).length).toBeGreaterThan(0)
+    })
+
+    test('non-ADMIN sees the new UBO PII MASKED, one field at a time', async () => {
+      stubDetail(withUbos([COMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_2' }) // MANAGER
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      for (const id of ['kyb-ubo-birth', 'kyb-ubo-employer-address', 'kyb-ubo-employer-phone']) {
+        expect(uboField(card, id).getByText('***')).toBeInTheDocument()
+        expect(uboField(card, id).getByText(/admin only/i)).toBeInTheDocument()
+      }
+      expect(within(card).queryByText('Jl. Asia Afrika No. 8, Bandung')).not.toBeInTheDocument()
+      // The closed-value answers are NOT identifiers and stay readable.
+      expect(uboField(card, 'kyb-ubo-occupation').getByText('Wiraswasta')).toBeInTheDocument()
+    })
+
+    test('non-ADMIN reads a UBO alias as withheld, not as the name', async () => {
+      stubDetail(withUbos([INCOMPLETE_UBO()]))
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(within(card).queryByText(/Siti R\./)).not.toBeInTheDocument()
+      expect(within(card).getByText(/alias \*\*\*/)).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a missing incorporation place leaves the date readable on its own', async () => {
+      // Half of Pasal 25 (1) b angka 5 answered must read as half, not as a
+      // complete entry — the pairing is what makes the gap visible.
+      stubDetail(makeDetail({ incorporationPlace: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const established = await within(dialog).findByTestId('kyb-established')
+
+      expect(within(established).getByText('2018-04-12')).toBeInTheDocument()
+      expect(within(established).getByText('—')).toBeInTheDocument()
+      expect(within(established).queryByText('Jakarta Selatan')).not.toBeInTheDocument()
+    })
+
+    test('a NOT micro/small entity is told both document sets are required', async () => {
+      stubDetail(makeDetail({ isMicroOrSmall: false }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const note = await within(dialog).findByTestId('kyb-business-scale')
+      expect(note).toHaveTextContent(/bukan usaha mikro\/kecil/i)
+      expect(note).toHaveTextContent(/huruf a/i)
+      expect(note).toHaveTextContent(/huruf b/i)
+    })
+
+    test('an UNANSWERED business scale is examined as if it were NOT micro/small', async () => {
+      // `null` is a pre-USDX-583 record. Reading it as micro/small would drop
+      // five required documents on the strength of a question nobody asked:
+      // over-demanding is fixable by the officer, under-demanding surfaces at an
+      // OJK examination.
+      stubDetail(makeDetail({ isMicroOrSmall: null }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const note = await within(dialog).findByTestId('kyb-business-scale')
+      expect(note).toHaveTextContent(/belum ditanya/i)
+      expect(note).toHaveTextContent(/huruf a dan b/i)
+    })
+
+    test('an unanswered UBO answer is an em dash, and raises no finding by itself', async () => {
+      // No legal relationship TYPE means the question was never answered, which
+      // is not the same as a type with no document — only the latter is the
+      // Pasal 33 (3) d gap.
+      stubDetail(
+        withUbos([
+          {
+            ...COMPLETE_UBO(),
+            occupation: null,
+            gender: null,
+            maritalStatus: null,
+            netWorthRange: null,
+            legalRelationship: null,
+            legalRelationshipDocUrl: null,
+          },
+        ]),
+      )
+      renderModal({ staffId: 'stf_2' })
+      const dialog = await screen.findByRole('dialog')
+      const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+      expect(uboField(card, 'kyb-ubo-occupation').getByText('—')).toBeInTheDocument()
+      expect(
+        uboField(card, 'kyb-ubo-legal-relationship').getByText('—'),
+      ).toBeInTheDocument()
+      expect(
+        within(card).queryByTestId('kyb-ubo-finding-legal-doc'),
+      ).not.toBeInTheDocument()
     })
   })
 })

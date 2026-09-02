@@ -5,6 +5,10 @@ import type {
   CustomerType,
   EntityType,
   KycDetail,
+  KycGender,
+  KycMaritalStatus,
+  KycNetWorthRange,
+  KycSourceOfWealth,
   KycListItem,
   KycReviewLog,
   KycStatus,
@@ -1606,12 +1610,56 @@ const STREETS = ['Jl. Sudirman', 'Jl. Gatot Subroto', 'Jl. Thamrin', 'Jl. Dipone
 
 // USDX-545 — CDD value sets, copied from the partner cluster so retail and
 // partner customers are judged on the same data (see lib/types.ts § CDD).
+// Sepuluh dari 99 nilai Permendagri, dipilih bukan diacak: tiga pekerjaan biasa,
+// lalu tujuh yang membuat halaman review harus mengambil keputusan —
+// `ANGGOTA_DPRD_PROVINSI` dan `BUPATI` masuk kode 48-63 (jabatan publik), jadi
+// baris yang memakainya menguji silang `pepStatus` yang jadi inti tiket ini.
 const KYC_OCCUPATIONS: KycOccupation[] = [
-  'PRIVATE_EMPLOYEE',
-  'SELF_EMPLOYED',
-  'CIVIL_SERVANT',
-  'STUDENT',
+  'KARYAWAN_SWASTA',
+  'WIRASWASTA',
+  'PEGAWAI_NEGERI_SIPIL',
+  'ANGGOTA_DPRD_PROVINSI',
+  'DOKTER',
+  'PELAJAR_MAHASISWA',
+  'BUPATI',
+  'PENSIUNAN',
+  'PETANI_PEKEBUN',
+  'LAINNYA',
+]
+
+const KYC_NET_WORTH_RANGES: KycNetWorthRange[] = [
+  'UNDER_500M',
+  'FROM_500M_TO_2B',
+  'FROM_2B_TO_10B',
+  'OVER_10B',
+]
+
+const KYC_SOURCES_OF_WEALTH: KycSourceOfWealth[] = [
+  'SALARY_ACCUMULATION',
+  'BUSINESS_OWNERSHIP',
+  'INVESTMENT_RETURN',
+  'INHERITANCE',
+  'PROPERTY_SALE',
+  'GRANT_OR_GIFT',
   'OTHER',
+]
+
+const KYC_GENDERS: KycGender[] = ['LAKI_LAKI', 'PEREMPUAN']
+
+const KYC_MARITAL_STATUSES: KycMaritalStatus[] = [
+  'BELUM_KAWIN',
+  'KAWIN',
+  'CERAI_HIDUP',
+  'CERAI_MATI',
+]
+
+const MOTHERS_MAIDEN_NAMES = [
+  'Siti Rohmah',
+  'Kartini Dewi',
+  'Ngatinem',
+  'Maria Ulfa',
+  'Suryani',
+  'Endang Wahyuni',
 ]
 const KYC_SOURCES_OF_FUNDS: KycSourceOfFunds[] = [
   'SALARY',
@@ -1675,6 +1723,13 @@ export function createKycDetail(
     identityType: 'KTP',
     // 16-digit KTP number: '3171' province/city prefix + 12 seeded digits.
     identityNumber: `3171${seededBankAccount(seed)}`,
+    nationality: 'ID',
+    gender: KYC_GENDERS[seed % KYC_GENDERS.length]!,
+    maritalStatus: KYC_MARITAL_STATUSES[seed % KYC_MARITAL_STATUSES.length]!,
+    mothersMaidenName: MOTHERS_MAIDEN_NAMES[seed % MOTHERS_MAIDEN_NAMES.length]!,
+    // Alias jarang — butir a) memang berbunyi "jika ada". Mayoritas `null`
+    // supaya layar yang dilihat petugas mewakili kasus yang biasa.
+    aliasName: seed % 6 === 0 ? `${CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!.split(' ')[0]} Jr.` : null,
     country: 'ID',
     addressLine1: `${STREETS[seed % STREETS.length]!} No. ${1 + (seed % 120)}`,
     addressLine2: seed % 3 === 0 ? `RT ${1 + (seed % 9)}/RW ${1 + (seed % 5)}` : null,
@@ -1692,7 +1747,11 @@ export function createKycDetail(
           occupation: null,
           sourceOfFunds: null,
           annualIncomeRange: null,
+          netWorthRange: null,
           transactionPurpose: null,
+          sourceOfWealth: null,
+          employerAddress: null,
+          employerPhone: null,
           npwp: null,
           pepStatus: null,
           pepRelation: null,
@@ -1701,8 +1760,22 @@ export function createKycDetail(
           occupation: KYC_OCCUPATIONS[seed % KYC_OCCUPATIONS.length]!,
           sourceOfFunds: KYC_SOURCES_OF_FUNDS[seed % KYC_SOURCES_OF_FUNDS.length]!,
           annualIncomeRange: KYC_INCOME_RANGES[seed % KYC_INCOME_RANGES.length]!,
+          netWorthRange: KYC_NET_WORTH_RANGES[seed % KYC_NET_WORTH_RANGES.length]!,
           transactionPurpose:
             KYC_TRANSACTION_PURPOSES[seed % KYC_TRANSACTION_PURPOSES.length]!,
+          // Sumber kekayaan WAJIB hanya untuk PEP (Pasal 37 (1) d). Setiap
+          // kelipatan 14 adalah PEP yang jawabannya kosong — itu temuan EDD yang
+          // harus terlihat di layar, bukan sel kosong biasa, dan mock yang selalu
+          // mengisinya membuat cabang itu tidak pernah teruji.
+          sourceOfWealth:
+            seed % 14 === 0
+              ? null
+              : KYC_SOURCES_OF_WEALTH[seed % KYC_SOURCES_OF_WEALTH.length]!,
+          employerAddress:
+            seed % 4 === 0
+              ? null
+              : `${STREETS[(seed + 2) % STREETS.length]!} No. ${10 + (seed % 90)}, Jakarta Selatan`,
+          employerPhone: seed % 4 === 0 ? null : `021${String(70000000 + (seed * 137) % 9999999)}`,
           // 15-digit NPWP (pre-2024 format, still what most people carry).
           npwp: `${seededBankAccount(seed + 1)}${String(seed % 1000).padStart(3, '0')}`,
           // Roughly one in seven is flagged PEP — enough that the reviewer sees

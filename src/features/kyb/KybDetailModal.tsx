@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Copy, FileText } from 'lucide-react'
+import { AlertTriangle, Copy, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -24,9 +24,18 @@ import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canReviewKyc, useAuth } from '@/lib/auth'
 import {
+  ANNUAL_INCOME_LABELS,
+  GENDER_LABELS,
   KYB_DOCUMENT_SLOTS,
   KYB_DOCUMENT_SLOT_KEYS,
   KYB_ENTITY_FORM_LABELS,
+  MARITAL_STATUS_LABELS,
+  NET_WORTH_LABELS,
+  OCCUPATION_LABELS,
+  SOURCE_OF_FUNDS_LABELS,
+  TRANSACTION_PURPOSE_LABELS,
+  UBO_CASCADE_STEP_LABELS,
+  UBO_LEGAL_RELATIONSHIP_LABELS,
   labelFor,
 } from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
@@ -68,9 +77,24 @@ async function copyText(value: string, label: string) {
   }
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * `testId` menandai SATU field, bukan seluruh blok.
+ *
+ * Sejak USDX-587 satu kartu UBO merender empat PII sekaligus, jadi "ada `***`
+ * di dalam dialog" tidak lagi membuktikan field mana yang ditahan — assertion
+ * setingkat dialog tetap hijau meski gerbang role di satu field dicopot.
+ */
+function Field({
+  label,
+  children,
+  testId,
+}: {
+  label: string
+  children: ReactNode
+  testId?: string
+}) {
   return (
-    <div>
+    <div data-testid={testId}>
       <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
@@ -141,26 +165,134 @@ function PiiValue({ value, staff }: { value: string | null; staff: Staff | null 
   )
 }
 
-function UboCard({ ubo, index, staff }: { ubo: KybUbo; index: number; staff: Staff | null }) {
-  const name = [ubo.firstName, ubo.lastName].filter(Boolean).join(' ') || '—'
+/**
+ * Presigned GET URL untuk satu artefak UBO (TTL 5 menit, stempel bersama di
+ * `urlExpiresAt`).
+ *
+ * `null` berarti dua hal yang berbeda dan tidak boleh disamakan — aturan yang
+ * sama dengan `DocumentSlotRow`: kalau role pemanggil memang tidak pernah
+ * diberi presigned URL, `null` TIDAK membuktikan dokumennya tidak ada. Menulis
+ * "belum diunggah" di situ adalah kebohongan yang bisa ditindaklanjuti petugas.
+ */
+function UboDocLink({
+  label,
+  url,
+  urlsWithheld,
+}: {
+  label: string
+  url: string | null
+  urlsWithheld: boolean
+}) {
+  if (url === null)
+    return (
+      <Field label={label}>
+        {urlsWithheld ? (
+          <span className="text-[11.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            not shown to your role
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Belum diunggah</span>
+        )}
+      </Field>
+    )
   return (
-    <li className="rounded-md border border-border px-3 py-2.5">
+    <Field label={label}>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline-offset-2 hover:underline"
+      >
+        Buka dokumen
+      </a>
+    </Field>
+  )
+}
+
+/**
+ * Satu Pemilik Manfaat — Pasal 33 ayat (3) selengkapnya.
+ *
+ * Kartunya panjang karena pasalnya panjang: lima belas butir, dan ayat (12)
+ * mewajibkan PJK MENOLAK hubungan usaha kalau identitas UBO tidak bisa diyakini.
+ * Menampilkan empat kolom seperti sebelumnya berarti petugas memutuskan
+ * penolakan itu tanpa bahan.
+ *
+ * Yang paling atas bukan yang paling awal di pasalnya, tapi yang paling
+ * menentukan: persentase kepemilikan dan langkah cascading test. Keduanya
+ * menjawab "kenapa ORANG INI yang dicatat sebagai UBO" — pertanyaan pertama
+ * pemeriksa, dan satu-satunya yang tidak bisa dijawab dari sisa kartunya.
+ */
+function UboCard({
+  ubo,
+  index,
+  staff,
+  urlsWithheld,
+}: {
+  ubo: KybUbo
+  index: number
+  staff: Staff | null
+  /** Role pemanggil tidak pernah menerima presigned URL — `null` tidak membuktikan apa pun. */
+  urlsWithheld: boolean
+}) {
+  const name = [ubo.firstName, ubo.lastName].filter(Boolean).join(' ') || '—'
+  // Pasal 33 ayat (3) huruf d meminta hubungan hukumnya "DITUNJUKKAN DENGAN"
+  // dokumen. Jenis hubungan tanpa berkasnya belum memenuhi butir itu, dan itu
+  // beda dari belum menjawab sama sekali — jadi disorot, bukan didiamkan.
+  const relationshipWithoutDoc =
+    !urlsWithheld && ubo.legalRelationship !== null && ubo.legalRelationshipDocUrl === null
+  // Huruf e — pernyataan nasabah soal kebenaran identitas dan sumber dana orang
+  // ini. Approve menolak berkasnya di backend (409); disorot lebih dulu di sini
+  // supaya petugas tahu sebabnya sebelum kena error mentah.
+  const declarationMissing = !urlsWithheld && ubo.customerDeclarationDocUrl === null
+  return (
+    <li className="rounded-md border border-border px-3 py-2.5" data-testid="kyb-ubo">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-[13px] font-medium">
           <span className="mr-1.5 font-mono text-[11px] text-muted-foreground">
             #{index + 1}
           </span>
           {name}
+          {ubo.aliasName && (
+            <span className="ml-1.5 text-[12px] font-normal text-muted-foreground">
+              alias {presentPii(ubo.aliasName, staff) ?? '—'}
+            </span>
+          )}
         </span>
         <span className="font-mono text-[12px] tabular-nums text-primary">
           {ubo.ownershipPct}%
         </span>
       </div>
+
+      {ubo.cascadeStep !== null && (
+        <p className="mb-2 text-[11.5px] text-muted-foreground">
+          Ditemukan lewat{' '}
+          <span className="text-foreground">
+            {labelFor(ubo.cascadeStep, UBO_CASCADE_STEP_LABELS)}
+          </span>
+        </p>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={`Identity (${ubo.identityType})`}>
+        {/* Huruf a — identitas, sepuluh butir */}
+        <Field label={`Identity (${ubo.identityType})`} testId="kyb-ubo-identity">
           <PiiValue value={ubo.identityNumber} staff={staff} />
         </Field>
+        <Field label="Tempat, tanggal lahir" testId="kyb-ubo-birth">
+          <PiiValue
+            value={
+              [ubo.birthPlace, ubo.dob].filter(Boolean).join(', ') || null
+            }
+            staff={staff}
+          />
+        </Field>
+        <Field label="Kewarganegaraan">{ubo.nationality ?? <Dim />}</Field>
         <Field label="Country">{ubo.country ?? <Dim />}</Field>
+        <Field label="Jenis kelamin">
+          {labelFor(ubo.gender, GENDER_LABELS) ?? <Dim />}
+        </Field>
+        <Field label="Status perkawinan">
+          {labelFor(ubo.maritalStatus, MARITAL_STATUS_LABELS) ?? <Dim />}
+        </Field>
         <Field label="Address">
           {ubo.addressLine1 ?? <Dim />}
           {ubo.addressLine2 && (
@@ -170,7 +302,75 @@ function UboCard({ ubo, index, staff }: { ubo: KybUbo; index: number; staff: Sta
             </>
           )}
         </Field>
+        <Field label="Pekerjaan" testId="kyb-ubo-occupation">
+          {labelFor(ubo.occupation, OCCUPATION_LABELS) ?? <Dim />}
+        </Field>
+        <Field label="Alamat tempat kerja" testId="kyb-ubo-employer-address">
+          <PiiValue value={ubo.employerAddress} staff={staff} />
+        </Field>
+        <Field label="Telepon tempat kerja" testId="kyb-ubo-employer-phone">
+          <PiiValue value={ubo.employerPhone} staff={staff} />
+        </Field>
+        {/* Huruf b & c — profil finansial UBO, bukan profil badan usahanya */}
+        <Field label="Source of funds">
+          {labelFor(ubo.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
+        </Field>
+        <Field label="Annual income">
+          {labelFor(ubo.annualIncomeRange, ANNUAL_INCOME_LABELS) ?? <Dim />}
+        </Field>
+        <Field label="Harta kekayaan (net worth)">
+          {labelFor(ubo.netWorthRange, NET_WORTH_LABELS) ?? <Dim />}
+        </Field>
+        {/* Huruf d & e — hubungan hukum dan pernyataan nasabah, dengan artefaknya */}
+        <Field label="Hubungan hukum" testId="kyb-ubo-legal-relationship">
+          {labelFor(ubo.legalRelationship, UBO_LEGAL_RELATIONSHIP_LABELS) ?? <Dim />}
+        </Field>
+        <UboDocLink
+          label="Dokumen hubungan hukum"
+          url={ubo.legalRelationshipDocUrl}
+          urlsWithheld={urlsWithheld}
+        />
+        <UboDocLink
+          label="Pernyataan nasabah"
+          url={ubo.customerDeclarationDocUrl}
+          urlsWithheld={urlsWithheld}
+        />
+        <UboDocLink
+          label="Foto identitas"
+          url={ubo.identityPhotoUrl}
+          urlsWithheld={urlsWithheld}
+        />
+        <UboDocLink label="Foto selfie" url={ubo.selfiePhotoUrl} urlsWithheld={urlsWithheld} />
       </div>
+
+      {(relationshipWithoutDoc || declarationMissing) && (
+        <ul className="mt-2 space-y-1">
+          {relationshipWithoutDoc && (
+            <li
+              data-testid="kyb-ubo-finding-legal-doc"
+              className="flex items-start gap-1.5 text-[11.5px] text-muted-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
+              <span>
+                Jenis hubungan hukum terisi tapi dokumennya belum ada — Pasal 33
+                ayat (3) huruf d meminta hubungan itu “ditunjukkan dengan” berkas.
+              </span>
+            </li>
+          )}
+          {declarationMissing && (
+            <li
+              data-testid="kyb-ubo-finding-declaration"
+              className="flex items-start gap-1.5 text-[11.5px] text-muted-foreground"
+            >
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
+              <span>
+                Pernyataan nasabah (Pasal 33 ayat (3) huruf e) belum ada — approve
+                akan ditolak backend.
+              </span>
+            </li>
+          )}
+        </ul>
+      )}
     </li>
   )
 }
@@ -657,9 +857,38 @@ export default function KybDetailModal({
                       <Field label="Entity NPWP">
                         <EntityValue value={detail.taxId} mono />
                       </Field>
-                      <Field label="Established">{detail.establishmentDate}</Field>
+                      {/* Pasal 25 (1) b angka 5 berbunyi "tempat DAN tanggal
+                          pendirian". Sebelum USDX-583 hanya tanggalnya punya
+                          kolom — dirender berpasangan supaya butir itu terbaca
+                          utuh atau terbaca separuh, bukan terbaca lengkap
+                          padahal separuh. */}
+                      <Field
+                        label="Didirikan (tanggal · tempat)"
+                        testId="kyb-established"
+                      >
+                        {/* Dua <span> terpisah, bukan satu untai teks: separuh
+                            butir ini bisa kosong sendiri-sendiri, jadi masing-
+                            masing harus bisa dibaca (dan diuji) sendiri. */}
+                        <span>{detail.establishmentDate}</span>
+                        {' · '}
+                        {detail.incorporationPlace ? (
+                          <span>{detail.incorporationPlace}</span>
+                        ) : (
+                          <Dim />
+                        )}
+                      </Field>
                       <Field label="Business sector">{detail.businessSector}</Field>
                       <Field label="Country">{detail.country}</Field>
+                      {/* Pasal 25 (1) b angka 8 & 9 (USDX-584) — enum yang sama
+                          dengan sisi retail, bukan kosakata korporasi sendiri. */}
+                      <Field label="Source of funds">
+                        {labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
+                      </Field>
+                      <Field label="Transaction purpose">
+                        {labelFor(detail.transactionPurpose, TRANSACTION_PURPOSE_LABELS) ?? (
+                          <Dim />
+                        )}
+                      </Field>
                       <Field label="Phone">
                         <EntityValue value={detail.phone} />
                       </Field>
@@ -687,6 +916,37 @@ export default function KybDetailModal({
                         <span className="break-all">{detail.userEmail}</span>
                       </Field>
                     </div>
+                    {/* Bukan label deskriptif — nilai ini MENENTUKAN set dokumen
+                        wajibnya. Pasal 27 ayat (1) huruf a berlaku untuk semua
+                        korporasi; huruf b menambah lima dokumen lagi HANYA untuk
+                        yang bukan usaha mikro/kecil. Ditulis sebagai kalimat,
+                        bukan sebagai sel `true`/`false`, karena yang dipakai
+                        petugas adalah konsekuensinya, bukan nilainya.
+                        `null` dibaca sebagai "diperiksa penuh": keliru menuntut
+                        dokumen tambahan bisa diperbaiki petugas, keliru
+                        melepasnya ketahuan saat diperiksa OJK. */}
+                    <p
+                      className="mt-3 text-[12px] text-muted-foreground"
+                      data-testid="kyb-business-scale"
+                    >
+                      {detail.isMicroOrSmall === true ? (
+                        <>
+                          Usaha mikro/kecil — dokumen wajibnya hanya Pasal 27 ayat
+                          (1) huruf a.
+                        </>
+                      ) : detail.isMicroOrSmall === false ? (
+                        <>
+                          Bukan usaha mikro/kecil — wajib lengkap Pasal 27 ayat (1)
+                          huruf a <em>dan</em> huruf b.
+                        </>
+                      ) : (
+                        <>
+                          Skala usaha belum ditanya (berkas lama). Diperiksa sebagai
+                          bukan usaha mikro/kecil — dokumen Pasal 27 ayat (1) huruf
+                          a dan b dituntut lengkap.
+                        </>
+                      )}
+                    </p>
                   </Section>
 
                   <Section title={`Ultimate beneficial owners (${detail.ubos.length})`}>
@@ -703,7 +963,13 @@ export default function KybDetailModal({
                       <>
                         <ul className="space-y-2">
                           {detail.ubos.map((ubo, i) => (
-                            <UboCard key={ubo.id} ubo={ubo} index={i} staff={user} />
+                            <UboCard
+                              key={ubo.id}
+                              ubo={ubo}
+                              index={i}
+                              staff={user}
+                              urlsWithheld={urlsWithheld}
+                            />
                           ))}
                         </ul>
                         <p

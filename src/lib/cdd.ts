@@ -15,19 +15,168 @@
  */
 import type {
   KycAnnualIncomeRange,
+  KycGender,
+  KycMaritalStatus,
+  KycNetWorthRange,
   KycOccupation,
   KycSourceOfFunds,
+  KycSourceOfWealth,
   KycTransactionPurpose,
   KybDocumentSlot,
   KybEntityForm,
+  UboCascadeStep,
+  UboLegalRelationship,
 } from './types'
 
+/**
+ * 99 jenis pekerjaan Permendagri 109/2019 (F-1.01 butir 31), label persis
+ * sebagaimana tercetak di daftar resmi — termasuk garis miring, kurung, dan
+ * ejaan `Cheff` (kode 92, ejaan asli Permendagri, bukan salah ketik).
+ *
+ * Labelnya TIDAK diterjemahkan atau dirapikan: petugas mencocokkan jawaban ini
+ * dengan kolom "Pekerjaan" di KTP-el yang diunggah nasabah, dan label yang
+ * memakai kata lain memaksa penerjemahan di kepala saat memeriksa.
+ *
+ * Angka di komentar adalah kode Permendagri — berguna mencocokkan dengan data
+ * Dukcapil, bukan bagian dari nilai enum.
+ */
 export const OCCUPATION_LABELS: Record<KycOccupation, string> = {
-  PRIVATE_EMPLOYEE: 'Private employee',
-  SELF_EMPLOYED: 'Self-employed',
-  CIVIL_SERVANT: 'Civil servant',
-  STUDENT: 'Student',
-  OTHER: 'Other',
+  BELUM_TIDAK_BEKERJA:            'Belum/Tidak Bekerja',               // 1
+  MENGURUS_RUMAH_TANGGA:          'Mengurus Rumah Tangga',             // 2
+  PELAJAR_MAHASISWA:              'Pelajar/Mahasiswa',                 // 3
+  PENSIUNAN:                      'Pensiunan',                         // 4
+  PEGAWAI_NEGERI_SIPIL:           'Pegawai Negeri Sipil (PNS)',        // 5
+  TENTARA_NASIONAL_INDONESIA:     'Tentara Nasional Indonesia (TNI)',  // 6
+  KEPOLISIAN_RI:                  'Kepolisian RI (POLRI)',             // 7
+  PERDAGANGAN:                    'Perdagangan',                       // 8
+  PETANI_PEKEBUN:                 'Petani/Pekebun',                    // 9
+  PETERNAK:                       'Peternak',                          // 10
+  NELAYAN_PERIKANAN:              'Nelayan/Perikanan',                 // 11
+  INDUSTRI:                       'Industri',                          // 12
+  KONSTRUKSI:                     'Konstruksi',                        // 13
+  TRANSPORTASI:                   'Transportasi',                      // 14
+  KARYAWAN_SWASTA:                'Karyawan Swasta',                   // 15
+  KARYAWAN_BUMN:                  'Karyawan BUMN',                     // 16
+  KARYAWAN_BUMD:                  'Karyawan BUMD',                     // 17
+  KARYAWAN_HONORER:               'Karyawan Honorer',                  // 18
+  BURUH_HARIAN_LEPAS:             'Buruh Harian Lepas',                // 19
+  BURUH_TANI_PERKEBUNAN:          'Buruh Tani/Perkebunan',             // 20
+  BURUH_NELAYAN_PERIKANAN:        'Buruh Nelayan/Perikanan',           // 21
+  BURUH_PETERNAKAN:               'Buruh Peternakan',                  // 22
+  PEMBANTU_RUMAH_TANGGA:          'Pembantu Rumah Tangga',             // 23
+  TUKANG_CUKUR:                   'Tukang Cukur',                      // 24
+  TUKANG_LISTRIK:                 'Tukang Listrik',                    // 25
+  TUKANG_BATU:                    'Tukang Batu',                       // 26
+  TUKANG_KAYU:                    'Tukang Kayu',                       // 27
+  TUKANG_SOL_SEPATU:              'Tukang Sol Sepatu',                 // 28
+  TUKANG_LAS_PANDAI_BESI:         'Tukang Las/Pandai Besi',            // 29
+  TUKANG_JAHIT:                   'Tukang Jahit',                      // 30
+  TUKANG_GIGI:                    'Tukang Gigi',                       // 31
+  PENATA_RIAS:                    'Penata Rias',                       // 32
+  PENATA_BUSANA:                  'Penata Busana',                     // 33
+  PENATA_RAMBUT:                  'Penata Rambut',                     // 34
+  MEKANIK:                        'Mekanik',                           // 35
+  SENIMAN:                        'Seniman',                           // 36
+  TABIB:                          'Tabib',                             // 37
+  PARAJI:                         'Paraji',                            // 38
+  PERANCANG_BUSANA:               'Perancang Busana',                  // 39
+  PENTERJEMAH:                    'Penterjemah',                       // 40
+  IMAM_MASJID:                    'Imam Masjid',                       // 41
+  PENDETA:                        'Pendeta',                           // 42
+  PASTOR:                         'Pastor',                            // 43
+  WARTAWAN:                       'Wartawan',                          // 44
+  USTADZ_MUBALIGH:                'Ustadz/Mubaligh',                   // 45
+  JURU_MASAK:                     'Juru Masak',                        // 46
+  PROMOTOR_ACARA:                 'Promotor Acara',                    // 47
+  ANGGOTA_DPR_RI:                 'Anggota DPR-RI',                    // 48
+  ANGGOTA_DPD:                    'Anggota DPD',                       // 49
+  ANGGOTA_BPK:                    'Anggota BPK',                       // 50
+  PRESIDEN:                       'Presiden',                          // 51
+  WAKIL_PRESIDEN:                 'Wakil Presiden',                    // 52
+  ANGGOTA_MAHKAMAH_KONSTITUSI:    'Anggota Mahkamah Konstitusi',       // 53
+  ANGGOTA_KABINET_KEMENTERIAN:    'Anggota Kabinet/Kementerian',       // 54
+  DUTA_BESAR_KEPALA_PERWAKILAN:   'Duta Besar/Kepala Perwakilan',      // 55
+  GUBERNUR:                       'Gubernur',                          // 56
+  WAKIL_GUBERNUR:                 'Wakil Gubernur',                    // 57
+  BUPATI:                         'Bupati',                            // 58
+  WAKIL_BUPATI:                   'Wakil Bupati',                      // 59
+  WALIKOTA:                       'Walikota',                          // 60
+  WAKIL_WALIKOTA:                 'Wakil Walikota',                    // 61
+  ANGGOTA_DPRD_PROVINSI:          'Anggota DPRD Provinsi',             // 62
+  ANGGOTA_DPRD_KAB_KOTA:          'Anggota DPRD Kab/Kota',             // 63
+  DOSEN:                          'Dosen',                             // 64
+  GURU:                           'Guru',                              // 65
+  PILOT:                          'Pilot',                             // 66
+  PENGACARA:                      'Pengacara',                         // 67
+  NOTARIS:                        'Notaris',                           // 68
+  ARSITEK:                        'Arsitek',                           // 69
+  AKUNTAN:                        'Akuntan',                           // 70
+  KONSULTAN:                      'Konsultan',                         // 71
+  DOKTER:                         'Dokter',                            // 72
+  BIDAN:                          'Bidan',                             // 73
+  PERAWAT:                        'Perawat',                           // 74
+  APOTEKER:                       'Apoteker',                          // 75
+  PSIKIATER_PSIKOLOG:             'Psikiater/Psikolog',                // 76
+  PENYIAR_TELEVISI:               'Penyiar Televisi',                  // 77
+  PENYIAR_RADIO:                  'Penyiar Radio',                     // 78
+  PELAUT:                         'Pelaut',                            // 79
+  PENELITI:                       'Peneliti',                          // 80
+  SOPIR:                          'Sopir',                             // 81
+  PIALANG:                        'Pialang',                           // 82
+  PARANORMAL:                     'Paranormal',                        // 83
+  PEDAGANG:                       'Pedagang',                          // 84
+  PERANGKAT_DESA:                 'Perangkat Desa',                    // 85
+  KEPALA_DESA:                    'Kepala Desa',                       // 86
+  BIARAWATI:                      'Biarawati',                         // 87
+  WIRASWASTA:                     'Wiraswasta',                        // 88
+  ANGGOTA_LEMBAGA_TINGGI_LAINNYA: 'Anggota Lembaga Tinggi Lainnya',    // 89
+  ARTIS:                          'Artis',                             // 90
+  ATLIT:                          'Atlit',                             // 91
+  CHEFF:                          'Cheff',                             // 92
+  MANAJER:                        'Manajer',                           // 93
+  TENAGA_TATA_USAHA:              'Tenaga Tata Usaha',                 // 94
+  OPERATOR:                       'Operator',                          // 95
+  PEKERJA_PENGOLAHAN_KERAJINAN:   'Pekerja Pengolahan, Kerajinan',     // 96
+  TEKNISI:                        'Teknisi',                           // 97
+  ASISTEN_AHLI:                   'Asisten Ahli',                      // 98
+  LAINNYA:                        'Lainnya',                           // 99
+}
+
+/**
+ * Kode 48-63 Permendagri — seluruhnya jabatan publik, dan memetakan langsung ke
+ * cakupan PEP domestik **POJK 8/2023 Pasal 2 ayat (2) huruf b** ("kepala negara
+ * atau pemerintahan, politisi senior, pejabat pemerintah senior").
+ *
+ * Dipakai halaman review menyilangkan jawaban `pepStatus`: nasabah yang memilih
+ * salah satu pekerjaan ini tapi menjawab `pepStatus = false` adalah kejanggalan
+ * yang wajib ditinjau, bukan data yang lolos diam-diam. Cerminan
+ * `PEP_CANDIDATE_OCCUPATIONS` di `backend/src/database/schema/partner/partner-customer-kyc.ts`
+ * — satu berkas menghadap satu berkas supaya selisihnya terlihat di diff.
+ */
+export const PEP_CANDIDATE_OCCUPATIONS: ReadonlySet<KycOccupation> = new Set([
+  'ANGGOTA_DPR_RI',                  // 48. Anggota DPR-RI
+  'ANGGOTA_DPD',                     // 49. Anggota DPD
+  'ANGGOTA_BPK',                     // 50. Anggota BPK
+  'PRESIDEN',                        // 51. Presiden
+  'WAKIL_PRESIDEN',                  // 52. Wakil Presiden
+  'ANGGOTA_MAHKAMAH_KONSTITUSI',     // 53. Anggota Mahkamah Konstitusi
+  'ANGGOTA_KABINET_KEMENTERIAN',     // 54. Anggota Kabinet/Kementerian
+  'DUTA_BESAR_KEPALA_PERWAKILAN',    // 55. Duta Besar/Kepala Perwakilan
+  'GUBERNUR',                        // 56. Gubernur
+  'WAKIL_GUBERNUR',                  // 57. Wakil Gubernur
+  'BUPATI',                          // 58. Bupati
+  'WAKIL_BUPATI',                    // 59. Wakil Bupati
+  'WALIKOTA',                        // 60. Walikota
+  'WAKIL_WALIKOTA',                  // 61. Wakil Walikota
+  'ANGGOTA_DPRD_PROVINSI',           // 62. Anggota DPRD Provinsi
+  'ANGGOTA_DPRD_KAB_KOTA',           // 63. Anggota DPRD Kab/Kota
+])
+
+/** `true` kalau pekerjaannya jabatan publik (kode Permendagri 48-63). */
+export function isPepCandidateOccupation(
+  occupation: KycOccupation | null | undefined,
+): boolean {
+  return occupation !== null && occupation !== undefined && PEP_CANDIDATE_OCCUPATIONS.has(occupation)
 }
 
 export const SOURCE_OF_FUNDS_LABELS: Record<KycSourceOfFunds, string> = {
@@ -52,6 +201,63 @@ export const TRANSACTION_PURPOSE_LABELS: Record<KycTransactionPurpose, string> =
   PAYMENT: 'Payment',
   REMITTANCE: 'Remittance',
   OTHER: 'Other',
+}
+
+// Rentang harta kekayaan — batas rentangnya diambil dari ambang AML yang sudah
+// dipakai sistem ini (Rp500 juta per transaksi, Rp2 miliar harian), bukan dari
+// angka regulasi: POJK tidak menentukan bucket. Dieja rupiah dengan alasan yang
+// sama dengan `ANNUAL_INCOME_LABELS`.
+export const NET_WORTH_LABELS: Record<KycNetWorthRange, string> = {
+  UNDER_500M: '< Rp 500 juta',
+  FROM_500M_TO_2B: 'Rp 500 juta – 2 miliar',
+  FROM_2B_TO_10B: 'Rp 2 miliar – 10 miliar',
+  OVER_10B: '> Rp 10 miliar',
+}
+
+export const SOURCE_OF_WEALTH_LABELS: Record<KycSourceOfWealth, string> = {
+  SALARY_ACCUMULATION: 'Akumulasi gaji',
+  BUSINESS_OWNERSHIP: 'Kepemilikan usaha',
+  INVESTMENT_RETURN: 'Hasil investasi',
+  INHERITANCE: 'Warisan',
+  PROPERTY_SALE: 'Penjualan properti',
+  GRANT_OR_GIFT: 'Hibah atau hadiah',
+  OTHER: 'Lainnya',
+}
+
+// Kosakata KTP, tidak diterjemahkan — petugas mencocokkannya dengan KTP yang
+// diunggah nasabah (alasan yang sama dengan OCCUPATION_LABELS).
+export const GENDER_LABELS: Record<KycGender, string> = {
+  LAKI_LAKI: 'Laki-laki',
+  PEREMPUAN: 'Perempuan',
+}
+
+export const MARITAL_STATUS_LABELS: Record<KycMaritalStatus, string> = {
+  BELUM_KAWIN: 'Belum Kawin',
+  KAWIN: 'Kawin',
+  CERAI_HIDUP: 'Cerai Hidup',
+  CERAI_MATI: 'Cerai Mati',
+}
+
+/**
+ * Empat bentuk hubungan hukum yang disebut Pasal 33 (3) d secara harfiah —
+ * labelnya frasa pasalnya sendiri, supaya bisa ditelusuri balik ke ayatnya tanpa
+ * tabel terjemahan.
+ */
+export const UBO_LEGAL_RELATIONSHIP_LABELS: Record<UboLegalRelationship, string> = {
+  SURAT_PENUGASAN: 'Surat penugasan',
+  SURAT_PERJANJIAN: 'Surat perjanjian',
+  SURAT_KUASA: 'Surat kuasa',
+  LAINNYA: 'Bentuk lainnya',
+}
+
+/**
+ * Label langkah cascading test — ayatnya disebutkan di label karena itulah yang
+ * ditanyakan pemeriksa ("langkah mana yang dipakai, dan atas dasar ayat apa").
+ */
+export const UBO_CASCADE_STEP_LABELS: Record<UboCascadeStep, string> = {
+  KEPEMILIKAN: 'Kepemilikan — Pasal 33 (2)',
+  PENGENDALIAN_BENTUK_LAIN: 'Pengendalian bentuk lain — Pasal 33 (7)',
+  POSISI_DIREKSI: 'Posisi Direksi — Pasal 33 (8)',
 }
 
 /**
@@ -109,7 +315,7 @@ export const KYB_DOCUMENT_SLOT_KEYS = Object.keys(
   KYB_DOCUMENT_SLOTS,
 ) as KybDocumentSlot[]
 
-/** `PRIVATE_EMPLOYEE` → `Private employee`. Fallback for unmapped enum values. */
+/** `KARYAWAN_SWASTA` → `Karyawan swasta`. Fallback for unmapped enum values. */
 export function formatEnumLabel(value: string): string {
   const spaced = value.replace(/_/g, ' ').toLowerCase()
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)

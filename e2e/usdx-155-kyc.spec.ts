@@ -58,14 +58,43 @@ test.describe('USDX-155 KYC review @e2e', () => {
       // USDX-545 — the CDD block is on the review screen. Without it the
       // reviewer decides without seeing the data that was just collected.
       await expect(dialog.getByText(/customer due diligence/i)).toBeVisible()
-      await expect(dialog.getByText('Civil servant')).toBeVisible()
+      // Permendagri label, not the `PEGAWAI_NEGERI_SIPIL` enum value — the
+      // officer is comparing this against the "Pekerjaan" column of the KTP
+      // shown right below it.
+      await expect(
+        dialog.getByTestId('kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
+      ).toBeVisible()
       await expect(dialog.getByText('Business')).toBeVisible()
       await expect(dialog.getByText('Rp 500 juta – 1 miliar')).toBeVisible()
       await expect(dialog.getByText('Remittance')).toBeVisible()
       await expect(dialog.getByText('Not a PEP')).toBeVisible()
-      // The operator here is ADMIN, so NPWP is readable (masking for other roles
-      // is covered by the unit tests, which can pick a role per render).
+      // USDX-587 — the nine answers the customer gives and the reviewer could
+      // not see until this ticket. Without them Approve is a stamp, not the
+      // "hasil analisis" Pasal 63 ayat (2) huruf c requires to be on file.
+      await expect(
+        dialog.getByTestId('kyc-gender').getByText('Perempuan'),
+      ).toBeVisible()
+      await expect(
+        dialog.getByTestId('kyc-marital-status').getByText('Belum Kawin'),
+      ).toBeVisible()
+      await expect(
+        dialog.getByTestId('kyc-net-worth').getByText('Rp 500 juta – 2 miliar'),
+      ).toBeVisible()
+      await expect(
+        dialog.getByTestId('kyc-source-of-wealth').getByText('Akumulasi gaji'),
+      ).toBeVisible()
+      // The operator here is ADMIN, so the PII fields are readable (masking for
+      // other roles is covered by the unit tests, which can pick a role per
+      // render).
       await expect(dialog.getByText('123456789012345')).toBeVisible()
+      await expect(
+        dialog.getByTestId('kyc-mothers-maiden-name').getByText('Siti Rohmah'),
+      ).toBeVisible()
+      await expect(
+        dialog
+          .getByTestId('kyc-employer-address')
+          .getByText('Jl. Gatot Subroto No. 12, Jakarta Selatan'),
+      ).toBeVisible()
 
       await page.keyboard.press('Escape')
       await expect(page).toHaveURL(/\/kyc$/)
