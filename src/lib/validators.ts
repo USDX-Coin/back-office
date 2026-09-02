@@ -1148,3 +1148,48 @@ export function validateKybRejectReason(
   }
   return { valid: true, reason: trimmed }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-588 — alasan keputusan screening.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `@MaxLength(1000)` pada `DecideScreeningDto`. */
+export const SCREENING_REASON_MAX = 1000
+
+/**
+ * Sepuluh karakter, dan ini bukan preferensi gaya: `DecideScreeningDto`
+ * mendeklarasikan `@MinLength(10)` dan CHECK `screening_results_row_shape` di
+ * database menolak yang lebih pendek. Alasan sebenarnya ada di POJK 8/2023
+ * Pasal 63 ayat (2) huruf c — alasan inilah "hasil analisis" yang wajib
+ * ditatausahakan, dan keputusan melepaskan atau menahan seseorang dari daftar
+ * teroris dibaca ulang pemeriksa bertahun kemudian. Kata "ok" tidak menjawab
+ * apa pun saat itu terjadi.
+ */
+export const SCREENING_REASON_MIN = 10
+
+/**
+ * Aturan alasan keputusan sebagai fungsi murni, supaya dialog, hook mutasi, dan
+ * tesnya membaca aturan yang SAMA. Mengembalikan nilai yang sudah di-trim
+ * adalah intinya: pemanggil tidak bisa tanpa sengaja mengirim `"          "`
+ * melewati pemeriksaan `valid`, yang panjangnya persis cukup untuk lolos
+ * `MinLength` di server tapi kosong bagi siapa pun yang membacanya nanti.
+ */
+export function validateScreeningReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Alasan keputusan wajib diisi' }
+  if (trimmed.length < SCREENING_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Alasan minimal ${SCREENING_REASON_MIN} karakter — inilah hasil analisis yang wajib ditatausahakan`,
+    }
+  }
+  if (trimmed.length > SCREENING_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Alasan maksimal ${SCREENING_REASON_MAX} karakter`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}

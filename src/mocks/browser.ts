@@ -98,6 +98,18 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/kyb/:id/reject',
   '/api/v1/kyb/:id/documents/presign',
   '/api/v1/kyb/:id/documents',
+  // USDX-588: screening DTTOT & DPPSPM — dokumentasi saja, tidak pernah ada
+  // handler MSW yang ditulis untuknya. Modulnya sudah utuh di backend sejak
+  // USDX-585 dan kontraknya sudah di SOT (`sot/api/screening.yaml`, USDX-600),
+  // jadi menulis tiruan untuk layar yang sudah hidup hanya menyiapkan jawaban
+  // salah untuk di-debug seseorang nanti — preseden USDX-546 / USDX-47.
+  '/api/v1/screening/results',
+  '/api/v1/screening/results/:id',
+  '/api/v1/screening/results/:id/decide',
+  '/api/v1/screening/lists',
+  '/api/v1/screening/lists/:id/entries',
+  '/api/v1/screening/lists/:id/activate',
+  '/api/v1/screening/rescan',
   // Transparency — append-only reserve ledger + attestation reports. Live on
   // api-dev as of 13 Aug 2026 (see the note above the set).
   '/api/v1/transparency/ledger',

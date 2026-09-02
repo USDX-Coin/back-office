@@ -1872,3 +1872,195 @@ export type UpdateOncallContact = Partial<CreateOncallContact>
 export function canManageOncallContacts(role: StaffRole): boolean {
   return role === 'ADMIN'
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-588 — Screening DTTOT & DPPSPM (POJK 8/2023 Pasal 49 & 53).
+//
+// Transcribed from `sot/api/screening.yaml` and cross-checked field by field
+// against the shipped `backend/src/modules/screening/screening.types.ts`
+// (USDX-585). The two agree, which is why nothing here is invented.
+//
+// Dua sifat kontrak ini yang membentuk seluruh layarnya, dan keduanya bukan
+// pilihan gaya:
+//
+//   1. HASIL SCREENING TIDAK MEMUAT NAMA NASABAH. Tabel `screening_results`
+//      append-only (dua trigger DB menolak UPDATE/DELETE), jadi PII di sana jadi
+//      PII yang tidak bisa dihapus sweeper retensi. Identitas subjek harus
+//      diambil terpisah lewat `subjectType` + `subjectId`.
+//   2. ENTRI DAFTAR BUKAN PII. DTTOT/DPPSPM adalah publikasi publik yang justru
+//      disebar agar dicocokkan, jadi `SanctionEntryDetail` tampil apa adanya —
+//      tidak lewat `presentPii`, dan itu disengaja.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `DTTOT` = terduga teroris; `DPPSPM` = pendanaan proliferasi senjata pemusnah massal. */
+export type SanctionListType = 'DTTOT' | 'DPPSPM'
+
+/** Penerbit berkas. `OJK` disediakan untuk saat USDX punya akses sistem OJK (Pasal 53 ayat (1)). */
+export type SanctionListSource = 'PPATK' | 'BAPPEBTI' | 'OJK' | 'OTHER'
+
+/**
+ * `DRAFT` sedang diisi dan tidak dipakai memeriksa siapa pun; `ACTIVE` dasar
+ * pemeriksaan saat ini; `SUPERSEDED` versi lama yang TETAP disimpan karena hasil
+ * screening lama menunjuk ke sana.
+ */
+export type SanctionListStatus = 'DRAFT' | 'ACTIVE' | 'SUPERSEDED'
+
+export type SanctionEntryType = 'INDIVIDUAL' | 'ENTITY'
+
+/**
+ * Subjek yang diperiksa. `KYC_UBO` ada karena Pasal 53 ayat (4) menyebut Pemilik
+ * Manfaat secara eksplisit.
+ *
+ * PENTING untuk layar banding: `subjectId` adalah id baris `kyc` / `kyc_ubo` /
+ * `kyb`. Dua di antaranya bisa dibaca back office (`GET /api/v1/kyc/{id}`,
+ * `GET /api/v1/kyb/{id}`) — `kyc_ubo` TIDAK: tidak ada endpoint yang mengambil
+ * satu UBO berdasarkan idnya, dan UBO hanya muncul menempel pada `KybDetail`
+ * yang induknya tidak diketahui dari temuan. Layarnya menyatakan itu apa adanya
+ * alih-alih menampilkan panel kosong yang terbaca seperti "nasabah tanpa data".
+ */
+export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB'
+
+/**
+ * Tiga nilai pertama ditulis MESIN, dua terakhir ditulis PETUGAS sebagai baris
+ * BARU yang menunjuk barisan pemeriksaannya — keputusan tidak pernah menimpa
+ * temuan.
+ *
+ * `LIST_UNAVAILABLE` = pemeriksaan berjalan saat belum ada daftar `ACTIVE`.
+ * Dicatat jujur, tapi TIDAK memblokir approve (keputusan PM: screening tidak
+ * boleh menghentikan onboarding sebelum daftar pertama diunggah).
+ */
+export type ScreeningOutcome =
+  | 'NO_MATCH'
+  | 'POTENTIAL_MATCH'
+  | 'LIST_UNAVAILABLE'
+  | 'CLEARED'
+  | 'CONFIRMED_MATCH'
+
+export type ScreeningTrigger =
+  | 'KYC_SUBMIT'
+  | 'KYB_SUBMIT'
+  | 'RESCAN'
+  | 'BACKOFFICE_DECISION'
+
+/** Dua keputusan yang boleh ditulis petugas — subset sempit dari `ScreeningOutcome`. */
+export type ScreeningDecisionValue = Extract<
+  ScreeningOutcome,
+  'CLEARED' | 'CONFIRMED_MATCH'
+>
+
+/** Satu versi daftar sanksi. */
+export interface SanctionListItem {
+  id: string
+  listType: SanctionListType
+  source: SanctionListSource
+  /** Tanggal TERBIT menurut penerbitnya (`YYYY-MM-DD`) — bukan tanggal impor. */
+  publishedAt: string
+  status: SanctionListStatus
+  entryCount: number
+  sourceFileName: string | null
+  notes: string | null
+  /** `null` kalau akun petugas yang mengimpor sudah dihapus. */
+  importedByName: string | null
+  importedAt: string
+  activatedAt: string | null
+  supersededAt: string | null
+}
+
+/** Hasil satu unggahan potongan berkas ke versi DRAFT. */
+export interface SanctionImportResult {
+  listId: string
+  /** Entri yang masuk pada unggahan INI. */
+  inserted: number
+  /** Total entri versi ini SETELAH unggahan ini. */
+  totalEntries: number
+}
+
+/**
+ * Entri daftar yang cocok — data publik dari publikasi PPATK/Bappebti. Bukan PII
+ * nasabah, jadi tidak dienkripsi dan boleh tampil apa adanya.
+ */
+export interface SanctionEntryDetail {
+  id: string
+  /** Nomor urut entri pada berkas aslinya, kalau berkasnya memuatnya. */
+  referenceCode: string | null
+  entryType: SanctionEntryType
+  fullName: string
+  /** Ikut dicocokkan — Pasal 25 mewajibkan nasabah menyebutkan aliasnya. */
+  aliases: string[]
+  /** TEKS BEBAS: daftar aslinya memuat "1970" dan tanggal penuh di kolom yang sama. */
+  dateOfBirth: string | null
+  placeOfBirth: string | null
+  nationality: string | null
+  address: string | null
+  notes: string | null
+}
+
+/** Keputusan petugas atas satu temuan — baris tersendiri, bukan perubahan atas barisnya. */
+export interface ScreeningDecision {
+  id: string
+  outcome: ScreeningDecisionValue
+  decidedBy: string | null
+  decidedByName: string | null
+  reason: string | null
+  createdAt: string
+}
+
+/** Satu baris jejak pemeriksaan. TIDAK memuat nama nasabah — lihat catatan blok di atas. */
+export interface ScreeningResultItem {
+  id: string
+  subjectType: ScreeningSubjectType
+  subjectId: string
+  outcome: ScreeningOutcome
+  /**
+   * Skor kemiripan nama 0..1, `null` hanya untuk `LIST_UNAVAILABLE`. Ambang
+   * kecocokan 0.85 (Jaro-Winkler) — memihak recall.
+   */
+  score: number | null
+  /** Nama pada ENTRI DAFTAR yang cocok — bukan nama nasabah. */
+  matchedName: string | null
+  /** Jumlah entri yang melewati ambang. Lebih dari satu = perlu ditinjau lebih hati-hati. */
+  matchCount: number | null
+  trigger: ScreeningTrigger
+  /** Versi daftar yang dipakai — inilah yang menjawab "lolos pakai daftar tanggal berapa". */
+  listId: string | null
+  listType: SanctionListType | null
+  listPublishedAt: string | null
+  /** `null` selama temuan belum diputuskan petugas. */
+  decision: ScreeningDecision | null
+  createdAt: string
+}
+
+/** `GET /api/v1/screening/results/{id}` — menambahkan entri daftar yang dibandingkan. */
+export interface ScreeningResultDetail extends ScreeningResultItem {
+  matchedEntry: SanctionEntryDetail | null
+}
+
+/** Ringkasan satu pemindaian ulang. */
+export interface RescanSummary {
+  /** Versi daftar yang dipakai saat pemindaian ini berjalan. */
+  lists: Array<{ id: string; listType: SanctionListType; publishedAt: string }>
+  scanned: number
+  matched: number
+  noMatch: number
+  /** Subjek yang namanya sudah dikosongkan sweeper retensi — tidak bisa dicocokkan, bukan kegagalan. */
+  skipped: number
+  /** `true` = batas per-panggilan tercapai, masih ada subjek yang belum diperiksa. */
+  truncated: boolean
+}
+
+/** `POST /api/v1/screening/lists` — langkah 1 dari 3, membuka versi `DRAFT`. */
+export interface CreateSanctionListBody {
+  listType: SanctionListType
+  source: SanctionListSource
+  /** `YYYY-MM-DD`. */
+  publishedAt: string
+  sourceFileName?: string
+  notes?: string
+}
+
+/** `POST /api/v1/screening/results/{id}/decide`. */
+export interface DecideScreeningBody {
+  decision: ScreeningDecisionValue
+  /** Wajib, 10..1000 karakter — "hasil analisis" yang Pasal 63 ayat (2) huruf c wajibkan. */
+  reason: string
+}
