@@ -98,6 +98,10 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/kyb/:id/reject',
   '/api/v1/kyb/:id/documents/presign',
   '/api/v1/kyb/:id/documents',
+  // Dokumen SATU UBO (USDX-604, dipakai FE sejak USDX-605) — rutenya bersarang di bawah
+  // `:id/ubos/:uboId` karena berkasnya milik baris `kyc_ubo`, bukan baris `kyb`.
+  '/api/v1/kyb/:id/ubos/:uboId/documents/presign',
+  '/api/v1/kyb/:id/ubos/:uboId/documents',
   // USDX-588: screening DTTOT & DPPSPM — dokumentasi saja, tidak pernah ada
   // handler MSW yang ditulis untuknya. Modulnya sudah utuh di backend sejak
   // USDX-585 dan kontraknya sudah di SOT (`sot/api/screening.yaml`, USDX-600),

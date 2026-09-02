@@ -281,7 +281,7 @@ export const KYB_ENTITY_FORM_LABELS: Record<KybEntityForm, string> = {
 }
 
 /**
- * Label for each of the five fixed KYB document slots — one entry per backend
+ * Label for each of the eight fixed KYB document slots — one entry per backend
  * path column (PR #271 commit 5dc7254, migration 0077). This is the ONLY place
  * the front end names them.
  *

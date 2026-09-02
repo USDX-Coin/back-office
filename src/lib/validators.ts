@@ -924,6 +924,19 @@ const MAX_KYB_UBOS = 20 // CreateKybDto @ArrayMaxSize(20)
 const MAX_KYB_UBO_ALIAS_LEN = 200 // CreateKybUboDto @MaxLength(200)
 const MAX_KYB_UBO_NAME_LEN = 100 // CreateKybUboDto @MaxLength(100) — birthPlace
 const MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN = 500 // CreateKybUboDto @MaxLength(500)
+const MAX_KYB_UBO_PHONE_LEN = 32 // CreateKybUboDto @MaxLength(32)
+
+/**
+ * `YYYY-MM-DD` yang benar-benar ada di kalender — cermin `@IsISO8601({ strict: true })`.
+ *
+ * Dibanding balik ke string, bukan `!isNaN(Date.parse())`: `new Date('1980-02-30')` di JS
+ * bergulir jadi 1 Maret dan `Date.parse` memberkatinya. Yang menangkapnya adalah selisih antara
+ * yang diketik dan yang dipahami mesin.
+ */
+function isRealCalendarDate(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso
+}
 // NIB: DIGITS ONLY. `@IsNumberString({ no_symbols: true })` — the backend
 // normalises the value to digits before hashing it, so "8120-0123-45678" and
 // "812001234 5678" are the same company; accepting punctuation here would let an
@@ -1181,7 +1194,7 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // berbunyi "jika ada", dan tidak semua orang punya nama alias.
     if (!ubo.birthPlace.trim()) {
       errors[kybUboErrorKey(i, 'birthPlace')] = 'Place of birth is required'
-    } else if (ubo.birthPlace.length > MAX_KYB_UBO_NAME_LEN) {
+    } else if (ubo.birthPlace.trim().length > MAX_KYB_UBO_NAME_LEN) {
       errors[kybUboErrorKey(i, 'birthPlace')] =
         `Place of birth must be under ${MAX_KYB_UBO_NAME_LEN} characters`
     }
@@ -1191,6 +1204,11 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
       errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is required'
     } else if (!KYB_ISO_DATE_RE.test(dob)) {
       errors[kybUboErrorKey(i, 'dob')] = 'Date of birth must be YYYY-MM-DD'
+    } else if (!isRealCalendarDate(dob)) {
+      // `CreateKybUboDto.dob` memakai `@Matches` + `@IsISO8601({ strict: true })`: bentuknya
+      // benar TIDAK cukup, tanggalnya harus ada di kalender. Tanpa cermin di sini, 1980-02-30
+      // lolos form dan baru ditolak server sebagai 400 yang tidak menunjuk barisnya.
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is not a real calendar date'
     } else if (isFutureWibDate(dob)) {
       // Seseorang tidak bisa lahir besok. Dinilai di WIB, sama dengan setiap
       // tanggal lain di aplikasi ini.
@@ -1204,18 +1222,26 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
         'Nationality must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
     }
 
-    if (ubo.aliasName.length > MAX_KYB_UBO_ALIAS_LEN) {
+    // Panjang diukur SETELAH trim, karena yang dikirim juga hasil trim — tanpa itu satu spasi di
+    // ekor menolak nilai yang server justru terima.
+    if (ubo.aliasName.trim().length > MAX_KYB_UBO_ALIAS_LEN) {
       errors[kybUboErrorKey(i, 'aliasName')] =
         `Alias must be under ${MAX_KYB_UBO_ALIAS_LEN} characters`
     }
-    if (ubo.employerAddress.length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
+    if (ubo.employerAddress.trim().length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'employerAddress')] =
         `Employer address must be under ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} characters`
     }
-    const employerPhone = ubo.employerPhone.trim()
-    if (employerPhone && !PHONE_RE.test(employerPhone)) {
+    // HANYA panjangnya. `PHONE_RE` (10–15 digit, tanpa pemisah) di sini akan menolak
+    // `021-1234567`, `+62 21 4000 1234`, dan nomor kantor 8 digit — semuanya diterima kontrak
+    // (`sot/api/kyb.yaml § CreateKybUbo.employerPhone`: `maxLength: 32`, tanpa pattern) dan
+    // diterima `CreateKybUboDto` (`@IsString() @MaxLength(32)`). Aturan FE yang lebih ketat dari
+    // kontraknya adalah kesalahan yang tiket ini justru sedang membereskan di empat tempat lain;
+    // menambahkannya di sini akan mengulanginya. Telepon TEMPAT KERJA pun bukan kunci apa-apa:
+    // tidak dipakai mencari, tidak di-hash, tidak dikirim OTP.
+    if (ubo.employerPhone.trim().length > MAX_KYB_UBO_PHONE_LEN) {
       errors[kybUboErrorKey(i, 'employerPhone')] =
-        'Employer phone must be 10-15 digits (leading + allowed)'
+        `Employer phone must be under ${MAX_KYB_UBO_PHONE_LEN} characters`
     }
 
     // Enum tertutup: yang diperiksa di sini hanya "sudah dipilih atau belum".

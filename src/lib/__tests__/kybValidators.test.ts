@@ -481,16 +481,53 @@ describe('validateKybForm — Pasal 25 (1) b & Pasal 33 (3) (USDX-605)', () => {
       ).toBeTruthy()
     })
 
-    test('should refuse a malformed employer phone but allow it empty', () => {
+    test('should accept every employer-phone shape the contract accepts, and refuse only over-length', () => {
+      // Kontraknya (`CreateKybUbo.employerPhone`) hanya `maxLength: 32` — tanpa pattern, tanpa
+      // minimum — dan `CreateKybUboDto` sama. Aturan FE yang lebih ketat menolak masukan yang
+      // server terima; itu justru cacat yang tiket ini bereskan di empat tempat lain.
+      for (const employerPhone of [
+        '', // tidak diisi — butir g) berbunyi "jika ada"
+        '021-1234567', // nomor kantor dengan pemisah
+        '+62 21 4000 1234', // internasional dengan spasi
+        '5551234', // sambungan internal 7 digit
+        '+622140001234 ext. 210', // dengan ekstensi
+      ]) {
+        expect(
+          validateKybForm(validForm({ ubos: [validUbo({ employerPhone })] })).errors[
+            'ubo.0.employerPhone'
+          ],
+        ).toBeUndefined()
+      }
+      // Yang ditolak hanya yang melewati batas kontraknya.
       expect(
-        validateKybForm(validForm({ ubos: [validUbo({ employerPhone: 'abc' })] })).errors[
-          'ubo.0.employerPhone'
+        validateKybForm(validForm({ ubos: [validUbo({ employerPhone: '1'.repeat(33) })] }))
+          .errors['ubo.0.employerPhone'],
+      ).toBeTruthy()
+    })
+
+    test('should refuse a date of birth that is not on the calendar', () => {
+      // Bentuknya benar, tanggalnya tidak ada. `CreateKybUboDto` menolaknya lewat
+      // `@IsISO8601({ strict: true })`; tanpa cermin di sini errornya baru muncul sebagai 400
+      // yang tidak menunjuk baris UBO mana.
+      expect(
+        validateKybForm(validForm({ ubos: [validUbo({ dob: '1980-02-30' })] })).errors[
+          'ubo.0.dob'
         ],
       ).toBeTruthy()
       expect(
-        validateKybForm(validForm({ ubos: [validUbo({ employerPhone: '' })] })).errors[
-          'ubo.0.employerPhone'
+        validateKybForm(validForm({ ubos: [validUbo({ dob: '1980-02-29' })] })).errors[
+          'ubo.0.dob'
         ],
+      ).toBeUndefined()
+    })
+
+    test('should measure UBO lengths AFTER trimming, like the body it sends', () => {
+      // Yang dikirim adalah hasil `.trim()`, jadi mengukur yang belum di-trim menolak nilai yang
+      // sebenarnya muat.
+      expect(
+        validateKybForm(
+          validForm({ ubos: [validUbo({ aliasName: `${'a'.repeat(200)}   ` })] }),
+        ).errors['ubo.0.aliasName'],
       ).toBeUndefined()
     })
   })

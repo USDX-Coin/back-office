@@ -144,8 +144,16 @@ async function selectByClick(
   await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
-/** Fill every entity field with valid data. UBO #0 is filled separately. */
-async function fillEntity(user: ReturnType<typeof userEvent.setup>) {
+/**
+ * Fill every entity field with valid data. UBO #0 is filled separately.
+ *
+ * `microSmall: false` MELEWATI pertanyaan skala usaha, bukan menjawab "bukan mikro/kecil" —
+ * satu-satunya cara menguji bahwa pertanyaan yang BELUM DIJAWAB memblokir submit.
+ */
+async function fillEntity(
+  user: ReturnType<typeof userEvent.setup>,
+  { microSmall = true }: { microSmall?: boolean } = {},
+) {
   await user.type(screen.getByLabelText('Entity name'), 'PT Juara Remiten Indonesia')
   await user.type(screen.getByLabelText(/registration number/i), '8120012345678')
   await user.type(screen.getByLabelText(/entity npwp/i), '012345678901234')
@@ -159,12 +167,14 @@ async function fillEntity(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/place of incorporation/i), 'Jakarta Selatan')
   await selectByTypeahead(user, 'kyb-source-of-funds', 'Business', 'Business')
   await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investment', 'Investment')
-  await selectByTypeahead(
-    user,
-    'kyb-micro-small',
-    'Bukan',
-    'Bukan usaha mikro/kecil (huruf a + huruf b)',
-  )
+  if (microSmall) {
+    await selectByTypeahead(
+      user,
+      'kyb-micro-small',
+      'Bukan',
+      'Bukan usaha mikro/kecil (huruf a + huruf b)',
+    )
+  }
 }
 
 /**
@@ -502,7 +512,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
   })
 
   describe('negative', () => {
-    test('should not submit while the micro/small question is unanswered', async () => {
+    test('should not submit while a UBO Pasal 33 (3) field is unanswered', async () => {
       const user = newUser()
       stubUsersLookup()
       let posted = 0
@@ -526,6 +536,38 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
 
       expect(await screen.findByText(/place of birth is required/i)).toBeInTheDocument()
       expect(posted).toBe(0)
+    })
+
+    test('should not submit while the micro/small question is unanswered', async () => {
+      // Pertanyaannya tidak punya default, dan itu keputusan kontraknya: menebak salah satu arah
+      // sama-sama merugikan. Yang membuktikannya adalah form yang LENGKAP kecuali pertanyaan itu.
+      const user = newUser()
+      stubUsersLookup()
+      let posted = 0
+      server.use(
+        http.post('/api/v1/kyb', () => {
+          posted++
+          return HttpResponse.json(
+            { status: 'success', metadata: null, data: { id: 'x' } },
+            { status: 201 },
+          )
+        }),
+      )
+      setup()
+      await pickLegalEntity(user)
+      await fillEntity(user, { microSmall: false })
+      await fillUbo(user, 0, '100', '3171234567890123')
+
+      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+
+      expect(
+        await screen.findByText(/answer whether this is a micro\/small enterprise/i),
+      ).toBeInTheDocument()
+      expect(posted).toBe(0)
+      // Dan daftar dokumennya pun tidak muncul: konsekuensinya belum bisa dihitung.
+      expect(
+        screen.queryByTestId('kyb-required-documents-preview'),
+      ).not.toBeInTheDocument()
     })
   })
 

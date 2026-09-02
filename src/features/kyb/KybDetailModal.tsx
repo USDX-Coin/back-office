@@ -27,6 +27,7 @@ import {
   ANNUAL_INCOME_LABELS,
   GENDER_LABELS,
   KYB_DOCUMENT_SLOTS,
+  KYB_DOCUMENT_SLOT_KEYS,
   kybApplicableDocumentSlots,
   KYB_ENTITY_FORM_LABELS,
   MARITAL_STATUS_LABELS,
@@ -50,6 +51,7 @@ import {
   KYB_UBO_DOCUMENT_SLOT_KEYS,
   KYB_UBO_PHOTO_ACCEPT_ATTR,
   KYB_UBO_PHOTO_SLOTS,
+  KYB_UBO_PHOTO_TYPE_LABEL,
   validateKybDocumentFile,
   validateKybUboDocumentFile,
 } from '@/lib/kybDocumentUpload'
@@ -190,6 +192,7 @@ function PiiValue({ value, staff }: { value: string | null; staff: Staff | null 
 function UboDocLink({
   slot,
   uboId,
+  uboIndex,
   url,
   uploadedNow,
   urlsWithheld,
@@ -201,6 +204,8 @@ function UboDocLink({
 }: {
   slot: KybUboDocumentSlot
   uboId: string
+  /** Nomor kartu UBO (0-based) — ikut ke nama aksesibel kontrol unggahnya. */
+  uboIndex: number
   url: string | null
   /** Server bilang kolomnya sudah terisi lewat balasan attach, tapi record di layar dibaca sebelum itu. */
   uploadedNow: boolean
@@ -253,10 +258,15 @@ function UboDocLink({
             <input
               id={inputId}
               type="file"
-              // Nama aksesibelnya menyebut UBO KE BERAPA dan dokumen apa: satu
-              // berkas KYB boleh punya 20 UBO × 4 slot, jadi "Upload" saja adalah
-              // 80 kontrol yang tidak bisa dibedakan pembaca layar.
-              aria-label={`${url !== null || uploadedNow ? 'Replace' : 'Upload'} ${label}`}
+              // Nama aksesibelnya menyebut UBO KE BERAPA dan dokumen apa: satu berkas
+              // KYB boleh punya 20 UBO × 4 slot, jadi "Upload Foto identitas" saja
+              // adalah 80 kontrol dengan hanya empat nama berbeda. `Field` merender
+              // labelnya sebagai `<p>`, bukan `<label>`, jadi tidak ada yang
+              // mengikatkan baris itu ke inputnya — nama ini satu-satunya pembeda
+              // yang dipunyai pembaca layar.
+              aria-label={`${
+                url !== null || uploadedNow ? 'Replace' : 'Upload'
+              } ${label} UBO #${uboIndex + 1}`}
               className="sr-only"
               accept={isPhoto ? KYB_UBO_PHOTO_ACCEPT_ATTR : KYB_DOCUMENT_ACCEPT_ATTR}
               disabled={disabled}
@@ -430,6 +440,7 @@ function UboCard({
             key={slot}
             slot={slot}
             uboId={ubo.id}
+            uboIndex={index}
             url={slotUrl[slot]}
             uploadedNow={uploadedSlots?.[slot] === true}
             urlsWithheld={urlsWithheld}
@@ -463,8 +474,11 @@ function UboCard({
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
               <span>
-                Pernyataan nasabah (Pasal 33 ayat (3) huruf e) belum ada — approve
-                akan ditolak backend.
+                Pernyataan nasabah (Pasal 33 ayat (3) huruf e) belum ada. Approve
+                TIDAK menahannya — kontraknya menyatakan huruf e sengaja tanpa
+                gerbang otomatis, karena "kolomnya terisi" lolos begitu ada berkas
+                apa pun. Yang menilai sah atau tidaknya adalah petugas yang
+                membacanya.
               </span>
             </li>
           )}
@@ -475,7 +489,7 @@ function UboCard({
 }
 
 /**
- * One of the five fixed document slots.
+ * One of the eight fixed document slots (`sot/api/kyb.yaml § KybDocuments`).
  *
  * The label — not a file name — is the identity of the row, because the backend
  * keeps a path column per document type and stores neither the name nor the size
@@ -491,7 +505,7 @@ function UboCard({
  * The picker is a `<label htmlFor>` over an `sr-only` file input rather than a
  * button that clicks a ref: the native association opens the file dialog with no
  * JavaScript, keeps the keyboard path working, and gives the control a real
- * accessible name ("Upload Akta Pendirian") instead of five identical "Upload"s.
+ * accessible name ("Upload Akta Pendirian") instead of eight identical "Upload"s.
  * It is rendered only when the server would actually accept the upload — see
  * `canUpload` in the parent.
  */
@@ -609,7 +623,7 @@ function DocumentSlotRow({
             <input
               id={inputId}
               type="file"
-              // The visible label reads "Upload" on all five rows; the accessible
+              // The visible label reads "Upload" on every row; the accessible
               // name has to say WHICH document, or the control is unusable by
               // anyone not looking at the row it sits in. `aria-label` rather
               // than an `sr-only` span so the slot name exists once as text.
@@ -651,7 +665,7 @@ function DocumentSlotRow({
  * would be a maintenance cost with no payoff.
  *
  * Two things differ, both because KYB is a MANUAL flow:
- *   - documents are shown as the five FIXED slots the backend keeps as path
+ *   - documents are shown as the FIXED slots the backend keeps as path
  *     columns, each with its own upload (the three-step flow in `./hooks.ts`) —
  *     nobody but an operator can put a document on a KYB record;
  *   - the record's UBOs are shown as cards rather than a photo pair.
@@ -785,7 +799,7 @@ export default function KybDetailModal({
    *      have travelled, and its answer does not say which format it really is.
    *
    * The message always lands on the row, never as a toast alone: the operator is
-   * looking at five slots and has to know WHICH one refused what.
+   * looking at several slots and has to know WHICH one refused what.
    */
   async function handlePickDocument(slot: KybDocumentSlot, file: File) {
     if (!kybId) return
@@ -864,7 +878,10 @@ export default function KybDetailModal({
       setUboUploadedSlots((prev) => ({ ...prev, [uboId]: result.uploaded }))
       toast.success(`${KYB_UBO_DOCUMENT_SLOTS[slot]} uploaded`)
     } catch (err) {
-      const message = describeKybUploadFailure(err)
+      const message = describeKybUploadFailure(
+        err,
+        KYB_UBO_PHOTO_SLOTS.has(slot) ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL,
+      )
       setError(message)
       toast.error(message)
     } finally {
@@ -913,18 +930,44 @@ export default function KybDetailModal({
    * mereka adalah cara paling langsung membuat petugas menagih dokumen yang
    * pasalnya tidak minta.
    *
-   * Sebelum detailnya termuat, dipakai bentuk paling ketat (`isMicroOrSmall:
-   * null` → diperiksa penuh) supaya header tidak melompat dari lima ke delapan
-   * setelah data datang.
+   * DITAMBAH dua hal yang tidak boleh hilang dari layar apa pun cabangnya:
+   *   - slot yang SERVER sebut kurang di `409 KYB_DOCUMENTS_INCOMPLETE`. Kalau kedua sisi pernah
+   *     berbeda — deploy yang belum sinkron, atau gap Pasal 28 untuk yayasan yang memang tercatat
+   *     — petugas akan membaca "dokumen ini kurang" tanpa satu pun tempat mengunggahnya;
+   *   - slot yang SUDAH punya berkas. Menyembunyikan dokumen yang benar-benar ada, hanya karena
+   *     cabangnya tidak menuntutnya, membuat berkas itu lenyap dari halaman review.
    */
-  const applicableSlots = kybApplicableDocumentSlots({
-    entityForm: detail?.entityForm ?? 'PT',
-    isMicroOrSmall: detail?.isMicroOrSmall ?? null,
-  })
+  const applicableSlots = ((): KybDocumentSlot[] => {
+    if (!detail) return []
+    const shown = new Set<KybDocumentSlot>([
+      ...kybApplicableDocumentSlots({
+        entityForm: detail.entityForm,
+        isMicroOrSmall: detail.isMicroOrSmall,
+      }),
+      ...(missingDocuments ?? []),
+    ])
+    for (const slot of KYB_DOCUMENT_SLOT_KEYS) if (slotFilled(slot)) shown.add(slot)
+    return KYB_DOCUMENT_SLOT_KEYS.filter((slot) => shown.has(slot))
+  })()
   const uploadedCount = applicableSlots.filter(slotFilled).length
-  const hasUnlinkedUpload = applicableSlots.some(
-    (slot) => uploadedSlots?.[slot] === true && detail?.documents?.[slot] == null,
-  )
+  // Termasuk dokumen UBO: balasan attach-nya juga tidak membawa presigned URL, jadi baris
+  // "Terunggah — muat ulang untuk membuka" di kartu UBO butuh tombol reload yang sama. Tanpa ini,
+  // petugas disuruh memuat ulang tanpa diberi tombolnya.
+  const hasUnlinkedUpload =
+    applicableSlots.some(
+      (slot) => uploadedSlots?.[slot] === true && detail?.documents?.[slot] == null,
+    ) ||
+    (detail?.ubos ?? []).some((ubo) => {
+      const uploaded = uboUploadedSlots[ubo.id]
+      if (!uploaded) return false
+      const url: Record<KybUboDocumentSlot, string | null> = {
+        identityPhoto: ubo.identityPhotoUrl,
+        selfiePhoto: ubo.selfiePhotoUrl,
+        legalRelationshipDoc: ubo.legalRelationshipDocUrl,
+        customerDeclarationDoc: ubo.customerDeclarationDocUrl,
+      }
+      return KYB_UBO_DOCUMENT_SLOT_KEYS.some((s) => uploaded[s] === true && url[s] === null)
+    })
   // The DEVELOPER role is never given presigned document URLs, so every slot
   // arrives `null` for it regardless of what the record holds. Taken from the
   // same predicate that already marks the role view-only, rather than a second
@@ -1255,7 +1298,7 @@ export default function KybDetailModal({
                       // re-read of this record decrypts entity PII and mints
                       // presigned URLs, which writes a `pii_access_audit` row.
                       // Refetching automatically after each upload would
-                      // manufacture five audited reads for one piece of work.
+                      // manufacture one audited read per upload, for one piece of work.
                       <Button
                         type="button"
                         variant="outline"

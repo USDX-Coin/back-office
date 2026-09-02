@@ -309,11 +309,19 @@ export async function checkKybDocumentBytes(file: Blob): Promise<string | null> 
  * `KYB_NOT_FOUND`; attach: `KYB_FILE_NOT_FOUND`, `KYB_FILE_INVALID`, plus the
  * same status and role gates (`kyb.service.ts`, `kyb.controller.ts`).
  */
-export function describeKybUploadFailure(err: unknown): string {
+export function describeKybUploadFailure(
+  err: unknown,
+  /**
+   * Format yang BOLEH untuk slot yang sedang diunggah. Bukan hiasan: dua slot dokumen UBO adalah
+   * FOTO, dan whitelist-nya JPG/PNG/HEIC — bukan PDF. Pesan yang menyebut "must be PDF, JPG or
+   * PNG" untuk foto KTP mengirim petugas mencari berkas yang justru akan ditolak lagi.
+   */
+  typeLabel: string = KYB_DOCUMENT_TYPE_LABEL,
+): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'FILE_TYPE_NOT_ALLOWED':
-        return `The server refused this file type — a KYB document must be ${KYB_DOCUMENT_TYPE_LABEL}.`
+        return `The server refused this file type — it must be ${typeLabel}.`
       case 'FILE_SIZE_EXCEEDED':
         return `The server refused this file: it is over the ${KYB_DOCUMENT_MAX_FILE_LABEL} limit.`
       case 'KYB_FILE_NOT_FOUND':

@@ -44,8 +44,6 @@ import {
 } from '@/lib/validators'
 import { useCreateKyb } from './hooks'
 
-const ENTITY_FORMS = Object.keys(KYB_ENTITY_FORM_LABELS) as KybEntityForm[]
-
 const EMPTY_UBO: KybUboFormInput = {
   firstName: '',
   lastName: '',
@@ -97,7 +95,6 @@ const EMPTY_FORM: Omit<KybFormInput, 'userId'> = {
   ubos: [{ ...EMPTY_UBO }],
 }
 
-/** `<Select>` tidak boleh punya `value=""`, jadi kosong dirender sebagai unset. */
 /**
  * `isMicroOrSmall` sebagai TIGA nilai. Labelnya menyebut konsekuensinya, bukan
  * cuma jawabannya: yang dipilih petugas menentukan berapa dokumen yang harus ia
@@ -341,23 +338,18 @@ export default function KybFormPage() {
               <FieldError message={errors.entityName} />
             </div>
             <div>
+              {/* Lewat `EnumSelect` seperti sebelas select lainnya — sebelumnya select ini
+                  satu-satunya yang ditulis tangan, dan satu-satunya yang kehilangan
+                  `aria-invalid`. Persis kegagalan yang keberadaan helper itu cegah. */}
               <Label htmlFor="kyb-entity-form">Legal form</Label>
-              <Select
+              <EnumSelect
+                id="kyb-entity-form"
                 value={form.entityForm}
-                onValueChange={(v) => setField('entityForm', v)}
+                labels={KYB_ENTITY_FORM_LABELS}
                 disabled={create.isPending}
-              >
-                <SelectTrigger id="kyb-entity-form" className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ENTITY_FORMS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {KYB_ENTITY_FORM_LABELS[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                invalid={Boolean(errors.entityForm)}
+                onChange={(v) => setField('entityForm', v)}
+              />
               <FieldError message={errors.entityForm} />
             </div>
             <div>
