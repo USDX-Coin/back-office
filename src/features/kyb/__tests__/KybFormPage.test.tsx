@@ -17,11 +17,16 @@ import type { PhaseOneUser } from '@/lib/types'
 // stubbed per test.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Form ini sekarang punya sebelas `<Select>` (salah satunya 99 nilai
-// Permendagri) dan test terberatnya mengisi dua baris UBO penuh. 5000 ms bawaan
-// vitest habis untuk merender pilihan, bukan untuk menunggu perilaku yang salah —
-// jadi yang dinaikkan adalah anggaran waktunya, bukan asersinya.
-vi.setConfig({ testTimeout: 30_000 })
+// Form ini sekarang punya sebelas `<Select>` (salah satunya 99 nilai Permendagri) dan test
+// terberatnya mengisi DUA baris UBO penuh. 5000 ms bawaan vitest habis untuk merender pilihan,
+// bukan untuk menunggu perilaku yang salah — jadi yang dinaikkan adalah anggaran waktunya, bukan
+// asersinya.
+//
+// 60 detik, bukan 30, karena runner CI jauh lebih lambat daripada mesin lokal: test yang selesai
+// 6 detik di sini memakan 32 detik di sana. Angkanya dipilih SETELAH biaya sebenarnya ditekan —
+// test yang assert-nya "submit ditahan" sekarang memakai `fillUboBasic` dan tidak menyentuh satu
+// pun select. Bukan menutupi hang: setiap test di berkas ini selesai, yang paling lambat pun.
+vi.setConfig({ testTimeout: 60_000 })
 
 beforeAll(() => server.listen())
 afterEach(() => {
@@ -95,14 +100,42 @@ async function pickLegalEntity(user: ReturnType<typeof userEvent.setup>) {
 }
 
 /**
- * Pilih satu opsi pada `<Select>` Radix lewat id trigger-nya.
+ * Pilih satu opsi pada `<Select>` Radix lewat id trigger-nya, dengan TYPEAHEAD.
  *
- * Lewat id, bukan nama aksesibel: form ini sekarang punya sebelas select dan
- * beberapa berlabel sama pada baris UBO yang berbeda ("Source of funds" ada di
- * blok badan usaha DAN di tiap UBO), jadi pencarian berdasarkan nama akan cocok
- * ke lebih dari satu.
+ * Lewat id, bukan nama aksesibel: form ini sekarang punya sebelas select dan beberapa berlabel
+ * sama pada baris UBO yang berbeda ("Source of funds" ada di blok badan usaha DAN di tiap UBO),
+ * jadi pencarian berdasarkan nama akan cocok ke lebih dari satu.
+ *
+ * Typeahead pada trigger yang TERTUTUP, bukan buka-lalu-klik, dan itu bukan trik test: Radix
+ * memang mendukungnya, dan pengguna keyboard memakainya. Bedanya harga — `SelectContent` hanya
+ * merender itemnya saat terbuka, dan select `occupation` punya 99 nilai Permendagri. Diukur di
+ * jsdom: 63 ms lewat typeahead vs 272 ms lewat buka+klik, untuk select yang sama.
+ *
+ * `expectedLabel` BUKAN hiasan. Typeahead memilih berdasarkan awalan teks, jadi label yang
+ * berubah bisa diam-diam mendaratkan pilihan di opsi lain. Asersi di bawah membuat kejadian itu
+ * MERAH, bukan lolos sebagai nilai yang kebetulan sah.
  */
-async function selectById(
+async function selectByTypeahead(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerId: string,
+  typeahead: string,
+  expectedLabel: string,
+) {
+  const trigger = document.querySelector<HTMLElement>(`#${triggerId}`)!
+  trigger.focus()
+  await user.keyboard(typeahead)
+  expect(trigger.textContent).toBe(expectedLabel)
+}
+
+/**
+ * Buka lalu klik — dipakai untuk select yang awalan unik-nya MENGANDUNG SPASI.
+ *
+ * Spasi tidak bisa lewat typeahead: pada trigger Radix yang tertutup, Space MEMBUKA select-nya,
+ * bukan menambah karakter ke pencarian. Empat select di form ini kena — "Rp 500 juta …",
+ * "Surat kuasa", dan "PT Perorangan" tidak punya awalan unik tanpa spasi. Ketiganya daftar
+ * pendek, jadi harganya kecil; yang mahal (99 nilai Permendagri) justru bisa lewat typeahead.
+ */
+async function selectByClick(
   user: ReturnType<typeof userEvent.setup>,
   triggerId: string,
   optionName: RegExp,
@@ -124,12 +157,26 @@ async function fillEntity(user: ReturnType<typeof userEvent.setup>) {
   // Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605. Keempatnya `required`
   // di kontraknya dan tidak pernah dikirim form ini sebelum tiket itu.
   await user.type(screen.getByLabelText(/place of incorporation/i), 'Jakarta Selatan')
-  await selectById(user, 'kyb-source-of-funds', /^business$/i)
-  await selectById(user, 'kyb-transaction-purpose', /^investment$/i)
-  await selectById(user, 'kyb-micro-small', /bukan usaha mikro/i)
+  await selectByTypeahead(user, 'kyb-source-of-funds', 'Business', 'Business')
+  await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investment', 'Investment')
+  await selectByTypeahead(
+    user,
+    'kyb-micro-small',
+    'Bukan',
+    'Bukan usaha mikro/kecil (huruf a + huruf b)',
+  )
 }
 
-async function fillUbo(
+/**
+ * Sepuluh field UBO yang lama — yang cukup untuk menguji aturan yang TIDAK bergantung blok
+ * Pasal 33 ayat (3): jumlah kepemilikan, bentuk nomor identitas, per-baris error.
+ *
+ * Dipisah dari {@link fillUbo} karena harganya nyata, bukan gaya: sejak USDX-605 satu baris UBO
+ * membawa delapan `<Select>` Radix — salah satunya 99 nilai Permendagri — dan tiap kali dibuka,
+ * seluruh daftarnya dirender di jsdom. Test yang assert-nya "submit DITAHAN" tidak butuh satu pun
+ * dari itu: errornya muncul dan `posted` tetap 0 apa pun isi select-nya.
+ */
+async function fillUboBasic(
   user: ReturnType<typeof userEvent.setup>,
   index: number,
   pct: string,
@@ -140,17 +187,34 @@ async function fillUbo(
   await user.type(document.querySelector(`#ubo-pct-${index}`)!, pct)
   await user.type(document.querySelector(`#ubo-id-${index}`)!, identity)
   await user.type(document.querySelector(`#ubo-address1-${index}`)!, 'Jl. Sudirman No. 1')
+}
+
+/** Baris UBO yang benar-benar SAH — sepuluh field lama plus blok Pasal 33 ayat (3). */
+async function fillUbo(
+  user: ReturnType<typeof userEvent.setup>,
+  index: number,
+  pct: string,
+  identity: string,
+) {
+  await fillUboBasic(user, index, pct, identity)
   // Blok Pasal 33 ayat (3) — `required` di `sot/api/kyb.yaml § CreateKybUbo`.
   await user.type(document.querySelector(`#ubo-birthplace-${index}`)!, 'Bandung')
   await user.type(document.querySelector(`#ubo-dob-${index}`)!, '1985-03-17')
-  await selectById(user, `ubo-occupation-${index}`, /^wiraswasta$/i)
-  await selectById(user, `ubo-gender-${index}`, /laki-laki/i)
-  await selectById(user, `ubo-marital-${index}`, /^kawin$/i)
-  await selectById(user, `ubo-source-of-funds-${index}`, /^business$/i)
-  await selectById(user, `ubo-annual-income-${index}`, /Rp 500 juta – 1 miliar/i)
-  await selectById(user, `ubo-net-worth-${index}`, /Rp 500 juta – 2 miliar/i)
-  await selectById(user, `ubo-legal-relationship-${index}`, /surat kuasa/i)
-  await selectById(user, `ubo-cascade-${index}`, /^Kepemilikan — Pasal 33 \(2\)$/i)
+  // `occupation` — 99 nilai Permendagri — sengaja lewat typeahead: ini select termahal di form,
+  // dan membukanya merender kesembilan-puluh-sembilan itemnya.
+  await selectByTypeahead(user, `ubo-occupation-${index}`, 'Wiraswasta', 'Wiraswasta')
+  await selectByTypeahead(user, `ubo-gender-${index}`, 'Laki', 'Laki-laki')
+  await selectByTypeahead(user, `ubo-marital-${index}`, 'Kawin', 'Kawin')
+  await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Business', 'Business')
+  await selectByClick(user, `ubo-annual-income-${index}`, /^Rp 500 juta – 1 miliar$/)
+  await selectByClick(user, `ubo-net-worth-${index}`, /^Rp 500 juta – 2 miliar$/)
+  await selectByClick(user, `ubo-legal-relationship-${index}`, /^Surat kuasa$/)
+  await selectByTypeahead(
+    user,
+    `ubo-cascade-${index}`,
+    'Kepemilikan',
+    'Kepemilikan — Pasal 33 (2)',
+  )
 }
 
 describe('KybFormPage @ USDX-546', () => {
@@ -264,9 +328,12 @@ describe('KybFormPage @ USDX-546', () => {
       setup()
       await pickLegalEntity(user)
       await fillEntity(user)
-      await fillUbo(user, 0, '80', '3171234567890123')
+      // `fillUboBasic`, bukan `fillUbo`: yang diuji adalah aturan JUMLAH kepemilikan, dan
+      // submitnya ditahan apa pun isi blok Pasal 33 (3). Mengisi delapan select per baris di sini
+      // hanya membeli waktu jalan, bukan cakupan.
+      await fillUboBasic(user, 0, '80', '3171234567890123')
       await user.click(screen.getByRole('button', { name: /add ubo/i }))
-      await fillUbo(user, 1, '80', '3171234567890124')
+      await fillUboBasic(user, 1, '80', '3171234567890124')
 
       await user.click(screen.getByRole('button', { name: /save kyb record/i }))
 
@@ -287,7 +354,7 @@ describe('KybFormPage @ USDX-546', () => {
       setup()
       await pickLegalEntity(user)
       await fillEntity(user)
-      await fillUbo(user, 0, '100', 'not-a-number')
+      await fillUboBasic(user, 0, '100', 'not-a-number')
 
       await user.click(screen.getByRole('button', { name: /save kyb record/i }))
       expect(
@@ -417,7 +484,12 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       const user = newUser()
       stubUsersLookup()
       setup()
-      await selectById(user, 'kyb-micro-small', /bukan usaha mikro/i)
+      await selectByTypeahead(
+        user,
+        'kyb-micro-small',
+        'Bukan',
+        'Bukan usaha mikro/kecil (huruf a + huruf b)',
+      )
 
       const preview = await screen.findByTestId('kyb-required-documents-preview')
       expect(preview).toHaveTextContent('Akta Pendirian')
@@ -446,11 +518,9 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       setup()
       await pickLegalEntity(user)
       await fillEntity(user)
-      await fillUbo(user, 0, '100', '3171234567890123')
-      // Batalkan jawabannya dengan memilih ulang ke nilai lain lalu memeriksa
-      // bahwa field UBO yang wajib memblokir — di sini yang dikosongkan adalah
-      // tempat lahir, field Pasal 33 (3) yang baru.
-      await user.clear(document.querySelector('#ubo-birthplace-0')!)
+      // Sengaja baris UBO yang BELUM diisi blok Pasal 33 (3)-nya: itulah keadaan sebuah form
+      // yang tidak menjawab field wajib yang baru, dan yang harus memblokir submit.
+      await fillUboBasic(user, 0, '100', '3171234567890123')
 
       await user.click(screen.getByRole('button', { name: /save kyb record/i }))
 
@@ -467,8 +537,13 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       const user = newUser()
       stubUsersLookup()
       setup()
-      await selectById(user, 'kyb-entity-form', /perseroan perorangan|pt perorangan/i)
-      await selectById(user, 'kyb-micro-small', /bukan usaha mikro/i)
+      await selectByClick(user, 'kyb-entity-form', /^PT Perorangan$/)
+      await selectByTypeahead(
+        user,
+        'kyb-micro-small',
+        'Bukan',
+        'Bukan usaha mikro/kecil (huruf a + huruf b)',
+      )
 
       const preview = await screen.findByTestId('kyb-required-documents-preview')
       expect(preview).toHaveTextContent('Akta Pendirian')
