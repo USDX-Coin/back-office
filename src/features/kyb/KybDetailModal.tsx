@@ -55,7 +55,8 @@ import {
   validateKybDocumentFile,
   validateKybUboDocumentFile,
 } from '@/lib/kybDocumentUpload'
-import { isPiiWithheld, PII_MASK, presentPii } from '@/lib/pii'
+import { isPiiWithheld, PII_MASK, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
+import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 import { getKycStatusConfig } from '@/lib/status'
 import type {
   KybDocumentSlot,
@@ -152,7 +153,7 @@ function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) 
       <span className="flex flex-wrap items-baseline gap-1.5">
         <span className="font-mono text-[12.5px]">{PII_MASK}</span>
         <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-          not shown to your role
+          {PII_WITHHELD_LABEL}
         </span>
       </span>
     )
@@ -164,7 +165,13 @@ function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) 
   )
 }
 
-/** UBO identity numbers are PII — ADMIN only, same gate as the KYC NPWP field. */
+/**
+ * UBO identity numbers are PII — same gate as the KYC NPWP field, which since
+ * USDX-610 is `canReviewCustomerPii`: STAFF / MANAGER / ADMIN see them, DEVELOPER
+ * does not. That matches `KYB_PII_ROLES` in `kyb.service.ts`, the set the server
+ * already uses to decide what it decrypts — so for a DEVELOPER the value arrives
+ * as `***` and this gate simply agrees.
+ */
 function PiiValue({ value, staff }: { value: string | null; staff: Staff | null }) {
   const shown = presentPii(value, staff)
   if (shown === null) return <Dim />
@@ -173,7 +180,7 @@ function PiiValue({ value, staff }: { value: string | null; staff: Staff | null 
       <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
       {isPiiWithheld(value, staff) && (
         <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-          admin only
+          {PII_WITHHELD_LABEL}
         </span>
       )}
     </span>
@@ -1182,6 +1189,23 @@ export default function KybDetailModal({
                       )}
                     </p>
                   </Section>
+
+                  {/* USDX-610 — status screening badan usaha ini. Cakupannya
+                      SENGAJA badan usahanya saja: hasil UBO disimpan dengan
+                      `subjectType=KYC_UBO` dan `subjectId` = id barisnya, dan
+                      endpoint hasil hanya menyaring SATU subjectId per
+                      permintaan — jadi menampilkan UBO berarti satu permintaan
+                      per orang. `LIST_UNAVAILABLE` sendiri adalah keadaan
+                      DAFTARNYA pada saat pemeriksaan, bukan keadaan subjeknya:
+                      kalau DPPSPM tak terbaca untuk badan usahanya, ia juga tak
+                      terbaca untuk para UBO-nya di pemeriksaan yang sama.
+                      Temuan yang menahan salah satu UBO tetap muncul sebagai
+                      409 saat Approve ditekan, dan pesan itu sudah dipetakan. */}
+                  <ScreeningSubjectPanel
+                    subjectType="KYB"
+                    subjectId={kybId}
+                    enabled={open}
+                  />
 
                   <Section title={`Ultimate beneficial owners (${detail.ubos.length})`}>
                     {detail.ubos.length === 0 ? (

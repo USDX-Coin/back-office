@@ -1344,7 +1344,8 @@ export interface KycDetail {
   employerPhone: string | null
   /**
    * Indonesian tax number. **PII** — ciphertext at rest, decrypted for render,
-   * and role-gated to ADMIN in the UI (`canReadCustomerPii`).
+   * and role-gated in the UI to the roles that decide (`canReviewCustomerPii`,
+   * USDX-610: STAFF / MANAGER / ADMIN — DEVELOPER masked).
    */
   npwp: string | null
   /** `true` = the customer or a close relative holds public office. */
@@ -1475,7 +1476,8 @@ export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
 
 /**
  * Ultimate beneficial owner (`kyc_ubo`). `identityNumber` is PII: ciphertext at
- * rest, decrypted for render, ADMIN-only in the UI (`canReadCustomerPii`).
+ * rest, decrypted for render, gated in the UI to the roles that decide
+ * (`canReviewCustomerPii`, USDX-610 — DEVELOPER masked).
  *
  * A deliberate SUBSET of the response. `GET /api/v1/kyb/:id` also returns
  * `livenessStatus`, `disdukcapilStatus`, `identityPhotoUrl` and `selfiePhotoUrl`

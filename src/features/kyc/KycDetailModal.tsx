@@ -41,7 +41,12 @@ import {
   labelFor,
 } from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
-import { isPiiWithheld, presentPii } from '@/lib/pii'
+import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
+import {
+  KYC_REJECT_REASON_MAX,
+  KYC_REJECT_REASON_MIN,
+  validateKycRejectReason,
+} from '@/lib/validators'
 import { getKycStatusConfig } from '@/lib/status'
 import type {
   EntityType,
@@ -53,6 +58,7 @@ import type {
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
+import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Individual',
@@ -71,7 +77,7 @@ const REVIEW_ACTION_CONFIG: Record<
   PURGED: { label: 'Purged', className: 'bg-muted text-muted-foreground' },
 }
 
-const REJECT_REASON_MAX = 500
+
 
 interface KycDetailModalProps {
   kycId: string | null
@@ -122,16 +128,19 @@ function Field({
  * USDX-545 — one PII field, gated on the viewer's role.
  *
  * Three states, deliberately distinguishable:
- *   value present + ADMIN     → the value
- *   value present + non-ADMIN → `***` plus an "ADMIN only" hint, so the reviewer
- *                               knows a value EXISTS and they are not cleared to
- *                               see it
- *   no value                  → em dash — "not collected" (or already cleared by
- *                               the retention sweeper), which is a different fact
- *                               from "withheld" and must not look the same
+ *   value present + reviewer     → the value
+ *   value present + non-reviewer → `***` plus a hint, so the reader knows a value
+ *                                  EXISTS and they are not cleared to see it
+ *   no value                     → em dash — "not collected" (or already cleared
+ *                                  by the retention sweeper), which is a different
+ *                                  fact from "withheld" and must not look the same
  *
- * The rule itself lives in `lib/pii.ts` (mirror of the backend's
- * `canReadCustomerPii`, USDX-487) — never re-derived from `user.role` here.
+ * USDX-610: "reviewer" is STAFF / MANAGER / ADMIN — the roles that press
+ * Approve/Reject — and only DEVELOPER is masked. The rule itself lives in
+ * `lib/pii.ts` (`canReviewCustomerPii`) and is never re-derived from `user.role`
+ * here. For DEVELOPER the backend already sends `"***"` (`KYC_IDENTITY_PII_ROLES`
+ * in `kyc-backoffice.service.ts`), so this gate now agrees with the payload
+ * instead of hiding a value the server was willing to hand over.
  */
 function PiiField({
   label,
@@ -155,7 +164,7 @@ function PiiField({
           <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
           {withheld && (
             <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-              admin only
+              {PII_WITHHELD_LABEL}
             </span>
           )}
         </span>
@@ -403,17 +412,16 @@ export default function KycDetailModal({
 
   function handleReject() {
     if (!kycId) return
-    const trimmed = reason.trim()
-    if (!trimmed) {
-      setReasonError('Rejection reason is required')
-      return
-    }
-    if (trimmed.length > REJECT_REASON_MAX) {
-      setReasonError(`Reason must be at most ${REJECT_REASON_MAX} characters`)
+    // Diperiksa DI SINI supaya petugas mendapat pesan inline dan teks yang sudah
+    // ia ketik tetap di layar, dan diperiksa LAGI di `useRejectKyc` supaya
+    // pemanggil lain tidak bisa melewatinya (USDX-610, pola yang sama dengan KYB).
+    const check = validateKycRejectReason(reason)
+    if (!check.valid) {
+      setReasonError(check.error)
       return
     }
     reject.mutate(
-      { id: kycId, reason: trimmed },
+      { id: kycId, reason: check.reason },
       {
         onSuccess: () => {
           toast.success('KYC rejected')
@@ -704,6 +712,15 @@ export default function KycDetailModal({
                     </div>
                   </div>
 
+                  {/* USDX-610 — status screening DTTOT & DPPSPM berkas ini,
+                      di halaman tempat berkas ini disetujui. TIDAK memblokir
+                      Approve; yang diperbaiki adalah lolosnya yang diam-diam. */}
+                  <ScreeningSubjectPanel
+                    subjectType="KYC"
+                    subjectId={kycId}
+                    enabled={open}
+                  />
+
                   {/* Photos — presigned GET URLs, TTL 5 min */}
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -911,7 +928,8 @@ export default function KycDetailModal({
             <DialogTitle>Reject this KYC submission?</DialogTitle>
             <DialogDescription>
               The reason is shown to the user in the consumer app and included in the
-              rejection email — write it clear and actionable.
+              rejection email — write it clear and actionable, at least{' '}
+              {KYC_REJECT_REASON_MIN} characters.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -923,7 +941,7 @@ export default function KycDetailModal({
                   if (reasonError) setReasonError('')
                 }}
                 placeholder="e.g. Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas"
-                maxLength={REJECT_REASON_MAX}
+                maxLength={KYC_REJECT_REASON_MAX}
                 rows={4}
                 aria-label="Rejection reason"
                 disabled={reject.isPending}
@@ -933,12 +951,12 @@ export default function KycDetailModal({
                 <span
                   className={cn(
                     'ml-auto font-mono text-[11px] tabular-nums',
-                    reason.length >= REJECT_REASON_MAX
+                    reason.length >= KYC_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground'
                   )}
                 >
-                  {reason.length}/{REJECT_REASON_MAX}
+                  {reason.length}/{KYC_REJECT_REASON_MAX}
                 </span>
               </div>
             </div>

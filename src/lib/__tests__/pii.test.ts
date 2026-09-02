@@ -2,15 +2,17 @@ import { describe, test, expect } from 'vitest'
 import {
   PARTNER_CUSTOMER_EMAIL_LABEL,
   PII_MASK,
-  canReadCustomerPii,
+  canReviewCustomerPii,
   isPiiWithheld,
   presentPii,
 } from '@/lib/pii'
 import type { Staff, StaffRole } from '@/lib/types'
 
-// USDX-545 / USDX-546 — the role gate for decrypted customer PII in the back
-// office. Mirror of `backend/src/common/customer-pii.util.ts` (USDX-487): ADMIN
-// only, fail-closed.
+// USDX-610 — gerbang PII pada layar PENINJAUAN (KYC, KYB/UBO, banding screening).
+// Yang boleh memutuskan, boleh melihat: STAFF / MANAGER / ADMIN, DEVELOPER tertutup.
+// Cerminnya di server adalah `KYC_IDENTITY_PII_ROLES` (kyc-backoffice.service.ts) dan
+// `KYB_PII_ROLES` (kyb.service.ts) — keduanya sudah berisi ketiga role itu, jadi test ini
+// mengunci penyempitan sepihak di sisi front end.
 
 function staff(role: StaffRole): Staff {
   return {
@@ -24,46 +26,51 @@ function staff(role: StaffRole): Staff {
   }
 }
 
-describe('canReadCustomerPii', () => {
+describe('canReviewCustomerPii', () => {
   describe('positive', () => {
-    test('should allow ADMIN', () => {
-      expect(canReadCustomerPii(staff('ADMIN'))).toBe(true)
+    // Ketiganya adalah role yang menekan Approve/Reject di `kyc.controller` /
+    // `kyb.controller` / `screening.controller`. Pemeriksa yang tidak melihat datanya
+    // tidak sedang memeriksa apa pun — POJK 8/2023 Pasal 63 (2) c menuntut hasil analisis,
+    // dan analisis butuh bahan.
+    test.each<StaffRole>(['ADMIN', 'MANAGER', 'STAFF'])('should allow %s', (role) => {
+      expect(canReviewCustomerPii(staff(role))).toBe(true)
     })
   })
 
   describe('negative', () => {
-    // These three are the whole point of the predicate — a change that widens it
-    // has to break a test, not slip through.
-    test.each<StaffRole>(['STAFF', 'MANAGER', 'DEVELOPER'])(
-      'should deny %s',
-      (role) => {
-        expect(canReadCustomerPii(staff(role))).toBe(false)
-      },
-    )
+    test('should deny DEVELOPER — 403 di approve/reject, jadi tidak ada yang ia putuskan', () => {
+      expect(canReviewCustomerPii(staff('DEVELOPER'))).toBe(false)
+    })
   })
 
   describe('edge cases', () => {
     test('should deny a null / undefined viewer (session loading or cleared)', () => {
-      expect(canReadCustomerPii(null)).toBe(false)
-      expect(canReadCustomerPii(undefined)).toBe(false)
+      expect(canReviewCustomerPii(null)).toBe(false)
+      expect(canReviewCustomerPii(undefined)).toBe(false)
     })
 
     test('should deny a lowercase look-alike role', () => {
-      expect(canReadCustomerPii({ role: 'admin' } as unknown as Staff)).toBe(false)
+      // Daftar-izin, bukan daftar-tolak: kalau predikatnya ditulis sebagai
+      // `role !== 'DEVELOPER'`, role baru apa pun — dan salah ketik apa pun — lolos.
+      expect(canReviewCustomerPii({ role: 'admin' } as unknown as Staff)).toBe(false)
+      expect(canReviewCustomerPii({ role: 'AUDITOR' } as unknown as Staff)).toBe(false)
     })
   })
 })
 
 describe('presentPii', () => {
   describe('positive', () => {
-    test('should return the raw value for ADMIN', () => {
-      expect(presentPii('123456789012345', staff('ADMIN'))).toBe('123456789012345')
-    })
+    test.each<StaffRole>(['ADMIN', 'MANAGER', 'STAFF'])(
+      'should return the raw value for %s',
+      (role) => {
+        expect(presentPii('123456789012345', staff(role))).toBe('123456789012345')
+      },
+    )
   })
 
   describe('negative', () => {
-    test('should mask the value for a non-ADMIN role', () => {
-      expect(presentPii('123456789012345', staff('MANAGER'))).toBe(PII_MASK)
+    test('should mask the value for DEVELOPER', () => {
+      expect(presentPii('123456789012345', staff('DEVELOPER'))).toBe(PII_MASK)
     })
 
     test('should mask for an absent viewer', () => {
@@ -75,12 +82,12 @@ describe('presentPii', () => {
     test('should keep null as null — "not collected" is not "withheld"', () => {
       // Collapsing the two would have a reviewer read "no NPWP on file" where
       // the truth is "you are not cleared to see it".
-      expect(presentPii(null, staff('MANAGER'))).toBeNull()
+      expect(presentPii(null, staff('DEVELOPER'))).toBeNull()
       expect(presentPii(null, staff('ADMIN'))).toBeNull()
     })
 
     test('should treat an empty string as absent, not as a masked value', () => {
-      expect(presentPii('', staff('MANAGER'))).toBeNull()
+      expect(presentPii('', staff('DEVELOPER'))).toBeNull()
     })
   })
 })
@@ -88,20 +95,20 @@ describe('presentPii', () => {
 describe('isPiiWithheld', () => {
   describe('positive', () => {
     test('should be true when a value exists and the viewer may not see it', () => {
-      expect(isPiiWithheld('123', staff('STAFF'))).toBe(true)
+      expect(isPiiWithheld('123', staff('DEVELOPER'))).toBe(true)
     })
   })
 
   describe('negative', () => {
-    test('should be false for ADMIN', () => {
-      expect(isPiiWithheld('123', staff('ADMIN'))).toBe(false)
+    test.each<StaffRole>(['ADMIN', 'MANAGER', 'STAFF'])('should be false for %s', (role) => {
+      expect(isPiiWithheld('123', staff(role))).toBe(false)
     })
   })
 
   describe('edge cases', () => {
     test('should be false when there is nothing to withhold', () => {
-      expect(isPiiWithheld(null, staff('STAFF'))).toBe(false)
-      expect(isPiiWithheld('', staff('STAFF'))).toBe(false)
+      expect(isPiiWithheld(null, staff('DEVELOPER'))).toBe(false)
+      expect(isPiiWithheld('', staff('DEVELOPER'))).toBe(false)
     })
   })
 })

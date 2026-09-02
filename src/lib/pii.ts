@@ -1,82 +1,134 @@
 /**
- * Who may see decrypted customer PII in the back office, and what is rendered
- * when they may not.
+ * Siapa boleh melihat PII nasabah yang sudah ter-decrypt di back office, dan apa
+ * yang dirender kalau ia tidak boleh.
  *
- * This file is the FRONT-END MIRROR of `backend/src/common/customer-pii.util.ts`
- * (USDX-487) — same predicate, same masking token, one file facing one file so a
- * divergence is visible in a diff instead of discovered in production. The rule
- * itself is not invented here and must not be relaxed here:
+ * ── ATURANNYA: YANG BOLEH MEMUTUSKAN, BOLEH MELIHAT (USDX-610) ───────────────
  *
- *   `canReadCustomerPii` → **ADMIN only**, fail-closed. Every other role is a
- *   monitor: mint is proposed automatically, redeem payout runs as a job, and
- *   none of them needs a customer's identity to do their work.
+ * `canReviewCustomerPii` → **STAFF / MANAGER / ADMIN**, DEVELOPER tertutup,
+ * fail-closed. Ketiga role itu persis yang menekan Approve/Reject:
  *
- * Basis: `sot/conventions.md § Audit Akses PII` requires an AUDIT row for
- * rendering decrypted PII but does not name the entitled role, and the API
- * contract opens these endpoints to every back-office role. The entitlement is
- * therefore an implementation decision, taken as the strictest reading
- * (USDX-372 / USDX-487).
+ *   `kyc-backoffice.controller.ts`  approve/reject → STAFF, MANAGER, ADMIN
+ *   `kyb.controller.ts`             approve/reject → STAFF, MANAGER, ADMIN
+ *   `screening.controller.ts`       results/:id/decide → STAFF, MANAGER, ADMIN
  *
- * IMPORTANT — this gate is defence in depth, not the boundary. The value has
- * already crossed the wire by the time this module sees it, so a masked field
- * is still readable in the network tab. The authoritative masking belongs in the
- * backend response (that is what `presentCustomerEmail` / `maskPhone` /
- * `maskAccountNumber` already do for email, phone and account numbers). The new
- * CDD PII (`npwp`, `pepRelation`) and the KYB UBO `identityNumber` need the same
- * treatment server-side — listed as a backend request in the USDX-545 / USDX-546
- * PR rather than patched around here.
+ * dan DEVELOPER menerima 403 di ketiganya, jadi tidak ada alur kerjanya yang
+ * membutuhkan NIK, NPWP, nama gadis ibu kandung, atau alamat tempat kerja.
+ *
+ * Ini BUKAN pelonggaran sepihak. Ia menyamakan front end dengan dua tempat yang
+ * sudah memakai aturan yang sama lebih dulu:
+ *
+ *   - server: `KYC_IDENTITY_PII_ROLES` (`kyc-backoffice.service.ts`) dan
+ *     `KYB_PII_ROLES` (`kyb.service.ts`) — keduanya `{STAFF, MANAGER, ADMIN}`.
+ *     Artinya plaintext-nya MEMANG sudah dikirim ke STAFF; yang menyembunyikannya
+ *     selama ini cuma layar ini.
+ *   - kontrak: `sot/conventions.md § Aturan Implementasi` — "Decrypt boundary:
+ *     hanya saat backend perlu render PII — backoffice KYC review
+ *     (Staff/Manager/Admin)". SOT tidak pernah menyebut ADMIN saja.
+ *
+ * Gerbang lama (`canReadCustomerPii`, ADMIN saja, USDX-487) membuat layar ini
+ * bertentangan dengan dirinya sendiri: di halaman yang sama STAFF melihat nama
+ * lengkap, NIK, dan tanggal lahir utuh, tapi `***` untuk nama gadis ibu kandung —
+ * padahal NIK jauh lebih sensitif. Akibatnya pencocokan silang dengan KTP hanya
+ * bisa dilakukan ADMIN, dan "hasil analisis" yang POJK 8/2023 Pasal 63 ayat (2)
+ * huruf c wajibkan ditatausahakan tidak pernah benar-benar ada.
+ *
+ * ── KENAPA PREDIKAT `canReadCustomerPii` TIDAK LAGI ADA DI BERKAS INI ────────
+ *
+ * Ia dulu disebut cermin `backend/src/common/customer-pii.util.ts`. Cermin itu
+ * sudah tidak akurat dan tidak perlu dipulihkan: predikat ADMIN-saja di server
+ * menggerbangi permukaan LAIN — email/telepon di `GET /api/v1/users`, nomor
+ * rekening di detail order, ekspor laporan — dan seluruhnya di-mask DI SERVER,
+ * sehingga front end tidak pernah menerima nilai yang perlu ia sembunyikan
+ * sendiri. Menyimpan predikat ADMIN-saja yang tak berpemakai di sini hanya akan
+ * jadi pilihan yang salah yang menunggu diambil orang berikutnya.
+ *
+ * PENTING — gerbang ini pertahanan berlapis, BUKAN batasnya. Nilainya sudah
+ * menyeberangi kabel saat modul ini melihatnya, jadi field yang tersamar tetap
+ * terbaca di tab Network. Masking yang otoritatif ada di response backend, dan
+ * untuk DEVELOPER backend memang sudah mengirim `"***"` — `presentPii` di sini
+ * menyamakan hasilnya, bukan menggantikan lapisan itu.
  */
 import type { Staff } from './types'
 
 /**
- * `null` / `undefined` staff (session still loading, or cleared by a 401) is
- * treated as non-admin — the same fail-closed behaviour as the backend
- * predicate, which is why this takes the whole Staff record rather than a role
- * string a caller could accidentally default.
+ * Role yang memutuskan sesuatu atas berkas nasabah — dan karena itu boleh
+ * membaca isinya.
+ *
+ * DAFTAR-IZIN, bukan `role !== 'DEVELOPER'`. Ditulis sebagai daftar-tolak, setiap
+ * role baru (dan setiap salah ketik) otomatis mendapat akses PII tanpa ada yang
+ * memutuskannya.
  */
-export function canReadCustomerPii(staff: Staff | null | undefined): boolean {
-  return staff?.role === 'ADMIN'
+const REVIEWER_ROLES: ReadonlySet<Staff['role']> = new Set<Staff['role']>([
+  'STAFF',
+  'MANAGER',
+  'ADMIN',
+])
+
+/**
+ * `null` / `undefined` staff (sesi masih dimuat, atau sudah dibersihkan 401)
+ * diperlakukan sebagai tidak berhak — fail-closed, sama dengan gerbang di server.
+ * Karena itu ia menerima baris `Staff` utuh, bukan string role yang bisa
+ * tanpa sengaja di-default pemanggil.
+ */
+export function canReviewCustomerPii(staff: Staff | null | undefined): boolean {
+  return staff !== null && staff !== undefined && REVIEWER_ROLES.has(staff.role)
 }
 
 /**
- * What a hidden value renders as. Matches the backend's `maskAccountNumber`
- * token so the two surfaces read identically.
+ * Bentuk nilai yang disembunyikan. Sama persis dengan token `maskAccountNumber` /
+ * `maskIdentityFields` di backend, supaya kedua permukaan terbaca identik dan
+ * `KybDetailModal` bisa mengenali nilai yang DISEMBUNYIKAN SERVER dengan
+ * membandingkannya terhadap konstanta ini, bukan literal yang diketik dua kali.
  */
 export const PII_MASK = '***'
 
 /**
- * Marker the backend puts in `userEmail` when an order has no `users` row at all
- * — an order owned by a `partner_customers` row (USDX-571). Mirrors
- * `PARTNER_CUSTOMER_EMAIL_LABEL` in `backend/src/common/customer-pii.util.ts`.
+ * Keterangan yang menemani `***`.
  *
- * Exported so the back office can RECOGNISE it (e.g. to render it in a dimmer
- * style than a real address), never to produce it: the value is the backend's to
- * decide, and inventing it client-side would hide a failed lookup behind a label
- * that looks deliberate.
+ * SATU kalimat untuk dua sebab yang bagi pembacanya sama saja: nilai yang
+ * disamarkan backend (`maskIdentityFields`, `maskFields`) dan nilai yang ditahan
+ * gerbang di berkas ini. Sebelum USDX-610 ada dua kalimat — "not shown to your
+ * role" untuk yang pertama dan "admin only" untuk yang kedua — dan yang kedua
+ * sekarang salah: yang tertutup bukan lagi "semua kecuali admin", melainkan
+ * DEVELOPER saja. Kalimat yang menyebut role tertentu akan salah lagi pada
+ * perubahan berikutnya; kalimat ini menyebut PEMBACANYA, yang selalu benar.
+ */
+export const PII_WITHHELD_LABEL = 'not shown to your role'
+
+/**
+ * Penanda yang dipasang backend di `userEmail` ketika sebuah order tidak punya
+ * baris `users` sama sekali — order milik baris `partner_customers` (USDX-571).
+ * Cermin `PARTNER_CUSTOMER_EMAIL_LABEL` di
+ * `backend/src/common/customer-pii.util.ts`.
+ *
+ * Diekspor supaya back office MENGENALINYA (mis. merendernya lebih redup
+ * daripada alamat sungguhan), tidak pernah untuk memproduksinya: nilainya milik
+ * backend, dan mengarangnya di sisi klien akan menyembunyikan lookup yang gagal
+ * di balik label yang tampak disengaja.
  */
 export const PARTNER_CUSTOMER_EMAIL_LABEL = '(partner customer)'
 
 /**
- * Gate one PII string on the viewer's role.
+ * Gerbangi satu string PII berdasarkan role pembacanya.
  *
- * `null` stays `null` — a column that is genuinely empty (never collected, or
- * already cleared by the retention sweeper) means something different from a
- * column that is being withheld, and collapsing the two would have the reviewer
- * read "no NPWP on file" where the truth is "you may not see it". Callers render
- * `null` as an em dash and a masked value as `***`.
+ * `null` tetap `null` — kolom yang memang kosong (tidak pernah dikumpulkan, atau
+ * sudah dibersihkan sweeper retensi) berbeda artinya dari kolom yang ditahan, dan
+ * menyatukan keduanya membuat pemeriksa membaca "tidak ada NPWP" padahal
+ * kebenarannya "Anda tidak boleh melihatnya". Pemanggil merender `null` sebagai
+ * em dash dan nilai tersamar sebagai `***`.
  */
 export function presentPii(
   value: string | null | undefined,
   staff: Staff | null | undefined,
 ): string | null {
   if (value === null || value === undefined || value === '') return null
-  return canReadCustomerPii(staff) ? value : PII_MASK
+  return canReviewCustomerPii(staff) ? value : PII_MASK
 }
 
-/** True when `presentPii` would withhold this value — drives the "hidden" hint. */
+/** True kalau `presentPii` menahan nilai ini — penggerak keterangan "disembunyikan". */
 export function isPiiWithheld(
   value: string | null | undefined,
   staff: Staff | null | undefined,
 ): boolean {
-  return Boolean(value) && !canReadCustomerPii(staff)
+  return Boolean(value) && !canReviewCustomerPii(staff)
 }

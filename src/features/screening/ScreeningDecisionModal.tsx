@@ -25,7 +25,7 @@ import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canDecideScreening, useAuth } from '@/lib/auth'
 import { formatDate, shortHash } from '@/lib/format'
-import { isPiiWithheld, presentPii } from '@/lib/pii'
+import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   formatScore,
   SANCTION_ENTRY_TYPE_LABELS,
@@ -220,7 +220,7 @@ function SubjectPanel({
               <span>{shown}</span>
               {isPiiWithheld(address || null, staff) && (
                 <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-                  admin only
+                  {PII_WITHHELD_LABEL}
                 </span>
               )}
             </span>
