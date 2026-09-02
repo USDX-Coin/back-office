@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/apiFetch'
 import { KYB_DOCUMENT_SLOT_KEYS } from '@/lib/cdd'
 import {
   checkKybDocumentBytes,
+  declaredPhotoContentType,
   describeKybUploadFailure,
   KYB_DOCUMENT_ACCEPT_ATTR,
   KYB_DOCUMENT_ACCEPTED_MIME,
@@ -10,8 +11,11 @@ import {
   KYB_DOCUMENT_MAX_FILE_LABEL,
   KYB_DOCUMENT_SLOT_DOC_KINDS,
   KYB_DOCUMENT_UNREADABLE_MESSAGE,
+  KYB_UBO_DOCUMENT_SLOT_DOC_KINDS,
+  KYB_UBO_DOCUMENT_SLOT_KEYS,
   sniffKybDocumentType,
   validateKybDocumentFile,
+  validateKybUboDocumentFile,
 } from '@/lib/kybDocumentUpload'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,16 +70,20 @@ describe('kybDocumentUpload @ USDX-546', () => {
       expect(KYB_DOCUMENT_ACCEPT_ATTR).not.toMatch(/heic/i)
     })
 
-    test('every slot maps to its SOT doc kind, and all five are covered', () => {
+    test('every slot maps to its SOT doc kind, and all eight are covered', () => {
       expect(KYB_DOCUMENT_SLOT_DOC_KINDS).toEqual({
         akte: 'kyb_akte',
         nib: 'kyb_nib',
         npwp: 'kyb_npwp',
         skKemenkumham: 'kyb_sk_kemenkumham',
         ktpDireksi: 'kyb_ktp_direksi',
+        // USDX-605 — Pasal 27 (1) b angka 3, 4, 5.
+        laporanKeuangan: 'kyb_laporan_keuangan',
+        strukturManajemen: 'kyb_struktur_manajemen',
+        strukturKepemilikan: 'kyb_struktur_kepemilikan',
       })
       // The response slot names and the request docKind names are DIFFERENT
-      // vocabularies for the same five documents; mixing them up is a 400 the
+      // vocabularies for the same eight documents; mixing them up is a 400 the
       // operator cannot act on. Every rendered slot must have a kind.
       KYB_DOCUMENT_SLOT_KEYS.forEach((slot) => {
         expect(KYB_DOCUMENT_SLOT_DOC_KINDS[slot]).toMatch(/^kyb_/)
@@ -196,6 +204,109 @@ describe('kybDocumentUpload @ USDX-546', () => {
         arrayBuffer: () => Promise.reject(new Error('gone')),
       } as unknown as Blob
       expect(await checkKybDocumentBytes(broken)).toBe(KYB_DOCUMENT_UNREADABLE_MESSAGE)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dokumen UBO (USDX-604, dipasang di FE oleh USDX-605). Endpointnya berbeda dan
+// whitelist tipenya pun berbeda per slot — dua slot FOTO menerima HEIC, dua slot
+// DOKUMEN menolaknya, karena backend memakai primitif verifikasi yang berbeda.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('kybUboDocumentUpload @ USDX-605', () => {
+  describe('positive', () => {
+    test('should map each UBO slot to its SOT doc kind, prefixed kyb_ubo_', () => {
+      expect(KYB_UBO_DOCUMENT_SLOT_DOC_KINDS).toEqual({
+        identityPhoto: 'kyb_ubo_identity_photo',
+        selfiePhoto: 'kyb_ubo_selfie_photo',
+        legalRelationshipDoc: 'kyb_ubo_legal_relationship_doc',
+        customerDeclarationDoc: 'kyb_ubo_customer_declaration_doc',
+      })
+      // Prefixnya ditulis apa adanya ke object key, jadi `kyb_` polos akan
+      // menaruh selfie seorang UBO di ruang nama akta perusahaan.
+      KYB_UBO_DOCUMENT_SLOT_KEYS.forEach((slot) => {
+        expect(KYB_UBO_DOCUMENT_SLOT_DOC_KINDS[slot]).toMatch(/^kyb_ubo_/)
+      })
+    })
+
+    test('should accept HEIC for a photo slot — an iPhone hands you HEIC', () => {
+      expect(
+        validateKybUboDocumentFile('identityPhoto', {
+          name: 'ktp.heic',
+          type: 'image/heic',
+          size: 200_000,
+        }),
+      ).toBeNull()
+    })
+
+    test('should accept a PDF for a document slot', () => {
+      expect(
+        validateKybUboDocumentFile('legalRelationshipDoc', {
+          name: 'kuasa.pdf',
+          type: 'application/pdf',
+          size: 200_000,
+        }),
+      ).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('should refuse HEIC for a DOCUMENT slot — the server whitelist has no HEIC there', () => {
+      expect(
+        validateKybUboDocumentFile('customerDeclarationDoc', {
+          name: 'pernyataan.heic',
+          type: 'image/heic',
+          size: 200_000,
+        }),
+      ).toBeTruthy()
+    })
+
+    test('should refuse a PDF for a PHOTO slot', () => {
+      expect(
+        validateKybUboDocumentFile('selfiePhoto', {
+          name: 'selfie.pdf',
+          type: 'application/pdf',
+          size: 200_000,
+        }),
+      ).toBeTruthy()
+    })
+
+    test('should refuse a photo over the 5 MiB cap', () => {
+      expect(
+        validateKybUboDocumentFile('identityPhoto', {
+          name: 'ktp.jpg',
+          type: 'image/jpeg',
+          size: 5 * 1024 * 1024 + 1,
+        }),
+      ).toBeTruthy()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should fall back to the extension when the browser reports no type', () => {
+      // Drag-and-drop sering memberi `type: ''`; menolaknya berarti menolak
+      // berkas yang sah karena cara petugas memilihnya.
+      expect(
+        declaredPhotoContentType({ name: 'ktp.HEIC', type: '', size: 1024 }),
+      ).toBe('image/heic')
+      expect(declaredPhotoContentType({ name: 'ktp.pdf', type: '', size: 1024 })).toBeNull()
+    })
+
+    test('should never let a reported type be overridden by the extension', () => {
+      // Berkas yang browsernya sebut `application/pdf` tetap ditolak untuk slot
+      // foto, sekalipun dinamai `.jpg`.
+      expect(
+        declaredPhotoContentType({ name: 'ktp.jpg', type: 'application/pdf', size: 1024 }),
+      ).toBeNull()
+    })
+
+    test('should refuse an empty file on every slot', () => {
+      for (const slot of KYB_UBO_DOCUMENT_SLOT_KEYS) {
+        expect(
+          validateKybUboDocumentFile(slot, { name: 'x.jpg', type: 'image/jpeg', size: 0 }),
+        ).toBeTruthy()
+      }
     })
   })
 })

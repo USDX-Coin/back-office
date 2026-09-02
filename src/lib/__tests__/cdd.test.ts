@@ -4,6 +4,8 @@ import {
   GENDER_LABELS,
   KYB_DOCUMENT_SLOTS,
   KYB_DOCUMENT_SLOT_KEYS,
+  kybApplicableDocumentSlots,
+  kybRequiredDocumentSlots,
   MARITAL_STATUS_LABELS,
   NET_WORTH_LABELS,
   OCCUPATION_LABELS,
@@ -438,15 +440,19 @@ describe('label maps added for POJK 8/2023', () => {
 
 describe('KYB document slots', () => {
   describe('positive', () => {
-    test('should expose the five response keys of GET /api/v1/kyb/:id, in reading order', () => {
+    test('should expose the eight response keys of GET /api/v1/kyb/:id, in reading order', () => {
       // These are the keys of `documents` in the response, verbatim. A typo here
-      // renders an always-empty slot for a document that WAS uploaded.
+      // renders an always-empty slot for a document that WAS uploaded. Order is
+      // `sot/api/kyb.yaml § KybDocuments`.
       expect(KYB_DOCUMENT_SLOT_KEYS).toEqual([
         'akte',
         'nib',
         'npwp',
         'skKemenkumham',
         'ktpDireksi',
+        'laporanKeuangan',
+        'strukturManajemen',
+        'strukturKepemilikan',
       ])
     })
 
@@ -458,6 +464,10 @@ describe('KYB document slots', () => {
       expect(KYB_DOCUMENT_SLOTS.npwp).toBe('NPWP Badan')
       expect(KYB_DOCUMENT_SLOTS.skKemenkumham).toBe('SK Kemenkumham')
       expect(KYB_DOCUMENT_SLOTS.ktpDireksi).toBe('KTP Pengurus')
+      // USDX-605 — Pasal 27 (1) b angka 3, 4, 5.
+      expect(KYB_DOCUMENT_SLOTS.laporanKeuangan).toBe('Laporan Keuangan / Deskripsi Usaha')
+      expect(KYB_DOCUMENT_SLOTS.strukturManajemen).toBe('Struktur Manajemen')
+      expect(KYB_DOCUMENT_SLOTS.strukturKepemilikan).toBe('Struktur Kepemilikan')
     })
   })
 
@@ -465,7 +475,7 @@ describe('KYB document slots', () => {
     test('should have no OTHER slot — the backend has no column for it', () => {
       // An `OTHER` document had nowhere to land: no column, no path, no slot.
       expect(KYB_DOCUMENT_SLOT_KEYS).not.toContain('other')
-      expect(KYB_DOCUMENT_SLOT_KEYS).toHaveLength(5)
+      expect(KYB_DOCUMENT_SLOT_KEYS).toHaveLength(8)
     })
 
     test('should carry no upload `kind` vocabulary — there is no endpoint', () => {
@@ -491,6 +501,88 @@ describe('KYB document slots', () => {
     test('should give every slot a non-empty label', () => {
       for (const key of KYB_DOCUMENT_SLOT_KEYS) {
         expect(KYB_DOCUMENT_SLOTS[key].trim().length).toBeGreaterThan(0)
+      }
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-605 — set dokumen wajib itu FUNGSI dari `isMicroOrSmall` + `entityForm`
+// (POJK 8/2023 Pasal 27 ayat (1)), bukan daftar tetap. Transkripsi
+// `requiredKybDocuments` di `backend/src/modules/kyb/kyb.service.ts`: kalau kedua
+// sisi tidak menjawab sama, petugas dituntut mengunggah dokumen yang gerbangnya
+// tidak minta — atau lebih buruk, tidak diminta yang gerbangnya tuntut.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('kybRequiredDocumentSlots — Pasal 27 ayat (1)', () => {
+  describe('positive', () => {
+    test('should demand only the base set for a micro/small enterprise', () => {
+      expect(
+        kybRequiredDocumentSlots({ entityForm: 'CV', isMicroOrSmall: true }),
+      ).toEqual(['akte', 'nib', 'npwp', 'ktpDireksi'])
+    })
+
+    test('should add the three huruf b documents when it is NOT micro/small', () => {
+      expect(
+        kybRequiredDocumentSlots({ entityForm: 'PT', isMicroOrSmall: false }),
+      ).toEqual([
+        'akte',
+        'nib',
+        'npwp',
+        'ktpDireksi',
+        'laporanKeuangan',
+        'strukturManajemen',
+        'strukturKepemilikan',
+      ])
+    })
+  })
+
+  describe('negative', () => {
+    test('should never demand the huruf b documents from a perseroan perorangan', () => {
+      // Huruf c berdiri sejajar dengan huruf b, bukan di bawahnya — jadi cabang
+      // ini menang atas `isMicroOrSmall`.
+      expect(
+        kybRequiredDocumentSlots({ entityForm: 'PT_PERORANGAN', isMicroOrSmall: false }),
+      ).toEqual(['akte', 'nib', 'npwp', 'ktpDireksi'])
+    })
+
+    test('should never demand SK Kemenkumham — it is conditional, not wajib', () => {
+      for (const isMicroOrSmall of [true, false, null] as const) {
+        expect(
+          kybRequiredDocumentSlots({ entityForm: 'PT', isMicroOrSmall }),
+        ).not.toContain('skKemenkumham')
+      }
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should treat a null answer as false — checked in full', () => {
+      expect(kybRequiredDocumentSlots({ entityForm: 'PT', isMicroOrSmall: null })).toEqual(
+        kybRequiredDocumentSlots({ entityForm: 'PT', isMicroOrSmall: false }),
+      )
+    })
+
+    test('should offer SK Kemenkumham as an applicable slot even though it never gates', () => {
+      // Yang DITAMPILKAN bukan yang DIWAJIBKAN: SK Kemenkumham boleh diunggah
+      // badan hukum yang punya, tapi tidak pernah menahan approve.
+      const applicable = kybApplicableDocumentSlots({
+        entityForm: 'CV',
+        isMicroOrSmall: true,
+      })
+      expect(applicable).toEqual(['akte', 'nib', 'npwp', 'skKemenkumham', 'ktpDireksi'])
+      expect(kybApplicableDocumentSlots({ entityForm: 'PT', isMicroOrSmall: false })).toEqual(
+        KYB_DOCUMENT_SLOT_KEYS,
+      )
+    })
+
+    test('should keep every returned slot inside the ordered key list', () => {
+      for (const entityForm of ['PT', 'PT_PERORANGAN', 'CV', 'YAYASAN'] as const) {
+        for (const isMicroOrSmall of [true, false, null] as const) {
+          const slots = kybApplicableDocumentSlots({ entityForm, isMicroOrSmall })
+          expect(slots.every((s) => KYB_DOCUMENT_SLOT_KEYS.includes(s))).toBe(true)
+          // Urutannya selalu urutan baris halaman review, apa pun cabangnya.
+          expect(slots).toEqual(KYB_DOCUMENT_SLOT_KEYS.filter((s) => slots.includes(s)))
+        }
       }
     })
   })

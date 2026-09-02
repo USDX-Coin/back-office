@@ -22,7 +22,12 @@
 // missing slots in `409 KYB_DOCUMENTS_INCOMPLETE` — see `./kybDocumentsError.ts`.
 
 import { ApiError } from './apiFetch'
-import type { KybDocKind, KybDocumentSlot } from './types'
+import type {
+  KybDocKind,
+  KybDocumentSlot,
+  KybUboDocKind,
+  KybUboDocumentSlot,
+} from './types'
 import type { UploadFileLike } from './validators'
 
 /**
@@ -39,6 +44,104 @@ export const KYB_DOCUMENT_SLOT_DOC_KINDS: Record<KybDocumentSlot, KybDocKind> = 
   npwp: 'kyb_npwp',
   skKemenkumham: 'kyb_sk_kemenkumham',
   ktpDireksi: 'kyb_ktp_direksi',
+  // USDX-605 — Pasal 27 (1) b angka 3, 4, 5.
+  laporanKeuangan: 'kyb_laporan_keuangan',
+  strukturManajemen: 'kyb_struktur_manajemen',
+  strukturKepemilikan: 'kyb_struktur_kepemilikan',
+}
+
+/**
+ * Slot dokumen SATU UBO → `docKind`-nya (USDX-604). Peta terpisah dari yang di
+ * atas, bukan gabungan, karena keduanya menempel di tabel yang berbeda dan
+ * endpointnya pun berbeda: satu enum gabungan akan mengizinkan `akte` dikirim ke
+ * `POST /api/v1/kyb/:id/ubos/:uboId/documents`, yang tidak punya kolom untuk
+ * menyimpannya.
+ */
+export const KYB_UBO_DOCUMENT_SLOT_DOC_KINDS: Record<KybUboDocumentSlot, KybUboDocKind> = {
+  identityPhoto: 'kyb_ubo_identity_photo',
+  selfiePhoto: 'kyb_ubo_selfie_photo',
+  legalRelationshipDoc: 'kyb_ubo_legal_relationship_doc',
+  customerDeclarationDoc: 'kyb_ubo_customer_declaration_doc',
+}
+
+/** Label Indonesia tiap slot UBO — sama dengan yang sudah dipakai kartu review. */
+export const KYB_UBO_DOCUMENT_SLOTS: Record<KybUboDocumentSlot, string> = {
+  identityPhoto: 'Foto identitas',
+  selfiePhoto: 'Foto selfie',
+  legalRelationshipDoc: 'Dokumen hubungan hukum',
+  customerDeclarationDoc: 'Pernyataan nasabah',
+}
+
+export const KYB_UBO_DOCUMENT_SLOT_KEYS = Object.keys(
+  KYB_UBO_DOCUMENT_SLOTS,
+) as KybUboDocumentSlot[]
+
+/**
+ * Dua slot UBO adalah FOTO, dua sisanya DOKUMEN — dan backend memakai primitif
+ * verifikasi yang berbeda untuk keduanya (`KYB_UBO_DOCUMENT_TARGETS` di
+ * `kyb.service.ts`): foto diperiksa resolusi minimumnya, dokumen dicocokkan magic
+ * byte-nya tanpa tuntutan piksel.
+ *
+ * Konsekuensinya di sini adalah whitelist tipe berkasnya: HEIC sah untuk foto
+ * (iPhone memberikan HEIC apa adanya) dan DITOLAK untuk dokumen. Menawarkan HEIC
+ * di picker surat kuasa berarti menyerahkan berkas yang pasti dijawab
+ * `FILE_TYPE_NOT_ALLOWED`.
+ */
+export const KYB_UBO_PHOTO_SLOTS: ReadonlySet<KybUboDocumentSlot> = new Set([
+  'identityPhoto',
+  'selfiePhoto',
+])
+
+const KYB_UBO_PHOTO_ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/heic'] as const
+
+export const KYB_UBO_PHOTO_ACCEPT_ATTR =
+  'image/jpeg,.jpg,.jpeg,image/png,.png,image/heic,.heic'
+
+export const KYB_UBO_PHOTO_TYPE_LABEL = 'JPG, PNG or HEIC'
+
+/**
+ * Bentuk `declaredContentType` untuk slot FOTO: browser MIME kalau termasuk
+ * whitelist foto, kalau `type`-nya kosong jatuh ke ekstensi. `null` = ditolak.
+ *
+ * Sengaja fungsi terpisah, bukan parameter di {@link declaredContentType}: yang
+ * membedakan keduanya bukan preferensi tampilan tapi jawaban server, dan dua
+ * fungsi bernama membuat pemanggil memilih dengan sadar.
+ */
+export function declaredPhotoContentType(file: UploadFileLike): string | null {
+  if ((KYB_UBO_PHOTO_ACCEPTED_MIME as readonly string[]).includes(file.type)) {
+    return file.type
+  }
+  if (file.type !== '') return null
+  const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase()
+  return PHOTO_EXTENSION_MIME[ext] ?? null
+}
+
+const PHOTO_EXTENSION_MIME: Readonly<Record<string, string>> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  heic: 'image/heic',
+}
+
+/**
+ * Aturan berkas untuk satu slot UBO. Ukuran maksimumnya sama (5 MiB, satu
+ * konstanta backend), yang berbeda hanya whitelist tipenya.
+ */
+export function validateKybUboDocumentFile(
+  slot: KybUboDocumentSlot,
+  file: UploadFileLike | null,
+): string | null {
+  if (!file) return 'Choose a file to upload'
+  if (!KYB_UBO_PHOTO_SLOTS.has(slot)) return validateKybDocumentFile(file)
+
+  if (!declaredPhotoContentType(file)) {
+    return `Only ${KYB_UBO_PHOTO_TYPE_LABEL} files can be uploaded as a ${KYB_UBO_DOCUMENT_SLOTS[slot]}`
+  }
+  if (file.size <= 0) return 'File appears to be empty'
+  if (file.size > KYB_DOCUMENT_MAX_FILE_BYTES) {
+    return `File must be at most ${KYB_DOCUMENT_MAX_FILE_LABEL} — this one is ${formatBytes(file.size)}`
+  }
+  return null
 }
 
 /** `MAX_FILE_SIZE_BYTES` — 5 MiB, the same arithmetic the backend does. */
@@ -206,11 +309,19 @@ export async function checkKybDocumentBytes(file: Blob): Promise<string | null> 
  * `KYB_NOT_FOUND`; attach: `KYB_FILE_NOT_FOUND`, `KYB_FILE_INVALID`, plus the
  * same status and role gates (`kyb.service.ts`, `kyb.controller.ts`).
  */
-export function describeKybUploadFailure(err: unknown): string {
+export function describeKybUploadFailure(
+  err: unknown,
+  /**
+   * Format yang BOLEH untuk slot yang sedang diunggah. Bukan hiasan: dua slot dokumen UBO adalah
+   * FOTO, dan whitelist-nya JPG/PNG/HEIC — bukan PDF. Pesan yang menyebut "must be PDF, JPG or
+   * PNG" untuk foto KTP mengirim petugas mencari berkas yang justru akan ditolak lagi.
+   */
+  typeLabel: string = KYB_DOCUMENT_TYPE_LABEL,
+): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'FILE_TYPE_NOT_ALLOWED':
-        return `The server refused this file type — a KYB document must be ${KYB_DOCUMENT_TYPE_LABEL}.`
+        return `The server refused this file type — it must be ${typeLabel}.`
       case 'FILE_SIZE_EXCEEDED':
         return `The server refused this file: it is over the ${KYB_DOCUMENT_MAX_FILE_LABEL} limit.`
       case 'KYB_FILE_NOT_FOUND':

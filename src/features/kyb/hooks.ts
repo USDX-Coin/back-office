@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import {
   declaredContentType,
+  declaredPhotoContentType,
   KYB_DOCUMENT_SLOT_DOC_KINDS,
   KYB_DOCUMENT_TYPE_LABEL,
+  KYB_UBO_DOCUMENT_SLOT_DOC_KINDS,
+  KYB_UBO_PHOTO_SLOTS,
+  KYB_UBO_PHOTO_TYPE_LABEL,
 } from '@/lib/kybDocumentUpload'
 import { validateKybRejectReason } from '@/lib/validators'
 import type {
@@ -15,6 +19,10 @@ import type {
   KybDocumentUploadResult,
   KybDocumentUploadTicket,
   KybListItem,
+  KybUboDocumentAttachBody,
+  KybUboDocumentPresignBody,
+  KybUboDocumentSlot,
+  KybUboDocumentUploadResult,
   PhaseOnePaginatedResponse,
 } from '@/lib/types'
 
@@ -328,6 +336,76 @@ export function useUploadKybDocument() {
         method: 'POST',
         body: attachBody,
       })
+    },
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dokumen SATU UBO — tiga langkah yang sama, endpoint yang berbeda (USDX-604,
+// dipasang di FE oleh USDX-605).
+//
+//   1. POST /api/v1/kyb/:id/ubos/:uboId/documents/presign
+//   2. PUT  <uploadUrl>
+//   3. POST /api/v1/kyb/:id/ubos/:uboId/documents
+//
+// KENAPA DI HALAMAN REVIEW DAN BUKAN DI FORM CREATE. Presignnya butuh DUA id:
+// `:id` berkas KYB dan `:uboId` baris `kyc_ubo`-nya
+// (`kyb.controller.ts` `@Post(":id/ubos/:uboId/documents/presign")`). Keduanya
+// baru ada SETELAH `POST /api/v1/kyb` berhasil — sebelum itu tidak ada baris
+// untuk dimintakan tanda tangan. Jadi `CreateKybUbo.*Path` di kontrak hanya bisa
+// diisi pada pembuatan KEDUA (yang ditolak `KYB_ALREADY_EXISTS`) atau oleh
+// pemanggil non-form; jalur nyatanya adalah unggah di halaman review, sama dengan
+// dokumen badan usaha.
+//
+// Sama seperti jalur badan usaha: tidak meng-invalidate `['kyb','detail',id]` —
+// membaca ulang detail menulis satu baris `pii_access_audit`, dan empat unggahan
+// per UBO akan mengarang empat pembacaan yang tidak diminta siapa pun.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UploadKybUboDocumentInput {
+  kybId: string
+  uboId: string
+  slot: KybUboDocumentSlot
+  file: File
+}
+
+export function useUploadKybUboDocument() {
+  return useMutation({
+    mutationFn: async ({
+      kybId,
+      uboId,
+      slot,
+      file,
+    }: UploadKybUboDocumentInput): Promise<KybUboDocumentUploadResult> => {
+      const docKind = KYB_UBO_DOCUMENT_SLOT_DOC_KINDS[slot]
+      const isPhoto = KYB_UBO_PHOTO_SLOTS.has(slot)
+      // Dua whitelist, bukan satu: backend memeriksa foto dengan primitif yang
+      // menuntut resolusi minimum dan dokumen dengan yang mencocokkan magic byte.
+      // HEIC sah untuk foto dan ditolak untuk dokumen.
+      const fileType = isPhoto ? declaredPhotoContentType(file) : declaredContentType(file)
+      if (!fileType) {
+        throw new Error(
+          `Only ${isPhoto ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL} files can be uploaded here`,
+        )
+      }
+
+      const presignBody: KybUboDocumentPresignBody = {
+        docKind,
+        fileType,
+        sizeBytes: file.size,
+      }
+      const ticket = await apiFetch<KybDocumentUploadTicket>(
+        `/api/v1/kyb/${kybId}/ubos/${uboId}/documents/presign`,
+        { method: 'POST', body: presignBody },
+      )
+
+      await putDocumentToStorage(ticket, file)
+
+      const attachBody: KybUboDocumentAttachBody = { docKind, objectKey: ticket.objectKey }
+      return apiFetch<KybUboDocumentUploadResult>(
+        `/api/v1/kyb/${kybId}/ubos/${uboId}/documents`,
+        { method: 'POST', body: attachBody },
+      )
     },
   })
 }

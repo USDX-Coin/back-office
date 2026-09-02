@@ -916,6 +916,27 @@ const MAX_KYB_SECTOR_LEN = 120 // CreateKybDto @MaxLength(120)
 const MAX_KYB_ADDRESS_LEN = 255 // CreateKybDto @MaxLength(255) — entity + UBO
 const MAX_KYB_WEBSITE_LEN = 255 // CreateKybDto @MaxLength(255)
 const MAX_KYB_UBOS = 20 // CreateKybDto @ArrayMaxSize(20)
+// USDX-605 — batas blok Pasal 33 (3), disalin dari `CreateKybUboDto` dan
+// `sot/api/kyb.yaml § CreateKybUbo`. Angkanya 200 / 100 / 500 / 32 dan bukan
+// tebakan: batas FE yang lebih ketat dari kontraknya menolak masukan yang server
+// justru terima, dan kolomnya `text` — tidak ada apa pun di database yang
+// menuntut angka lebih kecil.
+const MAX_KYB_UBO_ALIAS_LEN = 200 // CreateKybUboDto @MaxLength(200)
+const MAX_KYB_UBO_NAME_LEN = 100 // CreateKybUboDto @MaxLength(100) — birthPlace
+const MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN = 500 // CreateKybUboDto @MaxLength(500)
+const MAX_KYB_UBO_PHONE_LEN = 32 // CreateKybUboDto @MaxLength(32)
+
+/**
+ * `YYYY-MM-DD` yang benar-benar ada di kalender — cermin `@IsISO8601({ strict: true })`.
+ *
+ * Dibanding balik ke string, bukan `!isNaN(Date.parse())`: `new Date('1980-02-30')` di JS
+ * bergulir jadi 1 Maret dan `Date.parse` memberkatinya. Yang menangkapnya adalah selisih antara
+ * yang diketik dan yang dipahami mesin.
+ */
+function isRealCalendarDate(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso
+}
 // NIB: DIGITS ONLY. `@IsNumberString({ no_symbols: true })` — the backend
 // normalises the value to digits before hashing it, so "8120-0123-45678" and
 // "812001234 5678" are the same company; accepting punctuation here would let an
@@ -933,6 +954,17 @@ const KYB_COUNTRY_RE = /^[A-Z]{2}$/
 // on screen stops being the figure on file. Same regex as the DTO.
 const KYB_OWNERSHIP_PCT_RE = /^(100(\.0{1,2})?|[1-9]\d?(\.\d{1,2})?|0\.(0[1-9]|[1-9]\d?))$/
 
+/**
+ * Satu baris UBO di form KYB — SEMUANYA string, karena semuanya berasal dari
+ * `<input>` atau `<Select>`. Nilai kosong `''` berarti "belum diisi"; enumnya
+ * divalidasi sebagai wajib-terisi di sini dan sebagai nilai tertutup oleh DTO
+ * backend (`@IsIn`), jadi daftar nilainya tidak disalin dua kali.
+ *
+ * Blok Pasal 33 ayat (3) (USDX-605) ada di sini karena `sot/api/kyb.yaml
+ * § CreateKybUbo` menandainya `required` dan backend menerimanya sejak USDX-604 —
+ * sampai form ini mengirimnya, kartu review USDX-587 menampilkan em dash untuk
+ * kolom yang memang tidak pernah ada yang mengisi.
+ */
 export interface KybUboFormInput {
   firstName: string
   lastName: string
@@ -941,6 +973,26 @@ export interface KybUboFormInput {
   country: string
   addressLine1: string
   addressLine2: string
+  // ── Pasal 33 (3) huruf a ──────────────────────────────────────────────────
+  /** Angka 1 — "termasuk nama alias". Opsional: tidak semua orang punya alias. */
+  aliasName: string
+  birthPlace: string
+  /** ISO `YYYY-MM-DD`. */
+  dob: string
+  nationality: string
+  occupation: string
+  /** Angka 8 — "jika ada", jadi opsional. */
+  employerAddress: string
+  employerPhone: string
+  gender: string
+  maritalStatus: string
+  // ── Pasal 33 (3) huruf b & c ──────────────────────────────────────────────
+  sourceOfFunds: string
+  annualIncomeRange: string
+  netWorthRange: string
+  // ── Pasal 33 (3) huruf d + ayat (7)/(8) ───────────────────────────────────
+  legalRelationship: string
+  cascadeStep: string
 }
 
 export interface KybFormInput {
@@ -956,6 +1008,19 @@ export interface KybFormInput {
   operationalAddress: string
   website: string
   phone: string
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  /** Angka 5 — **tempat** pendirian. Tanggalnya `establishmentDate`. */
+  incorporationPlace: string
+  sourceOfFunds: string
+  transactionPurpose: string
+  /**
+   * `'YES' | 'NO' | ''` — TIGA nilai, bukan boolean, dan `''` bukan default
+   * tersembunyi: kontraknya menulis "tidak punya default" karena menebak "bukan
+   * usaha kecil" menahan nasabah dengan syarat yang tidak diwajibkan kepadanya,
+   * dan menebak "usaha kecil" melepas enam dokumen yang diwajibkan pasal. Petugas
+   * harus memilih.
+   */
+  isMicroOrSmall: string
   ubos: KybUboFormInput[]
 }
 
@@ -1044,6 +1109,26 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     errors.phone = 'Phone must be 10-15 digits (leading + allowed)'
   }
 
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  // `required` di `sot/api/kyb.yaml § CreateKybRequest`. Keempatnya diterima
+  // backend sejak USDX-604 dan tidak pernah dikirim form ini.
+  if (!input.incorporationPlace.trim()) {
+    errors.incorporationPlace = 'Place of incorporation is required'
+  } else if (input.incorporationPlace.trim().length < 2) {
+    errors.incorporationPlace = 'Place of incorporation must be at least 2 characters'
+  } else if (input.incorporationPlace.length > MAX_KYB_SECTOR_LEN) {
+    errors.incorporationPlace = `Place of incorporation must be under ${MAX_KYB_SECTOR_LEN} characters`
+  }
+
+  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Source of funds is required'
+  if (!input.transactionPurpose.trim()) {
+    errors.transactionPurpose = 'Purpose of the business relationship is required'
+  }
+  // Tidak ada default: lihat catatan di `KybFormInput.isMicroOrSmall`.
+  if (input.isMicroOrSmall !== 'YES' && input.isMicroOrSmall !== 'NO') {
+    errors.isMicroOrSmall = 'Answer whether this is a micro/small enterprise'
+  }
+
   // ── UBOs ──
   if (input.ubos.length === 0) {
     errors.ubos = 'At least one UBO is required'
@@ -1100,6 +1185,81 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     if (ubo.addressLine2.length > MAX_KYB_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'addressLine2')] =
         `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    }
+
+    // ── Pasal 33 ayat (3) selengkapnya (USDX-605) ───────────────────────────
+    // Wajibnya bukan selera form: `required` di `sot/api/kyb.yaml
+    // § CreateKybUbo`. Yang TIDAK ada di daftar itu — alias, alamat & telepon
+    // tempat kerja — tetap opsional di sini, dan itu ikut pasalnya: angka 8
+    // berbunyi "jika ada", dan tidak semua orang punya nama alias.
+    if (!ubo.birthPlace.trim()) {
+      errors[kybUboErrorKey(i, 'birthPlace')] = 'Place of birth is required'
+    } else if (ubo.birthPlace.trim().length > MAX_KYB_UBO_NAME_LEN) {
+      errors[kybUboErrorKey(i, 'birthPlace')] =
+        `Place of birth must be under ${MAX_KYB_UBO_NAME_LEN} characters`
+    }
+
+    const dob = ubo.dob.trim()
+    if (!dob) {
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is required'
+    } else if (!KYB_ISO_DATE_RE.test(dob)) {
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth must be YYYY-MM-DD'
+    } else if (!isRealCalendarDate(dob)) {
+      // `CreateKybUboDto.dob` memakai `@Matches` + `@IsISO8601({ strict: true })`: bentuknya
+      // benar TIDAK cukup, tanggalnya harus ada di kalender. Tanpa cermin di sini, 1980-02-30
+      // lolos form dan baru ditolak server sebagai 400 yang tidak menunjuk barisnya.
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is not a real calendar date'
+    } else if (isFutureWibDate(dob)) {
+      // Seseorang tidak bisa lahir besok. Dinilai di WIB, sama dengan setiap
+      // tanggal lain di aplikasi ini.
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth cannot be in the future'
+    }
+
+    if (!ubo.nationality.trim()) {
+      errors[kybUboErrorKey(i, 'nationality')] = 'Nationality is required'
+    } else if (!KYB_COUNTRY_RE.test(ubo.nationality.trim())) {
+      errors[kybUboErrorKey(i, 'nationality')] =
+        'Nationality must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    }
+
+    // Panjang diukur SETELAH trim, karena yang dikirim juga hasil trim — tanpa itu satu spasi di
+    // ekor menolak nilai yang server justru terima.
+    if (ubo.aliasName.trim().length > MAX_KYB_UBO_ALIAS_LEN) {
+      errors[kybUboErrorKey(i, 'aliasName')] =
+        `Alias must be under ${MAX_KYB_UBO_ALIAS_LEN} characters`
+    }
+    if (ubo.employerAddress.trim().length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'employerAddress')] =
+        `Employer address must be under ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} characters`
+    }
+    // HANYA panjangnya. `PHONE_RE` (10–15 digit, tanpa pemisah) di sini akan menolak
+    // `021-1234567`, `+62 21 4000 1234`, dan nomor kantor 8 digit — semuanya diterima kontrak
+    // (`sot/api/kyb.yaml § CreateKybUbo.employerPhone`: `maxLength: 32`, tanpa pattern) dan
+    // diterima `CreateKybUboDto` (`@IsString() @MaxLength(32)`). Aturan FE yang lebih ketat dari
+    // kontraknya adalah kesalahan yang tiket ini justru sedang membereskan di empat tempat lain;
+    // menambahkannya di sini akan mengulanginya. Telepon TEMPAT KERJA pun bukan kunci apa-apa:
+    // tidak dipakai mencari, tidak di-hash, tidak dikirim OTP.
+    if (ubo.employerPhone.trim().length > MAX_KYB_UBO_PHONE_LEN) {
+      errors[kybUboErrorKey(i, 'employerPhone')] =
+        `Employer phone must be under ${MAX_KYB_UBO_PHONE_LEN} characters`
+    }
+
+    // Enum tertutup: yang diperiksa di sini hanya "sudah dipilih atau belum".
+    // Daftar nilainya milik `@IsIn` di DTO backend dan pg enum di belakangnya —
+    // menyalinnya ke sini akan membuat salinan kedua yang bisa basi, persis
+    // kesalahan yang membuat `PARTNER_OCCUPATIONS` menolak 95 nilai sah (USDX-603).
+    const REQUIRED_UBO_CHOICES: ReadonlyArray<[keyof KybUboFormInput, string]> = [
+      ['occupation', 'Occupation is required'],
+      ['gender', 'Gender is required'],
+      ['maritalStatus', 'Marital status is required'],
+      ['sourceOfFunds', 'Source of funds is required'],
+      ['annualIncomeRange', 'Annual income range is required'],
+      ['netWorthRange', 'Net worth range is required'],
+      ['legalRelationship', 'Legal relationship is required'],
+      ['cascadeStep', 'Cascading-test step is required'],
+    ]
+    for (const [field, message] of REQUIRED_UBO_CHOICES) {
+      if (!String(ubo[field]).trim()) errors[kybUboErrorKey(i, field)] = message
     }
   })
 
