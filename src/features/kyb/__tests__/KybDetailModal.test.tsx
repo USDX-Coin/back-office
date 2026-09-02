@@ -38,10 +38,30 @@ const NO_DOCUMENTS: KybDocuments = {
   npwp: null,
   skKemenkumham: null,
   ktpDireksi: null,
+  laporanKeuangan: null,
+  strukturManajemen: null,
+  strukturKepemilikan: null,
 }
 
-/** The five labels a reviewer reads, in the order they are rendered. */
+/**
+ * Label yang dibaca pemeriksa untuk badan usaha yang BUKAN mikro/kecil — delapan,
+ * dalam urutan render. Fixture `makeDetail` memang `entityForm: 'PT'` +
+ * `isMicroOrSmall: false`, jadi cabang inilah yang dipakai sebagian besar test.
+ * Cabang lainnya diuji tersendiri di "set dokumen Pasal 27 ayat (1)".
+ */
 const SLOT_LABELS = [
+  'Akta Pendirian',
+  'NIB',
+  'NPWP Badan',
+  'SK Kemenkumham',
+  'KTP Pengurus',
+  'Laporan Keuangan / Deskripsi Usaha',
+  'Struktur Manajemen',
+  'Struktur Kepemilikan',
+] as const
+
+/** Yang tampil untuk usaha mikro/kecil dan untuk perseroan perorangan. */
+const BASE_SLOT_LABELS = [
   'Akta Pendirian',
   'NIB',
   'NPWP Badan',
@@ -227,20 +247,21 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(
         within(dialog).getByText(/declared ownership total: 100\.00%/i),
       ).toBeInTheDocument()
-      // Documents — five FIXED slots, always all five, labelled in Indonesian.
-      expect(within(dialog).getByText(/documents \(1 of 5\)/i)).toBeInTheDocument()
+      // Documents — slot TETAP, labelnya Indonesia. Delapan di sini karena
+      // fixture-nya PT yang bukan usaha mikro/kecil (USDX-605).
+      expect(within(dialog).getByText(/documents \(1 of 8\)/i)).toBeInTheDocument()
       for (const label of SLOT_LABELS) {
         expect(within(dialog).getByText(label)).toBeInTheDocument()
       }
-      // The uploaded one is the link; the other four say so out loud.
+      // The uploaded one is the link; the other seven say so out loud.
       expect(
         within(dialog).getByRole('link', { name: 'Akta Pendirian' }),
       ).toHaveAttribute('href', AKTA_URL)
-      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(4)
+      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(7)
     })
 
-    test('every slot carries its own upload, named so the five are told apart', async () => {
-      // Five identical "Upload" controls would be unusable with a screen reader
+    test('every slot carries its own upload, named so the eight are told apart', async () => {
+      // Eight identical "Upload" controls would be unusable with a screen reader
       // and untestable by name. Each picker is labelled with the document it
       // fills, which is also the only identity a KYB document has (the backend
       // stores no file name).
@@ -250,7 +271,7 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       const docs = within(dialog).getByTestId('kyb-documents')
-      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(5)
+      expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(8)
       SLOT_LABELS.forEach((label) => {
         const input = within(docs).getByLabelText(
           new RegExp(`(upload|replace) ${label}`, 'i'),
@@ -392,7 +413,7 @@ describe('KybDetailModal @ USDX-546', () => {
     })
 
     test('DEVELOPER is NOT told an empty slot means the document is missing', async () => {
-      // The DEVELOPER role is never handed presigned document URLs, so all five
+      // The DEVELOPER role is never handed presigned document URLs, so all eight
       // slots arrive `null` whatever the record holds. Printing "Not uploaded"
       // there would be a false statement a reviewer could act on — chasing a
       // partner for a document that is already on file.
@@ -402,14 +423,14 @@ describe('KybDetailModal @ USDX-546', () => {
       const docs = await within(dialog).findByTestId('kyb-documents')
 
       expect(within(docs).queryByText(/not uploaded/i)).not.toBeInTheDocument()
-      expect(within(docs).getAllByText(/not shown to your role/i)).toHaveLength(5)
+      expect(within(docs).getAllByText(/not shown to your role/i)).toHaveLength(8)
       expect(
         within(dialog).getByText(/does not mean the document is missing/i),
       ).toBeInTheDocument()
     })
 
     test('DEVELOPER is not shown an uploaded-document COUNT it cannot know', async () => {
-      // "0 of 5" is the tempting header and it is a lie for this role: no
+      // "0 of 8" is the tempting header and it is a lie for this role: no
       // presigned URL is minted for it, so the count on screen would be the
       // count of URLs handed out, not the count of documents on file.
       stubDetail(makeDeveloperDetail())
@@ -417,7 +438,7 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).queryByText(/documents \(0 of 5\)/i)).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/documents \(0 of 8\)/i)).not.toBeInTheDocument()
       expect(
         within(dialog).getByText(/count not shown to your role/i),
       ).toBeInTheDocument()
@@ -598,7 +619,7 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getByText(/akta tidak terbaca/i)).toBeInTheDocument()
     })
 
-    test('a record with nothing uploaded still shows all five labelled slots', async () => {
+    test('a record with nothing uploaded still shows all eight labelled slots', async () => {
       // `null` per slot is the normal state of a fresh record, not an error — but
       // it must READ as "belum diunggah" rather than as five blank rows, which is
       // what a reviewer would otherwise mistake for "nothing required here".
@@ -607,11 +628,11 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
       for (const label of SLOT_LABELS) {
         expect(within(dialog).getByText(label)).toBeInTheDocument()
       }
-      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(5)
+      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(8)
       // Nothing to open: an empty slot must not render a dead link.
       const docs = within(dialog).getByTestId('kyb-documents')
       expect(within(docs).queryAllByRole('link')).toHaveLength(0)
@@ -651,8 +672,26 @@ describe('KybDetailModal @ USDX-546', () => {
 const OWNER_ID = 'usr_legal_1'
 const BUCKET = 'https://t3.storageapi.dev/usdx-kyc-dev'
 
-/** The four the backend requires; skKemenkumham is deliberately absent. */
-const REQUIRED_SLOTS = ['akte', 'nib', 'npwp', 'ktpDireksi'] as const
+/**
+ * Yang dituntut backend untuk badan usaha BUKAN mikro/kecil dan bukan perseroan
+ * perorangan — tujuh sejak USDX-605 (Pasal 27 ayat (1) huruf a + huruf b angka
+ * 3, 4, 5). `skKemenkumham` sengaja tidak ada: kondisional, dan CV tidak punya.
+ *
+ * Fixture `makeDetail` memang `entityForm: 'PT'` + `isMicroOrSmall: false`, jadi
+ * inilah cabang yang berlaku untuk sebagian besar test di berkas ini.
+ */
+const REQUIRED_SLOTS_NON_MICRO = [
+  'akte',
+  'nib',
+  'npwp',
+  'ktpDireksi',
+  'laporanKeuangan',
+  'strukturManajemen',
+  'strukturKepemilikan',
+] as const
+
+/** Cabang mikro/kecil dan perseroan perorangan — huruf b tidak dituntut. */
+const REQUIRED_SLOTS_BASE = ['akte', 'nib', 'npwp', 'ktpDireksi'] as const
 
 function fileWithBytes(name: string, type: string, head: number[], size = 512) {
   const bytes = new Uint8Array(size)
@@ -680,13 +719,19 @@ function pickFile(dialog: HTMLElement, label: string, file: File) {
  * Returns the call log so a test can assert WHAT was sent, not only that
  * something was.
  */
-function stubDocumentBackend(options: { status?: KycStatus } = {}) {
+function stubDocumentBackend(
+  options: { status?: KycStatus; requiredSlots?: readonly string[] } = {},
+) {
+  const requiredSlots = options.requiredSlots ?? REQUIRED_SLOTS_NON_MICRO
   const paths: Record<string, string | null> = {
     akte: null,
     nib: null,
     npwp: null,
     skKemenkumham: null,
     ktpDireksi: null,
+    laporanKeuangan: null,
+    strukturManajemen: null,
+    strukturKepemilikan: null,
   }
   const slotOf: Record<string, string> = {
     kyb_akte: 'akte',
@@ -694,6 +739,9 @@ function stubDocumentBackend(options: { status?: KycStatus } = {}) {
     kyb_npwp: 'npwp',
     kyb_sk_kemenkumham: 'skKemenkumham',
     kyb_ktp_direksi: 'ktpDireksi',
+    kyb_laporan_keuangan: 'laporanKeuangan',
+    kyb_struktur_manajemen: 'strukturManajemen',
+    kyb_struktur_kepemilikan: 'strukturKepemilikan',
   }
   const calls: string[] = []
   const presignBodies: Record<string, unknown>[] = []
@@ -767,7 +815,7 @@ function stubDocumentBackend(options: { status?: KycStatus } = {}) {
     }),
     http.post(`/api/v1/kyb/${KYB_ID}/approve`, () => {
       calls.push('approve')
-      const missing = REQUIRED_SLOTS.filter((slot) => paths[slot] === null)
+      const missing = requiredSlots.filter((slot) => paths[slot] === null)
       if (missing.length > 0) {
         const result = {
           status: 409,
@@ -839,12 +887,12 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
-      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
 
       pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
 
       expect(
-        await within(dialog).findByText(/documents \(1 of 5\)/i),
+        await within(dialog).findByText(/documents \(1 of 8\)/i),
       ).toBeInTheDocument()
       // "Uploaded" and not a link: the record on screen was read BEFORE the
       // upload, so no presigned URL exists for it yet. Rendering one would mean
@@ -855,11 +903,14 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       ).toBeInTheDocument()
     })
 
-    test('CHAIN: the four required documents uploaded, then Approve SUCCEEDS and the entity is VERIFIED', async () => {
+    test('CHAIN: the seven required documents uploaded, then Approve SUCCEEDS and the entity is VERIFIED', async () => {
       // This is the acceptance test of the whole ticket. Before this change the
-      // five slots had no way to be filled, so `approve` answered
+      // slots had no way to be filled, so `approve` answered
       // `409 KYB_DOCUMENTS_INCOMPLETE` every single time and NO entity could
       // reach VERIFIED from the back office. Each half worked; the join did not.
+      //
+      // TUJUH sejak USDX-605, bukan empat: fixture-nya PT yang bukan usaha
+      // mikro/kecil, jadi Pasal 27 ayat (1) huruf b angka 3, 4, 5 ikut wajib.
       const user = userEvent.setup()
       stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
       const be = stubDocumentBackend()
@@ -876,7 +927,7 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       expect(await screen.findByTestId('kyb-documents-incomplete')).toBeInTheDocument()
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
-      // 2. Upload the four REQUIRED documents. SK Kemenkumham is left empty on
+      // 2. Upload the seven REQUIRED documents. SK Kemenkumham is left empty on
       //    purpose — it is conditional (a CV has none) and must not gate.
       pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
       await waitFor(() => expect(be.paths.akte).not.toBeNull())
@@ -886,8 +937,14 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       await waitFor(() => expect(be.paths.npwp).not.toBeNull())
       pickFile(dialog, 'KTP Pengurus', fileWithBytes('ktp.png', 'image/png', PNG_BYTES))
       await waitFor(() => expect(be.paths.ktpDireksi).not.toBeNull())
+      pickFile(dialog, 'Laporan Keuangan / Deskripsi Usaha', pdfFile('laporan.pdf'))
+      await waitFor(() => expect(be.paths.laporanKeuangan).not.toBeNull())
+      pickFile(dialog, 'Struktur Manajemen', pdfFile('manajemen.pdf'))
+      await waitFor(() => expect(be.paths.strukturManajemen).not.toBeNull())
+      pickFile(dialog, 'Struktur Kepemilikan', pdfFile('kepemilikan.pdf'))
+      await waitFor(() => expect(be.paths.strukturKepemilikan).not.toBeNull())
       expect(be.paths.skKemenkumham).toBeNull()
-      expect(await within(dialog).findByText(/documents \(4 of 5\)/i)).toBeInTheDocument()
+      expect(await within(dialog).findByText(/documents \(7 of 8\)/i)).toBeInTheDocument()
 
       // 3. Approve again — now it goes through.
       await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
@@ -913,14 +970,15 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
       const confirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
       await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
-      expect(await screen.findAllByTestId('kyb-document-missing')).toHaveLength(4)
+      // Tujuh sejak USDX-605 — berkasnya PT yang bukan usaha mikro/kecil.
+      expect(await screen.findAllByTestId('kyb-document-missing')).toHaveLength(7)
 
       pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
 
       // Leaving the row red after the document landed is how an operator ends up
       // asking the entity for a file it already sent.
       await waitFor(() =>
-        expect(screen.getAllByTestId('kyb-document-missing')).toHaveLength(3),
+        expect(screen.getAllByTestId('kyb-document-missing')).toHaveLength(6),
       )
     })
   })
@@ -1455,6 +1513,245 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
       ).toBeInTheDocument()
       expect(
         within(card).queryByTestId('kyb-ubo-finding-legal-doc'),
+      ).not.toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-605 — cabang set dokumen (Pasal 27 ayat (1)) dan unggah dokumen UBO.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('KybDetailModal — set dokumen Pasal 27 ayat (1) @ USDX-605', () => {
+  describe('positive', () => {
+    test('a micro/small enterprise is shown FIVE slots, not eight', async () => {
+      stubDetail(
+        makeDetail({
+          entityForm: 'CV',
+          isMicroOrSmall: true,
+          documents: NO_DOCUMENTS,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      for (const label of BASE_SLOT_LABELS) {
+        expect(within(dialog).getByText(label)).toBeInTheDocument()
+      }
+      // Menggambar tiga baris kosong yang pasalnya tidak minta adalah cara paling
+      // langsung membuat petugas menagih dokumen yang tidak wajib.
+      expect(within(dialog).queryByText('Struktur Manajemen')).not.toBeInTheDocument()
+      expect(within(dialog).queryByText('Struktur Kepemilikan')).not.toBeInTheDocument()
+      expect(
+        within(dialog).queryByText('Laporan Keuangan / Deskripsi Usaha'),
+      ).not.toBeInTheDocument()
+    })
+
+    test('CHAIN: a micro/small file reaches VERIFIED on the base set alone', async () => {
+      const user = userEvent.setup()
+      stubDetail(
+        makeDetail({ entityForm: 'CV', isMicroOrSmall: true, documents: NO_DOCUMENTS }),
+      )
+      const be = stubDocumentBackend({ requiredSlots: REQUIRED_SLOTS_BASE })
+      const { onOpenChange } = renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      pickFile(dialog, 'Akta Pendirian', pdfFile('akta.pdf'))
+      await waitFor(() => expect(be.paths.akte).not.toBeNull())
+      pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
+      await waitFor(() => expect(be.paths.nib).not.toBeNull())
+      pickFile(dialog, 'NPWP Badan', pdfFile('npwp.pdf'))
+      await waitFor(() => expect(be.paths.npwp).not.toBeNull())
+      pickFile(dialog, 'KTP Pengurus', fileWithBytes('ktp.png', 'image/png', PNG_BYTES))
+      await waitFor(() => expect(be.paths.ktpDireksi).not.toBeNull())
+
+      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      const confirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
+      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+
+      await waitFor(() => expect(be.approveResults).toHaveLength(1))
+      expect(be.approveResults[0].status).toBe(200)
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    })
+  })
+
+  describe('negative', () => {
+    test('a perseroan perorangan is never shown the huruf b documents, even when NOT micro/small', async () => {
+      // Huruf c berdiri sejajar dengan huruf b, jadi cabang bentuk badan usaha
+      // menang atas skala usahanya.
+      stubDetail(
+        makeDetail({
+          entityForm: 'PT_PERORANGAN',
+          isMicroOrSmall: false,
+          documents: NO_DOCUMENTS,
+        }),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      expect(within(dialog).queryByText('Struktur Kepemilikan')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('kyb-business-scale')).toHaveTextContent(
+        /perseroan perorangan/i,
+      )
+    })
+  })
+
+  describe('edge cases', () => {
+    test('an unanswered scale question is checked in FULL, not waved through', async () => {
+      // `null` = baris pra-USDX-583 yang tidak pernah ditanya. Keliru menuntut
+      // dokumen tambahan bisa diperbaiki petugas; keliru melepasnya ketahuan saat
+      // diperiksa OJK.
+      stubDetail(makeDetail({ isMicroOrSmall: null, documents: NO_DOCUMENTS }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByTestId('kyb-documents')
+
+      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
+      expect(
+        within(dialog).getByText('Laporan Keuangan / Deskripsi Usaha'),
+      ).toBeInTheDocument()
+    })
+  })
+})
+
+describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
+  /**
+   * Stub tiga langkah untuk endpoint dokumen SATU UBO (USDX-604). Rutenya
+   * bersarang di bawah `:id/ubos/:uboId`, jadi kartu UBO yang berbeda menulis ke
+   * baris `kyc_ubo` yang berbeda — dan itulah yang diuji.
+   */
+  function stubUboDocumentBackend() {
+    const perUbo: Record<string, Record<string, string | null>> = {}
+    const presignUrls: string[] = []
+    const attachUrls: string[] = []
+    const slotOf: Record<string, string> = {
+      kyb_ubo_identity_photo: 'identityPhoto',
+      kyb_ubo_selfie_photo: 'selfiePhoto',
+      kyb_ubo_legal_relationship_doc: 'legalRelationshipDoc',
+      kyb_ubo_customer_declaration_doc: 'customerDeclarationDoc',
+    }
+    const blank = () => ({
+      identityPhoto: null,
+      selfiePhoto: null,
+      legalRelationshipDoc: null,
+      customerDeclarationDoc: null,
+    })
+    let keySeq = 0
+
+    server.use(
+      http.post(
+        `/api/v1/kyb/${KYB_ID}/ubos/:uboId/documents/presign`,
+        async ({ request, params }) => {
+          presignUrls.push(String(params.uboId))
+          const body = (await request.json()) as Record<string, unknown>
+          keySeq += 1
+          const ext = (body.fileType as string) === 'application/pdf' ? 'pdf' : 'jpg'
+          return ok({
+            objectKey: `kyc/${OWNER_ID}/${body.docKind}/ubo-key-${keySeq}.${ext}`,
+            uploadUrl: `${BUCKET}/ubo-signed-${keySeq}`,
+            expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+            headers: { 'content-type': body.fileType as string },
+          })
+        },
+      ),
+      http.put(`${BUCKET}/:key`, () => new HttpResponse(null, { status: 200 })),
+      http.post(
+        `/api/v1/kyb/${KYB_ID}/ubos/:uboId/documents`,
+        async ({ request, params }) => {
+          const uboId = String(params.uboId)
+          attachUrls.push(uboId)
+          const body = (await request.json()) as Record<string, unknown>
+          perUbo[uboId] = perUbo[uboId] ?? blank()
+          perUbo[uboId]![slotOf[body.docKind as string]!] = body.objectKey as string
+          return ok({
+            id: KYB_ID,
+            uboId,
+            docKind: body.docKind,
+            objectKey: body.objectKey,
+            uploaded: Object.fromEntries(
+              Object.entries(perUbo[uboId]!).map(([k, v]) => [k, v !== null]),
+            ),
+          })
+        },
+      ),
+    )
+    return { perUbo, presignUrls, attachUrls }
+  }
+
+  describe('positive', () => {
+    test('uploads a UBO document to the nested endpoint, keyed by THAT ubo', async () => {
+      stubDetail(makeDetail())
+      const be = stubUboDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const cards = await within(dialog).findAllByTestId('kyb-ubo')
+
+      // UBO #2 sengaja yang dipakai: satu peta datar per berkas akan menandai
+      // slot UBO #1, dan itu tidak akan ketahuan kalau yang diuji UBO pertama.
+      const input = within(cards[1]!).getByLabelText(/upload pernyataan nasabah/i)
+      fireEvent.change(input, {
+        target: { files: [pdfFile('pernyataan.pdf')] },
+      })
+
+      await waitFor(() => expect(be.attachUrls).toEqual(['ubo_2']))
+      expect(be.presignUrls).toEqual(['ubo_2'])
+      expect(be.perUbo.ubo_2!.customerDeclarationDoc).toContain(
+        'kyb_ubo_customer_declaration_doc',
+      )
+      // Dan temuan "pernyataan nasabah belum ada" hilang begitu berkasnya masuk.
+      await waitFor(() =>
+        expect(
+          within(cards[1]!).queryByTestId('kyb-ubo-finding-declaration'),
+        ).not.toBeInTheDocument(),
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('refuses a PDF for a PHOTO slot before anything is signed for', async () => {
+      // Backend memverifikasi foto dengan primitif yang menuntut resolusi
+      // minimum; PDF tidak punya piksel sama sekali.
+      stubDetail(makeDetail())
+      const be = stubUboDocumentBackend()
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const cards = await within(dialog).findAllByTestId('kyb-ubo')
+
+      const input = within(cards[0]!).getByLabelText(/replace foto identitas/i)
+      fireEvent.change(input, { target: { files: [pdfFile('ktp.pdf')] } })
+
+      expect(await within(cards[0]!).findByRole('alert')).toBeInTheDocument()
+      expect(be.presignUrls).toEqual([])
+    })
+  })
+
+  describe('edge cases', () => {
+    test('offers no UBO upload control to a role that cannot decide (DEVELOPER)', async () => {
+      // Server menolaknya 403; menawarkan kontrol yang hanya bisa berakhir 403
+      // adalah menyuruh petugas mencoba sesuatu yang mustahil.
+      stubDetail(makeDetail())
+      renderModal({ staffId: 'stf_3' })
+      const dialog = await screen.findByRole('dialog')
+      const cards = await within(dialog).findAllByTestId('kyb-ubo')
+
+      expect(
+        within(cards[0]!).queryByLabelText(/upload|replace/i),
+      ).not.toBeInTheDocument()
+    })
+
+    test('offers no UBO upload control once the record is decided', async () => {
+      stubDetail(makeDetail({ status: 'VERIFIED' }))
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      const cards = await within(dialog).findAllByTestId('kyb-ubo')
+
+      expect(
+        within(cards[0]!).queryByLabelText(/upload|replace/i),
       ).not.toBeInTheDocument()
     })
   })

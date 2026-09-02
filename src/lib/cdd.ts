@@ -304,6 +304,13 @@ export const KYB_DOCUMENT_SLOTS: Record<KybDocumentSlot, string> = {
   npwp: 'NPWP Badan',
   skKemenkumham: 'SK Kemenkumham',
   ktpDireksi: 'KTP Pengurus',
+  // USDX-605 — Pasal 27 (1) b angka 3, 4, 5. Label `laporanKeuangan` menyebut
+  // KEDUA kemungkinannya karena pasalnya memberi pilihan ("laporan keuangan ATAU
+  // deskripsi kegiatan usaha"); menyebut satu saja membuat petugas menagih
+  // berkas yang tidak dimiliki perusahaan yang belum pernah diaudit.
+  laporanKeuangan: 'Laporan Keuangan / Deskripsi Usaha',
+  strukturManajemen: 'Struktur Manajemen',
+  strukturKepemilikan: 'Struktur Kepemilikan',
 }
 
 /**
@@ -314,6 +321,77 @@ export const KYB_DOCUMENT_SLOTS: Record<KybDocumentSlot, string> = {
 export const KYB_DOCUMENT_SLOT_KEYS = Object.keys(
   KYB_DOCUMENT_SLOTS,
 ) as KybDocumentSlot[]
+
+/**
+ * Yang menentukan set dokumen wajib: `isMicroOrSmall` dan `entityForm`
+ * (USDX-605). Bentuknya sengaja sepasang field, bukan `KybDetail` utuh, supaya
+ * form create — yang belum punya berkas — bisa memakai fungsi yang sama.
+ */
+export interface KybDocumentSetInput {
+  entityForm: KybEntityForm
+  isMicroOrSmall: boolean | null
+}
+
+/** Wajib untuk SETIAP badan usaha. Urutannya urutan baris halaman review. */
+const KYB_BASE_DOCUMENT_SLOTS: readonly KybDocumentSlot[] = [
+  'akte',
+  'nib',
+  'npwp',
+  'ktpDireksi',
+]
+
+/** Tambahan Pasal 27 (1) huruf b angka 3, 4, 5. */
+const KYB_NON_MICRO_DOCUMENT_SLOTS: readonly KybDocumentSlot[] = [
+  'laporanKeuangan',
+  'strukturManajemen',
+  'strukturKepemilikan',
+]
+
+/**
+ * Dokumen yang MENAHAN approve untuk satu berkas — POJK 8/2023 Pasal 27 ayat (1).
+ *
+ * Transkripsi `requiredKybDocuments` di
+ * `backend/src/modules/kyb/kyb.service.ts`, dan harus tetap begitu: kalau kedua
+ * sisi menjawab beda, petugas melihat baris "wajib" yang gerbangnya tidak minta —
+ * atau, lebih buruk, tidak melihat baris yang gerbangnya tuntut lalu kena
+ * `409 KYB_DOCUMENTS_INCOMPLETE` tanpa tahu sebabnya.
+ *
+ * Tiga cabang:
+ *   - **mikro/kecil** → set dasar saja. Huruf b dibuka dengan "perusahaan yang
+ *     TIDAK tergolong usaha mikro dan usaha kecil".
+ *   - **bukan mikro/kecil, `null` termasuk** → set dasar + huruf b angka 3, 4, 5.
+ *     `null` berarti belum ditanya, dan kontraknya memutuskan arah kekeliruannya:
+ *     perlakukan sebagai `false`, yaitu diperiksa penuh.
+ *   - **`PT_PERORANGAN`** → tidak pernah huruf b, berapa pun `isMicroOrSmall`.
+ *     Perseroan perorangan diatur huruf c, yang berdiri SEJAJAR dengan huruf b.
+ *
+ * `skKemenkumham` tidak pernah ada di hasilnya — kondisional, dan menggerbanginya
+ * membuat CV dan firma tidak akan pernah bisa VERIFIED.
+ */
+export function kybRequiredDocumentSlots(input: KybDocumentSetInput): KybDocumentSlot[] {
+  const hurufC = input.entityForm === 'PT_PERORANGAN'
+  const mikroKecil = input.isMicroOrSmall === true
+  if (hurufC || mikroKecil) return [...KYB_BASE_DOCUMENT_SLOTS]
+  return [...KYB_BASE_DOCUMENT_SLOTS, ...KYB_NON_MICRO_DOCUMENT_SLOTS]
+}
+
+/**
+ * Slot yang DITAMPILKAN halaman review — yang wajib, ditambah `skKemenkumham`.
+ *
+ * Ditampilkan bukan sama dengan diwajibkan: SK Kemenkumham boleh diunggah badan
+ * hukum yang memang punya, dan menyembunyikannya akan menghilangkan satu-satunya
+ * tempat berkas itu bisa masuk. Yang tidak boleh ditampilkan adalah slot yang
+ * pasalnya TIDAK minta untuk badan usaha ini — baris kosong yang menuntut adalah
+ * cara paling langsung membuat petugas menagih dokumen yang tidak wajib.
+ *
+ * Hasilnya selalu dalam urutan {@link KYB_DOCUMENT_SLOT_KEYS}.
+ */
+export function kybApplicableDocumentSlots(input: KybDocumentSetInput): KybDocumentSlot[] {
+  const required = new Set(kybRequiredDocumentSlots(input))
+  return KYB_DOCUMENT_SLOT_KEYS.filter(
+    (slot) => slot === 'skKemenkumham' || required.has(slot),
+  )
+}
 
 /** `KARYAWAN_SWASTA` → `Karyawan swasta`. Fallback for unmapped enum values. */
 export function formatEnumLabel(value: string): string {

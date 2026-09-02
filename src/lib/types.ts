@@ -1419,7 +1419,7 @@ export type KybEntityForm =
   | 'OTHER'
 
 /**
- * The five FIXED document slots — response keys of `KybDetail.documents`,
+ * The eight FIXED document slots — response keys of `KybDetail.documents`,
  * camelCase per `sot/conventions.md`.
  *
  * The backend keeps these as one path column per document type (`akte_path`,
@@ -1439,6 +1439,14 @@ export type KybDocumentSlot =
   | 'npwp'
   | 'skKemenkumham'
   | 'ktpDireksi'
+  // ── USDX-605 — POJK 8/2023 Pasal 27 ayat (1) huruf b angka 3, 4, 5 ────────
+  // Kontraknya sudah mencantumkan ketiganya sejak USDX-583; kolom dan doc kind
+  // backendnya baru ada di migrasi 0084. Ketiganya WAJIB hanya untuk perusahaan
+  // yang tidak tergolong usaha mikro/kecil dan bukan perseroan perorangan —
+  // lihat `kybRequiredDocumentSlots` di `./cdd.ts`.
+  | 'laporanKeuangan'
+  | 'strukturManajemen'
+  | 'strukturKepemilikan'
 
 /**
  * A filled slot — a presigned GET and nothing else. The expiry is NOT per slot:
@@ -1460,7 +1468,7 @@ export interface KybDocumentRef {
  *   - an object purged by the retention sweeper from one never uploaded (the old
  *     array shape separated these via `url: null`; path columns do not);
  *   - "nothing on file" from "your role is not given the URL" — the DEVELOPER
- *     role never receives presigned document URLs, so for a developer ALL FIVE
+ *     role never receives presigned document URLs, so for a developer ALL EIGHT
  *     slots read `null` whatever the record actually holds.
  */
 export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
@@ -1679,6 +1687,20 @@ export interface KybDetail {
   updatedAt: string
 }
 
+/**
+ * Satu UBO di body `POST /api/v1/kyb` — **Pasal 33 ayat (3) selengkapnya**.
+ *
+ * Sampai USDX-605 bentuk ini hanya punya delapan field, dan itulah sebabnya
+ * `CreateKybUboDto` di backend menerima seluruh blok Pasal 33 (3) sebagai
+ * opsional meski kontraknya menandainya `required`: form KYB back office adalah
+ * satu-satunya pemanggil endpoint ini, dan form itu tidak pernah mengirimnya.
+ * Kartu review USDX-587 lalu menampilkan em dash untuk kolom yang memang tidak
+ * pernah terisi.
+ *
+ * Yang WAJIB di bawah ditentukan `required` di `sot/api/kyb.yaml § CreateKybUbo`,
+ * bukan selera form: `aliasName`, `employerAddress`, `employerPhone`,
+ * `addressLine2`, dan `country` opsional; sisanya tidak.
+ */
 export interface KybUboInput {
   firstName: string
   lastName: string
@@ -1688,6 +1710,31 @@ export interface KybUboInput {
   country: string
   addressLine1: string
   addressLine2?: string
+  // ── Pasal 33 (3) huruf a — identitas ──────────────────────────────────────
+  /** Angka 1 — "nama lengkap **termasuk nama alias**". Opsional: tidak semua orang punya. */
+  aliasName?: string
+  /** Angka 5. */
+  birthPlace: string
+  /** Angka 5 — ISO `YYYY-MM-DD`. */
+  dob: string
+  /** Angka 6 — ISO 3166-1 alpha-2. Beda dari `country`, yang menyebut negara alamat. */
+  nationality: string
+  /** Angka 7 — enum Permendagri yang sama dengan sisi retail. */
+  occupation: KycOccupation
+  /** Angka 8 — "jika ada", jadi opsional. */
+  employerAddress?: string
+  employerPhone?: string
+  /** Angka 9. */
+  gender: KycGender
+  /** Angka 10. */
+  maritalStatus: KycMaritalStatus
+  // ── Pasal 33 (3) huruf b & c — profil finansial UBO ───────────────────────
+  sourceOfFunds: KycSourceOfFunds
+  annualIncomeRange: KycAnnualIncomeRange
+  netWorthRange: KycNetWorthRange
+  // ── Pasal 33 (3) huruf d + ayat (7)/(8) ───────────────────────────────────
+  legalRelationship: UboLegalRelationship
+  cascadeStep: UboCascadeStep
 }
 
 /** POST /api/v1/kyb — operator-entered record for an existing LEGAL_ENTITY user. */
@@ -1704,6 +1751,15 @@ export interface CreateKybBody {
   operationalAddress: string
   website?: string
   phone: string
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  // Empat kolom yang backend terima sejak USDX-604 dan form ini tidak pernah
+  // kirim. `isMicroOrSmall` yang paling menentukan: ia yang memutuskan SET
+  // dokumen wajib berkasnya (`kybRequiredDocumentSlots`).
+  /** Angka 5 — **tempat** pendirian; tanggalnya `establishmentDate`. */
+  incorporationPlace: string
+  sourceOfFunds: KycSourceOfFunds
+  transactionPurpose: KycTransactionPurpose
+  isMicroOrSmall: boolean
   ubos: KybUboInput[]
 }
 
@@ -1730,6 +1786,62 @@ export type KybDocKind =
   | 'kyb_npwp'
   | 'kyb_sk_kemenkumham'
   | 'kyb_ktp_direksi'
+  | 'kyb_laporan_keuangan'
+  | 'kyb_struktur_manajemen'
+  | 'kyb_struktur_kepemilikan'
+
+/**
+ * `docKind` untuk dokumen SATU UBO (USDX-604) — baris `kyc_ubo`, bukan `kyb`.
+ *
+ * Prefixnya `kyb_ubo_`, bukan `kyb_` polos, dan itu bukan selera: prefix ini
+ * ditulis apa adanya ke dalam object key (`kyc/{userId}/{docKind}/{uuid}.{ext}`),
+ * jadi `kyb_` akan menaruh selfie seorang Pemilik Manfaat di ruang nama yang sama
+ * dengan akta pendirian perusahaan. Nilainya disalin dari
+ * `sot/api/kyb.yaml § KybUboDocKind`.
+ *
+ * Dua yang pertama adalah FOTO (whitelist KYC — HEIC ikut, karena iPhone
+ * memberikan HEIC); dua terakhir DOKUMEN (whitelist KYB — PDF/JPEG/PNG). Backend
+ * memakai primitif verifikasi yang berbeda untuk keduanya, jadi menyamakannya di
+ * sini berarti menawarkan berkas yang pasti ditolak.
+ */
+export type KybUboDocKind =
+  | 'kyb_ubo_identity_photo'
+  | 'kyb_ubo_selfie_photo'
+  | 'kyb_ubo_legal_relationship_doc'
+  | 'kyb_ubo_customer_declaration_doc'
+
+/** Slot dokumen satu UBO di response `KybUbo` — empat kolom `kyc_ubo.*_path`. */
+export type KybUboDocumentSlot =
+  | 'identityPhoto'
+  | 'selfiePhoto'
+  | 'legalRelationshipDoc'
+  | 'customerDeclarationDoc'
+
+/** POST /api/v1/kyb/:id/ubos/:uboId/documents/presign — langkah 1 dari 3. */
+export interface KybUboDocumentPresignBody {
+  docKind: KybUboDocKind
+  fileType: string
+  sizeBytes: number
+}
+
+/** POST /api/v1/kyb/:id/ubos/:uboId/documents — langkah 3 dari 3. */
+export interface KybUboDocumentAttachBody {
+  docKind: KybUboDocKind
+  objectKey: string
+}
+
+/**
+ * Balasan attach dokumen UBO. Membawa `uboId` di samping `id` karena halaman
+ * review memakai keduanya: `id` menentukan berkas mana yang dibuka, `uboId`
+ * menentukan KARTU UBO mana yang memperbarui tampilan slotnya.
+ */
+export interface KybUboDocumentUploadResult {
+  id: string
+  uboId: string
+  docKind: KybUboDocKind
+  objectKey: string
+  uploaded: Record<KybUboDocumentSlot, boolean>
+}
 
 /**
  * POST /api/v1/kyb/:id/documents/presign — step 1 of 3.
@@ -1763,7 +1875,7 @@ export interface KybDocumentAttachBody {
 }
 
 /**
- * Response of the attach call. `uploaded` is the state of all five slots AFTER
+ * Response of the attach call. `uploaded` is the state of all eight slots AFTER
  * this upload, straight from the row the server just wrote — so the screen can
  * say which documents are on file without a second, PII-audited read of the
  * detail. It carries no URL, because nothing is rendered from it.

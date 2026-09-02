@@ -17,6 +17,23 @@ const validUbo = (overrides: Partial<KybUboFormInput> = {}): KybUboFormInput => 
   country: 'ID',
   addressLine1: 'Jl. Sudirman No. 1',
   addressLine2: '',
+  // Blok Pasal 33 ayat (3) — `required` di `sot/api/kyb.yaml § CreateKybUbo`
+  // (USDX-605). Yang tidak ada di daftar itu (`aliasName`, `employerAddress`,
+  // `employerPhone`) sengaja kosong di fixture ini: bentuk minimum yang sah.
+  aliasName: '',
+  birthPlace: 'Bandung',
+  dob: '1985-03-17',
+  nationality: 'ID',
+  occupation: 'WIRASWASTA',
+  employerAddress: '',
+  employerPhone: '',
+  gender: 'LAKI_LAKI',
+  maritalStatus: 'KAWIN',
+  sourceOfFunds: 'BUSINESS',
+  annualIncomeRange: 'FROM_500M_TO_1B',
+  netWorthRange: 'FROM_500M_TO_2B',
+  legalRelationship: 'SURAT_KUASA',
+  cascadeStep: 'KEPEMILIKAN',
   ...overrides,
 })
 
@@ -33,6 +50,12 @@ const validForm = (overrides: Partial<KybFormInput> = {}): KybFormInput => ({
   operationalAddress: 'Jl. Thamrin No. 5, Jakarta',
   website: 'https://juara.co.id',
   phone: '+622140001234',
+  // Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — `required` di
+  // `sot/api/kyb.yaml § CreateKybRequest` (USDX-605).
+  incorporationPlace: 'Jakarta Selatan',
+  sourceOfFunds: 'BUSINESS',
+  transactionPurpose: 'INVESTMENT',
+  isMicroOrSmall: 'NO',
   ubos: [validUbo()],
   ...overrides,
 })
@@ -331,6 +354,144 @@ describe('validateKybRejectReason vs RejectKybDto @ USDX-546', () => {
       // The service trims before it counts, so "   short   " is nine characters
       // to Postgres however long the raw string looked.
       expect(validateKybRejectReason('   short    ').valid).toBe(false)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-605 — form ini sebelumnya mengirim sepuluh field UBO lama dan NOL dari
+// blok Pasal 33 ayat (3), padahal backend menerimanya sejak USDX-604 dan
+// kontraknya menandainya `required`. Yang di bawah menguji separuh FE dari
+// urutan yang mengikat: form mengirim dulu, baru `@IsOptional()` dinaikkan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('validateKybForm — Pasal 25 (1) b & Pasal 33 (3) (USDX-605)', () => {
+  describe('positive', () => {
+    test('should accept a record that answers every required CDD field', () => {
+      expect(validateKybForm(validForm()).valid).toBe(true)
+    })
+
+    test('should keep alias, employer address and employer phone optional', () => {
+      // Angka 8 berbunyi "jika ada", dan tidak semua orang punya nama alias —
+      // ketiganya memang TIDAK ada di `required` kontraknya.
+      const result = validateKybForm(
+        validForm({
+          ubos: [validUbo({ aliasName: '', employerAddress: '', employerPhone: '' })],
+        }),
+      )
+      expect(result.valid).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('should refuse a record that never answered the micro/small question', () => {
+      // Tidak punya default, dan itu keputusan kontraknya: menebak salah satu
+      // arah menahan nasabah tanpa dasar atau melepas dokumen yang wajib.
+      const result = validateKybForm(validForm({ isMicroOrSmall: '' }))
+      expect(result.valid).toBe(false)
+      expect(result.errors.isMicroOrSmall).toBeTruthy()
+    })
+
+    test('should refuse the three other entity fields the contract marks required', () => {
+      const result = validateKybForm(
+        validForm({ incorporationPlace: '', sourceOfFunds: '', transactionPurpose: '' }),
+      )
+      expect(result.valid).toBe(false)
+      expect(result.errors.incorporationPlace).toBeTruthy()
+      expect(result.errors.sourceOfFunds).toBeTruthy()
+      expect(result.errors.transactionPurpose).toBeTruthy()
+    })
+
+    test('should name every unanswered Pasal 33 (3) field on its own UBO row', () => {
+      const result = validateKybForm(
+        validForm({
+          ubos: [
+            validUbo({
+              birthPlace: '',
+              dob: '',
+              nationality: '',
+              occupation: '',
+              gender: '',
+              maritalStatus: '',
+              sourceOfFunds: '',
+              annualIncomeRange: '',
+              netWorthRange: '',
+              legalRelationship: '',
+              cascadeStep: '',
+            }),
+          ],
+        }),
+      )
+      expect(result.valid).toBe(false)
+      for (const field of [
+        'birthPlace',
+        'dob',
+        'nationality',
+        'occupation',
+        'gender',
+        'maritalStatus',
+        'sourceOfFunds',
+        'annualIncomeRange',
+        'netWorthRange',
+        'legalRelationship',
+        'cascadeStep',
+      ]) {
+        expect(result.errors[`ubo.0.${field}`]).toBeTruthy()
+      }
+    })
+
+    test('should refuse a date of birth in the future', () => {
+      const result = validateKybForm(validForm({ ubos: [validUbo({ dob: '2999-01-01' })] }))
+      expect(result.errors['ubo.0.dob']).toBeTruthy()
+    })
+
+    test('should refuse a nationality that is not ISO 3166-1 alpha-2', () => {
+      const result = validateKybForm(
+        validForm({ ubos: [validUbo({ nationality: 'IDN' })] }),
+      )
+      expect(result.errors['ubo.0.nationality']).toBeTruthy()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should key the new UBO errors per row, like every other UBO field', () => {
+      const result = validateKybForm(
+        validForm({
+          ubos: [
+            validUbo({ ownershipPct: '50' }),
+            validUbo({ ownershipPct: '50', birthPlace: '', gender: '' }),
+          ],
+        }),
+      )
+      expect(result.errors['ubo.0.birthPlace']).toBeUndefined()
+      expect(result.errors['ubo.1.birthPlace']).toBeTruthy()
+      expect(result.errors['ubo.1.gender']).toBeTruthy()
+    })
+
+    test('should accept the contract ceiling for alias (200) and refuse one over it', () => {
+      // 200, bukan 100: batas FE yang lebih ketat dari kontraknya menolak
+      // masukan yang server justru terima, dan kolomnya `text`.
+      expect(
+        validateKybForm(validForm({ ubos: [validUbo({ aliasName: 'x'.repeat(200) })] }))
+          .errors['ubo.0.aliasName'],
+      ).toBeUndefined()
+      expect(
+        validateKybForm(validForm({ ubos: [validUbo({ aliasName: 'x'.repeat(201) })] }))
+          .errors['ubo.0.aliasName'],
+      ).toBeTruthy()
+    })
+
+    test('should refuse a malformed employer phone but allow it empty', () => {
+      expect(
+        validateKybForm(validForm({ ubos: [validUbo({ employerPhone: 'abc' })] })).errors[
+          'ubo.0.employerPhone'
+        ],
+      ).toBeTruthy()
+      expect(
+        validateKybForm(validForm({ ubos: [validUbo({ employerPhone: '' })] })).errors[
+          'ubo.0.employerPhone'
+        ],
+      ).toBeUndefined()
     })
   })
 })
