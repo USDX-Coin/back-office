@@ -410,6 +410,15 @@ export interface MockKycRecord {
   addressLine2: string | null
   ktpPhotoUrl: string
   selfiePhotoUrl: string
+  // USDX-587 — identitas Pasal 25 (1) a angka 1. `nationality` BUKAN duplikat
+  // `country`: yang satu kewarganegaraan orangnya, yang satu negara alamatnya.
+  nationality: string | null
+  gender: string | null
+  maritalStatus: string | null
+  /** PII — ADMIN only. Masih dipakai banyak layanan keuangan sebagai jawaban verifikasi telepon. */
+  mothersMaidenName: string | null
+  /** PII — butir a), "jika ada". */
+  aliasName: string | null
   // USDX-545 — CDD block. Nullable across the board: every customer VERIFIED
   // before that ticket has an empty block, and the review page must render the
   // gap rather than assume presence.
@@ -417,6 +426,14 @@ export interface MockKycRecord {
   sourceOfFunds: string | null
   annualIncomeRange: string | null
   transactionPurpose: string | null
+  /** USDX-587 — separuh kedua Pasal 25 (1) a angka 4. */
+  netWorthRange: string | null
+  /** USDX-587 — Pasal 37 (1) d, wajib hanya untuk PEP. */
+  sourceOfWealth: string | null
+  /** PII — Pasal 25 (1) a angka 1 butir g). */
+  employerAddress: string | null
+  /** PII — butir yang sama dengan `employerAddress`. */
+  employerPhone: string | null
   /** PII — ADMIN only in the UI (`canReadCustomerPii`). */
   npwp: string | null
   pepStatus: boolean | null
@@ -464,10 +481,17 @@ function seedKyc(): MockKycRecord[] {
     addressLine1: 'Jl. Sudirman No. 1', addressLine2: null,
     ktpPhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/ktp.png`,
     selfiePhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/selfie.png`,
+    // USDX-587 identitas Pasal 25 (1) a angka 1.
+    nationality: 'ID', gender: 'PEREMPUAN', maritalStatus: 'BELUM_KAWIN',
+    mothersMaidenName: 'Siti Rohmah', aliasName: null,
     // USDX-545 CDD block, populated by default so the E2E review screen shows
-    // what a real submission looks like after the ticket.
-    occupation: 'CIVIL_SERVANT', sourceOfFunds: 'BUSINESS',
+    // what a real submission looks like after the ticket. `occupation` is a
+    // Permendagri value since USDX-584 — the five old ones no longer exist.
+    occupation: 'PEGAWAI_NEGERI_SIPIL', sourceOfFunds: 'BUSINESS',
     annualIncomeRange: 'FROM_500M_TO_1B', transactionPurpose: 'REMITTANCE',
+    netWorthRange: 'FROM_500M_TO_2B', sourceOfWealth: 'SALARY_ACCUMULATION',
+    employerAddress: 'Jl. Gatot Subroto No. 12, Jakarta Selatan',
+    employerPhone: '02170000001',
     npwp: '123456789012345', pepStatus: false, pepRelation: null,
     rejectionReason: null, submittedAt: '2026-06-01T03:00:00.000Z',
     reviewedBy: null, reviewedByName: null, reviewedAt: null,

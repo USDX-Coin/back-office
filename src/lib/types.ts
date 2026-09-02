@@ -1079,12 +1079,124 @@ export type KycIdentityType = 'KTP' | 'DRIVER_LICENSE'
 // client turns into an illegal enum member name — do not reintroduce a value
 // that starts with a digit (sot/conventions.md § Naming Conventions).
 // ─────────────────────────────────────────────────────────────────────────────
+// 99 jenis pekerjaan Permendagri 109/2019 Formulir F-1.01 butir 31 — dipakai
+// penuh, tidak disaring (USDX-583/584). Ini daftar yang sama yang dipakai
+// Dukcapil mencetak kolom "Pekerjaan" di KTP-el, jadi jawaban nasabah bisa
+// dicocokkan langsung dengan KTP yang ia unggah — dan itulah yang dikerjakan
+// petugas di halaman ini.
+//
+// Sebelumnya lima nilai (`PRIVATE_EMPLOYEE` dst.). Kelimanya sudah TIDAK ADA di
+// database: migrasi `0080` memetakannya (`PRIVATE_EMPLOYEE` → `KARYAWAN_SWASTA`,
+// `SELF_EMPLOYED` → `WIRASWASTA`, `CIVIL_SERVANT` → `PEGAWAI_NEGERI_SIPIL`,
+// `STUDENT` → `PELAJAR_MAHASISWA`, `OTHER` → `LAINNYA`), jadi menyimpannya di
+// sini hanya akan membuat build lolos untuk nilai yang tidak bisa lagi diterima.
+//
+// Nomor di komentar adalah kode Permendagri, BUKAN bagian nilai enum: nilai yang
+// diawali angka ditolak generator SDK TypeScript. `CHEFF` (92) ejaan asli
+// Permendagri, bukan salah ketik.
+//
+// Kode 48-63 seluruhnya jabatan publik → `PEP_CANDIDATE_OCCUPATIONS` di
+// `lib/cdd.ts`, dipakai menyilangkan jawaban `pepStatus`.
 export type KycOccupation =
-  | 'PRIVATE_EMPLOYEE'
-  | 'SELF_EMPLOYED'
-  | 'CIVIL_SERVANT'
-  | 'STUDENT'
-  | 'OTHER'
+  | 'BELUM_TIDAK_BEKERJA'               //  1. Belum/Tidak Bekerja
+  | 'MENGURUS_RUMAH_TANGGA'             //  2. Mengurus Rumah Tangga
+  | 'PELAJAR_MAHASISWA'                 //  3. Pelajar/Mahasiswa
+  | 'PENSIUNAN'                         //  4. Pensiunan
+  | 'PEGAWAI_NEGERI_SIPIL'              //  5. Pegawai Negeri Sipil (PNS)
+  | 'TENTARA_NASIONAL_INDONESIA'        //  6. Tentara Nasional Indonesia (TNI)
+  | 'KEPOLISIAN_RI'                     //  7. Kepolisian RI (POLRI)
+  | 'PERDAGANGAN'                       //  8. Perdagangan
+  | 'PETANI_PEKEBUN'                    //  9. Petani/Pekebun
+  | 'PETERNAK'                          // 10. Peternak
+  | 'NELAYAN_PERIKANAN'                 // 11. Nelayan/Perikanan
+  | 'INDUSTRI'                          // 12. Industri
+  | 'KONSTRUKSI'                        // 13. Konstruksi
+  | 'TRANSPORTASI'                      // 14. Transportasi
+  | 'KARYAWAN_SWASTA'                   // 15. Karyawan Swasta
+  | 'KARYAWAN_BUMN'                     // 16. Karyawan BUMN
+  | 'KARYAWAN_BUMD'                     // 17. Karyawan BUMD
+  | 'KARYAWAN_HONORER'                  // 18. Karyawan Honorer
+  | 'BURUH_HARIAN_LEPAS'                // 19. Buruh Harian Lepas
+  | 'BURUH_TANI_PERKEBUNAN'             // 20. Buruh Tani/Perkebunan
+  | 'BURUH_NELAYAN_PERIKANAN'           // 21. Buruh Nelayan/Perikanan
+  | 'BURUH_PETERNAKAN'                  // 22. Buruh Peternakan
+  | 'PEMBANTU_RUMAH_TANGGA'             // 23. Pembantu Rumah Tangga
+  | 'TUKANG_CUKUR'                      // 24. Tukang Cukur
+  | 'TUKANG_LISTRIK'                    // 25. Tukang Listrik
+  | 'TUKANG_BATU'                       // 26. Tukang Batu
+  | 'TUKANG_KAYU'                       // 27. Tukang Kayu
+  | 'TUKANG_SOL_SEPATU'                 // 28. Tukang Sol Sepatu
+  | 'TUKANG_LAS_PANDAI_BESI'            // 29. Tukang Las/Pandai Besi
+  | 'TUKANG_JAHIT'                      // 30. Tukang Jahit
+  | 'TUKANG_GIGI'                       // 31. Tukang Gigi
+  | 'PENATA_RIAS'                       // 32. Penata Rias
+  | 'PENATA_BUSANA'                     // 33. Penata Busana
+  | 'PENATA_RAMBUT'                     // 34. Penata Rambut
+  | 'MEKANIK'                           // 35. Mekanik
+  | 'SENIMAN'                           // 36. Seniman
+  | 'TABIB'                             // 37. Tabib
+  | 'PARAJI'                            // 38. Paraji
+  | 'PERANCANG_BUSANA'                  // 39. Perancang Busana
+  | 'PENTERJEMAH'                       // 40. Penterjemah
+  | 'IMAM_MASJID'                       // 41. Imam Masjid
+  | 'PENDETA'                           // 42. Pendeta
+  | 'PASTOR'                            // 43. Pastor
+  | 'WARTAWAN'                          // 44. Wartawan
+  | 'USTADZ_MUBALIGH'                   // 45. Ustadz/Mubaligh
+  | 'JURU_MASAK'                        // 46. Juru Masak
+  | 'PROMOTOR_ACARA'                    // 47. Promotor Acara
+  | 'ANGGOTA_DPR_RI'                    // 48. Anggota DPR-RI
+  | 'ANGGOTA_DPD'                       // 49. Anggota DPD
+  | 'ANGGOTA_BPK'                       // 50. Anggota BPK
+  | 'PRESIDEN'                          // 51. Presiden
+  | 'WAKIL_PRESIDEN'                    // 52. Wakil Presiden
+  | 'ANGGOTA_MAHKAMAH_KONSTITUSI'       // 53. Anggota Mahkamah Konstitusi
+  | 'ANGGOTA_KABINET_KEMENTERIAN'       // 54. Anggota Kabinet/Kementerian
+  | 'DUTA_BESAR_KEPALA_PERWAKILAN'      // 55. Duta Besar/Kepala Perwakilan
+  | 'GUBERNUR'                          // 56. Gubernur
+  | 'WAKIL_GUBERNUR'                    // 57. Wakil Gubernur
+  | 'BUPATI'                            // 58. Bupati
+  | 'WAKIL_BUPATI'                      // 59. Wakil Bupati
+  | 'WALIKOTA'                          // 60. Walikota
+  | 'WAKIL_WALIKOTA'                    // 61. Wakil Walikota
+  | 'ANGGOTA_DPRD_PROVINSI'             // 62. Anggota DPRD Provinsi
+  | 'ANGGOTA_DPRD_KAB_KOTA'             // 63. Anggota DPRD Kab/Kota
+  | 'DOSEN'                             // 64. Dosen
+  | 'GURU'                              // 65. Guru
+  | 'PILOT'                             // 66. Pilot
+  | 'PENGACARA'                         // 67. Pengacara
+  | 'NOTARIS'                           // 68. Notaris
+  | 'ARSITEK'                           // 69. Arsitek
+  | 'AKUNTAN'                           // 70. Akuntan
+  | 'KONSULTAN'                         // 71. Konsultan
+  | 'DOKTER'                            // 72. Dokter
+  | 'BIDAN'                             // 73. Bidan
+  | 'PERAWAT'                           // 74. Perawat
+  | 'APOTEKER'                          // 75. Apoteker
+  | 'PSIKIATER_PSIKOLOG'                // 76. Psikiater/Psikolog
+  | 'PENYIAR_TELEVISI'                  // 77. Penyiar Televisi
+  | 'PENYIAR_RADIO'                     // 78. Penyiar Radio
+  | 'PELAUT'                            // 79. Pelaut
+  | 'PENELITI'                          // 80. Peneliti
+  | 'SOPIR'                             // 81. Sopir
+  | 'PIALANG'                           // 82. Pialang
+  | 'PARANORMAL'                        // 83. Paranormal
+  | 'PEDAGANG'                          // 84. Pedagang
+  | 'PERANGKAT_DESA'                    // 85. Perangkat Desa
+  | 'KEPALA_DESA'                       // 86. Kepala Desa
+  | 'BIARAWATI'                         // 87. Biarawati
+  | 'WIRASWASTA'                        // 88. Wiraswasta
+  | 'ANGGOTA_LEMBAGA_TINGGI_LAINNYA'    // 89. Anggota Lembaga Tinggi Lainnya
+  | 'ARTIS'                             // 90. Artis
+  | 'ATLIT'                             // 91. Atlit
+  | 'CHEFF'                             // 92. Cheff
+  | 'MANAJER'                           // 93. Manajer
+  | 'TENAGA_TATA_USAHA'                 // 94. Tenaga Tata Usaha
+  | 'OPERATOR'                          // 95. Operator
+  | 'PEKERJA_PENGOLAHAN_KERAJINAN'      // 96. Pekerja Pengolahan, Kerajinan
+  | 'TEKNISI'                           // 97. Teknisi
+  | 'ASISTEN_AHLI'                      // 98. Asisten Ahli
+  | 'LAINNYA'                           // 99. Lainnya
 
 export type KycSourceOfFunds =
   | 'SALARY'
@@ -1100,6 +1212,57 @@ export type KycAnnualIncomeRange =
   | 'OVER_1B'
 
 export type KycTransactionPurpose = 'INVESTMENT' | 'PAYMENT' | 'REMITTANCE' | 'OTHER'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-583/584 — nilai tertutup yang ditambahkan agar CDD memenuhi POJK 8/2023.
+// Semuanya disalin PERSIS dari `sot/api/kyc.yaml`; jangan mengarang anggota di
+// sini, itu perubahan kontrak, bukan perubahan front-end.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Jenis kelamin — Pasal 25 (1) a angka 1 butir h).
+ *
+ * Kosakata KTP (`LAKI_LAKI` / `PEREMPUAN`), bukan `MALE`/`FEMALE`, dengan alasan
+ * yang sama dengan `KycOccupation`: petugas membacanya dari KTP yang diunggah
+ * nasabah, dan nilai yang memakai kata yang sama bisa dicocokkan tanpa
+ * menerjemahkan.
+ */
+export type KycGender = 'LAKI_LAKI' | 'PEREMPUAN'
+
+/** Status perkawinan — Pasal 25 (1) a angka 1 butir i). Empat status yang tercetak di KTP-el. */
+export type KycMaritalStatus = 'BELUM_KAWIN' | 'KAWIN' | 'CERAI_HIDUP' | 'CERAI_MATI'
+
+/**
+ * Rentang nilai harta kekayaan — separuh kedua Pasal 25 (1) a angka 4.
+ *
+ * Batas rentangnya BUKAN angka regulasi: diambil dari ambang AML yang sudah
+ * dipakai sistem ini (Rp500 juta per transaksi, Rp2 miliar harian) supaya
+ * jawaban nasabah bisa dibandingkan dengan plafon yang benar-benar
+ * menggerbangi transaksinya.
+ */
+export type KycNetWorthRange =
+  | 'UNDER_500M'
+  | 'FROM_500M_TO_2B'
+  | 'FROM_2B_TO_10B'
+  | 'OVER_10B'
+
+/**
+ * Sumber kekayaan — dari mana harta nasabah berasal, BERBEDA dari
+ * `KycSourceOfFunds` yang menjawab dari mana dana transaksi ini berasal.
+ *
+ * Dasarnya **Pasal 37 (1) d (EDD berkala untuk PEP), bukan Pasal 25** — jadi
+ * field ini tidak wajib untuk semua nasabah, ia wajib ketika `pepStatus` true.
+ * Ketujuh nilainya kosakata kita sendiri dan bersifat sementara; kalau
+ * compliance punya taksonomi sendiri, daftar ini yang diganti.
+ */
+export type KycSourceOfWealth =
+  | 'SALARY_ACCUMULATION'
+  | 'BUSINESS_OWNERSHIP'
+  | 'INVESTMENT_RETURN'
+  | 'INHERITANCE'
+  | 'PROPERTY_SALE'
+  | 'GRANT_OR_GIFT'
+  | 'OTHER'
 
 // sot/api/kyc.yaml § KycReviewAction — append-only audit log actions.
 export type KycReviewAction =
@@ -1128,6 +1291,27 @@ export interface KycDetail {
   birthPlace: string | null
   identityType: KycIdentityType
   identityNumber: string | null
+  // ── Identitas Pasal 25 (1) a angka 1 (USDX-583/584) ───────────────────────
+  // Nullable seperti blok CDD di bawah, dengan sebab yang sama: baris yang
+  // di-submit sebelum tiket itu tidak punya jawabannya, dan itu bukan error.
+  /** Kewarganegaraan ISO 3166-1 alpha-2 — butir e). Bukan PII. */
+  nationality: string | null
+  /** Jenis kelamin — butir h). */
+  gender: KycGender | null
+  /** Status perkawinan — butir i). */
+  maritalStatus: KycMaritalStatus | null
+  /**
+   * Nama gadis ibu kandung — butir j). **PII**, gerbang role sama dengan `npwp`.
+   */
+  mothersMaidenName: string | null
+  /**
+   * Nama alias — butir a), "jika ada". **PII**.
+   *
+   * `null` di sini berarti DUA hal yang berbeda dan tidak boleh disamakan di
+   * layar: nasabah memang tidak punya alias, atau kolomnya sudah dikosongkan
+   * sweeper retensi.
+   */
+  aliasName: string | null
   country: string | null
   addressLine1: string | null
   addressLine2: string | null
@@ -1143,7 +1327,21 @@ export interface KycDetail {
   occupation: KycOccupation | null
   sourceOfFunds: KycSourceOfFunds | null
   annualIncomeRange: KycAnnualIncomeRange | null
+  /** Nilai harta kekayaan — separuh kedua Pasal 25 (1) a angka 4 (USDX-583). */
+  netWorthRange: KycNetWorthRange | null
   transactionPurpose: KycTransactionPurpose | null
+  /**
+   * Sumber kekayaan — Pasal 37 (1) d (USDX-583).
+   *
+   * `null` untuk nasabah non-PEP yang tidak mengisinya, dan itu sah. `null` pada
+   * nasabah ber-`pepStatus` `true` adalah **temuan**, bukan data kosong biasa:
+   * EDD-nya belum punya bahan. Halaman review menandai keduanya berbeda.
+   */
+  sourceOfWealth: KycSourceOfWealth | null
+  /** Alamat tempat kerja — Pasal 25 (1) a angka 1 butir g), "jika ada". **PII**. */
+  employerAddress: string | null
+  /** Telepon tempat kerja — butir yang sama. **PII**. */
+  employerPhone: string | null
   /**
    * Indonesian tax number. **PII** — ciphertext at rest, decrypted for render,
    * and role-gated to ADMIN in the UI (`canReadCustomerPii`).
@@ -1278,6 +1476,50 @@ export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
  * be rendering four permanently empty rows. Listed here so the next reader knows
  * they exist on the wire rather than discovering it in a network tab.
  */
+/**
+ * Bentuk hubungan hukum nasabah–UBO — **Pasal 33 ayat (3) huruf d**, yang
+ * menyebut keempatnya secara harfiah: "…ditunjukkan dengan surat penugasan,
+ * surat perjanjian, surat kuasa, atau bentuk lainnya". Bukan taksonomi karangan.
+ */
+export type UboLegalRelationship =
+  | 'SURAT_PENUGASAN'
+  | 'SURAT_PERJANJIAN'
+  | 'SURAT_KUASA'
+  | 'LAINNYA'
+
+/**
+ * Langkah cascading test Pasal 33 mana yang DIPAKAI untuk sampai pada orang ini.
+ *
+ * - `KEPEMILIKAN` — pengendali lewat kepemilikan (ayat (2) & (3)). Langkah biasa.
+ * - `PENGENDALIAN_BENTUK_LAIN` — ayat (7): dipakai kalau ragu, atau tidak ada
+ *   orang perseorangan yang mengendalikan lewat kepemilikan.
+ * - `POSISI_DIREKSI` — ayat (8): upaya terakhir, kalau dua langkah di atas tidak
+ *   menemukan siapa pun.
+ *
+ * Disimpan petugas, bukan dihitung sistem. Nilai `POSISI_DIREKSI` pada berkas
+ * yang struktur kepemilikannya jelas adalah sinyal pemeriksaan yang dilewati —
+ * halaman review menyorotnya justru karena itu.
+ *
+ * Nilainya `POSISI_DIREKSI` (bukan `DIREKSI`) — transkripsi dari pg enum
+ * `ubo_cascade_step` yang benar-benar dipasang backend, bukan dari draf.
+ */
+export type UboCascadeStep =
+  | 'KEPEMILIKAN'
+  | 'PENGENDALIAN_BENTUK_LAIN'
+  | 'POSISI_DIREKSI'
+
+/**
+ * Satu Pemilik Manfaat. Isinya mengikuti **Pasal 33 ayat (3)**: huruf a
+ * (sepuluh butir identitas), b (sumber dana), c (penghasilan / net worth),
+ * d (hubungan hukum + dokumennya), e (pernyataan nasabah).
+ *
+ * Empat kolom awal saja tidak cukup untuk memutuskan apa pun: **ayat (12)**
+ * mewajibkan PJK MENOLAK hubungan usaha kalau identitas UBO tidak bisa diyakini,
+ * dan itu tidak bisa dinilai dari nama + nomor identitas.
+ *
+ * Aturan `null` sama dengan `KycDetail`: `'***'` = ditahan backend karena role
+ * tidak berhak, `null` = kolomnya memang kosong atau sudah dikosongkan sweeper.
+ */
 export interface KybUbo {
   id: string
   firstName: string | null
@@ -1290,6 +1532,51 @@ export interface KybUbo {
   country: string | null
   addressLine1: string | null
   addressLine2: string | null
+  // ── Pasal 33 (3) a — identitas, butir yang belum ada (USDX-584/602) ───────
+  /** **PII**. Butir UBO ini tidak memakai kualifikasi "jika ada" seperti sisi retail. */
+  aliasName: string | null
+  /** **PII**. */
+  birthPlace: string | null
+  /** ISO `YYYY-MM-DD`. **PII**. */
+  dob: string | null
+  /** **PII**. */
+  employerAddress: string | null
+  /** **PII**. */
+  employerPhone: string | null
+  /** ISO 3166-1 alpha-2 — angka 6. Bukan duplikat `country`, yang menyebut negara alamat. */
+  nationality: string | null
+  /** Enum yang sama persis dengan `kyc.occupation` — UBO juga orang perseorangan. */
+  occupation: KycOccupation | null
+  gender: KycGender | null
+  maritalStatus: KycMaritalStatus | null
+  // ── Pasal 33 (3) b & c — profil finansial UBO, bukan profil nasabahnya ────
+  sourceOfFunds: KycSourceOfFunds | null
+  annualIncomeRange: KycAnnualIncomeRange | null
+  netWorthRange: KycNetWorthRange | null
+  // ── Pasal 33 (3) d & e ────────────────────────────────────────────────────
+  legalRelationship: UboLegalRelationship | null
+  /**
+   * Presigned GET URL (TTL 5 menit) dokumen yang MENUNJUKKAN hubungan hukum itu.
+   * Pasalnya meminta hubungannya "ditunjukkan dengan" dokumen, jadi jenis
+   * hubungan tanpa dokumennya belum memenuhi butir d) — halaman review
+   * membedakan keduanya, bukan menganggap jenis saja sudah cukup.
+   */
+  legalRelationshipDocUrl: string | null
+  /**
+   * Presigned GET URL pernyataan nasabah soal kebenaran identitas dan sumber
+   * dana orang ini — huruf e). Artefak bertanda tangan, bukan checkbox.
+   */
+  customerDeclarationDocUrl: string | null
+  /** Langkah Pasal 33 yang dipakai sampai pada orang ini. */
+  cascadeStep: UboCascadeStep | null
+  /** Sinyal auto-KYC — belum dipasang backend, belum ada yang mengisinya. */
+  livenessStatus: string | null
+  /** Sinyal auto-KYC — belum dipasang backend. */
+  disdukcapilStatus: string | null
+  /** Presigned GET URL foto dokumen identitas (TTL 5 menit). */
+  identityPhotoUrl: string | null
+  /** Presigned GET URL foto selfie (TTL 5 menit). */
+  selfiePhotoUrl: string | null
 }
 
 /**
@@ -1356,6 +1643,29 @@ export interface KybDetail {
   operationalAddress: string | null
   website: string | null
   phone: string | null
+  // ── Pasal 25 (1) b angka 5, 8 & 9 (USDX-583/584) ──────────────────────────
+  /**
+   * **Tempat** pendirian — separuh pertama angka 5 ("tempat **dan** tanggal").
+   * Sebelum USDX-583 hanya tanggalnya punya kolom, jadi butir ini terpenuhi
+   * separuh. Bukan PII: nama kota, bukan pengenal orang.
+   */
+  incorporationPlace: string | null
+  /**
+   * `true` kalau badan usaha tergolong usaha mikro atau kecil.
+   *
+   * Bukan label deskriptif — ia MENENTUKAN set dokumen wajibnya: Pasal 27 (1) a
+   * berlaku untuk semua korporasi, huruf b menambah lima dokumen lagi HANYA
+   * untuk yang bukan mikro/kecil.
+   *
+   * `null` = baris pra-USDX-583 yang tidak pernah ditanya. Diperlakukan sebagai
+   * `false` (yaitu: diperiksa penuh) — keliru menuntut dokumen tambahan bisa
+   * diperbaiki petugas, keliru melepasnya ketahuan saat diperiksa OJK.
+   */
+  isMicroOrSmall: boolean | null
+  /** Sumber dana — angka 8. Enum yang sama dengan sisi retail, bukan kosakata korporasi sendiri. */
+  sourceOfFunds: KycSourceOfFunds | null
+  /** Maksud dan tujuan hubungan usaha — angka 9. */
+  transactionPurpose: KycTransactionPurpose | null
   ubos: KybUbo[]
   documents: KybDocuments
   /** Presigned document URLs share one expiry stamp, like the KYC photos. */
