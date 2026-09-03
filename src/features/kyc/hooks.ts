@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { validateKycRejectReason } from '@/lib/validators'
 import type {
   KycDetail,
   KycListItem,
@@ -124,11 +125,21 @@ export function useApproveKyc() {
 export function useRejectKyc() {
   const invalidate = useInvalidateAfterReview()
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      apiFetch<KycListItem>(`/api/v1/kyc/${id}/reject`, {
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => {
+      // USDX-610 — diperiksa DI SINI, bukan hanya di dialognya, dan penempatan itu
+      // intinya: gerbang yang hanya ada di dialog dilewati pemanggil mana pun yang
+      // lain (aksi massal, pintasan papan ketik, penolong tes), dan yang sampai ke
+      // nasabah lewat email `kyc-rejected.html` adalah alasan sepanjang satu huruf.
+      // Menolak sebelum permintaan dikirim juga menjaga teks yang sudah diketik
+      // petugas tetap di layar. Server juga menolaknya; ini bagian front end,
+      // bukan pengganti bagian itu.
+      const check = validateKycRejectReason(reason)
+      if (!check.valid) return Promise.reject(new Error(check.error))
+      return apiFetch<KycListItem>(`/api/v1/kyc/${id}/reject`, {
         method: 'POST',
-        body: { reason },
-      }),
+        body: { reason: check.reason },
+      })
+    },
     onSuccess: (_data, { id }) => invalidate(id),
   })
 }

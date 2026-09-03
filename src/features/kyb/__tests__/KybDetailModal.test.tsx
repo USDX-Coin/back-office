@@ -483,11 +483,13 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2)
     })
 
-    test('non-ADMIN sees the UBO identity number MASKED', async () => {
+    test('DEVELOPER sees the UBO identity number MASKED', async () => {
       // A UBO identity number is a real person's national ID — same PII gate as
-      // the KYC NPWP field (`canReadCustomerPii`, ADMIN only).
+      // the KYC NPWP field (`canReviewCustomerPii`): DEVELOPER only, since
+      // DEVELOPER is 403 on approve/reject and `KYB_PII_ROLES` in
+      // `kyb.service.ts` never decrypts it for that role in the first place.
       stubDetail(makeDetail())
-      renderModal({ staffId: 'stf_2' }) // MANAGER
+      renderModal({ staffId: 'stf_3' }) // DEVELOPER
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
@@ -500,21 +502,32 @@ describe('KybDetailModal @ USDX-546', () => {
       for (const card of cards) {
         const identity = uboField(card, 'kyb-ubo-identity')
         expect(identity.getByText('***')).toBeInTheDocument()
-        expect(identity.getByText(/admin only/i)).toBeInTheDocument()
+        expect(identity.getByText(/not shown to your role/i)).toBeInTheDocument()
       }
     })
 
-    test('ADMIN sees the UBO identity number in full', async () => {
-      stubDetail(makeDetail())
-      renderModal() // stf_1 = ADMIN
-      const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+    test.each([
+      ['ADMIN', undefined],
+      ['MANAGER', 'stf_2'],
+      ['STAFF', 'stf_4'],
+    ])(
+      '%s sees the UBO identity number in full (USDX-610)',
+      async (_role, staffId) => {
+        // Pasal 33 ayat (12) mewajibkan PJK MENOLAK hubungan usaha kalau identitas
+        // UBO tidak bisa diyakini — keyakinan itu mustahil kalau nomor identitasnya
+        // tersamar bagi role yang menekan tombolnya.
+        stubDetail(makeDetail())
+        renderModal(staffId === undefined ? {} : { staffId })
+        const dialog = await screen.findByRole('dialog')
+        await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
-      // ADMIN may read every PII on the screen, UBO cards included.
-      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
-      expect(within(dialog).queryByText(/admin only/i)).not.toBeInTheDocument()
-    })
+        expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
+        expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+        expect(
+          within(dialog).queryByText(/not shown to your role/i),
+        ).not.toBeInTheDocument()
+      },
+    )
 
     test('a refused approve points at the documents the reviewer must chase', async () => {
       // The backend refuses an approve while a REQUIRED slot is empty and names
@@ -1421,30 +1434,53 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
       expect(within(card).getAllByText(/not shown to your role/i).length).toBeGreaterThan(0)
     })
 
-    test('non-ADMIN sees the new UBO PII MASKED, one field at a time', async () => {
+    test('DEVELOPER sees the new UBO PII MASKED, one field at a time', async () => {
       stubDetail(withUbos([COMPLETE_UBO()]))
-      renderModal({ staffId: 'stf_2' }) // MANAGER
+      renderModal({ staffId: 'stf_3' }) // DEVELOPER
       const dialog = await screen.findByRole('dialog')
       const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
 
       for (const id of ['kyb-ubo-birth', 'kyb-ubo-employer-address', 'kyb-ubo-employer-phone']) {
         expect(uboField(card, id).getByText('***')).toBeInTheDocument()
-        expect(uboField(card, id).getByText(/admin only/i)).toBeInTheDocument()
+        expect(uboField(card, id).getByText(/not shown to your role/i)).toBeInTheDocument()
       }
       expect(within(card).queryByText('Jl. Asia Afrika No. 8, Bandung')).not.toBeInTheDocument()
       // The closed-value answers are NOT identifiers and stay readable.
       expect(uboField(card, 'kyb-ubo-occupation').getByText('Wiraswasta')).toBeInTheDocument()
     })
 
-    test('non-ADMIN reads a UBO alias as withheld, not as the name', async () => {
+    test('DEVELOPER reads a UBO alias as withheld, not as the name', async () => {
       stubDetail(withUbos([INCOMPLETE_UBO()]))
-      renderModal({ staffId: 'stf_2' })
+      renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
       const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
 
       expect(within(card).queryByText(/Siti R\./)).not.toBeInTheDocument()
       expect(within(card).getByText(/alias \*\*\*/)).toBeInTheDocument()
     })
+
+    test.each([
+      ['MANAGER', 'stf_2'],
+      ['STAFF', 'stf_4'],
+    ])(
+      '%s reads every Pasal 33 (3) UBO PII field in full (USDX-610)',
+      async (_role, staffId) => {
+        stubDetail(withUbos([COMPLETE_UBO()]))
+        renderModal({ staffId })
+        const dialog = await screen.findByRole('dialog')
+        const card = (await within(dialog).findAllByTestId('kyb-ubo'))[0]!
+
+        expect(
+          uboField(card, 'kyb-ubo-employer-address').getByText(
+            'Jl. Asia Afrika No. 8, Bandung',
+          ),
+        ).toBeInTheDocument()
+        expect(within(card).queryByText('***')).not.toBeInTheDocument()
+        expect(
+          within(card).queryByText(/not shown to your role/i),
+        ).not.toBeInTheDocument()
+      },
+    )
   })
 
   describe('edge cases', () => {
@@ -1753,6 +1789,103 @@ describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
       expect(
         within(cards[0]!).queryByLabelText(/upload|replace/i),
       ).not.toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — status screening di halaman review KYB.
+//
+// Berkas KYB `01a06155-f4a0…` memegang `LIST_UNAVAILABLE` untuk DPPSPM pada
+// 08:56:58 dan disetujui VERIFIED 69 detik kemudian. Yang diperbaiki adalah
+// kebisuannya: fail-open tetap berlaku, Approve tetap bisa ditekan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const kybScreeningRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'scr_kyb_1',
+  subjectType: 'KYB',
+  subjectId: KYB_ID,
+  outcome: 'NO_MATCH',
+  score: 0.08,
+  matchedName: null,
+  matchCount: 0,
+  trigger: 'KYB_SUBMIT',
+  listId: 'lst_dttot',
+  listType: 'DTTOT',
+  listPublishedAt: '2026-08-16',
+  decision: null,
+  createdAt: '2026-09-02T08:56:58Z',
+  ...overrides,
+})
+
+describe('KybDetailModal @ USDX-610 — status screening', () => {
+  describe('positive', () => {
+    test('names the unreadable list AND leaves Approve pressable', async () => {
+      stubDetail(makeDetail())
+      server.use(
+        http.get('/api/v1/screening/results', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 100, total: 2 },
+            data: [
+              kybScreeningRow(),
+              kybScreeningRow({
+                id: 'scr_kyb_2',
+                outcome: 'LIST_UNAVAILABLE',
+                score: null,
+                listId: null,
+                listType: null,
+                listPublishedAt: null,
+              }),
+            ],
+          }),
+        ),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const banner = await within(dialog).findByTestId('screening-unchecked')
+      expect(banner).toHaveTextContent(/DPPSPM/)
+      expect(banner).toHaveTextContent(/Approve TIDAK diblokir/i)
+      expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeEnabled()
+    })
+  })
+
+  describe('negative', () => {
+    test('does not claim the record is clean when the screening read fails', async () => {
+      stubDetail(makeDetail())
+      server.use(
+        http.get('/api/v1/screening/results', () =>
+          HttpResponse.json({ status: 'error' }, { status: 500 }),
+        ),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      expect(
+        await within(dialog).findByTestId('screening-panel-error'),
+      ).toHaveTextContent(/jangan simpulkan berkas ini bersih/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('says the record was never screened rather than showing an empty block', async () => {
+      stubDetail(makeDetail())
+      server.use(
+        http.get('/api/v1/screening/results', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 100, total: 0 },
+            data: [],
+          }),
+        ),
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      expect(await within(dialog).findByTestId('screening-never')).toHaveTextContent(
+        /Pasal 53/,
+      )
     })
   })
 })

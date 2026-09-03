@@ -5,8 +5,10 @@ import {
   previewSanctionCsv,
   SCREENING_MATCH_THRESHOLD,
   scoreBarFraction,
+  summariseSubjectScreening,
 } from '@/lib/screening'
 import { SCREENING_REASON_MIN, validateScreeningReason } from '@/lib/validators'
+import type { ScreeningResultItem } from '@/lib/types'
 
 // USDX-588 — pembaca berkas daftar sanksi + helper skor.
 //
@@ -322,6 +324,183 @@ describe('validateScreeningReason', () => {
     test('should refuse a reason past the 1000-character ceiling', () => {
       expect(validateScreeningReason('x'.repeat(1001)).valid).toBe(false)
       expect(validateScreeningReason('x'.repeat(1000)).valid).toBe(true)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — ringkasan screening SATU subjek, untuk halaman review KYC & KYB.
+//
+// Yang diperbaiki tiket ini bukan gerbangnya (fail-open tetap benar dan tetap
+// dipertahankan), melainkan LOLOSNYA YANG DIAM-DIAM: satu berkas KYB memegang
+// `LIST_UNAVAILABLE` untuk DPPSPM pada 08:56:58 lalu disetujui VERIFIED 69 detik
+// kemudian tanpa petugas pernah tahu.
+//
+// Batas kontrak yang membentuk seluruh perhitungan di bawah: baris
+// `LIST_UNAVAILABLE` TIDAK membawa jenis daftarnya. `screening_results.list_id`
+// wajib NULL untuk hasil itu (CHECK `screening_results_row_shape`), dan
+// `listType` pada response berasal dari join ke `sanction_lists` — jadi barisnya
+// tidak bisa ditanya "daftar mana". Jenis daftar yang belum tercek karena itu
+// disimpulkan dari SISI SEBALIKNYA: jenis daftar wajib mana yang tidak punya
+// satu pun hasil sungguhan. Itu fakta, bukan tebakan.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RESULT_BASE: ScreeningResultItem = {
+  id: 'scr_1',
+  subjectType: 'KYC',
+  subjectId: 'kyc_1',
+  outcome: 'NO_MATCH',
+  score: 0.12,
+  matchedName: null,
+  matchCount: 0,
+  trigger: 'KYC_SUBMIT',
+  listId: 'lst_dttot',
+  listType: 'DTTOT',
+  listPublishedAt: '2026-08-16',
+  decision: null,
+  createdAt: '2026-09-02T08:56:58.000Z',
+}
+
+const result = (o: Partial<ScreeningResultItem> = {}): ScreeningResultItem => ({
+  ...RESULT_BASE,
+  ...o,
+})
+
+const unavailable = (o: Partial<ScreeningResultItem> = {}): ScreeningResultItem =>
+  result({
+    outcome: 'LIST_UNAVAILABLE',
+    score: null,
+    listId: null,
+    listType: null,
+    listPublishedAt: null,
+    ...o,
+  })
+
+describe('summariseSubjectScreening', () => {
+  describe('positive', () => {
+    test('should report both required lists as checked when both have a real result', () => {
+      const s = summariseSubjectScreening([
+        result({ id: 'a', listType: 'DTTOT', listId: 'lst_dttot' }),
+        result({ id: 'b', listType: 'DPPSPM', listId: 'lst_dppspm' }),
+      ])
+
+      expect(s.unchecked).toEqual([])
+      expect(s.unavailableCount).toBe(0)
+      expect(s.neverScreened).toBe(false)
+      expect(s.coverage.map((c) => c.listType)).toEqual(['DTTOT', 'DPPSPM'])
+      expect(s.coverage.every((c) => c.latest !== null)).toBe(true)
+    })
+
+    test('should NAME the required list that has no real result', () => {
+      // Persis kejadian 2 Sep: DTTOT terbaca, DPPSPM tidak.
+      const s = summariseSubjectScreening([
+        result({ id: 'a', listType: 'DTTOT' }),
+        unavailable({ id: 'b' }),
+      ])
+
+      expect(s.unchecked).toEqual(['DPPSPM'])
+      expect(s.unavailableCount).toBe(1)
+    })
+
+    test('should keep the LATEST result per list — that is the version it was cleared against', () => {
+      const s = summariseSubjectScreening([
+        result({
+          id: 'lama',
+          listType: 'DTTOT',
+          listPublishedAt: '2026-08-16',
+          createdAt: '2026-08-16T00:00:00.000Z',
+        }),
+        result({
+          id: 'baru',
+          listType: 'DTTOT',
+          listPublishedAt: '2026-08-30',
+          createdAt: '2026-08-30T00:00:00.000Z',
+        }),
+        result({ id: 'dppspm', listType: 'DPPSPM' }),
+      ])
+
+      expect(s.coverage.find((c) => c.listType === 'DTTOT')?.latest?.id).toBe('baru')
+    })
+  })
+
+  describe('negative', () => {
+    test('should count a POTENTIAL_MATCH with no decision as holding the subject', () => {
+      const s = summariseSubjectScreening([
+        result({ id: 'a', outcome: 'POTENTIAL_MATCH', score: 0.91, matchedName: 'Budi' }),
+      ])
+
+      expect(s.holding.map((r) => r.id)).toEqual(['a'])
+    })
+
+    test('should keep CONFIRMED_MATCH holding — that decision affirms the hold, not lifts it', () => {
+      const s = summariseSubjectScreening([
+        result({
+          id: 'a',
+          outcome: 'POTENTIAL_MATCH',
+          decision: {
+            id: 'dec',
+            outcome: 'CONFIRMED_MATCH',
+            decidedBy: 'stf_1',
+            decidedByName: 'Operator',
+            reason: 'orang yang sama, tanggal lahir cocok',
+            createdAt: '2026-09-02T09:00:00.000Z',
+          },
+        }),
+      ])
+
+      expect(s.holding).toHaveLength(1)
+    })
+
+    test('should NOT count a CLEARED finding as holding', () => {
+      const s = summariseSubjectScreening([
+        result({
+          id: 'a',
+          outcome: 'POTENTIAL_MATCH',
+          decision: {
+            id: 'dec',
+            outcome: 'CLEARED',
+            decidedBy: 'stf_1',
+            decidedByName: 'Operator',
+            reason: 'tanggal lahir berbeda 12 tahun',
+            createdAt: '2026-09-02T09:00:00.000Z',
+          },
+        }),
+      ])
+
+      expect(s.holding).toEqual([])
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should say "never screened" for an empty list, not "both lists unchecked"', () => {
+      const s = summariseSubjectScreening([])
+
+      expect(s.neverScreened).toBe(true)
+      // Keduanya tetap dilaporkan belum tercek — itu benar dan itu yang harus
+      // dibaca petugas; `neverScreened` hanya membedakan sebabnya.
+      expect(s.unchecked).toEqual(['DTTOT', 'DPPSPM'])
+    })
+
+    test('should report BOTH lists when every row is LIST_UNAVAILABLE', () => {
+      const s = summariseSubjectScreening([unavailable({ id: 'a' }), unavailable({ id: 'b' })])
+
+      expect(s.unchecked).toEqual(['DTTOT', 'DPPSPM'])
+      expect(s.unavailableCount).toBe(2)
+      expect(s.neverScreened).toBe(false)
+    })
+
+    test('should treat a list checked once then unavailable later as CHECKED, and still count the failure', () => {
+      // Berkas ini PERNAH dicocokkan dengan DTTOT versi 16 Agu. Menyebutnya
+      // "belum tercek" akan menghapus bukti yang sah; menyembunyikan kegagalan
+      // berikutnya akan mengulang persoalan tiket ini. Keduanya dilaporkan.
+      const s = summariseSubjectScreening([
+        result({ id: 'a', listType: 'DTTOT', createdAt: '2026-08-16T00:00:00.000Z' }),
+        result({ id: 'b', listType: 'DPPSPM', createdAt: '2026-08-16T00:00:00.000Z' }),
+        unavailable({ id: 'c', createdAt: '2026-09-02T00:00:00.000Z' }),
+      ])
+
+      expect(s.unchecked).toEqual([])
+      expect(s.unavailableCount).toBe(1)
     })
   })
 })

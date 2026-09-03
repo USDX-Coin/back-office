@@ -1310,6 +1310,54 @@ export function validateKybRejectReason(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — alasan penolakan KYC. Angkanya SENGAJA sama dengan KYB.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `@MaxLength(500)` pada `RejectKycDto` — sama dengan `RejectKybDto`. */
+export const KYC_REJECT_REASON_MAX = KYB_REJECT_REASON_MAX
+
+/**
+ * Sepuluh karakter setelah trim, angka yang SAMA dengan `KYB_REJECT_REASON_MIN`
+ * dan diturunkan darinya alih-alih ditulis ulang — dua angka yang harus sama
+ * tapi ditulis dua kali akan berbeda suatu hari, dan yang menanggungnya adalah
+ * nasabah yang menerima email penolakan tanpa keterangan.
+ *
+ * Sebelum USDX-610 batasnya `1`: `POST /api/v1/kyc/{id}/reject {"reason":"x"}`
+ * menjawab 200 dan "x" itu masuk ke `kyc-rejected.html` yang dibaca nasabah,
+ * yang lalu mengirim ulang berkas yang sama persis. Sekarang ditegakkan empat
+ * lapis — dialog ini, `useRejectKyc`, `RejectKycDto` + service, dan CHECK
+ * `kyc_rejected_requires_reason` di database.
+ */
+export const KYC_REJECT_REASON_MIN = KYB_REJECT_REASON_MIN
+
+/**
+ * Aturan alasan penolakan KYC sebagai fungsi murni — dialog, hook mutasi, dan
+ * tesnya membaca aturan yang SAMA. Mengembalikan nilai yang sudah di-trim adalah
+ * intinya: pemanggil tidak bisa tanpa sengaja mengirim sepuluh spasi, yang
+ * panjangnya persis cukup untuk lolos `@MinLength(10)` di server tapi ditolak
+ * CHECK di database (yang mem-`btrim` dulu) sebagai 500, bukan 400.
+ */
+export function validateKycRejectReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (trimmed.length < KYC_REJECT_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Reason must be at least ${KYC_REJECT_REASON_MIN} characters — the customer is told this`,
+    }
+  }
+  if (trimmed.length > KYC_REJECT_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Reason must be at most ${KYC_REJECT_REASON_MAX} characters`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // USDX-588 — alasan keputusan screening.
 // ─────────────────────────────────────────────────────────────────────────────
 

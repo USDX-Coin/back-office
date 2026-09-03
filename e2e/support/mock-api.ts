@@ -434,7 +434,7 @@ export interface MockKycRecord {
   employerAddress: string | null
   /** PII — butir yang sama dengan `employerAddress`. */
   employerPhone: string | null
-  /** PII — ADMIN only in the UI (`canReadCustomerPii`). */
+  /** PII — reviewer roles only in the UI (`canReviewCustomerPii`, USDX-610). */
   npwp: string | null
   pepStatus: boolean | null
   /** PII — names a real person and their office. */
@@ -757,6 +757,50 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
     }
 
+    // ── Screening results (USDX-588) — dibaca panel status di modal review
+    //    KYC & KYB (USDX-610). Bentuk barisnya persis kontraknya, TERMASUK yang
+    //    menentukan seluruh perilaku panelnya: baris `LIST_UNAVAILABLE` membawa
+    //    `listId: null` DAN `listType: null`, karena tabelnya memang tidak
+    //    menyimpan jenis daftar untuk hasil itu.
+    if (method === 'GET' && path === '/api/v1/screening/results') {
+      const subjectId = url.searchParams.get('subjectId') ?? ''
+      const rows = subjectId
+        ? [
+            {
+              id: `scr_${subjectId}_dttot`,
+              subjectType: url.searchParams.get('subjectType') ?? 'KYC',
+              subjectId,
+              outcome: 'NO_MATCH',
+              score: 0.1042,
+              matchedName: null,
+              matchCount: 0,
+              trigger: 'KYC_SUBMIT',
+              listId: 'lst_dttot_1',
+              listType: 'DTTOT',
+              listPublishedAt: '2026-08-16',
+              decision: null,
+              createdAt: '2026-09-02T08:56:58.000Z',
+            },
+            {
+              id: `scr_${subjectId}_unavailable`,
+              subjectType: url.searchParams.get('subjectType') ?? 'KYC',
+              subjectId,
+              outcome: 'LIST_UNAVAILABLE',
+              score: null,
+              matchedName: null,
+              matchCount: null,
+              trigger: 'KYC_SUBMIT',
+              listId: null,
+              listType: null,
+              listPublishedAt: null,
+              decision: null,
+              createdAt: '2026-09-02T08:56:58.000Z',
+            },
+          ]
+        : []
+      return paginated(route, rows, 1, 100)
+    }
+
     // ── KYC review list / detail / actions (USDX-154/155) ────────────────
     if (method === 'GET' && path === '/api/v1/kyc') {
       const status = url.searchParams.get('status')
@@ -786,7 +830,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         k.status = 'VERIFIED'
       } else {
         const reason = String(body().reason ?? '').trim()
-        if (reason.length < 1 || reason.length > 500) return error(route, 'BAD_REQUEST', 'reason must be 1-500 characters', 400)
+        // USDX-610 — 10, bukan 1. Tiruan yang lebih longgar dari servernya membuat
+        // e2e hijau atas permintaan yang backend tolak 400.
+        if (reason.length < 10 || reason.length > 500) return error(route, 'BAD_REQUEST', 'reason must be 10-500 characters', 400)
         k.status = 'REJECTED'
         k.rejectionReason = reason
       }

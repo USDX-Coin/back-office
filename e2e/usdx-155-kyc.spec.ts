@@ -112,6 +112,25 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
     })
 
+    // USDX-610 — berkas yang salah satu daftarnya tidak terbaca harus MENGATAKANNYA,
+    // dan Approve TETAP bisa ditekan. Yang diperbaiki adalah kebisuannya: satu berkas
+    // KYB memegang `LIST_UNAVAILABLE` untuk DPPSPM lalu disetujui 69 detik kemudian.
+    test('screening panel names the unreadable list and does NOT block approve', async ({ page }) => {
+      await installMockApi(page)
+      await stubPhotos(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/kyc/kyc_pending')
+
+      const dialog = page.getByRole('dialog').first()
+      const banner = dialog.getByTestId('screening-unchecked')
+      await expect(banner).toBeVisible()
+      await expect(banner).toContainText('DPPSPM')
+      await expect(banner).toContainText('LIST_UNAVAILABLE')
+      // Daftar yang MEMANG tercek tampil dengan versinya, bukan cuma "lolos".
+      await expect(dialog.getByTestId('screening-list-DTTOT')).toContainText('2026-08-16')
+      await expect(dialog.getByRole('button', { name: /^approve$/i })).toBeEnabled()
+    })
+
     test('approve: confirm dialog → list shows VERIFIED and the badge clears', async ({ page }) => {
       await installMockApi(page)
       await stubPhotos(page)
@@ -147,6 +166,16 @@ test.describe('USDX-155 KYC review @e2e', () => {
       // Submit empty → inline validation, no navigation.
       await rejectDialog.getByRole('button', { name: /^reject$/i }).click()
       await expect(rejectDialog.getByText(/rejection reason is required/i)).toBeVisible()
+
+      // USDX-610 — satu huruf juga ditahan di sini, bukan dikirim lalu dijawab 400.
+      // Nasabah yang menerima "x" lewat email `kyc-rejected.html` tidak tahu apa
+      // yang harus diperbaiki, jadi ia mengunggah ulang berkas yang sama persis.
+      await rejectDialog.getByLabel('Rejection reason').fill('x')
+      await rejectDialog.getByRole('button', { name: /^reject$/i }).click()
+      await expect(
+        rejectDialog.getByRole('alert').filter({ hasText: /at least 10 characters/i }),
+      ).toBeVisible()
+      await expect(page).toHaveURL(/\/kyc\/kyc_pending$/)
 
       await rejectDialog.getByLabel('Rejection reason').fill('Foto KTP buram, mohon submit ulang')
       await rejectDialog.getByRole('button', { name: /^reject$/i }).click()

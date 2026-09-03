@@ -82,13 +82,24 @@ function buildQuery(filters: object): string {
  *     bisa memintanya. Lihat "Known Drift" di deskripsi PR; layarnya menonjolkan
  *     skor secara visual alih-alih berpura-pura mengurutkannya.
  */
-export function useScreeningResults(filters: ScreeningResultFilters) {
+export function useScreeningResults(
+  filters: ScreeningResultFilters,
+  /**
+   * Dipegang pemanggil supaya panel di dalam modal (USDX-610) tidak menembak
+   * saat modalnya masih tertutup. Default `true` — layar antrean memang selalu
+   * meminta. Membaca hasil screening TIDAK menulis baris `pii_access_audit`
+   * (hasilnya tidak memuat PII nasabah), jadi yang dijaga di sini cuma
+   * permintaan yang sia-sia, bukan jejak audit yang mengarang.
+   */
+  enabled: boolean = true,
+) {
   return useQuery({
     queryKey: ['screening', 'results', filters],
     queryFn: () =>
       apiFetchRaw<PhaseOnePaginatedResponse<ScreeningResultItem>>(
         `${RESULTS_PATH}?${buildQuery(filters)}`,
       ),
+    enabled,
     refetchOnWindowFocus: true,
   })
 }

@@ -23,6 +23,7 @@ import type {
   SanctionListType,
   ScreeningDecisionValue,
   ScreeningOutcome,
+  ScreeningResultItem,
   ScreeningSubjectType,
   ScreeningTrigger,
 } from './types'
@@ -145,6 +146,85 @@ export const SANCTION_LIST_STATUS_STYLES: Record<
  * `sot/api/screening.yaml § ScreeningResultItem.score`. Dipakai HANYA untuk
  * menerangkan skor di layar — bukan untuk memutuskan apa pun ulang di sini.
  */
+/**
+ * Dua daftar yang POJK 8/2023 Pasal 53 wajibkan dicocokkan, bukan pilihan produk.
+ * Sama dengan `REQUIRED_LIST_TYPES` di `backend/src/modules/screening/
+ * screening.service.ts`, yang memancarkan SATU baris hasil per jenis daftar pada
+ * tiap pemeriksaan.
+ */
+export const REQUIRED_SANCTION_LIST_TYPES = ['DTTOT', 'DPPSPM'] as const
+
+/** Hasil TERBARU yang benar-benar memakai satu jenis daftar. */
+export interface SubjectListCoverage {
+  listType: SanctionListType
+  /** `null` = belum pernah ada satu pun pemeriksaan yang benar-benar membaca daftar ini. */
+  latest: ScreeningResultItem | null
+}
+
+/** Keadaan screening SATU subjek, sebagaimana dibaca halaman review KYC/KYB. */
+export interface SubjectScreeningSummary {
+  /** Satu baris per jenis daftar WAJIB, urutannya tetap. */
+  coverage: SubjectListCoverage[]
+  /** Jenis daftar wajib yang belum pernah sekali pun benar-benar dicek. */
+  unchecked: SanctionListType[]
+  /** Banyaknya pemeriksaan yang tercatat gagal membaca daftarnya. */
+  unavailableCount: number
+  /** Temuan yang MASIH MENAHAN subjek — inilah yang membuat approve dijawab 409. */
+  holding: ScreeningResultItem[]
+  /** Belum ada satu baris pun: subjek ini tidak pernah diperiksa. */
+  neverScreened: boolean
+}
+
+/**
+ * USDX-610 — ringkas hasil screening satu subjek untuk halaman review.
+ *
+ * ── KENAPA "DAFTAR MANA YANG BELUM DICEK" DIHITUNG TERBALIK ──────────────────
+ *
+ * Baris `LIST_UNAVAILABLE` TIDAK membawa jenis daftarnya, dan itu bukan
+ * kelalaian yang bisa ditambal di sini: CHECK `screening_results_row_shape`
+ * mewajibkan `list_id` NULL untuk hasil itu, dan `listType` pada response
+ * berasal dari join ke `sanction_lists`. Jadi barisnya memang tidak bisa
+ * ditanya "daftar mana yang tidak terbaca".
+ *
+ * Yang BISA dijawab dengan pasti adalah kebalikannya: jenis daftar wajib mana
+ * yang tidak punya SATU PUN hasil sungguhan untuk subjek ini. Itu fakta yang
+ * dibaca langsung dari barisnya, bukan tebakan — dan itu juga pertanyaan yang
+ * sebenarnya dijawab pemeriksa OJK: "berkas ini pernah dicocokkan dengan DPPSPM
+ * atau belum".
+ *
+ * Konsekuensinya dicatat supaya tidak ditemukan sebagai kejutan: daftar yang
+ * PERNAH berhasil dicek lalu gagal dibaca pada pemeriksaan berikutnya tetap
+ * dihitung "tercek" (bukti lamanya sah dan menyebutnya belum-tercek akan
+ * menghapusnya), sementara kegagalannya tetap dilaporkan lewat
+ * `unavailableCount`. Keduanya benar dan keduanya ditampilkan.
+ *
+ * `holding` meniru `assertNoneHeld` di server: `POTENTIAL_MATCH` yang keputusannya
+ * BUKAN `CLEARED` masih menahan — termasuk yang sudah diputus `CONFIRMED_MATCH`,
+ * karena keputusan itu MENEGASKAN penahanan, bukan melepaskannya.
+ */
+export function summariseSubjectScreening(
+  rows: readonly ScreeningResultItem[],
+): SubjectScreeningSummary {
+  // Server sudah mengurutkan `created_at DESC`, tapi ringkasan ini tidak boleh
+  // bergantung pada urutan yang tidak dijanjikan parameter apa pun.
+  const newestFirst = [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  const coverage: SubjectListCoverage[] = REQUIRED_SANCTION_LIST_TYPES.map((listType) => ({
+    listType,
+    latest: newestFirst.find((r) => r.listType === listType) ?? null,
+  }))
+
+  return {
+    coverage,
+    unchecked: coverage.filter((c) => c.latest === null).map((c) => c.listType),
+    unavailableCount: newestFirst.filter((r) => r.outcome === 'LIST_UNAVAILABLE').length,
+    holding: newestFirst.filter(
+      (r) => r.outcome === 'POTENTIAL_MATCH' && r.decision?.outcome !== 'CLEARED',
+    ),
+    neverScreened: newestFirst.length === 0,
+  }
+}
+
 export const SCREENING_MATCH_THRESHOLD = 0.85
 
 /**

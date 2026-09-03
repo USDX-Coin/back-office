@@ -120,7 +120,7 @@ const field = (scope: HTMLElement, testId: string) =>
 function expectMasked(scope: HTMLElement, testId: string) {
   const f = field(scope, testId)
   expect(f.getByText('***')).toBeInTheDocument()
-  expect(f.getByText(/admin only/i)).toBeInTheDocument()
+  expect(f.getByText(/not shown to your role/i)).toBeInTheDocument()
 }
 
 describe('KycDetailModal @ USDX-155', () => {
@@ -333,6 +333,64 @@ describe('KycDetailModal @ USDX-155', () => {
       expect(rejectCalls).toBe(0)
     })
 
+    test('USDX-610 — a reason shorter than 10 chars is refused in the dialog, no POST', async () => {
+      // Yang diuji bukan "ada pesan error": yang diuji adalah PERMINTAANNYA TIDAK
+      // TERKIRIM. Sebelum tiket ini `{"reason":"x"}` dijawab 200 dan huruf itu
+      // dikirim ke nasabah lewat `kyc-rejected.html`.
+      const user = userEvent.setup()
+      stubDetail(makeDetail())
+      let rejectCalls = 0
+      server.use(
+        http.post(`/api/v1/kyc/${KYC_ID}/reject`, () => {
+          rejectCalls++
+          return ok(makeListItem({ status: 'REJECTED' }))
+        })
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('alice.anderson@example.com')
+
+      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+      const textarea = await screen.findByLabelText('Rejection reason')
+      const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
+      await user.type(textarea, 'x')
+      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+
+      // Dicari di dalam `role="alert"`: kalimat pengantar dialog juga menyebut
+      // "at least 10 characters", jadi pencarian dokumen-lebar akan hijau
+      // sekalipun pesan validasinya tidak pernah muncul.
+      const alert = await within(rejectDialog).findByRole('alert')
+      expect(alert).toHaveTextContent(/at least 10 characters/i)
+      expect(rejectCalls).toBe(0)
+      // Teks yang sudah diketik tidak hilang — itu sebabnya gerbangnya di klien.
+      expect(textarea).toHaveValue('x')
+    })
+
+    test('USDX-610 — ten spaces are refused too: the DB CHECK trims before counting', async () => {
+      const user = userEvent.setup()
+      stubDetail(makeDetail())
+      let rejectCalls = 0
+      server.use(
+        http.post(`/api/v1/kyc/${KYC_ID}/reject`, () => {
+          rejectCalls++
+          return ok(makeListItem({ status: 'REJECTED' }))
+        })
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('alice.anderson@example.com')
+
+      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+      const textarea = await screen.findByLabelText('Rejection reason')
+      const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
+      await user.type(textarea, '          ')
+      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+
+      const alert = await within(rejectDialog).findByRole('alert')
+      expect(alert).toHaveTextContent(/rejection reason is required/i)
+      expect(rejectCalls).toBe(0)
+    })
+
     test('AC — DEVELOPER sees Approve/Reject disabled (view-only)', async () => {
       stubDetail(makeDetail())
       // stf_3 = Marcus Aurelius (DEVELOPER).
@@ -430,9 +488,12 @@ describe('KycDetailModal @ USDX-155', () => {
 // USDX-545 — the CDD block on the review page.
 //
 // The reason this has to be on screen at all: without it the reviewer decides
-// without seeing the data that was just collected. And two of the fields (NPWP,
-// PEP relation) are PII, gated to ADMIN by `canReadCustomerPii` — the same
-// predicate the backend uses (USDX-487), not a rule invented here.
+// without seeing the data that was just collected. Two of the fields (NPWP, PEP
+// relation) are PII, gated by `canReviewCustomerPii` — STAFF / MANAGER / ADMIN
+// since USDX-610, DEVELOPER masked. That set is the backend's own
+// (`KYC_IDENTITY_PII_ROLES`), not a rule invented here: the plaintext already
+// arrives for STAFF, so the old ADMIN-only gate hid a value the server handed
+// over and left the reviewer unable to cross-check the KTP shown right below it.
 //
 // Mock staff roles: stf_1 = ADMIN (default), stf_2 = MANAGER, stf_3 = DEVELOPER,
 // stf_4 = STAFF.
@@ -482,16 +543,27 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       expect(within(dialog).getByText('PEP relation')).toBeInTheDocument()
     })
 
-    test('ADMIN sees NPWP and the PEP relation in full', async () => {
-      stubDetail(cddDetail())
-      renderModal() // default staff = stf_1 = ADMIN
-      const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+    test.each([
+      ['ADMIN', undefined],
+      ['MANAGER', 'stf_2'],
+      ['STAFF', 'stf_4'],
+    ])(
+      '%s sees NPWP and the PEP relation in full (USDX-610)',
+      async (_role, staffId) => {
+        // Ketiganya menekan Approve/Reject di `kyc.controller`. Yang boleh
+        // memutuskan, boleh melihat — tanpa itu pencocokan silang dengan KTP di
+        // layar yang sama cuma bisa dilakukan ADMIN, dan berkas menumpuk menunggu
+        // satu orang.
+        stubDetail(cddDetail())
+        renderModal(staffId === undefined ? {} : { staffId })
+        const dialog = await screen.findByRole('dialog')
+        await within(dialog).findByText(/customer due diligence/i)
 
-      expect(within(dialog).getByText(NPWP)).toBeInTheDocument()
-      expect(within(dialog).getByText(PEP_RELATION)).toBeInTheDocument()
-      expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
-    })
+        expect(within(dialog).getByText(NPWP)).toBeInTheDocument()
+        expect(within(dialog).getByText(PEP_RELATION)).toBeInTheDocument()
+        expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+      },
+    )
 
     test('a PEP hit is emphasised, not rendered as one more row of text', async () => {
       // A PEP match changes what the reviewer is supposed to do next, so it must
@@ -513,20 +585,16 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
   })
 
   describe('negative', () => {
-    test.each([
-      ['MANAGER', 'stf_2'],
-      ['DEVELOPER', 'stf_3'],
-      ['STAFF', 'stf_4'],
-    ])('%s sees NPWP and the PEP relation MASKED', async (_role, staffId) => {
+    test('DEVELOPER sees NPWP and the PEP relation MASKED', async () => {
       stubDetail(cddDetail())
-      renderModal({ staffId })
+      renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
       // The values themselves must not be on screen…
       expect(within(dialog).queryByText(NPWP)).not.toBeInTheDocument()
       expect(within(dialog).queryByText(PEP_RELATION)).not.toBeInTheDocument()
-      // …but the reviewer is told a value EXISTS and is withheld, rather than
+      // …but the reader is told a value EXISTS and is withheld, rather than
       // being shown a dash that reads as "not collected". Asserted PER FIELD:
       // a dialog-wide count of `***` is satisfied by the five other PII fields
       // on this screen even with one gate removed.
@@ -538,7 +606,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       // Only NPWP and the PEP relation are PII. Masking the enum answers too
       // would defeat the purpose of putting the CDD block on the page.
       stubDetail(cddDetail())
-      renderModal({ staffId: 'stf_2' })
+      renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
@@ -708,6 +776,37 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       ).toBeInTheDocument()
     })
 
+    test.each([
+      ['MANAGER', 'stf_2'],
+      ['STAFF', 'stf_4'],
+    ])(
+      '%s reads every Pasal 25 / Pasal 37 PII field in full, no `***` anywhere (USDX-610)',
+      async (_role, staffId) => {
+        // AC USDX-610: pencocokan baris demi baris dengan KTP di layar yang sama
+        // mustahil kalau nama gadis ibu kandung dan alias tersamar — dan
+        // backend memang sudah mengirim plaintext-nya ke role ini.
+        stubDetail(fullDetail())
+        renderModal({ staffId })
+        const dialog = await screen.findByRole('dialog')
+        await within(dialog).findByText(/customer due diligence/i)
+
+        expect(field(dialog, 'kyc-alias-name').getByText(ALIAS)).toBeInTheDocument()
+        expect(
+          field(dialog, 'kyc-mothers-maiden-name').getByText(MOTHERS_MAIDEN),
+        ).toBeInTheDocument()
+        expect(
+          field(dialog, 'kyc-employer-address').getByText(EMPLOYER_ADDRESS),
+        ).toBeInTheDocument()
+        expect(
+          field(dialog, 'kyc-employer-phone').getByText(EMPLOYER_PHONE),
+        ).toBeInTheDocument()
+        expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
+        expect(
+          within(dialog).queryByText(/not shown to your role/i),
+        ).not.toBeInTheDocument()
+      },
+    )
+
     test('renders occupation as its Permendagri label, never the enum value', async () => {
       // The list is the one Dukcapil prints in the KTP "Pekerjaan" column, which
       // is the document the officer is holding this answer against.
@@ -750,15 +849,12 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
   })
 
   describe('negative', () => {
-    test.each([
-      ['MANAGER', 'stf_2'],
-      ['DEVELOPER', 'stf_3'],
-      ['STAFF', 'stf_4'],
-    ])('%s sees the new PII fields MASKED, one by one', async (_role, staffId) => {
-      // Same gate as NPWP (`canReadCustomerPii`, ADMIN only): a maiden name, an
-      // alias and a workplace address each identify a person on their own.
+    test('DEVELOPER sees the new PII fields MASKED, one by one', async () => {
+      // Same gate as NPWP (`canReviewCustomerPii`): a maiden name, an alias and a
+      // workplace address each identify a person on their own, and DEVELOPER is
+      // 403 on approve/reject so none of its work needs them.
       stubDetail(fullDetail())
-      renderModal({ staffId })
+      renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
@@ -771,12 +867,12 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       expectMasked(dialog, 'kyc-employer-phone')
     })
 
-    test('a non-ADMIN still reads every non-PII answer', async () => {
+    test('a DEVELOPER still reads every non-PII answer', async () => {
       // Masking the closed-value answers too would defeat the point of putting
       // them on the page: nationality, gender, marital status, net worth and
       // source of wealth are not identifiers.
       stubDetail(fullDetail())
-      renderModal({ staffId: 'stf_2' })
+      renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/customer due diligence/i)
 
@@ -894,6 +990,117 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       ]) {
         expect(field(dialog, id).getByText('—')).toBeInTheDocument()
       }
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — status screening di halaman review KYC.
+//
+// Kejadiannya: satu berkas memegang `LIST_UNAVAILABLE` lalu disetujui puluhan
+// detik kemudian tanpa petugas pernah tahu. Yang diperbaiki BUKAN gerbangnya —
+// fail-open tetap benar dan Approve TETAP bisa ditekan — melainkan lolosnya
+// yang diam-diam. Perhitungannya sendiri diuji terpisah di
+// `lib/__tests__/screening.test.ts` dan
+// `features/screening/__tests__/ScreeningSubjectPanel.test.tsx`; di sini yang
+// diuji adalah bahwa layar review benar-benar memasangnya.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function stubScreening(rows: unknown[]) {
+  server.use(
+    http.get('/api/v1/screening/results', () =>
+      HttpResponse.json({
+        status: 'success',
+        metadata: { page: 1, limit: 100, total: rows.length },
+        data: rows,
+      })
+    )
+  )
+}
+
+const screeningRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'scr_1',
+  subjectType: 'KYC',
+  subjectId: KYC_ID,
+  outcome: 'NO_MATCH',
+  score: 0.1,
+  matchedName: null,
+  matchCount: 0,
+  trigger: 'KYC_SUBMIT',
+  listId: 'lst_dttot',
+  listType: 'DTTOT',
+  listPublishedAt: '2026-08-16',
+  decision: null,
+  createdAt: '2026-09-02T08:56:58Z',
+  ...overrides,
+})
+
+describe('KycDetailModal @ USDX-610 — status screening', () => {
+  describe('positive', () => {
+    test('names the unreadable list AND leaves Approve pressable', async () => {
+      stubDetail(makeDetail())
+      stubScreening([
+        screeningRow(),
+        screeningRow({
+          id: 'scr_2',
+          outcome: 'LIST_UNAVAILABLE',
+          score: null,
+          listId: null,
+          listType: null,
+          listPublishedAt: null,
+        }),
+      ])
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      const banner = await within(dialog).findByTestId('screening-unchecked')
+      expect(banner).toHaveTextContent(/DPPSPM/)
+      // Inti keputusan 2 Sep: yang diperbaiki adalah kebisuannya, bukan
+      // gerbangnya. Tombol yang mati akan membuat petugas mencari jalan memutar.
+      expect(
+        within(dialog).getByRole('button', { name: /^approve$/i }),
+      ).toBeEnabled()
+    })
+  })
+
+  describe('negative', () => {
+    test('does not claim the file is clean when the screening read fails', async () => {
+      stubDetail(makeDetail())
+      server.use(
+        http.get('/api/v1/screening/results', () =>
+          HttpResponse.json({ status: 'error' }, { status: 500 })
+        )
+      )
+      renderModal()
+      const dialog = await screen.findByRole('dialog')
+
+      expect(
+        await within(dialog).findByTestId('screening-panel-error'),
+      ).toHaveTextContent(/jangan simpulkan berkas ini bersih/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('does not read screening while the modal is closed', async () => {
+      let calls = 0
+      stubDetail(makeDetail())
+      server.use(
+        http.get('/api/v1/screening/results', () => {
+          calls++
+          return HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 100, total: 0 },
+            data: [],
+          })
+        })
+      )
+      renderWithProviders(
+        <KycDetailModal kycId={KYC_ID} open={false} onOpenChange={vi.fn()} />,
+        { initialEntries: ['/kyc'], authenticated: true }
+      )
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(calls).toBe(0)
     })
   })
 })
