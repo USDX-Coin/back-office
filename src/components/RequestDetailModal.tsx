@@ -15,6 +15,7 @@ import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { formatDate, shortHash } from '@/lib/format'
 import { getRequestStatusConfig, isRequestTerminal } from '@/lib/status'
+import { POLL_ACTIVE_MS } from '@/lib/queryConfig'
 import { findChainConfig } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
 import type {
@@ -49,10 +50,11 @@ function useRequestDetail(id: string | null) {
     queryFn: () => fetchRequestDetail(id as string),
     enabled: Boolean(id),
     // USDX-27: while the modal is open on a request that's still moving through
-    // the approval lifecycle, poll so the status badge updates live.
+    // the approval lifecycle, poll so the status badge updates live. Open detail
+    // = active cadence (src/lib/queryConfig.ts); terminal = stop.
     refetchInterval: (query) => {
       const status = query.state.data?.data?.status
-      return status && !isRequestTerminal(status) ? 20_000 : false
+      return status && !isRequestTerminal(status) ? POLL_ACTIVE_MS : false
     },
     refetchOnWindowFocus: true,
   })

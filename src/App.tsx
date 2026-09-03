@@ -7,6 +7,7 @@ import {
   type RouteObject,
 } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QUERY_DEFAULTS } from '@/lib/queryConfig'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider } from '@/lib/theme'
 import { ProtectedRoute, PublicRoute, RoleGuard } from '@/components/layout/AuthGuard'
@@ -43,13 +44,13 @@ import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
 import BurnByUserReportPage from '@/features/reports/BurnByUserPage'
 import { Toaster } from '@/components/ui/sonner'
 
+// Defaults live in src/lib/queryConfig.ts so the shipped client and the test
+// client can't drift. The 60s staleTime that used to sit here is gone on
+// purpose: it made TanStack Query treat every cached view as fresh for a whole
+// minute, which disabled refetch-on-focus desk-wide and let a re-opened detail
+// panel replay a minute-old snapshot of a transaction that had already moved on.
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,
-      retry: 1,
-    },
-  },
+  defaultOptions: { queries: { ...QUERY_DEFAULTS } },
 })
 
 // Routing per Linear USDX-50 + sot/phase-1.md § Backoffice Web App.

@@ -7,6 +7,8 @@ import {
   isSafeTxExecutable,
   getActivityLabel,
   isUnknownActivity,
+  mostAdvancedSafeTxStatus,
+  safeTxStatusOrder,
   SAFE_TX_TABS,
   SAFE_TX_COUNTED_STATUSES,
 } from '../status'
@@ -72,6 +74,70 @@ describe('SafeTx status predicates', () => {
       expect(isSafeTxCancellable('CONFIRMING')).toBe(false)
       expect(isSafeTxExecutable('CONFIRMING')).toBe(false)
       expect(isSafeTxExecutable('PENDING_SIGN')).toBe(false)
+    })
+  })
+})
+
+describe('mostAdvancedSafeTxStatus', () => {
+  describe('positive', () => {
+    test('takes the queue row when it is ahead of the detail payload', () => {
+      // The reported bug: the list already showed Confirming while the drawer
+      // still held the PENDING_SIGN snapshot and offered Sign.
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', 'CONFIRMING')).toBe('CONFIRMING')
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', 'READY_TO_EXECUTE')).toBe(
+        'READY_TO_EXECUTE',
+      )
+      expect(mostAdvancedSafeTxStatus('READY_TO_EXECUTE', 'EXECUTED')).toBe('EXECUTED')
+    })
+
+    test('takes the detail payload when IT is the one ahead', () => {
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'PENDING_SIGN')).toBe('CONFIRMING')
+      expect(mostAdvancedSafeTxStatus('EXECUTED', 'READY_TO_EXECUTE')).toBe('EXECUTED')
+    })
+
+    test('orders the lifecycle strictly forward', () => {
+      expect(safeTxStatusOrder('PENDING_SIGN')).toBeLessThan(
+        safeTxStatusOrder('READY_TO_EXECUTE'),
+      )
+      expect(safeTxStatusOrder('READY_TO_EXECUTE')).toBeLessThan(
+        safeTxStatusOrder('CONFIRMING'),
+      )
+      expect(safeTxStatusOrder('CONFIRMING')).toBeLessThan(safeTxStatusOrder('EXECUTED'))
+    })
+  })
+
+  describe('negative', () => {
+    test('never walks a transaction backwards', () => {
+      // A stale second opinion must not undo progress the detail already knows.
+      expect(mostAdvancedSafeTxStatus('EXECUTED', 'PENDING_SIGN')).toBe('EXECUTED')
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'READY_TO_EXECUTE')).toBe('CONFIRMING')
+    })
+
+    test('a missing second opinion changes nothing', () => {
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', undefined)).toBe('PENDING_SIGN')
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', null)).toBe('PENDING_SIGN')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('identical statuses keep the primary', () => {
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'CONFIRMING')).toBe('CONFIRMING')
+    })
+
+    test('the three terminals share a rank, so neither overrides the other', () => {
+      // FAILED and CANCELLED are different endings, not different distances —
+      // whichever view holds the full payload (the detail) keeps its own.
+      expect(safeTxStatusOrder('EXECUTED')).toBe(safeTxStatusOrder('FAILED'))
+      expect(safeTxStatusOrder('FAILED')).toBe(safeTxStatusOrder('CANCELLED'))
+      expect(mostAdvancedSafeTxStatus('FAILED', 'EXECUTED')).toBe('FAILED')
+      expect(mostAdvancedSafeTxStatus('CANCELLED', 'FAILED')).toBe('CANCELLED')
+    })
+
+    test('an unrecognised status ranks lowest and never displaces a known one', () => {
+      expect(safeTxStatusOrder('WEIRD' as SafeTxStatus)).toBe(0)
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'WEIRD' as SafeTxStatus)).toBe(
+        'CONFIRMING',
+      )
     })
   })
 })

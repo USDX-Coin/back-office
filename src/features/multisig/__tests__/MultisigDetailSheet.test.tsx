@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { SafeMeta, SafeTxDetail, SafeTxSigner } from '@/lib/types'
+import type { SafeMeta, SafeTxDetail, SafeTxListItem, SafeTxSigner } from '@/lib/types'
 
 // Owner-verification is driven purely by the data returned from useMultisigDetail
 // + useSafes + useMultisigWallet, so we mock those hooks to control each state.
@@ -118,8 +118,32 @@ function setSafes(data: SafeMeta[] | undefined, flags: Record<string, unknown> =
   }
 }
 
-function renderSheet() {
-  return render(<MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={null} />)
+// The queue row the drawer was opened from. Its status is a second, independently
+// polled opinion about the same transaction.
+function makeListItem(overrides: Partial<SafeTxListItem> = {}): SafeTxListItem {
+  return {
+    id: ID,
+    chain: 'polygon',
+    safeType: 'STAFF',
+    safeAddress: SAFE_ADDR,
+    nonce: 5,
+    activity: 'MINT',
+    activityLabel: 'Mint 100 USDX',
+    signatureProgress: { collected: 2, threshold: 2 },
+    proposerType: 'BACKEND',
+    proposerAddress: OTHER,
+    status: 'CONFIRMING',
+    safeTxHash: '0xhash',
+    execTxHash: null,
+    createdAt: '2026-07-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function renderSheet(listItem: SafeTxListItem | null = null) {
+  return render(
+    <MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={listItem} />,
+  )
 }
 
 const signBtn = () => screen.getByRole('button', { name: /Sign \(EIP-712\)/ })
@@ -202,6 +226,78 @@ describe('MultisigDetailSheet owner verification', () => {
       expect(screen.getByText('· ownership unknown')).toBeInTheDocument()
       expect(screen.queryByText(/verifying owner/)).not.toBeInTheDocument()
       expect(screen.getByText(/owner list is unavailable/)).toBeInTheDocument()
+    })
+  })
+})
+
+// The drawer and the queue row are separate queries on separate poll clocks, so
+// they disagree for a few seconds at a time. Reproduces the reported bug: the
+// list said Confirming, the drawer replayed a cached PENDING_SIGN snapshot and
+// invited the operator to connect a wallet and sign a transaction that had
+// already been signed and broadcast.
+describe('MultisigDetailSheet status reconciliation with the queue row', () => {
+  beforeEach(() => {
+    refetchDetail = vi.fn()
+    refetchSafes = vi.fn()
+    state.wallet = {
+      isConnected: false,
+      address: undefined,
+      chainId: 137,
+      chainOk: false,
+      connect: vi.fn(),
+      switchToPolygon: vi.fn(),
+      isSwitching: false,
+    }
+    setDetail({ signers: [signer(OWNER), signer(OTHER)] })
+    setSafes([safeMeta([OWNER, OTHER])])
+    state.simulate = { status: 'idle', refetch: vi.fn(), isRefetching: false }
+  })
+
+  describe('positive', () => {
+    test('stale PENDING_SIGN detail + Confirming row → no Sign, no Connect wallet', () => {
+      renderSheet(makeListItem({ status: 'CONFIRMING' }))
+      expect(screen.queryByRole('button', { name: /Sign \(EIP-712\)/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Connect wallet' })).not.toBeInTheDocument()
+      // …and the panel reads the same status the operator saw in the queue.
+      expect(screen.getByText('Confirming')).toBeInTheDocument()
+      expect(screen.queryByText('Pending sign')).not.toBeInTheDocument()
+    })
+
+    test('row already Executed → the drawer offers no action at all', () => {
+      setDetail({ status: 'READY_TO_EXECUTE', signers: [signer(OWNER, true), signer(OTHER, true)] })
+      state.wallet = { ...(state.wallet as object), isConnected: true, address: OWNER, chainOk: true }
+      renderSheet(makeListItem({ status: 'EXECUTED' }))
+      expect(screen.queryByRole('button', { name: 'Execute' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Sign \(EIP-712\)/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+      expect(screen.getByText('Executed')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('a row that is BEHIND the detail never re-enables Sign', () => {
+      // The list is the stale one this time: it still says Pending sign for a
+      // transaction the detail knows is already broadcast.
+      setDetail({ status: 'CONFIRMING', signers: [signer(OWNER, true), signer(OTHER, true)] })
+      renderSheet(makeListItem({ status: 'PENDING_SIGN' }))
+      expect(screen.queryByRole('button', { name: /Sign \(EIP-712\)/ })).not.toBeInTheDocument()
+      expect(screen.getByText('Confirming')).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('both views agree on a signable state → Sign is still offered', () => {
+      renderSheet(makeListItem({ status: 'PENDING_SIGN' }))
+      expect(screen.getByRole('button', { name: /Sign \(EIP-712\)/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Connect wallet' })).toBeInTheDocument()
+    })
+
+    test('deep link with no row in the current page falls back to the detail', () => {
+      // /multisig/:id opened straight from a URL — the queue page may not hold
+      // the row at all, so there is no second opinion to reconcile against.
+      renderSheet(null)
+      expect(screen.getByRole('button', { name: /Sign \(EIP-712\)/ })).toBeInTheDocument()
+      expect(screen.getByText('Pending sign')).toBeInTheDocument()
     })
   })
 })
