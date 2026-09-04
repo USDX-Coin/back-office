@@ -711,14 +711,58 @@ export type VaBank =
   | 'PERMATA'
   | 'MAYBANK'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-547 — partner ownership on an order (migration 0076 already landed:
+// mint_orders / redeem_orders carry partner_id + partner_customer_id +
+// on_behalf_of + external_reference, and user_id became NULLABLE).
+//
+// Why a nested object and not a bare `partnerId`: an order row only holds the
+// UUID, and a UUID answers nothing an operator can act on. What ops needs when
+// a partner order goes wrong is WHO TO CALL, and that is the partner — the
+// partner's customer has no relationship with USDX at all (their CDD lives at
+// the partner, and they receive no notification from us). So the row must carry
+// the resolved `partners` row, which is a LEFT JOIN on the backend side: retail
+// orders have no partner_id and an INNER JOIN would drop them from the list.
+//
+// `code` travels alongside `displayName` because `code` is what gets printed in
+// transaction references and stays put when the legal name changes by deed,
+// while `displayName` is the human-readable one.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface OrderPartnerRef {
+  id: string
+  /** Immutable slug used in transaction references (`partners.code`). */
+  code: string
+  /** Legal/display name — may change by deed (`partners.display_name`). */
+  displayName: string
+}
+
+/** `mint_orders.on_behalf_of` / `redeem_orders.on_behalf_of` (migration 0076). */
+export type OrderOnBehalfOf = 'SELF' | 'CUSTOMER'
+
 // sot/api/orders.yaml § OrderListItem — GET /api/v1/orders row (union mint +
 // redeem). MINT-only fields (totalPayIdr, paymentStatus, safeStatus) are null
 // for redeem; netPayoutIdr is null for mint.
 export interface OrderListItem {
   id: string
+  /**
+   * NULL for an order owned by a partner customer — `mint_orders.user_id` /
+   * `redeem_orders.user_id` became nullable in migration 0076 precisely for
+   * that case. Retail orders always carry it.
+   */
+  userId: string | null
   type: TransactionType
-  userId: string
+  /**
+   * Retail: the customer's email (masked for non-ADMIN by the backend,
+   * USDX-487). Partner-customer orders have no `users` row at all, so the
+   * backend sends the literal marker `(partner customer)` — deliberately not an
+   * email and not an empty string (USDX-571). Read the Partner column beside it
+   * to learn which partner the order belongs to.
+   */
   userEmail: string
+  /** Resolved `partners` row (LEFT JOIN). NULL for retail orders — USDX-547. */
+  partner: OrderPartnerRef | null
+  /** SELF = the partner's own order; CUSTOMER = on behalf of its customer. NULL for retail. */
+  onBehalfOf: OrderOnBehalfOf | null
   /** Decimal USDX. */
   amount: string
   /** MINT: total the user pays (IDR; null until a channel is chosen). REDEEM: null. */
@@ -741,8 +785,25 @@ export interface OrderListItem {
 export interface OrderDetail {
   id: string
   type: TransactionType
-  userId: string
+  /** NULL for a partner-customer order (migration 0076 made user_id nullable). */
+  userId: string | null
+  /** `(partner customer)` when the order has no `users` row — see OrderListItem. */
   userEmail: string
+  /** Resolved `partners` row (LEFT JOIN). NULL for retail orders — USDX-547. */
+  partner: OrderPartnerRef | null
+  /** SELF = partner's own order; CUSTOMER = on behalf of its customer. NULL for retail. */
+  onBehalfOf: OrderOnBehalfOf | null
+  /**
+   * `partner_customers.id` — only when onBehalfOf = CUSTOMER. Shown so ops can
+   * quote it back to the partner; it is an opaque id, NOT customer identity.
+   */
+  partnerCustomerId: string | null
+  /**
+   * The partner's OWN order number (`external_reference`). This is the number
+   * the partner quotes when it reports a problem, so ops has to be able to see
+   * (and search) it. NULL for retail orders.
+   */
+  externalReference: string | null
   /** MINT: address tujuan. REDEEM: wallet sumber burn (null sampai BURNED). */
   userAddress: string | null
   chain: string
@@ -999,6 +1060,210 @@ export interface KycListItem {
 // sot/api/kyc.yaml § IdentityType — Week 1 only KTP; DRIVER_LICENSE deferred.
 export type KycIdentityType = 'KTP' | 'DRIVER_LICENSE'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-545 — CDD value sets for retail KYC.
+//
+// These are COPIED, value for value, from the partner cluster
+// (`backend/src/database/schema/partner/partner-customer-kyc.ts` §
+// "CDD value sets": partner_occupation / partner_source_of_funds /
+// partner_annual_income_range / partner_transaction_purpose). Copied and not
+// merely "similar" on purpose: the partner API already obliges partners to hand
+// over a full CDD block for their customers, so if retail is judged on a
+// different or smaller set, one legal entity ends up running TWO CDD standards
+// — with the weaker one applied to the customers who deal with USDX directly.
+// A combined report or a sanctions sweep would then have to handle two shapes
+// of data for the same question.
+//
+// The income labels carry the resolved spelling (UNDER_ / FROM_..._TO_ / OVER_).
+// The earlier partner draft had `100M_500M` / `500M_1B`, which a generated
+// client turns into an illegal enum member name — do not reintroduce a value
+// that starts with a digit (sot/conventions.md § Naming Conventions).
+// ─────────────────────────────────────────────────────────────────────────────
+// 99 jenis pekerjaan Permendagri 109/2019 Formulir F-1.01 butir 31 — dipakai
+// penuh, tidak disaring (USDX-583/584). Ini daftar yang sama yang dipakai
+// Dukcapil mencetak kolom "Pekerjaan" di KTP-el, jadi jawaban nasabah bisa
+// dicocokkan langsung dengan KTP yang ia unggah — dan itulah yang dikerjakan
+// petugas di halaman ini.
+//
+// Sebelumnya lima nilai (`PRIVATE_EMPLOYEE` dst.). Kelimanya sudah TIDAK ADA di
+// database: migrasi `0080` memetakannya (`PRIVATE_EMPLOYEE` → `KARYAWAN_SWASTA`,
+// `SELF_EMPLOYED` → `WIRASWASTA`, `CIVIL_SERVANT` → `PEGAWAI_NEGERI_SIPIL`,
+// `STUDENT` → `PELAJAR_MAHASISWA`, `OTHER` → `LAINNYA`), jadi menyimpannya di
+// sini hanya akan membuat build lolos untuk nilai yang tidak bisa lagi diterima.
+//
+// Nomor di komentar adalah kode Permendagri, BUKAN bagian nilai enum: nilai yang
+// diawali angka ditolak generator SDK TypeScript. `CHEFF` (92) ejaan asli
+// Permendagri, bukan salah ketik.
+//
+// Kode 48-63 seluruhnya jabatan publik → `PEP_CANDIDATE_OCCUPATIONS` di
+// `lib/cdd.ts`, dipakai menyilangkan jawaban `pepStatus`.
+export type KycOccupation =
+  | 'BELUM_TIDAK_BEKERJA'               //  1. Belum/Tidak Bekerja
+  | 'MENGURUS_RUMAH_TANGGA'             //  2. Mengurus Rumah Tangga
+  | 'PELAJAR_MAHASISWA'                 //  3. Pelajar/Mahasiswa
+  | 'PENSIUNAN'                         //  4. Pensiunan
+  | 'PEGAWAI_NEGERI_SIPIL'              //  5. Pegawai Negeri Sipil (PNS)
+  | 'TENTARA_NASIONAL_INDONESIA'        //  6. Tentara Nasional Indonesia (TNI)
+  | 'KEPOLISIAN_RI'                     //  7. Kepolisian RI (POLRI)
+  | 'PERDAGANGAN'                       //  8. Perdagangan
+  | 'PETANI_PEKEBUN'                    //  9. Petani/Pekebun
+  | 'PETERNAK'                          // 10. Peternak
+  | 'NELAYAN_PERIKANAN'                 // 11. Nelayan/Perikanan
+  | 'INDUSTRI'                          // 12. Industri
+  | 'KONSTRUKSI'                        // 13. Konstruksi
+  | 'TRANSPORTASI'                      // 14. Transportasi
+  | 'KARYAWAN_SWASTA'                   // 15. Karyawan Swasta
+  | 'KARYAWAN_BUMN'                     // 16. Karyawan BUMN
+  | 'KARYAWAN_BUMD'                     // 17. Karyawan BUMD
+  | 'KARYAWAN_HONORER'                  // 18. Karyawan Honorer
+  | 'BURUH_HARIAN_LEPAS'                // 19. Buruh Harian Lepas
+  | 'BURUH_TANI_PERKEBUNAN'             // 20. Buruh Tani/Perkebunan
+  | 'BURUH_NELAYAN_PERIKANAN'           // 21. Buruh Nelayan/Perikanan
+  | 'BURUH_PETERNAKAN'                  // 22. Buruh Peternakan
+  | 'PEMBANTU_RUMAH_TANGGA'             // 23. Pembantu Rumah Tangga
+  | 'TUKANG_CUKUR'                      // 24. Tukang Cukur
+  | 'TUKANG_LISTRIK'                    // 25. Tukang Listrik
+  | 'TUKANG_BATU'                       // 26. Tukang Batu
+  | 'TUKANG_KAYU'                       // 27. Tukang Kayu
+  | 'TUKANG_SOL_SEPATU'                 // 28. Tukang Sol Sepatu
+  | 'TUKANG_LAS_PANDAI_BESI'            // 29. Tukang Las/Pandai Besi
+  | 'TUKANG_JAHIT'                      // 30. Tukang Jahit
+  | 'TUKANG_GIGI'                       // 31. Tukang Gigi
+  | 'PENATA_RIAS'                       // 32. Penata Rias
+  | 'PENATA_BUSANA'                     // 33. Penata Busana
+  | 'PENATA_RAMBUT'                     // 34. Penata Rambut
+  | 'MEKANIK'                           // 35. Mekanik
+  | 'SENIMAN'                           // 36. Seniman
+  | 'TABIB'                             // 37. Tabib
+  | 'PARAJI'                            // 38. Paraji
+  | 'PERANCANG_BUSANA'                  // 39. Perancang Busana
+  | 'PENTERJEMAH'                       // 40. Penterjemah
+  | 'IMAM_MASJID'                       // 41. Imam Masjid
+  | 'PENDETA'                           // 42. Pendeta
+  | 'PASTOR'                            // 43. Pastor
+  | 'WARTAWAN'                          // 44. Wartawan
+  | 'USTADZ_MUBALIGH'                   // 45. Ustadz/Mubaligh
+  | 'JURU_MASAK'                        // 46. Juru Masak
+  | 'PROMOTOR_ACARA'                    // 47. Promotor Acara
+  | 'ANGGOTA_DPR_RI'                    // 48. Anggota DPR-RI
+  | 'ANGGOTA_DPD'                       // 49. Anggota DPD
+  | 'ANGGOTA_BPK'                       // 50. Anggota BPK
+  | 'PRESIDEN'                          // 51. Presiden
+  | 'WAKIL_PRESIDEN'                    // 52. Wakil Presiden
+  | 'ANGGOTA_MAHKAMAH_KONSTITUSI'       // 53. Anggota Mahkamah Konstitusi
+  | 'ANGGOTA_KABINET_KEMENTERIAN'       // 54. Anggota Kabinet/Kementerian
+  | 'DUTA_BESAR_KEPALA_PERWAKILAN'      // 55. Duta Besar/Kepala Perwakilan
+  | 'GUBERNUR'                          // 56. Gubernur
+  | 'WAKIL_GUBERNUR'                    // 57. Wakil Gubernur
+  | 'BUPATI'                            // 58. Bupati
+  | 'WAKIL_BUPATI'                      // 59. Wakil Bupati
+  | 'WALIKOTA'                          // 60. Walikota
+  | 'WAKIL_WALIKOTA'                    // 61. Wakil Walikota
+  | 'ANGGOTA_DPRD_PROVINSI'             // 62. Anggota DPRD Provinsi
+  | 'ANGGOTA_DPRD_KAB_KOTA'             // 63. Anggota DPRD Kab/Kota
+  | 'DOSEN'                             // 64. Dosen
+  | 'GURU'                              // 65. Guru
+  | 'PILOT'                             // 66. Pilot
+  | 'PENGACARA'                         // 67. Pengacara
+  | 'NOTARIS'                           // 68. Notaris
+  | 'ARSITEK'                           // 69. Arsitek
+  | 'AKUNTAN'                           // 70. Akuntan
+  | 'KONSULTAN'                         // 71. Konsultan
+  | 'DOKTER'                            // 72. Dokter
+  | 'BIDAN'                             // 73. Bidan
+  | 'PERAWAT'                           // 74. Perawat
+  | 'APOTEKER'                          // 75. Apoteker
+  | 'PSIKIATER_PSIKOLOG'                // 76. Psikiater/Psikolog
+  | 'PENYIAR_TELEVISI'                  // 77. Penyiar Televisi
+  | 'PENYIAR_RADIO'                     // 78. Penyiar Radio
+  | 'PELAUT'                            // 79. Pelaut
+  | 'PENELITI'                          // 80. Peneliti
+  | 'SOPIR'                             // 81. Sopir
+  | 'PIALANG'                           // 82. Pialang
+  | 'PARANORMAL'                        // 83. Paranormal
+  | 'PEDAGANG'                          // 84. Pedagang
+  | 'PERANGKAT_DESA'                    // 85. Perangkat Desa
+  | 'KEPALA_DESA'                       // 86. Kepala Desa
+  | 'BIARAWATI'                         // 87. Biarawati
+  | 'WIRASWASTA'                        // 88. Wiraswasta
+  | 'ANGGOTA_LEMBAGA_TINGGI_LAINNYA'    // 89. Anggota Lembaga Tinggi Lainnya
+  | 'ARTIS'                             // 90. Artis
+  | 'ATLIT'                             // 91. Atlit
+  | 'CHEFF'                             // 92. Cheff
+  | 'MANAJER'                           // 93. Manajer
+  | 'TENAGA_TATA_USAHA'                 // 94. Tenaga Tata Usaha
+  | 'OPERATOR'                          // 95. Operator
+  | 'PEKERJA_PENGOLAHAN_KERAJINAN'      // 96. Pekerja Pengolahan, Kerajinan
+  | 'TEKNISI'                           // 97. Teknisi
+  | 'ASISTEN_AHLI'                      // 98. Asisten Ahli
+  | 'LAINNYA'                           // 99. Lainnya
+
+export type KycSourceOfFunds =
+  | 'SALARY'
+  | 'BUSINESS'
+  | 'INVESTMENT'
+  | 'INHERITANCE'
+  | 'OTHER'
+
+export type KycAnnualIncomeRange =
+  | 'UNDER_100M'
+  | 'FROM_100M_TO_500M'
+  | 'FROM_500M_TO_1B'
+  | 'OVER_1B'
+
+export type KycTransactionPurpose = 'INVESTMENT' | 'PAYMENT' | 'REMITTANCE' | 'OTHER'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-583/584 — nilai tertutup yang ditambahkan agar CDD memenuhi POJK 8/2023.
+// Semuanya disalin PERSIS dari `sot/api/kyc.yaml`; jangan mengarang anggota di
+// sini, itu perubahan kontrak, bukan perubahan front-end.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Jenis kelamin — Pasal 25 (1) a angka 1 butir h).
+ *
+ * Kosakata KTP (`LAKI_LAKI` / `PEREMPUAN`), bukan `MALE`/`FEMALE`, dengan alasan
+ * yang sama dengan `KycOccupation`: petugas membacanya dari KTP yang diunggah
+ * nasabah, dan nilai yang memakai kata yang sama bisa dicocokkan tanpa
+ * menerjemahkan.
+ */
+export type KycGender = 'LAKI_LAKI' | 'PEREMPUAN'
+
+/** Status perkawinan — Pasal 25 (1) a angka 1 butir i). Empat status yang tercetak di KTP-el. */
+export type KycMaritalStatus = 'BELUM_KAWIN' | 'KAWIN' | 'CERAI_HIDUP' | 'CERAI_MATI'
+
+/**
+ * Rentang nilai harta kekayaan — separuh kedua Pasal 25 (1) a angka 4.
+ *
+ * Batas rentangnya BUKAN angka regulasi: diambil dari ambang AML yang sudah
+ * dipakai sistem ini (Rp500 juta per transaksi, Rp2 miliar harian) supaya
+ * jawaban nasabah bisa dibandingkan dengan plafon yang benar-benar
+ * menggerbangi transaksinya.
+ */
+export type KycNetWorthRange =
+  | 'UNDER_500M'
+  | 'FROM_500M_TO_2B'
+  | 'FROM_2B_TO_10B'
+  | 'OVER_10B'
+
+/**
+ * Sumber kekayaan — dari mana harta nasabah berasal, BERBEDA dari
+ * `KycSourceOfFunds` yang menjawab dari mana dana transaksi ini berasal.
+ *
+ * Dasarnya **Pasal 37 (1) d (EDD berkala untuk PEP), bukan Pasal 25** — jadi
+ * field ini tidak wajib untuk semua nasabah, ia wajib ketika `pepStatus` true.
+ * Ketujuh nilainya kosakata kita sendiri dan bersifat sementara; kalau
+ * compliance punya taksonomi sendiri, daftar ini yang diganti.
+ */
+export type KycSourceOfWealth =
+  | 'SALARY_ACCUMULATION'
+  | 'BUSINESS_OWNERSHIP'
+  | 'INVESTMENT_RETURN'
+  | 'INHERITANCE'
+  | 'PROPERTY_SALE'
+  | 'GRANT_OR_GIFT'
+  | 'OTHER'
+
 // sot/api/kyc.yaml § KycReviewAction — append-only audit log actions.
 export type KycReviewAction =
   | 'SUBMITTED'
@@ -1026,12 +1291,71 @@ export interface KycDetail {
   birthPlace: string | null
   identityType: KycIdentityType
   identityNumber: string | null
+  // ── Identitas Pasal 25 (1) a angka 1 (USDX-583/584) ───────────────────────
+  // Nullable seperti blok CDD di bawah, dengan sebab yang sama: baris yang
+  // di-submit sebelum tiket itu tidak punya jawabannya, dan itu bukan error.
+  /** Kewarganegaraan ISO 3166-1 alpha-2 — butir e). Bukan PII. */
+  nationality: string | null
+  /** Jenis kelamin — butir h). */
+  gender: KycGender | null
+  /** Status perkawinan — butir i). */
+  maritalStatus: KycMaritalStatus | null
+  /**
+   * Nama gadis ibu kandung — butir j). **PII**, gerbang role sama dengan `npwp`.
+   */
+  mothersMaidenName: string | null
+  /**
+   * Nama alias — butir a), "jika ada". **PII**.
+   *
+   * `null` di sini berarti DUA hal yang berbeda dan tidak boleh disamakan di
+   * layar: nasabah memang tidak punya alias, atau kolomnya sudah dikosongkan
+   * sweeper retensi.
+   */
+  aliasName: string | null
   country: string | null
   addressLine1: string | null
   addressLine2: string | null
   ktpPhotoUrl: string | null
   selfiePhotoUrl: string | null
   urlExpiresAt: string | null
+  // ── CDD block (USDX-545) ──────────────────────────────────────────────────
+  // Nullable across the board, and not only because the retention sweeper NULLs
+  // PII: every customer VERIFIED before this ticket shipped has an empty CDD
+  // block, and how those are treated (left alone / asked at the next
+  // transaction / a fill-in campaign) is an open PM decision. The review page
+  // must therefore render "—" for a missing value rather than assume presence.
+  occupation: KycOccupation | null
+  sourceOfFunds: KycSourceOfFunds | null
+  annualIncomeRange: KycAnnualIncomeRange | null
+  /** Nilai harta kekayaan — separuh kedua Pasal 25 (1) a angka 4 (USDX-583). */
+  netWorthRange: KycNetWorthRange | null
+  transactionPurpose: KycTransactionPurpose | null
+  /**
+   * Sumber kekayaan — Pasal 37 (1) d (USDX-583).
+   *
+   * `null` untuk nasabah non-PEP yang tidak mengisinya, dan itu sah. `null` pada
+   * nasabah ber-`pepStatus` `true` adalah **temuan**, bukan data kosong biasa:
+   * EDD-nya belum punya bahan. Halaman review menandai keduanya berbeda.
+   */
+  sourceOfWealth: KycSourceOfWealth | null
+  /** Alamat tempat kerja — Pasal 25 (1) a angka 1 butir g), "jika ada". **PII**. */
+  employerAddress: string | null
+  /** Telepon tempat kerja — butir yang sama. **PII**. */
+  employerPhone: string | null
+  /**
+   * Indonesian tax number. **PII** — ciphertext at rest, decrypted for render,
+   * and role-gated in the UI to the roles that decide (`canReviewCustomerPii`,
+   * USDX-610: STAFF / MANAGER / ADMIN — DEVELOPER masked).
+   */
+  npwp: string | null
+  /** `true` = the customer or a close relative holds public office. */
+  pepStatus: boolean | null
+  /**
+   * Free text describing the PEP relationship, expected only when
+   * `pepStatus === true`. **PII** — it names a real person and their office, so
+   * it is gated exactly like `npwp`.
+   */
+  pepRelation: string | null
   rejectionReason: string | null
   submittedAt: string | null
   reviewedBy: string | null
@@ -1052,6 +1376,517 @@ export interface KycReviewLog {
   reason: string | null
   ipAddress: string | null
   createdAt: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — KYB (business entity due diligence), MANUAL back-office flow.
+//
+// LIVE against the real backend since 28 Aug 2026. The tables exist (backend PR
+// #271, migration `0077_usdx_546_kyb_kyc_ubo_reviews`) and six endpoints answer
+// on api-dev: list, detail, reviews, document presign, document attach, approve,
+// reject. Every type below was reconciled FIELD BY FIELD against
+// `backend/src/modules/kyb/kyb.types.ts` on `origin/dev`, not against the shape
+// that was agreed in messages while the backend was still being written — the
+// two disagreed, and the notes mark where.
+//
+// KYB is still a MANUAL flow (decision Mas Yan): no consumer app submits it, an
+// operator types it in, which is why this feature has a FORM as well as a review
+// action. `POST /api/v2/auth/register` continues to refuse `LEGAL_ENTITY`.
+//
+// The review lifecycle reuses `KycStatus` — the backend's `KybStatus` is the same
+// four values off the same pg enum (`kyc_status`), so one type is correct here,
+// not a convenience.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `kyb.entity_form` — legal form of the entity (not `users.entity_type`).
+ *
+ * All TEN values of the `kyb_entity_form` pg enum, in its declared order. The
+ * front end previously listed six; the four it omitted (`PT_PERORANGAN`,
+ * `PERKUMPULAN`, `BUMN`, `BUMD`) are storable today, so a record carrying one
+ * would have rendered through the unmapped-label fallback and — worse — could
+ * not have been entered from the form at all.
+ */
+export type KybEntityForm =
+  | 'PT'
+  | 'PT_PERORANGAN'
+  | 'CV'
+  | 'FIRMA'
+  | 'KOPERASI'
+  | 'YAYASAN'
+  | 'PERKUMPULAN'
+  | 'BUMN'
+  | 'BUMD'
+  | 'OTHER'
+
+/**
+ * The eight FIXED document slots — response keys of `KybDetail.documents`,
+ * camelCase per `sot/conventions.md`.
+ *
+ * The backend keeps these as one path column per document type (`akte_path`,
+ * `nib_path`, `npwp_path`, `sk_kemenkumham_path`, `ktp_direksi_path` — PR #271
+ * commit 5dc7254, migration 0077), NOT as a row-per-file table. Consequences the
+ * FE has to live with, none of them cosmetic:
+ *
+ *   1. There is no `OTHER`. A sixth kind has no column to land in.
+ *   2. There is no `fileName` and no `sizeBytes` — the columns do not exist. The
+ *      reviewer identifies a document by its SLOT LABEL instead, which is the
+ *      more useful fact anyway ("Akta Pendirian" beats "scan_0142.pdf").
+ *   3. A slot holds at most one document.
+ */
+export type KybDocumentSlot =
+  | 'akte'
+  | 'nib'
+  | 'npwp'
+  | 'skKemenkumham'
+  | 'ktpDireksi'
+  // ── USDX-605 — POJK 8/2023 Pasal 27 ayat (1) huruf b angka 3, 4, 5 ────────
+  // Kontraknya sudah mencantumkan ketiganya sejak USDX-583; kolom dan doc kind
+  // backendnya baru ada di migrasi 0084. Ketiganya WAJIB hanya untuk perusahaan
+  // yang tidak tergolong usaha mikro/kecil dan bukan perseroan perorangan —
+  // lihat `kybRequiredDocumentSlots` di `./cdd.ts`.
+  | 'laporanKeuangan'
+  | 'strukturManajemen'
+  | 'strukturKepemilikan'
+
+/**
+ * A filled slot — a presigned GET and nothing else. The expiry is NOT per slot:
+ * it is stamped once on `KybDetail.urlExpiresAt`, which is `null` when no URL was
+ * minted at all.
+ */
+export interface KybDocumentRef {
+  url: string
+}
+
+/**
+ * Every slot is always present, in the order above — `null` means the slot is
+ * EMPTY TO THIS VIEWER, never "absent from the response". A `Record` (not a
+ * `Partial`) so a forgotten slot is a build error rather than a silently blank
+ * row.
+ *
+ * Two things `null` cannot distinguish, and the UI must not claim otherwise:
+ *
+ *   - an object purged by the retention sweeper from one never uploaded (the old
+ *     array shape separated these via `url: null`; path columns do not);
+ *   - "nothing on file" from "your role is not given the URL" — the DEVELOPER
+ *     role never receives presigned document URLs, so for a developer ALL EIGHT
+ *     slots read `null` whatever the record actually holds.
+ */
+export type KybDocuments = Record<KybDocumentSlot, KybDocumentRef | null>
+
+/**
+ * Ultimate beneficial owner (`kyc_ubo`). `identityNumber` is PII: ciphertext at
+ * rest, decrypted for render, gated in the UI to the roles that decide
+ * (`canReviewCustomerPii`, USDX-610 — DEVELOPER masked).
+ *
+ * A deliberate SUBSET of the response. `GET /api/v1/kyb/:id` also returns
+ * `livenessStatus`, `disdukcapilStatus`, `identityPhotoUrl` and `selfiePhotoUrl`
+ * per UBO. Nothing writes them yet — the manual-entry form collects no UBO photo
+ * and there is no liveness check in a manual flow — so the review screen would
+ * be rendering four permanently empty rows. Listed here so the next reader knows
+ * they exist on the wire rather than discovering it in a network tab.
+ */
+/**
+ * Bentuk hubungan hukum nasabah–UBO — **Pasal 33 ayat (3) huruf d**, yang
+ * menyebut keempatnya secara harfiah: "…ditunjukkan dengan surat penugasan,
+ * surat perjanjian, surat kuasa, atau bentuk lainnya". Bukan taksonomi karangan.
+ */
+export type UboLegalRelationship =
+  | 'SURAT_PENUGASAN'
+  | 'SURAT_PERJANJIAN'
+  | 'SURAT_KUASA'
+  | 'LAINNYA'
+
+/**
+ * Langkah cascading test Pasal 33 mana yang DIPAKAI untuk sampai pada orang ini.
+ *
+ * - `KEPEMILIKAN` — pengendali lewat kepemilikan (ayat (2) & (3)). Langkah biasa.
+ * - `PENGENDALIAN_BENTUK_LAIN` — ayat (7): dipakai kalau ragu, atau tidak ada
+ *   orang perseorangan yang mengendalikan lewat kepemilikan.
+ * - `POSISI_DIREKSI` — ayat (8): upaya terakhir, kalau dua langkah di atas tidak
+ *   menemukan siapa pun.
+ *
+ * Disimpan petugas, bukan dihitung sistem. Nilai `POSISI_DIREKSI` pada berkas
+ * yang struktur kepemilikannya jelas adalah sinyal pemeriksaan yang dilewati —
+ * halaman review menyorotnya justru karena itu.
+ *
+ * Nilainya `POSISI_DIREKSI` (bukan `DIREKSI`) — transkripsi dari pg enum
+ * `ubo_cascade_step` yang benar-benar dipasang backend, bukan dari draf.
+ */
+export type UboCascadeStep =
+  | 'KEPEMILIKAN'
+  | 'PENGENDALIAN_BENTUK_LAIN'
+  | 'POSISI_DIREKSI'
+
+/**
+ * Satu Pemilik Manfaat. Isinya mengikuti **Pasal 33 ayat (3)**: huruf a
+ * (sepuluh butir identitas), b (sumber dana), c (penghasilan / net worth),
+ * d (hubungan hukum + dokumennya), e (pernyataan nasabah).
+ *
+ * Empat kolom awal saja tidak cukup untuk memutuskan apa pun: **ayat (12)**
+ * mewajibkan PJK MENOLAK hubungan usaha kalau identitas UBO tidak bisa diyakini,
+ * dan itu tidak bisa dinilai dari nama + nomor identitas.
+ *
+ * Aturan `null` sama dengan `KycDetail`: `'***'` = ditahan backend karena role
+ * tidak berhak, `null` = kolomnya memang kosong atau sudah dikosongkan sweeper.
+ */
+export interface KybUbo {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  /** Decimal percent, e.g. "25.50" (`kyc_ubo.ownership_pct numeric(5,2)`). */
+  ownershipPct: string
+  identityType: KycIdentityType
+  /** **PII** — ADMIN-only in the UI. */
+  identityNumber: string | null
+  country: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  // ── Pasal 33 (3) a — identitas, butir yang belum ada (USDX-584/602) ───────
+  /** **PII**. Butir UBO ini tidak memakai kualifikasi "jika ada" seperti sisi retail. */
+  aliasName: string | null
+  /** **PII**. */
+  birthPlace: string | null
+  /** ISO `YYYY-MM-DD`. **PII**. */
+  dob: string | null
+  /** **PII**. */
+  employerAddress: string | null
+  /** **PII**. */
+  employerPhone: string | null
+  /** ISO 3166-1 alpha-2 — angka 6. Bukan duplikat `country`, yang menyebut negara alamat. */
+  nationality: string | null
+  /** Enum yang sama persis dengan `kyc.occupation` — UBO juga orang perseorangan. */
+  occupation: KycOccupation | null
+  gender: KycGender | null
+  maritalStatus: KycMaritalStatus | null
+  // ── Pasal 33 (3) b & c — profil finansial UBO, bukan profil nasabahnya ────
+  sourceOfFunds: KycSourceOfFunds | null
+  annualIncomeRange: KycAnnualIncomeRange | null
+  netWorthRange: KycNetWorthRange | null
+  // ── Pasal 33 (3) d & e ────────────────────────────────────────────────────
+  legalRelationship: UboLegalRelationship | null
+  /**
+   * Presigned GET URL (TTL 5 menit) dokumen yang MENUNJUKKAN hubungan hukum itu.
+   * Pasalnya meminta hubungannya "ditunjukkan dengan" dokumen, jadi jenis
+   * hubungan tanpa dokumennya belum memenuhi butir d) — halaman review
+   * membedakan keduanya, bukan menganggap jenis saja sudah cukup.
+   */
+  legalRelationshipDocUrl: string | null
+  /**
+   * Presigned GET URL pernyataan nasabah soal kebenaran identitas dan sumber
+   * dana orang ini — huruf e). Artefak bertanda tangan, bukan checkbox.
+   */
+  customerDeclarationDocUrl: string | null
+  /** Langkah Pasal 33 yang dipakai sampai pada orang ini. */
+  cascadeStep: UboCascadeStep | null
+  /** Sinyal auto-KYC — belum dipasang backend, belum ada yang mengisinya. */
+  livenessStatus: string | null
+  /** Sinyal auto-KYC — belum dipasang backend. */
+  disdukcapilStatus: string | null
+  /** Presigned GET URL foto dokumen identitas (TTL 5 menit). */
+  identityPhotoUrl: string | null
+  /** Presigned GET URL foto selfie (TTL 5 menit). */
+  selfiePhotoUrl: string | null
+}
+
+/**
+ * GET /api/v1/kyb row — carries NO ciphertext column at all, and that is the
+ * shape of the response, not a simplification of it.
+ *
+ * The review QUEUE therefore cannot show the entity's registered name or its
+ * NIB: `kyb.entity_name` and `kyb.registration_number` are encrypted with a
+ * random IV, so the list query can neither select nor search them. What it shows
+ * instead is `userName` — `users.name`, plaintext, and the backend's own comment
+ * calls it "nama badan usaha yang tampil di antrean review".
+ *
+ * `uboCount` does not exist either: the zero-UBO condition is enforced at
+ * approve (`409 KYB_NO_UBO`) and shown on the detail screen.
+ */
+export interface KybListItem {
+  id: string
+  userId: string
+  /** Masked for non-ADMIN by the backend (`presentCustomerEmail`, USDX-372). */
+  userEmail: string
+  /** `users.name` — plaintext, the entity's name as the queue displays it. */
+  userName: string | null
+  entityForm: KybEntityForm
+  status: KycStatus
+  /** How many times this record has been filed. Same field as the KYC queue. */
+  submissionCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewedByName: string | null
+}
+
+/**
+ * GET /api/v1/kyb/:id — the full record the reviewer decides on.
+ *
+ * Every entity PII field is `string | null`, and both halves of that union are
+ * reachable in production, for reasons that must not be collapsed:
+ *   - `null` — the column is genuinely empty, or the retention sweeper cleared it;
+ *   - `'***'` — the backend WITHHELD it. Entity PII (`entityName`,
+ *     `registrationNumber`, `taxId`, both addresses, `phone`) is decrypted only
+ *     for STAFF / MANAGER / ADMIN; the DEVELOPER role receives `'***'` in every
+ *     one of those fields (`maskFields` in `kyb.service.ts`).
+ *
+ * Note `taxId` IS role-gated server-side, despite being a company number: it is
+ * one of the six encrypted `kyb` columns, so the backend masks it with the rest.
+ */
+export interface KybDetail {
+  id: string
+  userId: string
+  userEmail: string
+  /** `users.name` — plaintext, present on the detail as well as the list. */
+  userName: string | null
+  status: KycStatus
+  submissionCount: number
+  entityName: string | null
+  entityForm: KybEntityForm
+  country: string
+  registrationNumber: string | null
+  /** Entity NPWP — encrypted at rest, so role-gated by the backend too. */
+  taxId: string | null
+  /** ISO `YYYY-MM-DD`. */
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string | null
+  operationalAddress: string | null
+  website: string | null
+  phone: string | null
+  // ── Pasal 25 (1) b angka 5, 8 & 9 (USDX-583/584) ──────────────────────────
+  /**
+   * **Tempat** pendirian — separuh pertama angka 5 ("tempat **dan** tanggal").
+   * Sebelum USDX-583 hanya tanggalnya punya kolom, jadi butir ini terpenuhi
+   * separuh. Bukan PII: nama kota, bukan pengenal orang.
+   */
+  incorporationPlace: string | null
+  /**
+   * `true` kalau badan usaha tergolong usaha mikro atau kecil.
+   *
+   * Bukan label deskriptif — ia MENENTUKAN set dokumen wajibnya: Pasal 27 (1) a
+   * berlaku untuk semua korporasi, huruf b menambah lima dokumen lagi HANYA
+   * untuk yang bukan mikro/kecil.
+   *
+   * `null` = baris pra-USDX-583 yang tidak pernah ditanya. Diperlakukan sebagai
+   * `false` (yaitu: diperiksa penuh) — keliru menuntut dokumen tambahan bisa
+   * diperbaiki petugas, keliru melepasnya ketahuan saat diperiksa OJK.
+   */
+  isMicroOrSmall: boolean | null
+  /** Sumber dana — angka 8. Enum yang sama dengan sisi retail, bukan kosakata korporasi sendiri. */
+  sourceOfFunds: KycSourceOfFunds | null
+  /** Maksud dan tujuan hubungan usaha — angka 9. */
+  transactionPurpose: KycTransactionPurpose | null
+  ubos: KybUbo[]
+  documents: KybDocuments
+  /** Presigned document URLs share one expiry stamp, like the KYC photos. */
+  urlExpiresAt: string | null
+  rejectionReason: string | null
+  submittedAt: string | null
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Satu UBO di body `POST /api/v1/kyb` — **Pasal 33 ayat (3) selengkapnya**.
+ *
+ * Sampai USDX-605 bentuk ini hanya punya delapan field, dan itulah sebabnya
+ * `CreateKybUboDto` di backend menerima seluruh blok Pasal 33 (3) sebagai
+ * opsional meski kontraknya menandainya `required`: form KYB back office adalah
+ * satu-satunya pemanggil endpoint ini, dan form itu tidak pernah mengirimnya.
+ * Kartu review USDX-587 lalu menampilkan em dash untuk kolom yang memang tidak
+ * pernah terisi.
+ *
+ * Yang WAJIB di bawah ditentukan `required` di `sot/api/kyb.yaml § CreateKybUbo`,
+ * bukan selera form: `aliasName`, `employerAddress`, `employerPhone`,
+ * `addressLine2`, dan `country` opsional; sisanya tidak.
+ */
+export interface KybUboInput {
+  firstName: string
+  lastName: string
+  ownershipPct: string
+  identityType: KycIdentityType
+  identityNumber: string
+  country: string
+  addressLine1: string
+  addressLine2?: string
+  // ── Pasal 33 (3) huruf a — identitas ──────────────────────────────────────
+  /** Angka 1 — "nama lengkap **termasuk nama alias**". Opsional: tidak semua orang punya. */
+  aliasName?: string
+  /** Angka 5. */
+  birthPlace: string
+  /** Angka 5 — ISO `YYYY-MM-DD`. */
+  dob: string
+  /** Angka 6 — ISO 3166-1 alpha-2. Beda dari `country`, yang menyebut negara alamat. */
+  nationality: string
+  /** Angka 7 — enum Permendagri yang sama dengan sisi retail. */
+  occupation: KycOccupation
+  /** Angka 8 — "jika ada", jadi opsional. */
+  employerAddress?: string
+  employerPhone?: string
+  /** Angka 9. */
+  gender: KycGender
+  /** Angka 10. */
+  maritalStatus: KycMaritalStatus
+  // ── Pasal 33 (3) huruf b & c — profil finansial UBO ───────────────────────
+  sourceOfFunds: KycSourceOfFunds
+  annualIncomeRange: KycAnnualIncomeRange
+  netWorthRange: KycNetWorthRange
+  // ── Pasal 33 (3) huruf d + ayat (7)/(8) ───────────────────────────────────
+  legalRelationship: UboLegalRelationship
+  cascadeStep: UboCascadeStep
+}
+
+/** POST /api/v1/kyb — operator-entered record for an existing LEGAL_ENTITY user. */
+export interface CreateKybBody {
+  userId: string
+  entityName: string
+  entityForm: KybEntityForm
+  country: string
+  registrationNumber: string
+  taxId: string
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string
+  operationalAddress: string
+  website?: string
+  phone: string
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  // Empat kolom yang backend terima sejak USDX-604 dan form ini tidak pernah
+  // kirim. `isMicroOrSmall` yang paling menentukan: ia yang memutuskan SET
+  // dokumen wajib berkasnya (`kybRequiredDocumentSlots`).
+  /** Angka 5 — **tempat** pendirian; tanggalnya `establishmentDate`. */
+  incorporationPlace: string
+  sourceOfFunds: KycSourceOfFunds
+  transactionPurpose: KycTransactionPurpose
+  isMicroOrSmall: boolean
+  ubos: KybUboInput[]
+}
+
+/**
+ * `docKind` — the REQUEST vocabulary for the same five documents whose RESPONSE
+ * slots are `KybDocumentSlot`. Two spellings, deliberately, and they are not
+ * interchangeable: the response is camelCase per `sot/conventions.md`, while
+ * `docKind` is lower snake_case because it is a storage doc kind, shared with
+ * the consumer path (`ktp`, `selfie`) and used verbatim inside the object key
+ * (`kyc/{userId}/{docKind}/{uuid}.{ext}`).
+ *
+ * `sot/api/storage.yaml#PresignedDocKind` pins the first two literally
+ * (`kyb_akte`, `kyb_nib`); the other three follow the same
+ * `kyb_<column without _path>` shape and are not written in `sot/` yet — the
+ * backend reports that gap as a PM item (`KYB_DOC_KINDS`, storage.constants.ts).
+ * Values transcribed from there, not invented here.
+ *
+ * The mapping slot → kind lives once, in `KYB_DOCUMENT_SLOT_DOC_KINDS`
+ * (`src/lib/kybDocumentUpload.ts`).
+ */
+export type KybDocKind =
+  | 'kyb_akte'
+  | 'kyb_nib'
+  | 'kyb_npwp'
+  | 'kyb_sk_kemenkumham'
+  | 'kyb_ktp_direksi'
+  | 'kyb_laporan_keuangan'
+  | 'kyb_struktur_manajemen'
+  | 'kyb_struktur_kepemilikan'
+
+/**
+ * `docKind` untuk dokumen SATU UBO (USDX-604) — baris `kyc_ubo`, bukan `kyb`.
+ *
+ * Prefixnya `kyb_ubo_`, bukan `kyb_` polos, dan itu bukan selera: prefix ini
+ * ditulis apa adanya ke dalam object key (`kyc/{userId}/{docKind}/{uuid}.{ext}`),
+ * jadi `kyb_` akan menaruh selfie seorang Pemilik Manfaat di ruang nama yang sama
+ * dengan akta pendirian perusahaan. Nilainya disalin dari
+ * `sot/api/kyb.yaml § KybUboDocKind`.
+ *
+ * Dua yang pertama adalah FOTO (whitelist KYC — HEIC ikut, karena iPhone
+ * memberikan HEIC); dua terakhir DOKUMEN (whitelist KYB — PDF/JPEG/PNG). Backend
+ * memakai primitif verifikasi yang berbeda untuk keduanya, jadi menyamakannya di
+ * sini berarti menawarkan berkas yang pasti ditolak.
+ */
+export type KybUboDocKind =
+  | 'kyb_ubo_identity_photo'
+  | 'kyb_ubo_selfie_photo'
+  | 'kyb_ubo_legal_relationship_doc'
+  | 'kyb_ubo_customer_declaration_doc'
+
+/** Slot dokumen satu UBO di response `KybUbo` — empat kolom `kyc_ubo.*_path`. */
+export type KybUboDocumentSlot =
+  | 'identityPhoto'
+  | 'selfiePhoto'
+  | 'legalRelationshipDoc'
+  | 'customerDeclarationDoc'
+
+/** POST /api/v1/kyb/:id/ubos/:uboId/documents/presign — langkah 1 dari 3. */
+export interface KybUboDocumentPresignBody {
+  docKind: KybUboDocKind
+  fileType: string
+  sizeBytes: number
+}
+
+/** POST /api/v1/kyb/:id/ubos/:uboId/documents — langkah 3 dari 3. */
+export interface KybUboDocumentAttachBody {
+  docKind: KybUboDocKind
+  objectKey: string
+}
+
+/**
+ * Balasan attach dokumen UBO. Membawa `uboId` di samping `id` karena halaman
+ * review memakai keduanya: `id` menentukan berkas mana yang dibuka, `uboId`
+ * menentukan KARTU UBO mana yang memperbarui tampilan slotnya.
+ */
+export interface KybUboDocumentUploadResult {
+  id: string
+  uboId: string
+  docKind: KybUboDocKind
+  objectKey: string
+  uploaded: Record<KybUboDocumentSlot, boolean>
+}
+
+/**
+ * POST /api/v1/kyb/:id/documents/presign — step 1 of 3.
+ *
+ * `sizeBytes` is NOT optional and not advisory: the backend signs it into the
+ * presigned PUT as `Content-Length` (`generatePresignedUploadUrl`). The browser
+ * fills that header itself from the real file and forbids overriding it, so a
+ * size that disagrees makes storage refuse every upload with a signature error.
+ */
+export interface KybDocumentPresignBody {
+  docKind: KybDocKind
+  /** MIME type. Server whitelist per docKind: `application/pdf | image/jpeg | image/png`. */
+  fileType: string
+  /** `file.size`. Server cap 5 MiB → `400 FILE_SIZE_EXCEEDED`. */
+  sizeBytes: number
+}
+
+/** Response of the presign call — the ticket the PUT in step 2 must honour. */
+export interface KybDocumentUploadTicket {
+  uploadUrl: string
+  objectKey: string
+  expiresAt: string
+  /** Send these VERBATIM on the PUT; they are part of what the URL was signed over. */
+  headers: Record<string, string>
+}
+
+/** POST /api/v1/kyb/:id/documents — step 3 of 3, registers the uploaded key. */
+export interface KybDocumentAttachBody {
+  docKind: KybDocKind
+  objectKey: string
+}
+
+/**
+ * Response of the attach call. `uploaded` is the state of all eight slots AFTER
+ * this upload, straight from the row the server just wrote — so the screen can
+ * say which documents are on file without a second, PII-audited read of the
+ * detail. It carries no URL, because nothing is rendered from it.
+ */
+export interface KybDocumentUploadResult {
+  id: string
+  docKind: KybDocKind
+  objectKey: string
+  uploaded: Record<KybDocumentSlot, boolean>
 }
 
 // ─── Phase 1 — Create mint/burn request (sot/api/mint.yaml + burn.yaml) ───
@@ -1460,4 +2295,196 @@ export type UpdateOncallContact = Partial<CreateOncallContact>
 // lihat alasannya di komentar OncallContact di atas.
 export function canManageOncallContacts(role: StaffRole): boolean {
   return role === 'ADMIN'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-588 — Screening DTTOT & DPPSPM (POJK 8/2023 Pasal 49 & 53).
+//
+// Transcribed from `sot/api/screening.yaml` and cross-checked field by field
+// against the shipped `backend/src/modules/screening/screening.types.ts`
+// (USDX-585). The two agree, which is why nothing here is invented.
+//
+// Dua sifat kontrak ini yang membentuk seluruh layarnya, dan keduanya bukan
+// pilihan gaya:
+//
+//   1. HASIL SCREENING TIDAK MEMUAT NAMA NASABAH. Tabel `screening_results`
+//      append-only (dua trigger DB menolak UPDATE/DELETE), jadi PII di sana jadi
+//      PII yang tidak bisa dihapus sweeper retensi. Identitas subjek harus
+//      diambil terpisah lewat `subjectType` + `subjectId`.
+//   2. ENTRI DAFTAR BUKAN PII. DTTOT/DPPSPM adalah publikasi publik yang justru
+//      disebar agar dicocokkan, jadi `SanctionEntryDetail` tampil apa adanya —
+//      tidak lewat `presentPii`, dan itu disengaja.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `DTTOT` = terduga teroris; `DPPSPM` = pendanaan proliferasi senjata pemusnah massal. */
+export type SanctionListType = 'DTTOT' | 'DPPSPM'
+
+/** Penerbit berkas. `OJK` disediakan untuk saat USDX punya akses sistem OJK (Pasal 53 ayat (1)). */
+export type SanctionListSource = 'PPATK' | 'BAPPEBTI' | 'OJK' | 'OTHER'
+
+/**
+ * `DRAFT` sedang diisi dan tidak dipakai memeriksa siapa pun; `ACTIVE` dasar
+ * pemeriksaan saat ini; `SUPERSEDED` versi lama yang TETAP disimpan karena hasil
+ * screening lama menunjuk ke sana.
+ */
+export type SanctionListStatus = 'DRAFT' | 'ACTIVE' | 'SUPERSEDED'
+
+export type SanctionEntryType = 'INDIVIDUAL' | 'ENTITY'
+
+/**
+ * Subjek yang diperiksa. `KYC_UBO` ada karena Pasal 53 ayat (4) menyebut Pemilik
+ * Manfaat secara eksplisit.
+ *
+ * PENTING untuk layar banding: `subjectId` adalah id baris `kyc` / `kyc_ubo` /
+ * `kyb`. Dua di antaranya bisa dibaca back office (`GET /api/v1/kyc/{id}`,
+ * `GET /api/v1/kyb/{id}`) — `kyc_ubo` TIDAK: tidak ada endpoint yang mengambil
+ * satu UBO berdasarkan idnya, dan UBO hanya muncul menempel pada `KybDetail`
+ * yang induknya tidak diketahui dari temuan. Layarnya menyatakan itu apa adanya
+ * alih-alih menampilkan panel kosong yang terbaca seperti "nasabah tanpa data".
+ */
+export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB'
+
+/**
+ * Tiga nilai pertama ditulis MESIN, dua terakhir ditulis PETUGAS sebagai baris
+ * BARU yang menunjuk barisan pemeriksaannya — keputusan tidak pernah menimpa
+ * temuan.
+ *
+ * `LIST_UNAVAILABLE` = pemeriksaan berjalan saat belum ada daftar `ACTIVE`.
+ * Dicatat jujur, tapi TIDAK memblokir approve (keputusan PM: screening tidak
+ * boleh menghentikan onboarding sebelum daftar pertama diunggah).
+ */
+export type ScreeningOutcome =
+  | 'NO_MATCH'
+  | 'POTENTIAL_MATCH'
+  | 'LIST_UNAVAILABLE'
+  | 'CLEARED'
+  | 'CONFIRMED_MATCH'
+
+export type ScreeningTrigger =
+  | 'KYC_SUBMIT'
+  | 'KYB_SUBMIT'
+  | 'RESCAN'
+  | 'BACKOFFICE_DECISION'
+
+/** Dua keputusan yang boleh ditulis petugas — subset sempit dari `ScreeningOutcome`. */
+export type ScreeningDecisionValue = Extract<
+  ScreeningOutcome,
+  'CLEARED' | 'CONFIRMED_MATCH'
+>
+
+/** Satu versi daftar sanksi. */
+export interface SanctionListItem {
+  id: string
+  listType: SanctionListType
+  source: SanctionListSource
+  /** Tanggal TERBIT menurut penerbitnya (`YYYY-MM-DD`) — bukan tanggal impor. */
+  publishedAt: string
+  status: SanctionListStatus
+  entryCount: number
+  sourceFileName: string | null
+  notes: string | null
+  /** `null` kalau akun petugas yang mengimpor sudah dihapus. */
+  importedByName: string | null
+  importedAt: string
+  activatedAt: string | null
+  supersededAt: string | null
+}
+
+/** Hasil satu unggahan potongan berkas ke versi DRAFT. */
+export interface SanctionImportResult {
+  listId: string
+  /** Entri yang masuk pada unggahan INI. */
+  inserted: number
+  /** Total entri versi ini SETELAH unggahan ini. */
+  totalEntries: number
+}
+
+/**
+ * Entri daftar yang cocok — data publik dari publikasi PPATK/Bappebti. Bukan PII
+ * nasabah, jadi tidak dienkripsi dan boleh tampil apa adanya.
+ */
+export interface SanctionEntryDetail {
+  id: string
+  /** Nomor urut entri pada berkas aslinya, kalau berkasnya memuatnya. */
+  referenceCode: string | null
+  entryType: SanctionEntryType
+  fullName: string
+  /** Ikut dicocokkan — Pasal 25 mewajibkan nasabah menyebutkan aliasnya. */
+  aliases: string[]
+  /** TEKS BEBAS: daftar aslinya memuat "1970" dan tanggal penuh di kolom yang sama. */
+  dateOfBirth: string | null
+  placeOfBirth: string | null
+  nationality: string | null
+  address: string | null
+  notes: string | null
+}
+
+/** Keputusan petugas atas satu temuan — baris tersendiri, bukan perubahan atas barisnya. */
+export interface ScreeningDecision {
+  id: string
+  outcome: ScreeningDecisionValue
+  decidedBy: string | null
+  decidedByName: string | null
+  reason: string | null
+  createdAt: string
+}
+
+/** Satu baris jejak pemeriksaan. TIDAK memuat nama nasabah — lihat catatan blok di atas. */
+export interface ScreeningResultItem {
+  id: string
+  subjectType: ScreeningSubjectType
+  subjectId: string
+  outcome: ScreeningOutcome
+  /**
+   * Skor kemiripan nama 0..1, `null` hanya untuk `LIST_UNAVAILABLE`. Ambang
+   * kecocokan 0.85 (Jaro-Winkler) — memihak recall.
+   */
+  score: number | null
+  /** Nama pada ENTRI DAFTAR yang cocok — bukan nama nasabah. */
+  matchedName: string | null
+  /** Jumlah entri yang melewati ambang. Lebih dari satu = perlu ditinjau lebih hati-hati. */
+  matchCount: number | null
+  trigger: ScreeningTrigger
+  /** Versi daftar yang dipakai — inilah yang menjawab "lolos pakai daftar tanggal berapa". */
+  listId: string | null
+  listType: SanctionListType | null
+  listPublishedAt: string | null
+  /** `null` selama temuan belum diputuskan petugas. */
+  decision: ScreeningDecision | null
+  createdAt: string
+}
+
+/** `GET /api/v1/screening/results/{id}` — menambahkan entri daftar yang dibandingkan. */
+export interface ScreeningResultDetail extends ScreeningResultItem {
+  matchedEntry: SanctionEntryDetail | null
+}
+
+/** Ringkasan satu pemindaian ulang. */
+export interface RescanSummary {
+  /** Versi daftar yang dipakai saat pemindaian ini berjalan. */
+  lists: Array<{ id: string; listType: SanctionListType; publishedAt: string }>
+  scanned: number
+  matched: number
+  noMatch: number
+  /** Subjek yang namanya sudah dikosongkan sweeper retensi — tidak bisa dicocokkan, bukan kegagalan. */
+  skipped: number
+  /** `true` = batas per-panggilan tercapai, masih ada subjek yang belum diperiksa. */
+  truncated: boolean
+}
+
+/** `POST /api/v1/screening/lists` — langkah 1 dari 3, membuka versi `DRAFT`. */
+export interface CreateSanctionListBody {
+  listType: SanctionListType
+  source: SanctionListSource
+  /** `YYYY-MM-DD`. */
+  publishedAt: string
+  sourceFileName?: string
+  notes?: string
+}
+
+/** `POST /api/v1/screening/results/{id}/decide`. */
+export interface DecideScreeningBody {
+  decision: ScreeningDecisionValue
+  /** Wajib, 10..1000 karakter — "hasil analisis" yang Pasal 63 ayat (2) huruf c wajibkan. */
+  reason: string
 }

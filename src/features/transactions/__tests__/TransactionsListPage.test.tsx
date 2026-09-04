@@ -27,6 +27,9 @@ const baseRow = (overrides: Partial<OrderListItem> = {}): OrderListItem => ({
   type: 'MINT',
   userId: 'usr_1',
   userEmail: 'alice@example.com',
+  // Retail row: no partner (USDX-547).
+  partner: null,
+  onBehalfOf: null,
   amount: '250.00',
   totalPayIdr: '4078500.00',
   netPayoutIdr: null,
@@ -44,6 +47,8 @@ const redeemRow = (overrides: Partial<OrderListItem> = {}): OrderListItem => ({
   type: 'REDEEM',
   userId: 'usr_2',
   userEmail: 'bob@example.com',
+  partner: null,
+  onBehalfOf: null,
   amount: '100.00',
   totalPayIdr: null,
   netPayoutIdr: '1547320.00',
@@ -60,6 +65,11 @@ const baseDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   type: 'MINT',
   userId: 'usr_1',
   userEmail: 'alice@example.com',
+  // Retail detail: no partner block (USDX-547).
+  partner: null,
+  onBehalfOf: null,
+  partnerCustomerId: null,
+  externalReference: null,
   userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
   chain: 'polygon',
   idempotencyKey: 'mint_abc123',
@@ -115,6 +125,10 @@ const redeemDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   type: 'REDEEM',
   userId: 'usr_2',
   userEmail: 'bob@example.com',
+  partner: null,
+  onBehalfOf: null,
+  partnerCustomerId: null,
+  externalReference: null,
   userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
   chain: 'polygon',
   amount: '100.00',
@@ -531,6 +545,354 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
       )
       setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
       expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-547 — the Partner column, the external reference, and the Owner filter.
+//
+// The question these answer is not "why is this email cell not an email" (the
+// `(partner customer)` marker already covers that) but "which partner is this
+// order from" — because a partner order that goes wrong is chased with the
+// PARTNER, and the partner's customer has no relationship with USDX at all.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PARTNER = {
+  id: 'ptn_1',
+  code: 'juara',
+  displayName: 'PT Juara Remiten Indonesia',
+}
+
+/** A partner order on behalf of the partner's CUSTOMER — no `users` row at all. */
+const partnerCustomerRow = (overrides: Partial<OrderListItem> = {}): OrderListItem =>
+  baseRow({
+    id: 'ord_ptn_cust',
+    // Nullable since migration 0076, precisely for this case.
+    userId: null,
+    userEmail: '(partner customer)',
+    partner: PARTNER,
+    onBehalfOf: 'CUSTOMER',
+    ...overrides,
+  })
+
+/** A partner order for the partner ITSELF — it does have a `users` row. */
+const partnerSelfRow = (overrides: Partial<OrderListItem> = {}): OrderListItem =>
+  baseRow({
+    id: 'ord_ptn_self',
+    userId: 'usr_partner_legal',
+    userEmail: 'ops@juara.co.id',
+    partner: PARTNER,
+    onBehalfOf: 'SELF',
+    ...overrides,
+  })
+
+const partnerDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail =>
+  baseDetail({
+    id: 'ord_ptn_cust',
+    userId: null,
+    userEmail: '(partner customer)',
+    partner: PARTNER,
+    onBehalfOf: 'CUSTOMER',
+    partnerCustomerId: 'pc_9f3a2b',
+    externalReference: 'JUARA-ORD-2026-000042',
+    ...overrides,
+  })
+
+function partnerColumnIndex(): number {
+  const headers = screen.getAllByRole('columnheader')
+  const index = headers.findIndex((h) => h.textContent?.trim() === 'Partner')
+  expect(index).toBeGreaterThan(-1)
+  return index
+}
+
+/** The cell under the "Partner" header, for the row containing `rowText`. */
+function partnerCellFor(rowText: string): HTMLElement {
+  const index = partnerColumnIndex()
+  const row = screen.getByText(rowText).closest('tr')
+  expect(row).not.toBeNull()
+  const cells = within(row as HTMLElement).getAllByRole('cell')
+  return cells[index]!
+}
+
+/**
+ * DataTable renders SKELETON rows while the query is in flight, and those rows
+ * have empty cells. Asserting on cell contents before the data lands would pass
+ * or fail on timing rather than on behaviour, so wait for the footer to report a
+ * non-zero row count first ("1–12 of 12" — it reads "0–0 of 0" while loading).
+ */
+async function waitForRowsLoaded() {
+  await waitFor(() => {
+    const footer = screen.getByText(/of \d+$/)
+    expect(footer.textContent).not.toMatch(/of 0$/)
+  })
+}
+
+/**
+ * The table's data rows.
+ *
+ * A DOM query rather than `getAllByRole('row')` because DataTable gives every
+ * CLICKABLE row `role="button"` (it opens the detail modal), so the data rows do
+ * not carry the `row` role at all — only the header row does.
+ */
+function dataRows(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('tbody tr'))
+}
+
+describe('TransactionsListPage @ USDX-547 — Partner column', () => {
+  describe('positive', () => {
+    test('partner order shows the partner display name AND code in its own column', async () => {
+      server.use(http.get('/api/v1/orders', () => okList([partnerCustomerRow()])))
+      setup()
+      await screen.findByText('(partner customer)')
+
+      const cell = partnerCellFor('(partner customer)')
+      expect(cell).toHaveTextContent('PT Juara Remiten Indonesia')
+      // `code` is what appears in transaction references and survives a change of
+      // legal name, so it earns the second line.
+      expect(cell).toHaveTextContent('juara')
+    })
+
+    test('partner-customer order keeps the `(partner customer)` marker in the User column', async () => {
+      // The marker is CORRECT once the Partner column exists: there genuinely is
+      // no email, and the partner is readable in the next cell.
+      server.use(http.get('/api/v1/orders', () => okList([partnerCustomerRow()])))
+      setup()
+      expect(await screen.findByText('(partner customer)')).toBeInTheDocument()
+    })
+
+    test("a partner's OWN order counts as a partner order even though it has a real email", async () => {
+      // Partner-ness is decided by `partner_id`, not by the email marker. A rule
+      // written against the marker would misfile every `SELF` order as retail.
+      server.use(http.get('/api/v1/orders', () => okList([partnerSelfRow()])))
+      setup()
+      await screen.findByText('ops@juara.co.id')
+      expect(partnerCellFor('ops@juara.co.id')).toHaveTextContent(
+        'PT Juara Remiten Indonesia',
+      )
+    })
+
+    test('detail modal shows the partner, the external reference and on-behalf-of', async () => {
+      const detail = partnerDetail()
+      server.use(
+        http.get('/api/v1/orders', () => okList([partnerCustomerRow()])),
+        http.get('/api/v1/orders/ord_ptn_cust', () => okDetail(detail)),
+      )
+      setup(['/transactions/ord_ptn_cust'])
+
+      const dialog = await screen.findByRole('dialog')
+      expect(
+        await within(dialog).findByText('PT Juara Remiten Indonesia'),
+      ).toBeInTheDocument()
+      // Shown IN FULL, not middle-truncated: this is the number the partner
+      // quotes when it reports a problem, so ops must be able to match it
+      // character for character.
+      expect(within(dialog).getByText('JUARA-ORD-2026-000042')).toBeInTheDocument()
+      expect(within(dialog).getByText("Partner's customer")).toBeInTheDocument()
+      expect(within(dialog).getByText('pc_9f3a2b')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('retail order leaves the Partner cell EMPTY — no dash, no "N/A"', async () => {
+      // A dash or "N/A" reads as "this value failed to load". Empty reads as
+      // "this concept does not apply", which is the truth for a retail order.
+      server.use(http.get('/api/v1/orders', () => okList([baseRow()])))
+      setup()
+      await screen.findByText('alice@example.com')
+
+      const cell = partnerCellFor('alice@example.com')
+      expect(cell).toBeEmptyDOMElement()
+      expect(cell.textContent).toBe('')
+    })
+
+    test('retail order renders exactly as before — no regression from the new column', async () => {
+      server.use(http.get('/api/v1/orders', () => okList([baseRow()])))
+      setup()
+      await screen.findByText('alice@example.com')
+
+      // Every pre-existing cell still says what it said before USDX-547.
+      expect(screen.getByText('250.00')).toBeInTheDocument()
+      expect(screen.getByText('Rp 4.078.500,00')).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /payment/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /safe/i })).toBeInTheDocument()
+      // The email is still rendered as an email (avatar + plain text), not as the
+      // partner-customer marker.
+      expect(screen.queryByText('(partner customer)')).not.toBeInTheDocument()
+    })
+
+    test('retail detail modal renders no Partner section at all', async () => {
+      server.use(
+        http.get('/api/v1/orders', () => okList([baseRow()])),
+        http.get('/api/v1/orders/ord_1', () => okDetail(baseDetail())),
+      )
+      setup(['/transactions/ord_1'])
+
+      const dialog = await screen.findByRole('dialog')
+      // Wait for the detail to land before asserting on absence — otherwise the
+      // skeleton state would make this pass for the wrong reason.
+      expect(await within(dialog).findByText('alice@example.com')).toBeInTheDocument()
+      // An always-present section full of dashes would suggest missing data.
+      expect(within(dialog).queryByText('External reference')).not.toBeInTheDocument()
+      expect(within(dialog).queryByText('On behalf of')).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/^partner$/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('mixed list: the partner row is populated and the retail row stays empty', async () => {
+      // The situation the column exists for — two populations in one table.
+      server.use(
+        http.get('/api/v1/orders', () => okList([partnerCustomerRow(), baseRow()])),
+      )
+      setup()
+      await screen.findByText('alice@example.com')
+
+      expect(partnerCellFor('(partner customer)')).toHaveTextContent(
+        'PT Juara Remiten Indonesia',
+      )
+      expect(partnerCellFor('alice@example.com')).toBeEmptyDOMElement()
+      expect(dataRows()).toHaveLength(2)
+    })
+
+    test('a partner order with no external reference shows a dash, not a blank', async () => {
+      // Inside the Partner section the field is EXPECTED, so absent means "the
+      // partner did not send one" — that is missing data and a dash is right.
+      const detail = partnerDetail({ externalReference: null, partnerCustomerId: null })
+      server.use(
+        http.get('/api/v1/orders', () => okList([partnerCustomerRow()])),
+        http.get('/api/v1/orders/ord_ptn_cust', () => okDetail(detail)),
+      )
+      setup(['/transactions/ord_ptn_cust'])
+
+      const dialog = await screen.findByRole('dialog')
+      expect(await within(dialog).findByText('External reference')).toBeInTheDocument()
+      expect(
+        within(dialog).queryByText('JUARA-ORD-2026-000042'),
+      ).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
+  describe('positive', () => {
+    test('"Partner orders" sends ?ownerType=PARTNER', async () => {
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([])
+        }),
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Owner' }))
+      await user.click(await screen.findByRole('option', { name: /partner orders/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() =>
+        expect(captured.some((s) => s.includes('ownerType=PARTNER'))).toBe(true),
+      )
+    })
+
+    test('the filter actually filters — the MSW store returns only partner rows', async () => {
+      // Deliberately NOT a stub: this runs against the seeded mock store, so it
+      // proves the parameter narrows a mixed population rather than merely
+      // proving the URL was written.
+      setup(['/transactions?ownerType=PARTNER'])
+      await waitForRowsLoaded()
+
+      const partnerIndex = partnerColumnIndex()
+      const rows = dataRows()
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        const cells = within(row).getAllByRole('cell')
+        // Every visible row belongs to a partner.
+        expect(cells[partnerIndex]!.textContent?.trim()).not.toBe('')
+      }
+    })
+
+    test('RETAIL narrows to rows with an EMPTY partner cell', async () => {
+      setup(['/transactions?ownerType=RETAIL'])
+      await waitForRowsLoaded()
+
+      const partnerIndex = partnerColumnIndex()
+      const rows = dataRows()
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        const cells = within(row).getAllByRole('cell')
+        expect(cells[partnerIndex]!.textContent?.trim()).toBe('')
+      }
+      // …and no retail row carries the partner-customer marker.
+      expect(screen.queryByText('(partner customer)')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('the two values return DIFFERENT, non-overlapping row sets', async () => {
+      // A filter that is silently ignored would return the same rows for both
+      // values — the failure mode where an operator believes they are looking at
+      // partner orders only.
+      const partnerRes = await fetch('/api/v1/orders?ownerType=PARTNER&take=100')
+      const retailRes = await fetch('/api/v1/orders?ownerType=RETAIL&take=100')
+      const partnerJson = (await partnerRes.json()) as { data: OrderListItem[] }
+      const retailJson = (await retailRes.json()) as { data: OrderListItem[] }
+
+      expect(partnerJson.data.length).toBeGreaterThan(0)
+      expect(retailJson.data.length).toBeGreaterThan(0)
+      expect(partnerJson.data.every((r) => r.partner !== null)).toBe(true)
+      expect(retailJson.data.every((r) => r.partner === null)).toBe(true)
+
+      const partnerIds = new Set(partnerJson.data.map((r) => r.id))
+      expect(retailJson.data.some((r) => partnerIds.has(r.id))).toBe(false)
+    })
+
+    test('an unknown ownerType is refused, not silently ignored', async () => {
+      const res = await fetch('/api/v1/orders?ownerType=EVERYONE')
+      expect(res.status).toBe(400)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('switching Type does NOT clear the Owner filter', async () => {
+      // Owner and Type are independent questions — a partner can mint and redeem.
+      const user = userEvent.setup()
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([baseRow()])
+        }),
+      )
+      setup(['/transactions?ownerType=PARTNER'])
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+
+      await user.click(screen.getByRole('button', { name: /^filter/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
+      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+      await waitFor(() => {
+        const last = captured[captured.length - 1]
+        expect(last).toContain('type=REDEEM')
+        expect(last).toContain('ownerType=PARTNER')
+      })
+    })
+
+    test('no Owner filter selected sends no ownerType param (both populations)', async () => {
+      const captured: string[] = []
+      server.use(
+        http.get('/api/v1/orders', ({ request }) => {
+          captured.push(new URL(request.url).search)
+          return okList([baseRow()])
+        }),
+      )
+      setup()
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
+      expect(captured.every((s) => !s.includes('ownerType'))).toBe(true)
     })
   })
 })

@@ -79,6 +79,26 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
   )
 }
 
+// Like CopyableMono but never truncates. Used for the partner's own order
+// number (`external_reference`): that string is the one the partner QUOTES when
+// it reports a problem, so an operator has to be able to read it off the screen
+// and match it character for character. `shortHash` would elide the middle of
+// anything over 16 characters, which is exactly where a sequence number lives.
+function CopyableFull({ value, label }: { value: string; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => copy(value, label)}
+      className="inline-flex items-start gap-1.5 text-left font-mono text-[12px] text-foreground hover:text-primary"
+      title={value}
+      aria-label={`Copy ${label}`}
+    >
+      <span className="break-all">{value}</span>
+      <Copy className="mt-0.5 h-3 w-3 shrink-0 opacity-50" />
+    </button>
+  )
+}
+
 // Hash as an external deep-link (block explorer / Safe UI) + copy button.
 // Falls back to plain copyable text when no link is resolvable.
 function HashLink({
@@ -222,6 +242,53 @@ export default function OrderDetailModal({
                   {formatDate(detail.createdAt)}
                 </span>
               </div>
+
+              {/* USDX-547 — partner block. Rendered only for partner orders:
+                  a retail order has no partner, and an always-present section
+                  full of dashes would suggest the data is missing. The section
+                  sits ABOVE Overview because "who is this order from" decides
+                  who ops contacts, before any figure matters. */}
+              {detail.partner && (
+                <Section title="Partner">
+                  <Field label="Partner">
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-medium">{detail.partner.displayName}</span>
+                      <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+                        {detail.partner.code}
+                      </span>
+                    </div>
+                  </Field>
+                  <Field label="On behalf of">
+                    {detail.onBehalfOf === 'CUSTOMER'
+                      ? "Partner's customer"
+                      : detail.onBehalfOf === 'SELF'
+                        ? 'The partner itself'
+                        : <Dim />}
+                  </Field>
+                  {/* The number the partner quotes when it reports a problem —
+                      ops must be able to read it back and match it. */}
+                  <Field label="External reference">
+                    {detail.externalReference ? (
+                      <CopyableFull
+                        value={detail.externalReference}
+                        label="External reference"
+                      />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Partner customer ID">
+                    {detail.partnerCustomerId ? (
+                      <CopyableMono
+                        value={detail.partnerCustomerId}
+                        label="Partner customer ID"
+                      />
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                </Section>
+              )}
 
               <Section title="Overview">
                 <Field label="Type">{typeLabel}</Field>

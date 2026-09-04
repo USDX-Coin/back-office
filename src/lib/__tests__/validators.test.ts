@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'vitest'
 import {
+  KYB_REJECT_REASON_MAX,
+  KYB_REJECT_REASON_MIN,
+  KYC_REJECT_REASON_MAX,
+  KYC_REJECT_REASON_MIN,
+  validateKycRejectReason,
   validateOptionalIdPhone,
   validateLoginForm,
   validatePhone,
@@ -1420,6 +1425,66 @@ describe('validateOncallContactForm', () => {
     test('should trim surrounding whitespace before judging emptiness', () => {
       const result = validateOncallContactForm({ ...valid, contactValue: '   ' })
       expect(result.valid).toBe(false)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — alasan penolakan KYC, disamakan dengan KYB.
+//
+// `RejectKycDto` dulu `@MinLength(1)` dan dialognya hanya memeriksa "tidak
+// kosong", jadi `POST /api/v1/kyc/{id}/reject {"reason":"x"}` menjawab 200 dan
+// alasan "x" itu dikirim ke nasabah lewat email `kyc-rejected.html`. Aturannya
+// kini sama dengan `validateKybRejectReason`, dan ditulis sebagai fungsi murni
+// karena dialog, hook mutasi, dan test harus membaca aturan yang SAMA.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('validateKycRejectReason', () => {
+  describe('positive', () => {
+    test('should accept a reason and return it trimmed', () => {
+      const result = validateKycRejectReason('  Foto KTP buram, mohon ulangi  ')
+      expect(result).toEqual({ valid: true, reason: 'Foto KTP buram, mohon ulangi' })
+    })
+
+    test('should accept exactly the minimum length', () => {
+      expect(validateKycRejectReason('x'.repeat(KYC_REJECT_REASON_MIN)).valid).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('should reject an empty reason', () => {
+      expect(validateKycRejectReason('').valid).toBe(false)
+    })
+
+    test('should reject the one-character reason the API used to accept', () => {
+      const result = validateKycRejectReason('x')
+      expect(result.valid).toBe(false)
+      if (!result.valid) expect(result.error).toMatch(/10/)
+    })
+
+    test('should reject a reason over the maximum length', () => {
+      expect(validateKycRejectReason('x'.repeat(KYC_REJECT_REASON_MAX + 1)).valid).toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should reject ten spaces — the DTO would accept them, Postgres would not', () => {
+      // `@MinLength(10)` counts raw characters; the DB CHECK
+      // `kyc_rejected_requires_reason` trims first. Without this guard the
+      // operator's request comes back a 500, not a 400.
+      const result = validateKycRejectReason(' '.repeat(10))
+      expect(result.valid).toBe(false)
+      if (!result.valid) expect(result.error).toMatch(/required/i)
+    })
+
+    test('should measure length AFTER trimming', () => {
+      const padded = `  ${'x'.repeat(KYC_REJECT_REASON_MAX)}  `
+      expect(validateKycRejectReason(padded).valid).toBe(true)
+    })
+
+    test('should carry the same numbers as the KYB rule — one standard, not two', () => {
+      expect(KYC_REJECT_REASON_MIN).toBe(KYB_REJECT_REASON_MIN)
+      expect(KYC_REJECT_REASON_MAX).toBe(KYB_REJECT_REASON_MAX)
     })
   })
 })

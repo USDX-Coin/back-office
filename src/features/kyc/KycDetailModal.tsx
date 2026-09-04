@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Copy, ImageOff, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Copy, ImageOff, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -28,7 +28,25 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canReviewKyc, useAuth } from '@/lib/auth'
+import {
+  ANNUAL_INCOME_LABELS,
+  GENDER_LABELS,
+  MARITAL_STATUS_LABELS,
+  NET_WORTH_LABELS,
+  OCCUPATION_LABELS,
+  SOURCE_OF_FUNDS_LABELS,
+  SOURCE_OF_WEALTH_LABELS,
+  TRANSACTION_PURPOSE_LABELS,
+  isPepCandidateOccupation,
+  labelFor,
+} from '@/lib/cdd'
 import { formatDate, shortHash } from '@/lib/format'
+import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
+import {
+  KYC_REJECT_REASON_MAX,
+  KYC_REJECT_REASON_MIN,
+  validateKycRejectReason,
+} from '@/lib/validators'
 import { getKycStatusConfig } from '@/lib/status'
 import type {
   EntityType,
@@ -36,9 +54,11 @@ import type {
   KycListItem,
   KycReviewAction,
   KycReviewLog,
+  Staff,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
+import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Individual',
@@ -57,7 +77,7 @@ const REVIEW_ACTION_CONFIG: Record<
   PURGED: { label: 'Purged', className: 'bg-muted text-muted-foreground' },
 }
 
-const REJECT_REASON_MAX = 500
+
 
 interface KycDetailModalProps {
   kycId: string | null
@@ -77,14 +97,129 @@ async function copyText(value: string, label: string) {
   }
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * `testId` menandai SATU field, bukan seluruh grid.
+ *
+ * Bukan hiasan test: sejak USDX-587 layar ini merender enam PII sekaligus, jadi
+ * "ada `***` di dalam dialog" tidak lagi membuktikan field mana yang ditahan —
+ * assertion setingkat dialog tetap hijau meski gerbang role di satu field
+ * dicopot. Penanda inilah yang membuat tiap gerbang diuji sendiri-sendiri.
+ */
+function Field({
+  label,
+  children,
+  testId,
+}: {
+  label: string
+  children: React.ReactNode
+  testId?: string
+}) {
   return (
-    <div>
+    <div data-testid={testId}>
       <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
       <div className="mt-1 text-[13px] text-foreground">{children}</div>
     </div>
+  )
+}
+
+/**
+ * USDX-545 — one PII field, gated on the viewer's role.
+ *
+ * Three states, deliberately distinguishable:
+ *   value present + reviewer     → the value
+ *   value present + non-reviewer → `***` plus a hint, so the reader knows a value
+ *                                  EXISTS and they are not cleared to see it
+ *   no value                     → em dash — "not collected" (or already cleared
+ *                                  by the retention sweeper), which is a different
+ *                                  fact from "withheld" and must not look the same
+ *
+ * USDX-610: "reviewer" is STAFF / MANAGER / ADMIN — the roles that press
+ * Approve/Reject — and only DEVELOPER is masked. The rule itself lives in
+ * `lib/pii.ts` (`canReviewCustomerPii`) and is never re-derived from `user.role`
+ * here. For DEVELOPER the backend already sends `"***"` (`KYC_IDENTITY_PII_ROLES`
+ * in `kyc-backoffice.service.ts`), so this gate now agrees with the payload
+ * instead of hiding a value the server was willing to hand over.
+ */
+function PiiField({
+  label,
+  value,
+  staff,
+  testId,
+}: {
+  label: string
+  value: string | null
+  staff: Staff | null
+  testId?: string
+}) {
+  const shown = presentPii(value, staff)
+  const withheld = isPiiWithheld(value, staff)
+  return (
+    <Field label={label} testId={testId}>
+      {shown === null ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        <span className="flex flex-wrap items-baseline gap-1.5">
+          <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
+          {withheld && (
+            <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+              {PII_WITHHELD_LABEL}
+            </span>
+          )}
+        </span>
+      )}
+    </Field>
+  )
+}
+
+/** Plain (non-PII) CDD value → its label, or an em dash when not collected. */
+function CddField({
+  label,
+  value,
+  testId,
+}: {
+  label: string
+  value: string | null
+  testId?: string
+}) {
+  return (
+    <Field label={label} testId={testId}>
+      {value ?? <span className="text-muted-foreground">—</span>}
+    </Field>
+  )
+}
+
+/**
+ * USDX-587 — satu kejanggalan CDD, dinyatakan sebagai kalimat.
+ *
+ * Bukan `<FieldError>`: tidak ada yang salah dengan input mana pun, dan tidak
+ * ada yang perlu diperbaiki nasabah. Yang ada adalah pasangan jawaban yang
+ * menuntut petugas MEMERIKSA sebelum menekan Approve — sehingga ia harus
+ * terbaca sebagai instruksi kerja, bukan sebagai kegagalan validasi.
+ *
+ * Sengaja TIDAK memblokir Approve. Keduanya bisa sah setelah diperiksa (orang
+ * bisa saja bernama jabatan tanpa menjabat, sumber kekayaan bisa dilengkapi di
+ * luar sistem), dan tombol yang mati membuat petugas mencari jalan memutar
+ * alih-alih memeriksa. Yang wajib adalah ia melihatnya, dan itu yang dikerjakan
+ * blok ini.
+ */
+function CddFinding({
+  children,
+  testId,
+}: {
+  children: React.ReactNode
+  testId: string
+}) {
+  return (
+    <p
+      role="status"
+      data-testid={testId}
+      className="flex items-start gap-2 rounded-sm border border-warning/30 bg-warning/5 px-2.5 py-2 text-[12px] text-foreground"
+    >
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+      <span>{children}</span>
+    </p>
   )
 }
 
@@ -277,17 +412,16 @@ export default function KycDetailModal({
 
   function handleReject() {
     if (!kycId) return
-    const trimmed = reason.trim()
-    if (!trimmed) {
-      setReasonError('Rejection reason is required')
-      return
-    }
-    if (trimmed.length > REJECT_REASON_MAX) {
-      setReasonError(`Reason must be at most ${REJECT_REASON_MAX} characters`)
+    // Diperiksa DI SINI supaya petugas mendapat pesan inline dan teks yang sudah
+    // ia ketik tetap di layar, dan diperiksa LAGI di `useRejectKyc` supaya
+    // pemanggil lain tidak bisa melewatinya (USDX-610, pola yang sama dengan KYB).
+    const check = validateKycRejectReason(reason)
+    if (!check.valid) {
+      setReasonError(check.error)
       return
     }
     reject.mutate(
-      { id: kycId, reason: trimmed },
+      { id: kycId, reason: check.reason },
       {
         onSuccess: () => {
           toast.success('KYC rejected')
@@ -304,6 +438,37 @@ export default function KycDetailModal({
   const fullName = detail
     ? [detail.firstName, detail.lastName].filter(Boolean).join(' ') || '—'
     : null
+  // "Was any CDD collected at all?" — drives the explanatory note, not the
+  // rendering of the fields themselves. `pepStatus` is a boolean, so `false` is
+  // a real answer and must count as collected; only `null` means "never asked".
+  const hasCdd = Boolean(
+    detail &&
+      (detail.occupation !== null ||
+        detail.sourceOfFunds !== null ||
+        detail.annualIncomeRange !== null ||
+        detail.netWorthRange !== null ||
+        detail.transactionPurpose !== null ||
+        detail.sourceOfWealth !== null ||
+        detail.npwp !== null ||
+        detail.pepStatus !== null),
+  )
+
+  // USDX-587 — dua kejanggalan yang harus TERLIHAT tanpa dicari. Keduanya bukan
+  // error data: setiap nilainya sah sendiri-sendiri, yang tidak masuk akal
+  // adalah pasangannya, dan itu persis yang hilang kalau field cuma dideretkan.
+  //
+  // 1. Jabatan publik (Permendagri 48-63 = cakupan PEP domestik Pasal 2 (2) b)
+  //    tapi menjawab BUKAN PEP. `pepStatus === null` tidak dihitung: itu "belum
+  //    pernah ditanya", bukan jawaban yang bertentangan.
+  const pepOccupationMismatch = Boolean(
+    detail && isPepCandidateOccupation(detail.occupation) && detail.pepStatus === false,
+  )
+  // 2. PEP tanpa sumber kekayaan — Pasal 37 (1) d mewajibkan EDD-nya menganalisis
+  //    sumber dana DAN sumber kekayaan, jadi ini bukan sel kosong biasa: EDD-nya
+  //    belum punya bahan.
+  const pepMissingSourceOfWealth = Boolean(
+    detail && detail.pepStatus === true && detail.sourceOfWealth === null,
+  )
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -370,21 +535,53 @@ export default function KycDetailModal({
               ) : detail ? (
                 <>
                   {/* Decrypted PII (kyc.yaml § KycDetail) */}
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-2" data-testid="kyc-identity">
                     <Field label="User email">{detail.userEmail}</Field>
                     <Field label="Entity type">{ENTITY_LABEL[detail.entityType]}</Field>
                     <Field label="Full name">{fullName}</Field>
-                    <Field label="Date of birth · birth place">
+                    <Field label="Date of birth · birth place" testId="kyc-dob">
                       {detail.dob ?? '—'}
                       {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
                     </Field>
-                    <Field label="Identity">
+                    <Field label="Identity" testId="kyc-identity-number">
                       <span className="font-mono text-[12.5px] tabular-nums">
                         {detail.identityType}
                         {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
                       </span>
                     </Field>
-                    <Field label="Country">{detail.country ?? '—'}</Field>
+                    {/* Pasal 25 (1) a angka 1 — butir a), e), h), i), j) (USDX-587).
+                        Diletakkan di dalam grid identitas, bukan di blok CDD:
+                        petugas mencocokkannya baris demi baris dengan KTP yang
+                        terpampang di bawah, dan memisahkannya ke seksi lain
+                        memaksa ia bolak-balik. */}
+                    <PiiField
+                      label="Nama alias"
+                      value={detail.aliasName}
+                      staff={user}
+                      testId="kyc-alias-name"
+                    />
+                    <Field label="Kewarganegaraan" testId="kyc-nationality">
+                      {detail.nationality ?? <span className="text-muted-foreground">—</span>}
+                    </Field>
+                    <CddField
+                      label="Jenis kelamin"
+                      value={labelFor(detail.gender, GENDER_LABELS)}
+                      testId="kyc-gender"
+                    />
+                    <CddField
+                      label="Status perkawinan"
+                      value={labelFor(detail.maritalStatus, MARITAL_STATUS_LABELS)}
+                      testId="kyc-marital-status"
+                    />
+                    <PiiField
+                      label="Nama gadis ibu kandung"
+                      value={detail.mothersMaidenName}
+                      staff={user}
+                      testId="kyc-mothers-maiden-name"
+                    />
+                    <Field label="Country" testId="kyc-country">
+                      {detail.country ?? '—'}
+                    </Field>
                     <Field label="Address">
                       {detail.addressLine1 ?? '—'}
                       {detail.addressLine2 && (
@@ -398,6 +595,131 @@ export default function KycDetailModal({
                       <span className="tabular-nums">{detail.submissionCount}</span>
                     </Field>
                   </div>
+
+                  {/* CDD (USDX-545). Rendered ALWAYS, even when every field is
+                      empty: the reviewer has to be able to see that the CDD data
+                      is missing. Hiding the section when it is empty would put
+                      the reviewer back where this ticket started — deciding
+                      without looking at what was collected. */}
+                  <div className="space-y-2" data-testid="kyc-cdd">
+                    <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+                      Customer due diligence
+                    </p>
+                    {!hasCdd && (
+                      <p className="text-[12px] text-muted-foreground">
+                        No CDD data on this submission — it predates the CDD fields
+                        (USDX-545 / USDX-583). Occupation, source of funds, income,
+                        net worth, purpose, source of wealth, NPWP and PEP status
+                        were never collected for this customer.
+                      </p>
+                    )}
+                    {pepOccupationMismatch && (
+                      <CddFinding testId="kyc-finding-pep-occupation">
+                        Pekerjaannya jabatan publik (Permendagri kode 48–63,
+                        cakupan PEP domestik Pasal 2 ayat (2) huruf b) tapi
+                        nasabah menjawab <strong>bukan PEP</strong>. Periksa
+                        sebelum menyetujui — kalau benar PEP, berkasnya butuh EDD
+                        Pasal 35–41, bukan CDD biasa.
+                      </CddFinding>
+                    )}
+                    {pepMissingSourceOfWealth && (
+                      <CddFinding testId="kyc-finding-pep-source-of-wealth">
+                        Nasabah PEP tanpa <strong>sumber kekayaan</strong>. Pasal
+                        37 ayat (1) huruf d mewajibkan EDD berkalanya menganalisis
+                        sumber dana <em>dan</em> sumber kekayaan; tanpa jawaban itu
+                        analisisnya belum punya bahan.
+                      </CddFinding>
+                    )}
+                    {/* Tiga kelompok, bukan satu grid panjang: petugas menilai
+                        "siapa orang ini" (pekerjaan), "berapa kemampuannya"
+                        (penghasilan & kekayaan), lalu "untuk apa" (tujuan
+                        transaksi). Deretan datar memaksa ia menyusun ulang
+                        pengelompokan itu di kepala tiap kali membuka berkas. */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <CddField
+                        label="Occupation"
+                        value={labelFor(detail.occupation, OCCUPATION_LABELS)}
+                        testId="kyc-occupation"
+                      />
+                      {/* Alamat & telepon tempat kerja — Pasal 25 (1) a angka 1
+                          butir g). PII, gerbang role sama dengan NPWP. */}
+                      <PiiField
+                        label="Alamat tempat kerja"
+                        value={detail.employerAddress}
+                        staff={user}
+                        testId="kyc-employer-address"
+                      />
+                      <PiiField
+                        label="Telepon tempat kerja"
+                        value={detail.employerPhone}
+                        staff={user}
+                        testId="kyc-employer-phone"
+                      />
+                      <CddField
+                        label="Source of funds"
+                        value={labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS)}
+                      />
+                      <CddField
+                        label="Annual income"
+                        value={labelFor(detail.annualIncomeRange, ANNUAL_INCOME_LABELS)}
+                      />
+                      <CddField
+                        label="Harta kekayaan (net worth)"
+                        value={labelFor(detail.netWorthRange, NET_WORTH_LABELS)}
+                        testId="kyc-net-worth"
+                      />
+                      <CddField
+                        label="Transaction purpose"
+                        value={labelFor(
+                          detail.transactionPurpose,
+                          TRANSACTION_PURPOSE_LABELS,
+                        )}
+                      />
+                      <CddField
+                        label="Sumber kekayaan"
+                        value={labelFor(detail.sourceOfWealth, SOURCE_OF_WEALTH_LABELS)}
+                        testId="kyc-source-of-wealth"
+                      />
+                      {/* NPWP is PII — ADMIN only (lib/pii.ts). */}
+                      <PiiField
+                        label="NPWP"
+                        value={detail.npwp}
+                        staff={user}
+                        testId="kyc-npwp"
+                      />
+                      <Field label="PEP status" testId="kyc-pep-status">
+                        {detail.pepStatus === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : detail.pepStatus ? (
+                          // Emphasised: a PEP hit changes what the reviewer is
+                          // supposed to do, so it must not read like any other row.
+                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-[11.5px] font-medium text-warning">
+                            <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                            Politically exposed person
+                          </span>
+                        ) : (
+                          'Not a PEP'
+                        )}
+                      </Field>
+                      {/* PEP relation names a real person and their office — PII,
+                          gated exactly like NPWP. */}
+                      <PiiField
+                        label="PEP relation"
+                        value={detail.pepRelation}
+                        staff={user}
+                        testId="kyc-pep-relation"
+                      />
+                    </div>
+                  </div>
+
+                  {/* USDX-610 — status screening DTTOT & DPPSPM berkas ini,
+                      di halaman tempat berkas ini disetujui. TIDAK memblokir
+                      Approve; yang diperbaiki adalah lolosnya yang diam-diam. */}
+                  <ScreeningSubjectPanel
+                    subjectType="KYC"
+                    subjectId={kycId}
+                    enabled={open}
+                  />
 
                   {/* Photos — presigned GET URLs, TTL 5 min */}
                   <div className="space-y-2">
@@ -606,7 +928,8 @@ export default function KycDetailModal({
             <DialogTitle>Reject this KYC submission?</DialogTitle>
             <DialogDescription>
               The reason is shown to the user in the consumer app and included in the
-              rejection email — write it clear and actionable.
+              rejection email — write it clear and actionable, at least{' '}
+              {KYC_REJECT_REASON_MIN} characters.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -618,7 +941,7 @@ export default function KycDetailModal({
                   if (reasonError) setReasonError('')
                 }}
                 placeholder="e.g. Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas"
-                maxLength={REJECT_REASON_MAX}
+                maxLength={KYC_REJECT_REASON_MAX}
                 rows={4}
                 aria-label="Rejection reason"
                 disabled={reject.isPending}
@@ -628,12 +951,12 @@ export default function KycDetailModal({
                 <span
                   className={cn(
                     'ml-auto font-mono text-[11px] tabular-nums',
-                    reason.length >= REJECT_REASON_MAX
+                    reason.length >= KYC_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground'
                   )}
                 >
-                  {reason.length}/{REJECT_REASON_MAX}
+                  {reason.length}/{KYC_REJECT_REASON_MAX}
                 </span>
               </div>
             </div>

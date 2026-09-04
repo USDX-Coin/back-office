@@ -79,6 +79,11 @@ let kycList: KycListItem[] = createMockKycList()
 let kycDetails: Map<string, KycDetail>
 let kycReviews: Map<string, KycReviewLog[]>
 ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
+// USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
+// backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
+// detail map, seeded documents and error stubs were DELETED rather than left
+// registered, because a second answer for one screen is how the next reader ends
+// up debugging the wrong one. Tests stub the endpoints they exercise.
 
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
@@ -1760,6 +1765,13 @@ export const handlers = [
     const paymentStatus = url.searchParams.get('paymentStatus')
     const safeStatus = url.searchParams.get('safeStatus')
     const userId = url.searchParams.get('userId')
+    // USDX-547 — partner vs retail population. Validated rather than silently
+    // ignored: a typo that quietly returns EVERYTHING is the failure mode where
+    // an operator believes they are looking at partner orders only.
+    const ownerType = url.searchParams.get('ownerType')
+    if (ownerType !== null && ownerType !== 'PARTNER' && ownerType !== 'RETAIL') {
+      return phaseOneBadRequest('ownerType must be PARTNER or RETAIL')
+    }
 
     let rows = [...orderList]
     if (type) rows = rows.filter((r) => r.type === type)
@@ -1768,6 +1780,11 @@ export const handlers = [
     if (paymentStatus) rows = rows.filter((r) => r.paymentStatus === paymentStatus)
     if (safeStatus) rows = rows.filter((r) => r.safeStatus === safeStatus)
     if (userId) rows = rows.filter((r) => r.userId === userId)
+    // Partner-ness is decided by `partner_id` being present, NOT by the email
+    // marker: a partner's own (`SELF`) order carries a real email and must still
+    // count as a partner order.
+    if (ownerType === 'PARTNER') rows = rows.filter((r) => r.partner !== null)
+    if (ownerType === 'RETAIL') rows = rows.filter((r) => r.partner === null)
 
     const start = (page - 1) * take
     const data = rows.slice(start, start + take)

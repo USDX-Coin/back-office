@@ -5,9 +5,17 @@ import type {
   CustomerType,
   EntityType,
   KycDetail,
+  KycGender,
+  KycMaritalStatus,
+  KycNetWorthRange,
+  KycSourceOfWealth,
   KycListItem,
   KycReviewLog,
   KycStatus,
+  KycOccupation,
+  KycSourceOfFunds,
+  KycAnnualIncomeRange,
+  KycTransactionPurpose,
   Staff,
   OtcMintTransaction,
   OtcRedeemTransaction,
@@ -41,6 +49,8 @@ import type {
   PhaseOneUserWallet,
   OrderListItem,
   OrderDetail,
+  OrderPartnerRef,
+  OrderOnBehalfOf,
   MintPaymentStatus,
   MintSafeStatus,
   MintOrderStatus,
@@ -48,6 +58,7 @@ import type {
   PaymentChannel,
   VaBank,
 } from '@/lib/types'
+import { PARTNER_CUSTOMER_EMAIL_LABEL } from '@/lib/pii'
 
 // Pseudo-random but deterministic seeded helpers
 function seededHex(length: number, seed: number): string {
@@ -603,7 +614,7 @@ const RATE_USED = '16250'
 
 let requestIdCounter = 1
 
-function uuidLike(seed: number, prefix = ''): string {
+export function uuidLike(seed: number, prefix = ''): string {
   const hex = seededHex(32, seed)
   return `${prefix}${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
@@ -972,9 +983,76 @@ function idrDecimal(n: number): string {
   return n.toFixed(2)
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-547 — partner-owned orders in the mock store.
+//
+// Two partners so the list shows that the column distinguishes them rather than
+// just proving "some partner". `code` is a DNS label (it doubles as the checkout
+// subdomain) and is treated as immutable; `displayName` is the legal name and
+// may change by deed — that split is why both are shown in the UI.
+// ─────────────────────────────────────────────────────────────────────────────
+const MOCK_PARTNERS: OrderPartnerRef[] = [
+  { id: uuidLike(60_100), code: 'juara', displayName: 'PT Juara Remiten Indonesia' },
+  { id: uuidLike(60_200), code: 'sinarpay', displayName: 'PT Sinar Payment Hub' },
+]
+
+/** Everything about an order that changes when a partner owns it. */
+interface OrderOwnership {
+  userId: string | null
+  userEmail: string
+  partner: OrderPartnerRef | null
+  onBehalfOf: OrderOnBehalfOf | null
+  partnerCustomerId: string | null
+  externalReference: string | null
+}
+
+function retailOwnership(user: Customer): OrderOwnership {
+  return {
+    userId: user.id,
+    userEmail: user.email,
+    partner: null,
+    onBehalfOf: null,
+    partnerCustomerId: null,
+    externalReference: null,
+  }
+}
+
+/**
+ * A partner order, alternating the two shapes that actually differ in the data:
+ *
+ *   onBehalfOf = SELF     → the partner mints for itself. It DOES have a `users`
+ *                           row (a partner hangs off one LEGAL_ENTITY user), so
+ *                           `user_id` and a real email are present.
+ *   onBehalfOf = CUSTOMER → the owner is a `partner_customers` row, which has no
+ *                           `users` row at all. `user_id` is NULL (exactly what
+ *                           migration 0076 relaxed it for) and the backend sends
+ *                           the `(partner customer)` marker in `userEmail`.
+ *
+ * Seeding both is what makes the difference testable: a mock where every partner
+ * order looked the same would hide whichever branch is wrong.
+ */
+function partnerOwnership(seed: number): OrderOwnership {
+  const partner = MOCK_PARTNERS[seed % MOCK_PARTNERS.length]!
+  const forCustomer = seed % 2 === 1
+  return {
+    userId: forCustomer ? null : uuidLike(seed + 61_000),
+    userEmail: forCustomer
+      ? PARTNER_CUSTOMER_EMAIL_LABEL
+      : `ops@${partner.code}.co.id`,
+    partner,
+    onBehalfOf: forCustomer ? 'CUSTOMER' : 'SELF',
+    partnerCustomerId: forCustomer ? uuidLike(seed + 62_000) : null,
+    // The partner's OWN order number. Long enough that a middle-truncating
+    // renderer would eat the sequence part — which is why the detail modal
+    // shows it in full.
+    externalReference: `${partner.code.toUpperCase()}-ORD-2026-${String(seed).padStart(6, '0')}`,
+  }
+}
+
 function createOrderPair(
   user: Customer,
   seed: number,
+  ownership: OrderOwnership = retailOwnership(user),
 ): { list: OrderListItem; detail: OrderDetail } {
   const id = uuidLike(seed + 30_000)
   const idempotencyKey = `mint_${seededHex(20, seed + 31_000)}`
@@ -1021,8 +1099,10 @@ function createOrderPair(
   const list: OrderListItem = {
     id,
     type: 'MINT',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
     amount,
     totalPayIdr,
     netPayoutIdr: null,
@@ -1036,8 +1116,12 @@ function createOrderPair(
   const detail: OrderDetail = {
     id,
     type: 'MINT',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
+    partnerCustomerId: ownership.partnerCustomerId,
+    externalReference: ownership.externalReference,
     userAddress,
     chain: 'polygon',
     idempotencyKey,
@@ -1116,6 +1200,7 @@ const REDEEM_STATES: RedeemLifecycleState[] = [
 function createRedeemOrderPair(
   user: Customer,
   seed: number,
+  ownership: OrderOwnership = retailOwnership(user),
 ): { list: OrderListItem; detail: OrderDetail } {
   const id = uuidLike(seed + 40_000)
   const redeemId = bytes32(seed + 41_000)
@@ -1162,8 +1247,10 @@ function createRedeemOrderPair(
   const list: OrderListItem = {
     id,
     type: 'REDEEM',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
     amount,
     totalPayIdr: null,
     netPayoutIdr,
@@ -1177,8 +1264,12 @@ function createRedeemOrderPair(
   const detail: OrderDetail = {
     id,
     type: 'REDEEM',
-    userId: user.id,
-    userEmail: user.email,
+    userId: ownership.userId,
+    userEmail: ownership.userEmail,
+    partner: ownership.partner,
+    onBehalfOf: ownership.onBehalfOf,
+    partnerCustomerId: ownership.partnerCustomerId,
+    externalReference: ownership.externalReference,
     userAddress,
     chain: 'polygon',
     amount,
@@ -1235,6 +1326,12 @@ export function createMockOrders(
   customers: Customer[],
   count = 48,
   redeemCount = 24,
+  // USDX-547 — partner-owned rows sit in the SAME store as retail, because that
+  // is the situation the Partner column and the Owner filter exist for: the two
+  // populations share one table and an ops question is about one of them. A
+  // separate store would make the mock easier and the feature untested.
+  partnerMintCount = 8,
+  partnerRedeemCount = 4,
 ): { list: OrderListItem[]; details: Map<string, OrderDetail> } {
   const list: OrderListItem[] = []
   const details = new Map<string, OrderDetail>()
@@ -1251,6 +1348,22 @@ export function createMockOrders(
     const seed = i + 1
     const user = customers[i % customers.length]!
     const pair = createRedeemOrderPair(user, seed)
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  // Partner mint. Seeds are offset so the ids never collide with the retail rows
+  // above (both factories derive the id from the seed).
+  for (let i = 0; i < partnerMintCount; i++) {
+    const seed = i + 1 + count
+    const user = customers[i % customers.length]!
+    const pair = createOrderPair(user, seed, partnerOwnership(seed))
+    list.push(pair.list)
+    details.set(pair.list.id, pair.detail)
+  }
+  for (let i = 0; i < partnerRedeemCount; i++) {
+    const seed = i + 1 + redeemCount
+    const user = customers[i % customers.length]!
+    const pair = createRedeemOrderPair(user, seed, partnerOwnership(seed))
     list.push(pair.list)
     details.set(pair.list.id, pair.detail)
   }
@@ -1495,6 +1608,79 @@ export function createMockKycList(count = 24): KycListItem[] {
 const BIRTH_PLACES = ['Jakarta', 'Bandung', 'Surabaya', 'Medan', 'Semarang', 'Yogyakarta']
 const STREETS = ['Jl. Sudirman', 'Jl. Gatot Subroto', 'Jl. Thamrin', 'Jl. Diponegoro', 'Jl. Asia Afrika']
 
+// USDX-545 — CDD value sets, copied from the partner cluster so retail and
+// partner customers are judged on the same data (see lib/types.ts § CDD).
+// Sepuluh dari 99 nilai Permendagri, dipilih bukan diacak: tiga pekerjaan biasa,
+// lalu tujuh yang membuat halaman review harus mengambil keputusan —
+// `ANGGOTA_DPRD_PROVINSI` dan `BUPATI` masuk kode 48-63 (jabatan publik), jadi
+// baris yang memakainya menguji silang `pepStatus` yang jadi inti tiket ini.
+const KYC_OCCUPATIONS: KycOccupation[] = [
+  'KARYAWAN_SWASTA',
+  'WIRASWASTA',
+  'PEGAWAI_NEGERI_SIPIL',
+  'ANGGOTA_DPRD_PROVINSI',
+  'DOKTER',
+  'PELAJAR_MAHASISWA',
+  'BUPATI',
+  'PENSIUNAN',
+  'PETANI_PEKEBUN',
+  'LAINNYA',
+]
+
+const KYC_NET_WORTH_RANGES: KycNetWorthRange[] = [
+  'UNDER_500M',
+  'FROM_500M_TO_2B',
+  'FROM_2B_TO_10B',
+  'OVER_10B',
+]
+
+const KYC_SOURCES_OF_WEALTH: KycSourceOfWealth[] = [
+  'SALARY_ACCUMULATION',
+  'BUSINESS_OWNERSHIP',
+  'INVESTMENT_RETURN',
+  'INHERITANCE',
+  'PROPERTY_SALE',
+  'GRANT_OR_GIFT',
+  'OTHER',
+]
+
+const KYC_GENDERS: KycGender[] = ['LAKI_LAKI', 'PEREMPUAN']
+
+const KYC_MARITAL_STATUSES: KycMaritalStatus[] = [
+  'BELUM_KAWIN',
+  'KAWIN',
+  'CERAI_HIDUP',
+  'CERAI_MATI',
+]
+
+const MOTHERS_MAIDEN_NAMES = [
+  'Siti Rohmah',
+  'Kartini Dewi',
+  'Ngatinem',
+  'Maria Ulfa',
+  'Suryani',
+  'Endang Wahyuni',
+]
+const KYC_SOURCES_OF_FUNDS: KycSourceOfFunds[] = [
+  'SALARY',
+  'BUSINESS',
+  'INVESTMENT',
+  'INHERITANCE',
+  'OTHER',
+]
+const KYC_INCOME_RANGES: KycAnnualIncomeRange[] = [
+  'UNDER_100M',
+  'FROM_100M_TO_500M',
+  'FROM_500M_TO_1B',
+  'OVER_1B',
+]
+const KYC_TRANSACTION_PURPOSES: KycTransactionPurpose[] = [
+  'INVESTMENT',
+  'PAYMENT',
+  'REMITTANCE',
+  'OTHER',
+]
+
 let kycReviewIdCounter = 1
 
 export function createKycReviewLog(overrides: Partial<KycReviewLog> = {}): KycReviewLog {
@@ -1537,12 +1723,69 @@ export function createKycDetail(
     identityType: 'KTP',
     // 16-digit KTP number: '3171' province/city prefix + 12 seeded digits.
     identityNumber: `3171${seededBankAccount(seed)}`,
+    nationality: 'ID',
+    gender: KYC_GENDERS[seed % KYC_GENDERS.length]!,
+    maritalStatus: KYC_MARITAL_STATUSES[seed % KYC_MARITAL_STATUSES.length]!,
+    mothersMaidenName: MOTHERS_MAIDEN_NAMES[seed % MOTHERS_MAIDEN_NAMES.length]!,
+    // Alias jarang — butir a) memang berbunyi "jika ada". Mayoritas `null`
+    // supaya layar yang dilihat petugas mewakili kasus yang biasa.
+    aliasName: seed % 6 === 0 ? `${CUSTOMER_NAMES[seed % CUSTOMER_NAMES.length]!.split(' ')[0]} Jr.` : null,
     country: 'ID',
     addressLine1: `${STREETS[seed % STREETS.length]!} No. ${1 + (seed % 120)}`,
     addressLine2: seed % 3 === 0 ? `RT ${1 + (seed % 9)}/RW ${1 + (seed % 5)}` : null,
     ktpPhotoUrl: mockPresignedUrl(item.userId, 'ktp', seed + 75000),
     selfiePhotoUrl: mockPresignedUrl(item.userId, 'selfie', seed + 76000),
     urlExpiresAt: null,
+    // ── CDD block (USDX-545) ────────────────────────────────────────────────
+    // Every 5th row is left with an EMPTY CDD block on purpose. Those stand for
+    // the customers who were VERIFIED before this ticket shipped: their CDD
+    // fields are genuinely null, and how they get filled is still an open PM
+    // decision. A mock where every row is complete would hide the case where the
+    // review page has to render "not collected" without looking broken.
+    ...(seed % 5 === 0
+      ? {
+          occupation: null,
+          sourceOfFunds: null,
+          annualIncomeRange: null,
+          netWorthRange: null,
+          transactionPurpose: null,
+          sourceOfWealth: null,
+          employerAddress: null,
+          employerPhone: null,
+          npwp: null,
+          pepStatus: null,
+          pepRelation: null,
+        }
+      : {
+          occupation: KYC_OCCUPATIONS[seed % KYC_OCCUPATIONS.length]!,
+          sourceOfFunds: KYC_SOURCES_OF_FUNDS[seed % KYC_SOURCES_OF_FUNDS.length]!,
+          annualIncomeRange: KYC_INCOME_RANGES[seed % KYC_INCOME_RANGES.length]!,
+          netWorthRange: KYC_NET_WORTH_RANGES[seed % KYC_NET_WORTH_RANGES.length]!,
+          transactionPurpose:
+            KYC_TRANSACTION_PURPOSES[seed % KYC_TRANSACTION_PURPOSES.length]!,
+          // Sumber kekayaan WAJIB hanya untuk PEP (Pasal 37 (1) d). Setiap
+          // kelipatan 14 adalah PEP yang jawabannya kosong — itu temuan EDD yang
+          // harus terlihat di layar, bukan sel kosong biasa, dan mock yang selalu
+          // mengisinya membuat cabang itu tidak pernah teruji.
+          sourceOfWealth:
+            seed % 14 === 0
+              ? null
+              : KYC_SOURCES_OF_WEALTH[seed % KYC_SOURCES_OF_WEALTH.length]!,
+          employerAddress:
+            seed % 4 === 0
+              ? null
+              : `${STREETS[(seed + 2) % STREETS.length]!} No. ${10 + (seed % 90)}, Jakarta Selatan`,
+          employerPhone: seed % 4 === 0 ? null : `021${String(70000000 + (seed * 137) % 9999999)}`,
+          // 15-digit NPWP (pre-2024 format, still what most people carry).
+          npwp: `${seededBankAccount(seed + 1)}${String(seed % 1000).padStart(3, '0')}`,
+          // Roughly one in seven is flagged PEP — enough that the reviewer sees
+          // the branch, rare enough that it stays the exception it is.
+          pepStatus: seed % 7 === 0,
+          pepRelation:
+            seed % 7 === 0
+              ? `Kakak — anggota DPRD Provinsi ${BIRTH_PLACES[seed % BIRTH_PLACES.length]!}`
+              : null,
+        }),
     rejectionReason:
       item.status === 'REJECTED'
         ? 'Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas'

@@ -191,11 +191,25 @@ function seedRequests(): MockRequest[] {
 
 // ── Consumer orders / "User Transaction" (USDX-206 — sot/api/orders.yaml) ────
 
+// USDX-547 — partner ownership on an order (migration 0076).
+export interface MockOrderPartner {
+  id: string
+  code: string
+  displayName: string
+}
+
 export interface MockOrder {
   id: string
   type: 'MINT' | 'REDEEM'
-  userId: string
+  /** NULL for a partner-CUSTOMER order — no `users` row exists for it at all. */
+  userId: string | null
+  /** `(partner customer)` when there is no `users` row (USDX-571). */
   userEmail: string
+  // USDX-547 — resolved `partners` row (LEFT JOIN); null for retail.
+  partner: MockOrderPartner | null
+  onBehalfOf: 'SELF' | 'CUSTOMER' | null
+  partnerCustomerId: string | null
+  externalReference: string | null
   userAddress: string
   chain: string
   idempotencyKey: string
@@ -256,6 +270,10 @@ export interface MockOrder {
 function orderListItem(o: MockOrder) {
   return {
     id: o.id, type: o.type, userId: o.userId, userEmail: o.userEmail,
+    // USDX-547 — the list row carries the resolved partner; `onBehalfOf` rides
+    // along because "the partner itself" and "the partner's customer" are
+    // different rows to an operator.
+    partner: o.partner, onBehalfOf: o.onBehalfOf,
     amount: o.amount, totalPayIdr: o.totalPayIdr, netPayoutIdr: o.netPayoutIdr ?? null,
     chain: o.chain, paymentStatus: o.paymentStatus, safeStatus: o.safeStatus,
     status: o.status, createdAt: o.createdAt,
@@ -265,6 +283,7 @@ function orderListItem(o: MockOrder) {
 export function seedOrders(): MockOrder[] {
   const mk = (over: Partial<MockOrder>): MockOrder => ({
     id: over.id!, type: 'MINT', userId: VERIFIED_USER.id, userEmail: VERIFIED_USER.email,
+    partner: null, onBehalfOf: null, partnerCustomerId: null, externalReference: null,
     userAddress: VERIFIED_USER.wallets[0].address, chain: 'polygon',
     idempotencyKey: 'mint_' + HEX64('1').slice(2, 22),
     amount: '250.00', baseRate: '16200.00', spreadBuyPct: '0.50', spreadSellPct: '0.40',
@@ -288,6 +307,7 @@ export function seedOrders(): MockOrder[] {
 export function seedRedeemOrders(): MockOrder[] {
   const rmk = (over: Partial<MockOrder>): MockOrder => ({
     id: over.id!, type: 'REDEEM', userId: VERIFIED_USER.id, userEmail: VERIFIED_USER.email,
+    partner: null, onBehalfOf: null, partnerCustomerId: null, externalReference: null,
     userAddress: VERIFIED_USER.wallets[0].address, chain: 'polygon',
     idempotencyKey: '', amount: '100.00', baseRate: '16000.00',
     spreadBuyPct: '0', spreadSellPct: '2.00', effectiveRate: '15680.00',
@@ -318,6 +338,58 @@ export function seedRedeemOrders(): MockOrder[] {
   ]
 }
 
+// ── USDX-547 — partner-owned orders ─────────────────────────────────────────
+// Seeded ALONGSIDE the retail rows, because the mixed population is exactly the
+// situation the Partner column and the Owner filter exist for.
+
+export const PARTNER_JUARA: MockOrderPartner = {
+  id: '00000000-0000-7000-8000-0000000000b1',
+  code: 'juara',
+  displayName: 'PT Juara Remiten Indonesia',
+}
+
+/**
+ * Two shapes, because they differ in the DATA and both must render correctly:
+ *
+ *   CUSTOMER → owner is a `partner_customers` row with no `users` row at all, so
+ *              `user_id` is NULL and `userEmail` is the `(partner customer)`
+ *              marker (USDX-571).
+ *   SELF     → the partner mints for itself; it DOES have a `users` row, so a
+ *              real email is present — and the row must STILL count as a partner
+ *              order, because partner-ness is `partner_id`, not the marker.
+ */
+export function seedPartnerOrders(): MockOrder[] {
+  const base = seedOrders()[0]!
+  return [
+    {
+      ...base,
+      id: 'ord_partner_cust',
+      amount: '750.00',
+      userId: null,
+      userEmail: '(partner customer)',
+      partner: PARTNER_JUARA,
+      onBehalfOf: 'CUSTOMER',
+      partnerCustomerId: 'pc_e2e_0001',
+      externalReference: 'JUARA-ORD-2026-000042',
+      createdAt: '2026-06-06T00:00:00.000Z',
+      updatedAt: '2026-06-06T00:10:00.000Z',
+    },
+    {
+      ...base,
+      id: 'ord_partner_self',
+      amount: '300.00',
+      userId: 'usr_partner_legal',
+      userEmail: 'ops@juara.co.id',
+      partner: PARTNER_JUARA,
+      onBehalfOf: 'SELF',
+      partnerCustomerId: null,
+      externalReference: 'JUARA-ORD-2026-000043',
+      createdAt: '2026-06-07T00:00:00.000Z',
+      updatedAt: '2026-06-07T00:10:00.000Z',
+    },
+  ]
+}
+
 // ── KYC review (USDX-154/155 — sot/api/kyc.yaml) ─────────────────────────────
 
 export interface MockKycRecord {
@@ -338,6 +410,35 @@ export interface MockKycRecord {
   addressLine2: string | null
   ktpPhotoUrl: string
   selfiePhotoUrl: string
+  // USDX-587 — identitas Pasal 25 (1) a angka 1. `nationality` BUKAN duplikat
+  // `country`: yang satu kewarganegaraan orangnya, yang satu negara alamatnya.
+  nationality: string | null
+  gender: string | null
+  maritalStatus: string | null
+  /** PII — ADMIN only. Masih dipakai banyak layanan keuangan sebagai jawaban verifikasi telepon. */
+  mothersMaidenName: string | null
+  /** PII — butir a), "jika ada". */
+  aliasName: string | null
+  // USDX-545 — CDD block. Nullable across the board: every customer VERIFIED
+  // before that ticket has an empty block, and the review page must render the
+  // gap rather than assume presence.
+  occupation: string | null
+  sourceOfFunds: string | null
+  annualIncomeRange: string | null
+  transactionPurpose: string | null
+  /** USDX-587 — separuh kedua Pasal 25 (1) a angka 4. */
+  netWorthRange: string | null
+  /** USDX-587 — Pasal 37 (1) d, wajib hanya untuk PEP. */
+  sourceOfWealth: string | null
+  /** PII — Pasal 25 (1) a angka 1 butir g). */
+  employerAddress: string | null
+  /** PII — butir yang sama dengan `employerAddress`. */
+  employerPhone: string | null
+  /** PII — reviewer roles only in the UI (`canReviewCustomerPii`, USDX-610). */
+  npwp: string | null
+  pepStatus: boolean | null
+  /** PII — names a real person and their office. */
+  pepRelation: string | null
   rejectionReason: string | null
   submittedAt: string
   reviewedBy: string | null
@@ -380,6 +481,18 @@ function seedKyc(): MockKycRecord[] {
     addressLine1: 'Jl. Sudirman No. 1', addressLine2: null,
     ktpPhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/ktp.png`,
     selfiePhotoUrl: `${KYC_PHOTO_HOST}/e2e/${over.id}/selfie.png`,
+    // USDX-587 identitas Pasal 25 (1) a angka 1.
+    nationality: 'ID', gender: 'PEREMPUAN', maritalStatus: 'BELUM_KAWIN',
+    mothersMaidenName: 'Siti Rohmah', aliasName: null,
+    // USDX-545 CDD block, populated by default so the E2E review screen shows
+    // what a real submission looks like after the ticket. `occupation` is a
+    // Permendagri value since USDX-584 — the five old ones no longer exist.
+    occupation: 'PEGAWAI_NEGERI_SIPIL', sourceOfFunds: 'BUSINESS',
+    annualIncomeRange: 'FROM_500M_TO_1B', transactionPurpose: 'REMITTANCE',
+    netWorthRange: 'FROM_500M_TO_2B', sourceOfWealth: 'SALARY_ACCUMULATION',
+    employerAddress: 'Jl. Gatot Subroto No. 12, Jakarta Selatan',
+    employerPhone: '02170000001',
+    npwp: '123456789012345', pepStatus: false, pepRelation: null,
     rejectionReason: null, submittedAt: '2026-06-01T03:00:00.000Z',
     reviewedBy: null, reviewedByName: null, reviewedAt: null,
     createdAt: '2026-06-01T03:00:00.000Z', updatedAt: '2026-06-01T03:00:00.000Z',
@@ -644,6 +757,50 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
     }
 
+    // ── Screening results (USDX-588) — dibaca panel status di modal review
+    //    KYC & KYB (USDX-610). Bentuk barisnya persis kontraknya, TERMASUK yang
+    //    menentukan seluruh perilaku panelnya: baris `LIST_UNAVAILABLE` membawa
+    //    `listId: null` DAN `listType: null`, karena tabelnya memang tidak
+    //    menyimpan jenis daftar untuk hasil itu.
+    if (method === 'GET' && path === '/api/v1/screening/results') {
+      const subjectId = url.searchParams.get('subjectId') ?? ''
+      const rows = subjectId
+        ? [
+            {
+              id: `scr_${subjectId}_dttot`,
+              subjectType: url.searchParams.get('subjectType') ?? 'KYC',
+              subjectId,
+              outcome: 'NO_MATCH',
+              score: 0.1042,
+              matchedName: null,
+              matchCount: 0,
+              trigger: 'KYC_SUBMIT',
+              listId: 'lst_dttot_1',
+              listType: 'DTTOT',
+              listPublishedAt: '2026-08-16',
+              decision: null,
+              createdAt: '2026-09-02T08:56:58.000Z',
+            },
+            {
+              id: `scr_${subjectId}_unavailable`,
+              subjectType: url.searchParams.get('subjectType') ?? 'KYC',
+              subjectId,
+              outcome: 'LIST_UNAVAILABLE',
+              score: null,
+              matchedName: null,
+              matchCount: null,
+              trigger: 'KYC_SUBMIT',
+              listId: null,
+              listType: null,
+              listPublishedAt: null,
+              decision: null,
+              createdAt: '2026-09-02T08:56:58.000Z',
+            },
+          ]
+        : []
+      return paginated(route, rows, 1, 100)
+    }
+
     // ── KYC review list / detail / actions (USDX-154/155) ────────────────
     if (method === 'GET' && path === '/api/v1/kyc') {
       const status = url.searchParams.get('status')
@@ -673,7 +830,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         k.status = 'VERIFIED'
       } else {
         const reason = String(body().reason ?? '').trim()
-        if (reason.length < 1 || reason.length > 500) return error(route, 'BAD_REQUEST', 'reason must be 1-500 characters', 400)
+        // USDX-610 — 10, bukan 1. Tiruan yang lebih longgar dari servernya membuat
+        // e2e hijau atas permintaan yang backend tolak 400.
+        if (reason.length < 10 || reason.length > 500) return error(route, 'BAD_REQUEST', 'reason must be 10-500 characters', 400)
         k.status = 'REJECTED'
         k.rejectionReason = reason
       }
@@ -757,12 +916,21 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const paymentStatus = url.searchParams.get('paymentStatus')
       const safeStatus = url.searchParams.get('safeStatus')
       const userId = url.searchParams.get('userId')
+      // USDX-547 — partner vs retail population.
+      const ownerType = url.searchParams.get('ownerType')
+      if (ownerType !== null && ownerType !== 'PARTNER' && ownerType !== 'RETAIL') {
+        return error(route, 'VALIDATION_ERROR', 'ownerType must be PARTNER or RETAIL', 400)
+      }
       let list = [...state.orders]
       if (type) list = list.filter((o) => o.type === type)
       if (status) list = list.filter((o) => o.status === status)
       if (paymentStatus) list = list.filter((o) => o.paymentStatus === paymentStatus)
       if (safeStatus) list = list.filter((o) => o.safeStatus === safeStatus)
       if (userId) list = list.filter((o) => o.userId === userId)
+      // Decided by `partner_id`, NOT by the `(partner customer)` email marker —
+      // a partner's own (SELF) order has a real email and is still a partner order.
+      if (ownerType === 'PARTNER') list = list.filter((o) => o.partner !== null)
+      if (ownerType === 'RETAIL') list = list.filter((o) => o.partner === null)
       list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       return paginated(
         route,

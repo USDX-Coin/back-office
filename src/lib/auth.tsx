@@ -258,3 +258,23 @@ export function canProposeGovernance(staff: Staff | null): boolean {
 export function canAccessRequestList(staff: Staff | null): boolean {
   return staff !== null && staff.role !== 'STAFF'
 }
+
+// USDX-588 — `screening.controller.ts` @Roles("STAFF","MANAGER","ADMIN") pada
+// `POST /api/v1/screening/results/:id/decide`: DEVELOPER 403. Predikatnya sama
+// isinya dengan canReviewKyc dan tetap ditulis terpisah — matriks role screening
+// adalah matriks miliknya sendiri (controller-nya sendiri, alasannya sendiri),
+// dan menumpanginya pada gerbang KYC berarti perubahan di satu sisi diam-diam
+// memindahkan sisi yang lain. Preseden: canAccessReports vs canAccessTreasury.
+export function canDecideScreening(staff: Staff | null): boolean {
+  return staff !== null && staff.role !== 'DEVELOPER'
+}
+
+// USDX-588 — impor daftar sanksi + pemindaian ulang: MANAGER / ADMIN saja
+// (`screening.controller.ts`, dan `sot/api/screening.yaml` § Akses). Lebih
+// ketat daripada memutus satu temuan, dan alasannya ada di komentar controller:
+// keduanya mengubah DASAR penilaian seluruh nasabah sekaligus. Daftar yang
+// salah unggah membuat semua orang dinilai dengan ukuran yang keliru — bukan
+// kewenangan yang sama dengan memutus satu berkas. BE menegakkan 403 sendiri.
+export function canManageSanctionLists(staff: Staff | null): boolean {
+  return staff?.role === 'ADMIN' || staff?.role === 'MANAGER'
+}

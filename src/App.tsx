@@ -17,6 +17,10 @@ import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
 import KycListPage from '@/features/kyc/KycListPage'
+import KybListPage from '@/features/kyb/KybListPage'
+import KybFormPage from '@/features/kyb/KybFormPage'
+import ScreeningQueuePage from '@/features/screening/ScreeningQueuePage'
+import SanctionListsPage from '@/features/screening/SanctionListsPage'
 import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
@@ -88,6 +92,38 @@ export const appRoutes: RouteObject[] = [
           // (USDX-155); BE enforces 403 for Developer regardless.
           { path: '/kyc', element: <KycListPage /> },
           { path: '/kyc/:id', element: <KycListPage /> },
+          // USDX-546 — KYB review. Same visibility rule as KYC: the queue is
+          // readable by every back-office role and the ACTIONS are gated inside
+          // (DEVELOPER is view-only; the backend enforces 403 regardless), so no
+          // RoleGuard here. `/kyb/new` exists because KYB is a MANUAL flow —
+          // nothing but an operator creates these records.
+          { path: '/kyb', element: <KybListPage /> },
+          { path: '/kyb/new', element: <KybFormPage /> },
+          { path: '/kyb/:id', element: <KybListPage /> },
+          // USDX-588 — antrean screening DTTOT & DPPSPM. Aturan visibilitas sama
+          // dengan KYC/KYB: antreannya terbuka untuk semua role back office
+          // (server: STAFF/MANAGER/ADMIN/DEVELOPER) dan MEMUTUSKAN digerbangi di
+          // dalam layar bandingnya (DEVELOPER 403), jadi tidak ada RoleGuard di
+          // sini. `/screening/:id` merender ulang antrean dan membuka layar
+          // banding dari URL — aman untuk deep link.
+          //
+          // `/screening/lists` didaftarkan SEBELUM `/screening/:id` hanya demi
+          // kejelasan bagi pembaca: React Router v7 memberi peringkat lebih
+          // tinggi pada segmen statis daripada segmen dinamis, jadi urutannya
+          // sendiri tidak menentukan — tapi seseorang yang membaca daftar ini
+          // tidak perlu tahu itu untuk yakin `/screening/lists` tidak dibaca
+          // sebagai sebuah id.
+          { path: '/screening', element: <ScreeningQueuePage /> },
+          {
+            // USDX-588: impor daftar sanksi + pemindaian ulang MANAGER / ADMIN
+            // saja, dan digerbangi di ROUTE — bukan hanya tombolnya. Keduanya
+            // mengubah DASAR penilaian SELURUH nasabah sekaligus
+            // (`screening.controller.ts`), jadi menyembunyikan tombol saja tetap
+            // meninggalkan halamannya sejauh satu URL. BE menegakkan 403 juga.
+            element: <RoleGuard allowed={['ADMIN', 'MANAGER']} redirectTo="/screening" />,
+            children: [{ path: '/screening/lists', element: <SanctionListsPage /> }],
+          },
+          { path: '/screening/:id', element: <ScreeningQueuePage /> },
           // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
           // consumer-order monitoring, read-only, visible to every backoffice
           // role (no RoleGuard — like KYC). `/transactions/:id` re-renders the

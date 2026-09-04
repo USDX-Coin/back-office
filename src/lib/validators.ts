@@ -886,3 +886,518 @@ export function validateOncallContactForm(input: {
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-546 — KYB (business entity due diligence), manual back-office entry.
+//
+// KYB has no consumer app behind it: a USDX operator types the entity's data in
+// from documents (decision Mas Yan — KYB manual, bukan API). So this validation
+// is the first gate the data meets, and the rule that matters most is not "is
+// this field filled":
+//
+//   UBO ownership. A KYB record with no UBO is not a due-diligence record at
+//   all — the entire point is knowing who ultimately owns the entity. And the
+//   declared percentages cannot exceed 100: a sheet claiming two people own 80%
+//   each is a misreading of the deed, and catching it here costs nothing
+//   compared with catching it in an audit.
+//
+// The reject reason rule lives at the bottom of this file and is applied by the
+// mutation hook as well as the dialog — see `useRejectKyb`.
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// USDX-546 — every ceiling below is now the BACKEND's ceiling, not a guess.
+// `POST /api/v1/kyb` is live on dev (backend PR #271), so a limit that is wider
+// here than in `CreateKybDto` does not "allow more": it trades an inline message
+// the operator can act on for a 400 that arrives after the whole form was typed.
+// Sources are named per constant so the next edit can check them.
+const MAX_KYB_NAME_LEN = 255 // CreateKybDto @MaxLength(255) — entityName
+const MIN_KYB_NAME_LEN = 3 // CreateKybDto @MinLength(3)
+const MAX_KYB_SECTOR_LEN = 120 // CreateKybDto @MaxLength(120)
+const MAX_KYB_ADDRESS_LEN = 255 // CreateKybDto @MaxLength(255) — entity + UBO
+const MAX_KYB_WEBSITE_LEN = 255 // CreateKybDto @MaxLength(255)
+const MAX_KYB_UBOS = 20 // CreateKybDto @ArrayMaxSize(20)
+// USDX-605 — batas blok Pasal 33 (3), disalin dari `CreateKybUboDto` dan
+// `sot/api/kyb.yaml § CreateKybUbo`. Angkanya 200 / 100 / 500 / 32 dan bukan
+// tebakan: batas FE yang lebih ketat dari kontraknya menolak masukan yang server
+// justru terima, dan kolomnya `text` — tidak ada apa pun di database yang
+// menuntut angka lebih kecil.
+const MAX_KYB_UBO_ALIAS_LEN = 200 // CreateKybUboDto @MaxLength(200)
+const MAX_KYB_UBO_NAME_LEN = 100 // CreateKybUboDto @MaxLength(100) — birthPlace
+const MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN = 500 // CreateKybUboDto @MaxLength(500)
+const MAX_KYB_UBO_PHONE_LEN = 32 // CreateKybUboDto @MaxLength(32)
+
+/**
+ * `YYYY-MM-DD` yang benar-benar ada di kalender — cermin `@IsISO8601({ strict: true })`.
+ *
+ * Dibanding balik ke string, bukan `!isNaN(Date.parse())`: `new Date('1980-02-30')` di JS
+ * bergulir jadi 1 Maret dan `Date.parse` memberkatinya. Yang menangkapnya adalah selisih antara
+ * yang diketik dan yang dipahami mesin.
+ */
+function isRealCalendarDate(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso
+}
+// NIB: DIGITS ONLY. `@IsNumberString({ no_symbols: true })` — the backend
+// normalises the value to digits before hashing it, so "8120-0123-45678" and
+// "812001234 5678" are the same company; accepting punctuation here would let an
+// operator file a spelling the API refuses.
+const KYB_REGISTRATION_RE = /^[0-9]{8,32}$/
+// NPWP badan: 15 digits (pre-2024) or 16 (NIK-based); punctuation optional. The
+// DTO only asks for 8-32 characters, so this stays the stricter of the two.
+const KYB_TAX_ID_RE = /^[0-9.\-\s]{15,25}$/
+const KYB_ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+// ISO 3166-1 alpha-2, matching the DTO regex AND the `kyb_country_iso3166`
+// CHECK constraint. Uppercase only — the constraint is on the stored value.
+const KYB_COUNTRY_RE = /^[A-Z]{2}$/
+// 0.01-100.00 with AT MOST two decimals — `kyc_ubo.ownership_pct` is
+// `numeric(5,2)`, so a third decimal is rounded away by Postgres and the figure
+// on screen stops being the figure on file. Same regex as the DTO.
+const KYB_OWNERSHIP_PCT_RE = /^(100(\.0{1,2})?|[1-9]\d?(\.\d{1,2})?|0\.(0[1-9]|[1-9]\d?))$/
+
+/**
+ * Satu baris UBO di form KYB — SEMUANYA string, karena semuanya berasal dari
+ * `<input>` atau `<Select>`. Nilai kosong `''` berarti "belum diisi"; enumnya
+ * divalidasi sebagai wajib-terisi di sini dan sebagai nilai tertutup oleh DTO
+ * backend (`@IsIn`), jadi daftar nilainya tidak disalin dua kali.
+ *
+ * Blok Pasal 33 ayat (3) (USDX-605) ada di sini karena `sot/api/kyb.yaml
+ * § CreateKybUbo` menandainya `required` dan backend menerimanya sejak USDX-604 —
+ * sampai form ini mengirimnya, kartu review USDX-587 menampilkan em dash untuk
+ * kolom yang memang tidak pernah ada yang mengisi.
+ */
+export interface KybUboFormInput {
+  firstName: string
+  lastName: string
+  ownershipPct: string
+  identityNumber: string
+  country: string
+  addressLine1: string
+  addressLine2: string
+  // ── Pasal 33 (3) huruf a ──────────────────────────────────────────────────
+  /** Angka 1 — "termasuk nama alias". Opsional: tidak semua orang punya alias. */
+  aliasName: string
+  birthPlace: string
+  /** ISO `YYYY-MM-DD`. */
+  dob: string
+  nationality: string
+  occupation: string
+  /** Angka 8 — "jika ada", jadi opsional. */
+  employerAddress: string
+  employerPhone: string
+  gender: string
+  maritalStatus: string
+  // ── Pasal 33 (3) huruf b & c ──────────────────────────────────────────────
+  sourceOfFunds: string
+  annualIncomeRange: string
+  netWorthRange: string
+  // ── Pasal 33 (3) huruf d + ayat (7)/(8) ───────────────────────────────────
+  legalRelationship: string
+  cascadeStep: string
+}
+
+export interface KybFormInput {
+  userId: string
+  entityName: string
+  entityForm: string
+  country: string
+  registrationNumber: string
+  taxId: string
+  establishmentDate: string
+  businessSector: string
+  registeredAddress: string
+  operationalAddress: string
+  website: string
+  phone: string
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  /** Angka 5 — **tempat** pendirian. Tanggalnya `establishmentDate`. */
+  incorporationPlace: string
+  sourceOfFunds: string
+  transactionPurpose: string
+  /**
+   * `'YES' | 'NO' | ''` — TIGA nilai, bukan boolean, dan `''` bukan default
+   * tersembunyi: kontraknya menulis "tidak punya default" karena menebak "bukan
+   * usaha kecil" menahan nasabah dengan syarat yang tidak diwajibkan kepadanya,
+   * dan menebak "usaha kecil" melepas enam dokumen yang diwajibkan pasal. Petugas
+   * harus memilih.
+   */
+  isMicroOrSmall: string
+  ubos: KybUboFormInput[]
+}
+
+/**
+ * UBO errors are keyed `ubo.<index>.<field>` so the form can put each message
+ * beside the input that produced it. A flat `ubos` key would tell the operator
+ * "something in the UBO list is wrong" about a list of twenty rows.
+ */
+export function kybUboErrorKey(index: number, field: string): string {
+  return `ubo.${index}.${field}`
+}
+
+export function validateKybForm(input: KybFormInput): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  if (!input.userId.trim()) errors.userId = 'Legal-entity user is required'
+
+  if (!input.entityName.trim()) {
+    errors.entityName = 'Entity name is required'
+  } else if (input.entityName.trim().length < MIN_KYB_NAME_LEN) {
+    errors.entityName = `Entity name must be at least ${MIN_KYB_NAME_LEN} characters`
+  } else if (input.entityName.length > MAX_KYB_NAME_LEN) {
+    errors.entityName = `Entity name must be under ${MAX_KYB_NAME_LEN} characters`
+  }
+
+  if (!input.entityForm.trim()) errors.entityForm = 'Legal form is required'
+
+  if (!input.country.trim()) {
+    errors.country = 'Country is required'
+  } else if (!KYB_COUNTRY_RE.test(input.country.trim())) {
+    errors.country = 'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+  }
+
+  if (!input.registrationNumber.trim()) {
+    errors.registrationNumber = 'Registration number (NIB) is required'
+  } else if (!KYB_REGISTRATION_RE.test(input.registrationNumber.trim())) {
+    errors.registrationNumber = 'Registration number must be 8-32 digits, no dashes or spaces'
+  }
+
+  if (!input.taxId.trim()) {
+    errors.taxId = 'Entity NPWP is required'
+  } else if (!KYB_TAX_ID_RE.test(input.taxId.trim())) {
+    errors.taxId = 'NPWP must be 15-16 digits (dots / dashes allowed)'
+  }
+
+  if (!input.establishmentDate.trim()) {
+    errors.establishmentDate = 'Establishment date is required'
+  } else if (!KYB_ISO_DATE_RE.test(input.establishmentDate.trim())) {
+    errors.establishmentDate = 'Establishment date must be YYYY-MM-DD'
+  } else if (isFutureWibDate(input.establishmentDate.trim())) {
+    // An entity cannot have been established tomorrow. Judged in WIB, like every
+    // other date in this app (lib/transparency.ts).
+    errors.establishmentDate = 'Establishment date cannot be in the future'
+  }
+
+  if (!input.businessSector.trim()) {
+    errors.businessSector = 'Business sector is required'
+  } else if (input.businessSector.length > MAX_KYB_SECTOR_LEN) {
+    errors.businessSector = `Business sector must be under ${MAX_KYB_SECTOR_LEN} characters`
+  }
+
+  if (!input.registeredAddress.trim()) {
+    errors.registeredAddress = 'Registered address is required'
+  } else if (input.registeredAddress.length > MAX_KYB_ADDRESS_LEN) {
+    errors.registeredAddress = `Registered address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+  }
+
+  if (!input.operationalAddress.trim()) {
+    errors.operationalAddress = 'Operational address is required'
+  } else if (input.operationalAddress.length > MAX_KYB_ADDRESS_LEN) {
+    errors.operationalAddress = `Operational address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+  }
+
+  // Website is optional (the `kyb.website` column is nullable); only its shape
+  // is checked when present.
+  const website = input.website.trim()
+  if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(website)) {
+    errors.website = 'Website must start with http:// or https://'
+  } else if (website.length > MAX_KYB_WEBSITE_LEN) {
+    errors.website = `Website must be under ${MAX_KYB_WEBSITE_LEN} characters`
+  }
+
+  if (!input.phone.trim()) {
+    errors.phone = 'Phone is required'
+  } else if (!PHONE_RE.test(input.phone.trim())) {
+    errors.phone = 'Phone must be 10-15 digits (leading + allowed)'
+  }
+
+  // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
+  // `required` di `sot/api/kyb.yaml § CreateKybRequest`. Keempatnya diterima
+  // backend sejak USDX-604 dan tidak pernah dikirim form ini.
+  if (!input.incorporationPlace.trim()) {
+    errors.incorporationPlace = 'Place of incorporation is required'
+  } else if (input.incorporationPlace.trim().length < 2) {
+    errors.incorporationPlace = 'Place of incorporation must be at least 2 characters'
+  } else if (input.incorporationPlace.length > MAX_KYB_SECTOR_LEN) {
+    errors.incorporationPlace = `Place of incorporation must be under ${MAX_KYB_SECTOR_LEN} characters`
+  }
+
+  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Source of funds is required'
+  if (!input.transactionPurpose.trim()) {
+    errors.transactionPurpose = 'Purpose of the business relationship is required'
+  }
+  // Tidak ada default: lihat catatan di `KybFormInput.isMicroOrSmall`.
+  if (input.isMicroOrSmall !== 'YES' && input.isMicroOrSmall !== 'NO') {
+    errors.isMicroOrSmall = 'Answer whether this is a micro/small enterprise'
+  }
+
+  // ── UBOs ──
+  if (input.ubos.length === 0) {
+    errors.ubos = 'At least one UBO is required'
+  } else if (input.ubos.length > MAX_KYB_UBOS) {
+    errors.ubos = `At most ${MAX_KYB_UBOS} UBOs`
+  }
+
+  let ownershipTotal = 0
+  let ownershipParsable = input.ubos.length > 0
+  input.ubos.forEach((ubo, i) => {
+    if (!ubo.firstName.trim())
+      errors[kybUboErrorKey(i, 'firstName')] = 'First name is required'
+    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Last name is required'
+
+    const pctRaw = ubo.ownershipPct.trim()
+    const pct = Number(pctRaw)
+    if (!pctRaw) {
+      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % is required'
+      ownershipParsable = false
+    } else if (!KYB_OWNERSHIP_PCT_RE.test(pctRaw)) {
+      // One rule, two failures it has to separate: out of range, and more
+      // precision than `numeric(5,2)` can hold. Both are 400s from the API, and
+      // the second one is the surprising one — say which it is.
+      errors[kybUboErrorKey(i, 'ownershipPct')] =
+        'Ownership % must be a decimal between 0.01 and 100.00 with at most 2 decimals'
+      ownershipParsable = false
+    } else {
+      ownershipTotal += pct
+    }
+
+    // KTP is 16 digits, a passport number is shorter. This is PII the operator is
+    // copying off a document, so a length/charset check is the most that can be
+    // verified here.
+    const idNumber = ubo.identityNumber.trim()
+    if (!idNumber) {
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number is required'
+    } else if (!/^[0-9]{8,20}$/.test(idNumber)) {
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number must be 8-20 digits'
+    }
+
+    if (!ubo.country.trim()) {
+      errors[kybUboErrorKey(i, 'country')] = 'Country is required'
+    } else if (!KYB_COUNTRY_RE.test(ubo.country.trim())) {
+      errors[kybUboErrorKey(i, 'country')] =
+        'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    }
+
+    if (!ubo.addressLine1.trim()) {
+      errors[kybUboErrorKey(i, 'addressLine1')] = 'Address is required'
+    } else if (ubo.addressLine1.length > MAX_KYB_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'addressLine1')] =
+        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    }
+    if (ubo.addressLine2.length > MAX_KYB_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'addressLine2')] =
+        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    }
+
+    // ── Pasal 33 ayat (3) selengkapnya (USDX-605) ───────────────────────────
+    // Wajibnya bukan selera form: `required` di `sot/api/kyb.yaml
+    // § CreateKybUbo`. Yang TIDAK ada di daftar itu — alias, alamat & telepon
+    // tempat kerja — tetap opsional di sini, dan itu ikut pasalnya: angka 8
+    // berbunyi "jika ada", dan tidak semua orang punya nama alias.
+    if (!ubo.birthPlace.trim()) {
+      errors[kybUboErrorKey(i, 'birthPlace')] = 'Place of birth is required'
+    } else if (ubo.birthPlace.trim().length > MAX_KYB_UBO_NAME_LEN) {
+      errors[kybUboErrorKey(i, 'birthPlace')] =
+        `Place of birth must be under ${MAX_KYB_UBO_NAME_LEN} characters`
+    }
+
+    const dob = ubo.dob.trim()
+    if (!dob) {
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is required'
+    } else if (!KYB_ISO_DATE_RE.test(dob)) {
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth must be YYYY-MM-DD'
+    } else if (!isRealCalendarDate(dob)) {
+      // `CreateKybUboDto.dob` memakai `@Matches` + `@IsISO8601({ strict: true })`: bentuknya
+      // benar TIDAK cukup, tanggalnya harus ada di kalender. Tanpa cermin di sini, 1980-02-30
+      // lolos form dan baru ditolak server sebagai 400 yang tidak menunjuk barisnya.
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is not a real calendar date'
+    } else if (isFutureWibDate(dob)) {
+      // Seseorang tidak bisa lahir besok. Dinilai di WIB, sama dengan setiap
+      // tanggal lain di aplikasi ini.
+      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth cannot be in the future'
+    }
+
+    if (!ubo.nationality.trim()) {
+      errors[kybUboErrorKey(i, 'nationality')] = 'Nationality is required'
+    } else if (!KYB_COUNTRY_RE.test(ubo.nationality.trim())) {
+      errors[kybUboErrorKey(i, 'nationality')] =
+        'Nationality must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    }
+
+    // Panjang diukur SETELAH trim, karena yang dikirim juga hasil trim — tanpa itu satu spasi di
+    // ekor menolak nilai yang server justru terima.
+    if (ubo.aliasName.trim().length > MAX_KYB_UBO_ALIAS_LEN) {
+      errors[kybUboErrorKey(i, 'aliasName')] =
+        `Alias must be under ${MAX_KYB_UBO_ALIAS_LEN} characters`
+    }
+    if (ubo.employerAddress.trim().length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
+      errors[kybUboErrorKey(i, 'employerAddress')] =
+        `Employer address must be under ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} characters`
+    }
+    // HANYA panjangnya. `PHONE_RE` (10–15 digit, tanpa pemisah) di sini akan menolak
+    // `021-1234567`, `+62 21 4000 1234`, dan nomor kantor 8 digit — semuanya diterima kontrak
+    // (`sot/api/kyb.yaml § CreateKybUbo.employerPhone`: `maxLength: 32`, tanpa pattern) dan
+    // diterima `CreateKybUboDto` (`@IsString() @MaxLength(32)`). Aturan FE yang lebih ketat dari
+    // kontraknya adalah kesalahan yang tiket ini justru sedang membereskan di empat tempat lain;
+    // menambahkannya di sini akan mengulanginya. Telepon TEMPAT KERJA pun bukan kunci apa-apa:
+    // tidak dipakai mencari, tidak di-hash, tidak dikirim OTP.
+    if (ubo.employerPhone.trim().length > MAX_KYB_UBO_PHONE_LEN) {
+      errors[kybUboErrorKey(i, 'employerPhone')] =
+        `Employer phone must be under ${MAX_KYB_UBO_PHONE_LEN} characters`
+    }
+
+    // Enum tertutup: yang diperiksa di sini hanya "sudah dipilih atau belum".
+    // Daftar nilainya milik `@IsIn` di DTO backend dan pg enum di belakangnya —
+    // menyalinnya ke sini akan membuat salinan kedua yang bisa basi, persis
+    // kesalahan yang membuat `PARTNER_OCCUPATIONS` menolak 95 nilai sah (USDX-603).
+    const REQUIRED_UBO_CHOICES: ReadonlyArray<[keyof KybUboFormInput, string]> = [
+      ['occupation', 'Occupation is required'],
+      ['gender', 'Gender is required'],
+      ['maritalStatus', 'Marital status is required'],
+      ['sourceOfFunds', 'Source of funds is required'],
+      ['annualIncomeRange', 'Annual income range is required'],
+      ['netWorthRange', 'Net worth range is required'],
+      ['legalRelationship', 'Legal relationship is required'],
+      ['cascadeStep', 'Cascading-test step is required'],
+    ]
+    for (const [field, message] of REQUIRED_UBO_CHOICES) {
+      if (!String(ubo[field]).trim()) errors[kybUboErrorKey(i, field)] = message
+    }
+  })
+
+  // Only meaningful once every row parsed — otherwise the total is a partial sum
+  // and the message would blame the wrong thing.
+  if (ownershipParsable && ownershipTotal > 100.0001) {
+    errors.ubos = `Declared ownership totals ${ownershipTotal.toFixed(2)}% — it cannot exceed 100%`
+  }
+
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+export const KYB_REJECT_REASON_MAX = 500
+
+/**
+ * Ten characters, and it is not a style preference: `RejectKybDto` declares
+ * `@MinLength(10)`, the service re-checks it (`REJECTION_REASON_TOO_SHORT`), and
+ * TWO database CHECKs refuse anything shorter after trimming
+ * (`kyb_rejected_requires_reason`, `kyb_reviews_rejected_requires_reason`).
+ * Mirroring it here is what keeps the operator's typed text on screen instead of
+ * trading it for a 400 — and "no" is not a reason the entity can act on anyway.
+ */
+export const KYB_REJECT_REASON_MIN = 10
+
+/**
+ * The reject-reason rule as a pure function, so the dialog, the mutation hook and
+ * the tests all read the SAME rule. Returning the trimmed value is the point: a
+ * caller cannot accidentally send `"   "` past a `valid` check.
+ */
+export function validateKybRejectReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (trimmed.length < KYB_REJECT_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Reason must be at least ${KYB_REJECT_REASON_MIN} characters — the entity is told this`,
+    }
+  }
+  if (trimmed.length > KYB_REJECT_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Reason must be at most ${KYB_REJECT_REASON_MAX} characters`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-610 — alasan penolakan KYC. Angkanya SENGAJA sama dengan KYB.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `@MaxLength(500)` pada `RejectKycDto` — sama dengan `RejectKybDto`. */
+export const KYC_REJECT_REASON_MAX = KYB_REJECT_REASON_MAX
+
+/**
+ * Sepuluh karakter setelah trim, angka yang SAMA dengan `KYB_REJECT_REASON_MIN`
+ * dan diturunkan darinya alih-alih ditulis ulang — dua angka yang harus sama
+ * tapi ditulis dua kali akan berbeda suatu hari, dan yang menanggungnya adalah
+ * nasabah yang menerima email penolakan tanpa keterangan.
+ *
+ * Sebelum USDX-610 batasnya `1`: `POST /api/v1/kyc/{id}/reject {"reason":"x"}`
+ * menjawab 200 dan "x" itu masuk ke `kyc-rejected.html` yang dibaca nasabah,
+ * yang lalu mengirim ulang berkas yang sama persis. Sekarang ditegakkan empat
+ * lapis — dialog ini, `useRejectKyc`, `RejectKycDto` + service, dan CHECK
+ * `kyc_rejected_requires_reason` di database.
+ */
+export const KYC_REJECT_REASON_MIN = KYB_REJECT_REASON_MIN
+
+/**
+ * Aturan alasan penolakan KYC sebagai fungsi murni — dialog, hook mutasi, dan
+ * tesnya membaca aturan yang SAMA. Mengembalikan nilai yang sudah di-trim adalah
+ * intinya: pemanggil tidak bisa tanpa sengaja mengirim sepuluh spasi, yang
+ * panjangnya persis cukup untuk lolos `@MinLength(10)` di server tapi ditolak
+ * CHECK di database (yang mem-`btrim` dulu) sebagai 500, bukan 400.
+ */
+export function validateKycRejectReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (trimmed.length < KYC_REJECT_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Reason must be at least ${KYC_REJECT_REASON_MIN} characters — the customer is told this`,
+    }
+  }
+  if (trimmed.length > KYC_REJECT_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Reason must be at most ${KYC_REJECT_REASON_MAX} characters`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-588 — alasan keputusan screening.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `@MaxLength(1000)` pada `DecideScreeningDto`. */
+export const SCREENING_REASON_MAX = 1000
+
+/**
+ * Sepuluh karakter, dan ini bukan preferensi gaya: `DecideScreeningDto`
+ * mendeklarasikan `@MinLength(10)` dan CHECK `screening_results_row_shape` di
+ * database menolak yang lebih pendek. Alasan sebenarnya ada di POJK 8/2023
+ * Pasal 63 ayat (2) huruf c — alasan inilah "hasil analisis" yang wajib
+ * ditatausahakan, dan keputusan melepaskan atau menahan seseorang dari daftar
+ * teroris dibaca ulang pemeriksa bertahun kemudian. Kata "ok" tidak menjawab
+ * apa pun saat itu terjadi.
+ */
+export const SCREENING_REASON_MIN = 10
+
+/**
+ * Aturan alasan keputusan sebagai fungsi murni, supaya dialog, hook mutasi, dan
+ * tesnya membaca aturan yang SAMA. Mengembalikan nilai yang sudah di-trim
+ * adalah intinya: pemanggil tidak bisa tanpa sengaja mengirim `"          "`
+ * melewati pemeriksaan `valid`, yang panjangnya persis cukup untuk lolos
+ * `MinLength` di server tapi kosong bagi siapa pun yang membacanya nanti.
+ */
+export function validateScreeningReason(
+  reason: string,
+): { valid: true; reason: string } | { valid: false; error: string } {
+  const trimmed = reason.trim()
+  if (!trimmed) return { valid: false, error: 'Alasan keputusan wajib diisi' }
+  if (trimmed.length < SCREENING_REASON_MIN) {
+    return {
+      valid: false,
+      error: `Alasan minimal ${SCREENING_REASON_MIN} karakter — inilah hasil analisis yang wajib ditatausahakan`,
+    }
+  }
+  if (trimmed.length > SCREENING_REASON_MAX) {
+    return {
+      valid: false,
+      error: `Alasan maksimal ${SCREENING_REASON_MAX} karakter`,
+    }
+  }
+  return { valid: true, reason: trimmed }
+}

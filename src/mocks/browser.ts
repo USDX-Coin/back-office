@@ -36,6 +36,14 @@ import { handlers } from './handlers'
 // lives entirely in BE (USDX-83). Vitest tests scope their own
 // `server.use(...)` overrides per scenario so no defaults are needed.
 //
+// USDX-546: /api/v1/kyb* went real on 28 Aug 2026 and their handlers were
+// removed from handlers.ts ENTIRELY (no MSW fallback, the USDX-47 / USDX-82 /
+// USDX-85 precedent) — leaving a mock registered for a live screen is how a
+// reviewer ends up debugging the wrong answer. The tables landed with backend
+// PR #271 (migration 0077) and the document endpoints with PR #275; the path
+// entries below are the record that these are real-BE-only in both the browser
+// and Vitest.
+//
 // Transparency: /api/v1/transparency/* went real on 13 Aug 2026, after the
 // integration pass against api-dev came back 5/5 on the runbook steps
 // (catatan/RILIS-TRANSPARANSI-ANGKA.md § Langkah 2 — list renders, 201 on a new
@@ -81,6 +89,31 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/kyc/:id/reviews',
   '/api/v1/kyc/:id/approve',
   '/api/v1/kyc/:id/reject',
+  // USDX-546: KYB review — documentation only, handlers deleted. Six endpoints,
+  // all live on api-dev (backend PR #271 + #275).
+  '/api/v1/kyb',
+  '/api/v1/kyb/:id',
+  '/api/v1/kyb/:id/reviews',
+  '/api/v1/kyb/:id/approve',
+  '/api/v1/kyb/:id/reject',
+  '/api/v1/kyb/:id/documents/presign',
+  '/api/v1/kyb/:id/documents',
+  // Dokumen SATU UBO (USDX-604, dipakai FE sejak USDX-605) — rutenya bersarang di bawah
+  // `:id/ubos/:uboId` karena berkasnya milik baris `kyc_ubo`, bukan baris `kyb`.
+  '/api/v1/kyb/:id/ubos/:uboId/documents/presign',
+  '/api/v1/kyb/:id/ubos/:uboId/documents',
+  // USDX-588: screening DTTOT & DPPSPM — dokumentasi saja, tidak pernah ada
+  // handler MSW yang ditulis untuknya. Modulnya sudah utuh di backend sejak
+  // USDX-585 dan kontraknya sudah di SOT (`sot/api/screening.yaml`, USDX-600),
+  // jadi menulis tiruan untuk layar yang sudah hidup hanya menyiapkan jawaban
+  // salah untuk di-debug seseorang nanti — preseden USDX-546 / USDX-47.
+  '/api/v1/screening/results',
+  '/api/v1/screening/results/:id',
+  '/api/v1/screening/results/:id/decide',
+  '/api/v1/screening/lists',
+  '/api/v1/screening/lists/:id/entries',
+  '/api/v1/screening/lists/:id/activate',
+  '/api/v1/screening/rescan',
   // Transparency — append-only reserve ledger + attestation reports. Live on
   // api-dev as of 13 Aug 2026 (see the note above the set).
   '/api/v1/transparency/ledger',
