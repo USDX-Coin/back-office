@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { server } from '@/mocks/server'
-import { resetMockData, issueMockJwt, getDefaultStaff } from '@/mocks/handlers'
+import { configureBniAccountsForTests, resetMockData } from '@/mocks/handlers'
 import { BNI_MOCK_ACCOUNTS, createBniStatementRows } from '@/mocks/data'
 import type { BniBalances, BniStatement } from '@/lib/types'
 
@@ -14,9 +14,10 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
+// No auth header on purpose: these mock routes carry no session gate (see the
+// handler comment — a real httpOnly session is invisible to the worker).
 function authHeaders(): HeadersInit {
-  const staff = getDefaultStaff()!
-  return { Authorization: `Bearer ${issueMockJwt(staff)}` }
+  return {}
 }
 
 const NP = '108098391'
@@ -36,9 +37,11 @@ describe('GET /api/v1/bni-accounts', () => {
   })
 
   describe('negative', () => {
-    test('401 without a session', async () => {
+    test('no configured account → 200 with an empty list (not an error — yaml § list)', async () => {
+      configureBniAccountsForTests([])
       const res = await fetch('/api/v1/bni-accounts')
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(200)
+      expect((await res.json()).data).toEqual([])
     })
   })
 
@@ -72,9 +75,11 @@ describe('GET /api/v1/bni-accounts/balances', () => {
   })
 
   describe('negative', () => {
-    test('401 without a session', async () => {
+    test('no configured account → 503 BNI_SERVICE_UNCONFIGURED (yaml § balances)', async () => {
+      configureBniAccountsForTests([])
       const res = await fetch('/api/v1/bni-accounts/balances')
-      expect(res.status).toBe(401)
+      expect(res.status).toBe(503)
+      expect((await res.json()).error.code).toBe('BNI_SERVICE_UNCONFIGURED')
     })
   })
 
@@ -140,9 +145,11 @@ describe('GET /api/v1/bni-accounts/:accountNo/statement', () => {
       expect(res.status).toBe(422)
     })
 
-    test('401 without a session', async () => {
-      const res = await fetch(`/api/v1/bni-accounts/${NP}/statement?startDate=${today}&endDate=${today}`)
-      expect(res.status).toBe(401)
+    test('a well-formed number that was removed from the configuration → 422 BNI_ACCOUNT_NOT_ALLOWED', async () => {
+      configureBniAccountsForTests(BNI_MOCK_ACCOUNTS.filter((a) => a.accountNo !== NP))
+      const res = await get(NP, { startDate: today, endDate: today })
+      expect(res.status).toBe(422)
+      expect((await res.json()).error.code).toBe('BNI_ACCOUNT_NOT_ALLOWED')
     })
   })
 

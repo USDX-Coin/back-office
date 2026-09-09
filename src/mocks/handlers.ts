@@ -117,6 +117,13 @@ export function resetMockData() {
   pendingTimers.clear()
 }
 
+// USDX-631 — test helper: replace the "env-configured" BNI account list
+// (empty = backend has no account → `GET /balances` 503). Reset by
+// resetMockData(). Not used by runtime code.
+export function configureBniAccountsForTests(accounts: BniAccount[]) {
+  bniAccountsStore = accounts.map((a) => ({ ...a }))
+}
+
 // USDX-84 — test helper. The seeded `createMockRequests` factory generates
 // multiple PENDING_APPROVAL/APPROVED entries per Safe (legacy demo data
 // useful for list/dashboard tests). That collides with the SoT § Safe
@@ -681,13 +688,18 @@ export const handlers = [
   // backend PR #305): once it does, add the three paths to INTEGRATION_PATHS in
   // browser.ts (operational step, not a merge condition — ticket § Cara Kerjakan).
   // All roles may read (§ 16 K5); no role gate here on purpose.
-  http.get('/api/v1/bni-accounts', ({ request }) => {
-    if (!authenticatedStaff(request)) return unauthorized()
-    return HttpResponse.json({ status: 'success', metadata: null, data: bniAccountsStore })
-  }),
+  //
+  // NO mock auth gate either: in the dev browser the operator logs in against
+  // the REAL backend (login/auth/me are in INTEGRATION_PATHS), so the session
+  // cookie is httpOnly and not a mock JWT — the service worker cannot see it,
+  // and `authenticatedStaff()` would answer 401 to a perfectly valid session
+  // (observed 2026-09-09). The real backend enforces auth on these routes; the
+  // 401 path is exercised in tests via `server.use`.
+  http.get('/api/v1/bni-accounts', () =>
+    HttpResponse.json({ status: 'success', metadata: null, data: bniAccountsStore })
+  ),
 
-  http.get('/api/v1/bni-accounts/balances', ({ request }) => {
-    if (!authenticatedStaff(request)) return unauthorized()
+  http.get('/api/v1/bni-accounts/balances', () => {
     if (bniAccountsStore.length === 0) {
       return bniError(503, 'BNI_SERVICE_UNCONFIGURED', 'No BNI account configured')
     }
@@ -699,7 +711,6 @@ export const handlers = [
   }),
 
   http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
-    if (!authenticatedStaff(request)) return unauthorized()
     const accountNo = String(params.accountNo)
     const url = new URL(request.url)
     const startDate = url.searchParams.get('startDate') ?? ''
