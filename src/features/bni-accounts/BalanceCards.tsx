@@ -140,6 +140,13 @@ export default function BalanceCards({
                 <span className="font-mono" data-testid="bni-pulled-at">
                   {formatWibDateTime(balances.pulledAt)}
                 </span>
+                {/* pullId = activity_log.metadata.pullId = api_call_log.correlation_id
+                    (§ 16.2) — the one number ops can trace from the screen to the
+                    bank contact. */}
+                {' · '}
+                <span className="font-mono" title="pullId (korelasi activity_log ↔ api_call_log)">
+                  pull {balances.pullId}
+                </span>
               </>
             ) : (
               'Saldo LIVE dari BNIdirect — tidak diperbarui otomatis.'

@@ -51,6 +51,10 @@ import { handlers } from './handlers'
 // same key with different content, and the three-step attestation upload).
 // Handlers stay in handlers.ts so Vitest keeps its MSW-backed coverage; the
 // worker filter below drops them at runtime.
+// USDX-631: /api/v1/bni-accounts, /balances and /:accountNo/statement are
+// MOCK-served on purpose until the backend `dev` stack serves the module
+// (USDX-630, backend PR #305). When it does, add the three paths below —
+// an operational step, not a merge condition (ticket § Cara Kerjakan).
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).

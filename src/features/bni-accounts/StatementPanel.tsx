@@ -82,7 +82,13 @@ function ResultsHeader({
           </p>
           <p className="font-mono text-[11.5px] text-muted-foreground">
             {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
-            {statement && <> · Tarikan {formatWibDateTime(statement.pulledAt)}</>}
+            {statement && (
+              <>
+                {' · '}Tarikan {formatWibDateTime(statement.pulledAt)}
+                {' · '}
+                <span title="pullId (korelasi activity_log ↔ api_call_log)">pull {statement.pullId}</span>
+              </>
+            )}
           </p>
         </div>
         <Button
