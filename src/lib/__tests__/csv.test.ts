@@ -95,16 +95,18 @@ describe('buildCsvContent', () => {
 describe('exportToCsv', () => {
   const data = [{ name: 'Alice', amount: 1000, status: 'pending' }]
 
+  // jsdom has no URL.createObjectURL; define one that captures the Blob (a
+  // spread-copied `URL` stub would break `new URL()` elsewhere).
   function captureDownload() {
     const blobs: Blob[] = []
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn((blob: Blob) => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: (blob: Blob) => {
         blobs.push(blob)
         return 'blob:mock'
-      }),
-      revokeObjectURL: vi.fn(),
+      },
     })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => {} })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     return blobs
   }
@@ -117,8 +119,9 @@ describe('exportToCsv', () => {
   const BOM_BYTES = [0xef, 0xbb, 0xbf]
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    delete (URL as unknown as { createObjectURL?: unknown }).createObjectURL
+    delete (URL as unknown as { revokeObjectURL?: unknown }).revokeObjectURL
   })
 
   describe('positive', () => {
