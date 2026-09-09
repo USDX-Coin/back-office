@@ -1,7 +1,8 @@
 import { Play, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import DateRangeFields from '@/components/DateRangeFields'
+import { validateDateRange } from '@/lib/dateRange'
 import {
   Select,
   SelectContent,
@@ -47,40 +48,19 @@ export default function ReportFiltersToolbar({
 }: Props) {
   const { data: chains } = useChainConfig()
 
-  const datesValid =
-    /^\d{4}-\d{2}-\d{2}$/.test(values.startDate) &&
-    /^\d{4}-\d{2}-\d{2}$/.test(values.endDate) &&
-    values.startDate <= values.endDate
+  const datesValid = validateDateRange(values).valid
 
   return (
     <div className="mb-4 grid gap-3 rounded-md border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="report-start-date" className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
-          Start date
-        </Label>
-        <Input
-          id="report-start-date"
-          type="date"
-          value={values.startDate}
-          onChange={(e) => onChange({ ...values, startDate: e.target.value })}
-          className="h-9"
-          required
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="report-end-date" className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
-          End date
-        </Label>
-        <Input
-          id="report-end-date"
-          type="date"
-          value={values.endDate}
-          onChange={(e) => onChange({ ...values, endDate: e.target.value })}
-          className="h-9"
-          required
-        />
-      </div>
+      {/* USDX-631: the two date inputs live in DateRangeFields (shared with the
+          BNI statement panel). `showMessage={false}` keeps this toolbar's
+          original behaviour — an inverted range only disables Process. */}
+      <DateRangeFields
+        idPrefix="report"
+        value={{ startDate: values.startDate, endDate: values.endDate }}
+        onChange={(next) => onChange({ ...values, ...next })}
+        showMessage={false}
+      />
 
       <div className="flex flex-col gap-1.5">
         <Label className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">Chain</Label>
