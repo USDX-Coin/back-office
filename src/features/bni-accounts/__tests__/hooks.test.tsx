@@ -146,7 +146,7 @@ describe('useBniStatement', () => {
       const probe = countRequests('/api/v1/bni-accounts/')
       const { result, rerender } = renderHook(
         ({ params }: { params: BniStatementParams | null }) => useBniStatement(params),
-        { wrapper, initialProps: { params: null } }
+        { wrapper, initialProps: { params: null as BniStatementParams | null } }
       )
       expect(result.current.fetchStatus).toBe('idle')
       expect(probe.calls).toHaveLength(0)
