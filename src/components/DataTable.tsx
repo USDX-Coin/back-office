@@ -67,6 +67,10 @@ export interface DataTableProps<T> {
   // it via useColumnVisibility and pass it to both the toolbar and the table.
   columnVisibility?: import('@tanstack/react-table').VisibilityState
   onColumnVisibilityChange?: (next: import('@tanstack/react-table').VisibilityState) => void
+  // USDX-631: stable row identity for client-paginated data whose rows have
+  // no unique field (BNI statement rows repeat `journalNo`). Defaults to the
+  // TanStack index id when omitted, so existing tables are unaffected.
+  getRowId?: (row: T, index: number) => string
 }
 
 export default function DataTable<T>({
@@ -87,6 +91,7 @@ export default function DataTable<T>({
   rowClassName,
   columnVisibility,
   onColumnVisibilityChange,
+  getRowId,
 }: DataTableProps<T>) {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -147,6 +152,7 @@ export default function DataTable<T>({
       }
     },
     getCoreRowModel: getCoreRowModel(),
+    getRowId,
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,

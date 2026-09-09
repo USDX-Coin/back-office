@@ -50,6 +50,7 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/settings/fee` | SETTINGS | Fee | ADMIN + DEVELOPER (update is ADMIN-only) | View / update fee config — mint fee % + PG fee VA flat / QRIS % (USDX-207) + redeem fee % + disbursement fee flat (USDX-245); POST = full 5-field snapshot, 422 VALIDATION_ERROR; non-admin read-only |
 | `/settings/threshold` | SETTINGS | Threshold | ADMIN + DEVELOPER (update is ADMIN-only) | View / update Safe routing threshold |
 | `/transparency` | COMPLIANCE | Transparency | ADMIN + DEVELOPER via `RoleGuard` (recording is ADMIN-only) | Append-only **reserve ledger** — entry history table (event date / type / amount / reason / recorded by / recorded at, server-paginated), reserve balance read from the response's `balance` field, and an add-entry form (SEED/ADJUSTMENT, negative amounts allowed as corrections, reason min 10 chars and no control/bidi characters, non-future `occurredAt` judged in WIB) behind a confirm dialog that restates the amount and the resulting balance. POST carries an **`idempotencyKey`** (16-200 chars) minted once per form-filling attempt and re-sent unchanged on retry — **201** = new entry, **200** = safe replay of the SAME content, both success, while the same key with **different** content is **409 `LEDGER_IDEMPOTENCY_KEY_CONFLICT`** (nothing written) and is handled as an actionable failure: reload the balance, show it, then offer to re-send under a new key. After any non-422 failure the balance is re-read and shown before a retry is offered, and a commit is blocked while the balance is unknown. Monthly attestation PDFs use the three-step upload (`upload-url` with a REQUIRED `{ period, sizeBytes }` → `PUT` to storage using the ticket's `headers` verbatim → register `fileKey`), capped at **5 MiB** and content-sniffed for a real PDF header; the list is server-paginated and revoked reports are filtered out. Contract: `catatan/KONTRAK-API-TRANSPARANSI.md` |
+| `/bni-accounts` | TREASURY | Rekening BNI | **All roles incl. STAFF** (no `RoleGuard`; TREASURY section is now gated per ITEM — Multisig keeps ADMIN+DEVELOPER+MANAGER) | **Saldo & mutasi LIVE tiga rekening BNI** (USDX-631, `sot/bni-integration.md § 16`, kontrak `sot/api/bni-accounts.yaml`). Tiga kartu saldo dari satu `GET /bni-accounts/balances` — state per kartu `loading / ok / bank-rejected / unavailable`, label dari `GET /bni-accounts` (env, tanpa bank) supaya tetap bernama saat bank gagal; 503 "belum aktif" / 502 "coba lagi" / 429 "terlalu sering"; satu tombol **Tarik ulang saldo**. Panel mutasi: dropdown rekening mulai kosong, `DateRangeFields` maks 31 hari & tidak masa depan (WIB, default hari ini dihitung saat tombol ditekan), jenis Semua/Masuk/Keluar → `GET /bni-accounts/{accountNo}/statement`; header hasil = parameter yang DITERAPKAN; ringkasan "menurut bank" + jumlah baris + satu baris anomali; tabel `DataTable` paginasi KLIEN (baris `MALFORMED` → "—", di bawah); **Unduh CSV** seluruh hasil (BOM, D/C, nominal tanpa tanda). Query bank: `retry:false`, `staleTime:Infinity`, tanpa refetch fokus, `gcTime:0`, timeout browser 45 s. MSW-served sampai backend dev menyajikan modulnya (lalu tambah ke `INTEGRATION_PATHS`) |
 | `/settings/oncall` | SETTINGS | On-Call | **ADMIN only — including read** | Kontak on-call insiden uang (USDX-485, audit P1-18). CRUD nama / peran / kanal (PHONE·EMAIL·SLACK) / kategori insiden. Backend menyisipkan kontak yang cocok kategorinya ke dalam isi alarm kondisi uang; nol kontak → alarm tetap terkirim dengan peringatan eksplisit. Lebih ketat dari Settings lain karena `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per `sot/conventions.md § Audit Akses PII`) dan daftarnya menentukan siapa yang boleh menarik rem darurat payout |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
@@ -78,6 +79,8 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
 │   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
 │   │   ├── OnChainLinks.tsx  # TxHashLink cell (clickable short tx hash) + resolveOnChainLinks — On-chain tx / Safe tx columns
+│   │   ├── DateRangeFields.tsx  # Two date inputs + range rules (lib/dateRange) — reports toolbar + BNI statement panel
+│   │   ├── StatusPill.tsx # Dot + label pill for a StatusConfig (new code; five older local StatusBadge copies are cleanup debt)
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
 │   │   ├── auth/          # LoginPage
@@ -92,6 +95,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual
 │   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245, full 5-field snapshot)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
+│   │   ├── bni-accounts/  # BniAccountsPage + BalanceCards + StatementPanel + StatementTable + hooks/errors/statementCsv (USDX-631, /bni-accounts — saldo & mutasi LIVE BNI)
 │   │   ├── transparency/  # TransparencyPage + ReserveBalanceCard + LedgerEntryForm + LedgerConfirmDialog + LedgerHistoryTable + AttestationSection + upload/revoke dialogs (/transparency)
 │   │   ├── screening/     # ScreeningQueuePage + ScreeningDecisionModal + SanctionListsPage + SanctionListImportDialog + ScreeningSubjectPanel (USDX-610, dipasang di modal review KYC & KYB) + hooks (USDX-588) — antrean & keputusan screening DTTOT/DPPSPM, impor daftar, pemindaian ulang
 │   │   ├── chains/        # useChainConfig hook (GET /api/v1/chains — explorer + Safe addresses)
@@ -101,12 +105,13 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   ├── auth.tsx       # AuthProvider + useAuth hook
 │   │   ├── types.ts       # Staff, Customer, OTC types, DashboardSnapshot
 │   │   ├── validators.ts  # Pure form validators
-│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime, shortHash
+│   │   ├── format.ts      # formatAmount, formatDate, formatShortDate, formatRelativeTime, shortHash, formatBniPostDate/formatBankAmount/formatWibDateTime (BNI)
+│   │   ├── dateRange.ts   # validateDateRange / inclusiveDaySpan — pure range rules (maxDays inclusive, maxDate)
 │   │   ├── status.ts      # OTC status config + helpers
 │   │   ├── screening.ts   # Label enum screening + skor + pembaca/pemotong CSV daftar sanksi (USDX-588)
 │   │   ├── pii.ts         # canReviewCustomerPii (STAFF/MANAGER/ADMIN, fail-closed, USDX-610) + presentPii/PII_MASK/PII_WITHHELD_LABEL + PARTNER_CUSTOMER_EMAIL_LABEL
 │   │   ├── cdd.ts         # CDD / KYB enum label maps + labelFor fallback (USDX-545/546)
-│   │   ├── csv.ts         # CSV export (with formula-injection guard)
+│   │   ├── csv.ts         # CSV export (formula-injection guard, `\r` quoted, opt-in UTF-8 BOM)
 │   │   ├── explorerUrl.ts # Block explorer deep-links (base URL from /api/v1/chains)
 │   │   ├── safeUrl.ts     # Safe Wallet UI deep-links (buildSafeUrl, safeTxUrl)
 │   │   ├── chainLinks.ts  # findChainConfig + resolveOnChainLinks (composes explorer/safe URLs)
@@ -247,7 +252,7 @@ Sidebar `(N)` badge counts requests with status `PENDING_APPROVAL`. Counts are q
 
 1. Create `src/features/{name}/` with page, hooks, and modal components
 2. Add route in `src/App.tsx` under the protected routes
-3. Add nav item in `src/components/layout/Sidebar.tsx`
+3. Add nav item in `src/components/layout/navItems.ts` (single nav tree for Sidebar + mobile drawer)
 4. Add MSW handlers in `src/mocks/handlers.ts`
 5. Add mock data factory in `src/mocks/data.ts`
 6. Write unit tests colocated in `__tests__/` for business logic and page integration

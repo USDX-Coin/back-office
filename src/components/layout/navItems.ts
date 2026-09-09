@@ -128,13 +128,19 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md § Backoffice
-    // Multisig Page: self-hosted Safe transaction queue. ADMIN / DEVELOPER /
-    // MANAGER (STAFF excluded — signer = Safe owner). No (N) badge on the
-    // sidebar entry (status counts live on the page tabs).
+    // sot/phase-1.md § Sidebar (TREASURY): visible to EVERY role since
+    // USDX-631 (D21) — the gate moved from the section to its items.
+    //   - Multisig (USDX-275 + week4.md § Backoffice Multisig Page): self-hosted
+    //     Safe transaction queue, ADMIN / DEVELOPER / MANAGER (STAFF excluded —
+    //     signer = Safe owner). No (N) badge (status counts live on the tabs).
+    //   - Rekening BNI (USDX-631, sot/bni-integration.md § 16 K5): LIVE
+    //     balances + statements of the three MAF accounts, all roles including
+    //     STAFF (PM decision 2026-09-09). Read-only; route has no RoleGuard.
     label: 'Treasury',
-    visibleWhen: canAccessTreasury,
-    items: [{ to: '/multisig', label: 'Multisig', icon: KeyRound }],
+    items: [
+      { to: '/multisig', label: 'Multisig', icon: KeyRound, visibleWhen: canAccessTreasury },
+      { to: '/bni-accounts', label: 'Rekening BNI', icon: Landmark },
+    ],
   },
   {
     // USDX-81 + sot/phase-1.md § Reporting access: ADMIN + DEVELOPER + MANAGER.

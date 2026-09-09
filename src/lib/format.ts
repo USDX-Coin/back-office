@@ -127,3 +127,67 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
   }
   return SHORT_MONTH_DAY_YEAR.format(then)
 }
+
+// ─── Rekening BNI (USDX-631, sot/bni-integration.md § 16.4) ─────────────────
+
+// A bank timestamp is a digit string in WIB with NO zone marker:
+// `yyyyMMddHHmmss` (statement `postDate`), `yyyyMMddHHmm` (InquiryBalance
+// `date`) or `yyyyMMdd` (statement `fromPostingDate` / `toPostingDate`). It is
+// re-punctuated as-is — never parsed through `Date`, which would shift it into
+// the browser's zone. Anything else (null, `MALFORMED`, stray spaces the
+// service could not repair) renders as "—", never `Invalid Date`.
+const BNI_STAMP = /^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})(\d{2})?)?$/
+
+export function formatBniPostDate(raw: string | null | undefined): string {
+  if (!raw) return '—'
+  const m = BNI_STAMP.exec(raw)
+  if (!m) return '—'
+  const [, y, mo, d, h, mi, s] = m
+  const date = `${y}-${mo}-${d}`
+  if (!h || !mi) return date
+  return s ? `${date} ${h}:${mi}:${s}` : `${date} ${h}:${mi}`
+}
+
+// Bank nominal (string decimal, no sign) in the account's own currency:
+// `IDR` → `Rp 1.234,00`, `USD` → `$1,234.00`; any other code falls back to a
+// plain number followed by the code so nothing is silently mislabelled.
+// Null / unparsable (`MALFORMED`) → "—".
+export function formatBankAmount(
+  amount: string | null | undefined,
+  currency: string | null | undefined
+): string {
+  if (amount == null || amount === '') return '—'
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return '—'
+  if (currency === 'IDR') return formatIdrAmount(n)
+  if (currency === 'USD') return formatAmount(n)
+  const plain = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)
+  return currency ? `${plain} ${currency}` : plain
+}
+
+// Our own pull time (`pulledAt`, UTC ISO 8601 from the backend) rendered in
+// WIB regardless of where the operator sits — the bank stamps next to it are
+// WIB too, so the two must not disagree by the operator's zone.
+const WIB_DATETIME_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+
+export function formatWibDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    WIB_DATETIME_FMT.formatToParts(date).find((p) => p.type === type)?.value ?? ''
+  const hour = part('hour') === '24' ? '00' : part('hour')
+  return `${part('year')}-${part('month')}-${part('day')} ${hour}:${part('minute')}:${part('second')} WIB`
+}
