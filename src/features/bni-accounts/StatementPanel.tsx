@@ -142,7 +142,9 @@ function ResultsHeader({
             <dd className="text-muted-foreground">
               <span data-testid="bni-statement-row-count">{rows.length} baris ditampilkan</span>
               {' · '}
-              <span data-testid="bni-statement-anomalies">{anomalyLine(countAnomalyRows(rows))}</span>
+              <span data-testid="bni-statement-anomalies">
+                {anomalyLine(countAnomalyRows(rows), summary.anomalies)}
+              </span>
             </dd>
           </div>
         </dl>
@@ -181,13 +183,16 @@ export default function StatementPanel({ accounts }: Props) {
       : { startDate: draft.startDate, endDate: draft.endDate }
     if (datesEmpty) setDraft((d) => ({ ...d, ...range }))
     const next: BniStatementParams = { accountNo: draft.accountNo, ...range, type: draft.type }
+    // Every pull starts on page 1: a re-pull can return fewer rows than the
+    // page the operator was on, and a stale `?page=` would render a false
+    // "no rows" state (review finding, USDX-631).
+    tableParams.updateParams({ page: null })
     if (applied && sameParams(applied, next)) {
       // Same parameters again = an explicit re-pull, never a cache hit.
       void statement.refetch()
       return
     }
     setApplied(next)
-    tableParams.updateParams({ page: null })
   }
 
   const appliedAccount = applied
@@ -291,7 +296,7 @@ export default function StatementPanel({ accounts }: Props) {
             title="Belum ada tarikan"
             description="Pilih rekening dan rentang, lalu tekan Tarik untuk melihat mutasi."
           />
-        ) : errorView && errorView.kind !== 'unauthorized' ? (
+        ) : errorView ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert">
             <p className="text-[13px] font-medium text-destructive">{errorView.message}</p>
             {errorView.retryable && (
@@ -306,7 +311,7 @@ export default function StatementPanel({ accounts }: Props) {
               </Button>
             )}
           </div>
-        ) : errorView ? null : (
+        ) : (
           <StatementTable
             rows={sorted}
             page={tableParams.page}

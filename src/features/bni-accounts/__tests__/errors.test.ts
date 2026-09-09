@@ -6,7 +6,7 @@ import { BNI_ERROR_TEXT, describeBniError } from '../errors'
 
 describe('describeBniError', () => {
   describe('positive', () => {
-    test('503 → belum aktif, not retryable (any code)', () => {
+    test('503 BNI_SERVICE_UNCONFIGURED → belum aktif, not retryable', () => {
       const view = describeBniError(new ApiError(503, 'BNI_SERVICE_UNCONFIGURED', 'x'))
       expect(view.kind).toBe('unconfigured')
       expect(view.message).toBe(BNI_ERROR_TEXT.unconfigured)
@@ -43,10 +43,20 @@ describe('describeBniError', () => {
   })
 
   describe('negative', () => {
-    test('401 is silent — apiFetch already handed it to onUnauthorized', () => {
+    test('401 → neutral session text that never mentions the bank being unreachable', () => {
       const view = describeBniError(new ApiError(401, 'UNAUTHORIZED', 'x'))
       expect(view.kind).toBe('unauthorized')
-      expect(view.message).toBe('')
+      expect(view.message).toBe(BNI_ERROR_TEXT.unauthorized)
+      expect(view.message).not.toMatch(/dihubungi|lambat/)
+      expect(view.retryable).toBe(false)
+    })
+
+    // A load-balancer 503 during a deploy has no SoT code — that is an outage,
+    // not a misconfiguration, and must not send ops on a config hunt.
+    test('503 WITHOUT a *_UNCONFIGURED code → coba lagi (transient), retryable', () => {
+      const view = describeBniError(new ApiError(503, 'UNKNOWN', 'Service Unavailable'))
+      expect(view.kind).toBe('unavailable')
+      expect(view.retryable).toBe(true)
     })
 
     test('a non-ApiError (network failure) is the generic text', () => {

@@ -20,7 +20,7 @@ export type BniErrorKind =
   | 'not-allowed'
   /** 422 VALIDATION_ERROR — the backend re-checked the range. */
   | 'validation'
-  /** 401 — apiFetch already routed this to onUnauthorized; show nothing bank-related. */
+  /** 401 — apiFetch already re-verified the session; neutral text, nothing bank-related. */
   | 'unauthorized'
   | 'unknown'
 
@@ -38,6 +38,7 @@ export const BNI_ERROR_TEXT = {
   timeout: 'Bank lambat menjawab, coba lagi.',
   rateLimited: 'Terlalu sering menarik data bank, tunggu sebentar lalu coba lagi.',
   notAllowed: 'Rekening belum diizinkan di layanan bank (periksa konfigurasi).',
+  unauthorized: 'Sesi ini tidak diizinkan menarik data bank. Muat ulang halaman atau masuk kembali.',
   unknown: 'Gagal menarik data dari bank.',
 } as const
 
@@ -66,9 +67,17 @@ export function describeBniError(err: unknown): BniErrorView {
   }
   switch (err.status) {
     case 401:
-      return { kind: 'unauthorized', message: '', retryable: false }
+      // apiFetch has already re-verified the session and, if it is dead,
+      // signed the operator out. If we are still here the session is alive
+      // (cross-audience 401) — say so neutrally, never blame the bank.
+      return { kind: 'unauthorized', message: BNI_ERROR_TEXT.unauthorized, retryable: false }
     case 503:
-      return { kind: 'unconfigured', message: BNI_ERROR_TEXT.unconfigured, retryable: false }
+      // Only the contract's own code means "not configured" (§ 16.3). A 503
+      // from the load balancer during a deploy carries no SoT code and is a
+      // transient outage — "coba lagi", not a config investigation.
+      return err.code.endsWith('_UNCONFIGURED')
+        ? { kind: 'unconfigured', message: BNI_ERROR_TEXT.unconfigured, retryable: false }
+        : { kind: 'unavailable', message: BNI_ERROR_TEXT.unavailable, retryable: true }
     case 429:
       return { kind: 'rate-limited', message: BNI_ERROR_TEXT.rateLimited, retryable: true }
     case 502: {

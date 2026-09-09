@@ -1948,7 +1948,7 @@ function nextBniPullId(): string {
   return `019e2b00-0000-7000-8000-${String(bniPullCounter).padStart(12, '0')}`
 }
 
-export function createBniBalanceCard(
+function createBniBalanceCard(
   account: BniAccount,
   overrides: Partial<BniBalanceCard> = {}
 ): BniBalanceCard {
@@ -2034,7 +2034,7 @@ export function createBniStatementRows(
   return rows
 }
 
-export function createBniStatementSummary(
+function createBniStatementSummary(
   rows: BniStatementRow[],
   overrides: Partial<BniStatementSummary> = {}
 ): BniStatementSummary {

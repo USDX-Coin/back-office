@@ -15,7 +15,7 @@ import type { BniAccount, BniBalances, BniStatement, BniStatementType } from '@/
 //                             no queryClient.clear() on logout).
 // Browser timeout 45 s sits above backend 35 s above service 15 s (§ 16.2).
 
-export const BNI_BROWSER_TIMEOUT_MS = 45_000
+const BNI_BROWSER_TIMEOUT_MS = 45_000
 
 export const bniAccountsKeys = {
   all: ['bni-accounts'] as const,
@@ -41,7 +41,7 @@ function bankRequestSignal(): AbortSignal | undefined {
     : undefined
 }
 
-export function fetchBniAccounts(): Promise<BniAccount[]> {
+function fetchBniAccounts(): Promise<BniAccount[]> {
   return apiFetch<BniAccount[]>('/api/v1/bni-accounts')
 }
 
@@ -54,7 +54,7 @@ export function useBniAccounts() {
   })
 }
 
-export function fetchBniBalances(): Promise<BniBalances> {
+function fetchBniBalances(): Promise<BniBalances> {
   return apiFetch<BniBalances>('/api/v1/bni-accounts/balances', {
     signal: bankRequestSignal(),
   })
@@ -86,7 +86,7 @@ export function buildBniStatementPath(params: BniStatementParams): string {
   return `/api/v1/bni-accounts/${encodeURIComponent(params.accountNo)}/statement?${sp.toString()}`
 }
 
-export function fetchBniStatement(params: BniStatementParams): Promise<BniStatement> {
+function fetchBniStatement(params: BniStatementParams): Promise<BniStatement> {
   return apiFetch<BniStatement>(buildBniStatementPath(params), {
     signal: bankRequestSignal(),
   })

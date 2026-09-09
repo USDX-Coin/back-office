@@ -32,6 +32,14 @@ describe('countAnomalyRows / anomalyLine', () => {
   })
 
   describe('edge cases', () => {
+    test('NO_ACCOUNT_DETAIL at account level is appended to the line', () => {
+      expect(
+        anomalyLine(countAnomalyRows([]), [{ field: 'accountTransactionDetails', kind: 'NO_ACCOUNT_DETAIL' }])
+      ).toBe(
+        'Tidak ada nilai yang diperbaiki atau tidak terbaca · bank tidak mengembalikan entri rekening untuk rentang ini'
+      )
+    })
+
     test('a row with both kinds counts once, as MALFORMED', () => {
       const counts = countAnomalyRows([
         row([

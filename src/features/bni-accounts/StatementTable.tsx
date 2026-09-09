@@ -98,10 +98,14 @@ export default function StatementTable({
   emptyState,
 }: Props) {
   const columns = useMemo(() => buildStatementColumns(currency), [currency])
+  // Clamp a stale `?page=` (browser Back after a smaller re-pull) to the last
+  // real page so the table never shows an empty slice of a non-empty result.
+  const lastPage = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(Math.max(1, page || 1), lastPage)
   return (
     <DataTable<IndexedStatementRow>
       columns={columns}
-      data={pageOf(rows, page, pageSize)}
+      data={pageOf(rows, safePage, pageSize)}
       rowCount={rows.length}
       isLoading={isLoading}
       pageSize={pageSize}

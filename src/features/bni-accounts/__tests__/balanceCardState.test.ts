@@ -71,6 +71,18 @@ describe('resolveBalanceCardStates', () => {
       expect(states[1]).toMatchObject({ kind: 'bank-rejected', text: 'Status bank: SUSPENDED.' })
     })
 
+    // § 16.3: errorReason on 401/403/5xx is the bank's misleading credentials
+    // text (T2) — never shown even if a backend forwards it.
+    test('errorReason is ignored when httpStatus is 401/403/5xx (defence in depth)', () => {
+      const balances = createBniBalances(BNI_MOCK_ACCOUNTS, {
+        [NP.accountNo]: { status: 'REJECTED', errorReason: 'bnidirect-api-key is incorrect', httpStatus: 500 },
+        [USD.accountNo]: { status: 'REJECTED', errorReason: 'Account closed', httpStatus: 400 },
+      })
+      const states = resolveBalanceCardStates(BNI_MOCK_ACCOUNTS, balances, null, false)
+      expect(states[1]).toMatchObject({ kind: 'bank-rejected', text: 'Ditolak bank tanpa alasan.' })
+      expect(states[2]).toMatchObject({ kind: 'bank-rejected', text: 'Account closed' })
+    })
+
     test('an account absent from the bank reply is treated as MISSING', () => {
       const balances = createBniBalances([COLLECTION, USD])
       const states = resolveBalanceCardStates(BNI_MOCK_ACCOUNTS, balances, null, false)

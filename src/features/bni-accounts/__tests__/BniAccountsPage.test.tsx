@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import {
@@ -390,7 +390,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       probe.stop()
     })
 
-    test('401 during a pull → session cleared (onUnauthorized) without a bank toast / alert', async () => {
+    test('401 during a pull → session cleared (onUnauthorized); the panel never blames the bank', async () => {
       const user = userEvent.setup()
       server.use(
         http.get('/api/v1/bni-accounts/:accountNo/statement', () => apiError(401, 'UNAUTHORIZED')),
@@ -403,20 +403,60 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await user.click(pullButton())
       // The re-verified 401 clears the cached profile (AuthProvider.onUnauthorized).
       await waitFor(() => expect(localStorage.getItem('usdx_auth_user')).toBeNull())
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(screen.queryByText(/bank/i, { selector: '[role="alert"]' })).not.toBeInTheDocument()
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Sesi ini tidak diizinkan')
+      expect(alert).not.toHaveTextContent(/dihubungi|lambat|coba lagi/i)
+      expect(within(alert).queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    test('a 503 without the contract code (load balancer) → "coba lagi" on cards, not "belum aktif"', async () => {
+      server.use(
+        http.get('/api/v1/bni-accounts/balances', () =>
+          HttpResponse.text('<html>Service Unavailable</html>', { status: 503 })
+        )
+      )
+      renderPage()
+      await waitFor(() =>
+        expect(screen.getByTestId('bni-balance-card-COLLECTION')).toHaveTextContent('coba lagi')
+      )
+      expect(screen.getByTestId('bni-balance-card-COLLECTION')).not.toHaveTextContent('belum aktif')
     })
   })
 
   describe('edge cases', () => {
     test('double-click Tarik → one request; Tarik again with the same params after it finished → a NEW request', async () => {
       const user = userEvent.setup()
+      // Slow the bank down so the in-flight window is observable.
+      const rows = createBniStatementRows(3, TODAY, TODAY)
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', async ({ request, params }) => {
+          await delay(150)
+          const url = new URL(request.url)
+          return envelope(
+            createBniStatement(
+              {
+                accountNo: String(params.accountNo),
+                role: NP.role,
+                label: NP.label,
+                startDate: url.searchParams.get('startDate') ?? '',
+                endDate: url.searchParams.get('endDate') ?? '',
+                type: 'ALL',
+              },
+              rows
+            )
+          )
+        })
+      )
       const probe = recordRequests('/api/v1/bni-accounts/')
       renderPage()
       await waitForCards()
       await pickAccount(user, /treasury np/i)
       setRange(TODAY, TODAY)
-      await user.dblClick(pullButton())
+      await user.click(pullButton())
+      // The isFetching gate closes the button immediately — the second click of
+      // a double-click lands on a disabled button, not on the query dedup.
+      expect(pullButton()).toBeDisabled()
+      await user.click(pullButton())
       await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toBeInTheDocument())
       expect(probe.urls.filter((u) => u.includes('/statement')).length).toBe(1)
 
@@ -425,6 +465,49 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
         expect(probe.urls.filter((u) => u.includes('/statement')).length).toBe(2)
       )
       probe.stop()
+    })
+
+    test('a re-pull from page 2 returns to page 1 and a stale ?page= never shows a false empty table', async () => {
+      const user = userEvent.setup()
+      // 25 rows first → 3 pages; the SAME params re-pulled return 5 rows.
+      let rows = createBniStatementRows(25, TODAY, TODAY)
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
+          const url = new URL(request.url)
+          return envelope(
+            createBniStatement(
+              {
+                accountNo: String(params.accountNo),
+                role: NP.role,
+                label: NP.label,
+                startDate: url.searchParams.get('startDate') ?? '',
+                endDate: url.searchParams.get('endDate') ?? '',
+                type: 'ALL',
+              },
+              rows
+            )
+          )
+        })
+      )
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('25 baris'))
+
+      // Go to page 3 (5 rows there).
+      await user.click(screen.getByRole('button', { name: /last page/i }))
+      await waitFor(() =>
+        expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
+      )
+
+      rows = createBniStatementRows(5, TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('5 baris'))
+      // Back on page 1 with the 5 rows visible — not an empty slice of page 3.
+      expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
+      expect(screen.queryByText('Tidak ada mutasi pada rentang ini')).not.toBeInTheDocument()
     })
 
     test('changing the account in the form after a pull keeps the APPLIED account in the results header', async () => {

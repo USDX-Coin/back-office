@@ -16,9 +16,16 @@ export type BalanceCardState =
 // backend already writes the operator text for BLOCKED / MISSING /
 // NOT_ALLOWED into `errorReason` (cardErrorReason, backend PR #305). These are
 // the fallbacks when it is empty — and the default branch keeps the enum OPEN.
+// § 16.3 text rule: the bank's `errorReason` may be shown for HTTP 200/400
+// replies; on 401/403/5xx it is misleading (T2: the credentials text) and the
+// backend must not forward it. Enforce the same rule here as defence in depth.
+function reasonAllowed(httpStatus: number | null | undefined): boolean {
+  return httpStatus == null || httpStatus === 200 || httpStatus === 400
+}
+
 function rejectedText(card: BniBalanceCard): string {
   const reason = card.errorReason?.trim()
-  if (reason) return reason
+  if (reason && reasonAllowed(card.httpStatus)) return reason
   switch (card.status) {
     case 'BLOCKED':
       return 'Bank menjawab HTTP 400 tanpa alasan (indikasi rekening diblokir).'
