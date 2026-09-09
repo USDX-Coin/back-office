@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'vitest'
-import { buildCsvContent } from '@/lib/csv'
+import { describe, test, expect, vi, afterEach } from 'vitest'
+import { buildCsvContent, exportToCsv, UTF8_BOM } from '@/lib/csv'
 
 const columns = [
   { key: 'name' as const, header: 'Name' },
@@ -41,6 +41,14 @@ describe('buildCsvContent', () => {
       expect(csv).toContain('"He said ""hello"""')
     })
 
+    // USDX-631 — a bare carriage return splits a row in most CSV readers just
+    // like `\n`, so it must trigger quoting too.
+    test('should quote values containing a carriage return', () => {
+      const data = [{ name: 'TRF\rSALARY', amount: 0, status: 'pending' }]
+      const csv = buildCsvContent(data, columns)
+      expect(csv).toContain('"TRF\rSALARY"')
+    })
+
     test('should handle null values', () => {
       const data = [{ name: null, amount: 0, status: 'pending' }]
       const csv = buildCsvContent(data as unknown as { name: string; amount: number; status: string }[], columns)
@@ -78,6 +86,80 @@ describe('buildCsvContent', () => {
       const csv = buildCsvContent(data, columns)
       expect(csv).toContain('Alice')
       expect(csv).not.toContain("'Alice")
+    })
+  })
+})
+
+// USDX-631 — `withBom` is opt-in so the byte output of every existing export
+// (which never asked for it) stays identical.
+describe('exportToCsv', () => {
+  const data = [{ name: 'Alice', amount: 1000, status: 'pending' }]
+
+  function captureDownload() {
+    const blobs: Blob[] = []
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn((blob: Blob) => {
+        blobs.push(blob)
+        return 'blob:mock'
+      }),
+      revokeObjectURL: vi.fn(),
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    return blobs
+  }
+
+  // `Blob.text()` runs through TextDecoder, which silently strips a leading
+  // BOM — read the raw bytes so the assertion sees what the file will contain.
+  async function bytesOf(blob: Blob): Promise<Uint8Array> {
+    return new Uint8Array(await blob.arrayBuffer())
+  }
+  const BOM_BYTES = [0xef, 0xbb, 0xbf]
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  describe('positive', () => {
+    test('should prepend a UTF-8 BOM when withBom is set', async () => {
+      const blobs = captureDownload()
+      exportToCsv(data, columns, 'export', { withBom: true })
+      expect(blobs).toHaveLength(1)
+      const bytes = await bytesOf(blobs[0]!)
+      expect(Array.from(bytes.slice(0, 3))).toEqual(BOM_BYTES)
+      expect(new TextDecoder().decode(bytes.slice(3))).toBe(buildCsvContent(data, columns))
+      expect(UTF8_BOM).toBe('\uFEFF')
+    })
+  })
+
+  describe('negative', () => {
+    test('should not prepend a BOM by default (existing exports unchanged)', async () => {
+      const blobs = captureDownload()
+      exportToCsv(data, columns, 'export')
+      const bytes = await bytesOf(blobs[0]!)
+      expect(Array.from(bytes.slice(0, 3))).not.toEqual(BOM_BYTES)
+      expect(new TextDecoder().decode(bytes)).toBe(buildCsvContent(data, columns))
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should append .csv to the filename', () => {
+      captureDownload()
+      const downloads: string[] = []
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'download')
+      Object.defineProperty(HTMLAnchorElement.prototype, 'download', {
+        configurable: true,
+        set(value: string) {
+          downloads.push(value)
+        },
+      })
+      try {
+        exportToCsv(data, columns, 'mutasi-bni-123', { withBom: true })
+      } finally {
+        if (descriptor) Object.defineProperty(HTMLAnchorElement.prototype, 'download', descriptor)
+      }
+      expect(downloads).toEqual(['mutasi-bni-123.csv'])
     })
   })
 })
