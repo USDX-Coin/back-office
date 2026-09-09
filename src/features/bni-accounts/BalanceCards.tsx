@@ -2,8 +2,9 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import StatusPill from '@/components/StatusPill'
 import { formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
-import { getBniBalanceCardStatusConfig, type StatusConfig } from '@/lib/status'
+import { getBniBalanceCardStatusConfig } from '@/lib/status'
 import type { BniAccount, BniBalances } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { resolveBalanceCardStates, type BalanceCardState } from './balanceCardState'
@@ -14,20 +15,6 @@ import { resolveBalanceCardStates, type BalanceCardState } from './balanceCardSt
 // come from `GET /bni-accounts`, so a card still names its account when the
 // bank call failed (§ 16 F4). One "Tarik ulang saldo" for all three cards —
 // a single InquiryBalance carries the whole `accountList`.
-
-function StatusPill({ cfg }: { cfg: StatusConfig }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-medium',
-        cfg.className
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
-      {cfg.label}
-    </span>
-  )
-}
 
 function Amount({ label, value }: { label: string; value: string }) {
   return (
