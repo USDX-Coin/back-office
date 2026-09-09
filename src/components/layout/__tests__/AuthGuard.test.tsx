@@ -1,4 +1,5 @@
 import { describe, test, expect } from 'vitest'
+import { isValidElement } from 'react'
 import { screen } from '@testing-library/react'
 import { Route, Routes, type RouteObject } from 'react-router'
 import { RoleGuard } from '@/components/layout/AuthGuard'
@@ -186,3 +187,88 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
     })
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-631 — sot/bni-integration.md § 16 K5: /bni-accounts is for EVERY role
+// including STAFF, so it must ship WITHOUT a RoleGuard, while /multisig in the
+// same Treasury section keeps its ADMIN/DEVELOPER/MANAGER guard. Both facts
+// are read from `appRoutes` — the array the router actually mounts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isRoleGuardRoute(route: RouteObject): boolean {
+  return isValidElement(route.element) && route.element.type === RoleGuard
+}
+
+/** True when `path` is declared somewhere under a RoleGuard element. */
+function isGuarded(path: string, routes: RouteObject[], underGuard = false): boolean {
+  for (const route of routes) {
+    const guardedHere = underGuard || isRoleGuardRoute(route)
+    if (route.path === path && guardedHere) return true
+    if (route.children && isGuarded(path, route.children, guardedHere)) return true
+  }
+  return false
+}
+
+describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5)', () => {
+  describe('positive', () => {
+    test('/bni-accounts is declared flat — no RoleGuard above it', () => {
+      expect(isGuarded('/bni-accounts', appRoutes)).toBe(false)
+    })
+
+    test('STAFF reaches /bni-accounts through the shipped guard chain', () => {
+      // Render the guard chain exactly as appRoutes wraps it: none. A STAFF
+      // visit must NOT be redirected to the dashboard.
+      renderWithProviders(
+        <Routes>
+          <Route path="/bni-accounts" element={<div>BNI_ACCOUNTS_PAGE</div>} />
+          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        </Routes>,
+        { initialEntries: ['/bni-accounts'], staffId: 'stf_4' }, // Sarah King, STAFF
+      )
+      expect(screen.getByText('BNI_ACCOUNTS_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('/multisig/* is still wrapped in a RoleGuard', () => {
+      expect(isGuarded('/multisig/*', appRoutes)).toBe(true)
+    })
+
+    test('STAFF is still redirected away from /multisig by the shipped guard', () => {
+      const guard = findGuardFor('/multisig/*', appRoutes)
+      // The multisig subtree nests a Suspense wrapper under the guard; walk up
+      // to the RoleGuard element itself.
+      const roleGuard = findRoleGuardAbove('/multisig/*', appRoutes)
+      expect(guard).not.toBeNull()
+      expect(roleGuard).not.toBeNull()
+      renderWithProviders(
+        <Routes>
+          <Route element={roleGuard?.element}>
+            <Route path="/multisig/*" element={<div>MULTISIG_PAGE</div>} />
+          </Route>
+          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        </Routes>,
+        { initialEntries: ['/multisig'], staffId: 'stf_4' },
+      )
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('MULTISIG_PAGE')).not.toBeInTheDocument()
+    })
+  })
+})
+
+/** The nearest RoleGuard route object above `path`. */
+function findRoleGuardAbove(
+  path: string,
+  routes: RouteObject[],
+  guard: RouteObject | null = null,
+): RouteObject | null {
+  for (const route of routes) {
+    const nextGuard = isRoleGuardRoute(route) ? route : guard
+    if (route.path === path) return nextGuard
+    if (route.children) {
+      const found = findRoleGuardAbove(path, route.children, nextGuard)
+      if (found) return found
+    }
+  }
+  return null
+}
