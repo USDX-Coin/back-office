@@ -89,7 +89,15 @@ export function describeBniError(err: unknown): BniErrorView {
           retryable: false,
         }
       }
-      return { kind: 'unavailable', message: BNI_ERROR_TEXT.unavailable, retryable: true }
+      // yaml § BankUnavailable (rev 2026-09-09, review PR #96): the backend's
+      // `message` IS the differentiator — one of three fixed texts ("tidak
+      // dapat dihubungi" / "lambat menjawab" / "tidak mengembalikan rekening
+      // ini"), never a URL, token or raw status. Show it verbatim; fall back to
+      // the default only when it is empty. A message that still smuggles a URL
+      // is not one of the contract's texts, so it falls back too.
+      const backendText = err.message?.trim()
+      const usable = backendText && !/:\/\//.test(backendText) ? backendText : BNI_ERROR_TEXT.unavailable
+      return { kind: 'unavailable', message: usable, retryable: true }
     }
     case 422: {
       if (err.code === 'BNI_ACCOUNT_NOT_ALLOWED') {

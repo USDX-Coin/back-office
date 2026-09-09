@@ -13,11 +13,22 @@ describe('describeBniError', () => {
       expect(view.retryable).toBe(false)
     })
 
-    test('502 BNI_SERVICE_UNAVAILABLE → coba lagi, retryable', () => {
-      const view = describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'x'))
+    test('502 BNI_SERVICE_UNAVAILABLE → coba lagi, retryable (default text when message is empty)', () => {
+      const view = describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', ''))
       expect(view.kind).toBe('unavailable')
-      expect(view.message).toContain('coba lagi')
+      expect(view.message).toBe(BNI_ERROR_TEXT.unavailable)
       expect(view.retryable).toBe(true)
+    })
+
+    // yaml § BankUnavailable rev 2026-09-09: backend `message` is the
+    // differentiator between the three 502 variants — shown verbatim.
+    test('502 BNI_SERVICE_UNAVAILABLE shows the backend message verbatim (timeout / mismatch variants)', () => {
+      expect(
+        describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank lambat menjawab, coba lagi')).message
+      ).toBe('Bank lambat menjawab, coba lagi')
+      expect(
+        describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank tidak mengembalikan rekening ini')).message
+      ).toBe('Bank tidak mengembalikan rekening ini')
     })
 
     test('429 → terlalu sering, retryable', () => {
@@ -66,10 +77,12 @@ describe('describeBniError', () => {
     })
 
     // § 16.3: the raw HTTP status / transport detail must never reach the staff.
-    test('never leaks the HTTP status or backend message for transport errors', () => {
+    // A 502 message carrying a URL is not one of the contract's fixed texts.
+    test('a 502 message that smuggles a URL falls back to the default text', () => {
       const view = describeBniError(
         new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'upstream fetch to http://bni-service:3000 failed')
       )
+      expect(view.message).toBe(BNI_ERROR_TEXT.unavailable)
       expect(view.message).not.toContain('502')
       expect(view.message).not.toContain('http://')
     })

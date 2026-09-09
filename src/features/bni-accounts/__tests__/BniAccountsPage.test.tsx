@@ -223,15 +223,31 @@ describe('BniAccountsPage — balance cards (F1, AE3, AE4)', () => {
       expect(screen.getByTestId('bni-refetch-balances')).toBeEnabled()
     })
 
-    test('GET /balances 502 → "coba lagi"; 429 → "terlalu sering"', async () => {
+    test('GET /balances 502 → backend message ("coba lagi" / "lambat menjawab") verbatim; 429 → "terlalu sering"', async () => {
+      // yaml § BankUnavailable: `message` is the differentiator between the 502 variants.
       server.use(
-        http.get('/api/v1/bni-accounts/balances', () => apiError(502, 'BNI_SERVICE_UNAVAILABLE'))
+        http.get('/api/v1/bni-accounts/balances', () =>
+          apiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank lambat menjawab, coba lagi')
+        )
       )
       const first = renderPage()
       await waitFor(() =>
-        expect(screen.getByTestId('bni-balance-card-COLLECTION')).toHaveTextContent('coba lagi')
+        expect(screen.getByTestId('bni-balance-card-COLLECTION')).toHaveTextContent(
+          'Bank lambat menjawab, coba lagi'
+        )
       )
       first.unmount()
+
+      server.use(
+        http.get('/api/v1/bni-accounts/balances', () => apiError(502, 'BNI_SERVICE_UNAVAILABLE', ''))
+      )
+      const second = renderPage()
+      await waitFor(() =>
+        expect(screen.getByTestId('bni-balance-card-COLLECTION')).toHaveTextContent(
+          'Bank tidak dapat dihubungi, coba lagi'
+        )
+      )
+      second.unmount()
 
       server.use(http.get('/api/v1/bni-accounts/balances', () => apiError(429, 'RATE_LIMITED')))
       renderPage()
