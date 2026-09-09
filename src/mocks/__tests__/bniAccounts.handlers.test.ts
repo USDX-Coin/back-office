@@ -41,6 +41,16 @@ describe('GET /api/v1/bni-accounts', () => {
       expect(res.status).toBe(401)
     })
   })
+
+  describe('edge cases', () => {
+    test('the list never calls the bank — no pullId / balances in the payload', async () => {
+      const res = await fetch('/api/v1/bni-accounts', { headers: authHeaders() })
+      const body = await res.json()
+      for (const a of body.data) {
+        expect(Object.keys(a).sort()).toEqual(['accountNo', 'label', 'role'])
+      }
+    })
+  })
 })
 
 describe('GET /api/v1/bni-accounts/balances', () => {
@@ -65,6 +75,14 @@ describe('GET /api/v1/bni-accounts/balances', () => {
     test('401 without a session', async () => {
       const res = await fetch('/api/v1/bni-accounts/balances')
       expect(res.status).toBe(401)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('two pulls get distinct pullIds (each is one bank contact)', async () => {
+      const a = (await (await fetch('/api/v1/bni-accounts/balances', { headers: authHeaders() })).json()).data
+      const b = (await (await fetch('/api/v1/bni-accounts/balances', { headers: authHeaders() })).json()).data
+      expect(a.pullId).not.toBe(b.pullId)
     })
   })
 })

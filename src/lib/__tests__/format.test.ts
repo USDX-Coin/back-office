@@ -288,4 +288,14 @@ describe('formatWibDateTime', () => {
       expect(formatWibDateTime('not-a-date')).toBe('—')
     })
   })
+
+  describe('edge cases', () => {
+    test('midnight WIB renders as 00, never 24 (Intl hourCycle quirk)', () => {
+      expect(formatWibDateTime('2026-09-09T17:00:00Z')).toBe('2026-09-10 00:00:00 WIB')
+    })
+
+    test('an offset-bearing stamp is normalised to WIB too', () => {
+      expect(formatWibDateTime('2026-09-09T14:30:05+07:00')).toBe('2026-09-09 14:30:05 WIB')
+    })
+  })
 })

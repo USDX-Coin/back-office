@@ -254,6 +254,18 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       expect(screen.queryByText('MULTISIG_PAGE')).not.toBeInTheDocument()
     })
   })
+
+  describe('edge cases', () => {
+    test('an unauthenticated visit to /bni-accounts is still stopped by ProtectedRoute, not by a RoleGuard', () => {
+      // The route is flat (no RoleGuard) — anonymity is handled one level up by
+      // the ProtectedRoute wrapper that every authenticated route shares.
+      const protectedWrapper = appRoutes.find((r) =>
+        r.children?.some((c) => c.children?.some((cc) => cc.path === '/bni-accounts')),
+      )
+      expect(protectedWrapper).toBeDefined()
+      expect(isGuarded('/bni-accounts', appRoutes)).toBe(false)
+    })
+  })
 })
 
 /** The nearest RoleGuard route object above `path`. */

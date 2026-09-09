@@ -33,7 +33,7 @@ describe('visibleNavSections — Treasury (USDX-631)', () => {
       expect(treasuryItems('stf_4')).not.toContain('Multisig')
     })
 
-    test('an unauthenticated user gets no Treasury section', () => {
+    test('a null user still yields only Rekening BNI in Treasury (Multisig is the gated item)', () => {
       const section = visibleNavSections(null).find((s) => s.label === 'Treasury')
       // Rekening BNI has no visibleWhen, so the section itself still renders
       // for a null user at the nav-model level; the ProtectedRoute wrapper is

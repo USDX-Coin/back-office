@@ -107,9 +107,16 @@ function ResultsHeader({
       {summary && (
         <dl
           className="grid gap-x-6 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4"
-          aria-label="Ringkasan menurut bank untuk rentang ini"
+          aria-labelledby="bni-statement-summary-caption"
           data-testid="bni-statement-summary"
         >
+          {/* `<dl>` only admits dt/dd/div children — the caption is a div. */}
+          <div
+            id="bni-statement-summary-caption"
+            className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
+          >
+            Ringkasan menurut bank untuk rentang ini
+          </div>
           <div>
             <dt className="text-muted-foreground">Saldo awal (menurut bank)</dt>
             <dd className="font-mono tabular-nums">

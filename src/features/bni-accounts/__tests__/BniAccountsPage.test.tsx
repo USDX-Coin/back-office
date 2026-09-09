@@ -527,8 +527,13 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
 
     test('Tarik with empty dates defaults to today in WIB even when the browser sits in another zone', async () => {
       const user = userEvent.setup()
-      // 2026-09-09 20:30 UTC = 2026-09-10 03:30 WIB — a UTC laptop would say the 9th.
+      // Force a non-WIB process zone (this machine runs in WIB, which would let
+      // a local-time implementation pass by accident). Node re-reads TZ at runtime.
+      const previousTz = process.env.TZ
+      process.env.TZ = 'America/Los_Angeles'
+      // 2026-09-09 20:30 UTC = 2026-09-10 03:30 WIB — a UTC / US laptop would say the 9th.
       vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-09-09T20:30:00Z') })
+      expect(new Date().getDate()).toBe(9)
       const probe = recordRequests('/api/v1/bni-accounts/')
       renderPage()
       await waitForCards()
@@ -539,6 +544,8 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(call).toContain('startDate=2026-09-10')
       expect(call).toContain('endDate=2026-09-10')
       probe.stop()
+      if (previousTz === undefined) delete process.env.TZ
+      else process.env.TZ = previousTz
     })
 
     test('a MALFORMED row renders "—", sits last, and the summary counts it', async () => {

@@ -92,6 +92,14 @@ describe('statementCsvFilename', () => {
     })
   })
 
+  describe('negative', () => {
+    test('never carries the .csv extension itself (exportToCsv appends it — no double extension)', () => {
+      expect(
+        statementCsvFilename({ accountNo: '1', startDate: '2026-09-09', endDate: '2026-09-09', type: 'ALL' })
+      ).not.toMatch(/\.csv$/)
+    })
+  })
+
   describe('edge cases', () => {
     test('same-day range repeats the date', () => {
       expect(

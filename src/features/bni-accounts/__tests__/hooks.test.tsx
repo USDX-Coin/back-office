@@ -61,6 +61,13 @@ describe('buildBniStatementPath', () => {
     })
   })
 
+  describe('negative', () => {
+    test('an accountNo with reserved characters is percent-encoded, never spliced raw into the path', () => {
+      const path = buildBniStatementPath({ ...NP_PARAMS, accountNo: '1/../2?x' })
+      expect(path.startsWith('/api/v1/bni-accounts/1%2F..%2F2%3Fx/statement?')).toBe(true)
+    })
+  })
+
   describe('edge cases', () => {
     test('the statement key embeds the applied params so a new pull is a new key', () => {
       expect(bniAccountsKeys.statement(NP_PARAMS)).toEqual([
@@ -156,6 +163,26 @@ describe('useBniStatement', () => {
       expect(probe.calls).toHaveLength(1)
       expect(probe.calls[0]).toContain('type=DEBIT')
       expect(result.current.data!.rows.every((r) => r.flag === 'D')).toBe(true)
+      probe.stop()
+    })
+  })
+
+  describe('negative', () => {
+    test('a 422 from the backend surfaces as an error after ONE request (retry: false)', async () => {
+      const { http, HttpResponse } = await import('msw')
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'BNI_ACCOUNT_NOT_ALLOWED', message: 'x' } },
+            { status: 422 }
+          )
+        )
+      )
+      const { wrapper } = withClient()
+      const probe = countRequests('/api/v1/bni-accounts/')
+      const { result } = renderHook(() => useBniStatement(NP_PARAMS), { wrapper })
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(probe.calls).toHaveLength(1)
       probe.stop()
     })
   })
