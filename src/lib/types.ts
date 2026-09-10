@@ -240,6 +240,51 @@ export interface UpdateFeeConfig {
   disbursementFeeFlat: string
 }
 
+// ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───────
+// Mode menentukan TOKEN MANA yang dicetak untuk uang yang benar-benar masuk:
+// `PROD` mencetak USDX, `TEST` mencetak token uji. Karena itu mode uji selalu
+// punya batas waktu — `expiresAt` — dan selalu punya alasan yang tercatat.
+export type MintMode = 'PROD' | 'TEST'
+
+export interface MintModeConfig {
+  mode: MintMode
+  /** Kenapa mode ini dipilih. Kosong pada PROD baku. */
+  reason: string | null
+  /** ISO-8601 UTC. Kapan mode uji berakhir; `null` untuk PROD. */
+  expiresAt: string | null
+  /** Siapa yang terakhir menggeser mode. */
+  updatedBy: string | null
+  /** ISO-8601 UTC. */
+  updatedAt: string
+}
+
+/**
+ * Menyalakan mode uji: MANAGER / ADMIN (predikat sisi role; pasangan berbasis
+ * `Staff`-nya ada di `lib/auth.tsx` sebagai `canEnableMintTestMode`, pola yang
+ * sama dengan canManageOncallContacts vs canManageOncall).
+ */
+export function canEnableMintTestMode(role: StaffRole): boolean {
+  return role === 'ADMIN' || role === 'MANAGER'
+}
+
+/** Kembali ke PROD: STAFF ke atas; DEVELOPER view-only seperti aksi tulis lain. */
+export function canRestoreMintProdMode(role: StaffRole): boolean {
+  return role !== 'DEVELOPER'
+}
+
+/**
+ * Body `POST /api/v1/mint-mode`.
+ *
+ * `reason` + `durationHours` hanya bermakna saat menyalakan mode uji; kembali
+ * ke PROD dikirim sebagai `{ mode: 'PROD' }` saja, mengikuti "konfirmasi
+ * ringan" di tiket — tidak ada input untuk diisi di sana.
+ */
+export interface SetMintModeBody {
+  mode: MintMode
+  reason?: string
+  durationHours?: number
+}
+
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
 // Decimal string to preserve precision (Rp value can exceed JS Number safe int).
 

@@ -253,6 +253,52 @@ export function validateFeeConfigForm(input: {
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
+// ─── Mode mint PROD/UJI (USDX-639) ──────────────────────────────────────────
+// Menyalakan mode uji sengaja dibuat SULIT: alasan wajib dan durasi wajib,
+// karena mode uji berarti user membayar uang asli dan menerima token uji.
+// Mematikannya tetap mudah — asimetri itu ada di tiketnya.
+
+/** Batas durasi mode uji, dari tiket: maksimum 24 jam sekali geser. */
+export const MINT_TEST_MODE_MAX_HOURS = 24
+
+/** Alasan wajib. Panjangnya tidak dibatasi kontrak — kosong saja yang ditolak. */
+export function validateMintModeReason(raw: string): string | null {
+  if (!raw.trim()) return 'Alasan wajib diisi'
+  return null
+}
+
+/**
+ * Durasi jam. Bilangan bulat 1..24.
+ *
+ * Bulat, bukan pecahan: kontrak menyebut "durasi jam" dan tidak ada satuan yang
+ * lebih halus di layar ini, jadi menerima 0,5 hanya memindahkan penolakannya ke
+ * server. Batas atasnya 24 karena mode uji yang menyala lebih lama dari satu
+ * hari kerja akan terlupakan — itulah kegagalan yang membuat tiket ini ada.
+ */
+export function validateMintModeDurationHours(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Durasi wajib diisi'
+  if (!/^\d+$/.test(trimmed)) return 'Durasi harus bilangan bulat jam'
+  const n = Number(trimmed)
+  if (n < 1) return 'Durasi minimal 1 jam'
+  if (n > MINT_TEST_MODE_MAX_HOURS) {
+    return `Durasi maksimal ${MINT_TEST_MODE_MAX_HOURS} jam`
+  }
+  return null
+}
+
+export function validateMintTestModeForm(input: {
+  reason: string
+  durationHours: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  const reasonErr = validateMintModeReason(input.reason)
+  if (reasonErr) errors.reason = reasonErr
+  const durationErr = validateMintModeDurationHours(input.durationHours)
+  if (durationErr) errors.durationHours = durationErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
 // ─── Transparency: reserve ledger + attestation upload ──────────────────────
 // Client-side mirror of the validation table in
 // catatan/KONTRAK-API-TRANSPARANSI.md § 3. The point of duplicating the rules

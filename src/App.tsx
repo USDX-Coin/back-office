@@ -28,6 +28,7 @@ import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
+import MintModePage from '@/features/mint-mode/MintModePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
@@ -179,6 +180,12 @@ export const appRoutes: RouteObject[] = [
           // admin only (gated inside the page, read-only notice for non-admin —
           // same as Rate). No route-level RoleGuard so DEVELOPER can view.
           { path: '/settings/fee', element: <FeeConfigPage /> },
+          // USDX-639 — mode mint PROD/UJI. TANPA RoleGuard, dan itu disengaja:
+          // AC tiketnya menuntut STAFF bisa MEMBUKA halaman ini (tombol kembali
+          // ke PROD tersedia untuk STAFF ke atas), sementara Settings lain
+          // berhenti di ADMIN+DEVELOPER. Kewenangan menggeser di-gate di dalam
+          // kartunya per aksi, dan backend menegakkan 403 sendiri.
+          { path: '/settings/mint-mode', element: <MintModePage /> },
           {
             // KONTRAK-API-TRANSPARANSI.md § 3: reading the reserve ledger is
             // ADMIN + DEVELOPER. Gated at the ROUTE, like /settings/threshold —

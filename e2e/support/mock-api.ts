@@ -110,6 +110,20 @@ const FEE_CONFIG = {
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
+// USDX-639 — keadaan normal: PROD. Mode uji selalu dinyalakan dengan sengaja.
+const MINT_MODE_PROD: {
+  mode: 'PROD' | 'TEST'
+  reason: string | null
+  expiresAt: string | null
+  updatedBy: string | null
+  updatedAt: string
+} = {
+  mode: 'PROD',
+  reason: null,
+  expiresAt: null,
+  updatedBy: ADMIN_STAFF.name,
+  updatedAt: '2026-05-01T00:00:00.000Z',
+}
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
 const DASHBOARD_STATS = {
   totalSupply: '1000000.00',
@@ -643,6 +657,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
   // next GET (the FE invalidates and refetches after a successful update).
   let liveRate = { ...RATE_INFO }
   let liveFee = { ...FEE_CONFIG }
+  // USDX-639: mode mint PROD/UJI, mutable per test — POST harus terbaca oleh
+  // GET berikutnya karena banner global membacanya dari query yang sama.
+  let liveMintMode = { ...MINT_MODE_PROD }
 
   const envelope = (route: Route, data: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ status: 'success', metadata: null, data }) })
@@ -722,6 +739,37 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         updatedAt: '2026-06-17T00:00:00.000Z',
       }
       return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)
+    }
+    // USDX-639: mode mint PROD/UJI (kontrak USDX-636). GET semua role; POST
+    // MANAGER/ADMIN untuk mode uji, STAFF ke atas untuk kembali ke PROD.
+    if (key === 'GET /api/v1/mint-mode') return envelope(route, liveMintMode)
+    if (key === 'POST /api/v1/mint-mode') {
+      const b = body()
+      if (b.mode === 'TEST') {
+        if (!b.reason || !String(b.reason).trim()) {
+          return error(route, 'VALIDATION_ERROR', 'reason is required', 422)
+        }
+        const hours = Number(b.durationHours)
+        if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
+          return error(route, 'VALIDATION_ERROR', 'durationHours must be 1..24', 422)
+        }
+        liveMintMode = {
+          mode: 'TEST',
+          reason: String(b.reason),
+          expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+          updatedBy: ADMIN_STAFF.name,
+          updatedAt: new Date().toISOString(),
+        }
+        return envelope(route, liveMintMode, 201)
+      }
+      liveMintMode = {
+        mode: 'PROD',
+        reason: null,
+        expiresAt: null,
+        updatedBy: ADMIN_STAFF.name,
+        updatedAt: new Date().toISOString(),
+      }
+      return envelope(route, liveMintMode, 201)
     }
     // USDX-207: fee config (sot/api/fee.yaml). GET all roles, POST admin.
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)

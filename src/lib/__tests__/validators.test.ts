@@ -19,6 +19,9 @@ import {
   validateRateUpdateForm,
   isManualRateUnusual,
   validateFeeConfigForm,
+  validateMintModeReason,
+  validateMintModeDurationHours,
+  validateMintTestModeForm,
   validatePgFeeVaFlat,
   validateDisbursementFeeFlat,
   validateLedgerAmount,
@@ -792,6 +795,93 @@ describe('validateFeeConfigForm', () => {
     })
     test('disbursement flat accepts a valid flat amount', () => {
       expect(validateDisbursementFeeFlat('5000.00')).toBeNull()
+    })
+  })
+})
+
+// USDX-639 — mode uji mint. Menyalakannya sengaja sulit: alasan wajib, durasi
+// wajib, maksimal 24 jam.
+describe('validateMintModeReason', () => {
+  describe('positive', () => {
+    test('menerima alasan biasa', () => {
+      expect(validateMintModeReason('Uji bayar produksi')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak alasan kosong', () => {
+      expect(validateMintModeReason('')).toMatch(/wajib/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('spasi saja dihitung kosong', () => {
+      expect(validateMintModeReason('    ')).toMatch(/wajib/i)
+    })
+    test('satu karakter pun lolos — kontrak tidak menetapkan panjang minimum', () => {
+      expect(validateMintModeReason('x')).toBeNull()
+    })
+  })
+})
+
+describe('validateMintModeDurationHours', () => {
+  describe('positive', () => {
+    test('menerima 1 jam', () => {
+      expect(validateMintModeDurationHours('1')).toBeNull()
+    })
+    test('menerima batas atas 24 jam', () => {
+      expect(validateMintModeDurationHours('24')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak kosong', () => {
+      expect(validateMintModeDurationHours('')).toMatch(/wajib/i)
+    })
+    test('menolak 0 jam', () => {
+      expect(validateMintModeDurationHours('0')).toMatch(/minimal/i)
+    })
+    test('menolak 25 jam', () => {
+      expect(validateMintModeDurationHours('25')).toMatch(/maksimal 24/i)
+    })
+    test('menolak bukan angka', () => {
+      expect(validateMintModeDurationHours('dua')).toMatch(/bulat/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('menolak pecahan — kontrak berbicara dalam jam bulat', () => {
+      expect(validateMintModeDurationHours('1.5')).toMatch(/bulat/i)
+    })
+    test('menolak angka negatif', () => {
+      expect(validateMintModeDurationHours('-2')).toMatch(/bulat/i)
+    })
+    test('spasi di sekeliling angka tetap lolos', () => {
+      expect(validateMintModeDurationHours('  3  ')).toBeNull()
+    })
+  })
+})
+
+describe('validateMintTestModeForm', () => {
+  describe('positive', () => {
+    test('alasan + durasi valid', () => {
+      expect(
+        validateMintTestModeForm({ reason: 'Uji bayar', durationHours: '2' }).valid,
+      ).toBe(true)
+    })
+  })
+  describe('negative', () => {
+    test('alasan kosong menggagalkan seluruh form', () => {
+      const r = validateMintTestModeForm({ reason: '', durationHours: '2' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.reason).toBeDefined()
+    })
+    test('durasi kosong menggagalkan seluruh form', () => {
+      const r = validateMintTestModeForm({ reason: 'Uji', durationHours: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.durationHours).toBeDefined()
+    })
+  })
+  describe('edge cases', () => {
+    test('dua-duanya salah → dua pesan, bukan satu', () => {
+      const r = validateMintTestModeForm({ reason: '  ', durationHours: '99' })
+      expect(Object.keys(r.errors).sort()).toEqual(['durationHours', 'reason'])
     })
   })
 })
