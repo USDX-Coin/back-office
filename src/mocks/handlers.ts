@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
+import { MIN_MINT_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
   BniStatementType,
@@ -1128,14 +1129,16 @@ export const handlers = [
       )
     }
 
-    // POST = full 5-field snapshot; every field required + non-negative (W3
-    // redeem fields included so partial submits can't zero them out, USDX-245).
+    // POST = full 6-field snapshot; every field required + non-negative (W3
+    // redeem fields included so partial submits can't zero them out, USDX-245;
+    // `minMintIdr` since USDX-637 for the same reason).
     for (const key of [
       'mintFeePct',
       'pgFeeVaFlat',
       'pgFeeQrisPct',
       'redeemFeePct',
       'disbursementFeeFlat',
+      'minMintIdr',
     ] as const) {
       const raw = body[key]
       const n = Number(raw)
@@ -1144,12 +1147,20 @@ export const handlers = [
       }
     }
 
+    // Lantai keras minimum mint (USDX-635). Mirrored here so the mock refuses
+    // what the backend refuses — a mock that accepts Rp 5.000 would let a
+    // green test claim a floor the server actually enforces.
+    if (Number(body.minMintIdr) < MIN_MINT_IDR_FLOOR) {
+      return feeValidationError(`minMintIdr must be at least ${MIN_MINT_IDR_FLOOR}`)
+    }
+
     const created = createFeeConfig({
       mintFeePct: body.mintFeePct,
       pgFeeVaFlat: body.pgFeeVaFlat,
       pgFeeQrisPct: body.pgFeeQrisPct,
       redeemFeePct: body.redeemFeePct,
       disbursementFeeFlat: body.disbursementFeeFlat,
+      minMintIdr: body.minMintIdr,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })

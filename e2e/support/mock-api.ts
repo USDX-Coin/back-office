@@ -107,6 +107,8 @@ const FEE_CONFIG = {
   pgFeeQrisPct: '0.7',
   redeemFeePct: '1.0',
   disbursementFeeFlat: '5000.00',
+  // Minimum mint Rp (USDX-635/637) — kolom config, bukan konstanta kode lagi.
+  minMintIdr: '20000',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
@@ -727,19 +729,26 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
-      // Full 5-field snapshot, all required + non-negative (USDX-245). Body
-      // failures → 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
+      // Full 6-field snapshot, all required + non-negative (USDX-245, plus
+      // `minMintIdr` USDX-637). Body failures → 422 VALIDATION_ERROR
+      // (fee-config on the v1→422 allowlist).
       for (const f of [
         'mintFeePct',
         'pgFeeVaFlat',
         'pgFeeQrisPct',
         'redeemFeePct',
         'disbursementFeeFlat',
+        'minMintIdr',
       ]) {
         const n = Number(b[f])
         if (b[f] == null || b[f] === '' || !Number.isFinite(n) || n < 0) {
           return error(route, 'VALIDATION_ERROR', `${f} is required`, 422)
         }
+      }
+      // Lantai keras Rp 10.000 milik backend (USDX-635), ditiru di sini supaya
+      // mock tidak menerima angka yang server tolak.
+      if (Number(b.minMintIdr) < 10000) {
+        return error(route, 'VALIDATION_ERROR', 'minMintIdr must be at least 10000', 422)
       }
       liveFee = {
         id: 'fee-live',
@@ -748,6 +757,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         pgFeeQrisPct: b.pgFeeQrisPct,
         redeemFeePct: b.redeemFeePct,
         disbursementFeeFlat: b.disbursementFeeFlat,
+        minMintIdr: b.minMintIdr,
         updatedBy: ADMIN_STAFF.id,
         createdAt: '2026-06-17T00:00:00.000Z',
       }
