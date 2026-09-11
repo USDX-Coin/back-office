@@ -2244,6 +2244,7 @@ export type OncallIncidentCategory =
   | 'FRAUD'
   | 'SECURITY'
   | 'INFRA'
+  | 'CUSTODIAL'
   | 'OTHER'
 
 export const ONCALL_CHANNELS: readonly OncallChannel[] = ['PHONE', 'EMAIL', 'SLACK']
@@ -2256,6 +2257,10 @@ export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
   'FRAUD',
   'SECURITY',
   'INFRA',
+  // USDX-632 — zona kunci custodial: backend memetakan semua kondisi WALLET_*
+  // (backstop salinan wallet, burn custodial hangus, alert wallet-service) ke sini.
+  // Pemiliknya pemegang kunci Vault/Web3Signer, bukan devops (INFRA).
+  'CUSTODIAL',
   'OTHER',
 ]
 
@@ -2268,6 +2273,7 @@ export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
   FRAUD: 'Aturan FDS menyala (velocity, structuring, fan-in)',
   SECURITY: 'Brute force login, aksi sensitif backoffice',
   INFRA: 'Kanal alert mati, transaksi Safe dibatalkan',
+  CUSTODIAL: 'Zona kunci wallet custodial: salinan wallet macet, burn custodial hangus',
   OTHER: 'Kondisi baru yang belum dipetakan ke kategori mana pun',
 }
 
