@@ -303,6 +303,89 @@ export function feeConfigErrorField(message: string): string | null {
   return named.length === 1 ? named[0] : null
 }
 
+// ─── Mode mint PROD/UJI (USDX-639) ──────────────────────────────────────────
+// Menyalakan mode uji sengaja dibuat SULIT: alasan wajib dan durasi wajib,
+// karena mode uji berarti user membayar uang asli dan menerima token uji.
+// Mematikannya tetap mudah — asimetri itu ada di tiketnya.
+
+/** Batas durasi mode uji: maksimum 24 jam sekali geser (`sot/api/mint-mode.yaml`). */
+export const MINT_TEST_MODE_MAX_HOURS = 24
+
+/**
+ * Panjang minimum alasan, dari `sot/api/mint-mode.yaml § SetMintMode` — "minimal
+ * 10 karakter (CHECK yang sama ada di DB)". Ditulis sebagai konstanta milik mode
+ * mint sendiri, bukan diturunkan dari `LEDGER_REASON_MIN_LEN`: keduanya kebetulan
+ * 10 hari ini karena dua kontrak yang berbeda kebetulan sepakat, dan menautkannya
+ * berarti perubahan di satu kontrak diam-diam menggeser yang lain.
+ */
+export const MINT_MODE_REASON_MIN_LEN = 10
+
+export function validateMintModeReason(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Alasan wajib diisi'
+  if (trimmed.length < MINT_MODE_REASON_MIN_LEN) {
+    return `Alasan minimal ${MINT_MODE_REASON_MIN_LEN} karakter`
+  }
+  return null
+}
+
+/**
+ * Satu email pada daftar yang boleh mint saat mode uji (USDX-639, tambahan
+ * lingkup 11 Sep 2026). Memakai `EMAIL_RE` yang sama dengan login dan form staf
+ * — aturan bentuk email di aplikasi ini harus satu, bukan tiga yang berbeda tipis.
+ */
+export function validateMintAllowedEmail(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Email wajib diisi'
+  if (!EMAIL_RE.test(trimmed)) return 'Format email tidak valid'
+  return null
+}
+
+/**
+ * Durasi jam. Bilangan bulat 1..24.
+ *
+ * Bulat, bukan pecahan: kontrak menyebut "durasi jam" dan tidak ada satuan yang
+ * lebih halus di layar ini, jadi menerima 0,5 hanya memindahkan penolakannya ke
+ * server. Batas atasnya 24 karena mode uji yang menyala lebih lama dari satu
+ * hari kerja akan terlupakan — itulah kegagalan yang membuat tiket ini ada.
+ */
+export function validateMintModeDurationHours(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Durasi wajib diisi'
+  if (!/^\d+$/.test(trimmed)) return 'Durasi harus bilangan bulat jam'
+  const n = Number(trimmed)
+  if (n < 1) return 'Durasi minimal 1 jam'
+  if (n > MINT_TEST_MODE_MAX_HOURS) {
+    return `Durasi maksimal ${MINT_TEST_MODE_MAX_HOURS} jam`
+  }
+  return null
+}
+
+/**
+ * `allowedEmailDraft` = apa yang masih tertulis di kotak email dan BELUM
+ * ditambahkan ke daftar. Ia ikut divalidasi supaya alamat setengah diketik tidak
+ * bisa dikirim secara diam-diam: tombol simpan mati selama kotaknya berisi
+ * sesuatu yang bukan email. Kotak KOSONG bukan kesalahan — daftar boleh kosong
+ * (artinya tidak ada yang bisa mint), dan dialognya yang memperingatkan.
+ */
+export function validateMintTestModeForm(input: {
+  reason: string
+  durationHours: string
+  allowedEmailDraft?: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  const reasonErr = validateMintModeReason(input.reason)
+  if (reasonErr) errors.reason = reasonErr
+  const durationErr = validateMintModeDurationHours(input.durationHours)
+  if (durationErr) errors.durationHours = durationErr
+  const draft = (input.allowedEmailDraft ?? '').trim()
+  if (draft) {
+    const emailErr = validateMintAllowedEmail(draft)
+    if (emailErr) errors.allowedEmailDraft = emailErr
+  }
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
 // ─── Transparency: reserve ledger + attestation upload ──────────────────────
 // Client-side mirror of the validation table in
 // catatan/KONTRAK-API-TRANSPARANSI.md § 3. The point of duplicating the rules

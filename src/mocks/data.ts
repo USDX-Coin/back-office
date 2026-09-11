@@ -35,6 +35,7 @@ import type {
   RateConfig,
   RateInfo,
   FeeConfig,
+  MintModeConfig,
   ReserveLedgerEntry,
   AttestationReport,
   UserAnalytics,
@@ -472,6 +473,25 @@ export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
   ]
+}
+
+// ─── Mode mint PROD/UJI (/api/v1/mint-mode, USDX-636 + USDX-639) ─────────────
+// Backend-nya dikerjakan paralel (USDX-636); mock ini mengikuti kontrak yang
+// dipatok di tiket USDX-639 dan BUKAN yang menentukannya. Seed = PROD, karena
+// PROD adalah keadaan normal dan mode uji selalu dinyalakan dengan sengaja.
+
+export function createInitialMintMode(seedStaff: { id: string; name: string }): MintModeConfig {
+  return {
+    mode: 'PROD',
+    reason: null,
+    expiresAt: null,
+    updatedBy: seedStaff.id,
+    updatedByName: seedStaff.name,
+    // PROD tidak punya pembatasan apa pun — daftar akses hanya berlaku saat
+    // mode uji menyala (USDX-636 § 3).
+    allowedEmails: [],
+    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  }
 }
 
 // ─── Transparency (/api/v1/transparency/*) ───────────────────────────────────

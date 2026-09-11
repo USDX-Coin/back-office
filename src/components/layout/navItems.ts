@@ -17,6 +17,7 @@ import {
   Landmark,
   PhoneCall,
   ShieldAlert,
+  FlaskConical,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -155,14 +156,28 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // USDX-639: gerbang section DIPINDAH ke item-itemnya, mengikuti preseden
+    // TREASURY (USDX-631 D21). Alasannya sama bentuknya: satu entri baru di
+    // section ini — Mode Mint — harus terlihat oleh SEMUA role, sementara
+    // Rate / Fee / Threshold / On-Call tetap persis seperti sebelumnya. Menaruh
+    // gerbang lama di section akan menyembunyikan Mode Mint dari STAFF dan
+    // MANAGER, yaitu dua role yang justru diminta tiketnya bisa membukanya.
     label: 'Settings',
-    visibleWhen: canManageSettings,
     items: [
-      { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
+      { to: '/settings/rate', label: 'Rate', icon: TrendingUp, visibleWhen: canManageSettings },
       // USDX-207: fee config (mint fee % + PG fee VA/QRIS). Visible to the
       // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
-      { to: '/settings/fee', label: 'Fee', icon: Percent },
-      { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
+      { to: '/settings/fee', label: 'Fee', icon: Percent, visibleWhen: canManageSettings },
+      // USDX-639 — mode mint PROD/UJI. SATU-SATUNYA entri Settings yang terbuka
+      // untuk semua role: STAFF yang menyadari mode uji menyala di jam produksi
+      // harus bisa sampai ke tombol yang mematikannya tanpa mencari atasan.
+      { to: '/settings/mint-mode', label: 'Mode Mint', icon: FlaskConical },
+      {
+        to: '/settings/threshold',
+        label: 'Threshold',
+        icon: Sliders,
+        visibleWhen: canManageSettings,
+      },
       // USDX-485 (audit P1-18): kontak on-call insiden uang. Di-gate di level
       // ITEM, bukan mengikuti section (canManageSettings = ADMIN+DEVELOPER):
       // daftarnya memuat nomor telepon dan menentukan siapa yang dipanggil saat

@@ -53,3 +53,60 @@ describe('visibleNavSections — Treasury (USDX-631)', () => {
     })
   })
 })
+
+// USDX-639 — Mode Mint adalah satu-satunya entri Settings yang terbuka untuk
+// semua role: STAFF yang menyadari mode uji menyala harus bisa sampai ke tombol
+// yang mematikannya. Gerbang section dipindah ke item, jadi entri lama WAJIB
+// tetap persis seperti sebelumnya — itu yang diuji di sini, bukan cuma yang baru.
+function settingsItems(staffId: string): string[] {
+  const staff = findStaffById(staffId) ?? null
+  const section = visibleNavSections(staff).find((s) => s.label === 'Settings')
+  return section ? section.items.map((i) => i.label) : []
+}
+
+describe('visibleNavSections — Settings (USDX-639)', () => {
+  describe('positive', () => {
+    test('ADMIN melihat seluruh entri Settings termasuk Mode Mint', () => {
+      expect(settingsItems('stf_1')).toEqual([
+        'Rate',
+        'Fee',
+        'Mode Mint',
+        'Threshold',
+        'On-Call',
+      ])
+    })
+
+    test('DEVELOPER: entri lama tidak berubah, Mode Mint ikut tampil', () => {
+      expect(settingsItems('stf_3')).toEqual(['Rate', 'Fee', 'Mode Mint', 'Threshold'])
+    })
+
+    test('STAFF dan MANAGER melihat Settings HANYA berisi Mode Mint', () => {
+      expect(settingsItems('stf_4')).toEqual(['Mode Mint']) // Sarah King, STAFF
+      expect(settingsItems('stf_2')).toEqual(['Mode Mint']) // Linda Chen, MANAGER
+    })
+  })
+
+  describe('negative', () => {
+    test('STAFF tetap tidak melihat Rate / Fee / Threshold / On-Call', () => {
+      const items = settingsItems('stf_4')
+      expect(items).not.toContain('Rate')
+      expect(items).not.toContain('Fee')
+      expect(items).not.toContain('Threshold')
+      expect(items).not.toContain('On-Call')
+    })
+
+    test('DEVELOPER tetap tidak melihat On-Call (USDX-485)', () => {
+      expect(settingsItems('stf_3')).not.toContain('On-Call')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('Mode Mint menunjuk /settings/mint-mode dan tidak membawa badge', () => {
+      const item = visibleNavSections(findStaffById('stf_4') ?? null)
+        .flatMap((s) => s.items)
+        .find((i) => i.label === 'Mode Mint')
+      expect(item?.to).toBe('/settings/mint-mode')
+      expect(item?.badgeKey).toBeUndefined()
+    })
+  })
+})

@@ -1,6 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
+import {
+  canEnableMintTestMode as canEnableMintTestModeRole,
+  canRestoreMintProdMode as canRestoreMintProdModeRole,
+} from './types'
 import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
@@ -267,6 +271,28 @@ export function canAccessRequestList(staff: Staff | null): boolean {
 // memindahkan sisi yang lain. Preseden: canAccessReports vs canAccessTreasury.
 export function canDecideScreening(staff: Staff | null): boolean {
   return staff !== null && staff.role !== 'DEVELOPER'
+}
+
+// USDX-639 — menyalakan mode uji mint: MANAGER / ADMIN saja. Mode uji berarti
+// uang yang benar-benar masuk dicetak jadi token UJI, bukan USDX, jadi
+// kewenangannya disamakan dengan impor daftar sanksi: bukan keputusan satu
+// berkas, melainkan keputusan yang mengubah apa yang diterima SEMUA pembayar
+// selama jendelanya menyala. Backend menegakkan 403 sendiri.
+export function canEnableMintTestMode(staff: Staff | null): boolean {
+  return staff !== null && canEnableMintTestModeRole(staff.role)
+}
+
+// USDX-639 — kembali ke PROD: "STAFF ke atas". Sengaja lebih longgar daripada
+// menyalakannya (asimetri itu ada di tiketnya: menyalakan sulit, mematikan
+// mudah) — siapa pun yang menyadari mode uji menyala di jam produksi harus bisa
+// menghentikannya tanpa mencari atasan.
+//
+// DEVELOPER dikecualikan mengikuti pola yang sudah berlaku di repo ini untuk
+// aksi tulis (canReviewKyc, canDecideScreening, canSubmitOtc): DEVELOPER
+// view-only. Tiket menulis "STAFF ke atas" dan tidak menyebut DEVELOPER sama
+// sekali — kalau BE ternyata mengizinkannya, gerbang ini yang menyesuaikan.
+export function canRestoreMintProdMode(staff: Staff | null): boolean {
+  return staff !== null && canRestoreMintProdModeRole(staff.role)
 }
 
 // USDX-588 — impor daftar sanksi + pemindaian ulang: MANAGER / ADMIN saja

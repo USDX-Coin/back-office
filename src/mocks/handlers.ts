@@ -28,8 +28,10 @@ import type {
   OncallContact,
   CreateOncallContact,
   UpdateOncallContact,
+  MintModeConfig,
+  SetMintModeBody,
 } from '@/lib/types'
-import { canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -48,6 +50,7 @@ import {
   createInitialOncallContacts,
   createOncallContact,
   createInitialFeeHistory,
+  createInitialMintMode,
   createFeeConfig,
   createLedgerEntry,
   createInitialLedgerEntries,
@@ -74,6 +77,9 @@ let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+let mintModeState: MintModeConfig = createInitialMintMode(
+  staffStore[0] ?? { id: 'seed', name: 'seed' }
+)
 let reserveLedger: ReserveLedgerEntry[] = createInitialLedgerEntries()
 let attestations: AttestationReport[] = createInitialAttestations()
 let requestList: RequestListItem[]
@@ -104,6 +110,7 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+  mintModeState = createInitialMintMode(staffStore[0] ?? { id: 'seed', name: 'seed' })
   reserveLedger = createInitialLedgerEntries()
   attestations = createInitialAttestations()
   ledgerIdempotency.clear()
@@ -116,6 +123,35 @@ export function resetMockData() {
   bniAccountsStore = createBniAccounts()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
+}
+
+// USDX-639 — mode uji berakhir sendiri. Dihitung saat DIBACA, bukan lewat
+// timer: sebuah suite test bisa memajukan jam palsunya, dan handler yang
+// bergantung pada timer akan menjawab TEST untuk jendela yang sudah lewat.
+function resolveMintMode(): MintModeConfig {
+  if (
+    mintModeState.mode === 'TEST' &&
+    mintModeState.expiresAt &&
+    new Date(mintModeState.expiresAt).getTime() <= Date.now()
+  ) {
+    mintModeState = {
+      mode: 'PROD',
+      reason: null,
+      expiresAt: null,
+      updatedBy: mintModeState.updatedBy,
+      updatedByName: mintModeState.updatedByName,
+      allowedEmails: [],
+      updatedAt: mintModeState.expiresAt,
+    }
+  }
+  return mintModeState
+}
+
+// USDX-639 — test helper: pasang keadaan mode mint apa adanya (mis. jendela uji
+// yang sudah lewat) tanpa harus menembus gerbang role POST. Direset oleh
+// resetMockData(). Tidak dipakai kode runtime.
+export function configureMintModeForTests(next: MintModeConfig) {
+  mintModeState = { ...next }
 }
 
 // USDX-631 — test helper: replace the "env-configured" BNI account list
@@ -1169,6 +1205,90 @@ export const handlers = [
       { status: 'success', metadata: null, data: created },
       { status: 201 }
     )
+  }),
+
+  // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───
+  // GET = semua role back office (baca). POST = MANAGER/ADMIN untuk menyalakan
+  // mode uji, STAFF ke atas untuk kembali ke PROD.
+  // Mock-served (tidak ada di INTEGRATION_PATHS) — BE-nya (USDX-636) jalan
+  // paralel dan belum hidup. Kontraknya dari tiket USDX-639, bukan dari sini.
+  //
+  // Kedaluwarsa dihitung DI SERVER, seperti backend nanti: begitu `expiresAt`
+  // lewat, GET menjawab PROD. Kalau kedaluwarsa dihitung di klien, sebuah tab
+  // dengan jam yang meleset bisa menyembunyikan banner untuk jendela yang masih
+  // menyala — kesalahan yang dibayar orang yang membayar uang asli.
+  http.get('/api/v1/mint-mode', () => {
+    const current = resolveMintMode()
+    return HttpResponse.json({ status: 'success', metadata: null, data: current })
+  }),
+
+  http.post('/api/v1/mint-mode', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+
+    const body = (await request.json()) as SetMintModeBody
+
+    function mintModeError(code: string, message: string, status: number, details?: unknown) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code, message, details } },
+        { status }
+      )
+    }
+
+    if (body.mode !== 'TEST' && body.mode !== 'PROD') {
+      return mintModeError('VALIDATION_ERROR', 'mode must be PROD or TEST', 422)
+    }
+
+    if (body.mode === 'TEST') {
+      if (!canEnableMintTestMode(operator.role)) {
+        return mintModeError(
+          'FORBIDDEN',
+          'Only MANAGER or ADMIN can switch mint to test mode',
+          403
+        )
+      }
+      const reason = (body.reason ?? '').trim()
+      // Minimal 10 karakter — CHECK yang sama ada di DB
+      // (sot/api/mint-mode.yaml § SetMintMode).
+      if (reason.length < 10) {
+        return mintModeError('VALIDATION_ERROR', 'reason must be at least 10 characters', 422)
+      }
+      const hours = Number(body.durationHours)
+      if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
+        return mintModeError('VALIDATION_ERROR', 'durationHours must be 1..24', 422)
+      }
+      const allowedEmails = Array.isArray(body.allowedEmails)
+        ? body.allowedEmails.map((e) => String(e).trim()).filter(Boolean)
+        : []
+      mintModeState = {
+        mode: 'TEST',
+        reason,
+        expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+        updatedBy: operator.id,
+        updatedByName: operator.name,
+        // Daftar KOSONG disimpan apa adanya: artinya "tidak ada yang bisa
+        // mint", bukan "belum diisi" (USDX-636 § 3).
+        allowedEmails,
+        updatedAt: new Date().toISOString(),
+      }
+      return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
+    }
+
+    if (!canRestoreMintProdMode(operator.role)) {
+      return mintModeError('FORBIDDEN', 'DEVELOPER cannot change the mint mode', 403)
+    }
+    mintModeState = {
+      mode: 'PROD',
+      reason: null,
+      expiresAt: null,
+      updatedBy: operator.id,
+      updatedByName: operator.name,
+      // Kembali ke PROD membuang daftar akses: PROD tidak mengenal pembatasan
+      // apa pun, dan daftar yang tertinggal akan terbaca seakan masih berlaku.
+      allowedEmails: [],
+      updatedAt: new Date().toISOString(),
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
   }),
 
   // ─── Transparency (/api/v1/transparency/*) ───
