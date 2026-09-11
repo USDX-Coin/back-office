@@ -478,12 +478,16 @@ export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
 // dipatok di tiket USDX-639 dan BUKAN yang menentukannya. Seed = PROD, karena
 // PROD adalah keadaan normal dan mode uji selalu dinyalakan dengan sengaja.
 
-export function createInitialMintMode(seedStaffName: string): MintModeConfig {
+export function createInitialMintMode(seedStaff: { id: string; name: string }): MintModeConfig {
   return {
     mode: 'PROD',
     reason: null,
     expiresAt: null,
-    updatedBy: seedStaffName,
+    updatedBy: seedStaff.id,
+    updatedByName: seedStaff.name,
+    // PROD tidak punya pembatasan apa pun — daftar akses hanya berlaku saat
+    // mode uji menyala (USDX-636 § 3).
+    allowedEmails: [],
     updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   }
 }

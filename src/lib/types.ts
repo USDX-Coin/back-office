@@ -252,8 +252,21 @@ export interface MintModeConfig {
   reason: string | null
   /** ISO-8601 UTC. Kapan mode uji berakhir; `null` untuk PROD. */
   expiresAt: string | null
-  /** Siapa yang terakhir menggeser mode. */
+  /** UUID staf yang menggeser; `null` untuk baris yang ditulis lewat psql. */
   updatedBy: string | null
+  /**
+   * Nama staf penggeser (`sot/api/mint-mode.yaml`). Ada supaya kartu bisa
+   * menjawab "siapa yang menggeser ini" tanpa lookup kedua — UUID tidak
+   * menjawabnya untuk orang yang sedang panik.
+   */
+  updatedByName: string | null
+  /**
+   * Email yang boleh mint SELAMA mode uji (USDX-639 tambahan lingkup 11 Sep
+   * 2026 + USDX-636 § 3). **Kosong berarti tidak ada yang bisa mint** — mode uji
+   * bukan untuk publik, jadi ketiadaan daftar dibaca sebagai tertutup, bukan
+   * terbuka. `null`/absen diperlakukan sama dengan kosong.
+   */
+  allowedEmails: string[] | null
   /** ISO-8601 UTC. */
   updatedAt: string
 }
@@ -283,6 +296,8 @@ export interface SetMintModeBody {
   mode: MintMode
   reason?: string
   durationHours?: number
+  /** Daftar email yang boleh mint selama mode uji. Hanya dikirim untuk `TEST`. */
+  allowedEmails?: string[]
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────

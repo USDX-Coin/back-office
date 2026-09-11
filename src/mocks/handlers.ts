@@ -76,7 +76,9 @@ let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
-let mintModeState: MintModeConfig = createInitialMintMode(staffStore[0]?.name ?? 'seed')
+let mintModeState: MintModeConfig = createInitialMintMode(
+  staffStore[0] ?? { id: 'seed', name: 'seed' }
+)
 let reserveLedger: ReserveLedgerEntry[] = createInitialLedgerEntries()
 let attestations: AttestationReport[] = createInitialAttestations()
 let requestList: RequestListItem[]
@@ -107,7 +109,7 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
-  mintModeState = createInitialMintMode(staffStore[0]?.name ?? 'seed')
+  mintModeState = createInitialMintMode(staffStore[0] ?? { id: 'seed', name: 'seed' })
   reserveLedger = createInitialLedgerEntries()
   attestations = createInitialAttestations()
   ledgerIdempotency.clear()
@@ -136,6 +138,8 @@ function resolveMintMode(): MintModeConfig {
       reason: null,
       expiresAt: null,
       updatedBy: mintModeState.updatedBy,
+      updatedByName: mintModeState.updatedByName,
+      allowedEmails: [],
       updatedAt: mintModeState.expiresAt,
     }
   }
@@ -1233,22 +1237,30 @@ export const handlers = [
         )
       }
       const reason = (body.reason ?? '').trim()
-      if (!reason) return mintModeError('VALIDATION_ERROR', 'reason is required', 422)
+      // Minimal 10 karakter — CHECK yang sama ada di DB
+      // (sot/api/mint-mode.yaml § SetMintMode).
+      if (reason.length < 10) {
+        return mintModeError('VALIDATION_ERROR', 'reason must be at least 10 characters', 422)
+      }
       const hours = Number(body.durationHours)
       if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
         return mintModeError('VALIDATION_ERROR', 'durationHours must be 1..24', 422)
       }
+      const allowedEmails = Array.isArray(body.allowedEmails)
+        ? body.allowedEmails.map((e) => String(e).trim()).filter(Boolean)
+        : []
       mintModeState = {
         mode: 'TEST',
         reason,
         expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
-        updatedBy: operator.name,
+        updatedBy: operator.id,
+        updatedByName: operator.name,
+        // Daftar KOSONG disimpan apa adanya: artinya "tidak ada yang bisa
+        // mint", bukan "belum diisi" (USDX-636 § 3).
+        allowedEmails,
         updatedAt: new Date().toISOString(),
       }
-      return HttpResponse.json(
-        { status: 'success', metadata: null, data: mintModeState },
-        { status: 201 }
-      )
+      return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
     }
 
     if (!canRestoreMintProdMode(operator.role)) {
@@ -1258,13 +1270,14 @@ export const handlers = [
       mode: 'PROD',
       reason: null,
       expiresAt: null,
-      updatedBy: operator.name,
+      updatedBy: operator.id,
+      updatedByName: operator.name,
+      // Kembali ke PROD membuang daftar akses: PROD tidak mengenal pembatasan
+      // apa pun, dan daftar yang tertinggal akan terbaca seakan masih berlaku.
+      allowedEmails: [],
       updatedAt: new Date().toISOString(),
     }
-    return HttpResponse.json(
-      { status: 'success', metadata: null, data: mintModeState },
-      { status: 201 }
-    )
+    return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
   }),
 
   // ─── Transparency (/api/v1/transparency/*) ───

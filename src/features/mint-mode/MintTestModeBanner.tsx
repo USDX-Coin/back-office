@@ -22,6 +22,12 @@ export default function MintTestModeBanner() {
   const { data } = useMintMode()
   if (data?.mode !== 'TEST') return null
 
+  // Banner ikut menyebut pembatasan aksesnya (USDX-639 tambahan lingkup 11 Sep
+  // 2026). Jumlahnya disebutkan, bukan cuma faktanya: "dibatasi" tanpa angka
+  // masih menyisakan tafsir "dibatasi ke sebagian besar orang", sementara nol
+  // email berarti mint tertutup TOTAL — dua keadaan yang tidak boleh terbaca sama.
+  const allowedCount = data.allowedEmails?.length ?? 0
+
   return (
     <div
       role="alert"
@@ -32,7 +38,10 @@ export default function MintTestModeBanner() {
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="text-[13px] font-medium leading-snug">
         Mode uji mint aktif — mint mencetak token uji, bukan USDX. Berakhir{' '}
-        {formatWibClock(data.expiresAt)}.
+        {formatWibClock(data.expiresAt)}.{' '}
+        {allowedCount > 0
+          ? `Mint dibatasi ke ${allowedCount} email pada daftar akses.`
+          : 'Daftar akses kosong — mint tertutup untuk semua user.'}
       </p>
     </div>
   )

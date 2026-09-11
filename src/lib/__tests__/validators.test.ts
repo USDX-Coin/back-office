@@ -20,6 +20,7 @@ import {
   isManualRateUnusual,
   validateFeeConfigForm,
   validateMintModeReason,
+  validateMintAllowedEmail,
   validateMintModeDurationHours,
   validateMintTestModeForm,
   validatePgFeeVaFlat,
@@ -806,18 +807,55 @@ describe('validateMintModeReason', () => {
     test('menerima alasan biasa', () => {
       expect(validateMintModeReason('Uji bayar produksi')).toBeNull()
     })
+    test('tepat 10 karakter lolos — batasnya inklusif', () => {
+      expect(validateMintModeReason('uji bayar1')).toBeNull()
+    })
   })
   describe('negative', () => {
     test('menolak alasan kosong', () => {
       expect(validateMintModeReason('')).toMatch(/wajib/i)
     })
+    test('menolak alasan di bawah 10 karakter (CHECK yang sama ada di DB)', () => {
+      expect(validateMintModeReason('uji')).toMatch(/minimal 10/i)
+    })
   })
   describe('edge cases', () => {
-    test('spasi saja dihitung kosong', () => {
+    test('spasi saja dihitung kosong, bukan "terlalu pendek"', () => {
       expect(validateMintModeReason('    ')).toMatch(/wajib/i)
     })
-    test('satu karakter pun lolos — kontrak tidak menetapkan panjang minimum', () => {
-      expect(validateMintModeReason('x')).toBeNull()
+    test('sepuluh spasi + satu huruf tetap ditolak — panjang dihitung setelah trim', () => {
+      expect(validateMintModeReason('          x')).toMatch(/minimal 10/i)
+    })
+  })
+})
+
+// USDX-639 (tambahan lingkup 11 Sep 2026) — daftar email yang boleh mint.
+describe('validateMintAllowedEmail', () => {
+  describe('positive', () => {
+    test('menerima email biasa', () => {
+      expect(validateMintAllowedEmail('budi@usdx.io')).toBeNull()
+    })
+    test('spasi di sekelilingnya tidak membatalkan', () => {
+      expect(validateMintAllowedEmail('  budi@usdx.io  ')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak kosong', () => {
+      expect(validateMintAllowedEmail('')).toMatch(/wajib/i)
+    })
+    test('menolak tanpa domain lengkap', () => {
+      expect(validateMintAllowedEmail('budi@usdx')).toMatch(/tidak valid/i)
+    })
+    test('menolak tanpa @', () => {
+      expect(validateMintAllowedEmail('budi.usdx.io')).toMatch(/tidak valid/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('menolak dua alamat sekaligus dalam satu entri', () => {
+      expect(validateMintAllowedEmail('a@usdx.io b@usdx.io')).toMatch(/tidak valid/i)
+    })
+    test('spasi saja dihitung kosong', () => {
+      expect(validateMintAllowedEmail('   ')).toMatch(/wajib/i)
     })
   })
 })
@@ -859,29 +897,57 @@ describe('validateMintModeDurationHours', () => {
 })
 
 describe('validateMintTestModeForm', () => {
+  const ok = { reason: 'Uji bayar produksi', durationHours: '2' }
+
   describe('positive', () => {
     test('alasan + durasi valid', () => {
+      expect(validateMintTestModeForm(ok).valid).toBe(true)
+    })
+    test('kotak email KOSONG bukan kesalahan — daftar boleh kosong', () => {
+      expect(validateMintTestModeForm({ ...ok, allowedEmailDraft: '' }).valid).toBe(true)
+      expect(validateMintTestModeForm({ ...ok, allowedEmailDraft: '   ' }).valid).toBe(true)
+    })
+    test('kotak email berisi alamat sah tetap lolos', () => {
       expect(
-        validateMintTestModeForm({ reason: 'Uji bayar', durationHours: '2' }).valid,
+        validateMintTestModeForm({ ...ok, allowedEmailDraft: 'budi@usdx.io' }).valid,
       ).toBe(true)
     })
   })
+
   describe('negative', () => {
     test('alasan kosong menggagalkan seluruh form', () => {
-      const r = validateMintTestModeForm({ reason: '', durationHours: '2' })
+      const r = validateMintTestModeForm({ ...ok, reason: '' })
       expect(r.valid).toBe(false)
       expect(r.errors.reason).toBeDefined()
     })
     test('durasi kosong menggagalkan seluruh form', () => {
-      const r = validateMintTestModeForm({ reason: 'Uji', durationHours: '' })
+      const r = validateMintTestModeForm({ ...ok, durationHours: '' })
       expect(r.valid).toBe(false)
       expect(r.errors.durationHours).toBeDefined()
     })
+    test('alamat setengah diketik menggagalkan form — supaya tidak terkirim diam-diam', () => {
+      const r = validateMintTestModeForm({ ...ok, allowedEmailDraft: 'budi@usdx' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.allowedEmailDraft).toMatch(/tidak valid/i)
+    })
   })
+
   describe('edge cases', () => {
     test('dua-duanya salah → dua pesan, bukan satu', () => {
       const r = validateMintTestModeForm({ reason: '  ', durationHours: '99' })
       expect(Object.keys(r.errors).sort()).toEqual(['durationHours', 'reason'])
+    })
+    test('ketiga-tiganya salah → tiga pesan', () => {
+      const r = validateMintTestModeForm({
+        reason: '',
+        durationHours: '0',
+        allowedEmailDraft: 'x',
+      })
+      expect(Object.keys(r.errors).sort()).toEqual([
+        'allowedEmailDraft',
+        'durationHours',
+        'reason',
+      ])
     })
   })
 })

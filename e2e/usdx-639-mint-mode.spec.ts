@@ -45,11 +45,23 @@ test.describe('USDX-639 mode mint @e2e', () => {
       const dialog = page.getByRole('dialog')
       await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi bersama DurianPay')
       await dialog.getByLabel(/durasi \(jam\)/i).fill('2')
+      // Daftar akses (tambahan lingkup 11 Sep 2026): dua email.
+      const emailBox = dialog.getByLabel(/email yang boleh mint/i)
+      await emailBox.fill('budi@usdx.io')
+      await emailBox.press('Enter')
+      await emailBox.fill('siti@usdx.io')
+      await dialog.getByRole('button', { name: /^tambah$/i }).click()
       await dialog.getByRole('button', { name: /geser ke mode uji/i }).click()
+
+      // Kartu menampilkan daftarnya tanpa membuka dialog lagi.
+      const allowed = page.getByTestId('allowed-emails-list')
+      await expect(allowed).toContainText('budi@usdx.io')
+      await expect(allowed).toContainText('siti@usdx.io')
 
       const banner = page.getByTestId('mint-test-mode-banner')
       await expect(banner).toContainText(/mint mencetak token uji, bukan USDX/i)
       await expect(banner).toContainText(/Berakhir \d{2}:\d{2} WIB/)
+      await expect(banner).toContainText(/dibatasi ke 2 email/i)
 
       // Pindah rute: banner ikut, dan tidak ada tombol untuk menutupnya.
       await page.getByRole('link', { name: /^dashboard$/i }).click()
@@ -71,6 +83,58 @@ test.describe('USDX-639 mode mint @e2e', () => {
 
       await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi')
       await expect(dialog.getByRole('button', { name: /geser ke mode uji/i })).toBeEnabled()
+    })
+
+    test('AC tambahan — email berformat salah menahan simpan; daftar kosong diperingatkan', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi bersama DurianPay')
+      await dialog.getByLabel(/durasi \(jam\)/i).fill('2')
+
+      // Kosong = tidak ada yang bisa mint, dinyatakan sebelum disimpan.
+      const warning = dialog.getByTestId('allowed-emails-empty-warning')
+      await expect(warning).toContainText(/TIDAK ADA yang bisa mint/i)
+      await expect(warning).toContainText(/bukan berarti semua boleh/i)
+      await expect(dialog.getByRole('button', { name: /geser ke mode uji/i })).toBeEnabled()
+
+      await dialog.getByLabel(/email yang boleh mint/i).fill('budi@usdx')
+      await expect(dialog.getByText(/format email tidak valid/i)).toBeVisible()
+      await expect(dialog.getByRole('button', { name: /geser ke mode uji/i })).toBeDisabled()
+    })
+
+    test('AC tambahan — nyalakan tanpa email lalu kembali ke PROD: kartu berkata tertutup, lalu daftar hilang', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi bersama DurianPay')
+      await dialog.getByLabel(/durasi \(jam\)/i).fill('2')
+      await dialog.getByRole('button', { name: /geser ke mode uji/i }).click()
+
+      await expect(page.getByTestId('allowed-emails-empty')).toContainText(
+        /tidak ada satu pun user yang bisa mint/i,
+      )
+      await expect(page.getByTestId('mint-test-mode-banner')).toContainText(
+        /tertutup untuk semua user/i,
+      )
+
+      await page.getByRole('button', { name: /kembali ke prod/i }).click()
+      const prodDialog = page.getByRole('dialog')
+      await prodDialog.getByRole('button', { name: /kembali ke prod/i }).click()
+
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD')
+      await expect(page.getByTestId('allowed-emails-empty')).toHaveCount(0)
+      await expect(page.getByTestId('allowed-emails-list')).toHaveCount(0)
     })
 
     test('AC #5 — 422 env uji kurang: daftar env tampil, mode tidak berubah', async ({ page }) => {

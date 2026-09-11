@@ -45,11 +45,15 @@ function seedTestMode(overrides: Partial<Parameters<typeof configureMintModeForT
     mode: 'TEST',
     reason: 'Uji bayar produksi bersama DurianPay',
     expiresAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
-    updatedBy: 'Linda Chen',
+    updatedBy: '00000000-0000-7000-8000-00000000000a',
+    updatedByName: 'Linda Chen',
+    allowedEmails: ['budi@usdx.io'],
     updatedAt: new Date().toISOString(),
     ...overrides,
   })
 }
+
+const REASON = 'Uji bayar produksi bersama DurianPay'
 
 describe('MintModePage @integration', () => {
   describe('AC: buka halaman → kartu menampilkan mode aktif + alasan + waktu berakhir', () => {
@@ -88,7 +92,7 @@ describe('MintModePage @integration', () => {
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
       expect(submit).toBeDisabled()
 
-      await user.type(within(dialog).getByLabelText(/alasan/i), 'Uji bayar produksi')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       expect(submit).toBeEnabled()
     })
 
@@ -99,7 +103,7 @@ describe('MintModePage @integration', () => {
 
       await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.type(within(dialog).getByLabelText(/alasan/i), 'Uji bayar produksi')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '25')
       expect(
         within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
@@ -134,7 +138,7 @@ describe('MintModePage @integration', () => {
 
       await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.type(within(dialog).getByLabelText(/alasan/i), 'Uji bayar produksi')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
@@ -227,7 +231,7 @@ describe('MintModePage @integration', () => {
 
       await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.type(within(dialog).getByLabelText(/alasan/i), 'Uji bayar produksi')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
@@ -260,13 +264,170 @@ describe('MintModePage @integration', () => {
 
       await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.type(within(dialog).getByLabelText(/alasan/i), 'Uji bayar produksi')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '1')
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
       expect(
         await within(dialog).findByText(/MINT_TEST_RPC_URL belum diset/i),
       ).toBeInTheDocument()
+    })
+  })
+
+  // ── Tambahan lingkup 11 Sep 2026: daftar akses saat mode uji ──────────────
+  describe('AC: nyalakan mode uji dengan 2 email → kartu menampilkan keduanya', () => {
+    test('kedua alamat terbaca di kartu tanpa membuka dialog', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+
+      const emailInput = within(dialog).getByLabelText(/email yang boleh mint/i)
+      await user.type(emailInput, 'budi@usdx.io{Enter}')
+      await user.type(emailInput, 'siti@usdx.io')
+      await user.click(within(dialog).getByRole('button', { name: /^tambah$/i }))
+
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      const list = await screen.findByTestId('allowed-emails-list')
+      expect(within(list).getByText('budi@usdx.io')).toBeInTheDocument()
+      expect(within(list).getByText('siti@usdx.io')).toBeInTheDocument()
+    })
+
+    test('alamat yang sama dua kali hanya masuk sekali', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      const emailInput = within(dialog).getByLabelText(/email yang boleh mint/i)
+      await user.type(emailInput, 'budi@usdx.io{Enter}')
+      await user.type(emailInput, 'BUDI@usdx.io{Enter}')
+
+      const draft = within(dialog).getByTestId('allowed-emails-draft')
+      expect(within(draft).getAllByRole('listitem')).toHaveLength(1)
+    })
+  })
+
+  describe('AC: email berformat salah → tombol simpan tidak aktif', () => {
+    test('alamat setengah jadi di kotak menahan simpan sampai diperbaiki', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      const submit = within(dialog).getByRole('button', { name: /geser ke mode uji/i })
+      expect(submit).toBeEnabled()
+
+      await user.type(within(dialog).getByLabelText(/email yang boleh mint/i), 'budi@usdx')
+      expect(within(dialog).getByText(/format email tidak valid/i)).toBeInTheDocument()
+      expect(submit).toBeDisabled()
+
+      await user.type(within(dialog).getByLabelText(/email yang boleh mint/i), '.io')
+      expect(submit).toBeEnabled()
+    })
+
+    test('alamat salah tidak bisa ditambahkan ke daftar', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/email yang boleh mint/i), 'bukan-email{Enter}')
+
+      expect(within(dialog).queryByTestId('allowed-emails-draft')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('allowed-emails-empty-warning')).toBeInTheDocument()
+    })
+  })
+
+  describe('AC: nyalakan tanpa email → boleh, tapi diperingatkan', () => {
+    test('peringatan "kosong = tidak ada yang bisa mint" tampil dan simpan tetap hidup', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      const warning = within(dialog).getByTestId('allowed-emails-empty-warning')
+      expect(warning).toHaveTextContent(/TIDAK ADA yang bisa mint/i)
+      // Kalimatnya harus menutup tafsir terbalik, bukan sekadar menyebut kosong.
+      expect(warning).toHaveTextContent(/bukan berarti semua boleh/i)
+
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      expect(within(dialog).getByRole('button', { name: /geser ke mode uji/i })).toBeEnabled()
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      // Kartu menyatakan akibatnya, bukan daftar nol baris.
+      expect(await screen.findByTestId('allowed-emails-empty')).toHaveTextContent(
+        /tidak ada satu pun user yang bisa mint/i,
+      )
+    })
+  })
+
+  describe('AC: kembali ke PROD → daftar tidak lagi ditampilkan', () => {
+    test('daftar akses hilang dari kartu begitu mode kembali PROD', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      seedTestMode({ allowedEmails: ['budi@usdx.io', 'siti@usdx.io'] })
+      renderWithProviders(<MintModePage />)
+
+      expect(await screen.findByTestId('allowed-emails-list')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /kembali ke prod/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /kembali ke prod/i }))
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      })
+      expect(screen.queryByTestId('allowed-emails-list')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('allowed-emails-empty')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('banner ikut menyebut pembatasan akses', () => {
+    test('dengan daftar terisi, banner menyebut jumlahnya', async () => {
+      loginAs(MANAGER)
+      seedTestMode({ allowedEmails: ['budi@usdx.io', 'siti@usdx.io'] })
+      renderWithProviders(
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route path="/settings/mint-mode" element={<MintModePage />} />
+          </Route>
+        </Routes>,
+        { initialEntries: ['/settings/mint-mode'] },
+      )
+
+      const banner = await screen.findByTestId('mint-test-mode-banner')
+      expect(banner).toHaveTextContent(/mint mencetak token uji, bukan USDX/i)
+      expect(banner).toHaveTextContent(/dibatasi ke 2 email/i)
+    })
+
+    test('dengan daftar kosong, banner berkata mint tertutup untuk semua user', async () => {
+      loginAs(MANAGER)
+      seedTestMode({ allowedEmails: [] })
+      renderWithProviders(
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route path="/settings/mint-mode" element={<MintModePage />} />
+          </Route>
+        </Routes>,
+        { initialEntries: ['/settings/mint-mode'] },
+      )
+
+      expect(await screen.findByTestId('mint-test-mode-banner')).toHaveTextContent(
+        /tertutup untuk semua user/i,
+      )
     })
   })
 
@@ -319,16 +480,47 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
   })
 
   test('422 saat durasi di atas 24 jam', async () => {
-    const res = await post(MANAGER, { mode: 'TEST', reason: 'uji', durationHours: 25 })
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 25,
+    })
     expect(res.status).toBe(422)
   })
 
-  test('201 + MintModeConfig saat MANAGER menyalakan mode uji', async () => {
-    const res = await post(MANAGER, { mode: 'TEST', reason: 'uji bayar', durationHours: 2 })
-    expect(res.status).toBe(201)
+  test('200 + MintModeConfig saat MANAGER menyalakan mode uji', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      allowedEmails: ['budi@usdx.io'],
+    })
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data).toMatchObject({ mode: 'TEST', reason: 'uji bayar' })
+    expect(body.data).toMatchObject({
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      allowedEmails: ['budi@usdx.io'],
+    })
     expect(typeof body.data.expiresAt).toBe('string')
+    // sot/api/mint-mode.yaml: kartu membaca nama, bukan UUID.
+    expect(typeof body.data.updatedByName).toBe('string')
+  })
+
+  test('422 saat alasan kurang dari 10 karakter (CHECK yang sama ada di DB)', async () => {
+    const res = await post(MANAGER, { mode: 'TEST', reason: 'uji', durationHours: 2 })
+    expect(res.status).toBe(422)
+  })
+
+  test('daftar kosong diterima apa adanya — artinya tidak ada yang bisa mint', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      allowedEmails: [],
+    })
+    expect(res.status).toBe(200)
+    expect((await res.json()).data.allowedEmails).toEqual([])
   })
 })
 
@@ -342,6 +534,8 @@ describe('GET /api/v1/mint-mode response shape', () => {
     expect(body.data).toHaveProperty('reason')
     expect(body.data).toHaveProperty('expiresAt')
     expect(body.data).toHaveProperty('updatedBy')
+    expect(body.data).toHaveProperty('updatedByName')
+    expect(body.data).toHaveProperty('allowedEmails')
     expect(body.data).toHaveProperty('updatedAt')
   })
 })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,6 +17,7 @@ import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { missingEnvList } from '@/lib/mintMode'
 import {
+  MINT_MODE_REASON_MIN_LEN,
   MINT_TEST_MODE_MAX_HOURS,
   validateMintTestModeForm,
 } from '@/lib/validators'
@@ -29,25 +31,30 @@ interface Props {
 /**
  * Dialog geser ke MODE UJI (USDX-639).
  *
- * Sengaja bukan konfirmasi satu tombol: alasan dan durasi wajib diisi sebelum
- * simpan menyala, karena selama jendela ini uang yang benar-benar masuk dicetak
- * jadi token uji. Kegagalan 422 (env uji belum lengkap) ditampilkan DI DALAM
- * dialog — dialognya tetap terbuka dan mode tidak berubah, supaya yang menggeser
- * membaca daftar env-nya, bukan menemukan toast yang sudah hilang.
+ * Sengaja bukan konfirmasi satu tombol: alasan, durasi, dan daftar email yang
+ * boleh mint diisi di sini, karena selama jendela ini uang yang benar-benar
+ * masuk dicetak jadi token uji. Kegagalan 422 (env uji belum lengkap,
+ * `MINT_MODE_TEST_ENV_INCOMPLETE`) ditampilkan DI DALAM dialog — dialognya tetap
+ * terbuka dan mode tidak berubah, supaya yang menggeser membaca daftar env-nya,
+ * bukan menemukan toast yang sudah hilang.
  */
 export default function MintTestModeDialog({ open, onOpenChange }: Props) {
   const setMode = useSetMintMode()
   const [reason, setReason] = useState('')
   const [durationHours, setDurationHours] = useState('')
+  const [allowedEmails, setAllowedEmails] = useState<string[]>([])
+  const [emailDraft, setEmailDraft] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState<string | null>(null)
   const [missingEnv, setMissingEnv] = useState<string[]>([])
 
-  // Dialog yang ditutup lalu dibuka lagi tidak boleh membawa alasan lama:
-  // alasan itu catatan untuk jendela ini, bukan template.
+  // Dialog yang ditutup lalu dibuka lagi tidak boleh membawa isian lama: alasan
+  // dan daftar email itu catatan untuk jendela ini, bukan template.
   function resetForm() {
     setReason('')
     setDurationHours('')
+    setAllowedEmails([])
+    setEmailDraft('')
     setErrors({})
     setServerError(null)
     setMissingEnv([])
@@ -58,8 +65,46 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
     onOpenChange(false)
   }
 
-  const validation = validateMintTestModeForm({ reason, durationHours })
+  const validation = validateMintTestModeForm({
+    reason,
+    durationHours,
+    allowedEmailDraft: emailDraft,
+  })
   const canSubmit = validation.valid && !setMode.isPending
+
+  function addEmail() {
+    const candidate = emailDraft.trim()
+    if (!candidate) return
+    if (validation.errors.allowedEmailDraft) {
+      setErrors((prev) => ({
+        ...prev,
+        allowedEmailDraft: validation.errors.allowedEmailDraft!,
+      }))
+      return
+    }
+    // Duplikat dibandingkan tanpa memperhatikan huruf besar/kecil — dua baris
+    // yang hanya berbeda kapitalisasi adalah orang yang sama, dan daftar yang
+    // memuat keduanya hanya membuat pembacanya ragu.
+    const exists = allowedEmails.some(
+      (e) => e.toLowerCase() === candidate.toLowerCase(),
+    )
+    if (!exists) setAllowedEmails((prev) => [...prev, candidate])
+    setEmailDraft('')
+    setErrors((prev) => ({ ...prev, allowedEmailDraft: '' }))
+  }
+
+  function removeEmail(email: string) {
+    setAllowedEmails((prev) => prev.filter((e) => e !== email))
+  }
+
+  function handleEmailKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Enter menambah alamat, bukan mengirim form — kesalahan yang paling mahal
+    // di dialog ini adalah menyalakan mode uji sebelum daftarnya selesai.
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addEmail()
+    }
+  }
 
   function handleOpenChange(next: boolean) {
     if (setMode.isPending) return
@@ -83,13 +128,14 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
         mode: 'TEST',
         reason: reason.trim(),
         durationHours: Number(durationHours.trim()),
+        allowedEmails,
       })
       closeDialog()
     } catch (err) {
       if (err instanceof ApiError) {
-        // Pesan server ditampilkan apa adanya — termasuk saat 422 karena env
-        // uji belum lengkap. Menggantinya dengan kalimat generik menghapus
-        // satu-satunya keterangan tentang apa yang harus dipasang.
+        // Pesan server ditampilkan apa adanya — termasuk saat 422
+        // MINT_MODE_TEST_ENV_INCOMPLETE. Menggantinya dengan kalimat generik
+        // menghapus satu-satunya keterangan tentang apa yang harus dipasang.
         setServerError(err.message)
         setMissingEnv(missingEnvList(err.details))
         return
@@ -109,8 +155,8 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
           <DialogTitle>Geser ke mode uji mint?</DialogTitle>
           <DialogDescription>
             Selama jendela ini menyala, mint mencetak token UJI — bukan USDX —
-            untuk uang yang benar-benar masuk. Mode kembali ke PROD sendiri saat
-            waktunya habis.
+            untuk uang yang benar-benar masuk, dan hanya untuk email pada daftar
+            di bawah. Mode kembali ke PROD sendiri saat waktunya habis.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} noValidate id="mint-test-mode-form">
@@ -127,6 +173,9 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 placeholder="Uji bayar produksi bersama DurianPay"
                 rows={3}
               />
+              <p className="text-xs text-muted-foreground">
+                Minimal {MINT_MODE_REASON_MIN_LEN} karakter.
+              </p>
               <FieldError message={errors.reason || undefined} />
             </div>
 
@@ -150,6 +199,74 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 Maksimal {MINT_TEST_MODE_MAX_HOURS} jam.
               </p>
               <FieldError message={errors.durationHours || undefined} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="mintModeAllowedEmail">Email yang boleh mint</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="mintModeAllowedEmail"
+                  type="email"
+                  value={emailDraft}
+                  onChange={(e) => {
+                    setEmailDraft(e.target.value)
+                    setErrors((prev) => ({ ...prev, allowedEmailDraft: '' }))
+                  }}
+                  onKeyDown={handleEmailKeyDown}
+                  placeholder="orang@usdx.io"
+                  className="font-mono"
+                />
+                <Button type="button" variant="outline" onClick={addEmail}>
+                  Tambah
+                </Button>
+              </div>
+              <FieldError
+                message={
+                  errors.allowedEmailDraft ||
+                  validation.errors.allowedEmailDraft ||
+                  undefined
+                }
+              />
+
+              {allowedEmails.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5 pt-1" data-testid="allowed-emails-draft">
+                  {allowedEmails.map((email) => (
+                    <li
+                      key={email}
+                      className="flex items-center gap-1 rounded-full border border-border bg-muted/60 py-0.5 pl-2.5 pr-1 font-mono text-[12px]"
+                    >
+                      {email}
+                      <button
+                        type="button"
+                        onClick={() => removeEmail(email)}
+                        aria-label={`Hapus ${email}`}
+                        className="grid h-4 w-4 place-items-center rounded-full text-muted-foreground hover:bg-border hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                // Peringatan ini ada karena daftar kosong PALING MUDAH dibaca
+                // terbalik ("kosong = semua boleh"), dan salah paham ke arah itu
+                // berarti orang asing membayar uang sungguhan lalu menerima
+                // token uji. Jadi kalimatnya menyebut akibatnya, bukan aturannya.
+                <div
+                  role="note"
+                  data-testid="allowed-emails-empty-warning"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-[12.5px] text-destructive"
+                >
+                  <p className="font-medium">
+                    Daftar kosong = TIDAK ADA yang bisa mint.
+                  </p>
+                  <p className="mt-0.5">
+                    Kosong bukan berarti semua boleh: selama mode uji menyala,
+                    setiap user di luar daftar ini melihat pemberitahuan
+                    pemeliharaan dan tidak bisa mint sama sekali.
+                  </p>
+                </div>
+              )}
             </div>
 
             {serverError ? (

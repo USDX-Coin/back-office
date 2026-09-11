@@ -52,6 +52,8 @@ export default function MintModeCard({ data, isLoading }: Props) {
   const [prodDialogOpen, setProdDialogOpen] = useState(false)
 
   const isTest = data?.mode === 'TEST'
+  // `null`/absen diperlakukan sama dengan kosong — dan kosong berarti TERTUTUP.
+  const allowedEmails = data?.allowedEmails ?? []
   const canEnableTest = canEnableMintTestMode(user)
   const canRestoreProd = canRestoreMintProdMode(user)
 
@@ -110,7 +112,10 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 </Field>
               </div>
               <Field label="Digeser oleh">
-                {data.updatedBy ? data.updatedBy : <Dim />}
+                {/* `updatedByName` yang dibaca, bukan `updatedBy`: yang kedua
+                    UUID, dan UUID tidak menjawab "siapa" untuk orang yang
+                    sedang panik (sot/api/mint-mode.yaml). */}
+                {data.updatedByName ? data.updatedByName : <Dim />}
               </Field>
               <Field label="Terakhir digeser">
                 <span title={data.updatedAt}>{formatWibDateTime(data.updatedAt)}</span>
@@ -130,6 +135,44 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 </Field>
               </div>
             </dl>
+
+            {/* Daftar akses mode uji (USDX-639 tambahan lingkup 11 Sep 2026).
+                Hanya bermakna saat mode uji menyala, dan harus terbaca TANPA
+                membuka dialog: pertanyaan "siapa yang bisa mint sekarang" tidak
+                boleh menuntut seseorang membuka layar penggeseran mode. */}
+            {isTest ? (
+              <div className="border-t border-border pt-4">
+                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Boleh mint selama mode uji
+                </p>
+                {allowedEmails.length > 0 ? (
+                  <ul
+                    className="mt-2 flex flex-wrap gap-1.5"
+                    data-testid="allowed-emails-list"
+                  >
+                    {allowedEmails.map((email) => (
+                      <li
+                        key={email}
+                        className="rounded-full border border-border bg-muted/60 px-2.5 py-0.5 font-mono text-[12px]"
+                      >
+                        {email}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  // Kosong dinyatakan sebagai AKIBATNYA, bukan sebagai daftar
+                  // nol baris: "tidak ada" gampang dibaca sebagai "tidak
+                  // dibatasi", dan itu kebalikan artinya.
+                  <p
+                    data-testid="allowed-emails-empty"
+                    className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+                  >
+                    Kosong — tidak ada satu pun user yang bisa mint sekarang.
+                    Semua melihat pemberitahuan pemeliharaan.
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2 border-t border-border pt-4">
               {!isTest && canEnableTest ? (

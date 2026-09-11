@@ -116,12 +116,17 @@ const MINT_MODE_PROD: {
   reason: string | null
   expiresAt: string | null
   updatedBy: string | null
+  updatedByName: string | null
+  allowedEmails: string[]
   updatedAt: string
 } = {
   mode: 'PROD',
   reason: null,
   expiresAt: null,
-  updatedBy: ADMIN_STAFF.name,
+  updatedBy: ADMIN_STAFF.id,
+  updatedByName: ADMIN_STAFF.name,
+  // PROD tidak mengenal pembatasan; daftar akses hanya berlaku saat mode uji.
+  allowedEmails: [],
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
@@ -746,8 +751,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'POST /api/v1/mint-mode') {
       const b = body()
       if (b.mode === 'TEST') {
-        if (!b.reason || !String(b.reason).trim()) {
-          return error(route, 'VALIDATION_ERROR', 'reason is required', 422)
+        // reason >= 10 karakter (CHECK yang sama ada di DB, mint-mode.yaml).
+        if (!b.reason || String(b.reason).trim().length < 10) {
+          return error(route, 'VALIDATION_ERROR', 'reason must be at least 10 characters', 422)
         }
         const hours = Number(b.durationHours)
         if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
@@ -757,19 +763,24 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           mode: 'TEST',
           reason: String(b.reason),
           expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
-          updatedBy: ADMIN_STAFF.name,
+          updatedBy: ADMIN_STAFF.id,
+          updatedByName: ADMIN_STAFF.name,
+          // Daftar kosong disimpan apa adanya — artinya tidak ada yang bisa mint.
+          allowedEmails: Array.isArray(b.allowedEmails) ? b.allowedEmails.map(String) : [],
           updatedAt: new Date().toISOString(),
         }
-        return envelope(route, liveMintMode, 201)
+        return envelope(route, liveMintMode)
       }
       liveMintMode = {
         mode: 'PROD',
         reason: null,
         expiresAt: null,
-        updatedBy: ADMIN_STAFF.name,
+        updatedBy: ADMIN_STAFF.id,
+        updatedByName: ADMIN_STAFF.name,
+        allowedEmails: [],
         updatedAt: new Date().toISOString(),
       }
-      return envelope(route, liveMintMode, 201)
+      return envelope(route, liveMintMode)
     }
     // USDX-207: fee config (sot/api/fee.yaml). GET all roles, POST admin.
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
