@@ -232,12 +232,35 @@ export function validateDisbursementFeeFlat(raw: string): string | null {
   return validateFlatFee(raw, 'Disbursement fee')
 }
 
+/**
+ * Lantai keras minimum mint (USDX-635/637): backend menolak apa pun di bawah
+ * Rp 10.000 dengan 422. Angka ini DISALIN dari kontrak backend, bukan dipilih
+ * di sini — validasi klien hanya menjawab lebih cepat, server tetap penentu.
+ * Sengaja TIDAK ada plafon atas: kontrak tidak menetapkan satu pun, dan aturan
+ * klien yang lebih ketat dari kontrak akan menolak angka yang server terima.
+ */
+export const MIN_MINT_IDR_FLOOR = 10_000
+
+/** Minimum mint, Rp. Wajib diisi, angka, >= lantai keras backend. */
+export function validateMinMintIdr(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Minimum mint is required'
+  if (!DECIMAL_RE.test(trimmed)) return 'Minimum mint must be a number (up to 4 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return 'Minimum mint must be a number (up to 4 decimals)'
+  if (n < MIN_MINT_IDR_FLOOR) {
+    return `Minimum mint must be at least ${MIN_MINT_IDR_FLOOR.toLocaleString('en-US')}`
+  }
+  return null
+}
+
 export function validateFeeConfigForm(input: {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
+  minMintIdr: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
@@ -250,7 +273,34 @@ export function validateFeeConfigForm(input: {
   if (redeemErr) errors.redeemFeePct = redeemErr
   const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
   if (disbErr) errors.disbursementFeeFlat = disbErr
+  const minMintErr = validateMinMintIdr(input.minMintIdr)
+  if (minMintErr) errors.minMintIdr = minMintErr
   return { valid: Object.keys(errors).length === 0, errors }
+}
+
+/**
+ * Nama field pada payload `POST /api/v1/fee-config`, dipakai untuk menempelkan
+ * pesan 422 backend ke field yang benar.
+ *
+ * Kontrak hanya menjanjikan satu `code` (`VALIDATION_ERROR`) plus `message` —
+ * tidak ada field terstruktur — jadi satu-satunya petunjuk yang SAH adalah
+ * nama field yang disebut di dalam message itu sendiri. Kalau message menyebut
+ * tepat satu nama field, pesannya tampil di field itu; kalau menyebut nol atau
+ * lebih dari satu, pesan tampil di tingkat form. Menebak field saat pesannya
+ * ambigu akan mengirim operator memperbaiki angka yang tidak dikeluhkan server.
+ */
+const FEE_CONFIG_FIELD_KEYS = [
+  'mintFeePct',
+  'pgFeeVaFlat',
+  'pgFeeQrisPct',
+  'redeemFeePct',
+  'disbursementFeeFlat',
+  'minMintIdr',
+] as const
+
+export function feeConfigErrorField(message: string): string | null {
+  const named = FEE_CONFIG_FIELD_KEYS.filter((key) => message.includes(key))
+  return named.length === 1 ? named[0] : null
 }
 
 // ─── Mode mint PROD/UJI (USDX-639) ──────────────────────────────────────────

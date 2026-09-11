@@ -52,6 +52,50 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       // Card (aria-label "mint fee percent") reflects the new active config.
       await expect(page.getByLabel(/mint fee percent/i)).toHaveText('2.5%')
     })
+
+    // USDX-637 — Minimum Mint (Rp) rides in the same snapshot.
+    test('USDX-637 — admin lowers the minimum mint and the card shows it', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/fee')
+
+      const minMint = page.locator('#minMintIdr')
+      await expect(minMint).toBeVisible({ timeout: 15000 })
+      // Seeded from the active config, not blank.
+      await expect(minMint).toHaveValue('20000')
+
+      await minMint.fill('15000')
+      await page.getByRole('button', { name: /update fee config/i }).click()
+
+      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/15\.000/)
+    })
+  })
+
+  test.describe('negative', () => {
+    // The Rp 10.000 floor is the backend's; the client answers first so the
+    // operator is not sent on a round trip to be told no.
+    test('USDX-637 — below the floor is refused inline and never leaves the browser', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/fee')
+
+      let posted = false
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && req.url().includes('/api/v1/fee-config')) posted = true
+      })
+
+      const minMint = page.locator('#minMintIdr')
+      await expect(minMint).toBeVisible({ timeout: 15000 })
+      await minMint.fill('5000')
+      await page.getByRole('button', { name: /update fee config/i }).click()
+
+      await expect(page.getByText(/minimum mint must be at least 10,000/i)).toBeVisible()
+      expect(posted).toBe(false)
+      // The active value is untouched.
+      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/20\.000/)
+    })
   })
 
   test.describe('AC #1 — non-admin gating', () => {

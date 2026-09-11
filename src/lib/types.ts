@@ -224,20 +224,29 @@ export interface FeeConfig {
   redeemFeePct: string
   /** Disbursement fee Rp flat per payout (W3, referensi sampai provider real). */
   disbursementFeeFlat: string
+  /**
+   * Minimum mint Rp (USDX-635/637). Pindah dari konstanta backend ke kolom
+   * `fee_configs.min_mint_idr` supaya angkanya bisa digeser tanpa deploy.
+   * Backend punya lantai keras Rp 10.000.
+   */
+  minMintIdr: string
   updatedBy: string
   createdAt: string
 }
 
-// sot/api/fee.yaml § UpdateFeeConfig — POST = full 5-field snapshot (semua
-// required). Jangan kirim partial: BE meng-overwrite seluruh row, partial =
-// meng-nol-kan fee yang tidak dikirim (USDX-245). Body invalid → 422
-// VALIDATION_ERROR (conventions.md § Validation Error — fee-config allowlist).
+// sot/api/fee.yaml § UpdateFeeConfig — POST = full snapshot (semua field
+// required, kini 6 dengan `minMintIdr`, USDX-637). Jangan kirim partial: BE
+// meng-overwrite seluruh row, partial = meng-nol-kan fee yang tidak dikirim
+// (USDX-245). Body invalid → 422 VALIDATION_ERROR (conventions.md § Validation
+// Error — fee-config allowlist).
 export interface UpdateFeeConfig {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
+  /** Minimum mint Rp — ikut snapshot penuh (USDX-637). */
+  minMintIdr: string
 }
 
 // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───────
