@@ -11,6 +11,8 @@ components/
   ├── Avatar.tsx             # Initials + fixed 8-color palette
   ├── FieldError.tsx         # Inline form error primitive (role="alert")
   ├── TableEmptyState.tsx    # Table empty-state with no-data / no-results modes
+  ├── DateRangeFields.tsx    # Two date inputs (+ optional maxDays / maxDate message) — reports toolbar + BNI statement panel
+  ├── StatusPill.tsx         # Dot + label pill for a StatusConfig
   ├── DataTable.tsx          # Generic data table with filter-toolbar slot
   └── useDataTableParams.ts  # URL-state hook for tables that compose their own toolbar
 ```
@@ -23,6 +25,8 @@ components/
 - **`FieldError`** — Renders `<p role="alert">` with `text-destructive` styling when `message` is non-empty; null otherwise.
 - **`TableEmptyState`** — Two modes: `no-data` (default empty surface, optional CTA) and `no-results` (filtered with optional Clear-filters affordance).
 - **`DataTable`** — Generic table accepting `ColumnDef<T>[]`, data, rowCount. Features: arbitrary `filterToolbar` slot, custom `emptyState` slot, pagination, sort, URL-state via `useDataTableParams`, loading skeletons, no-line Azure Horizon styling. Default toolbar (search + statusOptions + date range) renders only when no `filterToolbar` is provided.
+- **`DateRangeFields`** — Renders a fragment of two labelled `type="date"` inputs (`<idPrefix>-start-date` / `-end-date`) so the parent grid keeps its layout. Rules live in `lib/dateRange.ts`; the component only shows the message (`showMessage={false}` keeps the reports toolbar silent).
+- **`StatusPill`** — The dot + label pill previously copied as a private `StatusBadge` in five feature files; new code imports this one.
 - **`useDataTableParams`** — Lives in its own file (Fast Refresh requires component-only files). Reads page/sortBy/sortOrder/search from URL; provides `updateParams` and `clearAll`.
 
 ## DataTable Props
@@ -39,3 +43,4 @@ components/
 | `filterToolbar` | `ReactNode` | Custom filter toolbar; replaces the default search+status+date toolbar when provided |
 | `emptyState` | `ReactNode` | Custom no-data slot (e.g., illustration + Add CTA) |
 | `hasFilters` | `boolean` | Override; when true and rowCount=0, renders the no-results empty state with Clear-filters link |
+| `getRowId` | `(row, index) => string` | Stable row identity for client-paginated data without a unique field (BNI statement rows repeat `journalNo`); defaults to the TanStack index id |

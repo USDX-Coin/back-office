@@ -32,6 +32,7 @@ import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
+import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 
 // Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
@@ -63,6 +64,7 @@ const queryClient = new QueryClient({
 //   /settings/rate      → Rate management
 //   /settings/threshold → Threshold management
 //   /transparency       → Reserve ledger + attestation reports (ADMIN + DEVELOPER)
+//   /bni-accounts       → Rekening BNI: LIVE balances + statements (every role)
 //   /profile            → Operator profile (no sidebar entry; navbar dropdown)
 //
 // EXPORTED so tests can assert against the configuration that actually ships.
@@ -246,6 +248,11 @@ export const appRoutes: RouteObject[] = [
               },
             ],
           },
+          // USDX-631 / sot/bni-integration.md § 16 K5 — Rekening BNI is a
+          // read-only surface for EVERY role including STAFF (PM decision
+          // 2026-09-09); the backend enforces `@Roles` on all four. Flat
+          // route, no RoleGuard — AuthGuard.test.tsx pins this.
+          { path: '/bni-accounts', element: <BniAccountsPage /> },
           // USDX-87 / sot/phase-1.md L583 — Manual Sync is reachable to every
           // authenticated role (on-call emergency surface). No RoleGuard.
           { path: '/manual-sync', element: <ManualSyncPage /> },

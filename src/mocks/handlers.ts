@@ -2,6 +2,8 @@ import { http, HttpResponse } from 'msw'
 import { isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import type {
+  BniAccount,
+  BniStatementType,
   Customer,
   KycDetail,
   KycListItem,
@@ -54,6 +56,10 @@ import {
   customerToPhaseOneUser,
   createMintFromRequest,
   createMockOrders,
+  createBniAccounts,
+  createBniBalances,
+  createBniStatement,
+  createBniStatementRows,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -79,6 +85,9 @@ let kycList: KycListItem[] = createMockKycList()
 let kycDetails: Map<string, KycDetail>
 let kycReviews: Map<string, KycReviewLog[]>
 ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
+// USDX-631 — rekening BNI yang "dikonfigurasi env" (§ 16 K7). Tests that need an
+// empty configuration override `GET /api/v1/bni-accounts` via `server.use`.
+let bniAccountsStore: BniAccount[] = createBniAccounts()
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -103,8 +112,16 @@ export function resetMockData() {
   ;({ list: orderList, details: orderDetails } = createMockOrders(customerStore))
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
+  bniAccountsStore = createBniAccounts()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
+}
+
+// USDX-631 — test helper: replace the "env-configured" BNI account list
+// (empty = backend has no account → `GET /balances` 503). Reset by
+// resetMockData(). Not used by runtime code.
+export function configureBniAccountsForTests(accounts: BniAccount[]) {
+  bniAccountsStore = accounts.map((a) => ({ ...a }))
 }
 
 // USDX-84 — test helper. The seeded `createMockRequests` factory generates
@@ -625,7 +642,121 @@ function oncallBodyError(body: Partial<CreateOncallContact>) {
   )
 }
 
+// ─── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml) ───
+// Error envelope per sot/openapi.yaml § ErrorResponse; `details` carries
+// `bankReason` for BNI_BANK_REJECTED (§ 16.3).
+function bniError(status: number, code: string, message: string, details?: unknown) {
+  return HttpResponse.json(
+    {
+      status: 'error',
+      metadata: null,
+      data: null,
+      error: details === undefined ? { code, message } : { code, message, details },
+    },
+    { status }
+  )
+}
+
+const BNI_STATEMENT_TYPES: readonly BniStatementType[] = ['ALL', 'CREDIT', 'DEBIT']
+const BNI_ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+// Mirror of the backend's range rules (§ 16.2): ISO format, real calendar
+// date, start ≤ end, end ≤ today WIB, ≤ 31 days inclusive. Returns the 422
+// message or null. The FE validates the same rules before sending — this
+// guard exists so a test that bypasses the form still sees the contract.
+function bniRangeProblem(startDate: string, endDate: string): string | null {
+  if (!BNI_ISO_DATE.test(startDate) || !BNI_ISO_DATE.test(endDate)) {
+    return 'startDate/endDate must be YYYY-MM-DD'
+  }
+  if (!isRealCalendarDate(startDate) || !isRealCalendarDate(endDate)) {
+    return 'startDate/endDate must be a real calendar date'
+  }
+  if (startDate > endDate) return 'startDate must not be after endDate'
+  if (endDate > wibTodayMock()) return 'endDate must not be in the future (WIB)'
+  const dayOf = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+    return Date.UTC(y, m - 1, d) / 86_400_000
+  }
+  if (dayOf(endDate) - dayOf(startDate) + 1 > 31) return 'range must be at most 31 days'
+  return null
+}
+
 export const handlers = [
+  // ─── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml + § 16) ───
+  //
+  // Mock-served until the backend `dev` stack serves the module (USDX-630,
+  // backend PR #305): once it does, add the three paths to INTEGRATION_PATHS in
+  // browser.ts (operational step, not a merge condition — ticket § Cara Kerjakan).
+  // All roles may read (§ 16 K5); no role gate here on purpose.
+  //
+  // NO mock auth gate either: in the dev browser the operator logs in against
+  // the REAL backend (login/auth/me are in INTEGRATION_PATHS), so the session
+  // cookie is httpOnly and not a mock JWT — the service worker cannot see it,
+  // and `authenticatedStaff()` would answer 401 to a perfectly valid session
+  // (observed 2026-09-09). The real backend enforces auth on these routes; the
+  // 401 path is exercised in tests via `server.use`.
+  http.get('/api/v1/bni-accounts', () =>
+    HttpResponse.json({ status: 'success', metadata: null, data: bniAccountsStore })
+  ),
+
+  http.get('/api/v1/bni-accounts/balances', () => {
+    if (bniAccountsStore.length === 0) {
+      return bniError(503, 'BNI_SERVICE_UNCONFIGURED', 'No BNI account configured')
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: createBniBalances(bniAccountsStore),
+    })
+  }),
+
+  http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
+    const accountNo = String(params.accountNo)
+    const url = new URL(request.url)
+    const startDate = url.searchParams.get('startDate') ?? ''
+    const endDate = url.searchParams.get('endDate') ?? ''
+    const rawType = url.searchParams.get('type') ?? 'ALL'
+
+    if (!/^[0-9]{6,20}$/.test(accountNo)) {
+      return bniError(422, 'VALIDATION_ERROR', 'accountNo must be 6-20 digits')
+    }
+    if (!BNI_STATEMENT_TYPES.includes(rawType as BniStatementType)) {
+      return bniError(422, 'VALIDATION_ERROR', 'type must be ALL, CREDIT or DEBIT')
+    }
+    const rangeProblem = bniRangeProblem(startDate, endDate)
+    if (rangeProblem) return bniError(422, 'VALIDATION_ERROR', rangeProblem)
+    const account = bniAccountsStore.find((a) => a.accountNo === accountNo)
+    if (!account) {
+      return bniError(
+        422,
+        'BNI_ACCOUNT_NOT_ALLOWED',
+        'accountNo is not a configured BNI account'
+      )
+    }
+    const type = rawType as BniStatementType
+
+    // Backend re-filters by `flag` (§ 16.2) — the mock does the same so a
+    // DEBIT pull never shows a C row.
+    const rows = createBniStatementRows(12, startDate, endDate).filter((r) =>
+      type === 'ALL' ? true : type === 'CREDIT' ? r.flag === 'C' : r.flag === 'D'
+    )
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: createBniStatement(
+        {
+          accountNo: account.accountNo,
+          role: account.role,
+          label: account.label,
+          startDate,
+          endDate,
+          type,
+        },
+        rows
+      ),
+    })
+  }),
+
   // ─── Kontak on-call insiden uang (USDX-485, audit alur uang P1-18) ───
   //
   // Backend menyimpan daftar ini dan menyisipkan kontak yang cocok kategorinya ke

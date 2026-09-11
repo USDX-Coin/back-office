@@ -1,7 +1,10 @@
 import { describe, test, expect } from 'vitest'
 import {
   formatAmount,
+  formatBankAmount,
+  formatBniPostDate,
   formatDate,
+  formatWibDateTime,
   formatShortDate,
   formatRelativeTime,
   formatRate,
@@ -193,6 +196,106 @@ describe('formatSpreadPct', () => {
   describe('edge cases', () => {
     test('should fall back gracefully when input is junk', () => {
       expect(formatSpreadPct('abc')).toBe('abc%')
+    })
+  })
+})
+
+// ─── USDX-631 — Rekening BNI formatters (sot/bni-integration.md § 16.4) ───
+
+describe('formatBniPostDate', () => {
+  describe('positive', () => {
+    test('re-punctuates a 14-digit statement postDate without touching the zone', () => {
+      expect(formatBniPostDate('20260909143005')).toBe('2026-09-09 14:30:05')
+    })
+
+    test('re-punctuates the 12-digit InquiryBalance date (minute precision)', () => {
+      expect(formatBniPostDate('202609091430')).toBe('2026-09-09 14:30')
+    })
+
+    test('re-punctuates an 8-digit posting-range date', () => {
+      expect(formatBniPostDate('20260901')).toBe('2026-09-01')
+    })
+  })
+
+  describe('negative', () => {
+    test('renders a dash for null / empty (MALFORMED rows carry null)', () => {
+      expect(formatBniPostDate(null)).toBe('—')
+      expect(formatBniPostDate(undefined)).toBe('—')
+      expect(formatBniPostDate('')).toBe('—')
+    })
+
+    test('renders a dash for non-digit or odd-length input instead of Invalid Date', () => {
+      expect(formatBniPostDate('2026-09-09')).toBe('—')
+      expect(formatBniPostDate('2026090914300')).toBe('—')
+      expect(formatBniPostDate('MALFORMED')).toBe('—')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('does not parse through Date — an impossible calendar value is still re-punctuated verbatim', () => {
+      // The service already flags unreadable values as MALFORMED; the formatter's
+      // only job is presentation, so it must not "helpfully" roll 2026-02-30
+      // into March the way `new Date()` would.
+      expect(formatBniPostDate('20260230120000')).toBe('2026-02-30 12:00:00')
+    })
+  })
+})
+
+describe('formatBankAmount', () => {
+  describe('positive', () => {
+    test('formats IDR with the Rp locale format', () => {
+      expect(formatBankAmount('602749.00', 'IDR')).toBe('Rp 602.749,00')
+    })
+
+    test('formats USD with the dollar format', () => {
+      expect(formatBankAmount('1250.5', 'USD')).toBe('$1,250.50')
+    })
+  })
+
+  describe('negative', () => {
+    test('renders a dash for null / empty / unparsable amounts', () => {
+      expect(formatBankAmount(null, 'IDR')).toBe('—')
+      expect(formatBankAmount('', 'IDR')).toBe('—')
+      expect(formatBankAmount('12 345', 'IDR')).toBe('—')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('falls back to a plain number plus the code for an unknown currency', () => {
+      expect(formatBankAmount('10', 'SGD')).toBe('10.00 SGD')
+    })
+
+    test('falls back to a bare number when the bank sent no currency', () => {
+      expect(formatBankAmount('10', null)).toBe('10.00')
+    })
+  })
+})
+
+describe('formatWibDateTime', () => {
+  describe('positive', () => {
+    test('renders a UTC instant as WIB (UTC+7) with a WIB suffix', () => {
+      expect(formatWibDateTime('2026-09-09T07:30:05.000Z')).toBe('2026-09-09 14:30:05 WIB')
+    })
+
+    test('crosses the day boundary when WIB is already tomorrow', () => {
+      expect(formatWibDateTime('2026-09-09T17:00:00Z')).toBe('2026-09-10 00:00:00 WIB')
+    })
+  })
+
+  describe('negative', () => {
+    test('renders a dash for null or an unparsable stamp', () => {
+      expect(formatWibDateTime(null)).toBe('—')
+      expect(formatWibDateTime('not-a-date')).toBe('—')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('midnight WIB renders as 00, never 24 (Intl hourCycle quirk)', () => {
+      expect(formatWibDateTime('2026-09-09T17:00:00Z')).toBe('2026-09-10 00:00:00 WIB')
+    })
+
+    test('an offset-bearing stamp is normalised to WIB too', () => {
+      expect(formatWibDateTime('2026-09-09T14:30:05+07:00')).toBe('2026-09-09 14:30:05 WIB')
     })
   })
 })

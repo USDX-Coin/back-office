@@ -1,5 +1,7 @@
 import type {
   ActivationStatus,
+  BniBalanceCardStatus,
+  BniStatementFlag,
   KycStatus,
   MintOrderStatus,
   MintPaymentStatus,
@@ -347,6 +349,82 @@ export function getKycStatusConfig(status: KycStatus): StatusConfig {
       label: String(status),
       variant: 'outline',
       className: '',
+      dotClass: 'bg-muted-foreground',
+    }
+  )
+}
+
+// ─── USDX-631 — Rekening BNI (sot/bni-integration.md § 16.3–16.4) ───
+
+// Badge jenis mutasi dari `debitCreditFlag` bank: `C` uang masuk, `D` uang keluar.
+const bniFlagMap: Record<BniStatementFlag, StatusConfig> = {
+  C: {
+    label: 'Masuk',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  D: {
+    label: 'Keluar',
+    variant: 'outline',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+}
+
+export function getBniFlagConfig(flag: BniStatementFlag): StatusConfig {
+  return (
+    bniFlagMap[flag] ?? {
+      label: String(flag),
+      variant: 'outline',
+      className: '',
+      dotClass: 'bg-muted-foreground',
+    }
+  )
+}
+
+// Status per rekening dari satu panggilan InquiryBalance. Enum diperlakukan
+// TERBUKA (yaml § BniBalanceCardStatus): nilai yang belum dikenal jatuh ke
+// cabang default yang menampilkan nilainya apa adanya, bukan crash.
+const bniBalanceCardStatusMap: Record<BniBalanceCardStatus, StatusConfig> = {
+  OK: {
+    label: 'Saldo terbaca',
+    variant: 'default',
+    className: 'bg-success/10 text-success',
+    dotClass: 'bg-success',
+  },
+  BLOCKED: {
+    label: 'Indikasi diblokir',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+  REJECTED: {
+    label: 'Ditolak bank',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+  MISSING: {
+    label: 'Tidak dikembalikan bank',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+  NOT_ALLOWED: {
+    label: 'Belum diizinkan',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
+}
+
+export function getBniBalanceCardStatusConfig(status: BniBalanceCardStatus): StatusConfig {
+  return (
+    bniBalanceCardStatusMap[status] ?? {
+      label: String(status),
+      variant: 'outline',
+      className: 'bg-muted text-muted-foreground',
       dotClass: 'bg-muted-foreground',
     }
   )

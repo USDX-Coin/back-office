@@ -2488,3 +2488,134 @@ export interface DecideScreeningBody {
   /** Wajib, 10..1000 karakter — "hasil analisis" yang Pasal 63 ayat (2) huruf c wajibkan. */
   reason: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-631 — Rekening BNI: saldo & mutasi LIVE dari BNIdirect (D21).
+//
+// Disalin dari `sot/api/bni-accounts.yaml` (rev 2026-09-09) — tiga endpoint
+// `GET /api/v1/bni-accounts`, `GET /api/v1/bni-accounts/balances`,
+// `GET /api/v1/bni-accounts/{accountNo}/statement`. Perilaku layar dan pemetaan
+// error ada di `sot/bni-integration.md § 16.3–16.4`. Data TIDAK disalin ke tabel
+// bisnis mana pun: tiap panggilan meneruskan ke bni-service → BNIdirect.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Peran rekening menurut bni-integration.md § 3.1d; nomornya dari env backend. */
+export type BniAccountRole = 'COLLECTION' | 'TREASURY_NP' | 'TREASURY_USD'
+
+/** `GET /api/v1/bni-accounts` — daftar dari env, TANPA panggilan bank. */
+export interface BniAccount {
+  accountNo: string
+  role: BniAccountRole
+  /** Label tampilan, mis. "Collection (Giro IDR)". */
+  label: string
+}
+
+/**
+ * Jejak perbaikan nilai dari parser bni-service. `REPAIRED` = dinormalkan,
+ * `MALFORMED` = tidak terbaca (UI "—"), `NO_ACCOUNT_DETAIL` = anomali level
+ * rekening (bank tidak mengembalikan entri sama sekali) — hanya di
+ * `BniStatementSummary.anomalies`.
+ */
+export interface BniValueAnomaly {
+  field: string
+  kind: 'REPAIRED' | 'MALFORMED' | 'NO_ACCOUNT_DETAIL'
+  raw?: string | null
+}
+
+/**
+ * Hasil per rekening dari satu panggilan InquiryBalance. Diperlakukan TERBUKA
+ * oleh FE (cabang default menampilkan nilainya) — yaml § BniBalanceCardStatus.
+ */
+export type BniBalanceCardStatus = 'OK' | 'BLOCKED' | 'REJECTED' | 'MISSING' | 'NOT_ALLOWED'
+
+export interface BniBalanceCard {
+  accountNo: string
+  role: BniAccountRole
+  label: string
+  status: BniBalanceCardStatus
+  /** Teks bisnis bank untuk `REJECTED`; teks buatan kita untuk BLOCKED/MISSING/NOT_ALLOWED. */
+  errorReason?: string | null
+  httpStatus?: number | null
+  accountName?: string | null
+  /** Kode jenis rekening dari bank (`G` giro, `S` tabungan, `T` deposito). */
+  accountType?: string | null
+  /** `IDR` / `USD` — menentukan format nominal. */
+  currency?: string | null
+  /** String desimal apa adanya. Makna vs `endingBalance` belum dikonfirmasi BNI — UI menampilkan keduanya. */
+  effectiveBalance?: string | null
+  endingBalance?: string | null
+  anomalies?: BniValueAnomaly[]
+}
+
+/** `GET /api/v1/bni-accounts/balances`. */
+export interface BniBalances {
+  /** Korelasi tarikan = `api_call_log.correlation_id` di bni-service. */
+  pullId: string
+  /** `date` InquiryBalance apa adanya (`yyyyMMddHHmm`, WIB). */
+  inquiredAtBank?: string | null
+  /** Waktu tarikan menurut backend (UTC ISO 8601; FE menampilkan WIB). */
+  pulledAt: string
+  accounts: BniBalanceCard[]
+}
+
+/** UI "Semua / Masuk / Keluar" → BNIdirect `transactionType` All/Cr/Db. */
+export type BniStatementType = 'ALL' | 'CREDIT' | 'DEBIT'
+
+/** `C` kredit (uang masuk), `D` debit (uang keluar) — dari `debitCreditFlag`. */
+export type BniStatementFlag = 'C' | 'D'
+
+/**
+ * Satu baris rekening koran apa adanya. TIDAK unik per `journalNo` — kunci
+ * baris FE = `journalNo`+`postDate`+indeks.
+ */
+export interface BniStatementRow {
+  /** `yyyyMMddHHmmss` (WIB); null bila `MALFORMED`. */
+  postDate: string | null
+  flag: BniStatementFlag
+  /** Nominal TANPA tanda; arah dari `flag`. Null bila `MALFORMED`. */
+  amount: string | null
+  balance?: string | null
+  /** Teks bank apa adanya — berpotensi memuat nama pengirim (PII pihak ketiga). */
+  description: string
+  journalNo?: string | null
+  branchName?: string | null
+  anomalies?: BniValueAnomaly[]
+}
+
+/** Angka level rekening "menurut bank untuk rentang ini" + hitungan dari kita. */
+export interface BniStatementSummary {
+  accountName?: string | null
+  currency?: string | null
+  beginningBalance?: string | null
+  totalCredit?: string | null
+  totalDebit?: string | null
+  /** Rentang yang BERLAKU menurut bank (`yyyyMMdd`); UI menandai bila beda dari yang diminta. */
+  fromPostingDate?: string | null
+  toPostingDate?: string | null
+  /** Jumlah baris SETELAH saringan `type` backend. */
+  rowCount: number
+  /** Jumlah baris dengan ≥1 anomali (REPAIRED/MALFORMED). */
+  anomalyRowCount: number
+  anomalies?: BniValueAnomaly[]
+}
+
+/** Parameter yang DITERAPKAN pada tarikan — header hasil menampilkan ini, bukan isi form. */
+export interface BniStatementApplied {
+  accountNo: string
+  role?: BniAccountRole
+  label?: string
+  startDate: string
+  endDate: string
+  type: BniStatementType
+}
+
+/** `GET /api/v1/bni-accounts/{accountNo}/statement`. */
+export interface BniStatement {
+  pullId: string
+  pulledAt: string
+  applied: BniStatementApplied
+  /** SELALU ada (rev 2026-09-09): hasil kosong → field null, `rowCount` 0, anomali `NO_ACCOUNT_DETAIL`. */
+  summary: BniStatementSummary
+  /** Urut `postDate` menurun, stabil; baris `MALFORMED` tanggal di paling bawah. */
+  rows: BniStatementRow[]
+}

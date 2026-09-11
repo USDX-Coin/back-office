@@ -9,7 +9,10 @@ function escapeCsvCell(val: unknown): string {
   if (str.length > 0 && FORMULA_CHARS.has(str[0]!)) {
     str = `'${str}`
   }
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+  // `\r` on its own (old Mac line ending, or a stray carriage return inside a
+  // bank-supplied description) breaks a row just like `\n` does — it has to be
+  // quoted too. USDX-631 (BNI statement descriptions are verbatim bank text).
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`
   }
   return str
@@ -43,14 +46,28 @@ export function saveBlobAs(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
+export interface ExportToCsvOptions {
+  /**
+   * Prepend a UTF-8 byte-order mark so Excel opens the file as UTF-8 instead of
+   * the locale code page (otherwise non-ASCII text in bank descriptions turns
+   * into mojibake). Opt-in: the existing exports keep their byte-identical
+   * output. USDX-631 / sot/bni-integration.md § 16 K6.
+   */
+  withBom?: boolean
+}
+
+export const UTF8_BOM = '\uFEFF'
+
 export function exportToCsv<T extends object>(
   data: T[],
   columns: { key: keyof T; header: string }[],
-  filename: string
+  filename: string,
+  options: ExportToCsvOptions = {}
 ): void {
   const csv = buildCsvContent(data, columns)
   if (!csv) return
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const content = options.withBom ? `${UTF8_BOM}${csv}` : csv
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
   saveBlobAs(blob, `${filename}.csv`)
 }

@@ -1,5 +1,12 @@
 import type {
   AmountCurrency,
+  BniAccount,
+  BniBalanceCard,
+  BniBalances,
+  BniStatement,
+  BniStatementApplied,
+  BniStatementRow,
+  BniStatementSummary,
   Customer,
   CustomerRole,
   CustomerType,
@@ -1905,5 +1912,166 @@ export function createOncallContact(
     updatedBy: null,
     createdAt: now,
     updatedAt: now,
+  }
+}
+
+// ─── USDX-631 — Rekening BNI (sot/api/bni-accounts.yaml, § 16) ───
+//
+// Shapes are the backend's NORMALISED results (what `/api/v1/bni-accounts/*`
+// returns), not raw BNIdirect envelopes — bni-service already parsed those.
+// Account numbers are the dev/sandbox ones from § 16.7 (env dev), never the
+// production MAF numbers.
+
+export const BNI_MOCK_ACCOUNTS: readonly BniAccount[] = [
+  { accountNo: '0115476151', role: 'COLLECTION', label: 'Collection (Giro IDR)' },
+  { accountNo: '108098391', role: 'TREASURY_NP', label: 'Treasury NP (Tabungan IDR)' },
+  { accountNo: '0228693519', role: 'TREASURY_USD', label: 'Treasury USD (Giro USD)' },
+]
+
+export function createBniAccounts(): BniAccount[] {
+  return BNI_MOCK_ACCOUNTS.map((a) => ({ ...a }))
+}
+
+function bniCurrencyFor(role: BniAccount['role']): 'IDR' | 'USD' {
+  return role === 'TREASURY_USD' ? 'USD' : 'IDR'
+}
+
+// `yyyyMMddHHmm` in WIB from a JS instant — the InquiryBalance `date` echo.
+function bniMinuteStamp(at: Date): string {
+  const wib = new Date(at.getTime() + 7 * 60 * 60 * 1000)
+  return wib.toISOString().replace(/[-T:]/g, '').slice(0, 12)
+}
+
+let bniPullCounter = 0
+function nextBniPullId(): string {
+  bniPullCounter += 1
+  return `019e2b00-0000-7000-8000-${String(bniPullCounter).padStart(12, '0')}`
+}
+
+function createBniBalanceCard(
+  account: BniAccount,
+  overrides: Partial<BniBalanceCard> = {}
+): BniBalanceCard {
+  const currency = bniCurrencyFor(account.role)
+  const base: BniBalanceCard = {
+    accountNo: account.accountNo,
+    role: account.role,
+    label: account.label,
+    status: 'OK',
+    errorReason: null,
+    httpStatus: 200,
+    accountName: 'PT MAF DIGITAL',
+    accountType: account.role === 'TREASURY_NP' ? 'S' : 'G',
+    currency,
+    effectiveBalance: currency === 'USD' ? '12500.75' : '602749000.00',
+    endingBalance: currency === 'USD' ? '12500.75' : '603249000.00',
+    anomalies: [],
+  }
+  return { ...base, ...overrides }
+}
+
+export function createBniBalances(
+  accounts: readonly BniAccount[] = BNI_MOCK_ACCOUNTS,
+  cardOverrides: Record<string, Partial<BniBalanceCard>> = {},
+  at: Date = new Date()
+): BniBalances {
+  return {
+    pullId: nextBniPullId(),
+    inquiredAtBank: bniMinuteStamp(at),
+    pulledAt: at.toISOString(),
+    accounts: accounts.map((a) => createBniBalanceCard(a, cardOverrides[a.accountNo] ?? {})),
+  }
+}
+
+const BNI_DESCRIPTIONS = [
+  'TRF DARI BUDI SANTOSO USDX-MINT-8F3A',
+  'BIAYA ADM BULANAN',
+  'PAYOUT DURIANPAY 2026090812',
+  'TRF DARI SITI AMINAH USDX-MINT-1C0D',
+  'BUNGA TABUNGAN',
+  'TRF KE REKENING TREASURY',
+]
+
+/**
+ * Deterministic rows spread across `startDate..endDate` (inclusive), newest
+ * first. Alternates C/D so a `type` filter always leaves something behind.
+ */
+export function createBniStatementRows(
+  count: number,
+  startDate: string,
+  endDate: string
+): BniStatementRow[] {
+  const dayOf = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+    return Date.UTC(y, m - 1, d)
+  }
+  const start = dayOf(startDate)
+  const days = Math.max(1, Math.round((dayOf(endDate) - start) / 86_400_000) + 1)
+  const rows: BniStatementRow[] = []
+  let balance = 500_000_000
+  for (let i = 0; i < count; i++) {
+    const flag = i % 3 === 1 ? 'D' : 'C'
+    const amount = 1_000_000 + (i % 7) * 250_000
+    balance += flag === 'C' ? amount : -amount
+    // Newest first: row 0 lands on the last day, later rows walk backwards.
+    const dayIndex = days - 1 - (i % days)
+    const stamp = new Date(start + dayIndex * 86_400_000)
+    const hh = String(23 - (i % 12)).padStart(2, '0')
+    const mm = String((i * 7) % 60).padStart(2, '0')
+    const ss = String((i * 13) % 60).padStart(2, '0')
+    const ymd = stamp.toISOString().slice(0, 10).replace(/-/g, '')
+    rows.push({
+      postDate: `${ymd}${hh}${mm}${ss}`,
+      flag,
+      amount: `${amount}.00`,
+      balance: `${balance}.00`,
+      description: BNI_DESCRIPTIONS[i % BNI_DESCRIPTIONS.length]!,
+      journalNo: String(100_000 + (i % 50)),
+      branchName: i % 2 === 0 ? 'KCP SUDIRMAN' : 'KC JAKARTA PUSAT',
+      anomalies: [],
+    })
+  }
+  return rows
+}
+
+function createBniStatementSummary(
+  rows: BniStatementRow[],
+  overrides: Partial<BniStatementSummary> = {}
+): BniStatementSummary {
+  const sum = (flag: 'C' | 'D') =>
+    rows
+      .filter((r) => r.flag === flag && r.amount !== null)
+      .reduce((acc, r) => acc + Number(r.amount), 0)
+  const dates = rows.map((r) => r.postDate).filter((d): d is string => Boolean(d)).sort()
+  return {
+    accountName: 'PT MAF DIGITAL',
+    currency: 'IDR',
+    beginningBalance: '500000000.00',
+    totalCredit: `${sum('C')}.00`,
+    totalDebit: `${sum('D')}.00`,
+    fromPostingDate: dates[0]?.slice(0, 8) ?? null,
+    toPostingDate: dates[dates.length - 1]?.slice(0, 8) ?? null,
+    rowCount: rows.length,
+    anomalyRowCount: rows.filter((r) => (r.anomalies?.length ?? 0) > 0).length,
+    anomalies: [],
+    ...overrides,
+  }
+}
+
+export function createBniStatement(
+  applied: BniStatementApplied,
+  rows: BniStatementRow[],
+  summaryOverrides: Partial<BniStatementSummary> = {},
+  at: Date = new Date()
+): BniStatement {
+  return {
+    pullId: nextBniPullId(),
+    pulledAt: at.toISOString(),
+    applied,
+    summary: createBniStatementSummary(rows, {
+      currency: applied.role === 'TREASURY_USD' ? 'USD' : 'IDR',
+      ...summaryOverrides,
+    }),
+    rows,
   }
 }

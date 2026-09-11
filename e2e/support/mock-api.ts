@@ -541,6 +541,68 @@ function seedKycReviews(records: MockKycRecord[]): Map<string, MockKycReview[]> 
 
 type RouteOverride = (route: Route, url: URL) => Promise<boolean | void> | boolean | void
 
+
+// ─── USDX-631 — Rekening BNI (sot/api/bni-accounts.yaml) ─────────────────────
+// Backend-normalised shapes (not raw BNIdirect envelopes). Account numbers are
+// the dev/sandbox ones from sot/bni-integration.md § 16.7.
+export const BNI_ACCOUNTS = [
+  { accountNo: '0115476151', role: 'COLLECTION', label: 'Collection (Giro IDR)' },
+  { accountNo: '108098391', role: 'TREASURY_NP', label: 'Treasury NP (Tabungan IDR)' },
+  { accountNo: '0228693519', role: 'TREASURY_USD', label: 'Treasury USD (Giro USD)' },
+] as const
+
+export function seedBniBalances() {
+  return {
+    pullId: '019e2b00-0000-7000-8000-000000000101',
+    inquiredAtBank: '202609091430',
+    pulledAt: '2026-09-09T07:31:02.000Z',
+    accounts: BNI_ACCOUNTS.map((a) => ({
+      ...a,
+      status: 'OK',
+      errorReason: null,
+      httpStatus: 200,
+      accountName: 'PT MAF DIGITAL',
+      accountType: a.role === 'TREASURY_NP' ? 'S' : 'G',
+      currency: a.role === 'TREASURY_USD' ? 'USD' : 'IDR',
+      effectiveBalance: a.role === 'TREASURY_USD' ? '12500.75' : '602749000.00',
+      endingBalance: a.role === 'TREASURY_USD' ? '12500.75' : '603249000.00',
+      anomalies: [],
+    })),
+  }
+}
+
+export interface MockBniStatementRow {
+  postDate: string | null
+  flag: 'C' | 'D'
+  amount: string | null
+  balance: string | null
+  description: string
+  journalNo: string | null
+  branchName: string | null
+  anomalies: { field: string; kind: 'REPAIRED' | 'MALFORMED' }[]
+}
+
+export function seedBniStatementRows(startDate: string, endDate: string, count = 12): MockBniStatementRow[] {
+  const ymd = (iso: string) => iso.replace(/-/g, '')
+  const rows: MockBniStatementRow[] = []
+  for (let i = 0; i < count; i++) {
+    const flag = i % 3 === 1 ? 'D' : 'C'
+    const amount = 1_000_000 + (i % 7) * 250_000
+    const day = i % 2 === 0 ? ymd(endDate) : ymd(startDate)
+    rows.push({
+      postDate: `${day}${String(23 - (i % 12)).padStart(2, '0')}${String((i * 7) % 60).padStart(2, '0')}00`,
+      flag,
+      amount: `${amount}.00`,
+      balance: `${500_000_000 + i * 1000}.00`,
+      description: i % 2 === 0 ? 'TRF DARI BUDI SANTOSO USDX-MINT-8F3A' : 'PAYOUT DURIANPAY 2026090812',
+      journalNo: String(100_000 + (i % 50)),
+      branchName: i % 2 === 0 ? 'KCP SUDIRMAN' : 'KC JAKARTA PUSAT',
+      anomalies: [],
+    })
+  }
+  return rows
+}
+
 export interface MockApiOptions {
   /** Pre-seed extra users into the directory. */
   users?: (typeof VERIFIED_USER)[]
@@ -552,6 +614,8 @@ export interface MockApiOptions {
   orders?: MockOrder[]
   /** Override a single endpoint, keyed by `"METHOD /api/v1/path"`. Return `true` if handled. */
   routes?: Record<string, RouteOverride>
+  /** USDX-631 — replace the seeded BNI account list (empty array = "belum dikonfigurasi"). */
+  bniAccounts?: { accountNo: string; role: string; label: string }[]
 }
 
 export interface MockApiState {
@@ -944,6 +1008,44 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const o = state.orders.find((x) => x.id === orderIdMatch[1])
       if (!o) return error(route, 'NOT_FOUND', 'Order not found', 404)
       return envelope(route, o)
+    }
+
+    // ── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml) ────────────────
+    const bniAccounts = opts.bniAccounts ?? [...BNI_ACCOUNTS]
+    if (key === 'GET /api/v1/bni-accounts') return envelope(route, bniAccounts)
+    if (key === 'GET /api/v1/bni-accounts/balances') {
+      if (bniAccounts.length === 0) return error(route, 'BNI_SERVICE_UNCONFIGURED', 'No BNI account configured', 503)
+      const seeded = seedBniBalances()
+      return envelope(route, { ...seeded, accounts: seeded.accounts.filter((c) => bniAccounts.some((a) => a.accountNo === c.accountNo)) })
+    }
+    const bniStatementMatch = path.match(/^\/api\/v1\/bni-accounts\/([^/]+)\/statement$/)
+    if (method === 'GET' && bniStatementMatch) {
+      const account = bniAccounts.find((a) => a.accountNo === bniStatementMatch[1])
+      if (!account) return error(route, 'BNI_ACCOUNT_NOT_ALLOWED', 'accountNo is not a configured BNI account', 422)
+      const startDate = url.searchParams.get('startDate') ?? ''
+      const endDate = url.searchParams.get('endDate') ?? ''
+      const type = url.searchParams.get('type') ?? 'ALL'
+      const rows = seedBniStatementRows(startDate, endDate).filter((r) =>
+        type === 'ALL' ? true : type === 'CREDIT' ? r.flag === 'C' : r.flag === 'D',
+      )
+      return envelope(route, {
+        pullId: '019e2b00-0000-7000-8000-000000000202',
+        pulledAt: '2026-09-09T07:32:10.000Z',
+        applied: { ...account, startDate, endDate, type },
+        summary: {
+          accountName: 'PT MAF DIGITAL',
+          currency: account.role === 'TREASURY_USD' ? 'USD' : 'IDR',
+          beginningBalance: '500000000.00',
+          totalCredit: '9000000.00',
+          totalDebit: '4500000.00',
+          fromPostingDate: startDate.replace(/-/g, ''),
+          toPostingDate: endDate.replace(/-/g, ''),
+          rowCount: rows.length,
+          anomalyRowCount: 0,
+          anomalies: [],
+        },
+        rows,
+      })
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────
