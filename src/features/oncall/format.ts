@@ -15,6 +15,7 @@ const CATEGORY_LABEL: Record<OncallIncidentCategory, string> = {
   FRAUD: 'Fraud',
   SECURITY: 'Security',
   INFRA: 'Infra',
+  CUSTODIAL: 'Custodial',
   OTHER: 'Other',
 }
 

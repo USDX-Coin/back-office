@@ -1884,7 +1884,7 @@ let oncallIdCounter = 1
 
 /**
  * Seed daftar on-call. Sengaja TIDAK menutup semua kategori: MINT, REDEEM,
- * FRAUD, INFRA, dan OTHER dibiarkan kosong supaya keadaan "kategori tanpa
+ * FRAUD, INFRA, CUSTODIAL, dan OTHER dibiarkan kosong supaya keadaan "kategori tanpa
  * penanggung jawab" — keadaan yang justru dibereskan tiket ini — terlihat di
  * dev/test alih-alih tersembunyi di balik data mock yang terlalu rapi.
  */
