@@ -456,6 +456,8 @@ export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
     // Redeem fees (W3, USDX-245) — seeded so redeem orders compute; admin-set.
     redeemFeePct: '1.0',
     disbursementFeeFlat: '5000.00',
+    // Minimum mint Rp (USDX-635/637) — pindah dari konstanta ke kolom config.
+    minMintIdr: '20000',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
