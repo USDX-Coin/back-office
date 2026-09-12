@@ -15,7 +15,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
-import { missingEnvList } from '@/lib/mintMode'
+import {
+  errorDetailList,
+  TEST_BUNDLE_ADDRESS_LABELS,
+  type TestBundleAddressField,
+} from '@/lib/mintMode'
 import {
   MINT_MODE_REASON_MIN_LEN,
   MINT_TEST_MODE_MAX_HOURS,
@@ -29,14 +33,18 @@ interface Props {
 }
 
 /**
- * Dialog geser ke MODE UJI (USDX-639).
+ * Dialog geser ke MODE UJI (USDX-639, alamat bundle USDX-654).
  *
- * Sengaja bukan konfirmasi satu tombol: alasan, durasi, dan daftar email yang
- * boleh mint diisi di sini, karena selama jendela ini uang yang benar-benar
- * masuk dicetak jadi token uji. Kegagalan 422 (env uji belum lengkap,
- * `MINT_MODE_TEST_ENV_INCOMPLETE`) ditampilkan DI DALAM dialog — dialognya tetap
- * terbuka dan mode tidak berubah, supaya yang menggeser membaca daftar env-nya,
- * bukan menemukan toast yang sudah hilang.
+ * Sengaja bukan konfirmasi satu tombol: alasan, durasi, daftar email yang boleh
+ * mint, DAN ketiga alamat bundle uji diisi di sini, karena selama jendela ini
+ * uang yang benar-benar masuk dicetak jadi token uji.
+ *
+ * Kegagalan `422 MINT_MODE_TEST_ENV_INCOMPLETE` ditampilkan DI DALAM dialog
+ * dengan pesan server apa adanya — satu kode itu menutupi lima sebab (bentuk
+ * alamat, alamat produksi belum terkonfigurasi, tabrakan alamat, kunci signer
+ * uji, pemeriksaan on-chain), dan yang membedakannya hanya `message` +
+ * `details`. Mengganti keduanya dengan kalimat generik berarti operator tahu
+ * bahwa gagal tapi tidak tahu Safe uji mana yang bukan pemegang `MINTER_ROLE`.
  */
 export default function MintTestModeDialog({ open, onOpenChange }: Props) {
   const setMode = useSetMintMode()
@@ -44,9 +52,14 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
   const [durationHours, setDurationHours] = useState('')
   const [allowedEmails, setAllowedEmails] = useState<string[]>([])
   const [emailDraft, setEmailDraft] = useState('')
+  const [addresses, setAddresses] = useState<Record<TestBundleAddressField, string>>({
+    testUsdxAddress: '',
+    testStaffSafeAddress: '',
+    testManagerSafeAddress: '',
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState<string | null>(null)
-  const [missingEnv, setMissingEnv] = useState<string[]>([])
+  const [serverDetails, setServerDetails] = useState<string[]>([])
 
   // Dialog yang ditutup lalu dibuka lagi tidak boleh membawa isian lama: alasan
   // dan daftar email itu catatan untuk jendela ini, bukan template.
@@ -55,9 +68,10 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
     setDurationHours('')
     setAllowedEmails([])
     setEmailDraft('')
+    setAddresses({ testUsdxAddress: '', testStaffSafeAddress: '', testManagerSafeAddress: '' })
     setErrors({})
     setServerError(null)
-    setMissingEnv([])
+    setServerDetails([])
   }
 
   function closeDialog() {
@@ -69,6 +83,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
     reason,
     durationHours,
     allowedEmailDraft: emailDraft,
+    ...addresses,
   })
   const canSubmit = validation.valid && !setMode.isPending
 
@@ -91,6 +106,15 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
     if (!exists) setAllowedEmails((prev) => [...prev, candidate])
     setEmailDraft('')
     setErrors((prev) => ({ ...prev, allowedEmailDraft: '' }))
+  }
+
+  function setAddress(field: TestBundleAddressField, value: string) {
+    setAddresses((prev) => ({ ...prev, [field]: value }))
+    setErrors((prev) => ({ ...prev, [field]: '' }))
+  }
+
+  function touchAddress(field: TestBundleAddressField) {
+    setErrors((prev) => ({ ...prev, [field]: validation.errors[field] ?? '' }))
   }
 
   function removeEmail(email: string) {
@@ -118,7 +142,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setServerError(null)
-    setMissingEnv([])
+    setServerDetails([])
     if (!validation.valid) {
       setErrors(validation.errors)
       return
@@ -129,6 +153,9 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
         reason: reason.trim(),
         durationHours: Number(durationHours.trim()),
         allowedEmails,
+        testUsdxAddress: addresses.testUsdxAddress.trim(),
+        testStaffSafeAddress: addresses.testStaffSafeAddress.trim(),
+        testManagerSafeAddress: addresses.testManagerSafeAddress.trim(),
       })
       closeDialog()
     } catch (err) {
@@ -137,7 +164,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
         // MINT_MODE_TEST_ENV_INCOMPLETE. Menggantinya dengan kalimat generik
         // menghapus satu-satunya keterangan tentang apa yang harus dipasang.
         setServerError(err.message)
-        setMissingEnv(missingEnvList(err.details))
+        setServerDetails(errorDetailList(err.details))
         return
       }
       setServerError('Gagal menggeser mode mint. Coba lagi.')
@@ -269,16 +296,55 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
               )}
             </div>
 
+            {/* Bundle uji (USDX-654). Sejak alamat pindah dari env ke isian,
+                ketiganya WAJIB — tanpa ini permintaan selalu ditolak 422 dan
+                mode uji tidak bisa dinyalakan sama sekali. */}
+            <div className="space-y-3 border-t border-border pt-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                Bundle uji
+              </p>
+              {(Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]).map(
+                (field) => (
+                  <div key={field} className="space-y-1.5">
+                    <Label htmlFor={field}>{TEST_BUNDLE_ADDRESS_LABELS[field]}</Label>
+                    <Input
+                      id={field}
+                      value={addresses[field]}
+                      onChange={(e) => setAddress(field, e.target.value)}
+                      // Divalidasi saat isian ditinggalkan, bukan per karakter:
+                      // alamat sepanjang 42 karakter akan "salah" di hampir
+                      // setiap ketukan kalau dinilai seketika. Tombol simpan
+                      // tetap mati sejak awal, jadi tidak ada yang lolos.
+                      onBlur={() => touchAddress(field)}
+                      placeholder="0x…"
+                      spellCheck={false}
+                      autoComplete="off"
+                      className="font-mono text-[12.5px]"
+                    />
+                    <FieldError message={errors[field] || undefined} />
+                  </div>
+                ),
+              )}
+              <p className="text-xs text-muted-foreground">
+                Salin persis dari block explorer — huruf besar/kecilnya adalah
+                checksum EIP-55, dan server memeriksa on-chain bahwa Safe uji
+                memang pemegang MINTER_ROLE di token uji.
+              </p>
+            </div>
+
             {serverError ? (
               <div
                 role="alert"
                 className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-[12.5px] text-destructive"
               >
                 <p>{serverError}</p>
-                {missingEnv.length > 0 ? (
-                  <ul className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono">
-                    {missingEnv.map((name) => (
-                      <li key={name}>{name}</li>
+                {serverDetails.length > 0 ? (
+                  <ul
+                    data-testid="mint-mode-error-details"
+                    className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono"
+                  >
+                    {serverDetails.map((item) => (
+                      <li key={item}>{item}</li>
                     ))}
                   </ul>
                 ) : null}

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { isAddress } from 'viem'
+import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
 import { MIN_MINT_IDR_FLOOR } from '@/lib/validators'
 import type {
@@ -140,7 +140,12 @@ function resolveMintMode(): MintModeConfig {
       expiresAt: null,
       updatedBy: mintModeState.updatedBy,
       updatedByName: mintModeState.updatedByName,
+      // Daftar akses dan alamat bundle ikut mati bersama modenya
+      // (`sot/api/mint-mode.yaml § MintMode`).
       allowedEmails: [],
+      testUsdxAddress: null,
+      testStaffSafeAddress: null,
+      testManagerSafeAddress: null,
       updatedAt: mintModeState.expiresAt,
     }
   }
@@ -1207,7 +1212,7 @@ export const handlers = [
     )
   }),
 
-  // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───
+  // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639/654) ───
   // GET = semua role back office (baca). POST = MANAGER/ADMIN untuk menyalakan
   // mode uji, STAFF ke atas untuk kembali ke PROD.
   // Mock-served (tidak ada di INTEGRATION_PATHS) — BE-nya (USDX-636) jalan
@@ -1260,6 +1265,83 @@ export const handlers = [
       const allowedEmails = Array.isArray(body.allowedEmails)
         ? body.allowedEmails.map((e) => String(e).trim()).filter(Boolean)
         : []
+
+      // Gerbang bundle uji (USDX-654). Ditiru dari `MintModeService`, dengan
+      // SATU kode untuk semua sebab — `MINT_MODE_TEST_ENV_INCOMPLETE` — dan
+      // `details` berisi nama field yang bermasalah. Mock ini tidak bisa
+      // memeriksa on-chain; yang bisa ditiru adalah kelengkapan, bentuk, dan
+      // tabrakan, supaya test tidak mengklaim gerbang yang tidak ada.
+      const bundle = {
+        testUsdxAddress: (body.testUsdxAddress ?? '').trim(),
+        testStaffSafeAddress: (body.testStaffSafeAddress ?? '').trim(),
+        testManagerSafeAddress: (body.testManagerSafeAddress ?? '').trim(),
+      }
+      const bundleFields = Object.keys(bundle) as (keyof typeof bundle)[]
+
+      const missingAddresses = bundleFields.filter((field) => !bundle[field])
+      if (missingAddresses.length > 0) {
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji wajib diisi saat mode=TEST: ${missingAddresses.join(', ')}`,
+          422,
+          missingAddresses
+        )
+      }
+
+      // Bentuk: alamat EVM ber-checksum EIP-55. Huruf kecil semua ikut ditolak,
+      // sama seperti `isChecksumAddress` di backend.
+      const invalidAddresses = bundleFields.filter((field) => {
+        const value = bundle[field]
+        if (!/^0x[0-9a-fA-F]{40}$/.test(value)) return true
+        try {
+          return getAddress(value.toLowerCase()) !== value
+        } catch {
+          return true
+        }
+      })
+      if (invalidAddresses.length > 0) {
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji tidak sah (wajib alamat EVM ber-checksum EIP-55): ${invalidAddresses.join(', ')}`,
+          422,
+          invalidAddresses
+        )
+      }
+
+      // Tabrakan: tiap alamat uji wajib berbeda dari SEMUA alamat produksi
+      // (di mock, alamat pada GET /api/v1/chains), dan token uji wajib berbeda
+      // dari alamat Safe uji mana pun.
+      //
+      // Safe staff uji = Safe manager uji JUSTRU sah (USDX-655): bundle dev
+      // memang memakai satu alamat untuk keduanya, dan antrean propose dikunci
+      // ALAMAT Safe — bukan tipe — jadi satu Safe fisik tetap satu antrean.
+      const prodChain = createMockChainConfigs().find((c) => c.chain === 'polygon')
+      const prodAddresses = new Set(
+        [prodChain?.usdxAddress, prodChain?.staffSafeAddress, prodChain?.managerSafeAddress]
+          .filter((a): a is string => Boolean(a))
+          .map((a) => a.toLowerCase())
+      )
+      const conflicting = new Set<string>()
+      for (const field of bundleFields) {
+        if (prodAddresses.has(bundle[field].toLowerCase())) conflicting.add(field)
+      }
+      const tokenKey = bundle.testUsdxAddress.toLowerCase()
+      for (const field of ['testStaffSafeAddress', 'testManagerSafeAddress'] as const) {
+        if (bundle[field].toLowerCase() === tokenKey) {
+          conflicting.add('testUsdxAddress')
+          conflicting.add(field)
+        }
+      }
+      if (conflicting.size > 0) {
+        const fields = [...conflicting]
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji bertabrakan dengan alamat produksi atau dengan sesamanya: ${fields.join(', ')}. Tiap alamat uji harus berbeda dari SEMUA alamat produksi dan dari alamat uji lainnya.`,
+          422,
+          fields
+        )
+      }
+
       mintModeState = {
         mode: 'TEST',
         reason,
@@ -1269,6 +1351,7 @@ export const handlers = [
         // Daftar KOSONG disimpan apa adanya: artinya "tidak ada yang bisa
         // mint", bukan "belum diisi" (USDX-636 § 3).
         allowedEmails,
+        ...bundle,
         updatedAt: new Date().toISOString(),
       }
       return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
@@ -1283,9 +1366,13 @@ export const handlers = [
       expiresAt: null,
       updatedBy: operator.id,
       updatedByName: operator.name,
-      // Kembali ke PROD membuang daftar akses: PROD tidak mengenal pembatasan
-      // apa pun, dan daftar yang tertinggal akan terbaca seakan masih berlaku.
+      // Kembali ke PROD membuang daftar akses DAN alamat bundle uji: PROD tidak
+      // mengenal pembatasan apa pun, dan keduanya yang tertinggal akan terbaca
+      // seakan masih berlaku.
       allowedEmails: [],
+      testUsdxAddress: null,
+      testStaffSafeAddress: null,
+      testManagerSafeAddress: null,
       updatedAt: new Date().toISOString(),
     }
     return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })

@@ -13,6 +13,12 @@ import type {
 } from './types'
 import { LEDGER_ENTRY_TYPES_SELECTABLE, LEDGER_SUPPORTED_CURRENCY } from './types'
 import { isFutureWibDate, parseAmountToCents, wibToday } from './transparency'
+import {
+  conflictingTestBundleAddresses,
+  TEST_BUNDLE_ADDRESS_LABELS,
+  validateTestBundleAddress,
+  type TestBundleAddressField,
+} from './mintMode'
 
 export interface ValidationResult {
   valid: boolean
@@ -367,11 +373,19 @@ export function validateMintModeDurationHours(raw: string): string | null {
  * bisa dikirim secara diam-diam: tombol simpan mati selama kotaknya berisi
  * sesuatu yang bukan email. Kotak KOSONG bukan kesalahan — daftar boleh kosong
  * (artinya tidak ada yang bisa mint), dan dialognya yang memperingatkan.
+ *
+ * Ketiga alamat bundle uji (USDX-654) WAJIB dan harus ber-checksum EIP-55 —
+ * gerbang pertama server, bukan aturan tambahan klien. Yang benar-benar menjaga
+ * bundle adalah pemeriksaan on-chain di server; validasi di sini hanya menjawab
+ * lebih cepat untuk kesalahan yang tidak perlu perjalanan ke sana.
  */
 export function validateMintTestModeForm(input: {
   reason: string
   durationHours: string
   allowedEmailDraft?: string
+  testUsdxAddress: string
+  testStaffSafeAddress: string
+  testManagerSafeAddress: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   const reasonErr = validateMintModeReason(input.reason)
@@ -383,6 +397,27 @@ export function validateMintTestModeForm(input: {
     const emailErr = validateMintAllowedEmail(draft)
     if (emailErr) errors.allowedEmailDraft = emailErr
   }
+
+  const fields = Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]
+  for (const field of fields) {
+    const err = validateTestBundleAddress(input[field], TEST_BUNDLE_ADDRESS_LABELS[field])
+    if (err) errors[field] = err
+  }
+
+  // Token uji tidak boleh beralamat sama dengan Safe uji. Safe staff = Safe
+  // manager JUSTRU diperbolehkan (USDX-655) — bundle dev memang begitu.
+  const conflicting = conflictingTestBundleAddresses({
+    testUsdxAddress: errors.testUsdxAddress ? '' : input.testUsdxAddress,
+    testStaffSafeAddress: errors.testStaffSafeAddress ? '' : input.testStaffSafeAddress,
+    testManagerSafeAddress: errors.testManagerSafeAddress
+      ? ''
+      : input.testManagerSafeAddress,
+  })
+  for (const field of conflicting) {
+    errors[field] =
+      `${TEST_BUNDLE_ADDRESS_LABELS[field]} — alamat token uji dan alamat Safe uji tidak boleh sama`
+  }
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

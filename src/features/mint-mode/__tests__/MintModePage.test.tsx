@@ -48,12 +48,42 @@ function seedTestMode(overrides: Partial<Parameters<typeof configureMintModeForT
     updatedBy: '00000000-0000-7000-8000-00000000000a',
     updatedByName: 'Linda Chen',
     allowedEmails: ['budi@usdx.io'],
+    testUsdxAddress: '0x2702D70446C8d3b5B0Ef6Ad3eB58aA5D3d5a7426',
+    testStaffSafeAddress: '0x5b7C0000000000000000000000000000000000A1',
+    testManagerSafeAddress: '0x5B7C0000000000000000000000000000000000B2',
     updatedAt: new Date().toISOString(),
     ...overrides,
   })
 }
 
 const REASON = 'Uji bayar produksi bersama DurianPay'
+
+// Alamat bundle uji (USDX-654). Ketiganya ber-checksum EIP-55 — contoh dari
+// `sot/api/mint-mode.yaml`, bukan angka karangan, karena server menolak apa pun
+// yang bukan ejaan ber-checksum.
+const TEST_USDX = '0x2702D70446C8d3b5B0Ef6Ad3eB58aA5D3d5a7426'
+const TEST_STAFF_SAFE = '0x5b7C0000000000000000000000000000000000A1'
+const TEST_MANAGER_SAFE = '0x5B7C0000000000000000000000000000000000B2'
+
+/** Isi ketiga alamat bundle di dialog yang sedang terbuka. */
+async function fillBundle(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+  overrides: Partial<Record<'usdx' | 'staff' | 'manager', string>> = {},
+) {
+  await user.type(
+    within(dialog).getByLabelText(/alamat token uji/i),
+    overrides.usdx ?? TEST_USDX,
+  )
+  await user.type(
+    within(dialog).getByLabelText(/alamat safe staff uji/i),
+    overrides.staff ?? TEST_STAFF_SAFE,
+  )
+  await user.type(
+    within(dialog).getByLabelText(/alamat safe manager uji/i),
+    overrides.manager ?? TEST_MANAGER_SAFE,
+  )
+}
 
 describe('MintModePage @integration', () => {
   describe('AC: buka halaman → kartu menampilkan mode aktif + alasan + waktu berakhir', () => {
@@ -93,6 +123,10 @@ describe('MintModePage @integration', () => {
       expect(submit).toBeDisabled()
 
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      // Alasan + durasi saja belum cukup sejak USDX-654: bundle uji wajib.
+      expect(submit).toBeDisabled()
+
+      await fillBundle(user, dialog)
       expect(submit).toBeEnabled()
     })
 
@@ -105,6 +139,7 @@ describe('MintModePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '25')
+      await fillBundle(user, dialog)
       expect(
         within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
       ).toBeDisabled()
@@ -140,6 +175,7 @@ describe('MintModePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
       const banner = await screen.findByTestId('mint-test-mode-banner')
@@ -233,6 +269,7 @@ describe('MintModePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
       expect(await within(dialog).findByText(/env mode uji belum lengkap/i)).toBeInTheDocument()
@@ -266,6 +303,7 @@ describe('MintModePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '1')
+      await fillBundle(user, dialog)
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
       expect(
@@ -290,6 +328,7 @@ describe('MintModePage @integration', () => {
       await user.type(emailInput, 'budi@usdx.io{Enter}')
       await user.type(emailInput, 'siti@usdx.io')
       await user.click(within(dialog).getByRole('button', { name: /^tambah$/i }))
+      await fillBundle(user, dialog)
 
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
@@ -324,6 +363,7 @@ describe('MintModePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
       const submit = within(dialog).getByRole('button', { name: /geser ke mode uji/i })
       expect(submit).toBeEnabled()
 
@@ -364,6 +404,7 @@ describe('MintModePage @integration', () => {
 
       await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
       await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
       expect(within(dialog).getByRole('button', { name: /geser ke mode uji/i })).toBeEnabled()
       await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
 
@@ -431,6 +472,197 @@ describe('MintModePage @integration', () => {
     })
   })
 
+  // ── USDX-654: alamat bundle uji adalah isian, bukan env ───────────────────
+  describe('AC: isi ketiga alamat → mode uji menyala dan kartu menampilkannya', () => {
+    test('kartu memuat ketiga alamat, dipersingkat, dengan alamat penuh di title', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      const bundle = await screen.findByTestId('test-bundle-addresses')
+      for (const address of [TEST_USDX, TEST_STAFF_SAFE, TEST_MANAGER_SAFE]) {
+        // Dipersingkat di layar, tapi alamat PENUH tetap ada — yang
+        // mencocokkannya dengan block explorer butuh keduanya.
+        const link = within(bundle).getByTitle(address)
+        expect(link).toHaveTextContent(`${address.slice(0, 6)}…${address.slice(-4)}`)
+      }
+    })
+
+    test('alamat tertaut ke block explorer dari GET /api/v1/chains, bukan URL yang ditulis di kode', async () => {
+      loginAs(MANAGER)
+      seedTestMode()
+      renderWithProviders(<MintModePage />)
+
+      const bundle = await screen.findByTestId('test-bundle-addresses')
+      await waitFor(() => {
+        expect(within(bundle).getByTitle(TEST_USDX)).toHaveAttribute(
+          'href',
+          `https://polygonscan.com/address/${TEST_USDX}`,
+        )
+      })
+    })
+  })
+
+  describe('AC USDX-655: Safe staff dan manager boleh beralamat sama', () => {
+    test('bundle dev (satu Safe untuk dua tipe) bisa dinyalakan dan tampil di kartu', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog, { manager: TEST_STAFF_SAFE })
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent(/mode uji/i)
+      })
+      const bundle = screen.getByTestId('test-bundle-addresses')
+      // Satu alamat fisik, dua baris — kartu tetap menjawab "Safe mana" untuk
+      // masing-masing tipe.
+      expect(within(bundle).getAllByTitle(TEST_STAFF_SAFE)).toHaveLength(2)
+    })
+  })
+
+  describe('AC: alamat kosong atau bentuknya salah → tombol simpan mati', () => {
+    test('satu alamat kosong sudah cukup menahan simpan', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await user.type(within(dialog).getByLabelText(/alamat token uji/i), TEST_USDX)
+      await user.type(
+        within(dialog).getByLabelText(/alamat safe staff uji/i),
+        TEST_STAFF_SAFE,
+      )
+
+      expect(
+        within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
+      ).toBeDisabled()
+    })
+
+    test('alamat huruf kecil semua ditolak dengan pesan EIP-55 dan menahan simpan', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog, { usdx: TEST_USDX.toLowerCase() })
+
+      expect(
+        within(dialog).getByText(/Alamat token uji harus ber-checksum EIP-55/i),
+      ).toBeInTheDocument()
+      expect(
+        within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
+      ).toBeDisabled()
+    })
+  })
+
+  describe('AC: backend menolak → pesan server tampil, mode tidak berubah', () => {
+    test('penolakan verifikasi on-chain tampil apa adanya, termasuk rinciannya', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      server.use(
+        http.post('/api/v1/mint-mode', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'MINT_MODE_TEST_ENV_INCOMPLETE',
+                message:
+                  'Bundle uji tidak lolos pemeriksaan on-chain: Safe uji STAFF bukan pemegang MINTER_ROLE di token uji; signer backend bukan owner Safe uji MANAGER',
+                details: [
+                  'Safe uji STAFF bukan pemegang MINTER_ROLE di token uji',
+                  'signer backend bukan owner Safe uji MANAGER',
+                ],
+              },
+            },
+            { status: 422 },
+          ),
+        ),
+      )
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog)
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      // Kalimat server, bukan kalimat generik: itu satu-satunya keterangan
+      // tentang Safe mana yang tidak memegang MINTER_ROLE.
+      expect(
+        await within(dialog).findByText(/tidak lolos pemeriksaan on-chain/i),
+      ).toBeInTheDocument()
+      const details = within(dialog).getByTestId('mint-mode-error-details')
+      expect(details).toHaveTextContent(/bukan pemegang MINTER_ROLE/i)
+      expect(details).toHaveTextContent(/bukan owner Safe uji MANAGER/i)
+      // Mode tidak bergeser.
+      expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+    })
+
+    test('penolakan tabrakan alamat dari mock tampil apa adanya', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      // Token uji = Safe staff uji: klien menolaknya lebih dulu, jadi dialog
+      // tidak pernah mengirim permintaan yang pasti gagal.
+      await fillBundle(user, dialog, { staff: TEST_USDX })
+
+      expect(
+        within(dialog).getAllByText(/token uji dan alamat Safe uji tidak boleh sama/i)
+          .length,
+      ).toBeGreaterThan(0)
+      expect(
+        within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
+      ).toBeDisabled()
+    })
+  })
+
+  describe('AC: kembali ke PROD → alamat tidak lagi ditampilkan', () => {
+    test('blok bundle uji hilang dari kartu', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      seedTestMode()
+      renderWithProviders(<MintModePage />)
+
+      expect(await screen.findByTestId('test-bundle-addresses')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /kembali ke prod/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: /kembali ke prod/i }))
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      })
+      expect(screen.queryByTestId('test-bundle-addresses')).not.toBeInTheDocument()
+    })
+  })
+
   describe('gerbang role DEVELOPER (view-only)', () => {
     test('DEVELOPER tidak melihat satu pun tombol geser', async () => {
       loginAs(DEVELOPER)
@@ -484,9 +716,16 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
       mode: 'TEST',
       reason: 'uji bayar produksi',
       durationHours: 25,
+      ...BUNDLE,
     })
     expect(res.status).toBe(422)
   })
+
+  const BUNDLE = {
+    testUsdxAddress: TEST_USDX,
+    testStaffSafeAddress: TEST_STAFF_SAFE,
+    testManagerSafeAddress: TEST_MANAGER_SAFE,
+  }
 
   test('200 + MintModeConfig saat MANAGER menyalakan mode uji', async () => {
     const res = await post(MANAGER, {
@@ -494,6 +733,7 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
       reason: 'uji bayar produksi',
       durationHours: 2,
       allowedEmails: ['budi@usdx.io'],
+      ...BUNDLE,
     })
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -501,6 +741,7 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
       mode: 'TEST',
       reason: 'uji bayar produksi',
       allowedEmails: ['budi@usdx.io'],
+      ...BUNDLE,
     })
     expect(typeof body.data.expiresAt).toBe('string')
     // sot/api/mint-mode.yaml: kartu membaca nama, bukan UUID.
@@ -508,8 +749,71 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
   })
 
   test('422 saat alasan kurang dari 10 karakter (CHECK yang sama ada di DB)', async () => {
-    const res = await post(MANAGER, { mode: 'TEST', reason: 'uji', durationHours: 2 })
+    const res = await post(MANAGER, { mode: 'TEST', reason: 'uji', durationHours: 2, ...BUNDLE })
     expect(res.status).toBe(422)
+  })
+
+  // USDX-654 — gerbang bundle uji, ditiru dari `MintModeService`.
+  test('422 MINT_MODE_TEST_ENV_INCOMPLETE saat alamat bundle tidak dikirim', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+    })
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error.code).toBe('MINT_MODE_TEST_ENV_INCOMPLETE')
+    expect(body.error.details).toEqual([
+      'testUsdxAddress',
+      'testStaffSafeAddress',
+      'testManagerSafeAddress',
+    ])
+  })
+
+  test('422 saat alamat tidak ber-checksum EIP-55 — details menyebut fieldnya', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      ...BUNDLE,
+      testUsdxAddress: TEST_USDX.toLowerCase(),
+    })
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error.code).toBe('MINT_MODE_TEST_ENV_INCOMPLETE')
+    expect(body.error.details).toEqual(['testUsdxAddress'])
+  })
+
+  test('422 saat token uji beralamat sama dengan Safe uji — KEDUA fieldnya dilaporkan', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      ...BUNDLE,
+      testStaffSafeAddress: TEST_USDX,
+    })
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error.details).toEqual(['testUsdxAddress', 'testStaffSafeAddress'])
+  })
+
+  // USDX-655 — bundle dev memakai SATU alamat untuk Safe staff dan manager.
+  // Menolaknya berarti mode uji tidak pernah bisa dinyalakan.
+  test('200 saat Safe staff dan Safe manager beralamat sama', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      ...BUNDLE,
+      testManagerSafeAddress: TEST_STAFF_SAFE,
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data).toMatchObject({
+      mode: 'TEST',
+      testStaffSafeAddress: TEST_STAFF_SAFE,
+      testManagerSafeAddress: TEST_STAFF_SAFE,
+    })
   })
 
   test('daftar kosong diterima apa adanya — artinya tidak ada yang bisa mint', async () => {
@@ -518,6 +822,7 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
       reason: 'uji bayar produksi',
       durationHours: 2,
       allowedEmails: [],
+      ...BUNDLE,
     })
     expect(res.status).toBe(200)
     expect((await res.json()).data.allowedEmails).toEqual([])
@@ -536,6 +841,9 @@ describe('GET /api/v1/mint-mode response shape', () => {
     expect(body.data).toHaveProperty('updatedBy')
     expect(body.data).toHaveProperty('updatedByName')
     expect(body.data).toHaveProperty('allowedEmails')
+    expect(body.data).toHaveProperty('testUsdxAddress')
+    expect(body.data).toHaveProperty('testStaffSafeAddress')
+    expect(body.data).toHaveProperty('testManagerSafeAddress')
     expect(body.data).toHaveProperty('updatedAt')
   })
 })
