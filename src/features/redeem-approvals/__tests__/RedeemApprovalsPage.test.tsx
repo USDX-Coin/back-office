@@ -63,6 +63,7 @@ function row(overrides: Partial<RedeemApprovalListItem> = {}): RedeemApprovalLis
     bankAccountNumber: '5271884213',
     bankAccountName: 'BUDI SANTOSO',
     burnedAt: '2026-09-13T02:00:00.000Z',
+    burnTxHash: '0xfeed000000000000000000000000000000000000000000000000000000001234',
     ownerType: 'RETAIL',
     ...overrides,
   }
@@ -175,6 +176,23 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
         within(dialog).getByText('Nama pada order dan nama menurut bank sama.'),
       ).toBeInTheDocument()
       expect(within(dialog).queryByTestId('payout-name-mismatch')).not.toBeInTheDocument()
+    })
+
+    test('should link the burn hash straight to the block explorer from the row', async () => {
+      // Kolomnya ada DI TABEL, bukan hanya di dialog: menariknya lewat `GET /:id`
+      // per baris berarti satu baris `pii_access_audit` per baris — mencatat akses
+      // PII untuk orang yang tidak sedang membuka PII siapa pun.
+      server.use(http.get('/api/v1/redeem-approvals', () => okList([row()])))
+      setup()
+      await screen.findByText('Budi Santoso')
+
+      const link = await screen.findByRole('link', { name: /0xfeed0000/ })
+      expect(link).toHaveAttribute(
+        'href',
+        'https://polygonscan.com/tx/0xfeed000000000000000000000000000000000000000000000000000000001234',
+      )
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     })
 
     test('should mark a partner order — it passes through the same gate', async () => {
@@ -392,6 +410,65 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       ).toBeEnabled()
       // Nominal tetap terbaca dari baris antrean.
       expect(within(dialog).getByTestId('payout-net-idr')).toHaveTextContent('Rp 1.520.150,00')
+    })
+
+    test('should say a missing burn hash is unrecorded, not that the burn never happened', async () => {
+      // Antrean ini HANYA memuat order yang sudah `BURNED`. Em dash telanjang akan
+      // terbaca sebagai "belum dibakar", dan ops lalu menahan pencairan atas
+      // alasan yang tidak ada. Barisnya juga harus tetap utuh — tombol keputusan
+      // masih dirender.
+      server.use(
+        http.get('/api/v1/redeem-approvals', () => okList([row({ burnTxHash: null })])),
+      )
+      setup()
+      await screen.findByText('Budi Santoso')
+
+      expect(screen.getByText('belum tercatat')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /0x/ })).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /Setujui pencairan RDM/i }),
+      ).toBeInTheDocument()
+    })
+
+    test('should render the hash without a link when the chain cannot be inferred', async () => {
+      // Dua rantai terkonfigurasi dan baris antrean tidak membawa `chain`-nya:
+      // menebak mengirim ops ke explorer yang salah, yang menjawab "transaksi
+      // tidak ditemukan" untuk burn yang sebenarnya ada.
+      server.use(
+        http.get('/api/v1/redeem-approvals', () => okList([row()])),
+        http.get('/api/v1/chains', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: [
+              {
+                chain: 'polygon',
+                chainId: 137,
+                name: 'Polygon',
+                blockExplorerUrl: 'https://polygonscan.com',
+                staffSafeAddress: '0x1',
+                managerSafeAddress: '0x2',
+                usdxAddress: '0x3',
+              },
+              {
+                chain: 'base',
+                chainId: 8453,
+                name: 'Base',
+                blockExplorerUrl: 'https://basescan.org',
+                staffSafeAddress: '0x4',
+                managerSafeAddress: '0x5',
+                usdxAddress: '0x6',
+              },
+            ],
+          }),
+        ),
+      )
+      setup()
+      await screen.findByText('Budi Santoso')
+
+      // Hash tetap terbaca (dipendekkan, penuh di `title`) tapi tidak tertaut.
+      expect(await screen.findByTitle(row().burnTxHash!)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /0xfeed0000/ })).not.toBeInTheDocument()
     })
 
     test('should clear the typed reason when the dialog moves to another order', async () => {

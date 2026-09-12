@@ -2768,6 +2768,17 @@ export interface RedeemApprovalListItem {
   bankAccountName: string
   /** Kapan burn on-chain terkonfirmasi. Antrean urut TERLAMA dulu atas field ini. */
   burnedAt: string
+  /**
+   * Jejak burn on-chain, ikut di LIST dan bukan hanya di detail, supaya ops bisa
+   * membuka explorer langsung dari baris antrean. Menariknya lewat `GET /:id` per
+   * baris berarti satu panggilan per baris DAN satu baris `pii_access_audit` per
+   * baris — mencatat akses PII untuk orang yang tidak sedang membuka PII siapa
+   * pun. Hash transaksi sendiri data publik di chain.
+   *
+   * `null` = pencatatannya belum menyusul, BUKAN "burn-nya belum terjadi":
+   * antrean ini hanya memuat order yang sudah `BURNED`.
+   */
+  burnTxHash: string | null
   ownerType: RedeemApprovalOwnerType
 }
 
@@ -2778,7 +2789,6 @@ export interface RedeemApprovalDetail extends RedeemApprovalListItem {
   userAddress: string
   /** bytes32 hex — argumen `id` pada `redeem(id, amount)`. */
   redeemId: string
-  burnTxHash: string | null
   /** Alamat kontrak token yang dibakar order ini. */
   contractAddress: string
   baseRate: string

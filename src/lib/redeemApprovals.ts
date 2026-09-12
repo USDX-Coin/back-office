@@ -25,6 +25,8 @@
  *     menuntut konfirmasi eksplisit sebelum gerbang dilonggarkan.
  */
 import { ApiError } from './apiFetch'
+import { buildTxExplorerUrl } from './explorerUrl'
+import type { ChainConfig } from './types'
 
 // ─── Uang: string desimal ⇄ sen bulat (BigInt) ──────────────────────────────
 
@@ -97,6 +99,36 @@ export function formatUsdxExact(raw: string): string {
 /** `true` kalau ambangnya `0` — SEMUA pencairan wajib disetujui manusia. */
 export function holdsEveryPayout(approvalThresholdIdr: string): boolean {
   return parseIdrToCents(approvalThresholdIdr) === 0n
+}
+
+// ─── Tautan burn on-chain pada baris antrean ────────────────────────────────
+
+/**
+ * Alamat explorer untuk `burnTxHash` sebuah baris ANTREAN, atau `null`.
+ *
+ * `RedeemApprovalListItem` membawa hash-nya tapi TIDAK membawa `chain` — hanya
+ * `RedeemApprovalDetail` yang punya. Jadi rantainya disimpulkan dari konfigurasi
+ * yang dijawab `GET /api/v1/chains`:
+ *
+ *   - tepat SATU rantai terkonfigurasi ⇒ tidak ada ambiguitas, tautan dibangun;
+ *   - lebih dari satu ⇒ `null`, dan kami TIDAK menebak.
+ *
+ * Menebak akan mengirim ops ke explorer rantai yang salah, yang menjawab
+ * "transaksi tidak ditemukan" untuk burn yang sebenarnya ada — lalu ia menahan
+ * pencairan nasabah atas dasar bukti yang tidak pernah dicari di tempat yang
+ * benar. Tidak ada tautan lebih baik daripada tautan yang salah: pemanggil tetap
+ * merender hash-nya sebagai teks yang bisa disalin.
+ *
+ * Konfigurasi yang belum dimuat (`undefined`) juga `null` — keadaan sementara,
+ * dan hash-nya sudah terbaca tanpa menunggu apa pun.
+ */
+export function queueBurnTxHref(
+  burnTxHash: string | null,
+  chains: ChainConfig[] | undefined,
+): string | null {
+  if (!burnTxHash) return null
+  if (!chains || chains.length !== 1) return null
+  return buildTxExplorerUrl(chains[0]!.blockExplorerUrl, burnTxHash)
 }
 
 // ─── Arah perubahan ambang ──────────────────────────────────────────────────

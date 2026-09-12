@@ -15,8 +15,10 @@ import {
   validateApproveNote,
   validateRejectReason,
   validateThresholdAmount,
+  queueBurnTxHref,
   validateThresholdReason,
 } from '@/lib/redeemApprovals'
+import type { ChainConfig } from '@/lib/types'
 
 // USDX-669 — aturan murni gerbang Persetujuan Pencairan.
 //
@@ -326,6 +328,56 @@ describe('validateThresholdReason', () => {
     test('should reject whitespace-only and accept exactly the maximum', () => {
       expect(validateThresholdReason('      ').valid).toBe(false)
       expect(validateThresholdReason('x'.repeat(REDEEM_REASON_MAX)).valid).toBe(true)
+    })
+  })
+})
+
+const chain = (overrides: Partial<ChainConfig> = {}): ChainConfig => ({
+  chain: 'polygon',
+  chainId: 137,
+  name: 'Polygon',
+  blockExplorerUrl: 'https://polygonscan.com',
+  staffSafeAddress: '0x1',
+  managerSafeAddress: '0x2',
+  usdxAddress: '0x3',
+  ...overrides,
+})
+
+describe('queueBurnTxHref', () => {
+  describe('positive', () => {
+    test('should build the explorer link when exactly one chain is configured', () => {
+      expect(queueBurnTxHref('0xabc', [chain()])).toBe('https://polygonscan.com/tx/0xabc')
+    })
+
+    test('should strip a trailing slash on the configured explorer base', () => {
+      expect(queueBurnTxHref('0xabc', [chain({ blockExplorerUrl: 'https://polygonscan.com/' })])).toBe(
+        'https://polygonscan.com/tx/0xabc',
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('should return null for a row whose burn hash has not been recorded yet', () => {
+      expect(queueBurnTxHref(null, [chain()])).toBeNull()
+    })
+
+    test('should NOT guess when more than one chain is configured', () => {
+      // A queue row carries no `chain` — only the detail does. Guessing sends ops
+      // to the wrong explorer, which answers "transaction not found" for a burn
+      // that exists, and the payout is then held on evidence nobody looked for in
+      // the right place. The caller renders the hash as plain copyable text.
+      expect(queueBurnTxHref('0xabc', [chain(), chain({ chain: 'base', chainId: 8453 })])).toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should return null while the chain config is still loading or empty', () => {
+      expect(queueBurnTxHref('0xabc', undefined)).toBeNull()
+      expect(queueBurnTxHref('0xabc', [])).toBeNull()
+    })
+
+    test('should treat an empty-string hash as absent', () => {
+      expect(queueBurnTxHref('', [chain()])).toBeNull()
     })
   })
 })

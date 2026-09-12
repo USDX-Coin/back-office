@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Banknote, ShieldCheck, ShieldX } from 'lucide-react'
+import { Banknote, ExternalLink, ShieldCheck, ShieldX } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -14,9 +14,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useChainConfig } from '@/features/chains/hooks'
 import { canDecideRedeemPayout, useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
-import { formatIdrExact, formatUsdxExact, holdsEveryPayout } from '@/lib/redeemApprovals'
+import { formatWibDateTime, shortHash } from '@/lib/format'
+import {
+  formatIdrExact,
+  formatUsdxExact,
+  holdsEveryPayout,
+  queueBurnTxHref,
+} from '@/lib/redeemApprovals'
 import type { RedeemApprovalListItem } from '@/lib/types'
 import ApproveRedeemDialog from './ApproveRedeemDialog'
 import { REDEEM_APPROVAL_COLUMN_CONFIG } from './columnConfig'
@@ -59,6 +65,9 @@ export default function RedeemApprovalsPage() {
   // Ambangnya sudah dibaca kartu di atas; kunci cache yang sama membuat pembacaan
   // kedua ini dilayani dari cache, bukan jadi permintaan kedua.
   const controls = useRedeemApprovalControls()
+  // Satu-satunya kegunaannya di layar ini: menyimpulkan explorer mana yang dipakai
+  // baris antrean, yang tidak membawa `chain` sendiri. Lihat `queueBurnTxHref`.
+  const { data: chains } = useChainConfig()
 
   const [colVisibility, setColVisibility] = useColumnVisibility(
     'redeem-approvals',
@@ -160,6 +169,48 @@ export default function RedeemApprovalsPage() {
           {formatWibDateTime(row.original.burnedAt)}
         </span>
       ),
+    },
+    {
+      id: 'burnTx',
+      header: 'Burn on-chain',
+      cell: ({ row }) => {
+        const hash = row.original.burnTxHash
+        if (!hash) {
+          // Antrean ini HANYA memuat order yang sudah `BURNED`, jadi hash yang
+          // kosong berarti pencatatannya belum menyusul — bukan bahwa burn-nya
+          // belum terjadi. Em dash telanjang akan terbaca sebagai yang kedua, dan
+          // ops lalu menahan pencairan atas alasan yang tidak ada.
+          return (
+            <span className="text-[11.5px] text-muted-foreground">belum tercatat</span>
+          )
+        }
+        const href = queueBurnTxHref(hash, chains)
+        if (!href) {
+          // Rantainya tidak bisa disimpulkan (lihat `queueBurnTxHref`) — hash-nya
+          // tetap terbaca utuh lewat `title`, tanpa tautan yang bisa salah arah.
+          return (
+            <span
+              className="break-all font-mono text-[11.5px] text-muted-foreground"
+              title={hash}
+            >
+              {shortHash(hash)}
+            </span>
+          )
+        }
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 font-mono text-[11.5px] text-primary hover:underline"
+            title={`Lihat di block explorer: ${hash}`}
+          >
+            {shortHash(hash)}
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+          </a>
+        )
+      },
     },
     {
       id: 'actions',

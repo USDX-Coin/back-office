@@ -2136,6 +2136,12 @@ const REDEEM_APPROVAL_SEEDS: ReadonlyArray<{
   ownerType: RedeemApprovalOwnerType
   externalReference: string | null
   lateBurn: boolean
+  /**
+   * `true` = order yang sudah `BURNED` tapi hash-nya belum tercatat. Ada SATU di
+   * data tiruan dengan sengaja: `burnTxHash` nullable di kontrak, dan baris tanpa
+   * hash adalah keadaan yang paling mudah membuat kolom barunya pecah.
+   */
+  noBurnHash?: boolean
 }> = [
   {
     customerName: 'Budi Santoso',
@@ -2283,6 +2289,7 @@ const REDEEM_APPROVAL_SEEDS: ReadonlyArray<{
     ownerType: 'RETAIL',
     externalReference: null,
     lateBurn: false,
+    noBurnHash: true,
   },
   {
     customerName: 'Bayu Nugroho',
@@ -2378,6 +2385,10 @@ export function createMockRedeemApprovals(): {
       bankAccountNumber: seed.bankAccountNumber,
       bankAccountName: seed.bankAccountName,
       burnedAt,
+      // `burnTxHash` hidup di baris LIST sejak kontrak d7cee13 — detailnya
+      // mewarisinya lewat spread di bawah, jadi tabel dan dialog tidak mungkin
+      // menampilkan hash yang berbeda untuk order yang sama.
+      burnTxHash: seed.noBurnHash ? null : `0x${(i + 7).toString(16).padStart(64, 'b')}`,
       ownerType: seed.ownerType,
     }
     const totalFeeCents =
@@ -2392,7 +2403,6 @@ export function createMockRedeemApprovals(): {
         .toString(16)
         .padStart(2, '0')}`.slice(0, 42),
       redeemId: `0x${(i + 1).toString(16).padStart(64, 'a')}`,
-      burnTxHash: `0x${(i + 7).toString(16).padStart(64, 'b')}`,
       contractAddress: REDEEM_APPROVAL_CONTRACT,
       baseRate: REDEEM_APPROVAL_BASE_RATE,
       effectiveRate: REDEEM_APPROVAL_EFFECTIVE_RATE,
