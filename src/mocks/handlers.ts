@@ -1309,24 +1309,27 @@ export const handlers = [
       }
 
       // Tabrakan: tiap alamat uji wajib berbeda dari SEMUA alamat produksi
-      // (di mock, alamat pada GET /api/v1/chains) dan dari sesama alamat uji.
+      // (di mock, alamat pada GET /api/v1/chains), dan token uji wajib berbeda
+      // dari alamat Safe uji mana pun.
+      //
+      // Safe staff uji = Safe manager uji JUSTRU sah (USDX-655): bundle dev
+      // memang memakai satu alamat untuk keduanya, dan antrean propose dikunci
+      // ALAMAT Safe — bukan tipe — jadi satu Safe fisik tetap satu antrean.
       const prodChain = createMockChainConfigs().find((c) => c.chain === 'polygon')
       const prodAddresses = new Set(
         [prodChain?.usdxAddress, prodChain?.staffSafeAddress, prodChain?.managerSafeAddress]
           .filter((a): a is string => Boolean(a))
           .map((a) => a.toLowerCase())
       )
-      const seenAddresses = new Map<string, keyof typeof bundle>()
       const conflicting = new Set<string>()
       for (const field of bundleFields) {
-        const key = bundle[field].toLowerCase()
-        if (prodAddresses.has(key)) conflicting.add(field)
-        const twin = seenAddresses.get(key)
-        if (twin) {
-          conflicting.add(twin)
+        if (prodAddresses.has(bundle[field].toLowerCase())) conflicting.add(field)
+      }
+      const tokenKey = bundle.testUsdxAddress.toLowerCase()
+      for (const field of ['testStaffSafeAddress', 'testManagerSafeAddress'] as const) {
+        if (bundle[field].toLowerCase() === tokenKey) {
+          conflicting.add('testUsdxAddress')
           conflicting.add(field)
-        } else {
-          seenAddresses.set(key, field)
         }
       }
       if (conflicting.size > 0) {

@@ -17,7 +17,7 @@ import { canEnableMintTestMode, canRestoreMintProdMode, useAuth } from '@/lib/au
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
 import { formatWibDateTime, truncateMiddle } from '@/lib/format'
-import { TEST_BUNDLE_ADDRESS_LABELS, type TestBundleAddressField } from '@/lib/validators'
+import { TEST_BUNDLE_ADDRESS_LABELS, type TestBundleAddressField } from '@/lib/mintMode'
 import type { MintModeConfig } from '@/lib/types'
 import { useChainConfig } from '@/features/chains/hooks'
 import MintTestModeDialog from './MintTestModeDialog'

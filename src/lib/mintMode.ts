@@ -76,30 +76,53 @@ export function validateTestBundleAddress(raw: string, label: string): string | 
 }
 
 /**
- * Alamat bundle uji yang kembar satu sama lain, dikembalikan sebagai daftar
- * label. Server menolak ini juga (gerbang tabrakan), tapi jawabannya ada di
- * tangan klien tanpa data tambahan: dua bundle yang menunjuk satu Safe fisik
- * berarti dua antrean logis di atas satu nonce.
+ * Label isian alamat bundle uji. Dipakai pesan kesalahan klien; nama FIELD-nya
+ * sendiri (`testUsdxAddress` dst.) adalah yang dipakai server di
+ * `error.details`, dan keduanya sengaja tidak dicampur — operator membaca
+ * label, server berbicara dalam nama field.
+ */
+export const TEST_BUNDLE_ADDRESS_LABELS = {
+  testUsdxAddress: 'Alamat token uji',
+  testStaffSafeAddress: 'Alamat Safe staff uji',
+  testManagerSafeAddress: 'Alamat Safe manager uji',
+} as const
+
+export type TestBundleAddressField = keyof typeof TEST_BUNDLE_ADDRESS_LABELS
+
+/**
+ * Tabrakan alamat DI DALAM bundle uji, dikembalikan sebagai daftar nama field.
+ *
+ * SATU pasangan sengaja DIPERBOLEHKAN: Safe staff uji = Safe manager uji
+ * (USDX-655). Bundle uji satu-satunya yang kita punya adalah bundle dev, dan di
+ * sana kedua Safe itu memang satu alamat; menolaknya berarti mode uji tidak
+ * pernah bisa dinyalakan, yaitu satu-satunya tujuan fitur ini. Lubang yang dulu
+ * ditutup aturan kembar — dua antrean logis di atas satu Safe fisik — ditutup di
+ * akarnya oleh backend: antrean propose dikunci ALAMAT Safe, bukan tipe.
+ *
+ * Yang tetap ditolak: token uji sama dengan alamat Safe uji mana pun. Itu bukan
+ * "dua antrean", melainkan alamat yang tidak mungkin benar — sebuah token dan
+ * sebuah Safe adalah dua kontrak yang berbeda.
  *
  * Tabrakan dengan alamat PRODUKSI sengaja TIDAK diperiksa di sini — alamat
  * produksi bukan milik layar ini, dan menebaknya akan membuat klien menolak
  * bundle yang sebenarnya sah. Itu tetap milik server.
  */
-export function duplicateTestBundleAddresses(
-  entries: { label: string; value: string }[]
-): string[] {
-  const seen = new Map<string, string>()
-  const duplicates = new Set<string>()
-  for (const { label, value } of entries) {
-    const key = value.trim().toLowerCase()
-    if (!key) continue
-    const first = seen.get(key)
-    if (first) {
-      duplicates.add(first)
-      duplicates.add(label)
-    } else {
-      seen.set(key, label)
+export function conflictingTestBundleAddresses(bundle: {
+  testUsdxAddress: string
+  testStaffSafeAddress: string
+  testManagerSafeAddress: string
+}): TestBundleAddressField[] {
+  const key = (value: string) => value.trim().toLowerCase()
+  const token = key(bundle.testUsdxAddress)
+  if (!token) return []
+
+  const conflicts = new Set<TestBundleAddressField>()
+  for (const field of ['testStaffSafeAddress', 'testManagerSafeAddress'] as const) {
+    const safe = key(bundle[field])
+    if (safe && safe === token) {
+      conflicts.add('testUsdxAddress')
+      conflicts.add(field)
     }
   }
-  return [...duplicates]
+  return [...conflicts]
 }

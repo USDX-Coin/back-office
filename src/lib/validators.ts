@@ -13,7 +13,12 @@ import type {
 } from './types'
 import { LEDGER_ENTRY_TYPES_SELECTABLE, LEDGER_SUPPORTED_CURRENCY } from './types'
 import { isFutureWibDate, parseAmountToCents, wibToday } from './transparency'
-import { duplicateTestBundleAddresses, validateTestBundleAddress } from './mintMode'
+import {
+  conflictingTestBundleAddresses,
+  TEST_BUNDLE_ADDRESS_LABELS,
+  validateTestBundleAddress,
+  type TestBundleAddressField,
+} from './mintMode'
 
 export interface ValidationResult {
   valid: boolean
@@ -363,20 +368,6 @@ export function validateMintModeDurationHours(raw: string): string | null {
 }
 
 /**
- * Label isian alamat bundle uji (USDX-654). Dipakai pesan kesalahan klien;
- * nama FIELD-nya sendiri (`testUsdxAddress` dst.) adalah yang dipakai server
- * di `error.details`, dan keduanya sengaja tidak dicampur — operator membaca
- * label, server berbicara dalam nama field.
- */
-export const TEST_BUNDLE_ADDRESS_LABELS = {
-  testUsdxAddress: 'Alamat token uji',
-  testStaffSafeAddress: 'Alamat Safe staff uji',
-  testManagerSafeAddress: 'Alamat Safe manager uji',
-} as const
-
-export type TestBundleAddressField = keyof typeof TEST_BUNDLE_ADDRESS_LABELS
-
-/**
  * `allowedEmailDraft` = apa yang masih tertulis di kotak email dan BELUM
  * ditambahkan ke daftar. Ia ikut divalidasi supaya alamat setengah diketik tidak
  * bisa dikirim secara diam-diam: tombol simpan mati selama kotaknya berisi
@@ -413,16 +404,18 @@ export function validateMintTestModeForm(input: {
     if (err) errors[field] = err
   }
 
-  // Kembar satu sama lain: dua bundle yang menunjuk satu Safe fisik berarti dua
-  // antrean logis di atas satu nonce. Server menolaknya juga; klien bisa
-  // menjawabnya tanpa data tambahan, jadi tidak perlu perjalanan ke sana.
-  const duplicates = duplicateTestBundleAddresses(
-    fields
-      .filter((field) => !errors[field])
-      .map((field) => ({ label: field, value: input[field] }))
-  )
-  for (const field of duplicates) {
-    errors[field] = `${TEST_BUNDLE_ADDRESS_LABELS[field as TestBundleAddressField]} sama dengan alamat uji lain — tiap alamat bundle harus berbeda`
+  // Token uji tidak boleh beralamat sama dengan Safe uji. Safe staff = Safe
+  // manager JUSTRU diperbolehkan (USDX-655) — bundle dev memang begitu.
+  const conflicting = conflictingTestBundleAddresses({
+    testUsdxAddress: errors.testUsdxAddress ? '' : input.testUsdxAddress,
+    testStaffSafeAddress: errors.testStaffSafeAddress ? '' : input.testStaffSafeAddress,
+    testManagerSafeAddress: errors.testManagerSafeAddress
+      ? ''
+      : input.testManagerSafeAddress,
+  })
+  for (const field of conflicting) {
+    errors[field] =
+      `${TEST_BUNDLE_ADDRESS_LABELS[field]} — alamat token uji dan alamat Safe uji tidak boleh sama`
   }
 
   return { valid: Object.keys(errors).length === 0, errors }

@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
-  duplicateTestBundleAddresses,
+  conflictingTestBundleAddresses,
   errorDetailList,
   isEip55Address,
   validateTestBundleAddress,
@@ -122,53 +122,109 @@ describe('validateTestBundleAddress', () => {
   })
 })
 
-describe('duplicateTestBundleAddresses', () => {
-  const A = CHECKSUMMED
-  const B = '0x5b7C0000000000000000000000000000000000A1'
+// USDX-655 — SATU pasangan sengaja diperbolehkan: Safe staff = Safe manager.
+// Bundle dev memang memakai satu alamat untuk keduanya, dan menolaknya berarti
+// mode uji tidak pernah bisa dinyalakan. Yang tetap ditolak: token = Safe.
+describe('conflictingTestBundleAddresses', () => {
+  const TOKEN = CHECKSUMMED
+  const SAFE_A = '0x5b7C0000000000000000000000000000000000A1'
+  const SAFE_B = '0x5B7C0000000000000000000000000000000000B2'
 
   describe('positive', () => {
-    test('tiga alamat berbeda → tidak ada kembar', () => {
+    test('tiga alamat berbeda → tidak ada tabrakan', () => {
       expect(
-        duplicateTestBundleAddresses([
-          { label: 'a', value: A },
-          { label: 'b', value: B },
-          { label: 'c', value: '0x5B7C0000000000000000000000000000000000B2' },
-        ]),
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: SAFE_A,
+          testManagerSafeAddress: SAFE_B,
+        }),
+      ).toEqual([])
+    })
+
+    test('Safe staff = Safe manager DIPERBOLEHKAN — itu bentuk bundle dev', () => {
+      expect(
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: SAFE_A,
+          testManagerSafeAddress: SAFE_A,
+        }),
+      ).toEqual([])
+    })
+
+    test('Safe staff = Safe manager tetap sah walau ejaannya beda huruf besar/kecil', () => {
+      expect(
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: SAFE_A,
+          testManagerSafeAddress: SAFE_A.toLowerCase(),
+        }),
       ).toEqual([])
     })
   })
 
   describe('negative', () => {
-    test('dua alamat sama → KEDUA labelnya dilaporkan, bukan cuma yang kedua', () => {
+    test('token = Safe staff → KEDUA fieldnya dilaporkan', () => {
       expect(
-        duplicateTestBundleAddresses([
-          { label: 'a', value: A },
-          { label: 'b', value: A },
-          { label: 'c', value: B },
-        ]),
-      ).toEqual(['a', 'b'])
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: TOKEN,
+          testManagerSafeAddress: SAFE_B,
+        }),
+      ).toEqual(['testUsdxAddress', 'testStaffSafeAddress'])
     })
-    test('kembar diukur tanpa memperhatikan huruf besar/kecil — Safe fisiknya sama', () => {
+
+    test('token = Safe manager → KEDUA fieldnya dilaporkan', () => {
       expect(
-        duplicateTestBundleAddresses([
-          { label: 'a', value: A },
-          { label: 'b', value: A.toLowerCase() },
-        ]),
-      ).toEqual(['a', 'b'])
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: SAFE_A,
+          testManagerSafeAddress: TOKEN,
+        }),
+      ).toEqual(['testUsdxAddress', 'testManagerSafeAddress'])
+    })
+
+    test('token = kedua Safe → ketiga fieldnya dilaporkan', () => {
+      expect(
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: TOKEN,
+          testManagerSafeAddress: TOKEN,
+        }).sort(),
+      ).toEqual(
+        ['testManagerSafeAddress', 'testStaffSafeAddress', 'testUsdxAddress'],
+      )
     })
   })
 
   describe('edge cases', () => {
-    test('nilai kosong diabaikan — kosong bukan kembar', () => {
+    test('tabrakan diukur tanpa memperhatikan huruf besar/kecil — kontraknya sama', () => {
       expect(
-        duplicateTestBundleAddresses([
-          { label: 'a', value: '' },
-          { label: 'b', value: '   ' },
-        ]),
+        conflictingTestBundleAddresses({
+          testUsdxAddress: TOKEN,
+          testStaffSafeAddress: TOKEN.toLowerCase(),
+          testManagerSafeAddress: SAFE_B,
+        }),
+      ).toEqual(['testUsdxAddress', 'testStaffSafeAddress'])
+    })
+
+    test('isian kosong tidak dihitung tabrakan — kosong punya pesannya sendiri', () => {
+      expect(
+        conflictingTestBundleAddresses({
+          testUsdxAddress: '',
+          testStaffSafeAddress: '',
+          testManagerSafeAddress: '',
+        }),
       ).toEqual([])
     })
-    test('daftar kosong → tidak ada kembar', () => {
-      expect(duplicateTestBundleAddresses([])).toEqual([])
+
+    test('token kosong tidak membuat kedua Safe tampak bertabrakan dengannya', () => {
+      expect(
+        conflictingTestBundleAddresses({
+          testUsdxAddress: '   ',
+          testStaffSafeAddress: SAFE_A,
+          testManagerSafeAddress: SAFE_A,
+        }),
+      ).toEqual([])
     })
   })
 })

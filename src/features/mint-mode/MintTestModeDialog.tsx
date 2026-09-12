@@ -15,13 +15,15 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
-import { errorDetailList } from '@/lib/mintMode'
+import {
+  errorDetailList,
+  TEST_BUNDLE_ADDRESS_LABELS,
+  type TestBundleAddressField,
+} from '@/lib/mintMode'
 import {
   MINT_MODE_REASON_MIN_LEN,
   MINT_TEST_MODE_MAX_HOURS,
-  TEST_BUNDLE_ADDRESS_LABELS,
   validateMintTestModeForm,
-  type TestBundleAddressField,
 } from '@/lib/validators'
 import { useSetMintMode } from './hooks'
 

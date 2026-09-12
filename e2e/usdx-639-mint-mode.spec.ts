@@ -86,6 +86,28 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await expect(page.getByTestId('mint-test-mode-banner')).toBeVisible()
       await expect(banner.getByRole('button')).toHaveCount(0)
     })
+    test('USDX-655 — bundle dev (Safe staff = Safe manager) bisa dinyalakan', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi bersama DurianPay')
+      await dialog.getByLabel(/durasi \(jam\)/i).fill('2')
+      await dialog.getByLabel(/alamat token uji/i).fill(TEST_USDX)
+      await dialog.getByLabel(/alamat safe staff uji/i).fill(TEST_STAFF_SAFE)
+      // Satu alamat untuk kedua tipe Safe — bentuk bundle dev.
+      await dialog.getByLabel(/alamat safe manager uji/i).fill(TEST_STAFF_SAFE)
+      await dialog.getByRole('button', { name: /geser ke mode uji/i }).click()
+
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText(/mode uji/i)
+      await expect(
+        page.getByTestId('test-bundle-addresses').getByTitle(TEST_STAFF_SAFE),
+      ).toHaveCount(2)
+    })
   })
 
   test.describe('negative', () => {

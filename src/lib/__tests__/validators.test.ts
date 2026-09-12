@@ -1085,14 +1085,16 @@ describe('validateMintTestModeForm', () => {
         expect(r.valid).toBe(false)
         expect(r.errors.testUsdxAddress).toMatch(/EIP-55/i)
       })
-      test('dua alamat uji yang sama menggagalkan KEDUA isiannya', () => {
+      test('token uji sama dengan Safe uji menggagalkan KEDUA isiannya', () => {
         const r = validateMintTestModeForm({
           ...ok,
-          testManagerSafeAddress: ok.testStaffSafeAddress,
+          testStaffSafeAddress: ok.testUsdxAddress,
         })
         expect(r.valid).toBe(false)
-        expect(r.errors.testStaffSafeAddress).toMatch(/sama dengan alamat uji lain/i)
-        expect(r.errors.testManagerSafeAddress).toMatch(/sama dengan alamat uji lain/i)
+        expect(r.errors.testUsdxAddress).toMatch(/token uji dan alamat Safe uji tidak boleh sama/i)
+        expect(r.errors.testStaffSafeAddress).toMatch(
+          /token uji dan alamat Safe uji tidak boleh sama/i,
+        )
       })
     })
 
@@ -1105,6 +1107,15 @@ describe('validateMintTestModeForm', () => {
         })
         expect(r.errors.testStaffSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
         expect(r.errors.testManagerSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
+      })
+      // USDX-655: bundle dev memakai SATU alamat untuk Safe staff dan manager.
+      // Menolaknya berarti mode uji tidak pernah bisa dinyalakan.
+      test('Safe staff = Safe manager tetap sah', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testManagerSafeAddress: ok.testStaffSafeAddress,
+        })
+        expect(r.valid).toBe(true)
       })
       test('spasi di sekeliling alamat tidak membatalkan', () => {
         expect(

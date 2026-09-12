@@ -510,6 +510,29 @@ describe('MintModePage @integration', () => {
     })
   })
 
+  describe('AC USDX-655: Safe staff dan manager boleh beralamat sama', () => {
+    test('bundle dev (satu Safe untuk dua tipe) bisa dinyalakan dan tampil di kartu', async () => {
+      const user = userEvent.setup()
+      loginAs(MANAGER)
+      renderWithProviders(<MintModePage />)
+
+      await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText(/alasan/i), REASON)
+      await user.type(within(dialog).getByLabelText(/durasi \(jam\)/i), '2')
+      await fillBundle(user, dialog, { manager: TEST_STAFF_SAFE })
+      await user.click(within(dialog).getByRole('button', { name: /geser ke mode uji/i }))
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent(/mode uji/i)
+      })
+      const bundle = screen.getByTestId('test-bundle-addresses')
+      // Satu alamat fisik, dua baris — kartu tetap menjawab "Safe mana" untuk
+      // masing-masing tipe.
+      expect(within(bundle).getAllByTitle(TEST_STAFF_SAFE)).toHaveLength(2)
+    })
+  })
+
   describe('AC: alamat kosong atau bentuknya salah → tombol simpan mati', () => {
     test('satu alamat kosong sudah cukup menahan simpan', async () => {
       const user = userEvent.setup()
@@ -611,7 +634,8 @@ describe('MintModePage @integration', () => {
       await fillBundle(user, dialog, { staff: TEST_USDX })
 
       expect(
-        within(dialog).getAllByText(/sama dengan alamat uji lain/i).length,
+        within(dialog).getAllByText(/token uji dan alamat Safe uji tidak boleh sama/i)
+          .length,
       ).toBeGreaterThan(0)
       expect(
         within(dialog).getByRole('button', { name: /geser ke mode uji/i }),
@@ -760,7 +784,22 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
     expect(body.error.details).toEqual(['testUsdxAddress'])
   })
 
-  test('422 saat dua alamat uji bertabrakan — KEDUA fieldnya dilaporkan', async () => {
+  test('422 saat token uji beralamat sama dengan Safe uji — KEDUA fieldnya dilaporkan', async () => {
+    const res = await post(MANAGER, {
+      mode: 'TEST',
+      reason: 'uji bayar produksi',
+      durationHours: 2,
+      ...BUNDLE,
+      testStaffSafeAddress: TEST_USDX,
+    })
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error.details).toEqual(['testUsdxAddress', 'testStaffSafeAddress'])
+  })
+
+  // USDX-655 — bundle dev memakai SATU alamat untuk Safe staff dan manager.
+  // Menolaknya berarti mode uji tidak pernah bisa dinyalakan.
+  test('200 saat Safe staff dan Safe manager beralamat sama', async () => {
     const res = await post(MANAGER, {
       mode: 'TEST',
       reason: 'uji bayar produksi',
@@ -768,12 +807,13 @@ describe('POST /api/v1/mint-mode authorization (kontrak USDX-639)', () => {
       ...BUNDLE,
       testManagerSafeAddress: TEST_STAFF_SAFE,
     })
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.error.details).toEqual([
-      'testStaffSafeAddress',
-      'testManagerSafeAddress',
-    ])
+    expect(body.data).toMatchObject({
+      mode: 'TEST',
+      testStaffSafeAddress: TEST_STAFF_SAFE,
+      testManagerSafeAddress: TEST_STAFF_SAFE,
+    })
   })
 
   test('daftar kosong diterima apa adanya — artinya tidak ada yang bisa mint', async () => {
