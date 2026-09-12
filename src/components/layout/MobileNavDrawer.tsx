@@ -12,6 +12,7 @@ import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { usePendingKycCount } from '@/features/kyc/hooks'
 import { usePendingKybCount } from '@/features/kyb/hooks'
+import { useOpenRedeemApprovalCount } from '@/features/redeem-approvals/hooks'
 import { cn } from '@/lib/utils'
 import {
   visibleNavSections,
@@ -41,6 +42,10 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
   const kycPending = usePendingKycCount()
   // USDX-546 — KYB badge, no role gate (same as KYC).
   const kybPending = usePendingKybCount()
+  // USDX-669 — badge antrean Persetujuan Pencairan, tanpa gerbang peran (daftarnya
+  // terbuka untuk semua peran back office). Badge `screening` masih belum terpasang
+  // di sini sejak USDX-588; itu utang yang sudah ada, bukan bagian tiket ini.
+  const redeemApprovalsOpen = useOpenRedeemApprovalCount()
   const sections = visibleNavSections(user)
 
   function badgeFor(key?: BadgeKey): number {
@@ -48,6 +53,7 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
     if (key === 'burn') return burnPending.data ?? 0
     if (key === 'kyc') return kycPending.data ?? 0
     if (key === 'kyb') return kybPending.data ?? 0
+    if (key === 'redeemApprovals') return redeemApprovalsOpen.data ?? 0
     return 0
   }
 

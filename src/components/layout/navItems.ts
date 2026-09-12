@@ -18,6 +18,7 @@ import {
   PhoneCall,
   ShieldAlert,
   FlaskConical,
+  Banknote as BanknoteIcon,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -29,7 +30,13 @@ import {
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn' | 'kyc' | 'kyb' | 'screening'
+export type BadgeKey =
+  | 'mint'
+  | 'burn'
+  | 'kyc'
+  | 'kyb'
+  | 'screening'
+  | 'redeemApprovals'
 
 export interface NavItem {
   to: string
@@ -90,6 +97,25 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Consumer',
     items: [
       { to: '/transactions', label: 'User Transaction', icon: Receipt },
+      // USDX-669 — antrean Persetujuan Pencairan. ENTRI SENDIRI, bukan tab di
+      // dalam User Transaction (keputusan PM): yang satu monitoring read-only
+      // atas semua order, yang satu antrean kerja yang mengeluarkan rupiah, dan
+      // menyatukannya membuat pekerjaan yang menunggu tidak punya tempat yang
+      // bisa dihitung. Duduk di section Consumer karena subjeknya order redeem
+      // konsumen — yang dilarang tiket adalah menempelkannya pada LAYAR
+      // Transactions, bukan menaruhnya di kelompok yang sama.
+      //
+      // Visibilitas: SEMUA peran, pola KYC/KYB/Screening. Menyetujui dan menolak
+      // digerbangi MANAGER/ADMIN di dalam layarnya (`canDecideRedeemPayout`) —
+      // STAFF yang melihat antrean menumpuk adalah cara seseorang tahu harus
+      // memanggil yang berwenang, dan badge `(N)` ikut tampil untuknya karena
+      // `GET /api/v1/redeem-approvals` terbuka untuk peran itu.
+      {
+        to: '/redeem-approvals',
+        label: 'Persetujuan Pencairan',
+        icon: BanknoteIcon,
+        badgeKey: 'redeemApprovals',
+      },
     ],
   },
   {

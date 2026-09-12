@@ -4,6 +4,7 @@ import type { Staff } from './types'
 import {
   canEnableMintTestMode as canEnableMintTestModeRole,
   canRestoreMintProdMode as canRestoreMintProdModeRole,
+  canDecideRedeemPayoutRole,
 } from './types'
 import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
@@ -293,6 +294,25 @@ export function canEnableMintTestMode(staff: Staff | null): boolean {
 // sekali — kalau BE ternyata mengizinkannya, gerbang ini yang menyesuaikan.
 export function canRestoreMintProdMode(staff: Staff | null): boolean {
   return staff !== null && canRestoreMintProdModeRole(staff.role)
+}
+
+// USDX-669 — menyetujui / menolak pencairan redeem, dan mengubah ambang
+// nominalnya: MANAGER / ADMIN saja (`sot/api/redeem-approvals.yaml § Akses`;
+// STAFF dan DEVELOPER 403). Lebih ketat daripada memutus satu berkas KYC atau
+// satu temuan screening, dan alasannya ada di kontraknya: aksi ini MENGELUARKAN
+// rupiah, dan maker-checker dua orang (P1-19) belum ada. Preseden yang sama
+// dipakai antrean "Pencairan Bermasalah" (§ 17.5, D22-d).
+//
+// DAFTAR-IZIN, bukan `role !== 'DEVELOPER'`: ditulis sebagai daftar-tolak, setiap
+// peran baru otomatis mendapat kewenangan mengeluarkan uang tanpa ada yang
+// memutuskannya. Antreannya sendiri tetap terbuka untuk semua peran back office —
+// yang digerbangi di sini tombolnya, bukan halamannya. BE menegakkan 403 sendiri.
+//
+// Daftar perannya hidup SEKALI di `canDecideRedeemPayoutRole` (`lib/types.ts`),
+// dipakai bersama handler MSW. `null` staff (sesi masih dimuat, atau sudah
+// dibersihkan 401) diperlakukan tidak berwenang — fail-closed.
+export function canDecideRedeemPayout(staff: Staff | null): boolean {
+  return staff !== null && canDecideRedeemPayoutRole(staff.role)
 }
 
 // USDX-588 — impor daftar sanksi + pemindaian ulang: MANAGER / ADMIN saja

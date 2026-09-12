@@ -230,6 +230,69 @@ describe('Sidebar @ USDX-50', () => {
     })
   })
 
+  // USDX-669 — Persetujuan Pencairan. Antreannya terbuka untuk SEMUA peran
+  // (kontrak § Akses: STAFF / MANAGER / ADMIN / DEVELOPER membaca), jadi badge-nya
+  // juga — berbeda dari badge Mint/Burn yang disembunyikan dari STAFF. Tiap satuan
+  // pada angka ini adalah nasabah yang USDX-nya sudah terbakar dan rupiahnya belum
+  // jalan, jadi ia memang harus terlihat dari halaman mana pun, oleh siapa pun yang
+  // bisa memanggil orang yang berwenang menekan tombolnya.
+  describe('USDX-669 — badge Persetujuan Pencairan', () => {
+    test('shows the open-queue count from metadata.total', async () => {
+      server.use(
+        http.get('/api/v1/redeem-approvals', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 4 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
+    })
+
+    test('renders the badge for STAFF too — the queue is readable by every role', async () => {
+      server.use(
+        http.get('/api/v1/redeem-approvals', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 2 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // Sarah King (STAFF)
+      })
+      expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('2')
+      expect(
+        screen.getByRole('link', { name: /persetujuan pencairan/i })
+      ).toHaveAttribute('href', '/redeem-approvals')
+    })
+
+    test('hides the badge when nothing is waiting', async () => {
+      server.use(
+        http.get('/api/v1/redeem-approvals', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 0 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      await screen.findByRole('link', { name: /persetujuan pencairan/i })
+      expect(screen.queryByTestId('nav-badge-redeem-approvals')).not.toBeInTheDocument()
+    })
+  })
+
   // USDX-78 — STAFF can't access /mint /burn lists (sot/phase-1.md L34 +
   // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
   // the (N) badge so STAFF doesn't see a counter they can't act on.
