@@ -120,6 +120,9 @@ const MINT_MODE_PROD: {
   updatedBy: string | null
   updatedByName: string | null
   allowedEmails: string[]
+  testUsdxAddress: string | null
+  testStaffSafeAddress: string | null
+  testManagerSafeAddress: string | null
   updatedAt: string
 } = {
   mode: 'PROD',
@@ -129,6 +132,10 @@ const MINT_MODE_PROD: {
   updatedByName: ADMIN_STAFF.name,
   // PROD tidak mengenal pembatasan; daftar akses hanya berlaku saat mode uji.
   allowedEmails: [],
+  // Bundle uji juga hanya ada saat mode uji (USDX-654).
+  testUsdxAddress: null,
+  testStaffSafeAddress: null,
+  testManagerSafeAddress: null,
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
@@ -747,8 +754,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
       return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)
     }
-    // USDX-639: mode mint PROD/UJI (kontrak USDX-636). GET semua role; POST
+    // USDX-639/654: mode mint PROD/UJI (kontrak USDX-636). GET semua role; POST
     // MANAGER/ADMIN untuk mode uji, STAFF ke atas untuk kembali ke PROD.
+    // Alamat bundle uji WAJIB saat TEST — sejak USDX-654 ia isian, bukan env.
     if (key === 'GET /api/v1/mint-mode') return envelope(route, liveMintMode)
     if (key === 'POST /api/v1/mint-mode') {
       const b = body()
@@ -761,6 +769,19 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
           return error(route, 'VALIDATION_ERROR', 'durationHours must be 1..24', 422)
         }
+        const missing = [
+          'testUsdxAddress',
+          'testStaffSafeAddress',
+          'testManagerSafeAddress',
+        ].filter((f) => !b[f] || !String(b[f]).trim())
+        if (missing.length > 0) {
+          return error(
+            route,
+            'MINT_MODE_TEST_ENV_INCOMPLETE',
+            `Alamat bundle uji wajib diisi saat mode=TEST: ${missing.join(', ')}`,
+            422,
+          )
+        }
         liveMintMode = {
           mode: 'TEST',
           reason: String(b.reason),
@@ -769,6 +790,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           updatedByName: ADMIN_STAFF.name,
           // Daftar kosong disimpan apa adanya — artinya tidak ada yang bisa mint.
           allowedEmails: Array.isArray(b.allowedEmails) ? b.allowedEmails.map(String) : [],
+          testUsdxAddress: String(b.testUsdxAddress),
+          testStaffSafeAddress: String(b.testStaffSafeAddress),
+          testManagerSafeAddress: String(b.testManagerSafeAddress),
           updatedAt: new Date().toISOString(),
         }
         return envelope(route, liveMintMode)
@@ -779,7 +803,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         expiresAt: null,
         updatedBy: ADMIN_STAFF.id,
         updatedByName: ADMIN_STAFF.name,
+        // PROD tidak punya daftar akses maupun bundle uji.
         allowedEmails: [],
+        testUsdxAddress: null,
+        testStaffSafeAddress: null,
+        testManagerSafeAddress: null,
         updatedAt: new Date().toISOString(),
       }
       return envelope(route, liveMintMode)

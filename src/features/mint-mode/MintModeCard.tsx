@@ -14,8 +14,12 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { canEnableMintTestMode, canRestoreMintProdMode, useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { findChainConfig } from '@/lib/chainLinks'
+import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
+import { formatWibDateTime, truncateMiddle } from '@/lib/format'
+import { TEST_BUNDLE_ADDRESS_LABELS, type TestBundleAddressField } from '@/lib/validators'
 import type { MintModeConfig } from '@/lib/types'
+import { useChainConfig } from '@/features/chains/hooks'
 import MintTestModeDialog from './MintTestModeDialog'
 import { useSetMintMode } from './hooks'
 
@@ -25,6 +29,39 @@ interface Props {
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
+
+/**
+ * Satu alamat bundle uji: dipersingkat supaya kartunya terbaca, dengan alamat
+ * PENUH di `title` — orang yang mencocokkannya dengan block explorer butuh
+ * keduanya, dan versi pendek saja tidak bisa dibandingkan karakter per karakter.
+ */
+function TestBundleAddress({
+  address,
+  explorerBaseUrl,
+  label,
+}: {
+  address: string | null
+  explorerBaseUrl: string | undefined
+  label: string
+}) {
+  if (!address) return <Dim />
+  const short = truncateMiddle(address, 6, 4)
+  if (!explorerBaseUrl) {
+    return <span title={address}>{short}</span>
+  }
+  return (
+    <a
+      href={buildAddressExplorerUrl(explorerBaseUrl, address)}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={address}
+      aria-label={`${label} ${address}`}
+      className="text-primary underline-offset-2 hover:underline"
+    >
+      {short}
+    </a>
+  )
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -48,10 +85,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function MintModeCard({ data, isLoading }: Props) {
   const { user } = useAuth()
   const setMode = useSetMintMode()
+  // Base URL block explorer datang dari GET /api/v1/chains, tidak pernah
+  // ditulis di sini — dev dan prod menunjuk explorer yang berbeda. Kalau config
+  // belum ada, alamatnya tetap tampil, hanya tanpa tautan.
+  const chains = useChainConfig()
   const [testDialogOpen, setTestDialogOpen] = useState(false)
   const [prodDialogOpen, setProdDialogOpen] = useState(false)
 
   const isTest = data?.mode === 'TEST'
+  const explorerBaseUrl = findChainConfig(chains.data, 'polygon')?.blockExplorerUrl
   // `null`/absen diperlakukan sama dengan kosong — dan kosong berarti TERTUTUP.
   const allowedEmails = data?.allowedEmails ?? []
   const canEnableTest = canEnableMintTestMode(user)
@@ -135,6 +177,35 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 </Field>
               </div>
             </dl>
+
+            {/* Bundle uji (USDX-654). Sejak alamat pindah dari env ke isian
+                back-office, kartu ini satu-satunya tempat yang menjawab ke
+                token dan Safe MANA sesi uji yang sedang jalan mencetak. */}
+            {isTest ? (
+              <div className="border-t border-border pt-4">
+                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Bundle uji
+                </p>
+                <dl className="mt-2 space-y-2" data-testid="test-bundle-addresses">
+                  {(Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]).map(
+                    (field) => (
+                      <div key={field} className="flex items-baseline justify-between gap-3">
+                        <dt className="text-[12.5px] text-muted-foreground">
+                          {TEST_BUNDLE_ADDRESS_LABELS[field]}
+                        </dt>
+                        <dd className="font-mono text-[12.5px]">
+                          <TestBundleAddress
+                            address={data[field]}
+                            explorerBaseUrl={explorerBaseUrl}
+                            label={TEST_BUNDLE_ADDRESS_LABELS[field]}
+                          />
+                        </dd>
+                      </div>
+                    ),
+                  )}
+                </dl>
+              </div>
+            ) : null}
 
             {/* Daftar akses mode uji (USDX-639 tambahan lingkup 11 Sep 2026).
                 Hanya bermakna saat mode uji menyala, dan harus terbaca TANPA

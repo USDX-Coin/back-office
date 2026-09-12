@@ -994,7 +994,16 @@ describe('validateMintModeDurationHours', () => {
 })
 
 describe('validateMintTestModeForm', () => {
-  const ok = { reason: 'Uji bayar produksi', durationHours: '2' }
+  // Ketiga alamat bundle uji WAJIB sejak USDX-654 — tanpa mereka permintaannya
+  // selalu ditolak server, jadi form yang menganggapnya sah akan mengirim
+  // sesuatu yang pasti gagal.
+  const ok = {
+    reason: 'Uji bayar produksi',
+    durationHours: '2',
+    testUsdxAddress: '0x2702D70446C8d3b5B0Ef6Ad3eB58aA5D3d5a7426',
+    testStaffSafeAddress: '0x5b7C0000000000000000000000000000000000A1',
+    testManagerSafeAddress: '0x5B7C0000000000000000000000000000000000B2',
+  }
 
   describe('positive', () => {
     test('alasan + durasi valid', () => {
@@ -1031,11 +1040,12 @@ describe('validateMintTestModeForm', () => {
 
   describe('edge cases', () => {
     test('dua-duanya salah → dua pesan, bukan satu', () => {
-      const r = validateMintTestModeForm({ reason: '  ', durationHours: '99' })
+      const r = validateMintTestModeForm({ ...ok, reason: '  ', durationHours: '99' })
       expect(Object.keys(r.errors).sort()).toEqual(['durationHours', 'reason'])
     })
     test('ketiga-tiganya salah → tiga pesan', () => {
       const r = validateMintTestModeForm({
+        ...ok,
         reason: '',
         durationHours: '0',
         allowedEmailDraft: 'x',
@@ -1045,6 +1055,62 @@ describe('validateMintTestModeForm', () => {
         'durationHours',
         'reason',
       ])
+    })
+  })
+
+  // USDX-654 — alamat bundle uji.
+  describe('bundle uji', () => {
+    describe('positive', () => {
+      test('ketiga alamat ber-checksum → form sah', () => {
+        expect(validateMintTestModeForm(ok).valid).toBe(true)
+      })
+    })
+
+    describe('negative', () => {
+      test('satu alamat kosong menggagalkan form', () => {
+        const r = validateMintTestModeForm({ ...ok, testStaffSafeAddress: '' })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testStaffSafeAddress).toMatch(/wajib diisi/i)
+      })
+      test('bentuk alamat salah menggagalkan form', () => {
+        const r = validateMintTestModeForm({ ...ok, testUsdxAddress: '0xabc' })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testUsdxAddress).toMatch(/0x \+ 40 karakter hex/i)
+      })
+      test('huruf kecil semua ditolak — server menuntut ejaan ber-checksum', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testUsdxAddress: ok.testUsdxAddress.toLowerCase(),
+        })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testUsdxAddress).toMatch(/EIP-55/i)
+      })
+      test('dua alamat uji yang sama menggagalkan KEDUA isiannya', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testManagerSafeAddress: ok.testStaffSafeAddress,
+        })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testStaffSafeAddress).toMatch(/sama dengan alamat uji lain/i)
+        expect(r.errors.testManagerSafeAddress).toMatch(/sama dengan alamat uji lain/i)
+      })
+    })
+
+    describe('edge cases', () => {
+      test('alamat yang bentuknya sudah salah tidak ikut dihitung kembar — satu keluhan per isian', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testStaffSafeAddress: 'x',
+          testManagerSafeAddress: 'x',
+        })
+        expect(r.errors.testStaffSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
+        expect(r.errors.testManagerSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
+      })
+      test('spasi di sekeliling alamat tidak membatalkan', () => {
+        expect(
+          validateMintTestModeForm({ ...ok, testUsdxAddress: `  ${ok.testUsdxAddress}  ` }).valid,
+        ).toBe(true)
+      })
     })
   })
 })

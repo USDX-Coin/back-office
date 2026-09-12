@@ -276,6 +276,15 @@ export interface MintModeConfig {
    * terbuka. `null`/absen diperlakukan sama dengan kosong.
    */
   allowedEmails: string[] | null
+  /**
+   * Alamat bundle uji yang SEDANG berlaku (USDX-636 keputusan 11 Sep 2026 →
+   * USDX-654). Sejak alamat jadi isian back-office, ketiganya satu-satunya cara
+   * melihat ke token dan Safe mana sesi uji yang sedang jalan mencetak.
+   * `null` saat mode efektif `PROD` (`sot/api/mint-mode.yaml § MintMode`).
+   */
+  testUsdxAddress: string | null
+  testStaffSafeAddress: string | null
+  testManagerSafeAddress: string | null
   /** ISO-8601 UTC. */
   updatedAt: string
 }
@@ -307,6 +316,13 @@ export interface SetMintModeBody {
   durationHours?: number
   /** Daftar email yang boleh mint selama mode uji. Hanya dikirim untuk `TEST`. */
   allowedEmails?: string[]
+  /**
+   * Bundle uji: token + Safe STAFF + Safe MANAGER. WAJIB saat `mode=TEST`,
+   * diabaikan saat `mode=PROD` (`sot/api/mint-mode.yaml § SetMintMode`).
+   */
+  testUsdxAddress?: string
+  testStaffSafeAddress?: string
+  testManagerSafeAddress?: string
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
