@@ -37,6 +37,7 @@ import {
   isSafeTxExecutable,
   isSafeTxSignable,
   isUnknownActivity,
+  mostAdvancedSafeTxStatus,
 } from '@/lib/multisig/status'
 import { safeTxHashMatches } from '@/lib/multisig/safeTx'
 import { resolveOwnerCheck, resolveOwnerVerification } from '@/lib/multisig/owner'
@@ -287,10 +288,22 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   )
   const alreadySigned = Boolean(mySigner?.signed)
 
+  // The queue row and this drawer are two independently-polled views of ONE
+  // transaction, so for a few seconds at a time they disagree. A SafeTx only
+  // ever moves forward, so whichever of the two is further along is the true
+  // one — and every action affordance below follows THAT, not whichever payload
+  // happens to be older. Without it the drawer kept offering "Connect wallet" +
+  // "Sign (EIP-712)" on a transaction the row behind it already showed as
+  // Confirming, which is an invitation to sign something that is already gone.
+  const effectiveStatus = detail
+    ? mostAdvancedSafeTxStatus(detail.status, listItem?.status)
+    : null
+
   // Simulate gate runs for signable/executable, not-yet-terminal transactions.
   const simulate = useSimulateExec(
     detail,
-    Boolean(detail) && (isSafeTxExecutable(detail!.status) || isSafeTxSignable(detail!.status)),
+    effectiveStatus !== null &&
+      (isSafeTxExecutable(effectiveStatus) || isSafeTxSignable(effectiveStatus)),
   )
 
   const isAdmin = user?.role === 'ADMIN'
@@ -298,9 +311,11 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
     Boolean(wallet.address) &&
     detail?.proposerAddress?.toLowerCase() === wallet.address?.toLowerCase()
 
-  const showSign = detail ? isSafeTxSignable(detail.status) : false
-  const showExecute = detail ? isSafeTxExecutable(detail.status) : false
-  const showCancel = detail ? isSafeTxCancellable(detail.status) && (isAdmin || isProposer) : false
+  const showSign = effectiveStatus ? isSafeTxSignable(effectiveStatus) : false
+  const showExecute = effectiveStatus ? isSafeTxExecutable(effectiveStatus) : false
+  const showCancel = effectiveStatus
+    ? isSafeTxCancellable(effectiveStatus) && (isAdmin || isProposer)
+    : false
 
   // ── Sign enablement ──
   const signBlockedReason = (() => {
@@ -429,7 +444,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Status row */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge cfg={getSafeTxStatusConfig(detail.status)} />
+                <StatusBadge cfg={getSafeTxStatusConfig(effectiveStatus ?? detail.status)} />
                 <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
                   {detail.safeType} safe · {detail.chain} · nonce {detail.nonce}
                 </span>
