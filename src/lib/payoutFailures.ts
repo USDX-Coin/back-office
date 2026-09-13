@@ -90,6 +90,9 @@ const ISSUE_CODE_LABELS: Record<string, string> = {
   BURN_WALLET_MISMATCH: 'Wallet burn bukan wallet order',
   STALE_BURN: 'Burn lewat masa tenggang',
   SETTLE_TIMEOUT: 'Tidak ada jawaban final dari provider',
+  // `sot/api/redeem-approvals.yaml § reject`: order yang DITOLAK di gerbang Persetujuan
+  // Pencairan mendarat di sini sebagai PAYOUT_FAILED + OPS_REJECTED — alasannya ketikan ops.
+  OPS_REJECTED: 'Ditolak ops di Persetujuan Pencairan',
 }
 
 export function payoutIssueCodeLabel(code: string | null): string | null {

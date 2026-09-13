@@ -152,6 +152,8 @@ describe('payoutIssueKindPill / payoutIssueCodeLabel / isPayoutIssueKind', () =>
     test('known kinds and codes get a label', () => {
       expect(payoutIssueKindPill('PAYOUT_STUCK').label).toBe('Payout tertahan')
       expect(payoutIssueCodeLabel('BURN_WALLET_MISMATCH')).toBe('Wallet burn bukan wallet order')
+      // Tolakan di gerbang Persetujuan Pencairan (sot/api/redeem-approvals.yaml § reject).
+      expect(payoutIssueCodeLabel('OPS_REJECTED')).toBe('Ditolak ops di Persetujuan Pencairan')
       expect(isPayoutIssueKind('BURN_REJECTED')).toBe(true)
     })
   })
