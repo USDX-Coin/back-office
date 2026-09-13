@@ -83,11 +83,14 @@ export function isPayoutIssueKind(value: string): value is PayoutIssueKind {
 const ISSUE_CODE_LABELS: Record<string, string> = {
   PROVIDER_REJECTED: 'Ditolak provider saat diserahkan',
   PROVIDER_FAILED: 'Provider menyatakan transfer gagal',
-  BANK_ACCOUNT_INVALID: 'Rekening tujuan tidak valid',
   BANK_CODE_UNSUPPORTED: 'Kode bank tidak didukung',
   PER_TX_CAP_EXCEEDED: 'Melebihi plafon per transaksi',
   BURN_AMOUNT_MISMATCH: 'Nominal burn tidak sama dengan snapshot order',
   BURN_WALLET_MISMATCH: 'Wallet burn bukan wallet order',
+  // USDX-670: token yang dibakar bukan `contract_address` snapshot order — mis. token uji
+  // dibakar atas order bertoken prod. Kasus yang paling perlu dijelaskan ke ops: nasabah bisa
+  // menuntut rupiah sungguhan atas token yang tidak bernilai.
+  BURN_CONTRACT_MISMATCH: 'Burn di alamat token yang bukan milik order',
   STALE_BURN: 'Burn lewat masa tenggang',
   SETTLE_TIMEOUT: 'Tidak ada jawaban final dari provider',
   // `sot/api/redeem-approvals.yaml § reject`: order yang DITOLAK di gerbang Persetujuan
