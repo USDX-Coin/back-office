@@ -26,6 +26,7 @@ import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
+import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import MintModePage from '@/features/mint-mode/MintModePage'
@@ -133,6 +134,15 @@ export const appRoutes: RouteObject[] = [
           // list and opens the detail modal from URL state (deep-link safe).
           { path: '/transactions', element: <TransactionsListPage /> },
           { path: '/transactions/:id', element: <TransactionsListPage /> },
+          // USDX-669 — antrean Persetujuan Pencairan. TANPA RoleGuard, dan itu
+          // disengaja: kontraknya (`sot/api/redeem-approvals.yaml § Akses`) membuka
+          // list + detail untuk STAFF / MANAGER / ADMIN / DEVELOPER, dan MENYETUJUI
+          // / MENOLAK digerbangi MANAGER/ADMIN di dalam layarnya. Pola yang sama
+          // dengan /kyc, /kyb dan /screening: antrean kerja terbuka, aksinya
+          // digerbangi, backend menegakkan 403 sendiri. Menggerbangi rutenya akan
+          // menyembunyikan antrean yang menumpuk dari STAFF, yaitu orang yang
+          // biasanya lebih dulu menyadarinya.
+          { path: '/redeem-approvals', element: <RedeemApprovalsPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects

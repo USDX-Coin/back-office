@@ -30,8 +30,12 @@ import type {
   UpdateOncallContact,
   MintModeConfig,
   SetMintModeBody,
+  RedeemApprovalControls,
+  RedeemApprovalDetail,
+  RedeemApprovalListItem,
+  RedeemApprovalOutcome,
 } from '@/lib/types'
-import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -64,6 +68,8 @@ import {
   createBniBalances,
   createBniStatement,
   createBniStatementRows,
+  createMockRedeemApprovals,
+  createInitialRedeemApprovalControls,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -95,6 +101,23 @@ let kycReviews: Map<string, KycReviewLog[]>
 // USDX-631 — rekening BNI yang "dikonfigurasi env" (§ 16 K7). Tests that need an
 // empty configuration override `GET /api/v1/bni-accounts` via `server.use`.
 let bniAccountsStore: BniAccount[] = createBniAccounts()
+// USDX-669 — antrean Persetujuan Pencairan (`sot/api/redeem-approvals.yaml`).
+//
+// DILAYANI MSW dengan sengaja: modul backend-nya (USDX-668) dikerjakan paralel dan
+// belum ada di `dev`, jadi keenam rutenya TIDAK masuk `INTEGRATION_PATHS` di
+// `browser.ts`. Begitu USDX-668 naik, keenam path ditambahkan di sana dan blok ini
+// dihapus — preseden USDX-546 / USDX-47 / USDX-82.
+//
+// `redeemApprovalDecisions` menyimpan keputusan yang sudah diambil, BUKAN sekadar
+// membuang barisnya dari antrean. Tanpa catatan itu approve kedua atas order yang
+// sama akan dijawab `404` — sementara kontraknya menuntut `409 ALREADY_APPROVED`,
+// dan justru perbedaan itu yang mencegah dua staf masing-masing mengira dialah
+// yang melepasnya.
+let redeemApprovalQueue: RedeemApprovalListItem[]
+let redeemApprovalDetails: Map<string, RedeemApprovalDetail>
+;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
+let redeemApprovalDecisions = new Map<string, 'APPROVED' | 'REJECTED'>()
+let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApprovalControls()
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -121,6 +144,9 @@ export function resetMockData() {
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   bniAccountsStore = createBniAccounts()
+  ;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
+  redeemApprovalDecisions = new Map()
+  redeemApprovalControls = createInitialRedeemApprovalControls()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -687,6 +713,73 @@ function oncallBodyError(body: Partial<CreateOncallContact>) {
 // ─── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml) ───
 // Error envelope per sot/openapi.yaml § ErrorResponse; `details` carries
 // `bankReason` for BNI_BANK_REJECTED (§ 16.3).
+// ─── Persetujuan Pencairan (USDX-669) ───────────────────────────────────────
+// Bentuk galatnya `common.yaml#/schemas/ErrorResponse`; statusnya diambil dari
+// kontraknya baris demi baris. Tiruan yang lebih permisif daripada server adalah
+// cara setiap ketidakcocokan sebelumnya lolos di lokal dan gagal di produksi.
+
+function redeemApprovalError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+/** Aksi yang MENGELUARKAN rupiah: Manager / Admin saja (kontrak § Akses). */
+function redeemApprovalForbidden() {
+  return redeemApprovalError(
+    403,
+    'FORBIDDEN',
+    'Only Manager and Admin may decide a redeem payout'
+  )
+}
+
+/**
+ * Nominal ambang dibandingkan sebagai SEN BULAT, tidak lewat `Number`.
+ * Kolomnya `numeric(20,2)`; nominal sebesar itu kehilangan satuan terkecilnya
+ * dalam JS number, dan saringan antrean adalah pembandingan uang.
+ */
+function redeemIdrCents(raw: string): bigint | null {
+  if (!/^\d+(\.\d{1,2})?$/.test(raw.trim())) return null
+  const [whole = '0', fraction = ''] = raw.trim().split('.')
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+}
+
+/**
+ * Antrean TERBUKA menurut kontrak: belum diputus DAN nominalnya DI ATAS ambang.
+ * Ambang yang tak terbaca diperlakukan sebagai `0` — fail-closed, semua tertahan.
+ * Urut `burnedAt` ASC: terlama dulu, keputusan fairness, bukan preferensi tampilan.
+ */
+function openRedeemApprovals(): RedeemApprovalListItem[] {
+  const threshold = redeemIdrCents(redeemApprovalControls.approvalThresholdIdr) ?? 0n
+  return redeemApprovalQueue
+    .filter((row) => !redeemApprovalDecisions.has(row.id))
+    .filter((row) => (redeemIdrCents(row.netPayoutIdr) ?? 0n) > threshold)
+    .sort((a, b) => a.burnedAt.localeCompare(b.burnedAt))
+}
+
+/** Test helper: setel ambang aktif tanpa lewat `PUT` (dan tanpa gerbang peran). */
+export function configureRedeemApprovalControlsForTests(next: RedeemApprovalControls) {
+  redeemApprovalControls = next
+}
+
+function redeemDecisionOutcome(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  staff: Staff
+): RedeemApprovalOutcome {
+  return {
+    id,
+    decision,
+    // `BURNED` untuk APPROVED — menyetujui hanya membuka gerbang; Disbursement
+    // Trigger yang mengirim, pada tick berikutnya. Tiruan yang menjawab
+    // `PROCESSING_PAYOUT` di sini akan mengajari layar berbohong.
+    status: decision === 'APPROVED' ? 'BURNED' : 'PAYOUT_FAILED',
+    decidedAt: new Date().toISOString(),
+    decidedByName: staff.name,
+  }
+}
+
 function bniError(status: number, code: string, message: string, details?: unknown) {
   return HttpResponse.json(
     {
@@ -2167,6 +2260,171 @@ export const handlers = [
   // persists as PENDING_APPROVAL, returns the fresh MintRequest detail.
   // 403 (role insufficient) is intentionally not modeled in the mock — Linear
   // AC #6 only verifies the FE displays the message; tests use server.use().
+  // ─── USDX-669 — Persetujuan Pencairan (sot/api/redeem-approvals.yaml) ───
+  // MSW-served sampai backend USDX-668 menyajikan modulnya; lalu keenam path ini
+  // pindah ke `INTEGRATION_PATHS` dan blok ini dihapus.
+
+  http.get('/api/v1/redeem-approvals', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    // Parameter kontraknya `take` (pola held-credits); jawabannya tetap menyebut
+    // `metadata.limit` (common.yaml § PaginatedResponse).
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    const rows = openRedeemApprovals()
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.get('/api/v1/redeem-approvals/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const detail = redeemApprovalDetails.get(String(params.id))
+    if (!detail) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    // Terbuka untuk SEMUA peran back office, DEVELOPER termasuk: kontraknya
+    // memberinya akses baca, dan di server pembacaan inilah yang menulis satu baris
+    // `pii_access_audit`. Yang digerbangi peran adalah keputusannya, bukan
+    // pembacaannya — dan pembacaan tanpa jejak justru hal yang dihindari kontrak.
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  http.post('/api/v1/redeem-approvals/:id/approve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    const id = String(params.id)
+    if (!redeemApprovalDetails.has(id)) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    const decided = redeemApprovalDecisions.get(id)
+    if (decided === 'APPROVED') {
+      return redeemApprovalError(
+        409,
+        'ALREADY_APPROVED',
+        'This payout was already approved'
+      )
+    }
+    if (decided === 'REJECTED') {
+      return redeemApprovalError(
+        409,
+        'INVALID_ORDER_STATE',
+        'Order is no longer BURNED'
+      )
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = ((await request.json()) ?? {}) as { reason?: unknown }
+    } catch {
+      // Badan kosong sah di sini — `requestBody.required: false` pada approve.
+      body = {}
+    }
+    if (body.reason !== undefined) {
+      if (typeof body.reason !== 'string' || body.reason.trim().length > 500) {
+        return redeemApprovalError(
+          400,
+          'BAD_REQUEST',
+          'reason must be a string of at most 500 characters'
+        )
+      }
+    }
+    redeemApprovalDecisions.set(id, 'APPROVED')
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemDecisionOutcome(id, 'APPROVED', staff),
+    })
+  }),
+
+  http.post('/api/v1/redeem-approvals/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    const id = String(params.id)
+    if (!redeemApprovalDetails.has(id)) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    const decided = redeemApprovalDecisions.get(id)
+    if (decided === 'APPROVED') {
+      return redeemApprovalError(
+        409,
+        'ALREADY_APPROVED',
+        'This payout was already approved; settle it from the payout-failures queue'
+      )
+    }
+    if (decided === 'REJECTED') {
+      return redeemApprovalError(409, 'INVALID_ORDER_STATE', 'Order is no longer BURNED')
+    }
+    let body: { reason?: unknown }
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 3 || reason.length > 500) {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'reason must be 3–500 characters')
+    }
+    redeemApprovalDecisions.set(id, 'REJECTED')
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemDecisionOutcome(id, 'REJECTED', staff),
+    })
+  }),
+
+  http.get('/api/v1/redeem-approval-controls', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    // Semua peran back office boleh membaca: angka ini yang menjelaskan mengapa
+    // antreannya berisi (atau kosong).
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemApprovalControls,
+    })
+  }),
+
+  http.put('/api/v1/redeem-approval-controls', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    let body: { approvalThresholdIdr?: unknown; reason?: unknown }
+    try {
+      body = (await request.json()) as { approvalThresholdIdr?: unknown; reason?: unknown }
+    } catch {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const raw = body?.approvalThresholdIdr
+    if (typeof raw !== 'string' || redeemIdrCents(raw) === null) {
+      return redeemApprovalError(
+        400,
+        'BAD_REQUEST',
+        'approvalThresholdIdr must be a decimal string with at most 2 decimal places'
+      )
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 3 || reason.length > 500) {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'reason must be 3–500 characters')
+    }
+    redeemApprovalControls = {
+      approvalThresholdIdr: raw.trim(),
+      updatedAt: new Date().toISOString(),
+      updatedByName: staff.name,
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemApprovalControls,
+    })
+  }),
+
   http.post('/api/v1/mint', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()

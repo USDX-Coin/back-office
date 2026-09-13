@@ -30,6 +30,17 @@ export function canManageFeeConfig(role: StaffRole): boolean {
   return role === 'ADMIN'
 }
 
+// USDX-669: menyetujui / menolak pencairan redeem dan mengubah ambang nominalnya
+// adalah MANAGER / ADMIN (`sot/api/redeem-approvals.yaml § Akses`). Dipakai handler
+// MSW supaya tiruannya menegakkan gerbang yang sama dengan server — tiruan yang
+// melepas STAFF membuat tes "tombol tidak dirender" hijau tanpa membuktikan apa pun
+// tentang permintaan yang tetap bisa dikirim dari konsol peramban.
+// Pasangan sisi UI-nya `canDecideRedeemPayout` di `src/lib/auth.tsx`, yang menerima
+// baris `Staff` utuh supaya sesi yang belum dimuat gagal tertutup.
+export function canDecideRedeemPayoutRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN'
+}
+
 // SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
@@ -2709,4 +2720,130 @@ export interface BniStatement {
   summary: BniStatementSummary
   /** Urut `postDate` menurun, stabil; baris `MALFORMED` tanggal di paling bawah. */
   rows: BniStatementRow[]
+}
+
+// ─── Persetujuan Pencairan (USDX-669, kontrak `sot/api/redeem-approvals.yaml`) ──
+//
+// Gerbang ops sebelum rupiah redeem keluar. Yang membentuk tipe-tipe di bawah:
+//
+//  1. UANG SELALU STRING. `netPayoutIdr`, `grossIdr`, `approvalThresholdIdr` dan
+//     kawan-kawannya adalah desimal atas kolom `numeric(20,2)`. Tidak ada satu
+//     pun di antaranya yang boleh jadi `number` — 20 digit tidak masuk ke JS
+//     number, dan `0.1 + 0.2` bukan `0.3`. Aritmetika dan pembandingannya ada di
+//     `@/lib/redeemApprovals` lewat BigInt.
+//  2. MENYETUJUI BUKAN MENGIRIM. `RedeemApprovalOutcome.status` tetap `BURNED`
+//     setelah APPROVED — gerbangnya terbuka, Disbursement Trigger baru menjemput
+//     order itu pada tick berikutnya. UI tidak boleh menulis "dana terkirim".
+//  3. AMBANG ADALAH RESOURCE SENDIRI (`/api/v1/redeem-approval-controls`), bukan
+//     sub-path `/redeem-approvals/threshold`: segmen literal yang bersaing dengan
+//     `{id}` adalah tabrakan rute yang menunggu terjadi, dan ambang memang sebuah
+//     KONTROL, bukan sebuah persetujuan.
+
+/** Order partner ikut melewati gerbang yang sama — tidak ada pintu belakang. */
+export type RedeemApprovalOwnerType = 'RETAIL' | 'PARTNER'
+
+/** Satu baris antrean menunggu persetujuan (`GET /api/v1/redeem-approvals`). */
+export interface RedeemApprovalListItem {
+  /** id baris `redeem_orders`. */
+  id: string
+  /** `partner_reference_no`, mis. `RDM250913ABCDEF`. */
+  orderNumber: string
+  /** Snapshot nama pemilik order saat create — ketikan nasabah. */
+  customerName: string
+  /** Mengikuti `canReadCustomerPii` (USDX-487): penuh untuk ADMIN, ter-mask untuk role lain. */
+  userEmail: string
+  /** Desimal USDX (6 desimal). */
+  amountUsdx: string
+  /** Desimal IDR — nominal yang akan ditransfer. */
+  netPayoutIdr: string
+  bankCode: string
+  bankName: string
+  /** PENUH, tidak disamarkan — inilah yang ops diminta nilai. */
+  bankAccountNumber: string
+  /**
+   * Nama menurut BANK (jawaban account-inquiry saat create), BUKAN ketikan
+   * nasabah. Kalau ia berbeda dari `customerName`, perbedaan itu sendiri
+   * informasi yang dibutuhkan ops — jadi layar merender keduanya, bukan salah satu.
+   */
+  bankAccountName: string
+  /** Kapan burn on-chain terkonfirmasi. Antrean urut TERLAMA dulu atas field ini. */
+  burnedAt: string
+  /**
+   * Jejak burn on-chain, ikut di LIST dan bukan hanya di detail, supaya ops bisa
+   * membuka explorer langsung dari baris antrean. Menariknya lewat `GET /:id` per
+   * baris berarti satu panggilan per baris DAN satu baris `pii_access_audit` per
+   * baris — mencatat akses PII untuk orang yang tidak sedang membuka PII siapa
+   * pun. Hash transaksi sendiri data publik di chain.
+   *
+   * `null` = pencatatannya belum menyusul, BUKAN "burn-nya belum terjadi":
+   * antrean ini hanya memuat order yang sudah `BURNED`.
+   */
+  burnTxHash: string | null
+  ownerType: RedeemApprovalOwnerType
+}
+
+/** `GET /api/v1/redeem-approvals/{id}` — superset list item + snapshot kurs/fee + jejak burn. */
+export interface RedeemApprovalDetail extends RedeemApprovalListItem {
+  chain: string
+  /** Wallet sumber burn. */
+  userAddress: string
+  /** bytes32 hex — argumen `id` pada `redeem(id, amount)`. */
+  redeemId: string
+  /** Alamat kontrak token yang dibakar order ini. */
+  contractAddress: string
+  baseRate: string
+  effectiveRate: string
+  spreadSellPct: string
+  grossIdr: string
+  redeemFeeIdr: string
+  disbursementFeeIdr: string
+  totalFeeIdr: string
+  createdAt: string
+  expiresAt: string
+  lateBurn: boolean
+  /** Nomor redeem milik partner; null untuk order retail. */
+  externalReference: string | null
+}
+
+/** Hasil satu keputusan ops (`approve` / `reject`). */
+export interface RedeemApprovalOutcome {
+  id: string
+  decision: 'APPROVED' | 'REJECTED'
+  /**
+   * Status order SESUDAH keputusan. `BURNED` untuk APPROVED — menyetujui hanya
+   * membuka gerbang, pengirimannya milik Disbursement Trigger. `PAYOUT_FAILED`
+   * untuk REJECTED (order mendarat di antrean "Pencairan Bermasalah").
+   */
+  status: string
+  decidedAt: string
+  decidedByName: string
+}
+
+/** `GET /api/v1/redeem-approval-controls` — ambang nominal aktif. */
+export interface RedeemApprovalControls {
+  /**
+   * IDR 2 desimal sebagai string. `"0"` = SEMUA pencairan wajib disetujui
+   * (default, dan keadaan paling ketat). Di atas 0 = pencairan dengan
+   * `netPayoutIdr` <= nilai ini dikirim tanpa persetujuan manusia.
+   */
+  approvalThresholdIdr: string
+  updatedAt: string | null
+  /** null kalau barisnya masih hasil seed migrasi. */
+  updatedByName: string | null
+}
+
+/** Body `PUT /api/v1/redeem-approval-controls` — `reason` WAJIB, masuk `activity_log`. */
+export interface UpdateRedeemApprovalControls {
+  approvalThresholdIdr: string
+  reason: string
+}
+
+/** Body `POST /api/v1/redeem-approvals/{id}/approve` — catatan opsional. */
+export interface ApproveRedeemPayoutBody {
+  reason?: string
+}
+
+/** Body `POST /api/v1/redeem-approvals/{id}/reject` — `reason` WAJIB. */
+export interface RejectRedeemPayoutBody {
+  reason: string
 }
