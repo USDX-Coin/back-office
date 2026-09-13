@@ -5,6 +5,7 @@ import {
   canEnableMintTestMode as canEnableMintTestModeRole,
   canRestoreMintProdMode as canRestoreMintProdModeRole,
   canDecideRedeemPayoutRole,
+  canResolvePayoutFailureRole,
 } from './types'
 import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
@@ -313,6 +314,16 @@ export function canRestoreMintProdMode(staff: Staff | null): boolean {
 // dibersihkan 401) diperlakukan tidak berwenang — fail-closed.
 export function canDecideRedeemPayout(staff: Staff | null): boolean {
   return staff !== null && canDecideRedeemPayoutRole(staff.role)
+}
+
+// USDX-662 — resolve antrean "Pencairan Bermasalah" (RESENT / SETTLED_MANUAL /
+// CLOSED): MANAGER / ADMIN saja (`sot/bni-integration.md § 17.5` D22-d). Beda
+// dari held credits (STAFF boleh resolve) karena di sini aksinya MENGELUARKAN
+// rupiah dan maker-checker (P1-19) belum ada. Antrean + detail tetap terbuka
+// untuk semua peran — yang digerbangi tombolnya. BE menegakkan 403 sendiri.
+// `null` staff = tidak berwenang (fail-closed).
+export function canResolvePayoutFailure(staff: Staff | null): boolean {
+  return staff !== null && canResolvePayoutFailureRole(staff.role)
 }
 
 // USDX-588 — impor daftar sanksi + pemindaian ulang: MANAGER / ADMIN saja
