@@ -211,7 +211,7 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
   })
 })
 
-// USDX-678 — pemilih rekening pengganti di dialog Kirim ulang (§ 17.5, `replacementBankAccounts`).
+// USDX-678 — dropdown rekening pengganti di dialog Kirim ulang (§ 17.5, `replacementBankAccounts`).
 describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
   /** Tangkap body POST resolve yang benar-benar dikirim. */
   function recordResolveBodies() {
@@ -226,21 +226,35 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
 
   const RESEND_REASON = 'Rekening lama ditutup, kirim ke rekening lain'
 
+  function accountSelect(dialog: HTMLElement) {
+    return within(dialog).getByRole('combobox', { name: 'Rekening tujuan' })
+  }
+
+  /** Buka dropdown; opsinya dirender di portal, jadi dicari dari `screen`. */
+  async function openAccountOptions(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
+    await user.click(accountSelect(dialog))
+    return screen.findAllByRole('option')
+  }
+
   describe('positive', () => {
     test('should list the three saved accounts with the current one marked and chosen, and send no bankAccountId', async () => {
       const bodies = recordResolveBodies()
       const detail = await openDetail(IDS.failedRejected)
       const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
 
-      const radios = within(dialog).getAllByRole('radio')
-      expect(radios).toHaveLength(3)
-      const current = within(dialog).getByRole('radio', { name: /8730012245/ })
-      expect(current).toBeChecked()
-      expect(current.closest('label')).toHaveTextContent('rekening saat ini')
-      expect(within(dialog).getAllByText('rekening saat ini')).toHaveLength(1)
-      // Nomor rekening PENUH setiap pilihan terbaca berdampingan.
-      expect(within(dialog).getByRole('radio', { name: /1370012245001/ })).not.toBeChecked()
-      expect(within(dialog).getByRole('radio', { name: /0291884501/ })).not.toBeChecked()
+      expect(accountSelect(dialog)).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI · BCA utama')
+      expect(accountSelect(dialog)).toHaveTextContent('rekening saat ini')
+
+      const options = await openAccountOptions(user, dialog)
+      expect(options).toHaveLength(3)
+      // Nomor rekening PENUH di setiap opsi, terbaru dulu (urutan server).
+      expect(options.map((o) => o.textContent)).toEqual([
+        'Mandiri · 1370012245001 · RINA SUSANTI · Mandiri gaji',
+        'BCA · 8730012245 · RINA SUSANTI · BCA utama rekening saat ini',
+        'BNI · 0291884501 · RINA S',
+      ])
+      expect(screen.getByRole('option', { name: /8730012245/ })).toHaveAttribute('aria-selected', 'true')
+      await user.click(screen.getByRole('option', { name: /8730012245/ }))
 
       await user.type(within(dialog).getByLabelText(/^Alasan/), RESEND_REASON)
       await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
@@ -253,7 +267,9 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
       const detail = await openDetail(IDS.failedRejected)
       const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
 
-      await user.click(within(dialog).getByRole('radio', { name: /1370012245001/ }))
+      await openAccountOptions(user, dialog)
+      await user.click(screen.getByRole('option', { name: /1370012245001/ }))
+      expect(accountSelect(dialog)).toHaveTextContent('1370012245001')
       const consequence = within(dialog).getByTestId('resolve-consequence')
       expect(consequence).toHaveTextContent('rekening pengganti')
       expect(consequence).toHaveTextContent('Mandiri · 1370012245001 · RINA SUSANTI')
@@ -269,10 +285,10 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
   })
 
   describe('negative', () => {
-    test('should offer no picker on a partner order and say to settle it through the partner', async () => {
+    test('should offer no dropdown on a partner order and say to settle it through the partner', async () => {
       const detail = await openDetail(IDS.failedAfterResend)
       const { dialog } = await chooseAction(detail, 'Kirim ulang')
-      expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
       expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('selesaikan lewat partner')
       // Regresi USDX-662: satu-satunya isian teks tetap alasan.
       expect(within(dialog).queryAllByRole('textbox')).toHaveLength(1)
@@ -289,26 +305,27 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
       )
       const detail = await openDetail(IDS.failedRejected)
       const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
-      await user.click(within(dialog).getByRole('radio', { name: /0291884501/ }))
+      await openAccountOptions(user, dialog)
+      await user.click(screen.getByRole('option', { name: /0291884501/ }))
       await user.type(within(dialog).getByLabelText(/^Alasan/), RESEND_REASON)
       await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('bukan milik nasabah pemilik order')
-      expect(within(dialog).getByRole('radio', { name: /0291884501/ })).toBeChecked()
+      expect(accountSelect(dialog)).toHaveTextContent('0291884501')
     })
 
-    test('should never show the picker on other actions', async () => {
+    test('should never show the dropdown on other actions', async () => {
       const detail = await openDetail(IDS.failedRejected)
       const { dialog } = await chooseAction(detail, 'Tutup tanpa pembayaran')
-      expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
       expect(within(dialog).queryByTestId('replacement-account-note')).not.toBeInTheDocument()
     })
   })
 
   describe('edge cases', () => {
-    test('should offer no picker to a retail customer without saved accounts and point to the app', async () => {
+    test('should offer no dropdown to a retail customer without saved accounts and point to the app', async () => {
       const detail = await openDetail(IDS.failedNeverSubmitted)
       const { dialog } = await chooseAction(detail, 'Kirim ulang')
-      expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
       expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('ditambahkan nasabah lewat app')
       expect(within(dialog).queryAllByRole('textbox')).toHaveLength(1)
     })
@@ -320,19 +337,21 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
         replacementBankAccounts: base.replacementBankAccounts.filter((a) => a.id !== ACCOUNTS.rinaBcaCurrent),
       })
       const detail = await openDetail(IDS.failedRejected)
-      const { dialog } = await chooseAction(detail, 'Kirim ulang')
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
 
-      const radios = within(dialog).getAllByRole('radio')
-      expect(radios).toHaveLength(3)
-      expect(radios[0]).toBeChecked()
-      expect(radios[0]!.closest('label')).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI')
-      expect(radios[0]!.closest('label')).toHaveTextContent('rekening saat ini')
+      expect(accountSelect(dialog)).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI')
+      const options = await openAccountOptions(user, dialog)
+      expect(options).toHaveLength(3)
+      expect(options[0]).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI rekening saat ini')
+      expect(options[0]).toHaveAttribute('aria-selected', 'true')
     })
 
     test('should reset the chosen account when the dialog is reopened', async () => {
       const detail = await openDetail(IDS.failedRejected)
       const first = await chooseAction(detail, 'Kirim ulang')
-      await first.user.click(within(first.dialog).getByRole('radio', { name: /1370012245001/ }))
+      await openAccountOptions(first.user, first.dialog)
+      await first.user.click(screen.getByRole('option', { name: /1370012245001/ }))
+      expect(accountSelect(first.dialog)).toHaveTextContent('1370012245001')
       await first.user.click(within(first.dialog).getByRole('button', { name: 'Batal' }))
       await waitResolveClosed('Kirim ulang')
 
@@ -341,7 +360,8 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
       await waitResolveClosed('Tutup tanpa pembayaran')
 
       const again = await chooseAction(screen.getByRole('dialog'), 'Kirim ulang')
-      expect(within(again.dialog).getByRole('radio', { name: /8730012245/ })).toBeChecked()
+      expect(accountSelect(again.dialog)).toHaveTextContent('8730012245')
+      expect(accountSelect(again.dialog)).not.toHaveTextContent('1370012245001')
     })
   })
 })

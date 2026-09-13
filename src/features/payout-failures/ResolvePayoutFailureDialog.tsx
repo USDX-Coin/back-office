@@ -26,6 +26,7 @@ import {
 import { formatIdrExact } from '@/lib/redeemApprovals'
 import type { PayoutFailureDetail, PayoutResolution, ReplacementBankAccount } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import ReplacementAccountSelect from './ReplacementAccountSelect'
 import { useResolvePayoutFailure } from './hooks'
 
 interface Props {
@@ -40,9 +41,6 @@ const TITLES: Record<PayoutResolution, string> = {
   SETTLED_MANUAL: 'Tandai sudah dibayar manual',
   CLOSED: 'Tutup tanpa pembayaran',
 }
-
-/** Nilai pilihan "rekening tujuan saat ini" — memilihnya berarti `bankAccountId` tidak dikirim. */
-const CURRENT_DESTINATION = ''
 
 /** Satu tujuan transfer yang bisa dirender: rekening order saat ini atau rekening address book. */
 interface Destination {
@@ -66,89 +64,6 @@ function DestinationLine({ destination }: { destination: Destination }) {
       <span className="break-all font-mono tabular-nums">{destination.accountNumber}</span> ·{' '}
       <span className="font-medium">{destination.accountName}</span>
     </>
-  )
-}
-
-/**
- * Pemilih rekening tujuan `RESENT` (USDX-678, § 17.5). Pilihannya HANYA dari
- * `replacementBankAccounts` — tidak ada isian nomor rekening di mana pun (D22).
- *
- * Daftar radio, bukan dropdown yang tertutup: ini keputusan ke mana rupiah dikirim, dan
- * nomor rekening penuh setiap pilihan harus terbaca berdampingan supaya dua rekening yang
- * mirip bisa dibedakan sebelum menekan apa pun.
- *
- * Rekening address book yang sama dengan tujuan saat ini ditandai dan bernilai
- * `CURRENT_DESTINATION`. Kalau tujuan saat ini TIDAK ada di address book (rekeningnya sudah
- * dihapus nasabah), ia tetap ditawarkan sebagai pilihan pertama dari salinan di order —
- * kirim ulang ke rekening yang sama harus selalu bisa dipilih secara eksplisit.
- */
-function ReplacementAccountPicker({
-  detail,
-  accounts,
-  current,
-  selected,
-  onSelect,
-  disabled,
-}: {
-  detail: PayoutFailureDetail
-  accounts: ReplacementBankAccount[]
-  current: ReplacementBankAccount | undefined
-  selected: string
-  onSelect: (value: string) => void
-  disabled: boolean
-}) {
-  const options: { value: string; destination: Destination; label: string | null; isCurrent: boolean }[] = [
-    ...(current
-      ? []
-      : [{ value: CURRENT_DESTINATION, destination: currentDestination(detail), label: null, isCurrent: true }]),
-    ...accounts.map((account) => ({
-      value: account.id === current?.id ? CURRENT_DESTINATION : account.id,
-      destination: {
-        bankName: account.bankName,
-        accountNumber: account.accountNumber,
-        accountName: account.accountName,
-      },
-      label: account.label ?? null,
-      isCurrent: account.id === current?.id,
-    })),
-  ]
-  return (
-    <fieldset className="space-y-1.5" data-testid="replacement-account-picker">
-      <legend className="mb-1.5 text-[12.5px] font-medium">Rekening tujuan</legend>
-      {options.map((option) => (
-        <label
-          key={option.value || 'current'}
-          className={cn(
-            'flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2 text-[12.5px]',
-            selected === option.value ? 'border-primary bg-primary/5' : 'border-border',
-            disabled && 'cursor-not-allowed opacity-60',
-          )}
-        >
-          <input
-            type="radio"
-            name="replacement-bank-account"
-            value={option.value}
-            checked={selected === option.value}
-            onChange={() => onSelect(option.value)}
-            disabled={disabled}
-            className="mt-0.5 accent-primary"
-          />
-          <span className="min-w-0 flex-1">
-            <DestinationLine destination={option.destination} />
-            {(option.label || option.isCurrent) && (
-              <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                {option.label && <span>{option.label}</span>}
-                {option.isCurrent && (
-                  <span className="rounded-sm bg-muted px-1.5 py-0.5 font-medium text-foreground">
-                    rekening saat ini
-                  </span>
-                )}
-              </span>
-            )}
-          </span>
-        </label>
-      ))}
-    </fieldset>
   )
 }
 
@@ -258,7 +173,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
   const resolve = useResolvePayoutFailure()
   const [reason, setReason] = useState('')
   const [externalRef, setExternalRef] = useState('')
-  const [selectedAccount, setSelectedAccount] = useState(CURRENT_DESTINATION)
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [touched, setTouched] = useState<ResolveFormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -270,7 +185,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
     setLastKey(key)
     setReason('')
     setExternalRef('')
-    setSelectedAccount(CURRENT_DESTINATION)
+    setSelectedAccountId(null)
     setTouched({})
     setServerError(null)
   }
@@ -280,7 +195,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
   const isPending = resolve.isPending
   const accounts = detail.replacementBankAccounts
   const currentAccount = findCurrentReplacementAccount(detail)
-  const bankAccountId = action === 'RESENT' && selectedAccount !== CURRENT_DESTINATION ? selectedAccount : null
+  const bankAccountId = action === 'RESENT' ? selectedAccountId : null
   const target = bankAccountId ? accounts.find((account) => account.id === bankAccountId) : undefined
   const check = buildResolveBody({ action, reason, externalRef, bankAccountId })
   const errors: ResolveFormErrors = check.valid ? {} : check.errors
@@ -327,12 +242,12 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
         <DialogBody>
           <div className="space-y-4">
             {action === 'RESENT' && accounts.length > 0 && (
-              <ReplacementAccountPicker
+              <ReplacementAccountSelect
                 detail={detail}
                 accounts={accounts}
                 current={currentAccount}
-                selected={selectedAccount}
-                onSelect={setSelectedAccount}
+                value={selectedAccountId}
+                onChange={setSelectedAccountId}
                 disabled={isPending}
               />
             )}
