@@ -315,3 +315,104 @@ test.describe('USDX-639 mode mint @e2e', () => {
     })
   })
 })
+
+// USDX-681 — dialog mode uji harus bisa di-scroll di jendela pendek.
+//
+// Bug produksinya: `<form>` yang membungkus DialogBody + DialogFooter bukan
+// flex column yang boleh mengecil, jadi batas tinggi dari DialogContent tidak
+// sampai ke DialogBody dan `overflow-y-auto` tidak pernah aktif — isian
+// terakhir dan tombol simpan terpotong tanpa cara menjangkaunya.
+//
+// Diuji di browser sungguhan karena ini pertanyaan TATA LETAK: jsdom tidak
+// menghitung tinggi, jadi test unit di sana akan hijau untuk dialog yang rusak.
+test.describe('USDX-681 dialog mode uji bisa di-scroll @e2e', () => {
+  test.describe('positive', () => {
+    test.use({ viewport: { width: 1280, height: 700 } })
+
+    test('jendela pendek: seluruh isian terjangkau, header & tombol tetap menempel', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+
+      // Dialog tidak boleh lebih tinggi dari viewport-nya.
+      const dialogBox = await dialog.boundingBox()
+      expect(dialogBox!.height).toBeLessThanOrEqual(700)
+
+      // Wadah isi benar-benar ter-scroll: isinya lebih tinggi daripada
+      // kotaknya. Kalau rantai tingginya putus, keduanya sama besar dan
+      // pemeriksaan ini gagal — persis bug produksinya.
+      const body = dialog.locator('form > div').first()
+      const metrics = await body.evaluate((el) => ({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      }))
+      expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight)
+
+      // Tombol simpan terjangkau TANPA mengubah zoom: ia ada di baris tombol
+      // yang menempel, bukan terpotong di luar dialog.
+      const submit = dialog.getByRole('button', { name: /geser ke mode uji/i })
+      await expect(submit).toBeInViewport()
+
+      // Isian terakhir terjangkau setelah scroll.
+      const managerSafe = dialog.getByLabel(/alamat safe manager uji/i)
+      await managerSafe.scrollIntoViewIfNeeded()
+      await managerSafe.fill(TEST_MANAGER_SAFE)
+      await expect(managerSafe).toHaveValue(TEST_MANAGER_SAFE)
+
+      // Header dan baris tombol TIDAK ikut ter-scroll: keduanya tetap di
+      // tempatnya setelah isi digulir sampai bawah.
+      const titleBefore = await dialog.getByRole('heading').boundingBox()
+      const submitBefore = await submit.boundingBox()
+      await body.evaluate((el) => el.scrollTo(0, el.scrollHeight))
+      expect((await dialog.getByRole('heading').boundingBox())!.y).toBeCloseTo(
+        titleBefore!.y,
+        0,
+      )
+      expect((await submit.boundingBox())!.y).toBeCloseTo(submitBefore!.y, 0)
+    })
+
+    test('jendela pendek: mode uji tetap bisa dinyalakan sampai selesai', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByLabel(/alasan/i).fill('Uji bayar produksi bersama DurianPay')
+      await dialog.getByLabel(/durasi \(jam\)/i).fill('2')
+      await fillBundle(dialog)
+      await dialog.getByRole('button', { name: /geser ke mode uji/i }).click()
+
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText(/mode uji/i)
+    })
+  })
+
+  test.describe('edge cases', () => {
+    test.use({ viewport: { width: 1280, height: 1400 } })
+
+    test('jendela tinggi: dialog memakai tinggi isinya, tidak ada scroll', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/mint-mode')
+
+      await page.getByRole('button', { name: /geser ke mode uji/i }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+
+      // Isi lebih pendek dari batas tinggi → tidak ada yang perlu digulir.
+      const body = dialog.locator('form > div').first()
+      const metrics = await body.evaluate((el) => ({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+      }))
+      expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight)
+      await expect(dialog.getByRole('button', { name: /geser ke mode uji/i })).toBeInViewport()
+    })
+  })
+})

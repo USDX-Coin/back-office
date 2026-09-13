@@ -186,7 +186,18 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
             di bawah. Mode kembali ke PROD sendiri saat waktunya habis.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} noValidate id="mint-test-mode-form">
+        {/* `flex min-h-0 flex-1 flex-col` bukan hiasan: form ini flex child dari
+            DialogContent, dan tanpa ketiganya batas tinggi dialog berhenti di
+            sini — DialogBody tidak pernah punya tinggi terbatas, jadi
+            `overflow-y-auto`-nya tidak aktif dan isi yang melebihi layar
+            terpotong tanpa cara menjangkaunya (USDX-681, kena di produksi).
+            Pola yang sama dipakai setiap form-di-dalam-dialog di repo ini. */}
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          id="mint-test-mode-form"
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <DialogBody className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="mintModeReason">Alasan</Label>
