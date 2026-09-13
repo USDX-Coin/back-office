@@ -80,10 +80,12 @@ import { handlers } from './handlers'
 //
 // USDX-678: the sidebar badges read /api/v1/queue-counts (backend USDX-676) and the
 // Kirim ulang dialog reads `replacementBankAccounts` from the detail (backend
-// USDX-677). Still 404 on api-dev on 13 Sep 2026, so MOCK-served as well. Add
-// /api/v1/queue-counts once it answers 401 — and add the payout-failures detail
-// path only once USDX-677 is deployed too: a detail without `replacementBankAccounts`
-// breaks the dialog the moment the browser stops hitting MSW.
+// USDX-677). Still 404 on api-dev on 13 Sep 2026, so MOCK-served as well — add
+// /api/v1/queue-counts here once it answers 401. This set only steers the LOCAL
+// `vite dev` worker (main.tsx starts MSW only when import.meta.env.DEV); a deployed
+// build always calls the real backend, whatever is listed here. A detail without
+// `replacementBankAccounts` (backend before USDX-677) is normalised to `[]` in
+// usePayoutFailureDetail, so the payout-failures paths do not wait for USDX-677.
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).
