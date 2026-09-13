@@ -2623,6 +2623,23 @@ export const handlers = [
     })
   }),
 
+  // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───
+  // MSW-served sampai api-dev menyajikan USDX-676 (13 Sep 2026: 404). Tiap angka
+  // dihitung dari predikat YANG SAMA dengan `metadata.total` list tiruannya — badge
+  // dan layar tidak boleh berbeda tentang antrean yang sama. Tanpa gerbang auth
+  // tiruan, alasan yang sama dengan GET payout-failures di atas: sesi dev adalah
+  // cookie httpOnly backend asli yang tidak terlihat oleh service worker.
+  http.get('/api/v1/queue-counts', () => {
+    const payoutFailuresOpen = [...payoutFailureStore.values()].filter(
+      (detail) => detail.resolution === null
+    ).length
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { payoutFailuresOpen, redeemApprovalsOpen: openRedeemApprovals().length },
+    })
+  }),
+
   http.post('/api/v1/mint', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()

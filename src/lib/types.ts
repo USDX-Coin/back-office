@@ -2978,3 +2978,17 @@ export interface ResolvePayoutFailureResult {
   newPartnerReferenceNo: string | null
   resolvedAt: string
 }
+
+// ─── Hitungan antrean (kontrak `sot/api/queue-counts.yaml`, USDX-678) ─────────
+//
+// Badge sidebar membaca angka ini, BUKAN `metadata.total` list: list Pencairan
+// Bermasalah dan Persetujuan Pencairan mendekripsi rekening dan menulis
+// `pii_access_audit` per baris, jadi `take=1` untuk sebuah angka mengarang jejak
+// akses PII yang tidak pernah terjadi (`conventions.md § Audit Akses PII`).
+// Kunci baru boleh ditambahkan server kelak — klien mengabaikan yang tak dikenalnya.
+
+/** `GET /api/v1/queue-counts` — predikat tiap angka SAMA dengan `metadata.total` list-nya. */
+export interface QueueCounts {
+  payoutFailuresOpen: number
+  redeemApprovalsOpen: number
+}
