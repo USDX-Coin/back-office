@@ -118,18 +118,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BanknoteIcon,
         badgeKey: 'redeemApprovals',
       },
-      // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). § 17.9 menaruhnya
-      // "satu grup dengan Mint Bermasalah", tapi menu itu tidak ada di back-office
-      // ini; tetangga terdekatnya adalah Persetujuan Pencairan — order yang DITOLAK
-      // di sana mendarat di sini. Visibilitas SEMUA peran (list terbuka untuk
-      // STAFF/DEVELOPER), resolve digerbangi di dalam layar. Badge `(N)` = antrean
-      // terbuka, tampil untuk semua peran: tiap satuannya rupiah yang belum sampai.
-      {
-        to: '/payout-failures',
-        label: 'Pencairan Bermasalah',
-        icon: BanknoteX,
-        badgeKey: 'payoutFailures',
-      },
     ],
   },
   {
@@ -181,6 +169,18 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/multisig', label: 'Multisig', icon: KeyRound, visibleWhen: canAccessTreasury },
       { to: '/bni-accounts', label: 'Rekening BNI', icon: Landmark },
+      // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). Linear menunjuk "sidebar
+      // TREASURY/OPS"; § 17.9 menyebut "satu grup dengan Mint Bermasalah", menu yang
+      // tidak ada di back-office ini, jadi section TREASURY yang dipakai. Visibilitas
+      // SEMUA peran tanpa `visibleWhen` (list terbuka untuk STAFF/DEVELOPER, pola
+      // Rekening BNI); resolve digerbangi MANAGER/ADMIN di dalam layar. Badge `(N)` =
+      // antrean terbuka, tampil untuk semua peran: tiap satuannya rupiah yang belum sampai.
+      {
+        to: '/payout-failures',
+        label: 'Pencairan Bermasalah',
+        icon: BanknoteX,
+        badgeKey: 'payoutFailures',
+      },
     ],
   },
   {

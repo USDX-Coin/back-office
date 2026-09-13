@@ -178,7 +178,7 @@ export default function PayoutFailuresPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Consumer"
+          eyebrow="Treasury"
           title="Pencairan Bermasalah"
           italicAccent="redeem"
           subtitle="Payout redeem yang gagal, burn yang ditolak, dan payout yang tertahan. USDX nasabah sudah terbakar dan rupiahnya belum sampai — setiap baris menunggu satu keputusan manusia."

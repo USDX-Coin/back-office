@@ -14,17 +14,19 @@ function treasuryItems(staffId: string): string[] {
 
 describe('visibleNavSections — Treasury (USDX-631)', () => {
   describe('positive', () => {
-    test('STAFF sees the Treasury section with ONLY Rekening BNI', () => {
-      expect(treasuryItems('stf_4')).toEqual(['Rekening BNI']) // Sarah King, STAFF
+    // USDX-662 menambah "Pencairan Bermasalah" ke Treasury (Linear: sidebar
+    // TREASURY/OPS) — terbuka semua peran seperti Rekening BNI.
+    test('STAFF sees the Treasury section without Multisig', () => {
+      expect(treasuryItems('stf_4')).toEqual(['Rekening BNI', 'Pencairan Bermasalah']) // Sarah King, STAFF
     })
 
-    test('MANAGER sees Multisig and Rekening BNI', () => {
-      expect(treasuryItems('stf_2')).toEqual(['Multisig', 'Rekening BNI']) // Linda Chen
+    test('MANAGER sees Multisig, Rekening BNI and Pencairan Bermasalah', () => {
+      expect(treasuryItems('stf_2')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah']) // Linda Chen
     })
 
-    test('ADMIN and DEVELOPER see both entries too', () => {
-      expect(treasuryItems('stf_1')).toEqual(['Multisig', 'Rekening BNI'])
-      expect(treasuryItems('stf_3')).toEqual(['Multisig', 'Rekening BNI'])
+    test('ADMIN and DEVELOPER see every entry too', () => {
+      expect(treasuryItems('stf_1')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah'])
+      expect(treasuryItems('stf_3')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah'])
     })
   })
 
@@ -33,12 +35,12 @@ describe('visibleNavSections — Treasury (USDX-631)', () => {
       expect(treasuryItems('stf_4')).not.toContain('Multisig')
     })
 
-    test('a null user still yields only Rekening BNI in Treasury (Multisig is the gated item)', () => {
+    test('a null user still yields the ungated Treasury entries (Multisig is the gated item)', () => {
       const section = visibleNavSections(null).find((s) => s.label === 'Treasury')
       // Rekening BNI has no visibleWhen, so the section itself still renders
       // for a null user at the nav-model level; the ProtectedRoute wrapper is
       // what keeps an anonymous visitor out of the app. Pin the current model.
-      expect(section?.items.map((i) => i.label)).toEqual(['Rekening BNI'])
+      expect(section?.items.map((i) => i.label)).toEqual(['Rekening BNI', 'Pencairan Bermasalah'])
     })
   })
 
@@ -50,6 +52,15 @@ describe('visibleNavSections — Treasury (USDX-631)', () => {
         .find((i) => i.label === 'Rekening BNI')
       expect(item?.to).toBe('/bni-accounts')
       expect(item?.badgeKey).toBeUndefined()
+    })
+
+    test('Pencairan Bermasalah links to /payout-failures and carries the open-queue badge for STAFF', () => {
+      const staff = findStaffById('stf_4') ?? null
+      const item = visibleNavSections(staff)
+        .flatMap((s) => s.items)
+        .find((i) => i.label === 'Pencairan Bermasalah')
+      expect(item?.to).toBe('/payout-failures')
+      expect(item?.badgeKey).toBe('payoutFailures')
     })
   })
 })
