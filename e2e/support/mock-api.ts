@@ -634,7 +634,7 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
 // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ──────────
 // Dua order: PAYOUT_FAILED (tiga aksi) dan BURN_REJECTED (tanpa RESENT). Satu seed per
 // panggilan `installMockApi`, jadi resolve di satu test tidak bocor ke test lain.
-export interface MockPayoutReview {
+interface MockPayoutReview {
   action: string
   reason: string
   externalRef: string | null
@@ -643,7 +643,7 @@ export interface MockPayoutReview {
   createdAt: string
 }
 
-export function seedPayoutFailures() {
+function seedPayoutFailures() {
   const common = () => ({
     chain: 'polygon',
     amountWei: '250000000',

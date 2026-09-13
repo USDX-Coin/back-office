@@ -25,7 +25,7 @@ import type {
 
 const QUEUE_PATH = '/api/v1/payout-failures'
 
-export interface PayoutFailureFilters {
+interface PayoutFailureFilters {
   page?: number
   /** Nama parameter kontraknya `take`; jawabannya tetap `metadata.limit`. */
   take?: number

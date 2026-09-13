@@ -128,7 +128,7 @@ export const RESOLVE_ACTION_LABELS: Record<PayoutResolution, string> = {
 }
 
 /** Label jejak — bentuk lampau, karena ia yang sudah terjadi. */
-export const RESOLUTION_TRAIL_LABELS: Record<PayoutResolution, string> = {
+const RESOLUTION_TRAIL_LABELS: Record<PayoutResolution, string> = {
   RESENT: 'Dikirim ulang',
   SETTLED_MANUAL: 'Dibayar di luar sistem',
   CLOSED: 'Ditutup tanpa pembayaran',
@@ -141,7 +141,7 @@ export function resolutionTrailLabel(action: string): string {
 // ─── Validasi form resolve ──────────────────────────────────────────────────
 
 /** `ResolvePayoutFailure.reason minLength: 10` (kontrak) — `@MaxLength(500)` di DTO backend. */
-export const PAYOUT_RESOLVE_REASON_MIN = 10
+const PAYOUT_RESOLVE_REASON_MIN = 10
 export const PAYOUT_RESOLVE_REASON_MAX = 500
 /** `@MaxLength(100)` pada `externalRef` di DTO backend. */
 export const PAYOUT_EXTERNAL_REF_MAX = 100
@@ -154,7 +154,7 @@ export interface ResolveFormInput {
 
 export type ResolveFormErrors = Partial<Record<'reason' | 'externalRef', string>>
 
-export type ResolveFormResult =
+type ResolveFormResult =
   | { valid: true; body: ResolvePayoutFailureBody }
   | { valid: false; errors: ResolveFormErrors }
 
@@ -199,7 +199,7 @@ export function buildResolveBody(input: ResolveFormInput): ResolveFormResult {
 
 // ─── Jejak submission ───────────────────────────────────────────────────────
 
-export interface SubmissionSummary {
+interface SubmissionSummary {
   total: number
   /** Percobaan yang TIDAK terbukti ditolak — transfernya mungkin sudah berangkat. */
   notProvenRejected: number
