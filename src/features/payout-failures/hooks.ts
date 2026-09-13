@@ -7,6 +7,7 @@ import type {
   PayoutFailureListItem,
   PayoutIssueKind,
   PhaseOnePaginatedResponse,
+  ReplacementBankAccount,
   ResolvePayoutFailureResult,
 } from '@/lib/types'
 
@@ -56,6 +57,15 @@ export function usePayoutFailures(filters: PayoutFailureFilters) {
 }
 
 /**
+ * Bentuk detail di kabel. `replacementBankAccounts` tidak `required` di kontrak dan backend
+ * sebelum USDX-677 tidak mengirimnya sama sekali — build yang di-deploy tidak memakai MSW,
+ * jadi keadaan itu nyata, bukan teori.
+ */
+type PayoutFailureDetailWire = Omit<PayoutFailureDetail, 'replacementBankAccounts'> & {
+  replacementBankAccounts?: ReplacementBankAccount[] | null
+}
+
+/**
  * `GET /api/v1/payout-failures/:id` — satu request, satu keputusan. `enabled`
  * dipegang pemanggil (detail dibuka), tanpa refetch fokus/reconnect/basi —
  * disiplin `useRedeemApprovalDetail` / `useKycDetail`. Setelah resolve ia
@@ -65,7 +75,13 @@ export function usePayoutFailures(filters: PayoutFailureFilters) {
 export function usePayoutFailureDetail(id: string | null) {
   return useQuery({
     queryKey: ['payout-failures', 'detail', id],
-    queryFn: () => apiFetch<PayoutFailureDetail>(`${QUEUE_PATH}/${id}`),
+    // Dinormalisasi DI SINI, satu titik batas (review #105): field absen / null = address book
+    // kosong ⇒ Kirim ulang tanpa dropdown ke rekening yang sama, perilaku #104. Tanpa ini
+    // ketiga dialog resolve meledak saat membaca `.find` pada `undefined`.
+    queryFn: async (): Promise<PayoutFailureDetail> => {
+      const wire = await apiFetch<PayoutFailureDetailWire>(`${QUEUE_PATH}/${id}`)
+      return { ...wire, replacementBankAccounts: wire.replacementBankAccounts ?? [] }
+    },
     enabled: Boolean(id),
     staleTime: Infinity,
     refetchOnWindowFocus: false,

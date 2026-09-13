@@ -2959,6 +2959,8 @@ export interface PayoutFailureDetail extends PayoutFailureListItem {
    * Address book nasabah pemilik order — SATU-SATUNYA sumber `bankAccountId` pada
    * `RESENT` (§ 17.5, rev 2026-09-13). Retail: semua rekening tersimpan, terbaru dulu,
    * TERMASUK yang sama dengan tujuan saat ini. Partner: selalu `[]`. Hanya di detail.
+   * Kontrak tidak mewajibkannya dan backend sebelum USDX-677 tidak mengirimnya — absen / `null`
+   * dinormalisasi jadi `[]` di `usePayoutFailureDetail`, jadi di sini ia selalu array.
    */
   replacementBankAccounts: ReplacementBankAccount[]
 }
