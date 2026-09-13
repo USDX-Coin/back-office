@@ -98,8 +98,9 @@ const RATE_INFO = {
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
 const RATE_USED = RATE_INFO.effectiveBuyRate
 
-// USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full 5-field snapshot —
-// W2 mint/PG tariffs + W3 redeem fee % + disbursement fee flat.
+// USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full snapshot — W2
+// mint/PG tariffs + W3 redeem fee % + disbursement fee flat + minimum mint /
+// minimum redeem (USDX-637 / USDX-682).
 const FEE_CONFIG = {
   id: 'fee-0001',
   mintFeePct: '1.0',
@@ -109,6 +110,8 @@ const FEE_CONFIG = {
   disbursementFeeFlat: '5000.00',
   // Minimum mint Rp (USDX-635/637) — kolom config, bukan konstanta kode lagi.
   minMintIdr: '20000',
+  // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
+  minRedeemIdr: '20000',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
@@ -920,9 +923,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
-      // Full 6-field snapshot, all required + non-negative (USDX-245, plus
-      // `minMintIdr` USDX-637). Body failures → 422 VALIDATION_ERROR
-      // (fee-config on the v1→422 allowlist).
+      // Full 7-field snapshot, all required + non-negative (USDX-245, plus
+      // `minMintIdr` USDX-637 and `minRedeemIdr` USDX-682). Body failures →
+      // 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
       for (const f of [
         'mintFeePct',
         'pgFeeVaFlat',
@@ -930,6 +933,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         'redeemFeePct',
         'disbursementFeeFlat',
         'minMintIdr',
+        'minRedeemIdr',
       ]) {
         const n = Number(b[f])
         if (b[f] == null || b[f] === '' || !Number.isFinite(n) || n < 0) {
@@ -941,6 +945,10 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       if (Number(b.minMintIdr) < 10000) {
         return error(route, 'VALIDATION_ERROR', 'minMintIdr must be at least 10000', 422)
       }
+      // Lantai keras minimum redeem (USDX-682) — sama alasannya.
+      if (Number(b.minRedeemIdr) < 10000) {
+        return error(route, 'VALIDATION_ERROR', 'minRedeemIdr must be at least 10000', 422)
+      }
       liveFee = {
         id: 'fee-live',
         mintFeePct: b.mintFeePct,
@@ -949,6 +957,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         redeemFeePct: b.redeemFeePct,
         disbursementFeeFlat: b.disbursementFeeFlat,
         minMintIdr: b.minMintIdr,
+        minRedeemIdr: b.minRedeemIdr,
         updatedBy: ADMIN_STAFF.id,
         createdAt: '2026-06-17T00:00:00.000Z',
       }

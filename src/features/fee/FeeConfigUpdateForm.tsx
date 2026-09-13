@@ -8,6 +8,7 @@ import FieldError from '@/components/FieldError'
 import {
   feeConfigErrorField,
   MIN_MINT_IDR_FLOOR,
+  MIN_REDEEM_IDR_FLOOR,
   validateFeeConfigForm,
 } from '@/lib/validators'
 import { ApiError } from '@/lib/apiFetch'
@@ -25,14 +26,17 @@ interface FormState {
   redeemFeePct: string
   disbursementFeeFlat: string
   minMintIdr: string
+  minRedeemIdr: string
 }
 
 type FormOverrides = Partial<FormState>
 
 // Form seeds from the current config; undefined fields fall back to current so
-// the form fills in once GET resolves (no effect needed). All 6 fields are
+// the form fills in once GET resolves (no effect needed). All 7 fields are
 // pre-filled because POST is a full snapshot — partial submits would zero out
-// the fees we don't send (USDX-245, and `minMintIdr` since USDX-637).
+// the fees we don't send (USDX-245, `minMintIdr` since USDX-637, `minRedeemIdr`
+// since USDX-682). `minRedeemIdr` is REQUIRED on the backend: a form that does
+// not send it is refused 422, so saving the OLD config would fail too.
 function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): FormState {
   return {
     mintFeePct: overrides.mintFeePct ?? current?.mintFeePct ?? '',
@@ -41,6 +45,7 @@ function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): 
     redeemFeePct: overrides.redeemFeePct ?? current?.redeemFeePct ?? '',
     disbursementFeeFlat: overrides.disbursementFeeFlat ?? current?.disbursementFeeFlat ?? '',
     minMintIdr: overrides.minMintIdr ?? current?.minMintIdr ?? '',
+    minRedeemIdr: overrides.minRedeemIdr ?? current?.minRedeemIdr ?? '',
   }
 }
 
@@ -82,6 +87,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
         redeemFeePct: form.redeemFeePct.trim(),
         disbursementFeeFlat: form.disbursementFeeFlat.trim(),
         minMintIdr: form.minMintIdr.trim(),
+        minRedeemIdr: form.minRedeemIdr.trim(),
       })
       toast.success('Fee config updated')
       setOverrides({})
@@ -261,6 +267,40 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                 {MIN_MINT_IDR_FLOOR.toLocaleString('id-ID')}.
               </p>
               <FieldError message={errors.minMintIdr} />
+            </div>
+          </div>
+
+          {/* Minimum redeem (USDX-682) — kembaran Minimum Mint, di snapshot
+              penuh yang sama. Angkanya dibandingkan ke rupiah BERSIH yang
+              diterima nasabah setelah fee (`net_payout_idr`), bukan bruto:
+              nasabah menilai minimum dari uang yang benar-benar masuk ke
+              rekeningnya. */}
+          <div className="space-y-4 border-t border-border pt-5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              Redeem limit
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="minRedeemIdr">Minimum Redeem (Rp)</Label>
+              <div className="relative">
+                <Input
+                  id="minRedeemIdr"
+                  type="number"
+                  step="1"
+                  min={MIN_REDEEM_IDR_FLOOR}
+                  value={form.minRedeemIdr}
+                  onChange={(e) => set('minRedeemIdr', e.target.value)}
+                  placeholder="20000"
+                  className="pr-12 font-mono"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  IDR
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rupiah bersih terkecil yang diterima nasabah, setelah fee.
+                Minimum Rp {MIN_REDEEM_IDR_FLOOR.toLocaleString('id-ID')}.
+              </p>
+              <FieldError message={errors.minRedeemIdr} />
             </div>
           </div>
         </CardContent>

@@ -252,12 +252,25 @@ export interface FeeConfig {
    * Backend punya lantai keras Rp 10.000.
    */
   minMintIdr: string
+  /**
+   * Minimum redeem Rp (USDX-682). Kolom `fee_configs.min_redeem_idr`, kembaran
+   * `min_mint_idr`. Dibandingkan ke `net_payout_idr` — rupiah yang BENAR-BENAR
+   * diterima nasabah setelah fee, bukan bruto. Backend punya lantai keras
+   * Rp 10.000.
+   *
+   * Dibaca dari GET supaya form bisa mem-prefill nilai aktif: tanpa prefill,
+   * operator harus mengetik ulang angkanya tiap kali menyimpan fee lain — dan
+   * field wajib yang kosong membuat penyimpanan gagal sama sekali.
+   * `sot/api/fee.yaml § FeeConfig` belum mencantumkannya (baru ada di
+   * § UpdateFeeConfig); lihat SOT Corrections di PR.
+   */
+  minRedeemIdr: string
   updatedBy: string
   createdAt: string
 }
 
 // sot/api/fee.yaml § UpdateFeeConfig — POST = full snapshot (semua field
-// required, kini 6 dengan `minMintIdr`, USDX-637). Jangan kirim partial: BE
+// required, kini 7 dengan `minRedeemIdr`, USDX-682). Jangan kirim partial: BE
 // meng-overwrite seluruh row, partial = meng-nol-kan fee yang tidak dikirim
 // (USDX-245). Body invalid → 422 VALIDATION_ERROR (conventions.md § Validation
 // Error — fee-config allowlist).
@@ -269,6 +282,13 @@ export interface UpdateFeeConfig {
   disbursementFeeFlat: string
   /** Minimum mint Rp — ikut snapshot penuh (USDX-637). */
   minMintIdr: string
+  /**
+   * Minimum redeem Rp — ikut snapshot penuh (USDX-682). WAJIB: begitu backend
+   * menjadikannya field wajib, body tanpa field ini ditolak 422 — artinya
+   * menyimpan fee config yang lama pun gagal, bukan cuma minimum redeemnya
+   * yang tidak tersimpan.
+   */
+  minRedeemIdr: string
 }
 
 // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───────
