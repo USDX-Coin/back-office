@@ -118,6 +118,11 @@ describe('summarizeSubmissions', () => {
       ).toEqual({ total: 2, notProvenRejected: 1 })
     })
   })
+  describe('negative', () => {
+    test('every attempt rejected leaves nothing that may have departed', () => {
+      expect(summarizeSubmissions([submission(), submission()])).toEqual({ total: 2, notProvenRejected: 0 })
+    })
+  })
   describe('edge cases', () => {
     test('no submission at all', () => {
       expect(summarizeSubmissions([])).toEqual({ total: 0, notProvenRejected: 0 })

@@ -85,6 +85,14 @@ describe('GET /api/v1/payout-failures/:id', () => {
       expect((await res.json()).error).toEqual({ code: 'NOT_FOUND', message: 'PAYOUT_FAILURE_NOT_FOUND' })
     })
   })
+  describe('edge cases', () => {
+    test('a resolved order leaves the queue but stays readable through detail', async () => {
+      await resolve(IDS.burnRejected, { action: 'CLOSED', reason: 'Nasabah setuju tidak dibayar' })
+      const res = await fetch(`/api/v1/payout-failures/${IDS.burnRejected}`)
+      expect(res.status).toBe(200)
+      expect(((await res.json()).data as PayoutFailureDetail).resolution).toBe('CLOSED')
+    })
+  })
 })
 
 describe('POST /api/v1/payout-failures/:id/resolve', () => {
