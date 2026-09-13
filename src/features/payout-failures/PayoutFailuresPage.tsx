@@ -1,5 +1,6 @@
+import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { BanknoteX } from 'lucide-react'
+import { BanknoteX, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
@@ -24,6 +25,7 @@ import {
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
 import type { PayoutFailureListItem } from '@/lib/types'
 import { PAYOUT_FAILURE_COLUMN_CONFIG, PAYOUT_FAILURE_FILTER_DEFS } from './filterDefs'
+import PayoutFailureDetailModal from './PayoutFailureDetailModal'
 import { usePayoutFailures } from './hooks'
 
 const PAGE_SIZE = 10
@@ -46,6 +48,9 @@ const PAGE_SIZE = 10
 export default function PayoutFailuresPage() {
   const { user } = useAuth()
   const canResolve = canResolvePayoutFailure(user)
+  const navigate = useNavigate()
+  // `/payout-failures/:id` merender ulang antrean dan membuka detailnya (pola /screening).
+  const { id: activeId } = useParams<{ id?: string }>()
 
   const params = useDataTableParams()
   const rawKind = params.searchParams.get('issueKind') ?? ''
@@ -60,6 +65,11 @@ export default function PayoutFailuresPage() {
   )
 
   const rows = list.data?.data ?? []
+  // Filter & halaman ikut ke URL detail dan kembali saat modal ditutup — ops yang
+  // menuntaskan antrean BURN_REJECTED satu per satu tidak boleh terlempar ke semua jenis.
+  const query = params.searchParams.toString()
+  const suffix = query ? `?${query}` : ''
+  const openDetail = (id: string) => navigate(`/payout-failures/${id}${suffix}`)
   const total = list.data?.metadata.total ?? 0
 
   const columns: ColumnDef<PayoutFailureListItem>[] = [
@@ -144,6 +154,24 @@ export default function PayoutFailuresPage() {
         </span>
       ),
     },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            openDetail(row.original.id)
+          }}
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          aria-label={`Buka detail pencairan ${row.original.bankAccountName}`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Detail
+        </button>
+      ),
+    },
   ]
 
   return (
@@ -208,7 +236,16 @@ export default function PayoutFailuresPage() {
               description="Antrean kosong berarti tidak ada payout yang gagal, burn yang ditolak, atau payout yang tertahan menunggu keputusan. Order yang sudah dituntaskan keluar dari daftar ini."
             />
           }
+          onRowClick={(r) => openDetail(r.id)}
           rowAriaLabel={(r) => `Pencairan bermasalah ${r.bankAccountName} ${r.netPayoutIdr}`}
+        />
+
+        <PayoutFailureDetailModal
+          orderId={activeId ?? null}
+          open={Boolean(activeId)}
+          onOpenChange={(o) => {
+            if (!o) navigate(`/payout-failures${suffix}`, { replace: true })
+          }}
         />
       </div>
     </TooltipProvider>

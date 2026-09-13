@@ -33,16 +33,16 @@ function recordListQueries() {
 describe('PayoutFailuresPage @ USDX-662', () => {
   describe('positive', () => {
     test('should render the open queue oldest-first with the full account and exact amount', async () => {
-      setup()
+      const { container } = setup()
       expect(await screen.findByText('RINA SUSANTI')).toBeInTheDocument()
-      const rows = screen.getAllByRole('row')
-      // rows[0] = header; seed tertua = RINA SUSANTI.
-      expect(within(rows[1]!).getByText('8730012245')).toBeInTheDocument()
-      expect(within(rows[1]!).getByText('Rp 4.012.350,00')).toBeInTheDocument()
-      expect(within(rows[1]!).getByText('Payout gagal')).toBeInTheDocument()
+      // Baris bisa diklik (role tombol), jadi dibaca dari tbody — seed tertua = RINA SUSANTI.
+      const rows = [...container.querySelectorAll<HTMLElement>('tbody tr')]
+      expect(rows).toHaveLength(5)
+      expect(within(rows[0]!).getByText('8730012245')).toBeInTheDocument()
+      expect(within(rows[0]!).getByText('Rp 4.012.350,00')).toBeInTheDocument()
+      expect(within(rows[0]!).getByText('Payout gagal')).toBeInTheDocument()
       // Kode mesin diterjemahkan, tidak dirender mentah.
-      expect(within(rows[1]!).getByText('Ditolak provider saat diserahkan')).toBeInTheDocument()
-      expect(screen.getAllByRole('row')).toHaveLength(1 + 5)
+      expect(within(rows[0]!).getByText('Ditolak provider saat diserahkan')).toBeInTheDocument()
     })
 
     test('should send issueKind from the URL and show only that population', async () => {

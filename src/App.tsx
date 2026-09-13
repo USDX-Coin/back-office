@@ -149,6 +149,7 @@ export const appRoutes: RouteObject[] = [
           // back office (`sot/api/payout-failures.yaml § Akses`), resolve digerbangi
           // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
           { path: '/payout-failures', element: <PayoutFailuresPage /> },
+          { path: '/payout-failures/:id', element: <PayoutFailuresPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects
