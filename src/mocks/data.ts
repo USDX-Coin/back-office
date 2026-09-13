@@ -62,6 +62,8 @@ import type {
   RedeemApprovalDetail,
   RedeemApprovalListItem,
   RedeemApprovalOwnerType,
+  PayoutFailureDetail,
+  PayoutSubmissionTrail,
   OrderOnBehalfOf,
   MintPaymentStatus,
   MintSafeStatus,
@@ -2429,4 +2431,194 @@ export function createMockRedeemApprovals(): {
 /** Ambang bawaan migrasi: `"0"` — SEMUA pencairan wajib disetujui (fail-closed). */
 export function createInitialRedeemApprovalControls(): RedeemApprovalControls {
   return { approvalThresholdIdr: '0', updatedAt: null, updatedByName: null }
+}
+
+// ─── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ───────────
+
+/** Id stabil supaya test menunjuk KEADAAN, bukan posisi baris. */
+export const PAYOUT_FAILURE_MOCK_IDS = {
+  /** PAYOUT_FAILED, satu submission ditolak — baris TERTUA. */
+  failedRejected: '019f2a01-0662-7c31-9b2d-000000000001',
+  /** PAYOUT_FAILED setelah pernah di-RESENT: dua submission, satu review, antrean terbuka lagi (§17.2 #4). */
+  failedAfterResend: '019f2a02-0662-7c31-9b2d-000000000002',
+  /** BURN_REJECTED — order partner, TANPA submission sama sekali. */
+  burnRejected: '019f2a03-0662-7c31-9b2d-000000000003',
+  /** PAYOUT_STUCK — submission terakhir belum final, read-only. */
+  stuck: '019f2a04-0662-7c31-9b2d-000000000004',
+  /** PAYOUT_FAILED oleh gerbang pra-kirim kita sendiri — belum pernah diserahkan ke provider. */
+  failedNeverSubmitted: '019f2a05-0662-7c31-9b2d-000000000005',
+} as const
+
+const PAYOUT_FAILURE_BASE_MS = Date.parse('2026-09-12T01:00:00.000Z')
+
+function payoutFailureAt(minutes: number): string {
+  return new Date(PAYOUT_FAILURE_BASE_MS + minutes * 60_000).toISOString()
+}
+
+function payoutSubmission(
+  ref: string,
+  amountIdr: string,
+  submittedMin: number,
+  rejectedMin: number | null,
+  rejectionReason: string | null,
+): PayoutSubmissionTrail {
+  return {
+    partnerReferenceNo: ref,
+    payoutProvider: 'DURIANPAY_SNAP',
+    amountIdr,
+    submittedAt: payoutFailureAt(submittedMin),
+    rejectedAt: rejectedMin === null ? null : payoutFailureAt(rejectedMin),
+    rejectionReason,
+  }
+}
+
+/**
+ * Lima order bermasalah — satu per keadaan yang MENGUBAH layar (aksi yang tersedia,
+ * blok submission kosong vs berisi, jejak review lama), bukan lima variasi warna.
+ * `ownerLabel` retail sudah dalam bentuk ter-mask: di server bentuknya bergantung
+ * role pembaca (USDX-487), dan tiruan ini tidak berpura-pura tahu siapa pembacanya.
+ */
+export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
+  const common = {
+    chain: 'polygon',
+    effectiveRate: '16167.60',
+    lateBurn: false,
+    staleBurn: false,
+    payoutRef: null,
+    resolution: null,
+    resolvedAt: null,
+    resolvedByStaffName: null,
+  } as const
+  const rows: PayoutFailureDetail[] = [
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedRejected,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'PROVIDER_REJECTED',
+      issueReason: '4032402 Invalid beneficiary account',
+      issueAt: payoutFailureAt(0),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '250.000000',
+      amountWei: '250000000',
+      netPayoutIdr: '4012350.00',
+      totalFeeIdr: '29550.00',
+      bankName: 'BCA',
+      bankAccountNumber: '8730012245',
+      bankAccountName: 'RINA SUSANTI',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ri***@example.com',
+      userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      burnTxHash: `0x${'c1'.repeat(32)}`,
+      burnedAt: payoutFailureAt(-30),
+      submissions: [payoutSubmission('RDM260912A1B2C3', '4012350.00', -20, -19, 'Invalid beneficiary account')],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedAfterResend,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'PROVIDER_FAILED',
+      issueReason: 'Transfer Bank Notify: FAILED — beneficiary bank rejected',
+      issueAt: payoutFailureAt(95),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '990.000000',
+      amountWei: '990000000',
+      netPayoutIdr: '15881400.00',
+      totalFeeIdr: '156600.00',
+      bankName: 'BTN',
+      bankAccountNumber: '0010144778',
+      bankAccountName: 'FAJAR RAMADHAN',
+      ownerKind: 'PARTNER',
+      ownerLabel: 'Pintu Kripto / cust-88120',
+      userAddress: null,
+      burnTxHash: `0x${'c2'.repeat(32)}`,
+      burnedAt: payoutFailureAt(-200),
+      submissions: [
+        payoutSubmission('RDM260912D4E5F6', '15881400.00', -180, -178, 'Beneficiary bank timeout'),
+        payoutSubmission('RDM260912G7H8J9', '15881400.00', 60, 94, 'Beneficiary bank rejected'),
+      ],
+      reviews: [
+        {
+          action: 'RESENT',
+          reason: 'Bank tujuan sempat gangguan, kirim ulang ke rekening yang sama',
+          externalRef: null,
+          newPartnerReferenceNo: 'RDM260912G7H8J9',
+          actorStaffName: 'Linda Chen',
+          createdAt: payoutFailureAt(55),
+        },
+      ],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.burnRejected,
+      issueKind: 'BURN_REJECTED',
+      issueCode: 'BURN_AMOUNT_MISMATCH',
+      issueReason: 'Burn 120.5 USDX, snapshot order 125 USDX',
+      issueAt: payoutFailureAt(180),
+      status: 'EXPIRED',
+      amountUsdx: '125.000000',
+      amountWei: '125000000',
+      netPayoutIdr: '1991250.00',
+      totalFeeIdr: '29700.00',
+      bankName: 'Mandiri',
+      bankAccountNumber: '1370098812345',
+      bankAccountName: 'DEWI KARTIKA',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'de***@example.com',
+      userAddress: '0x8fD3A1e0B6c4d2E9F7a5B3c1D0e8F6a4B2c0D9E7',
+      burnTxHash: `0x${'c3'.repeat(32)}`,
+      burnedAt: payoutFailureAt(170),
+      lateBurn: true,
+      submissions: [],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.stuck,
+      issueKind: 'PAYOUT_STUCK',
+      issueCode: 'SETTLE_TIMEOUT',
+      issueReason: null,
+      issueAt: payoutFailureAt(400),
+      status: 'PROCESSING_PAYOUT',
+      amountUsdx: '52.400000',
+      amountWei: '52400000',
+      netPayoutIdr: '838080.00',
+      totalFeeIdr: '10800.00',
+      bankName: 'Maybank',
+      bankAccountNumber: '2710033441',
+      bankAccountName: 'CITRA PARAMITHA',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ci***@example.com',
+      userAddress: '0x3cB7d2E1f0A9b8C7d6E5f4A3b2C1d0E9f8A7b6C5',
+      burnTxHash: `0x${'c4'.repeat(32)}`,
+      burnedAt: payoutFailureAt(10),
+      payoutRef: 'dp_trx_0091827',
+      submissions: [payoutSubmission('RDM260912K1L2M3', '838080.00', 30, null, null)],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedNeverSubmitted,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'BANK_CODE_UNSUPPORTED',
+      issueReason: 'bank code 947 not supported by DURIANPAY_SNAP',
+      issueAt: payoutFailureAt(520),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '75.000000',
+      amountWei: '75000000',
+      netPayoutIdr: '1188210.00',
+      totalFeeIdr: '24360.00',
+      bankName: '947',
+      bankAccountNumber: '004521889012',
+      bankAccountName: 'AGUS PRASETYO',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ag***@example.com',
+      userAddress: '0x1aB2c3D4e5F6a7B8c9D0e1F2a3B4c5D6e7F8a9B0',
+      burnTxHash: `0x${'c5'.repeat(32)}`,
+      burnedAt: payoutFailureAt(500),
+      submissions: [],
+      reviews: [],
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
 }

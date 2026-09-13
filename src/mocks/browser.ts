@@ -68,6 +68,15 @@ import { handlers } from './handlers'
 //   /api/v1/redeem-approvals/:id/approve
 //   /api/v1/redeem-approvals/:id/reject
 //   /api/v1/redeem-approval-controls  (GET + PUT share one path)
+//
+// USDX-662: the three Pencairan Bermasalah routes are MOCK-served too. Their
+// backend (USDX-471) IS merged to `dev` (backend#320), but api-dev did not serve
+// it yet when this screen was built (13 Sep 2026: GET /api/v1/payout-failures →
+// 404, not 401). Once it answers 401 unauthenticated, add the three paths here;
+// the handlers STAY in handlers.ts for Vitest (the USDX-154 precedent):
+//   /api/v1/payout-failures
+//   /api/v1/payout-failures/:id
+//   /api/v1/payout-failures/:id/resolve
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).
