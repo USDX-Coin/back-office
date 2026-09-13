@@ -37,7 +37,13 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 //     <DialogBody> …scrollable content… </DialogBody>
 //     <DialogFooter> …action buttons… </DialogFooter>   {/* optional */}
 //   </DialogContent>
-// For form modals, wrap <DialogBody> + <DialogFooter> in the <form>.
+// For form modals, wrap <DialogBody> + <DialogFooter> in the <form> — and give
+// that form `className="flex min-h-0 flex-1 flex-col"`. Any element that sits
+// BETWEEN DialogContent and DialogBody must forward the height limit, or the
+// chain breaks there: DialogBody's `flex-1 min-h-0 overflow-y-auto` only works
+// when its parent is a flex column that may shrink. A form without those
+// classes renders fine until the content outgrows the viewport, and then the
+// last fields and the footer are clipped with no way to reach them (USDX-681).
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
