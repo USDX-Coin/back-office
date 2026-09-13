@@ -216,8 +216,25 @@ describe('requiresRaiseConfirmation', () => {
   })
 
   describe('edge cases', () => {
-    test('should not ask on an unreadable value — the amount is rejected first', () => {
-      expect(requiresRaiseConfirmation('0', 'oops')).toBe(false)
+    // FAIL-CLOSED. Nilai SEKARANG yang tak terbaca adalah keadaan di mana layar
+    // paling tidak paham apa yang sedang dilonggarkan — jadi justru di situ
+    // konfirmasinya wajib, bukan mati. Keempat masukan di bawah adalah keadaan
+    // nyata: server mengirim nilai tak terbaca, nilai tiga desimal, nilai dengan
+    // pemisah ribuan, dan `GET controls` yang gagal (string kosong).
+    test.each([
+      ['??', '1000000'],
+      ['1000000.000', '5000000'],
+      ['1,000,000', '5000000'],
+      ['', '1000000'],
+    ])('should DEMAND confirmation when the current value %j cannot be read', (from, to) => {
+      expect(classifyThresholdChange(from, to)).toBe('invalid')
+      expect(requiresRaiseConfirmation(from, to)).toBe(true)
+    })
+
+    test('should demand confirmation when the NEXT value cannot be read either', () => {
+      // Tidak terjangkau dari layar (nominalnya divalidasi lebih dulu), tapi
+      // pemanggil lain tidak dijamin melakukannya — dan defaultnya harus menahan.
+      expect(requiresRaiseConfirmation('0', 'oops')).toBe(true)
     })
   })
 })

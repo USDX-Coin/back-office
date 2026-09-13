@@ -64,7 +64,13 @@ export default function RedeemApprovalControlsCard() {
   const update = useUpdateRedeemApprovalControls()
 
   const current: RedeemApprovalControls | undefined = controls.data
-  const currentValue = current?.approvalThresholdIdr ?? '0'
+  // SENGAJA bukan `?? '0'`. `'0'` di layar ini adalah sebuah PERNYATAAN — "semua
+  // pencairan wajib disetujui" — dan mengarangnya untuk nilai yang belum terbaca
+  // membuat `classifyThresholdChange` menghitung arah perubahan dari angka yang
+  // tidak pernah dikirim server. String kosong tidak terbaca sebagai rupiah, jadi
+  // ia diklasifikasikan `'invalid'` dan `requiresRaiseConfirmation` menuntut
+  // konfirmasi — fail-closed, arah yang benar untuk gerbang uang.
+  const currentValue = current?.approvalThresholdIdr ?? ''
 
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState('')
@@ -140,7 +146,10 @@ export default function RedeemApprovalControlsCard() {
             Batas nominal di mana pencairan berhenti untuk dilihat manusia.
           </p>
         </div>
-        {canEdit && !editing && (
+        {/* `current` ikut jadi syarat: mengubah ambang yang nilai sekarangnya belum
+            terbaca berarti menimpa keadaan gerbang uang tanpa tahu keadaan itu.
+            Badan kartu sudah menawarkan "Coba lagi" di tempat yang sama. */}
+        {canEdit && !editing && current && (
           <Button variant="outline" size="sm" className="h-7 shrink-0 text-[12px]" onClick={openEditor}>
             Ubah ambang
           </Button>
@@ -301,9 +310,10 @@ export default function RedeemApprovalControlsCard() {
         )}
       </CardContent>
 
-      {/* Konfirmasi HANYA untuk kenaikan. Ia menyebut kedua nilainya dan akibatnya,
-          bukan "Anda yakin?" — pertanyaan itu tidak menambah informasi apa pun ke
-          keputusan yang baru saja diambil operator. */}
+      {/* Konfirmasi untuk setiap perubahan yang BUKAN pengetatan — termasuk yang
+          arahnya tidak bisa dipastikan karena nilai sekarang tak terbaca. Ia
+          menyebut nilainya dan akibatnya, bukan "Anda yakin?" — pertanyaan itu
+          tidak menambah informasi apa pun ke keputusan yang baru saja diambil. */}
       <Dialog
         open={confirming}
         onOpenChange={(next) => {
@@ -317,13 +327,21 @@ export default function RedeemApprovalControlsCard() {
         >
           <DialogHeader>
             <DialogTitle>
-              {change === 'raised-from-zero'
-                ? 'Lepas pencairan dari pengawasan manusia?'
-                : 'Longgarkan gerbang pencairan?'}
+              {change === 'invalid'
+                ? 'Setel ambang tanpa tahu nilai sekarang?'
+                : change === 'raised-from-zero'
+                  ? 'Lepas pencairan dari pengawasan manusia?'
+                  : 'Longgarkan gerbang pencairan?'}
             </DialogTitle>
             <DialogDescription>
-              Ambang naik dari {formatIdrExact(currentValue)} ke{' '}
-              {formatIdrExact(amount.trim())}.
+              {change === 'invalid' ? (
+                <>Ambang akan disetel ke {formatIdrExact(amount.trim())}.</>
+              ) : (
+                <>
+                  Ambang naik dari {formatIdrExact(currentValue)} ke{' '}
+                  {formatIdrExact(amount.trim())}.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -334,7 +352,23 @@ export default function RedeemApprovalControlsCard() {
             >
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
               <span>
-                {change === 'raised-from-zero' ? (
+                {change === 'invalid' ? (
+                  <>
+                    Nilai ambang yang berlaku sekarang{' '}
+                    <strong>tidak terbaca sebagai rupiah</strong>
+                    {currentValue.trim() ? (
+                      <> (server mengirim “{currentValue}”)</>
+                    ) : (
+                      <> (belum berhasil dimuat)</>
+                    )}
+                    , jadi layar ini <strong>tidak bisa memastikan</strong> apakah
+                    perubahan ini mengetatkan atau melonggarkan gerbang. Setelah
+                    disimpan, pencairan sampai{' '}
+                    <strong>{formatIdrExact(amount.trim())}</strong> dikirim otomatis
+                    tanpa ada yang memeriksa rekening tujuannya. Muat ulang kartunya
+                    dulu kalau Anda belum yakin.
+                  </>
+                ) : change === 'raised-from-zero' ? (
                   <>
                     Sekarang setiap pencairan disetujui manusia dulu. Setelah disimpan,
                     pencairan sampai{' '}
@@ -376,7 +410,11 @@ export default function RedeemApprovalControlsCard() {
               disabled={update.isPending}
               aria-busy={update.isPending}
             >
-              {update.isPending ? 'Menyimpan…' : 'Ya, naikkan ambang'}
+              {update.isPending
+                ? 'Menyimpan…'
+                : change === 'invalid'
+                  ? 'Ya, setel ambang'
+                  : 'Ya, naikkan ambang'}
             </Button>
           </DialogFooter>
         </DialogContent>

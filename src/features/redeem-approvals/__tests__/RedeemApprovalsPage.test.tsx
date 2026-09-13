@@ -345,6 +345,33 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       expect(await screen.findByText(/Ambangnya 0/)).toBeInTheDocument()
     })
 
+    test('should NOT claim the threshold is 0 when the controls endpoint failed', async () => {
+      // Cabang ini yang membuat layar berbohong sebelum diperbaiki: `threshold`
+      // `undefined` jatuh ke kalimat "ambangnya 0, semua akan muncul di sini", dan
+      // ops menyimpulkan tidak ada yang menunggu — padahal ambangnya bisa Rp 50
+      // juta dan rupiah sedang keluar tanpa dilihat siapa pun.
+      server.use(
+        http.get('/api/v1/redeem-approvals', () => okList([])),
+        http.get('/api/v1/redeem-approval-controls', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'INTERNAL', message: 'boom' },
+            },
+            { status: 500 },
+          ),
+        ),
+      )
+      setup()
+
+      expect(await screen.findByText(/Ambang aktif belum diketahui/)).toBeInTheDocument()
+      expect(screen.queryByText(/Ambangnya 0/)).not.toBeInTheDocument()
+      // Kartu di atas mengatakan hal yang sama — satu layar, satu keadaan.
+      expect(screen.getByText(/Ambang aktif gagal dimuat/)).toBeInTheDocument()
+    })
+
     test('should turn a second approval into ALREADY_APPROVED guidance, not a raw 409', async () => {
       const user = userEvent.setup()
       const errSpy = vi.spyOn(toast, 'error')

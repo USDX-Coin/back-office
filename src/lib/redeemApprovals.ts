@@ -165,13 +165,24 @@ export function classifyThresholdChange(
  * AC tiket menuntutnya untuk kenaikan dari `0`. Ia diterapkan ke SETIAP kenaikan,
  * dan itu bukan pelonggaran AC melainkan superset-nya: naik dari Rp 1 juta ke
  * Rp 1 miliar juga melepas rupiah yang sebelumnya dilihat manusia, dan tidak ada
- * alasan kenaikan itu lebih ringan daripada kenaikan dari nol. Menurunkan ambang
- * (lebih banyak yang wajib disetujui) tidak pernah butuh konfirmasi —
- * mengetatkan tidak boleh lebih sulit daripada melonggarkan.
+ * alasan kenaikan itu lebih ringan daripada kenaikan dari nol.
+ *
+ * Ditulis sebagai DAFTAR-TOLAK — hanya `lowered` dan `unchanged` yang lewat
+ * tanpa konfirmasi — dan itu intinya, bukan gaya. Versi daftar-izin
+ * (`=== 'raised' || === 'raised-from-zero'`) memetakan `'invalid'` ke `false`,
+ * jadi satu-satunya pagar sebelum melonggarkan payout MATI persis saat layar
+ * tidak paham keadaan sekarang: nilai sekarang yang tak terbaca (`"??"`,
+ * `"1,000,000"`, `"1000000.000"`, string kosong saat `GET controls` gagal) akan
+ * lolos langsung ke `PUT`. Untuk gerbang uang arahnya harus terbalik —
+ * **tak terklasifikasi ⇒ wajib konfirmasi**, dan dialognya mengatakan bahwa arah
+ * perubahannya memang tidak bisa dipastikan.
+ *
+ * Menurunkan ambang (lebih banyak yang wajib disetujui) tidak pernah butuh
+ * konfirmasi — mengetatkan tidak boleh lebih sulit daripada melonggarkan.
  */
 export function requiresRaiseConfirmation(current: string, next: string): boolean {
   const change = classifyThresholdChange(current, next)
-  return change === 'raised' || change === 'raised-from-zero'
+  return change !== 'lowered' && change !== 'unchanged'
 }
 
 // ─── Validasi isian ─────────────────────────────────────────────────────────

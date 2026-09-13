@@ -301,14 +301,25 @@ export default function RedeemApprovalsPage() {
                 />
               }
               title="Tidak ada pencairan yang menunggu persetujuan"
+              // Antrean kosong punya sebab yang terlihat identik: tidak ada
+              // pencairan, atau ambangnya melewatkan semuanya. Keterangan yang
+              // hanya berbunyi "tidak ada data" membuat ambang yang keliru tinggi
+              // terlihat seperti hari yang sepi.
+              //
+              // TIGA cabang, bukan dua, dan cabang ketiganya yang penting:
+              // `threshold` `undefined` berarti `GET controls` GAGAL atau masih
+              // berjalan. Menggabungkannya dengan cabang nol membuat layar
+              // MENEGASKAN SEBAGAI FAKTA bahwa setiap pencairan akan muncul di
+              // sini — padahal ambangnya bisa Rp 50 juta dan rupiah sedang keluar
+              // tanpa dilihat siapa pun. Kartu di atas sudah membedakan ketiga
+              // keadaan itu; menyembunyikan yang ketiga di sini membuat satu layar
+              // bertentangan dengan dirinya sendiri.
               description={
-                // Antrean kosong punya DUA sebab yang terlihat identik: tidak ada
-                // pencairan, atau ambangnya melewatkan semuanya. Keterangan yang
-                // hanya berbunyi "tidak ada data" membuat ambang yang keliru tinggi
-                // terlihat seperti hari yang sepi.
-                threshold !== undefined && !holdsEveryPayout(threshold)
-                  ? `Ambang aktif ${formatIdrExact(threshold)} — pencairan sampai nominal itu dikirim otomatis dan tidak pernah masuk antrean ini. Setel ke 0 kalau semuanya harus disetujui.`
-                  : 'Ambangnya 0, jadi setiap pencairan akan muncul di sini begitu USDX nasabah selesai dibakar.'
+                threshold === undefined
+                  ? 'Ambang aktif belum diketahui, jadi kosongnya antrean ini belum bisa dijelaskan: bisa berarti tidak ada pencairan, bisa berarti ambangnya melewatkan semuanya. Muat ulang ambang di kartu atas sebelum menyimpulkan.'
+                  : holdsEveryPayout(threshold)
+                    ? 'Ambangnya 0, jadi setiap pencairan akan muncul di sini begitu USDX nasabah selesai dibakar.'
+                    : `Ambang aktif ${formatIdrExact(threshold)} — pencairan sampai nominal itu dikirim otomatis dan tidak pernah masuk antrean ini. Setel ke 0 kalau semuanya harus disetujui.`
               }
             />
           }

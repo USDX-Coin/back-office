@@ -272,6 +272,67 @@ describe('RedeemApprovalControlsCard @ USDX-669', () => {
       expect(screen.getByLabelText('Ambang baru (Rupiah)')).toHaveValue('750000')
     })
 
+    test('should DEMAND confirmation when the current threshold cannot be read', async () => {
+      // Fail-closed. Kalau server mengirim nilai yang tidak terbaca sebagai rupiah,
+      // layar tidak bisa memastikan perubahan ini mengetatkan atau melonggarkan —
+      // dan satu-satunya pagar sebelum melonggarkan payout tidak boleh mati persis
+      // di keadaan itu. Dialognya juga tidak boleh mengklaim "naik dari X".
+      const user = userEvent.setup()
+      const writes = recordThresholdWrites()
+      configureRedeemApprovalControlsForTests({
+        approvalThresholdIdr: '1,000,000',
+        updatedAt: null,
+        updatedByName: null,
+      })
+      setup()
+      await openEditor(user)
+      await fillForm(user, '5000000', 'Setel ulang setelah nilai lama kacau')
+      await user.click(screen.getByRole('button', { name: 'Simpan ambang' }))
+
+      const confirm = await screen.findByRole('dialog')
+      expect(writes).toHaveLength(0)
+      expect(
+        within(confirm).getByText('Setel ambang tanpa tahu nilai sekarang?'),
+      ).toBeInTheDocument()
+      expect(within(confirm).getByTestId('threshold-raise-confirm')).toHaveTextContent(
+        /tidak bisa memastikan apakah perubahan ini mengetatkan atau melonggarkan/,
+      )
+      // Tombolnya tidak boleh berbunyi "naikkan" untuk arah yang tak diketahui.
+      expect(within(confirm).getByRole('button', { name: 'Ya, setel ambang' })).toBeInTheDocument()
+
+      await user.click(within(confirm).getByRole('button', { name: 'Ya, setel ambang' }))
+      await waitFor(() => expect(writes).toHaveLength(1))
+      expect(writes[0]).toEqual({
+        approvalThresholdIdr: '5000000',
+        reason: 'Setel ulang setelah nilai lama kacau',
+      })
+    })
+
+    test('should not offer the editor at all while the active threshold failed to load', async () => {
+      // Mengubah ambang yang nilai sekarangnya belum terbaca berarti menimpa
+      // keadaan gerbang uang tanpa tahu keadaan itu. Kartunya menawarkan "Coba
+      // lagi" di tempat tombol itu biasanya berada.
+      server.use(
+        http.get('/api/v1/redeem-approval-controls', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: { code: 'INTERNAL', message: 'boom' },
+            },
+            { status: 500 },
+          ),
+        ),
+      )
+      setup()
+      expect(
+        await screen.findByText(/Ambang aktif gagal dimuat/),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Ubah ambang' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
+    })
+
     test('should not ask for confirmation when the value is unchanged', async () => {
       const user = userEvent.setup()
       const writes = recordThresholdWrites()
