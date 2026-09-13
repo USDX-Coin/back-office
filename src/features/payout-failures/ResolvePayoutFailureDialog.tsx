@@ -56,13 +56,15 @@ function Consequence({ action, detail }: { action: PayoutResolution; detail: Pay
           <span className="font-medium">{detail.bankAccountName}</span>
         </p>
         {/* Tidak ada isian nomor rekening di mana pun di layar ini (§ 17.5, D22): satu
-            orang yang bisa mengetik tujuan transfer adalah lubang jalur OTC lama. */}
+            orang yang bisa mengetik tujuan transfer adalah lubang jalur OTC lama. Pemilih
+            rekening pengganti dari address book BELUM ada — kontrak `payout-failures.yaml`
+            belum menyediakan daftar rekening nasabah — jadi teksnya tidak menjanjikannya. */}
         <p className="flex items-start gap-2 text-[12px] text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            Rekening tujuan tidak bisa diketik di sini. Kalau rekeningnya yang salah, nasabah
-            menambahkan rekening yang benar lewat app — kirim ulang ke rekening yang sama hanya
-            akan ditolak lagi.
+            Rekening tujuan tidak bisa diketik di sini, dan memilih rekening pengganti belum
+            tersedia di layar ini — kirim ulang selalu ke rekening di atas. Kalau rekening itu
+            yang salah, jangan kirim ulang.
           </span>
         </p>
       </div>
