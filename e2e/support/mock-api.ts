@@ -634,6 +634,23 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
 // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ──────────
 // Dua order: PAYOUT_FAILED (tiga aksi) dan BURN_REJECTED (tanpa RESENT). Satu seed per
 // panggilan `installMockApi`, jadi resolve di satu test tidak bocor ke test lain.
+// USDX-678: RINA (retail) membawa tiga rekening tersimpan termasuk tujuan saat ini —
+// sumber pemilih rekening pengganti di dialog Kirim ulang.
+
+export const RINA_REPLACEMENT_ACCOUNTS = {
+  mandiri: '019f2b01-0678-7c31-9b2d-00000000e2a1',
+  bcaCurrent: '019f2b02-0678-7c31-9b2d-00000000e2a2',
+  bni: '019f2b03-0678-7c31-9b2d-00000000e2a3',
+} as const
+
+interface MockReplacementAccount {
+  id: string
+  bankCode: string
+  bankName: string
+  accountNumber: string
+  accountName: string
+  label: string | null
+}
 interface MockPayoutReview {
   action: string
   reason: string
@@ -657,6 +674,7 @@ function seedPayoutFailures() {
     resolvedAt: null as string | null,
     resolvedByStaffName: null as string | null,
     reviews: [] as MockPayoutReview[],
+    replacementBankAccounts: [] as MockReplacementAccount[],
   })
   return [
     {
@@ -674,6 +692,11 @@ function seedPayoutFailures() {
       bankAccountName: 'RINA SUSANTI',
       ownerKind: 'RETAIL',
       ownerLabel: 'ri***@example.com',
+      replacementBankAccounts: [
+        { id: RINA_REPLACEMENT_ACCOUNTS.mandiri, bankCode: '008', bankName: 'Mandiri', accountNumber: '1370012245001', accountName: 'RINA SUSANTI', label: 'Mandiri gaji' },
+        { id: RINA_REPLACEMENT_ACCOUNTS.bcaCurrent, bankCode: '014', bankName: 'BCA', accountNumber: '8730012245', accountName: 'RINA SUSANTI', label: 'BCA utama' },
+        { id: RINA_REPLACEMENT_ACCOUNTS.bni, bankCode: '009', bankName: 'BNI', accountNumber: '0291884501', accountName: 'RINA S', label: null },
+      ],
       burnTxHash: `0x${'c1'.repeat(32)}`,
       burnedAt: '2026-09-12T00:30:00.000Z',
       submissions: [
@@ -1226,6 +1249,15 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       })
     }
 
+    // ── Hitungan antrean badge (USDX-678, sot/api/queue-counts.yaml) ──────
+    // Antrean Persetujuan Pencairan tidak dimodelkan di suite ini → 0.
+    if (key === 'GET /api/v1/queue-counts') {
+      return envelope(route, {
+        payoutFailuresOpen: payoutFailures.filter((f) => f.resolution === null).length,
+        redeemApprovalsOpen: 0,
+      })
+    }
+
     // ── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ─────
     if (key === 'GET /api/v1/payout-failures') {
       const kind = url.searchParams.get('issueKind')
@@ -1248,6 +1280,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         // Bentuk galat filter Nest: nama kode di `message`, `code` dari status HTTP.
         if (failure.resolution !== null) return error(route, 'CONFLICT', 'ALREADY_RESOLVED', 409)
         const b = body()
+        // USDX-678: rekening pengganti hanya dari address book pemilik order.
+        const replacement = b.bankAccountId
+          ? failure.replacementBankAccounts.find((a) => a.id === b.bankAccountId)
+          : undefined
+        if (b.bankAccountId && !replacement) return error(route, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED', 409)
         const now = '2026-09-13T08:00:00.000Z'
         const newRef = b.action === 'RESENT' ? 'RDM260913E2E001' : null
         failure.resolution = b.action
@@ -1255,6 +1292,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         failure.resolvedByStaffName = ADMIN_STAFF.name
         if (b.action === 'SETTLED_MANUAL') failure.status = 'PAYOUT_COMPLETE'
         if (b.action === 'RESENT') failure.status = 'PROCESSING_PAYOUT'
+        if (replacement) {
+          failure.bankName = replacement.bankName
+          failure.bankAccountNumber = replacement.accountNumber
+          failure.bankAccountName = replacement.accountName
+        }
         failure.reviews.push({
           action: b.action,
           reason: b.reason,
