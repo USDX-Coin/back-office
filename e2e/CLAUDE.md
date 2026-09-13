@@ -22,6 +22,7 @@ success UX, list refresh — without the side effects.
 | 5 | User CRUD (create → password reveal → list, edit, delete) + directory filters | `usdx-26-users.spec.ts` |
 | 6 | KYC review (USDX-154/155): sidebar badge → list oldest-first → detail modal (PII + photos) → approve / reject → refresh | `usdx-155-kyc.spec.ts` |
 | 7 | User activation (USDX-156): list filter + badges → detail resend (confirm, cooldown, 409/429) → create form phone + no password | `usdx-156-users-activation.spec.ts` |
+| 8 | Pencairan Bermasalah (USDX-662): sidebar badge → antrean → detail → resolve `SETTLED_MANUAL` (body request diperiksa) → jejak resolusi → baris hilang; 409 `ALREADY_RESOLVED` dijelaskan di dialog; `BURN_REJECTED` tanpa kirim ulang | `usdx-662-payout-failures.spec.ts` |
 
 Each spec has `positive` / `negative` / `edge cases` describe blocks.
 
@@ -47,6 +48,7 @@ passthrough requests from the SW context and would bypass `page.route()`.
 - Use `getByRole` / `getByLabel` over `getByText` for strict-mode compliance.
   Radix `Select` triggers aren't reliably label-associated — target them by id
   (e.g. `page.locator('#kycStatus')`).
+- Nested Radix dialogs (e.g. a resolve dialog on top of a detail modal): locate each by its accessible NAME (`getByRole('dialog', { name })`). While the top one is open Radix marks everything beneath it `aria-hidden`, so an unnamed `getByRole('dialog')` sees only the top layer and the page behind the modal is invisible to role queries.
 - Each test is independent — no shared state between tests.
 - Tests run against `http://localhost:5173` (override with `E2E_PORT=5199 pnpm test:e2e` when the port is taken).
 

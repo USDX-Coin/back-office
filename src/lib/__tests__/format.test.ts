@@ -5,6 +5,7 @@ import {
   formatBniPostDate,
   formatDate,
   formatWibDateTime,
+  formatWibClock,
   formatShortDate,
   formatRelativeTime,
   formatRate,
@@ -267,6 +268,35 @@ describe('formatBankAmount', () => {
 
     test('falls back to a bare number when the bank sent no currency', () => {
       expect(formatBankAmount('10', null)).toBe('10.00')
+    })
+  })
+})
+
+// USDX-639 — banner mode uji hanya butuh jam dinding: jendelanya tidak pernah
+// lebih dari 24 jam, jadi tanggal hanya menambah kata tanpa menambah jawaban.
+describe('formatWibClock', () => {
+  describe('positive', () => {
+    test('merender instant UTC sebagai jam WIB', () => {
+      expect(formatWibClock('2026-09-09T07:30:05.000Z')).toBe('14:30 WIB')
+    })
+    test('stamp beroffset ikut dinormalkan ke WIB', () => {
+      expect(formatWibClock('2026-09-09T14:30:05+07:00')).toBe('14:30 WIB')
+    })
+  })
+
+  describe('negative', () => {
+    test('null / stamp tak terbaca → em dash', () => {
+      expect(formatWibClock(null)).toBe('—')
+      expect(formatWibClock('not-a-date')).toBe('—')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('tengah malam WIB jadi 00, bukan 24', () => {
+      expect(formatWibClock('2026-09-09T17:00:00Z')).toBe('00:00 WIB')
+    })
+    test('undefined diperlakukan seperti null', () => {
+      expect(formatWibClock(undefined)).toBe('—')
     })
   })
 })

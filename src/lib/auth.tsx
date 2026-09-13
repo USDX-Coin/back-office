@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
+import {
+  canEnableMintTestMode as canEnableMintTestModeRole,
+  canRestoreMintProdMode as canRestoreMintProdModeRole,
+  canDecideRedeemPayoutRole,
+  canResolvePayoutFailureRole,
+} from './types'
 import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
 interface AuthContextType {
@@ -267,6 +273,57 @@ export function canAccessRequestList(staff: Staff | null): boolean {
 // memindahkan sisi yang lain. Preseden: canAccessReports vs canAccessTreasury.
 export function canDecideScreening(staff: Staff | null): boolean {
   return staff !== null && staff.role !== 'DEVELOPER'
+}
+
+// USDX-639 — menyalakan mode uji mint: MANAGER / ADMIN saja. Mode uji berarti
+// uang yang benar-benar masuk dicetak jadi token UJI, bukan USDX, jadi
+// kewenangannya disamakan dengan impor daftar sanksi: bukan keputusan satu
+// berkas, melainkan keputusan yang mengubah apa yang diterima SEMUA pembayar
+// selama jendelanya menyala. Backend menegakkan 403 sendiri.
+export function canEnableMintTestMode(staff: Staff | null): boolean {
+  return staff !== null && canEnableMintTestModeRole(staff.role)
+}
+
+// USDX-639 — kembali ke PROD: "STAFF ke atas". Sengaja lebih longgar daripada
+// menyalakannya (asimetri itu ada di tiketnya: menyalakan sulit, mematikan
+// mudah) — siapa pun yang menyadari mode uji menyala di jam produksi harus bisa
+// menghentikannya tanpa mencari atasan.
+//
+// DEVELOPER dikecualikan mengikuti pola yang sudah berlaku di repo ini untuk
+// aksi tulis (canReviewKyc, canDecideScreening, canSubmitOtc): DEVELOPER
+// view-only. Tiket menulis "STAFF ke atas" dan tidak menyebut DEVELOPER sama
+// sekali — kalau BE ternyata mengizinkannya, gerbang ini yang menyesuaikan.
+export function canRestoreMintProdMode(staff: Staff | null): boolean {
+  return staff !== null && canRestoreMintProdModeRole(staff.role)
+}
+
+// USDX-669 — menyetujui / menolak pencairan redeem, dan mengubah ambang
+// nominalnya: MANAGER / ADMIN saja (`sot/api/redeem-approvals.yaml § Akses`;
+// STAFF dan DEVELOPER 403). Lebih ketat daripada memutus satu berkas KYC atau
+// satu temuan screening, dan alasannya ada di kontraknya: aksi ini MENGELUARKAN
+// rupiah, dan maker-checker dua orang (P1-19) belum ada. Preseden yang sama
+// dipakai antrean "Pencairan Bermasalah" (§ 17.5, D22-d).
+//
+// DAFTAR-IZIN, bukan `role !== 'DEVELOPER'`: ditulis sebagai daftar-tolak, setiap
+// peran baru otomatis mendapat kewenangan mengeluarkan uang tanpa ada yang
+// memutuskannya. Antreannya sendiri tetap terbuka untuk semua peran back office —
+// yang digerbangi di sini tombolnya, bukan halamannya. BE menegakkan 403 sendiri.
+//
+// Daftar perannya hidup SEKALI di `canDecideRedeemPayoutRole` (`lib/types.ts`),
+// dipakai bersama handler MSW. `null` staff (sesi masih dimuat, atau sudah
+// dibersihkan 401) diperlakukan tidak berwenang — fail-closed.
+export function canDecideRedeemPayout(staff: Staff | null): boolean {
+  return staff !== null && canDecideRedeemPayoutRole(staff.role)
+}
+
+// USDX-662 — resolve antrean "Pencairan Bermasalah" (RESENT / SETTLED_MANUAL /
+// CLOSED): MANAGER / ADMIN saja (`sot/bni-integration.md § 17.5` D22-d). Beda
+// dari held credits (STAFF boleh resolve) karena di sini aksinya MENGELUARKAN
+// rupiah dan maker-checker (P1-19) belum ada. Antrean + detail tetap terbuka
+// untuk semua peran — yang digerbangi tombolnya. BE menegakkan 403 sendiri.
+// `null` staff = tidak berwenang (fail-closed).
+export function canResolvePayoutFailure(staff: Staff | null): boolean {
+  return staff !== null && canResolvePayoutFailureRole(staff.role)
 }
 
 // USDX-588 — impor daftar sanksi + pemindaian ulang: MANAGER / ADMIN saja

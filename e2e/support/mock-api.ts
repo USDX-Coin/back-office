@@ -107,8 +107,36 @@ const FEE_CONFIG = {
   pgFeeQrisPct: '0.7',
   redeemFeePct: '1.0',
   disbursementFeeFlat: '5000.00',
+  // Minimum mint Rp (USDX-635/637) — kolom config, bukan konstanta kode lagi.
+  minMintIdr: '20000',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
+}
+// USDX-639 — keadaan normal: PROD. Mode uji selalu dinyalakan dengan sengaja.
+const MINT_MODE_PROD: {
+  mode: 'PROD' | 'TEST'
+  reason: string | null
+  expiresAt: string | null
+  updatedBy: string | null
+  updatedByName: string | null
+  allowedEmails: string[]
+  testUsdxAddress: string | null
+  testStaffSafeAddress: string | null
+  testManagerSafeAddress: string | null
+  updatedAt: string
+} = {
+  mode: 'PROD',
+  reason: null,
+  expiresAt: null,
+  updatedBy: ADMIN_STAFF.id,
+  updatedByName: ADMIN_STAFF.name,
+  // PROD tidak mengenal pembatasan; daftar akses hanya berlaku saat mode uji.
+  allowedEmails: [],
+  // Bundle uji juga hanya ada saat mode uji (USDX-654).
+  testUsdxAddress: null,
+  testStaffSafeAddress: null,
+  testManagerSafeAddress: null,
+  updatedAt: '2026-05-01T00:00:00.000Z',
 }
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
 const DASHBOARD_STATS = {
@@ -603,6 +631,84 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
   return rows
 }
 
+// ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ──────────
+// Dua order: PAYOUT_FAILED (tiga aksi) dan BURN_REJECTED (tanpa RESENT). Satu seed per
+// panggilan `installMockApi`, jadi resolve di satu test tidak bocor ke test lain.
+interface MockPayoutReview {
+  action: string
+  reason: string
+  externalRef: string | null
+  newPartnerReferenceNo: string | null
+  actorStaffName: string
+  createdAt: string
+}
+
+function seedPayoutFailures() {
+  const common = () => ({
+    chain: 'polygon',
+    amountWei: '250000000',
+    effectiveRate: '16167.60',
+    totalFeeIdr: '29550.00',
+    lateBurn: false,
+    staleBurn: false,
+    payoutRef: null as string | null,
+    userAddress: null as string | null,
+    resolution: null as string | null,
+    resolvedAt: null as string | null,
+    resolvedByStaffName: null as string | null,
+    reviews: [] as MockPayoutReview[],
+  })
+  return [
+    {
+      ...common(),
+      id: '019f2a01-0662-7c31-9b2d-00000000e2e1',
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'PROVIDER_REJECTED',
+      issueReason: '4032402 Invalid beneficiary account',
+      issueAt: '2026-09-12T01:00:00.000Z',
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '250.000000',
+      netPayoutIdr: '4012350.00',
+      bankName: 'BCA',
+      bankAccountNumber: '8730012245',
+      bankAccountName: 'RINA SUSANTI',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ri***@example.com',
+      burnTxHash: `0x${'c1'.repeat(32)}`,
+      burnedAt: '2026-09-12T00:30:00.000Z',
+      submissions: [
+        {
+          partnerReferenceNo: 'RDM260912A1B2C3',
+          payoutProvider: 'DURIANPAY_SNAP',
+          amountIdr: '4012350.00',
+          submittedAt: '2026-09-12T00:40:00.000Z',
+          rejectedAt: '2026-09-12T00:41:00.000Z' as string | null,
+          rejectionReason: 'Invalid beneficiary account' as string | null,
+        },
+      ],
+    },
+    {
+      ...common(),
+      id: '019f2a03-0662-7c31-9b2d-00000000e2e2',
+      issueKind: 'BURN_REJECTED',
+      issueCode: 'BURN_AMOUNT_MISMATCH',
+      issueReason: 'Burn 120.5 USDX, snapshot order 125 USDX',
+      issueAt: '2026-09-12T04:00:00.000Z',
+      status: 'EXPIRED',
+      amountUsdx: '125.000000',
+      netPayoutIdr: '1991250.00',
+      bankName: 'Mandiri',
+      bankAccountNumber: '1370098812345',
+      bankAccountName: 'DEWI KARTIKA',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'de***@example.com',
+      burnTxHash: `0x${'c3'.repeat(32)}`,
+      burnedAt: '2026-09-12T03:50:00.000Z',
+      submissions: [],
+    },
+  ]
+}
+
 export interface MockApiOptions {
   /** Pre-seed extra users into the directory. */
   users?: (typeof VERIFIED_USER)[]
@@ -643,6 +749,12 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
   // next GET (the FE invalidates and refetches after a successful update).
   let liveRate = { ...RATE_INFO }
   let liveFee = { ...FEE_CONFIG }
+  // USDX-639: mode mint PROD/UJI, mutable per test — POST harus terbaca oleh
+  // GET berikutnya karena banner global membacanya dari query yang sama.
+  let liveMintMode = { ...MINT_MODE_PROD }
+  // USDX-662: antrean Pencairan Bermasalah, mutable per test — resolve harus terbaca
+  // oleh GET list/detail berikutnya karena layarnya menarik ulang keduanya.
+  const payoutFailures = seedPayoutFailures()
 
   const envelope = (route: Route, data: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ status: 'success', metadata: null, data }) })
@@ -723,23 +835,88 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
       return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)
     }
+    // USDX-639/654: mode mint PROD/UJI (kontrak USDX-636). GET semua role; POST
+    // MANAGER/ADMIN untuk mode uji, STAFF ke atas untuk kembali ke PROD.
+    // Alamat bundle uji WAJIB saat TEST — sejak USDX-654 ia isian, bukan env.
+    if (key === 'GET /api/v1/mint-mode') return envelope(route, liveMintMode)
+    if (key === 'POST /api/v1/mint-mode') {
+      const b = body()
+      if (b.mode === 'TEST') {
+        // reason >= 10 karakter (CHECK yang sama ada di DB, mint-mode.yaml).
+        if (!b.reason || String(b.reason).trim().length < 10) {
+          return error(route, 'VALIDATION_ERROR', 'reason must be at least 10 characters', 422)
+        }
+        const hours = Number(b.durationHours)
+        if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
+          return error(route, 'VALIDATION_ERROR', 'durationHours must be 1..24', 422)
+        }
+        const missing = [
+          'testUsdxAddress',
+          'testStaffSafeAddress',
+          'testManagerSafeAddress',
+        ].filter((f) => !b[f] || !String(b[f]).trim())
+        if (missing.length > 0) {
+          return error(
+            route,
+            'MINT_MODE_TEST_ENV_INCOMPLETE',
+            `Alamat bundle uji wajib diisi saat mode=TEST: ${missing.join(', ')}`,
+            422,
+          )
+        }
+        liveMintMode = {
+          mode: 'TEST',
+          reason: String(b.reason),
+          expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+          updatedBy: ADMIN_STAFF.id,
+          updatedByName: ADMIN_STAFF.name,
+          // Daftar kosong disimpan apa adanya — artinya tidak ada yang bisa mint.
+          allowedEmails: Array.isArray(b.allowedEmails) ? b.allowedEmails.map(String) : [],
+          testUsdxAddress: String(b.testUsdxAddress),
+          testStaffSafeAddress: String(b.testStaffSafeAddress),
+          testManagerSafeAddress: String(b.testManagerSafeAddress),
+          updatedAt: new Date().toISOString(),
+        }
+        return envelope(route, liveMintMode)
+      }
+      liveMintMode = {
+        mode: 'PROD',
+        reason: null,
+        expiresAt: null,
+        updatedBy: ADMIN_STAFF.id,
+        updatedByName: ADMIN_STAFF.name,
+        // PROD tidak punya daftar akses maupun bundle uji.
+        allowedEmails: [],
+        testUsdxAddress: null,
+        testStaffSafeAddress: null,
+        testManagerSafeAddress: null,
+        updatedAt: new Date().toISOString(),
+      }
+      return envelope(route, liveMintMode)
+    }
     // USDX-207: fee config (sot/api/fee.yaml). GET all roles, POST admin.
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
-      // Full 5-field snapshot, all required + non-negative (USDX-245). Body
-      // failures → 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
+      // Full 6-field snapshot, all required + non-negative (USDX-245, plus
+      // `minMintIdr` USDX-637). Body failures → 422 VALIDATION_ERROR
+      // (fee-config on the v1→422 allowlist).
       for (const f of [
         'mintFeePct',
         'pgFeeVaFlat',
         'pgFeeQrisPct',
         'redeemFeePct',
         'disbursementFeeFlat',
+        'minMintIdr',
       ]) {
         const n = Number(b[f])
         if (b[f] == null || b[f] === '' || !Number.isFinite(n) || n < 0) {
           return error(route, 'VALIDATION_ERROR', `${f} is required`, 422)
         }
+      }
+      // Lantai keras Rp 10.000 milik backend (USDX-635), ditiru di sini supaya
+      // mock tidak menerima angka yang server tolak.
+      if (Number(b.minMintIdr) < 10000) {
+        return error(route, 'VALIDATION_ERROR', 'minMintIdr must be at least 10000', 422)
       }
       liveFee = {
         id: 'fee-live',
@@ -748,6 +925,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         pgFeeQrisPct: b.pgFeeQrisPct,
         redeemFeePct: b.redeemFeePct,
         disbursementFeeFlat: b.disbursementFeeFlat,
+        minMintIdr: b.minMintIdr,
         updatedBy: ADMIN_STAFF.id,
         createdAt: '2026-06-17T00:00:00.000Z',
       }
@@ -1046,6 +1224,53 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         },
         rows,
       })
+    }
+
+    // ── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ─────
+    if (key === 'GET /api/v1/payout-failures') {
+      const kind = url.searchParams.get('issueKind')
+      const open = payoutFailures
+        .filter((f) => f.resolution === null && (!kind || f.issueKind === kind))
+        .sort((a, b) => a.issueAt.localeCompare(b.issueAt))
+      return paginated(
+        route,
+        open,
+        Number(url.searchParams.get('page') ?? '1'),
+        Number(url.searchParams.get('take') ?? '10'),
+      )
+    }
+    const payoutFailureMatch = path.match(/^\/api\/v1\/payout-failures\/([^/]+)(\/resolve)?$/)
+    if (payoutFailureMatch) {
+      const failure = payoutFailures.find((f) => f.id === payoutFailureMatch[1])
+      if (!failure) return error(route, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND', 404)
+      if (method === 'GET' && !payoutFailureMatch[2]) return envelope(route, failure)
+      if (method === 'POST' && payoutFailureMatch[2]) {
+        // Bentuk galat filter Nest: nama kode di `message`, `code` dari status HTTP.
+        if (failure.resolution !== null) return error(route, 'CONFLICT', 'ALREADY_RESOLVED', 409)
+        const b = body()
+        const now = '2026-09-13T08:00:00.000Z'
+        const newRef = b.action === 'RESENT' ? 'RDM260913E2E001' : null
+        failure.resolution = b.action
+        failure.resolvedAt = now
+        failure.resolvedByStaffName = ADMIN_STAFF.name
+        if (b.action === 'SETTLED_MANUAL') failure.status = 'PAYOUT_COMPLETE'
+        if (b.action === 'RESENT') failure.status = 'PROCESSING_PAYOUT'
+        failure.reviews.push({
+          action: b.action,
+          reason: b.reason,
+          externalRef: b.externalRef ?? null,
+          newPartnerReferenceNo: newRef,
+          actorStaffName: ADMIN_STAFF.name,
+          createdAt: now,
+        })
+        return envelope(route, {
+          id: failure.id,
+          action: b.action,
+          status: failure.status,
+          newPartnerReferenceNo: newRef,
+          resolvedAt: now,
+        })
+      }
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────

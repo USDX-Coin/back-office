@@ -221,6 +221,8 @@ describe('OncallContactsPage @integration', () => {
         'Fraud',
         'Security',
         'Infra',
+        // USDX-632 — zona kunci custodial (alert WALLET_* dari backend/wallet-service)
+        'Custodial',
         'Other',
       ]) {
         expect(

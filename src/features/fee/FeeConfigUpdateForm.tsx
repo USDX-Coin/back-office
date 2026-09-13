@@ -5,7 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import FieldError from '@/components/FieldError'
-import { validateFeeConfigForm } from '@/lib/validators'
+import {
+  feeConfigErrorField,
+  MIN_MINT_IDR_FLOOR,
+  validateFeeConfigForm,
+} from '@/lib/validators'
+import { ApiError } from '@/lib/apiFetch'
 import type { FeeConfig } from '@/lib/types'
 import { useUpdateFeeConfig } from './hooks'
 
@@ -19,14 +24,15 @@ interface FormState {
   pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
+  minMintIdr: string
 }
 
 type FormOverrides = Partial<FormState>
 
 // Form seeds from the current config; undefined fields fall back to current so
-// the form fills in once GET resolves (no effect needed). All 5 fields are
+// the form fills in once GET resolves (no effect needed). All 6 fields are
 // pre-filled because POST is a full snapshot — partial submits would zero out
-// the fees we don't send (USDX-245).
+// the fees we don't send (USDX-245, and `minMintIdr` since USDX-637).
 function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): FormState {
   return {
     mintFeePct: overrides.mintFeePct ?? current?.mintFeePct ?? '',
@@ -34,6 +40,7 @@ function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): 
     pgFeeQrisPct: overrides.pgFeeQrisPct ?? current?.pgFeeQrisPct ?? '',
     redeemFeePct: overrides.redeemFeePct ?? current?.redeemFeePct ?? '',
     disbursementFeeFlat: overrides.disbursementFeeFlat ?? current?.disbursementFeeFlat ?? '',
+    minMintIdr: overrides.minMintIdr ?? current?.minMintIdr ?? '',
   }
 }
 
@@ -41,10 +48,15 @@ export default function FeeConfigUpdateForm({ current }: Props) {
   const update = useUpdateFeeConfig()
   const [overrides, setOverrides] = useState<FormOverrides>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Server-side failure that belongs to no single field. Rendered inline above
+  // the submit button — never toast-only: a toast disappears while the form the
+  // operator must fix stays on screen with no trace of what the server said.
+  const [formError, setFormError] = useState<string | null>(null)
   const form = resolveForm(overrides, current)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setOverrides((prev) => ({ ...prev, [key]: value }))
+    setFormError(null)
     if (errors[key as string]) {
       setErrors((prev) => {
         const next = { ...prev }
@@ -56,6 +68,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setFormError(null)
     const v = validateFeeConfigForm(form)
     if (!v.valid) {
       setErrors(v.errors)
@@ -68,14 +81,28 @@ export default function FeeConfigUpdateForm({ current }: Props) {
         pgFeeQrisPct: form.pgFeeQrisPct.trim(),
         redeemFeePct: form.redeemFeePct.trim(),
         disbursementFeeFlat: form.disbursementFeeFlat.trim(),
+        minMintIdr: form.minMintIdr.trim(),
       })
       toast.success('Fee config updated')
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't update the fee config. Please try again.",
-      )
+      // A 422 is the server judging THIS form's values (fee-config is on the
+      // v1→422 allowlist, sot/conventions.md § Validation Error). Its message
+      // names what it refused — e.g. the hard Rp 10.000 floor on `minMintIdr`
+      // — so it is shown verbatim next to the field it names, and at form level
+      // when it names none. Anything else (network, 403, 500) is not about a
+      // field, so it keeps the toast it always had.
+      if (err instanceof ApiError && err.status === 422) {
+        const field = feeConfigErrorField(err.message)
+        if (field) setErrors({ [field]: err.message })
+        else setFormError(err.message)
+        return
+      }
+      const message =
+        err instanceof Error ? err.message : "Couldn't update the fee config. Please try again."
+      setFormError(message)
+      toast.error(message)
     }
   }
 
@@ -204,8 +231,45 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Minimum mint (USDX-637) — bagian dari snapshot penuh yang sama.
+              Bukan tarif: ini nominal terkecil yang boleh di-mint, dan angkanya
+              akan sering digeser saat uji bayar produksi. */}
+          <div className="space-y-4 border-t border-border pt-5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              Mint limit
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="minMintIdr">Minimum Mint (Rp)</Label>
+              <div className="relative">
+                <Input
+                  id="minMintIdr"
+                  type="number"
+                  step="1"
+                  min={MIN_MINT_IDR_FLOOR}
+                  value={form.minMintIdr}
+                  onChange={(e) => set('minMintIdr', e.target.value)}
+                  placeholder="20000"
+                  className="pr-12 font-mono"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  IDR
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Nominal mint terkecil yang diterima. Minimum Rp{' '}
+                {MIN_MINT_IDR_FLOOR.toLocaleString('id-ID')}.
+              </p>
+              <FieldError message={errors.minMintIdr} />
+            </div>
+          </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-col items-stretch gap-3">
+          {formError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {formError}
+            </p>
+          ) : null}
           <Button
             type="submit"
             form="fee-config-form"

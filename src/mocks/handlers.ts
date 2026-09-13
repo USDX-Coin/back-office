@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
-import { isAddress } from 'viem'
+import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
+import { MIN_MINT_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
   BniStatementType,
@@ -27,8 +28,19 @@ import type {
   OncallContact,
   CreateOncallContact,
   UpdateOncallContact,
+  MintModeConfig,
+  SetMintModeBody,
+  RedeemApprovalControls,
+  RedeemApprovalDetail,
+  RedeemApprovalListItem,
+  RedeemApprovalOutcome,
+  PayoutFailureDetail,
+  PayoutFailureListItem,
+  PayoutIssueKind,
+  PayoutResolution,
+  ResolvePayoutFailureBody,
 } from '@/lib/types'
-import { canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -47,6 +59,7 @@ import {
   createInitialOncallContacts,
   createOncallContact,
   createInitialFeeHistory,
+  createInitialMintMode,
   createFeeConfig,
   createLedgerEntry,
   createInitialLedgerEntries,
@@ -60,6 +73,9 @@ import {
   createBniBalances,
   createBniStatement,
   createBniStatementRows,
+  createMockRedeemApprovals,
+  createInitialRedeemApprovalControls,
+  createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -73,6 +89,9 @@ let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+let mintModeState: MintModeConfig = createInitialMintMode(
+  staffStore[0] ?? { id: 'seed', name: 'seed' }
+)
 let reserveLedger: ReserveLedgerEntry[] = createInitialLedgerEntries()
 let attestations: AttestationReport[] = createInitialAttestations()
 let requestList: RequestListItem[]
@@ -88,6 +107,31 @@ let kycReviews: Map<string, KycReviewLog[]>
 // USDX-631 — rekening BNI yang "dikonfigurasi env" (§ 16 K7). Tests that need an
 // empty configuration override `GET /api/v1/bni-accounts` via `server.use`.
 let bniAccountsStore: BniAccount[] = createBniAccounts()
+// USDX-669 — antrean Persetujuan Pencairan (`sot/api/redeem-approvals.yaml`).
+//
+// DILAYANI MSW dengan sengaja: modul backend-nya (USDX-668) dikerjakan paralel dan
+// belum ada di `dev`, jadi keenam rutenya TIDAK masuk `INTEGRATION_PATHS` di
+// `browser.ts`. Begitu USDX-668 naik, keenam path ditambahkan di sana dan blok ini
+// dihapus — preseden USDX-546 / USDX-47 / USDX-82.
+//
+// `redeemApprovalDecisions` menyimpan keputusan yang sudah diambil, BUKAN sekadar
+// membuang barisnya dari antrean. Tanpa catatan itu approve kedua atas order yang
+// sama akan dijawab `404` — sementara kontraknya menuntut `409 ALREADY_APPROVED`,
+// dan justru perbedaan itu yang mencegah dua staf masing-masing mengira dialah
+// yang melepasnya.
+let redeemApprovalQueue: RedeemApprovalListItem[]
+let redeemApprovalDetails: Map<string, RedeemApprovalDetail>
+;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
+let redeemApprovalDecisions = new Map<string, 'APPROVED' | 'REJECTED'>()
+let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApprovalControls()
+// USDX-662 — antrean Pencairan Bermasalah (`sot/api/payout-failures.yaml`). DILAYANI
+// MSW: backend USDX-471 sudah merge ke `dev` (backend#320) tapi api-dev belum
+// menyajikannya (13 Sep 2026: `GET /api/v1/payout-failures` 404), jadi ketiga rutenya
+// TIDAK masuk `INTEGRATION_PATHS`. Detail menyimpan `resolution` alih-alih membuang
+// baris — resolve kedua harus dijawab `409 ALREADY_RESOLVED`, bukan `404`.
+let payoutFailureStore: Map<string, PayoutFailureDetail> = createMockPayoutFailures()
+// Cermin `payout_controls.payouts_enabled`; tabel kosong di server = HIDUP.
+let payoutsEnabled = true
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -103,6 +147,7 @@ export function resetMockData() {
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
+  mintModeState = createInitialMintMode(staffStore[0] ?? { id: 'seed', name: 'seed' })
   reserveLedger = createInitialLedgerEntries()
   attestations = createInitialAttestations()
   ledgerIdempotency.clear()
@@ -113,8 +158,47 @@ export function resetMockData() {
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   bniAccountsStore = createBniAccounts()
+  ;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
+  redeemApprovalDecisions = new Map()
+  redeemApprovalControls = createInitialRedeemApprovalControls()
+  payoutFailureStore = createMockPayoutFailures()
+  payoutsEnabled = true
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
+}
+
+// USDX-639 — mode uji berakhir sendiri. Dihitung saat DIBACA, bukan lewat
+// timer: sebuah suite test bisa memajukan jam palsunya, dan handler yang
+// bergantung pada timer akan menjawab TEST untuk jendela yang sudah lewat.
+function resolveMintMode(): MintModeConfig {
+  if (
+    mintModeState.mode === 'TEST' &&
+    mintModeState.expiresAt &&
+    new Date(mintModeState.expiresAt).getTime() <= Date.now()
+  ) {
+    mintModeState = {
+      mode: 'PROD',
+      reason: null,
+      expiresAt: null,
+      updatedBy: mintModeState.updatedBy,
+      updatedByName: mintModeState.updatedByName,
+      // Daftar akses dan alamat bundle ikut mati bersama modenya
+      // (`sot/api/mint-mode.yaml § MintMode`).
+      allowedEmails: [],
+      testUsdxAddress: null,
+      testStaffSafeAddress: null,
+      testManagerSafeAddress: null,
+      updatedAt: mintModeState.expiresAt,
+    }
+  }
+  return mintModeState
+}
+
+// USDX-639 — test helper: pasang keadaan mode mint apa adanya (mis. jendela uji
+// yang sudah lewat) tanpa harus menembus gerbang role POST. Direset oleh
+// resetMockData(). Tidak dipakai kode runtime.
+export function configureMintModeForTests(next: MintModeConfig) {
+  mintModeState = { ...next }
 }
 
 // USDX-631 — test helper: replace the "env-configured" BNI account list
@@ -645,6 +729,125 @@ function oncallBodyError(body: Partial<CreateOncallContact>) {
 // ─── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml) ───
 // Error envelope per sot/openapi.yaml § ErrorResponse; `details` carries
 // `bankReason` for BNI_BANK_REJECTED (§ 16.3).
+// ─── Persetujuan Pencairan (USDX-669) ───────────────────────────────────────
+// Bentuk galatnya `common.yaml#/schemas/ErrorResponse`; statusnya diambil dari
+// kontraknya baris demi baris. Tiruan yang lebih permisif daripada server adalah
+// cara setiap ketidakcocokan sebelumnya lolos di lokal dan gagal di produksi.
+
+function redeemApprovalError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+/** Aksi yang MENGELUARKAN rupiah: Manager / Admin saja (kontrak § Akses). */
+function redeemApprovalForbidden() {
+  return redeemApprovalError(
+    403,
+    'FORBIDDEN',
+    'Only Manager and Admin may decide a redeem payout'
+  )
+}
+
+/**
+ * Nominal ambang dibandingkan sebagai SEN BULAT, tidak lewat `Number`.
+ * Kolomnya `numeric(20,2)`; nominal sebesar itu kehilangan satuan terkecilnya
+ * dalam JS number, dan saringan antrean adalah pembandingan uang.
+ */
+function redeemIdrCents(raw: string): bigint | null {
+  if (!/^\d+(\.\d{1,2})?$/.test(raw.trim())) return null
+  const [whole = '0', fraction = ''] = raw.trim().split('.')
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'))
+}
+
+/**
+ * Antrean TERBUKA menurut kontrak: belum diputus DAN nominalnya DI ATAS ambang.
+ * Ambang yang tak terbaca diperlakukan sebagai `0` — fail-closed, semua tertahan.
+ * Urut `burnedAt` ASC: terlama dulu, keputusan fairness, bukan preferensi tampilan.
+ */
+function openRedeemApprovals(): RedeemApprovalListItem[] {
+  const threshold = redeemIdrCents(redeemApprovalControls.approvalThresholdIdr) ?? 0n
+  return redeemApprovalQueue
+    .filter((row) => !redeemApprovalDecisions.has(row.id))
+    .filter((row) => (redeemIdrCents(row.netPayoutIdr) ?? 0n) > threshold)
+    .sort((a, b) => a.burnedAt.localeCompare(b.burnedAt))
+}
+
+/** Test helper: setel ambang aktif tanpa lewat `PUT` (dan tanpa gerbang peran). */
+export function configureRedeemApprovalControlsForTests(next: RedeemApprovalControls) {
+  redeemApprovalControls = next
+}
+
+function redeemDecisionOutcome(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  staff: Staff
+): RedeemApprovalOutcome {
+  return {
+    id,
+    decision,
+    // `BURNED` untuk APPROVED — menyetujui hanya membuka gerbang; Disbursement
+    // Trigger yang mengirim, pada tick berikutnya. Tiruan yang menjawab
+    // `PROCESSING_PAYOUT` di sini akan mengajari layar berbohong.
+    status: decision === 'APPROVED' ? 'BURNED' : 'PAYOUT_FAILED',
+    decidedAt: new Date().toISOString(),
+    decidedByName: staff.name,
+  }
+}
+
+// ─── Pencairan Bermasalah (USDX-662) ────────────────────────────────────────
+// Bentuk galat meniru filter exception backend APA ADANYA: `new ConflictException(
+// "ALREADY_RESOLVED")` menjadi `{ code: "CONFLICT", message: "ALREADY_RESOLVED" }`.
+// Tiruan yang menaruh nama itu di `code` akan meloloskan pembaca FE yang hanya
+// melihat `code` — dan pembaca itu gagal di server sungguhan.
+
+function payoutFailureError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+/**
+ * Disalin dari `ALLOWED_ACTIONS` di repository backend, BUKAN diimpor dari
+ * `@/lib/payoutFailures`: tiruan yang memakai aturan UI sendiri akan setuju dengan
+ * UI karena konstruksinya, dan test tidak lagi membuktikan apa pun tentang server.
+ */
+const PAYOUT_RESOLVE_ALLOWED: Record<PayoutIssueKind, PayoutResolution[]> = {
+  PAYOUT_FAILED: ['RESENT', 'SETTLED_MANUAL', 'CLOSED'],
+  BURN_REJECTED: ['SETTLED_MANUAL', 'CLOSED'],
+  PAYOUT_STUCK: [],
+}
+
+function toPayoutFailureListItem(detail: PayoutFailureDetail): PayoutFailureListItem {
+  return {
+    id: detail.id,
+    issueKind: detail.issueKind,
+    issueCode: detail.issueCode,
+    issueAt: detail.issueAt,
+    status: detail.status,
+    amountUsdx: detail.amountUsdx,
+    netPayoutIdr: detail.netPayoutIdr,
+    bankName: detail.bankName,
+    bankAccountNumber: detail.bankAccountNumber,
+    bankAccountName: detail.bankAccountName,
+    ownerKind: detail.ownerKind,
+    ownerLabel: detail.ownerLabel,
+    burnTxHash: detail.burnTxHash,
+  }
+}
+
+/** Test helper: tarik / lepas rem payout tanpa `psql`. Dikembalikan oleh resetMockData(). */
+export function configurePayoutsEnabledForTests(enabled: boolean) {
+  payoutsEnabled = enabled
+}
+
+/** Test helper: sisipkan atau ganti satu order bermasalah. Dikembalikan oleh resetMockData(). */
+export function upsertPayoutFailureForTests(detail: PayoutFailureDetail) {
+  payoutFailureStore.set(detail.id, detail)
+}
+
 function bniError(status: number, code: string, message: string, details?: unknown) {
   return HttpResponse.json(
     {
@@ -1128,14 +1331,16 @@ export const handlers = [
       )
     }
 
-    // POST = full 5-field snapshot; every field required + non-negative (W3
-    // redeem fields included so partial submits can't zero them out, USDX-245).
+    // POST = full 6-field snapshot; every field required + non-negative (W3
+    // redeem fields included so partial submits can't zero them out, USDX-245;
+    // `minMintIdr` since USDX-637 for the same reason).
     for (const key of [
       'mintFeePct',
       'pgFeeVaFlat',
       'pgFeeQrisPct',
       'redeemFeePct',
       'disbursementFeeFlat',
+      'minMintIdr',
     ] as const) {
       const raw = body[key]
       const n = Number(raw)
@@ -1144,12 +1349,20 @@ export const handlers = [
       }
     }
 
+    // Lantai keras minimum mint (USDX-635). Mirrored here so the mock refuses
+    // what the backend refuses — a mock that accepts Rp 5.000 would let a
+    // green test claim a floor the server actually enforces.
+    if (Number(body.minMintIdr) < MIN_MINT_IDR_FLOOR) {
+      return feeValidationError(`minMintIdr must be at least ${MIN_MINT_IDR_FLOOR}`)
+    }
+
     const created = createFeeConfig({
       mintFeePct: body.mintFeePct,
       pgFeeVaFlat: body.pgFeeVaFlat,
       pgFeeQrisPct: body.pgFeeQrisPct,
       redeemFeePct: body.redeemFeePct,
       disbursementFeeFlat: body.disbursementFeeFlat,
+      minMintIdr: body.minMintIdr,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
@@ -1158,6 +1371,172 @@ export const handlers = [
       { status: 'success', metadata: null, data: created },
       { status: 201 }
     )
+  }),
+
+  // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639/654) ───
+  // GET = semua role back office (baca). POST = MANAGER/ADMIN untuk menyalakan
+  // mode uji, STAFF ke atas untuk kembali ke PROD.
+  // Mock-served (tidak ada di INTEGRATION_PATHS) — BE-nya (USDX-636) jalan
+  // paralel dan belum hidup. Kontraknya dari tiket USDX-639, bukan dari sini.
+  //
+  // Kedaluwarsa dihitung DI SERVER, seperti backend nanti: begitu `expiresAt`
+  // lewat, GET menjawab PROD. Kalau kedaluwarsa dihitung di klien, sebuah tab
+  // dengan jam yang meleset bisa menyembunyikan banner untuk jendela yang masih
+  // menyala — kesalahan yang dibayar orang yang membayar uang asli.
+  http.get('/api/v1/mint-mode', () => {
+    const current = resolveMintMode()
+    return HttpResponse.json({ status: 'success', metadata: null, data: current })
+  }),
+
+  http.post('/api/v1/mint-mode', async ({ request }) => {
+    const operator = authenticatedStaff(request)
+    if (!operator) return unauthorized()
+
+    const body = (await request.json()) as SetMintModeBody
+
+    function mintModeError(code: string, message: string, status: number, details?: unknown) {
+      return HttpResponse.json(
+        { status: 'error', metadata: null, data: null, error: { code, message, details } },
+        { status }
+      )
+    }
+
+    if (body.mode !== 'TEST' && body.mode !== 'PROD') {
+      return mintModeError('VALIDATION_ERROR', 'mode must be PROD or TEST', 422)
+    }
+
+    if (body.mode === 'TEST') {
+      if (!canEnableMintTestMode(operator.role)) {
+        return mintModeError(
+          'FORBIDDEN',
+          'Only MANAGER or ADMIN can switch mint to test mode',
+          403
+        )
+      }
+      const reason = (body.reason ?? '').trim()
+      // Minimal 10 karakter — CHECK yang sama ada di DB
+      // (sot/api/mint-mode.yaml § SetMintMode).
+      if (reason.length < 10) {
+        return mintModeError('VALIDATION_ERROR', 'reason must be at least 10 characters', 422)
+      }
+      const hours = Number(body.durationHours)
+      if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
+        return mintModeError('VALIDATION_ERROR', 'durationHours must be 1..24', 422)
+      }
+      const allowedEmails = Array.isArray(body.allowedEmails)
+        ? body.allowedEmails.map((e) => String(e).trim()).filter(Boolean)
+        : []
+
+      // Gerbang bundle uji (USDX-654). Ditiru dari `MintModeService`, dengan
+      // SATU kode untuk semua sebab — `MINT_MODE_TEST_ENV_INCOMPLETE` — dan
+      // `details` berisi nama field yang bermasalah. Mock ini tidak bisa
+      // memeriksa on-chain; yang bisa ditiru adalah kelengkapan, bentuk, dan
+      // tabrakan, supaya test tidak mengklaim gerbang yang tidak ada.
+      const bundle = {
+        testUsdxAddress: (body.testUsdxAddress ?? '').trim(),
+        testStaffSafeAddress: (body.testStaffSafeAddress ?? '').trim(),
+        testManagerSafeAddress: (body.testManagerSafeAddress ?? '').trim(),
+      }
+      const bundleFields = Object.keys(bundle) as (keyof typeof bundle)[]
+
+      const missingAddresses = bundleFields.filter((field) => !bundle[field])
+      if (missingAddresses.length > 0) {
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji wajib diisi saat mode=TEST: ${missingAddresses.join(', ')}`,
+          422,
+          missingAddresses
+        )
+      }
+
+      // Bentuk: alamat EVM ber-checksum EIP-55. Huruf kecil semua ikut ditolak,
+      // sama seperti `isChecksumAddress` di backend.
+      const invalidAddresses = bundleFields.filter((field) => {
+        const value = bundle[field]
+        if (!/^0x[0-9a-fA-F]{40}$/.test(value)) return true
+        try {
+          return getAddress(value.toLowerCase()) !== value
+        } catch {
+          return true
+        }
+      })
+      if (invalidAddresses.length > 0) {
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji tidak sah (wajib alamat EVM ber-checksum EIP-55): ${invalidAddresses.join(', ')}`,
+          422,
+          invalidAddresses
+        )
+      }
+
+      // Tabrakan: tiap alamat uji wajib berbeda dari SEMUA alamat produksi
+      // (di mock, alamat pada GET /api/v1/chains), dan token uji wajib berbeda
+      // dari alamat Safe uji mana pun.
+      //
+      // Safe staff uji = Safe manager uji JUSTRU sah (USDX-655): bundle dev
+      // memang memakai satu alamat untuk keduanya, dan antrean propose dikunci
+      // ALAMAT Safe — bukan tipe — jadi satu Safe fisik tetap satu antrean.
+      const prodChain = createMockChainConfigs().find((c) => c.chain === 'polygon')
+      const prodAddresses = new Set(
+        [prodChain?.usdxAddress, prodChain?.staffSafeAddress, prodChain?.managerSafeAddress]
+          .filter((a): a is string => Boolean(a))
+          .map((a) => a.toLowerCase())
+      )
+      const conflicting = new Set<string>()
+      for (const field of bundleFields) {
+        if (prodAddresses.has(bundle[field].toLowerCase())) conflicting.add(field)
+      }
+      const tokenKey = bundle.testUsdxAddress.toLowerCase()
+      for (const field of ['testStaffSafeAddress', 'testManagerSafeAddress'] as const) {
+        if (bundle[field].toLowerCase() === tokenKey) {
+          conflicting.add('testUsdxAddress')
+          conflicting.add(field)
+        }
+      }
+      if (conflicting.size > 0) {
+        const fields = [...conflicting]
+        return mintModeError(
+          'MINT_MODE_TEST_ENV_INCOMPLETE',
+          `Alamat bundle uji bertabrakan dengan alamat produksi atau dengan sesamanya: ${fields.join(', ')}. Tiap alamat uji harus berbeda dari SEMUA alamat produksi dan dari alamat uji lainnya.`,
+          422,
+          fields
+        )
+      }
+
+      mintModeState = {
+        mode: 'TEST',
+        reason,
+        expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+        updatedBy: operator.id,
+        updatedByName: operator.name,
+        // Daftar KOSONG disimpan apa adanya: artinya "tidak ada yang bisa
+        // mint", bukan "belum diisi" (USDX-636 § 3).
+        allowedEmails,
+        ...bundle,
+        updatedAt: new Date().toISOString(),
+      }
+      return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
+    }
+
+    if (!canRestoreMintProdMode(operator.role)) {
+      return mintModeError('FORBIDDEN', 'DEVELOPER cannot change the mint mode', 403)
+    }
+    mintModeState = {
+      mode: 'PROD',
+      reason: null,
+      expiresAt: null,
+      updatedBy: operator.id,
+      updatedByName: operator.name,
+      // Kembali ke PROD membuang daftar akses DAN alamat bundle uji: PROD tidak
+      // mengenal pembatasan apa pun, dan keduanya yang tertinggal akan terbaca
+      // seakan masih berlaku.
+      allowedEmails: [],
+      testUsdxAddress: null,
+      testStaffSafeAddress: null,
+      testManagerSafeAddress: null,
+      updatedAt: new Date().toISOString(),
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: mintModeState })
   }),
 
   // ─── Transparency (/api/v1/transparency/*) ───
@@ -1949,6 +2328,301 @@ export const handlers = [
   // persists as PENDING_APPROVAL, returns the fresh MintRequest detail.
   // 403 (role insufficient) is intentionally not modeled in the mock — Linear
   // AC #6 only verifies the FE displays the message; tests use server.use().
+  // ─── USDX-669 — Persetujuan Pencairan (sot/api/redeem-approvals.yaml) ───
+  // MSW-served sampai backend USDX-668 menyajikan modulnya; lalu keenam path ini
+  // pindah ke `INTEGRATION_PATHS` dan blok ini dihapus.
+
+  http.get('/api/v1/redeem-approvals', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    // Parameter kontraknya `take` (pola held-credits); jawabannya tetap menyebut
+    // `metadata.limit` (common.yaml § PaginatedResponse).
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    const rows = openRedeemApprovals()
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.get('/api/v1/redeem-approvals/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    const detail = redeemApprovalDetails.get(String(params.id))
+    if (!detail) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    // Terbuka untuk SEMUA peran back office, DEVELOPER termasuk: kontraknya
+    // memberinya akses baca, dan di server pembacaan inilah yang menulis satu baris
+    // `pii_access_audit`. Yang digerbangi peran adalah keputusannya, bukan
+    // pembacaannya — dan pembacaan tanpa jejak justru hal yang dihindari kontrak.
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  http.post('/api/v1/redeem-approvals/:id/approve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    const id = String(params.id)
+    if (!redeemApprovalDetails.has(id)) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    const decided = redeemApprovalDecisions.get(id)
+    if (decided === 'APPROVED') {
+      return redeemApprovalError(
+        409,
+        'ALREADY_APPROVED',
+        'This payout was already approved'
+      )
+    }
+    if (decided === 'REJECTED') {
+      return redeemApprovalError(
+        409,
+        'INVALID_ORDER_STATE',
+        'Order is no longer BURNED'
+      )
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = ((await request.json()) ?? {}) as { reason?: unknown }
+    } catch {
+      // Badan kosong sah di sini — `requestBody.required: false` pada approve.
+      body = {}
+    }
+    if (body.reason !== undefined) {
+      if (typeof body.reason !== 'string' || body.reason.trim().length > 500) {
+        return redeemApprovalError(
+          400,
+          'BAD_REQUEST',
+          'reason must be a string of at most 500 characters'
+        )
+      }
+    }
+    redeemApprovalDecisions.set(id, 'APPROVED')
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemDecisionOutcome(id, 'APPROVED', staff),
+    })
+  }),
+
+  http.post('/api/v1/redeem-approvals/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    const id = String(params.id)
+    if (!redeemApprovalDetails.has(id)) {
+      return redeemApprovalError(404, 'NOT_FOUND', 'Redeem order not found')
+    }
+    const decided = redeemApprovalDecisions.get(id)
+    if (decided === 'APPROVED') {
+      return redeemApprovalError(
+        409,
+        'ALREADY_APPROVED',
+        'This payout was already approved; settle it from the payout-failures queue'
+      )
+    }
+    if (decided === 'REJECTED') {
+      return redeemApprovalError(409, 'INVALID_ORDER_STATE', 'Order is no longer BURNED')
+    }
+    let body: { reason?: unknown }
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 3 || reason.length > 500) {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'reason must be 3–500 characters')
+    }
+    redeemApprovalDecisions.set(id, 'REJECTED')
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemDecisionOutcome(id, 'REJECTED', staff),
+    })
+  }),
+
+  http.get('/api/v1/redeem-approval-controls', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    // Semua peran back office boleh membaca: angka ini yang menjelaskan mengapa
+    // antreannya berisi (atau kosong).
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemApprovalControls,
+    })
+  }),
+
+  http.put('/api/v1/redeem-approval-controls', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (!staff) return unauthorized()
+    if (!canDecideRedeemPayoutRole(staff.role)) return redeemApprovalForbidden()
+    let body: { approvalThresholdIdr?: unknown; reason?: unknown }
+    try {
+      body = (await request.json()) as { approvalThresholdIdr?: unknown; reason?: unknown }
+    } catch {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const raw = body?.approvalThresholdIdr
+    if (typeof raw !== 'string' || redeemIdrCents(raw) === null) {
+      return redeemApprovalError(
+        400,
+        'BAD_REQUEST',
+        'approvalThresholdIdr must be a decimal string with at most 2 decimal places'
+      )
+    }
+    const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 3 || reason.length > 500) {
+      return redeemApprovalError(400, 'BAD_REQUEST', 'reason must be 3–500 characters')
+    }
+    redeemApprovalControls = {
+      approvalThresholdIdr: raw.trim(),
+      updatedAt: new Date().toISOString(),
+      updatedByName: staff.name,
+    }
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: redeemApprovalControls,
+    })
+  }),
+
+  // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ───
+  // MSW-served sampai api-dev menyajikan modul USDX-471; lalu ketiga path masuk
+  // `INTEGRATION_PATHS` (handler tetap untuk Vitest, preseden USDX-154).
+  //
+  // GET tanpa gerbang auth tiruan (cba3b47): di browser dev sesi operator adalah
+  // cookie httpOnly backend ASLI yang tidak terlihat oleh service worker. Resolve
+  // menegakkan peran HANYA saat sesi tiruan terbaca (Vitest) — tanpa itu test
+  // "STAFF ditolak 403" tidak membuktikan apa pun, dan dengan gerbang penuh layar
+  // dev tidak bisa dipakai sama sekali.
+
+  http.get('/api/v1/payout-failures', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    const issueKind = url.searchParams.get('issueKind')
+    if (issueKind && !(issueKind in PAYOUT_RESOLVE_ALLOWED)) {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'issueKind must be one of the following values: PAYOUT_FAILED, BURN_REJECTED, PAYOUT_STUCK'
+      )
+    }
+    // Antrean TERBUKA = belum di-resolve; urut `issueAt` ASC (terlama dulu, fairness).
+    const rows = [...payoutFailureStore.values()]
+      .filter((detail) => detail.resolution === null)
+      .filter((detail) => !issueKind || detail.issueKind === issueKind)
+      .sort((a, b) => (a.issueAt ?? '').localeCompare(b.issueAt ?? ''))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toPayoutFailureListItem),
+    })
+  }),
+
+  http.get('/api/v1/payout-failures/:id', ({ params }) => {
+    const detail = payoutFailureStore.get(String(params.id))
+    if (!detail) return payoutFailureError(404, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  http.post('/api/v1/payout-failures/:id/resolve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolvePayoutFailureRole(staff.role)) {
+      return payoutFailureError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Partial<ResolvePayoutFailureBody>
+    try {
+      body = (await request.json()) as Partial<ResolvePayoutFailureBody>
+    } catch {
+      return payoutFailureError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const action = body.action
+    if (action !== 'RESENT' && action !== 'SETTLED_MANUAL' && action !== 'CLOSED') {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'action must be one of the following values: RESENT, SETTLED_MANUAL, CLOSED'
+      )
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 10 || reason.length > 500) {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'reason must be longer than or equal to 10 characters'
+      )
+    }
+    // Urutan pemeriksaan = urutan backend: service (badan request + rem payout),
+    // lalu repository (ada? sudah di-resolve? aksi sah? submission final? rekening).
+    if (action === 'SETTLED_MANUAL' && !body.externalRef?.trim()) {
+      return payoutFailureError(400, 'BAD_REQUEST', 'EXTERNAL_REF_REQUIRED')
+    }
+    if (action !== 'RESENT' && body.bankAccountId) {
+      return payoutFailureError(400, 'BAD_REQUEST', 'BANK_ACCOUNT_NOT_ALLOWED_FOR_ACTION')
+    }
+    if (action === 'RESENT' && !payoutsEnabled) {
+      return payoutFailureError(409, 'CONFLICT', 'PAYOUT_DISABLED')
+    }
+    const id = String(params.id)
+    const detail = payoutFailureStore.get(id)
+    if (!detail) return payoutFailureError(404, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND')
+    if (detail.resolution !== null) return payoutFailureError(409, 'CONFLICT', 'ALREADY_RESOLVED')
+    if (!(PAYOUT_RESOLVE_ALLOWED[detail.issueKind] ?? []).includes(action)) {
+      return payoutFailureError(409, 'CONFLICT', 'ACTION_NOT_ALLOWED_FOR_KIND')
+    }
+    const last = detail.submissions[detail.submissions.length - 1]
+    if (action !== 'CLOSED' && last && last.rejectedAt === null) {
+      return payoutFailureError(409, 'CONFLICT', 'SUBMISSION_NOT_FINAL')
+    }
+    // Tiruan tidak punya address book: setiap `bankAccountId` dijawab seperti
+    // rekening yang tidak ditemukan di server — sama dengan milik orang lain.
+    if (body.bankAccountId) return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+
+    const now = new Date().toISOString()
+    const newPartnerReferenceNo =
+      action === 'RESENT' ? `RDM${Date.now().toString(36).toUpperCase().slice(-9)}` : null
+    const status =
+      action === 'RESENT'
+        ? 'PROCESSING_PAYOUT'
+        : action === 'SETTLED_MANUAL'
+          ? 'PAYOUT_COMPLETE'
+          : detail.status
+    const actorName = staff?.name ?? 'Operator (sesi backend)'
+    payoutFailureStore.set(id, {
+      ...detail,
+      status,
+      payoutRef: action === 'RESENT' ? null : detail.payoutRef,
+      resolution: action,
+      resolvedAt: now,
+      resolvedByStaffName: actorName,
+      reviews: [
+        ...detail.reviews,
+        {
+          action,
+          reason,
+          externalRef: body.externalRef?.trim() ?? null,
+          newPartnerReferenceNo,
+          actorStaffName: actorName,
+          createdAt: now,
+        },
+      ],
+    })
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { id, action, status, newPartnerReferenceNo, resolvedAt: now },
+    })
+  }),
+
   http.post('/api/v1/mint', async ({ request }) => {
     const operator = authenticatedStaff(request)
     if (!operator) return unauthorized()

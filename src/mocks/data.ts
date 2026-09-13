@@ -35,6 +35,7 @@ import type {
   RateConfig,
   RateInfo,
   FeeConfig,
+  MintModeConfig,
   ReserveLedgerEntry,
   AttestationReport,
   UserAnalytics,
@@ -57,6 +58,12 @@ import type {
   OrderListItem,
   OrderDetail,
   OrderPartnerRef,
+  RedeemApprovalControls,
+  RedeemApprovalDetail,
+  RedeemApprovalListItem,
+  RedeemApprovalOwnerType,
+  PayoutFailureDetail,
+  PayoutSubmissionTrail,
   OrderOnBehalfOf,
   MintPaymentStatus,
   MintSafeStatus,
@@ -456,6 +463,8 @@ export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
     // Redeem fees (W3, USDX-245) — seeded so redeem orders compute; admin-set.
     redeemFeePct: '1.0',
     disbursementFeeFlat: '5000.00',
+    // Minimum mint Rp (USDX-635/637) — pindah dari konstanta ke kolom config.
+    minMintIdr: '20000',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -470,6 +479,28 @@ export function createInitialFeeHistory(seedStaffId: string): FeeConfig[] {
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
   ]
+}
+
+// ─── Mode mint PROD/UJI (/api/v1/mint-mode, USDX-636 + USDX-639) ─────────────
+// Backend-nya dikerjakan paralel (USDX-636); mock ini mengikuti kontrak yang
+// dipatok di tiket USDX-639 dan BUKAN yang menentukannya. Seed = PROD, karena
+// PROD adalah keadaan normal dan mode uji selalu dinyalakan dengan sengaja.
+
+export function createInitialMintMode(seedStaff: { id: string; name: string }): MintModeConfig {
+  return {
+    mode: 'PROD',
+    reason: null,
+    expiresAt: null,
+    updatedBy: seedStaff.id,
+    updatedByName: seedStaff.name,
+    // PROD tidak punya pembatasan apa pun — daftar akses hanya berlaku saat
+    // mode uji menyala (USDX-636 § 3) — dan tidak punya bundle uji.
+    allowedEmails: [],
+    testUsdxAddress: null,
+    testStaffSafeAddress: null,
+    testManagerSafeAddress: null,
+    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  }
 }
 
 // ─── Transparency (/api/v1/transparency/*) ───────────────────────────────────
@@ -1862,7 +1893,7 @@ let oncallIdCounter = 1
 
 /**
  * Seed daftar on-call. Sengaja TIDAK menutup semua kategori: MINT, REDEEM,
- * FRAUD, INFRA, dan OTHER dibiarkan kosong supaya keadaan "kategori tanpa
+ * FRAUD, INFRA, CUSTODIAL, dan OTHER dibiarkan kosong supaya keadaan "kategori tanpa
  * penanggung jawab" — keadaan yang justru dibereskan tiket ini — terlihat di
  * dev/test alih-alih tersembunyi di balik data mock yang terlalu rapi.
  */
@@ -2074,4 +2105,520 @@ export function createBniStatement(
     }),
     rows,
   }
+}
+
+// ─── Persetujuan Pencairan (USDX-669, kontrak `sot/api/redeem-approvals.yaml`) ──
+//
+// Data tiruan sengaja DETERMINISTIK dan sengaja memuat tiga bentuk yang harus
+// bisa dibaca layarnya, bukan sepuluh baris yang seragam:
+//
+//   - baris yang nama menurut BANK-nya BERBEDA dari nama pada order (rekening
+//     keluarga / nama singkat bank) — pertanyaan yang justru harus dinilai ops;
+//   - baris `ownerType: PARTNER` — order partner melewati gerbang yang sama,
+//     tidak ada pintu belakang;
+//   - nominal yang melintasi ambang bawaan (`0`) maupun ambang yang lebih tinggi,
+//     supaya saringan `netPayoutIdr > ambang` benar-benar mengubah isi antrean.
+//
+// Nominal ditulis sebagai string 2 desimal karena begitulah ia datang dari kolom
+// `numeric(20,2)`. Tiruan yang mengirim number akan membuat layar terlihat benar
+// di sini dan salah di produksi.
+
+const REDEEM_APPROVAL_SEEDS: ReadonlyArray<{
+  customerName: string
+  bankAccountName: string
+  email: string
+  bankCode: string
+  bankName: string
+  bankAccountNumber: string
+  amountUsdx: string
+  netPayoutIdr: string
+  grossIdr: string
+  redeemFeeIdr: string
+  disbursementFeeIdr: string
+  ownerType: RedeemApprovalOwnerType
+  externalReference: string | null
+  lateBurn: boolean
+  /**
+   * `true` = order yang sudah `BURNED` tapi hash-nya belum tercatat. Ada SATU di
+   * data tiruan dengan sengaja: `burnTxHash` nullable di kontrak, dan baris tanpa
+   * hash adalah keadaan yang paling mudah membuat kolom barunya pecah.
+   */
+  noBurnHash?: boolean
+}> = [
+  {
+    customerName: 'Budi Santoso',
+    bankAccountName: 'BUDI SANTOSO',
+    email: 'budi.santoso@example.com',
+    bankCode: '014',
+    bankName: 'BCA',
+    bankAccountNumber: '5271884213',
+    amountUsdx: '95.000000',
+    netPayoutIdr: '1520150.00',
+    grossIdr: '1535000.00',
+    redeemFeeIdr: '7675.00',
+    disbursementFeeIdr: '7175.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    // Nama bank berbeda — rekening atas nama istri. Sah, tapi WAJIB dilihat.
+    customerName: 'Dewi Kartika',
+    bankAccountName: 'SRI WAHYUNI',
+    email: 'dewi.k@example.com',
+    bankCode: '009',
+    bankName: 'BNI',
+    bankAccountNumber: '0891223447',
+    amountUsdx: '420.500000',
+    netPayoutIdr: '6742000.00',
+    grossIdr: '6809000.00',
+    redeemFeeIdr: '34045.00',
+    disbursementFeeIdr: '32955.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Agus Pratama',
+    bankAccountName: 'AGUS PRATAMA',
+    email: 'agus.pratama@example.com',
+    bankCode: '008',
+    bankName: 'Mandiri',
+    bankAccountNumber: '1370012998776',
+    amountUsdx: '12.250000',
+    netPayoutIdr: '196020.00',
+    grossIdr: '198450.00',
+    redeemFeeIdr: '992.25',
+    disbursementFeeIdr: '1437.75',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'PT Nusantara Remit',
+    bankAccountName: 'PT NUSANTARA REMIT',
+    email: '(partner customer)',
+    bankCode: '022',
+    bankName: 'CIMB Niaga',
+    bankAccountNumber: '763001229945',
+    amountUsdx: '2500.000000',
+    netPayoutIdr: '40125000.00',
+    grossIdr: '40500000.00',
+    redeemFeeIdr: '202500.00',
+    disbursementFeeIdr: '172500.00',
+    ownerType: 'PARTNER',
+    externalReference: 'NSR-2026-0913-00871',
+    lateBurn: false,
+  },
+  {
+    // Burn setelah order kedaluwarsa: kursnya kurs lama, jadi nominalnya tidak
+    // boleh dihormati otomatis — layar menandainya di dialog.
+    customerName: 'Rina Oktaviani',
+    bankAccountName: 'RINA OKTAVIANI',
+    email: 'rina.o@example.com',
+    bankCode: '013',
+    bankName: 'Permata',
+    bankAccountNumber: '4102338855',
+    amountUsdx: '60.000000',
+    netPayoutIdr: '958800.00',
+    grossIdr: '969000.00',
+    redeemFeeIdr: '4845.00',
+    disbursementFeeIdr: '5355.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: true,
+  },
+  {
+    customerName: 'Hendra Wijaya',
+    bankAccountName: 'HENDRA WIJAYA',
+    email: 'hendra.w@example.com',
+    bankCode: '011',
+    bankName: 'Danamon',
+    bankAccountNumber: '0037712456',
+    amountUsdx: '780.000000',
+    netPayoutIdr: '12512700.00',
+    grossIdr: '12636000.00',
+    redeemFeeIdr: '63180.00',
+    disbursementFeeIdr: '60120.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Siti Maryam',
+    bankAccountName: 'SITI MARYAM',
+    email: 'siti.maryam@example.com',
+    bankCode: '451',
+    bankName: 'BSI',
+    bankAccountNumber: '7220119004',
+    amountUsdx: '35.750000',
+    netPayoutIdr: '571340.00',
+    grossIdr: '578175.00',
+    redeemFeeIdr: '2890.88',
+    disbursementFeeIdr: '3944.12',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Yosef Tanoko',
+    bankAccountName: 'YOSEF TANOKO',
+    email: 'yosef.t@example.com',
+    bankCode: '002',
+    bankName: 'BRI',
+    bankAccountNumber: '338801019556530',
+    amountUsdx: '1140.000000',
+    netPayoutIdr: '18287550.00',
+    grossIdr: '18468000.00',
+    redeemFeeIdr: '92340.00',
+    disbursementFeeIdr: '88110.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Lestari Handayani',
+    bankAccountName: 'LESTARI HANDAYANI',
+    email: 'lestari.h@example.com',
+    bankCode: '426',
+    bankName: 'Mega',
+    bankAccountNumber: '0100551223',
+    amountUsdx: '8.000000',
+    netPayoutIdr: '127140.00',
+    grossIdr: '129600.00',
+    redeemFeeIdr: '648.00',
+    disbursementFeeIdr: '1812.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+    noBurnHash: true,
+  },
+  {
+    customerName: 'Bayu Nugroho',
+    bankAccountName: 'BAYU NUGROHO',
+    email: 'bayu.n@example.com',
+    bankCode: '153',
+    bankName: 'Sinarmas',
+    bankAccountNumber: '0055123998',
+    amountUsdx: '310.000000',
+    netPayoutIdr: '4973350.00',
+    grossIdr: '5022000.00',
+    redeemFeeIdr: '25110.00',
+    disbursementFeeIdr: '23540.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Citra Paramitha',
+    bankAccountName: 'CITRA PARAMITHA',
+    email: 'citra.p@example.com',
+    bankCode: '016',
+    bankName: 'Maybank',
+    bankAccountNumber: '2710033441',
+    amountUsdx: '52.400000',
+    netPayoutIdr: '838080.00',
+    grossIdr: '848880.00',
+    redeemFeeIdr: '4244.40',
+    disbursementFeeIdr: '6555.60',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+  {
+    customerName: 'Fajar Ramadhan',
+    bankAccountName: 'FAJAR RAMADHAN',
+    email: 'fajar.r@example.com',
+    bankCode: '200',
+    bankName: 'BTN',
+    bankAccountNumber: '0010144778',
+    amountUsdx: '990.000000',
+    netPayoutIdr: '15881400.00',
+    grossIdr: '16038000.00',
+    redeemFeeIdr: '80190.00',
+    disbursementFeeIdr: '76410.00',
+    ownerType: 'RETAIL',
+    externalReference: null,
+    lateBurn: false,
+  },
+]
+
+const REDEEM_APPROVAL_BASE_RATE = '16200.00'
+const REDEEM_APPROVAL_SPREAD_SELL_PCT = '0.20'
+const REDEEM_APPROVAL_EFFECTIVE_RATE = '16167.60'
+const REDEEM_APPROVAL_CONTRACT = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+
+/** `burned_at` menurun per indeks — antrean lalu diurutkan TERLAMA dulu di handler. */
+function redeemApprovalBurnedAt(index: number): string {
+  // Basis tetap supaya urutan dan tampilannya stabil antar-test.
+  const base = Date.parse('2026-09-13T02:00:00.000Z')
+  return new Date(base - index * 47 * 60_000).toISOString()
+}
+
+/**
+ * Antrean + detailnya. Satu sumber untuk keduanya: detail adalah SUPERSET list
+ * item menurut kontraknya, jadi membangunnya dari dua tempat akan membuat nominal
+ * di tabel dan nominal di dialog bisa berbeda — tepat kelas bug yang tidak akan
+ * terlihat sampai seseorang menyetujui angka yang salah.
+ */
+export function createMockRedeemApprovals(): {
+  list: RedeemApprovalListItem[]
+  details: Map<string, RedeemApprovalDetail>
+} {
+  const details = new Map<string, RedeemApprovalDetail>()
+  const list = REDEEM_APPROVAL_SEEDS.map((seed, i) => {
+    const id = `019f${(i + 1).toString(16).padStart(4, '0')}-7a10-7c31-9b2d-redeemapp${(i + 1)
+      .toString()
+      .padStart(3, '0')}`
+    const burnedAt = redeemApprovalBurnedAt(i)
+    const createdAt = new Date(Date.parse(burnedAt) - 26 * 60_000).toISOString()
+    const row: RedeemApprovalListItem = {
+      id,
+      orderNumber: `RDM2609${(13 - (i % 5)).toString().padStart(2, '0')}${(i + 1)
+        .toString(36)
+        .toUpperCase()
+        .padStart(2, '0')}${(1000 + i * 37).toString(36).toUpperCase()}`,
+      customerName: seed.customerName,
+      userEmail: seed.email,
+      amountUsdx: seed.amountUsdx,
+      netPayoutIdr: seed.netPayoutIdr,
+      bankCode: seed.bankCode,
+      bankName: seed.bankName,
+      bankAccountNumber: seed.bankAccountNumber,
+      bankAccountName: seed.bankAccountName,
+      burnedAt,
+      // `burnTxHash` hidup di baris LIST sejak kontrak d7cee13 — detailnya
+      // mewarisinya lewat spread di bawah, jadi tabel dan dialog tidak mungkin
+      // menampilkan hash yang berbeda untuk order yang sama.
+      burnTxHash: seed.noBurnHash ? null : `0x${(i + 7).toString(16).padStart(64, 'b')}`,
+      ownerType: seed.ownerType,
+    }
+    const totalFeeCents =
+      Math.round(Number(seed.redeemFeeIdr) * 100) +
+      Math.round(Number(seed.disbursementFeeIdr) * 100)
+    details.set(id, {
+      ...row,
+      chain: 'polygon',
+      userAddress: `0x${(i + 1).toString(16).padStart(2, '0')}9ab41C6f2E3d5B7a8C0d1E2f3A4b5C6d7E8f90${(
+        i + 1
+      )
+        .toString(16)
+        .padStart(2, '0')}`.slice(0, 42),
+      redeemId: `0x${(i + 1).toString(16).padStart(64, 'a')}`,
+      contractAddress: REDEEM_APPROVAL_CONTRACT,
+      baseRate: REDEEM_APPROVAL_BASE_RATE,
+      effectiveRate: REDEEM_APPROVAL_EFFECTIVE_RATE,
+      spreadSellPct: REDEEM_APPROVAL_SPREAD_SELL_PCT,
+      grossIdr: seed.grossIdr,
+      redeemFeeIdr: seed.redeemFeeIdr,
+      disbursementFeeIdr: seed.disbursementFeeIdr,
+      // Dihitung, tidak ditulis ulang: dua angka yang harus berjumlah sama tapi
+      // diketik dua kali akan berbeda suatu hari, dan yang terbaca operator
+      // adalah rincian yang tidak menjumlah.
+      totalFeeIdr: `${Math.floor(totalFeeCents / 100)}.${(totalFeeCents % 100)
+        .toString()
+        .padStart(2, '0')}`,
+      createdAt,
+      expiresAt: new Date(Date.parse(createdAt) + 30 * 60_000).toISOString(),
+      lateBurn: seed.lateBurn,
+      externalReference: seed.externalReference,
+    })
+    return row
+  })
+  return { list, details }
+}
+
+/** Ambang bawaan migrasi: `"0"` — SEMUA pencairan wajib disetujui (fail-closed). */
+export function createInitialRedeemApprovalControls(): RedeemApprovalControls {
+  return { approvalThresholdIdr: '0', updatedAt: null, updatedByName: null }
+}
+
+// ─── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ───────────
+
+/** Id stabil supaya test menunjuk KEADAAN, bukan posisi baris. */
+export const PAYOUT_FAILURE_MOCK_IDS = {
+  /** PAYOUT_FAILED, satu submission ditolak — baris TERTUA. */
+  failedRejected: '019f2a01-0662-7c31-9b2d-000000000001',
+  /** PAYOUT_FAILED setelah pernah di-RESENT: dua submission, satu review, antrean terbuka lagi (§17.2 #4). */
+  failedAfterResend: '019f2a02-0662-7c31-9b2d-000000000002',
+  /** BURN_REJECTED — order partner, TANPA submission sama sekali. */
+  burnRejected: '019f2a03-0662-7c31-9b2d-000000000003',
+  /** PAYOUT_STUCK — submission terakhir belum final, read-only. */
+  stuck: '019f2a04-0662-7c31-9b2d-000000000004',
+  /** PAYOUT_FAILED oleh gerbang pra-kirim kita sendiri — belum pernah diserahkan ke provider. */
+  failedNeverSubmitted: '019f2a05-0662-7c31-9b2d-000000000005',
+} as const
+
+const PAYOUT_FAILURE_BASE_MS = Date.parse('2026-09-12T01:00:00.000Z')
+
+function payoutFailureAt(minutes: number): string {
+  return new Date(PAYOUT_FAILURE_BASE_MS + minutes * 60_000).toISOString()
+}
+
+function payoutSubmission(
+  ref: string,
+  amountIdr: string,
+  submittedMin: number,
+  rejectedMin: number | null,
+  rejectionReason: string | null,
+): PayoutSubmissionTrail {
+  return {
+    partnerReferenceNo: ref,
+    payoutProvider: 'DURIANPAY_SNAP',
+    amountIdr,
+    submittedAt: payoutFailureAt(submittedMin),
+    rejectedAt: rejectedMin === null ? null : payoutFailureAt(rejectedMin),
+    rejectionReason,
+  }
+}
+
+/**
+ * Lima order bermasalah — satu per keadaan yang MENGUBAH layar (aksi yang tersedia,
+ * blok submission kosong vs berisi, jejak review lama), bukan lima variasi warna.
+ * `ownerLabel` retail sudah dalam bentuk ter-mask: di server bentuknya bergantung
+ * role pembaca (USDX-487), dan tiruan ini tidak berpura-pura tahu siapa pembacanya.
+ */
+export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
+  const common = {
+    chain: 'polygon',
+    effectiveRate: '16167.60',
+    lateBurn: false,
+    staleBurn: false,
+    payoutRef: null,
+    resolution: null,
+    resolvedAt: null,
+    resolvedByStaffName: null,
+  } as const
+  const rows: PayoutFailureDetail[] = [
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedRejected,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'PROVIDER_REJECTED',
+      issueReason: '4032402 Invalid beneficiary account',
+      issueAt: payoutFailureAt(0),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '250.000000',
+      amountWei: '250000000',
+      netPayoutIdr: '4012350.00',
+      totalFeeIdr: '29550.00',
+      bankName: 'BCA',
+      bankAccountNumber: '8730012245',
+      bankAccountName: 'RINA SUSANTI',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ri***@example.com',
+      userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      burnTxHash: `0x${'c1'.repeat(32)}`,
+      burnedAt: payoutFailureAt(-30),
+      submissions: [payoutSubmission('RDM260912A1B2C3', '4012350.00', -20, -19, 'Invalid beneficiary account')],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedAfterResend,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'PROVIDER_FAILED',
+      issueReason: 'Transfer Bank Notify: FAILED — beneficiary bank rejected',
+      issueAt: payoutFailureAt(95),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '990.000000',
+      amountWei: '990000000',
+      netPayoutIdr: '15881400.00',
+      totalFeeIdr: '156600.00',
+      bankName: 'BTN',
+      bankAccountNumber: '0010144778',
+      bankAccountName: 'FAJAR RAMADHAN',
+      ownerKind: 'PARTNER',
+      ownerLabel: 'Pintu Kripto / cust-88120',
+      userAddress: null,
+      burnTxHash: `0x${'c2'.repeat(32)}`,
+      burnedAt: payoutFailureAt(-200),
+      submissions: [
+        payoutSubmission('RDM260912D4E5F6', '15881400.00', -180, -178, 'Beneficiary bank timeout'),
+        payoutSubmission('RDM260912G7H8J9', '15881400.00', 60, 94, 'Beneficiary bank rejected'),
+      ],
+      reviews: [
+        {
+          action: 'RESENT',
+          reason: 'Bank tujuan sempat gangguan, kirim ulang ke rekening yang sama',
+          externalRef: null,
+          newPartnerReferenceNo: 'RDM260912G7H8J9',
+          actorStaffName: 'Linda Chen',
+          createdAt: payoutFailureAt(55),
+        },
+      ],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.burnRejected,
+      issueKind: 'BURN_REJECTED',
+      issueCode: 'BURN_AMOUNT_MISMATCH',
+      issueReason: 'Burn 120.5 USDX, snapshot order 125 USDX',
+      issueAt: payoutFailureAt(180),
+      status: 'EXPIRED',
+      amountUsdx: '125.000000',
+      amountWei: '125000000',
+      netPayoutIdr: '1991250.00',
+      totalFeeIdr: '29700.00',
+      bankName: 'Mandiri',
+      bankAccountNumber: '1370098812345',
+      bankAccountName: 'DEWI KARTIKA',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'de***@example.com',
+      userAddress: '0x8fD3A1e0B6c4d2E9F7a5B3c1D0e8F6a4B2c0D9E7',
+      burnTxHash: `0x${'c3'.repeat(32)}`,
+      burnedAt: payoutFailureAt(170),
+      lateBurn: true,
+      submissions: [],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.stuck,
+      issueKind: 'PAYOUT_STUCK',
+      issueCode: 'SETTLE_TIMEOUT',
+      issueReason: null,
+      issueAt: payoutFailureAt(400),
+      status: 'PROCESSING_PAYOUT',
+      amountUsdx: '52.400000',
+      amountWei: '52400000',
+      netPayoutIdr: '838080.00',
+      totalFeeIdr: '10800.00',
+      bankName: 'Maybank',
+      bankAccountNumber: '2710033441',
+      bankAccountName: 'CITRA PARAMITHA',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ci***@example.com',
+      userAddress: '0x3cB7d2E1f0A9b8C7d6E5f4A3b2C1d0E9f8A7b6C5',
+      burnTxHash: `0x${'c4'.repeat(32)}`,
+      burnedAt: payoutFailureAt(10),
+      payoutRef: 'dp_trx_0091827',
+      submissions: [payoutSubmission('RDM260912K1L2M3', '838080.00', 30, null, null)],
+      reviews: [],
+    },
+    {
+      ...common,
+      id: PAYOUT_FAILURE_MOCK_IDS.failedNeverSubmitted,
+      issueKind: 'PAYOUT_FAILED',
+      issueCode: 'BANK_CODE_UNSUPPORTED',
+      issueReason: 'bank code 947 not supported by DURIANPAY_SNAP',
+      issueAt: payoutFailureAt(520),
+      status: 'PAYOUT_FAILED',
+      amountUsdx: '75.000000',
+      amountWei: '75000000',
+      netPayoutIdr: '1188210.00',
+      totalFeeIdr: '24360.00',
+      bankName: '947',
+      bankAccountNumber: '004521889012',
+      bankAccountName: 'AGUS PRASETYO',
+      ownerKind: 'RETAIL',
+      ownerLabel: 'ag***@example.com',
+      userAddress: '0x1aB2c3D4e5F6a7B8c9D0e1F2a3B4c5D6e7F8a9B0',
+      burnTxHash: `0x${'c5'.repeat(32)}`,
+      burnedAt: payoutFailureAt(500),
+      submissions: [],
+      reviews: [],
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
 }

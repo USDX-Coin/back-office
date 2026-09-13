@@ -182,6 +182,24 @@ const WIB_DATETIME_FMT = new Intl.DateTimeFormat('en-CA', {
   hour12: false,
 })
 
+/**
+ * Jam dinding WIB saja: `HH:MM WIB` (USDX-639).
+ *
+ * Dipakai banner mode uji, yang harus menjawab satu pertanyaan dalam satu
+ * kalimat — "sampai jam berapa ini menyala" — dan jendelanya tidak pernah
+ * lebih dari 24 jam, jadi tanggalnya hanya menambah kata tanpa menambah
+ * jawaban. Kartu Mode Mint tetap memakai `formatWibDateTime` yang lengkap.
+ */
+export function formatWibClock(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    WIB_DATETIME_FMT.formatToParts(date).find((p) => p.type === type)?.value ?? ''
+  const hour = part('hour') === '24' ? '00' : part('hour')
+  return `${hour}:${part('minute')} WIB`
+}
+
 export function formatWibDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
   const date = new Date(iso)

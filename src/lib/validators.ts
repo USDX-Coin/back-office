@@ -13,6 +13,12 @@ import type {
 } from './types'
 import { LEDGER_ENTRY_TYPES_SELECTABLE, LEDGER_SUPPORTED_CURRENCY } from './types'
 import { isFutureWibDate, parseAmountToCents, wibToday } from './transparency'
+import {
+  conflictingTestBundleAddresses,
+  TEST_BUNDLE_ADDRESS_LABELS,
+  validateTestBundleAddress,
+  type TestBundleAddressField,
+} from './mintMode'
 
 export interface ValidationResult {
   valid: boolean
@@ -232,12 +238,35 @@ export function validateDisbursementFeeFlat(raw: string): string | null {
   return validateFlatFee(raw, 'Disbursement fee')
 }
 
+/**
+ * Lantai keras minimum mint (USDX-635/637): backend menolak apa pun di bawah
+ * Rp 10.000 dengan 422. Angka ini DISALIN dari kontrak backend, bukan dipilih
+ * di sini — validasi klien hanya menjawab lebih cepat, server tetap penentu.
+ * Sengaja TIDAK ada plafon atas: kontrak tidak menetapkan satu pun, dan aturan
+ * klien yang lebih ketat dari kontrak akan menolak angka yang server terima.
+ */
+export const MIN_MINT_IDR_FLOOR = 10_000
+
+/** Minimum mint, Rp. Wajib diisi, angka, >= lantai keras backend. */
+export function validateMinMintIdr(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Minimum mint is required'
+  if (!DECIMAL_RE.test(trimmed)) return 'Minimum mint must be a number (up to 4 decimals)'
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return 'Minimum mint must be a number (up to 4 decimals)'
+  if (n < MIN_MINT_IDR_FLOOR) {
+    return `Minimum mint must be at least ${MIN_MINT_IDR_FLOOR.toLocaleString('en-US')}`
+  }
+  return null
+}
+
 export function validateFeeConfigForm(input: {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
+  minMintIdr: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
@@ -250,6 +279,145 @@ export function validateFeeConfigForm(input: {
   if (redeemErr) errors.redeemFeePct = redeemErr
   const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
   if (disbErr) errors.disbursementFeeFlat = disbErr
+  const minMintErr = validateMinMintIdr(input.minMintIdr)
+  if (minMintErr) errors.minMintIdr = minMintErr
+  return { valid: Object.keys(errors).length === 0, errors }
+}
+
+/**
+ * Nama field pada payload `POST /api/v1/fee-config`, dipakai untuk menempelkan
+ * pesan 422 backend ke field yang benar.
+ *
+ * Kontrak hanya menjanjikan satu `code` (`VALIDATION_ERROR`) plus `message` —
+ * tidak ada field terstruktur — jadi satu-satunya petunjuk yang SAH adalah
+ * nama field yang disebut di dalam message itu sendiri. Kalau message menyebut
+ * tepat satu nama field, pesannya tampil di field itu; kalau menyebut nol atau
+ * lebih dari satu, pesan tampil di tingkat form. Menebak field saat pesannya
+ * ambigu akan mengirim operator memperbaiki angka yang tidak dikeluhkan server.
+ */
+const FEE_CONFIG_FIELD_KEYS = [
+  'mintFeePct',
+  'pgFeeVaFlat',
+  'pgFeeQrisPct',
+  'redeemFeePct',
+  'disbursementFeeFlat',
+  'minMintIdr',
+] as const
+
+export function feeConfigErrorField(message: string): string | null {
+  const named = FEE_CONFIG_FIELD_KEYS.filter((key) => message.includes(key))
+  return named.length === 1 ? named[0] : null
+}
+
+// ─── Mode mint PROD/UJI (USDX-639) ──────────────────────────────────────────
+// Menyalakan mode uji sengaja dibuat SULIT: alasan wajib dan durasi wajib,
+// karena mode uji berarti user membayar uang asli dan menerima token uji.
+// Mematikannya tetap mudah — asimetri itu ada di tiketnya.
+
+/** Batas durasi mode uji: maksimum 24 jam sekali geser (`sot/api/mint-mode.yaml`). */
+export const MINT_TEST_MODE_MAX_HOURS = 24
+
+/**
+ * Panjang minimum alasan, dari `sot/api/mint-mode.yaml § SetMintMode` — "minimal
+ * 10 karakter (CHECK yang sama ada di DB)". Ditulis sebagai konstanta milik mode
+ * mint sendiri, bukan diturunkan dari `LEDGER_REASON_MIN_LEN`: keduanya kebetulan
+ * 10 hari ini karena dua kontrak yang berbeda kebetulan sepakat, dan menautkannya
+ * berarti perubahan di satu kontrak diam-diam menggeser yang lain.
+ */
+export const MINT_MODE_REASON_MIN_LEN = 10
+
+export function validateMintModeReason(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Alasan wajib diisi'
+  if (trimmed.length < MINT_MODE_REASON_MIN_LEN) {
+    return `Alasan minimal ${MINT_MODE_REASON_MIN_LEN} karakter`
+  }
+  return null
+}
+
+/**
+ * Satu email pada daftar yang boleh mint saat mode uji (USDX-639, tambahan
+ * lingkup 11 Sep 2026). Memakai `EMAIL_RE` yang sama dengan login dan form staf
+ * — aturan bentuk email di aplikasi ini harus satu, bukan tiga yang berbeda tipis.
+ */
+export function validateMintAllowedEmail(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Email wajib diisi'
+  if (!EMAIL_RE.test(trimmed)) return 'Format email tidak valid'
+  return null
+}
+
+/**
+ * Durasi jam. Bilangan bulat 1..24.
+ *
+ * Bulat, bukan pecahan: kontrak menyebut "durasi jam" dan tidak ada satuan yang
+ * lebih halus di layar ini, jadi menerima 0,5 hanya memindahkan penolakannya ke
+ * server. Batas atasnya 24 karena mode uji yang menyala lebih lama dari satu
+ * hari kerja akan terlupakan — itulah kegagalan yang membuat tiket ini ada.
+ */
+export function validateMintModeDurationHours(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'Durasi wajib diisi'
+  if (!/^\d+$/.test(trimmed)) return 'Durasi harus bilangan bulat jam'
+  const n = Number(trimmed)
+  if (n < 1) return 'Durasi minimal 1 jam'
+  if (n > MINT_TEST_MODE_MAX_HOURS) {
+    return `Durasi maksimal ${MINT_TEST_MODE_MAX_HOURS} jam`
+  }
+  return null
+}
+
+/**
+ * `allowedEmailDraft` = apa yang masih tertulis di kotak email dan BELUM
+ * ditambahkan ke daftar. Ia ikut divalidasi supaya alamat setengah diketik tidak
+ * bisa dikirim secara diam-diam: tombol simpan mati selama kotaknya berisi
+ * sesuatu yang bukan email. Kotak KOSONG bukan kesalahan — daftar boleh kosong
+ * (artinya tidak ada yang bisa mint), dan dialognya yang memperingatkan.
+ *
+ * Ketiga alamat bundle uji (USDX-654) WAJIB dan harus ber-checksum EIP-55 —
+ * gerbang pertama server, bukan aturan tambahan klien. Yang benar-benar menjaga
+ * bundle adalah pemeriksaan on-chain di server; validasi di sini hanya menjawab
+ * lebih cepat untuk kesalahan yang tidak perlu perjalanan ke sana.
+ */
+export function validateMintTestModeForm(input: {
+  reason: string
+  durationHours: string
+  allowedEmailDraft?: string
+  testUsdxAddress: string
+  testStaffSafeAddress: string
+  testManagerSafeAddress: string
+}): ValidationResult {
+  const errors: Record<string, string> = {}
+  const reasonErr = validateMintModeReason(input.reason)
+  if (reasonErr) errors.reason = reasonErr
+  const durationErr = validateMintModeDurationHours(input.durationHours)
+  if (durationErr) errors.durationHours = durationErr
+  const draft = (input.allowedEmailDraft ?? '').trim()
+  if (draft) {
+    const emailErr = validateMintAllowedEmail(draft)
+    if (emailErr) errors.allowedEmailDraft = emailErr
+  }
+
+  const fields = Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]
+  for (const field of fields) {
+    const err = validateTestBundleAddress(input[field], TEST_BUNDLE_ADDRESS_LABELS[field])
+    if (err) errors[field] = err
+  }
+
+  // Token uji tidak boleh beralamat sama dengan Safe uji. Safe staff = Safe
+  // manager JUSTRU diperbolehkan (USDX-655) — bundle dev memang begitu.
+  const conflicting = conflictingTestBundleAddresses({
+    testUsdxAddress: errors.testUsdxAddress ? '' : input.testUsdxAddress,
+    testStaffSafeAddress: errors.testStaffSafeAddress ? '' : input.testStaffSafeAddress,
+    testManagerSafeAddress: errors.testManagerSafeAddress
+      ? ''
+      : input.testManagerSafeAddress,
+  })
+  for (const field of conflicting) {
+    errors[field] =
+      `${TEST_BUNDLE_ADDRESS_LABELS[field]} — alamat token uji dan alamat Safe uji tidak boleh sama`
+  }
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
