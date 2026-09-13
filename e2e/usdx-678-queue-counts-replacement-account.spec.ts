@@ -3,7 +3,7 @@ import { installMockApi, RINA_REPLACEMENT_ACCOUNTS } from './support/mock-api'
 import { seedAuthenticatedSession } from './support/auth'
 
 // USDX-678 — badge antrean dari `GET /api/v1/queue-counts` (sot/api/queue-counts.yaml) dan
-// pemilih rekening pengganti di dialog Kirim ulang (sot/bni-integration.md § 17.5).
+// dropdown rekening pengganti di dialog Kirim ulang (sot/bni-integration.md § 17.5).
 // Mock-backed via page.route (support/mock-api.ts).
 
 const REASON = 'Rekening lama ditutup, kirim ke rekening lain'
@@ -39,9 +39,13 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await detail.getByRole('button', { name: 'Kirim ulang' }).click({ timeout: 15000 })
       const resolve = page.getByRole('dialog', { name: 'Kirim ulang payout' })
 
-      await expect(resolve.getByRole('radio')).toHaveCount(3)
-      await expect(resolve.getByRole('radio', { name: /8730012245/ })).toBeChecked()
-      await resolve.getByRole('radio', { name: /1370012245001/ }).check()
+      const account = resolve.getByRole('combobox', { name: 'Rekening tujuan' })
+      await expect(account).toContainText('8730012245')
+      await expect(account).toContainText('rekening saat ini')
+      await account.click()
+      await expect(page.getByRole('option')).toHaveCount(3)
+      await page.getByRole('option', { name: /1370012245001/ }).click()
+      await expect(account).toContainText('1370012245001')
       await expect(resolve.getByTestId('resolve-consequence')).toContainText('Mandiri · 1370012245001 · RINA SUSANTI')
       await resolve.getByLabel(/^Alasan/).fill(REASON)
 
@@ -85,12 +89,14 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       const detail = page.getByRole('dialog', { name: /Pencairan bermasalah/ })
       await detail.getByRole('button', { name: 'Kirim ulang' }).click({ timeout: 15000 })
       const resolve = page.getByRole('dialog', { name: 'Kirim ulang payout' })
-      await resolve.getByRole('radio', { name: /0291884501/ }).check()
+      const account = resolve.getByRole('combobox', { name: 'Rekening tujuan' })
+      await account.click()
+      await page.getByRole('option', { name: /0291884501/ }).click()
       await resolve.getByLabel(/^Alasan/).fill(REASON)
       await resolve.getByRole('button', { name: 'Kirim ulang' }).click()
 
       await expect(resolve.getByRole('alert')).toContainText('bukan milik nasabah pemilik order')
-      await expect(resolve.getByRole('radio', { name: /0291884501/ })).toBeChecked()
+      await expect(account).toContainText('0291884501')
     })
   })
 
