@@ -159,12 +159,19 @@ describe('payoutIssueKindPill / payoutIssueCodeLabel / isPayoutIssueKind', () =>
       expect(payoutIssueCodeLabel('BURN_WALLET_MISMATCH')).toBe('Wallet burn bukan wallet order')
       // Tolakan di gerbang Persetujuan Pencairan (sot/api/redeem-approvals.yaml § reject).
       expect(payoutIssueCodeLabel('OPS_REJECTED')).toBe('Ditolak ops di Persetujuan Pencairan')
+      // USDX-670: token yang dibakar bukan token order — mis. token uji atas order bertoken prod.
+      expect(payoutIssueCodeLabel('BURN_CONTRACT_MISMATCH')).toBe(
+        'Burn di alamat token yang bukan milik order',
+      )
       expect(isPayoutIssueKind('BURN_REJECTED')).toBe(true)
     })
   })
   describe('negative', () => {
     test('an unknown filter value from the URL is not a kind', () => {
       expect(isPayoutIssueKind('DROP TABLE')).toBe(false)
+    })
+    test('BANK_ACCOUNT_INVALID has no label — it never had a writer and left the SOT list (sot 8c8b1d3)', () => {
+      expect(payoutIssueCodeLabel('BANK_ACCOUNT_INVALID')).toBeNull()
     })
   })
   describe('edge cases', () => {
