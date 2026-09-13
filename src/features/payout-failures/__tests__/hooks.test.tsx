@@ -5,10 +5,10 @@ import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { server } from '@/mocks/server'
 import { findStaffById, issueMockJwt, resetMockData } from '@/mocks/handlers'
-import { PAYOUT_FAILURE_MOCK_IDS as IDS } from '@/mocks/data'
+import { createMockPayoutFailures, PAYOUT_FAILURE_MOCK_IDS as IDS } from '@/mocks/data'
 import { createTestQueryClient } from '@/test/test-utils'
 import { useQueueCounts } from '@/features/queue-counts/hooks'
-import { useResolvePayoutFailure } from '../hooks'
+import { usePayoutFailureDetail, useResolvePayoutFailure } from '../hooks'
 
 // USDX-678 — badge Pencairan Bermasalah ditarik ulang setelah resolve (sot/bni-integration.md § 17.9).
 
@@ -95,6 +95,54 @@ describe('useResolvePayoutFailure → queue-counts', () => {
       })
 
       await waitFor(() => expect(countRequests).toHaveLength(2))
+    })
+  })
+})
+
+// Review back-office#105 — detail dinormalisasi di SATU titik batas: backend yang belum membawa
+// `replacementBankAccounts` (sebelum USDX-677; kontrak tidak menjadikannya `required`) dibaca
+// sebagai daftar kosong, bukan `undefined` yang meledakkan dialog resolve.
+describe('usePayoutFailureDetail → replacementBankAccounts', () => {
+  function renderDetail() {
+    const client = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    return renderHook(() => usePayoutFailureDetail(IDS.failedRejected), { wrapper })
+  }
+
+  function detailResponse(replacementBankAccounts: 'absent' | null) {
+    const data: Record<string, unknown> = { ...createMockPayoutFailures().get(IDS.failedRejected)! }
+    if (replacementBankAccounts === 'absent') delete data.replacementBankAccounts
+    else data.replacementBankAccounts = replacementBankAccounts
+    return http.get('/api/v1/payout-failures/:id', () =>
+      HttpResponse.json({ status: 'success', metadata: null, data }),
+    )
+  }
+
+  describe('positive', () => {
+    test('passes the address book through when the server sends it', async () => {
+      const { result } = renderDetail()
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(result.current.data!.replacementBankAccounts).toHaveLength(3)
+    })
+  })
+
+  describe('negative', () => {
+    test('a detail without the field reads as an empty address book', async () => {
+      server.use(detailResponse('absent'))
+      const { result } = renderDetail()
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(result.current.data!.replacementBankAccounts).toEqual([])
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a null field reads as an empty address book too', async () => {
+      server.use(detailResponse(null))
+      const { result } = renderDetail()
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      expect(result.current.data!.replacementBankAccounts).toEqual([])
     })
   })
 })

@@ -12,6 +12,7 @@ import {
 } from '@/mocks/data'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import { renderWithProviders } from '@/test/test-utils'
+import type { PayoutFailureDetail } from '@/lib/types'
 
 // USDX-662 — aksi resolve dari detail (§ 17.4 aksi per jenis, § 17.5 aturan form & peran).
 // Peran: stf_1 ADMIN · stf_2 MANAGER · stf_3 DEVELOPER · stf_4 STAFF.
@@ -362,6 +363,60 @@ describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
       const again = await chooseAction(screen.getByRole('dialog'), 'Kirim ulang')
       expect(accountSelect(again.dialog)).toHaveTextContent('8730012245')
       expect(accountSelect(again.dialog)).not.toHaveTextContent('1370012245001')
+    })
+  })
+})
+
+// Review back-office#105 — backend `dev` belum mengirim `replacementBankAccounts` (USDX-677 belum
+// ter-deploy) dan kontrak tidak menjadikannya `required`. Build yang di-deploy tidak memakai MSW,
+// jadi detail tanpa field itu adalah keadaan nyata: ketiga dialog resolve harus tetap jalan
+// seperti #104, dan Kirim ulang tetap bisa ke rekening yang sama.
+describe('ResolvePayoutFailureDialog — detail tanpa replacementBankAccounts @ USDX-678 (review #105)', () => {
+  /** Simpan `failedRejected` persis seperti yang dijawab backend sebelum USDX-677: tanpa field. */
+  function seedDetailWithoutReplacementAccounts() {
+    const legacy: Partial<PayoutFailureDetail> = { ...createMockPayoutFailures().get(IDS.failedRejected)! }
+    delete legacy.replacementBankAccounts
+    upsertPayoutFailureForTests(legacy as PayoutFailureDetail)
+  }
+
+  describe('positive', () => {
+    test('should resend to the current account with no dropdown and no bankAccountId', async () => {
+      const bodies: Record<string, unknown>[] = []
+      server.events.on('request:start', async ({ request }) => {
+        if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/resolve')) {
+          bodies.push((await request.clone().json()) as Record<string, unknown>)
+        }
+      })
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('belum menyimpan rekening lain')
+      expect(within(dialog).getByTestId('resolve-consequence')).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI')
+
+      await user.type(within(dialog).getByLabelText(/^Alasan/), REASON)
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
+      await waitResolveClosed('Kirim ulang')
+      expect(bodies).toEqual([{ action: 'RESENT', reason: REASON }])
+    })
+  })
+
+  describe('negative', () => {
+    test('should still open the close-without-payment dialog', async () => {
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { dialog } = await chooseAction(detail, 'Tutup tanpa pembayaran')
+      expect(within(dialog).getByLabelText(/^Alasan/)).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should still open the settled-manually dialog', async () => {
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { dialog } = await chooseAction(detail, 'Tandai dibayar manual')
+      expect(within(dialog).getByLabelText(/Nomor referensi transfer bank/)).toBeInTheDocument()
     })
   })
 })
