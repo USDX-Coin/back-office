@@ -34,8 +34,13 @@ import type {
   RedeemApprovalDetail,
   RedeemApprovalListItem,
   RedeemApprovalOutcome,
+  PayoutFailureDetail,
+  PayoutFailureListItem,
+  PayoutIssueKind,
+  PayoutResolution,
+  ResolvePayoutFailureBody,
 } from '@/lib/types'
-import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -70,6 +75,7 @@ import {
   createBniStatementRows,
   createMockRedeemApprovals,
   createInitialRedeemApprovalControls,
+  createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
 } from './data'
 
@@ -118,6 +124,14 @@ let redeemApprovalDetails: Map<string, RedeemApprovalDetail>
 ;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
 let redeemApprovalDecisions = new Map<string, 'APPROVED' | 'REJECTED'>()
 let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApprovalControls()
+// USDX-662 — antrean Pencairan Bermasalah (`sot/api/payout-failures.yaml`). DILAYANI
+// MSW: backend USDX-471 sudah merge ke `dev` (backend#320) tapi api-dev belum
+// menyajikannya (13 Sep 2026: `GET /api/v1/payout-failures` 404), jadi ketiga rutenya
+// TIDAK masuk `INTEGRATION_PATHS`. Detail menyimpan `resolution` alih-alih membuang
+// baris — resolve kedua harus dijawab `409 ALREADY_RESOLVED`, bukan `404`.
+let payoutFailureStore: Map<string, PayoutFailureDetail> = createMockPayoutFailures()
+// Cermin `payout_controls.payouts_enabled`; tabel kosong di server = HIDUP.
+let payoutsEnabled = true
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -147,6 +161,8 @@ export function resetMockData() {
   ;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
   redeemApprovalDecisions = new Map()
   redeemApprovalControls = createInitialRedeemApprovalControls()
+  payoutFailureStore = createMockPayoutFailures()
+  payoutsEnabled = true
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -778,6 +794,58 @@ function redeemDecisionOutcome(
     decidedAt: new Date().toISOString(),
     decidedByName: staff.name,
   }
+}
+
+// ─── Pencairan Bermasalah (USDX-662) ────────────────────────────────────────
+// Bentuk galat meniru filter exception backend APA ADANYA: `new ConflictException(
+// "ALREADY_RESOLVED")` menjadi `{ code: "CONFLICT", message: "ALREADY_RESOLVED" }`.
+// Tiruan yang menaruh nama itu di `code` akan meloloskan pembaca FE yang hanya
+// melihat `code` — dan pembaca itu gagal di server sungguhan.
+
+function payoutFailureError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+/**
+ * Disalin dari `ALLOWED_ACTIONS` di repository backend, BUKAN diimpor dari
+ * `@/lib/payoutFailures`: tiruan yang memakai aturan UI sendiri akan setuju dengan
+ * UI karena konstruksinya, dan test tidak lagi membuktikan apa pun tentang server.
+ */
+const PAYOUT_RESOLVE_ALLOWED: Record<PayoutIssueKind, PayoutResolution[]> = {
+  PAYOUT_FAILED: ['RESENT', 'SETTLED_MANUAL', 'CLOSED'],
+  BURN_REJECTED: ['SETTLED_MANUAL', 'CLOSED'],
+  PAYOUT_STUCK: [],
+}
+
+function toPayoutFailureListItem(detail: PayoutFailureDetail): PayoutFailureListItem {
+  return {
+    id: detail.id,
+    issueKind: detail.issueKind,
+    issueCode: detail.issueCode,
+    issueAt: detail.issueAt,
+    status: detail.status,
+    amountUsdx: detail.amountUsdx,
+    netPayoutIdr: detail.netPayoutIdr,
+    bankName: detail.bankName,
+    bankAccountNumber: detail.bankAccountNumber,
+    bankAccountName: detail.bankAccountName,
+    ownerKind: detail.ownerKind,
+    ownerLabel: detail.ownerLabel,
+    burnTxHash: detail.burnTxHash,
+  }
+}
+
+/** Test helper: tarik / lepas rem payout tanpa `psql`. Dikembalikan oleh resetMockData(). */
+export function configurePayoutsEnabledForTests(enabled: boolean) {
+  payoutsEnabled = enabled
+}
+
+/** Test helper: sisipkan atau ganti satu order bermasalah. Dikembalikan oleh resetMockData(). */
+export function upsertPayoutFailureForTests(detail: PayoutFailureDetail) {
+  payoutFailureStore.set(detail.id, detail)
 }
 
 function bniError(status: number, code: string, message: string, details?: unknown) {
@@ -2422,6 +2490,136 @@ export const handlers = [
       status: 'success',
       metadata: null,
       data: redeemApprovalControls,
+    })
+  }),
+
+  // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ───
+  // MSW-served sampai api-dev menyajikan modul USDX-471; lalu ketiga path masuk
+  // `INTEGRATION_PATHS` (handler tetap untuk Vitest, preseden USDX-154).
+  //
+  // GET tanpa gerbang auth tiruan (cba3b47): di browser dev sesi operator adalah
+  // cookie httpOnly backend ASLI yang tidak terlihat oleh service worker. Resolve
+  // menegakkan peran HANYA saat sesi tiruan terbaca (Vitest) — tanpa itu test
+  // "STAFF ditolak 403" tidak membuktikan apa pun, dan dengan gerbang penuh layar
+  // dev tidak bisa dipakai sama sekali.
+
+  http.get('/api/v1/payout-failures', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    const issueKind = url.searchParams.get('issueKind')
+    if (issueKind && !(issueKind in PAYOUT_RESOLVE_ALLOWED)) {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'issueKind must be one of the following values: PAYOUT_FAILED, BURN_REJECTED, PAYOUT_STUCK'
+      )
+    }
+    // Antrean TERBUKA = belum di-resolve; urut `issueAt` ASC (terlama dulu, fairness).
+    const rows = [...payoutFailureStore.values()]
+      .filter((detail) => detail.resolution === null)
+      .filter((detail) => !issueKind || detail.issueKind === issueKind)
+      .sort((a, b) => (a.issueAt ?? '').localeCompare(b.issueAt ?? ''))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toPayoutFailureListItem),
+    })
+  }),
+
+  http.get('/api/v1/payout-failures/:id', ({ params }) => {
+    const detail = payoutFailureStore.get(String(params.id))
+    if (!detail) return payoutFailureError(404, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+  http.post('/api/v1/payout-failures/:id/resolve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolvePayoutFailureRole(staff.role)) {
+      return payoutFailureError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Partial<ResolvePayoutFailureBody>
+    try {
+      body = (await request.json()) as Partial<ResolvePayoutFailureBody>
+    } catch {
+      return payoutFailureError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const action = body.action
+    if (action !== 'RESENT' && action !== 'SETTLED_MANUAL' && action !== 'CLOSED') {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'action must be one of the following values: RESENT, SETTLED_MANUAL, CLOSED'
+      )
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 10 || reason.length > 500) {
+      return payoutFailureError(
+        400,
+        'BAD_REQUEST',
+        'reason must be longer than or equal to 10 characters'
+      )
+    }
+    // Urutan pemeriksaan = urutan backend: service (badan request + rem payout),
+    // lalu repository (ada? sudah di-resolve? aksi sah? submission final? rekening).
+    if (action === 'SETTLED_MANUAL' && !body.externalRef?.trim()) {
+      return payoutFailureError(400, 'BAD_REQUEST', 'EXTERNAL_REF_REQUIRED')
+    }
+    if (action !== 'RESENT' && body.bankAccountId) {
+      return payoutFailureError(400, 'BAD_REQUEST', 'BANK_ACCOUNT_NOT_ALLOWED_FOR_ACTION')
+    }
+    if (action === 'RESENT' && !payoutsEnabled) {
+      return payoutFailureError(409, 'CONFLICT', 'PAYOUT_DISABLED')
+    }
+    const id = String(params.id)
+    const detail = payoutFailureStore.get(id)
+    if (!detail) return payoutFailureError(404, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND')
+    if (detail.resolution !== null) return payoutFailureError(409, 'CONFLICT', 'ALREADY_RESOLVED')
+    if (!(PAYOUT_RESOLVE_ALLOWED[detail.issueKind] ?? []).includes(action)) {
+      return payoutFailureError(409, 'CONFLICT', 'ACTION_NOT_ALLOWED_FOR_KIND')
+    }
+    const last = detail.submissions[detail.submissions.length - 1]
+    if (action !== 'CLOSED' && last && last.rejectedAt === null) {
+      return payoutFailureError(409, 'CONFLICT', 'SUBMISSION_NOT_FINAL')
+    }
+    // Tiruan tidak punya address book: setiap `bankAccountId` dijawab seperti
+    // rekening yang tidak ditemukan di server — sama dengan milik orang lain.
+    if (body.bankAccountId) return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+
+    const now = new Date().toISOString()
+    const newPartnerReferenceNo =
+      action === 'RESENT' ? `RDM${Date.now().toString(36).toUpperCase().slice(-9)}` : null
+    const status =
+      action === 'RESENT'
+        ? 'PROCESSING_PAYOUT'
+        : action === 'SETTLED_MANUAL'
+          ? 'PAYOUT_COMPLETE'
+          : detail.status
+    const actorName = staff?.name ?? 'Operator (sesi backend)'
+    payoutFailureStore.set(id, {
+      ...detail,
+      status,
+      payoutRef: action === 'RESENT' ? null : detail.payoutRef,
+      resolution: action,
+      resolvedAt: now,
+      resolvedByStaffName: actorName,
+      reviews: [
+        ...detail.reviews,
+        {
+          action,
+          reason,
+          externalRef: body.externalRef?.trim() ?? null,
+          newPartnerReferenceNo,
+          actorStaffName: actorName,
+          createdAt: now,
+        },
+      ],
+    })
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { id, action, status, newPartnerReferenceNo, resolvedAt: now },
     })
   }),
 

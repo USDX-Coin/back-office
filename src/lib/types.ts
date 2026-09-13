@@ -41,6 +41,17 @@ export function canDecideRedeemPayoutRole(role: StaffRole): boolean {
   return role === 'MANAGER' || role === 'ADMIN'
 }
 
+// USDX-662: resolve antrean "Pencairan Bermasalah" (RESENT / SETTLED_MANUAL /
+// CLOSED) adalah MANAGER / ADMIN (`sot/bni-integration.md § 17.5` D22-d,
+// `sot/api/payout-failures.yaml § Akses`). Hari ini daftarnya sama dengan
+// `canDecideRedeemPayoutRole`, tapi SENGAJA fungsi terpisah: dua kontrak yang
+// kebetulan sepakat — kalau maker-checker (P1-19) mendarat untuk salah satunya,
+// yang lain tidak boleh ikut berubah diam-diam (preseden `canDecideScreening` vs
+// `canReviewKyc`). Dipakai handler MSW; pasangan UI-nya `canResolvePayoutFailure`.
+export function canResolvePayoutFailureRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN'
+}
+
 // SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
@@ -2846,4 +2857,124 @@ export interface ApproveRedeemPayoutBody {
 /** Body `POST /api/v1/redeem-approvals/{id}/reject` — `reason` WAJIB. */
 export interface RejectRedeemPayoutBody {
   reason: string
+}
+
+// ─── Pencairan Bermasalah (USDX-662, kontrak `sot/api/payout-failures.yaml`) ──
+//
+// Antrean penyelesaian manual payout redeem (`sot/bni-integration.md § 17`).
+// Subjeknya ORDER redeem, bukan kredit. Yang membentuk tipe-tipe di bawah:
+//
+//  1. UANG SELALU STRING (`numeric(20,2)` di `redeem_orders`) — formatnya lewat
+//     `formatIdrExact` / `formatUsdxExact` di `@/lib/redeemApprovals`, kolom yang sama.
+//  2. `issueKind` adalah enum TERBUKA menurut kontrak: setiap `switch` atasnya
+//     wajib punya cabang default (`@/lib/payoutFailures`).
+//  3. Nilai aksinya `RESENT`, bukan `RESEND`. Tiket dan § 17 menulis kata kerja;
+//     kontrak dan DTO backend memakai `PayoutResolution` yang sama untuk body DAN
+//     jejak audit. Yang dikirim ke server adalah ejaan kontrak.
+
+/** Populasi antrean (§ 17.4). Mirror enum DB `redeem_payout_issue_kind`. */
+export type PayoutIssueKind = 'PAYOUT_FAILED' | 'BURN_REJECTED' | 'PAYOUT_STUCK'
+
+/** Keputusan ops. Mirror enum DB `redeem_payout_resolution`. */
+export type PayoutResolution = 'RESENT' | 'SETTLED_MANUAL' | 'CLOSED'
+
+/** Order retail (baris `users`) atau order customer partner (`partner_customers`). */
+export type PayoutFailureOwnerKind = 'RETAIL' | 'PARTNER'
+
+/**
+ * Satu baris `payout_submissions` — jejak sekali-tulis tiap kali transfer
+ * diserahkan ke provider. Menjawab "pernahkah ada transfer yang berangkat?".
+ */
+export interface PayoutSubmissionTrail {
+  partnerReferenceNo: string
+  payoutProvider: string
+  /** IDR 2 desimal, seperti yang diperintahkan. */
+  amountIdr: string
+  submittedAt: string
+  /** Terisi hanya kalau percobaan ini TERBUKTI ditolak — arti "final" di § 17.2 #3. */
+  rejectedAt: string | null
+  rejectionReason: string | null
+}
+
+/** Satu keputusan ops dari jejak append-only `redeem_payout_reviews`. */
+export interface PayoutFailureReview {
+  action: PayoutResolution
+  reason: string
+  externalRef: string | null
+  newPartnerReferenceNo: string | null
+  actorStaffName: string
+  createdAt: string
+}
+
+/** Satu baris antrean terbuka (`GET /api/v1/payout-failures`). */
+export interface PayoutFailureListItem {
+  /** id `redeem_orders`. */
+  id: string
+  issueKind: PayoutIssueKind
+  /**
+   * Kode mesin — untuk pengelompokan, BUKAN untuk ditampilkan mentah (kontrak).
+   * Nullable mengikuti read model backend (`payout-failures.types.ts`).
+   */
+  issueCode: string | null
+  /** Kapan masuk antrean. Nullable mengikuti read model backend. */
+  issueAt: string | null
+  /** Status order SAAT INI — BURN_REJECTED sengaja masih AWAITING_BURN/EXPIRED (§ 17.4). */
+  status: string
+  amountUsdx: string
+  netPayoutIdr: string
+  bankName: string
+  /** Nomor rekening PENUH (un-mask) untuk keempat role — bahan keputusan ops. */
+  bankAccountNumber: string
+  /** Nama pemilik menurut BANK (hasil inquiry), bukan ketikan nasabah. */
+  bankAccountName: string
+  ownerKind: PayoutFailureOwnerKind
+  /**
+   * Retail: email nasabah, ter-mask untuk role selain ADMIN (USDX-487).
+   * Partner: `nama partner / id customer partner`.
+   */
+  ownerLabel: string
+  burnTxHash: string | null
+}
+
+/** `GET /api/v1/payout-failures/{id}` — semua bahan untuk SATU keputusan. */
+export interface PayoutFailureDetail extends PayoutFailureListItem {
+  issueReason: string | null
+  chain: string
+  userAddress: string | null
+  amountWei: string
+  effectiveRate: string
+  totalFeeIdr: string
+  burnedAt: string | null
+  lateBurn: boolean
+  staleBurn: boolean
+  payoutRef: string | null
+  /** SELURUH submission order ini, bukan yang terakhir saja. */
+  submissions: PayoutSubmissionTrail[]
+  reviews: PayoutFailureReview[]
+  /** null = antrean masih terbuka. Detail tetap terbaca sesudah di-resolve. */
+  resolution: PayoutResolution | null
+  resolvedAt: string | null
+  resolvedByStaffName: string | null
+}
+
+/** Body `POST /api/v1/payout-failures/{id}/resolve`. */
+export interface ResolvePayoutFailureBody {
+  action: PayoutResolution
+  /** Minimal 10 karakter; masuk jejak append-only dan tidak bisa diubah. */
+  reason: string
+  /** WAJIB pada `SETTLED_MANUAL` — nomor referensi transfer bank. */
+  externalRef?: string
+  /** Opsional, HANYA pada `RESENT`: rekening pengganti dari address book nasabah. */
+  bankAccountId?: string
+}
+
+/** Echo hasil resolve. */
+export interface ResolvePayoutFailureResult {
+  id: string
+  action: PayoutResolution
+  /** Status order SESUDAH resolve: PROCESSING_PAYOUT | PAYOUT_COMPLETE | PAYOUT_FAILED. */
+  status: string
+  /** Terisi HANYA pada RESENT. */
+  newPartnerReferenceNo: string | null
+  resolvedAt: string
 }

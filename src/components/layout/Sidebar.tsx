@@ -6,6 +6,7 @@ import { usePendingKycCount } from '@/features/kyc/hooks'
 import { usePendingKybCount } from '@/features/kyb/hooks'
 import { useOpenScreeningCount } from '@/features/screening/hooks'
 import { useOpenRedeemApprovalCount } from '@/features/redeem-approvals/hooks'
+import { useOpenPayoutFailureCount } from '@/features/payout-failures/hooks'
 import { cn } from '@/lib/utils'
 import {
   visibleNavSections,
@@ -39,6 +40,9 @@ export default function Sidebar() {
   // USDX-nya sudah terbakar dan rupiahnya belum jalan, jadi ia memang harus
   // terlihat dari halaman mana pun.
   const redeemApprovalsOpen = useOpenRedeemApprovalCount()
+  // USDX-662 — antrean Pencairan Bermasalah terbuka untuk semua peran, jadi tanpa
+  // gerbang `enabled`.
+  const payoutFailuresOpen = useOpenPayoutFailureCount()
 
   const sections = visibleNavSections(user)
 
@@ -49,6 +53,7 @@ export default function Sidebar() {
     if (key === 'kyb') return kybPending.data ?? 0
     if (key === 'screening') return screeningOpen.data ?? 0
     if (key === 'redeemApprovals') return redeemApprovalsOpen.data ?? 0
+    if (key === 'payoutFailures') return payoutFailuresOpen.data ?? 0
     return 0
   }
 
