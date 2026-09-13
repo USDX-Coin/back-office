@@ -2955,6 +2955,25 @@ export interface PayoutFailureDetail extends PayoutFailureListItem {
   resolution: PayoutResolution | null
   resolvedAt: string | null
   resolvedByStaffName: string | null
+  /**
+   * Address book nasabah pemilik order — SATU-SATUNYA sumber `bankAccountId` pada
+   * `RESENT` (§ 17.5, rev 2026-09-13). Retail: semua rekening tersimpan, terbaru dulu,
+   * TERMASUK yang sama dengan tujuan saat ini. Partner: selalu `[]`. Hanya di detail.
+   */
+  replacementBankAccounts: ReplacementBankAccount[]
+}
+
+/** Satu rekening address book nasabah yang boleh dipilih sebagai tujuan `RESENT`. */
+export interface ReplacementBankAccount {
+  /** `bank_accounts.id` — dikirim sebagai `bankAccountId`. */
+  id: string
+  bankCode: string
+  bankName: string
+  /** Nomor rekening PENUH (un-mask): ops harus bisa membedakan dua rekening yang mirip. */
+  accountNumber: string
+  /** Nama pemilik yang disimpan nasabah — BUKAN nama menurut bank. */
+  accountName: string
+  label: string | null
 }
 
 /** Body `POST /api/v1/payout-failures/{id}/resolve`. */

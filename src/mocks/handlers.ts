@@ -2583,9 +2583,16 @@ export const handlers = [
     if (action !== 'CLOSED' && last && last.rejectedAt === null) {
       return payoutFailureError(409, 'CONFLICT', 'SUBMISSION_NOT_FINAL')
     }
-    // Tiruan tidak punya address book: setiap `bankAccountId` dijawab seperti
-    // rekening yang tidak ditemukan di server — sama dengan milik orang lain.
-    if (body.bankAccountId) return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+    // Rekening pengganti hanya dari address book pemilik order (§ 17.5). Tiruan memakai
+    // `replacementBankAccounts` detail sebagai address book itu; id yang tidak ada di
+    // sana dijawab sama dengan milik nasabah lain, seperti `resolveReplacementAccount`
+    // di backend (membedakannya memberi cara menebak id rekening nasabah lain).
+    const replacement = body.bankAccountId
+      ? detail.replacementBankAccounts.find((account) => account.id === body.bankAccountId)
+      : undefined
+    if (body.bankAccountId && !replacement) {
+      return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+    }
 
     const now = new Date().toISOString()
     const newPartnerReferenceNo =
@@ -2601,6 +2608,14 @@ export const handlers = [
       ...detail,
       status,
       payoutRef: action === 'RESENT' ? null : detail.payoutRef,
+      // Backend menyalin bank + nomor + nama rekening terpilih ke snapshot order.
+      ...(replacement
+        ? {
+            bankName: replacement.bankName,
+            bankAccountNumber: replacement.accountNumber,
+            bankAccountName: replacement.accountName,
+          }
+        : {}),
       resolution: action,
       resolvedAt: now,
       resolvedByStaffName: actorName,
