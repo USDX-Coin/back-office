@@ -293,6 +293,58 @@ describe('Sidebar @ USDX-50', () => {
     })
   })
 
+  // USDX-662 — Pencairan Bermasalah. List terbuka untuk semua peran, jadi badge-nya
+  // juga; angkanya `metadata.total` antrean terbuka, sama dengan isi layarnya.
+  describe('USDX-662 — badge Pencairan Bermasalah', () => {
+    test('shows the open-queue count from metadata.total', async () => {
+      server.use(
+        http.get('/api/v1/payout-failures', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 3 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('3')
+    })
+
+    test('renders the entry and badge for STAFF too — the queue is readable by every role', async () => {
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        staffId: 'stf_4', // STAFF
+      })
+      // Seed MSW bawaan: lima order terbuka.
+      expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('5')
+      expect(screen.getByRole('link', { name: /pencairan bermasalah/i })).toHaveAttribute(
+        'href',
+        '/payout-failures'
+      )
+    })
+
+    test('hides the badge when the queue is empty', async () => {
+      server.use(
+        http.get('/api/v1/payout-failures', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: { page: 1, limit: 1, total: 0 },
+            data: [],
+          })
+        )
+      )
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      await screen.findByRole('link', { name: /pencairan bermasalah/i })
+      expect(screen.queryByTestId('nav-badge-payout-failures')).not.toBeInTheDocument()
+    })
+  })
+
   // USDX-78 — STAFF can't access /mint /burn lists (sot/phase-1.md L34 +
   // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
   // the (N) badge so STAFF doesn't see a counter they can't act on.
