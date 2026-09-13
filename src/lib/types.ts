@@ -2973,7 +2973,8 @@ export interface ReplacementBankAccount {
   accountNumber: string
   /** Nama pemilik yang disimpan nasabah — BUKAN nama menurut bank. */
   accountName: string
-  label: string | null
+  /** Satu-satunya properti di luar `required` kontrak — bisa absen, bisa `null`. */
+  label?: string | null
 }
 
 /** Body `POST /api/v1/payout-failures/{id}/resolve`. */

@@ -108,7 +108,7 @@ function ReplacementAccountPicker({
         accountNumber: account.accountNumber,
         accountName: account.accountName,
       },
-      label: account.label,
+      label: account.label ?? null,
       isCurrent: account.id === current?.id,
     })),
   ]
