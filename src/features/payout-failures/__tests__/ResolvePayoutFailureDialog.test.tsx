@@ -4,10 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { Route, Routes } from 'react-router'
 import { server } from '@/mocks/server'
-import { configurePayoutsEnabledForTests, resetMockData } from '@/mocks/handlers'
-import { PAYOUT_FAILURE_MOCK_IDS as IDS } from '@/mocks/data'
+import { configurePayoutsEnabledForTests, resetMockData, upsertPayoutFailureForTests } from '@/mocks/handlers'
+import {
+  createMockPayoutFailures,
+  PAYOUT_FAILURE_MOCK_IDS as IDS,
+  REPLACEMENT_BANK_ACCOUNT_MOCK_IDS as ACCOUNTS,
+} from '@/mocks/data'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import { renderWithProviders } from '@/test/test-utils'
+import type { PayoutFailureDetail } from '@/lib/types'
 
 // USDX-662 — aksi resolve dari detail (§ 17.4 aksi per jenis, § 17.5 aturan form & peran).
 // Peran: stf_1 ADMIN · stf_2 MANAGER · stf_3 DEVELOPER · stf_4 STAFF.
@@ -203,6 +208,215 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
 
       const second = await chooseAction(screen.getByRole('dialog'), 'Tandai dibayar manual')
       expect(within(second.dialog).getByLabelText(/^Alasan/)).toHaveValue('')
+    })
+  })
+})
+
+// USDX-678 — dropdown rekening pengganti di dialog Kirim ulang (§ 17.5, `replacementBankAccounts`).
+describe('ResolvePayoutFailureDialog — rekening pengganti @ USDX-678', () => {
+  /** Tangkap body POST resolve yang benar-benar dikirim. */
+  function recordResolveBodies() {
+    const bodies: Record<string, unknown>[] = []
+    server.events.on('request:start', async ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/resolve')) {
+        bodies.push((await request.clone().json()) as Record<string, unknown>)
+      }
+    })
+    return bodies
+  }
+
+  const RESEND_REASON = 'Rekening lama ditutup, kirim ke rekening lain'
+
+  function accountSelect(dialog: HTMLElement) {
+    return within(dialog).getByRole('combobox', { name: 'Rekening tujuan' })
+  }
+
+  /** Buka dropdown; opsinya dirender di portal, jadi dicari dari `screen`. */
+  async function openAccountOptions(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
+    await user.click(accountSelect(dialog))
+    return screen.findAllByRole('option')
+  }
+
+  describe('positive', () => {
+    test('should list the three saved accounts with the current one marked and chosen, and send no bankAccountId', async () => {
+      const bodies = recordResolveBodies()
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+
+      expect(accountSelect(dialog)).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI · BCA utama')
+      expect(accountSelect(dialog)).toHaveTextContent('rekening saat ini')
+
+      const options = await openAccountOptions(user, dialog)
+      expect(options).toHaveLength(3)
+      // Nomor rekening PENUH di setiap opsi, terbaru dulu (urutan server).
+      expect(options.map((o) => o.textContent)).toEqual([
+        'Mandiri · 1370012245001 · RINA SUSANTI · Mandiri gaji',
+        'BCA · 8730012245 · RINA SUSANTI · BCA utama rekening saat ini',
+        'BNI · 0291884501 · RINA S',
+      ])
+      expect(screen.getByRole('option', { name: /8730012245/ })).toHaveAttribute('aria-selected', 'true')
+      await user.click(screen.getByRole('option', { name: /8730012245/ }))
+
+      await user.type(within(dialog).getByLabelText(/^Alasan/), RESEND_REASON)
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
+      await waitResolveClosed('Kirim ulang')
+      expect(bodies).toEqual([{ action: 'RESENT', reason: RESEND_REASON }])
+    })
+
+    test('should send the chosen account as bankAccountId and name it in the consequence', async () => {
+      const bodies = recordResolveBodies()
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+
+      await openAccountOptions(user, dialog)
+      await user.click(screen.getByRole('option', { name: /1370012245001/ }))
+      expect(accountSelect(dialog)).toHaveTextContent('1370012245001')
+      const consequence = within(dialog).getByTestId('resolve-consequence')
+      expect(consequence).toHaveTextContent('rekening pengganti')
+      expect(consequence).toHaveTextContent('Mandiri · 1370012245001 · RINA SUSANTI')
+      expect(consequence).toHaveTextContent('Menggantikan rekening tujuan saat ini (BCA · 8730012245)')
+
+      await user.type(within(dialog).getByLabelText(/^Alasan/), RESEND_REASON)
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
+      await waitResolveClosed('Kirim ulang')
+      expect(bodies).toEqual([{ action: 'RESENT', reason: RESEND_REASON, bankAccountId: ACCOUNTS.rinaMandiri }])
+      // Detail ditarik ulang: tujuan order kini rekening yang dipilih.
+      expect(await within(screen.getByRole('dialog')).findByText('1370012245001')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('should offer no dropdown on a partner order and say to settle it through the partner', async () => {
+      const detail = await openDetail(IDS.failedAfterResend)
+      const { dialog } = await chooseAction(detail, 'Kirim ulang')
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('selesaikan lewat partner')
+      // Regresi USDX-662: satu-satunya isian teks tetap alasan.
+      expect(within(dialog).queryAllByRole('textbox')).toHaveLength(1)
+    })
+
+    test('should explain 409 BANK_ACCOUNT_NOT_OWNED inside the dialog', async () => {
+      server.use(
+        http.post('/api/v1/payout-failures/:id/resolve', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'CONFLICT', message: 'BANK_ACCOUNT_NOT_OWNED' } },
+            { status: 409 },
+          ),
+        ),
+      )
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+      await openAccountOptions(user, dialog)
+      await user.click(screen.getByRole('option', { name: /0291884501/ }))
+      await user.type(within(dialog).getByLabelText(/^Alasan/), RESEND_REASON)
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('bukan milik nasabah pemilik order')
+      expect(accountSelect(dialog)).toHaveTextContent('0291884501')
+    })
+
+    test('should never show the dropdown on other actions', async () => {
+      const detail = await openDetail(IDS.failedRejected)
+      const { dialog } = await chooseAction(detail, 'Tutup tanpa pembayaran')
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(dialog).queryByTestId('replacement-account-note')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should offer no dropdown to a retail customer without saved accounts and point to the app', async () => {
+      const detail = await openDetail(IDS.failedNeverSubmitted)
+      const { dialog } = await chooseAction(detail, 'Kirim ulang')
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('ditambahkan nasabah lewat app')
+      expect(within(dialog).queryAllByRole('textbox')).toHaveLength(1)
+    })
+
+    test('should still offer the current destination first when it is no longer in the address book', async () => {
+      const base = createMockPayoutFailures().get(IDS.failedRejected)!
+      upsertPayoutFailureForTests({
+        ...base,
+        replacementBankAccounts: base.replacementBankAccounts.filter((a) => a.id !== ACCOUNTS.rinaBcaCurrent),
+      })
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+
+      expect(accountSelect(dialog)).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI')
+      const options = await openAccountOptions(user, dialog)
+      expect(options).toHaveLength(3)
+      expect(options[0]).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI rekening saat ini')
+      expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    })
+
+    test('should reset the chosen account when the dialog is reopened', async () => {
+      const detail = await openDetail(IDS.failedRejected)
+      const first = await chooseAction(detail, 'Kirim ulang')
+      await openAccountOptions(first.user, first.dialog)
+      await first.user.click(screen.getByRole('option', { name: /1370012245001/ }))
+      expect(accountSelect(first.dialog)).toHaveTextContent('1370012245001')
+      await first.user.click(within(first.dialog).getByRole('button', { name: 'Batal' }))
+      await waitResolveClosed('Kirim ulang')
+
+      const other = await chooseAction(screen.getByRole('dialog'), 'Tutup tanpa pembayaran')
+      await other.user.click(within(other.dialog).getByRole('button', { name: 'Batal' }))
+      await waitResolveClosed('Tutup tanpa pembayaran')
+
+      const again = await chooseAction(screen.getByRole('dialog'), 'Kirim ulang')
+      expect(accountSelect(again.dialog)).toHaveTextContent('8730012245')
+      expect(accountSelect(again.dialog)).not.toHaveTextContent('1370012245001')
+    })
+  })
+})
+
+// Review back-office#105 — backend `dev` belum mengirim `replacementBankAccounts` (USDX-677 belum
+// ter-deploy) dan kontrak tidak menjadikannya `required`. Build yang di-deploy tidak memakai MSW,
+// jadi detail tanpa field itu adalah keadaan nyata: ketiga dialog resolve harus tetap jalan
+// seperti #104, dan Kirim ulang tetap bisa ke rekening yang sama.
+describe('ResolvePayoutFailureDialog — detail tanpa replacementBankAccounts @ USDX-678 (review #105)', () => {
+  /** Simpan `failedRejected` persis seperti yang dijawab backend sebelum USDX-677: tanpa field. */
+  function seedDetailWithoutReplacementAccounts() {
+    const legacy: Partial<PayoutFailureDetail> = { ...createMockPayoutFailures().get(IDS.failedRejected)! }
+    delete legacy.replacementBankAccounts
+    upsertPayoutFailureForTests(legacy as PayoutFailureDetail)
+  }
+
+  describe('positive', () => {
+    test('should resend to the current account with no dropdown and no bankAccountId', async () => {
+      const bodies: Record<string, unknown>[] = []
+      server.events.on('request:start', async ({ request }) => {
+        if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/resolve')) {
+          bodies.push((await request.clone().json()) as Record<string, unknown>)
+        }
+      })
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { user, dialog } = await chooseAction(detail, 'Kirim ulang')
+
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+      expect(within(dialog).getByTestId('replacement-account-note')).toHaveTextContent('belum menyimpan rekening lain')
+      expect(within(dialog).getByTestId('resolve-consequence')).toHaveTextContent('BCA · 8730012245 · RINA SUSANTI')
+
+      await user.type(within(dialog).getByLabelText(/^Alasan/), REASON)
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim ulang' }))
+      await waitResolveClosed('Kirim ulang')
+      expect(bodies).toEqual([{ action: 'RESENT', reason: REASON }])
+    })
+  })
+
+  describe('negative', () => {
+    test('should still open the close-without-payment dialog', async () => {
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { dialog } = await chooseAction(detail, 'Tutup tanpa pembayaran')
+      expect(within(dialog).getByLabelText(/^Alasan/)).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should still open the settled-manually dialog', async () => {
+      seedDetailWithoutReplacementAccounts()
+      const detail = await openDetail(IDS.failedRejected)
+      const { dialog } = await chooseAction(detail, 'Tandai dibayar manual')
+      expect(within(dialog).getByLabelText(/Nomor referensi transfer bank/)).toBeInTheDocument()
     })
   })
 })

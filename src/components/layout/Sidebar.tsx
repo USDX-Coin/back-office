@@ -5,8 +5,7 @@ import { usePendingBurnCount } from '@/features/burn/hooks'
 import { usePendingKycCount } from '@/features/kyc/hooks'
 import { usePendingKybCount } from '@/features/kyb/hooks'
 import { useOpenScreeningCount } from '@/features/screening/hooks'
-import { useOpenRedeemApprovalCount } from '@/features/redeem-approvals/hooks'
-import { useOpenPayoutFailureCount } from '@/features/payout-failures/hooks'
+import { useQueueCounts } from '@/features/queue-counts/hooks'
 import { cn } from '@/lib/utils'
 import {
   visibleNavSections,
@@ -34,15 +33,12 @@ export default function Sidebar() {
   // USDX-588 — alasan sama: antrean screening terbuka untuk semua role, jadi
   // tidak ada gerbang `enabled`.
   const screeningOpen = useOpenScreeningCount()
-  // USDX-669 — alasan sama: `GET /api/v1/redeem-approvals` terbuka untuk semua
-  // peran back office, jadi tidak ada gerbang `enabled`. Angkanya adalah jumlah
-  // pencairan yang MENUNGGU keputusan — tiap satuannya seorang nasabah yang
-  // USDX-nya sudah terbakar dan rupiahnya belum jalan, jadi ia memang harus
-  // terlihat dari halaman mana pun.
-  const redeemApprovalsOpen = useOpenRedeemApprovalCount()
-  // USDX-662 — antrean Pencairan Bermasalah terbuka untuk semua peran, jadi tanpa
-  // gerbang `enabled`.
-  const payoutFailuresOpen = useOpenPayoutFailureCount()
+  // USDX-678 — badge Persetujuan Pencairan (USDX-669) dan Pencairan Bermasalah
+  // (USDX-662) dari SATU `GET /api/v1/queue-counts`, bukan list `take=1`: list
+  // keduanya mendekripsi rekening dan menulis `pii_access_audit` per baris. Tanpa
+  // gerbang `enabled` — kedua antrean terbuka untuk semua peran back office, dan tiap
+  // satuannya nasabah yang USDX-nya sudah terbakar sementara rupiahnya belum jalan.
+  const queueCounts = useQueueCounts()
 
   const sections = visibleNavSections(user)
 
@@ -52,8 +48,8 @@ export default function Sidebar() {
     if (key === 'kyc') return kycPending.data ?? 0
     if (key === 'kyb') return kybPending.data ?? 0
     if (key === 'screening') return screeningOpen.data ?? 0
-    if (key === 'redeemApprovals') return redeemApprovalsOpen.data ?? 0
-    if (key === 'payoutFailures') return payoutFailuresOpen.data ?? 0
+    if (key === 'redeemApprovals') return queueCounts.data?.redeemApprovalsOpen ?? 0
+    if (key === 'payoutFailures') return queueCounts.data?.payoutFailuresOpen ?? 0
     return 0
   }
 

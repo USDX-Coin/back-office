@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
 import {
   buildResolveBody,
+  findCurrentReplacementAccount,
   PAYOUT_EXTERNAL_REF_MAX,
   PAYOUT_RESOLVE_REASON_MAX,
   payoutFailureErrorMessage,
@@ -23,8 +24,9 @@ import {
   type ResolveFormErrors,
 } from '@/lib/payoutFailures'
 import { formatIdrExact } from '@/lib/redeemApprovals'
-import type { PayoutFailureDetail, PayoutResolution } from '@/lib/types'
+import type { PayoutFailureDetail, PayoutResolution, ReplacementBankAccount } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import ReplacementAccountSelect from './ReplacementAccountSelect'
 import { useResolvePayoutFailure } from './hooks'
 
 interface Props {
@@ -40,33 +42,92 @@ const TITLES: Record<PayoutResolution, string> = {
   CLOSED: 'Tutup tanpa pembayaran',
 }
 
+/** Satu tujuan transfer yang bisa dirender: rekening order saat ini atau rekening address book. */
+interface Destination {
+  bankName: string
+  accountNumber: string
+  accountName: string
+}
+
+function currentDestination(detail: PayoutFailureDetail): Destination {
+  return {
+    bankName: detail.bankName,
+    accountNumber: detail.bankAccountNumber,
+    accountName: detail.bankAccountName,
+  }
+}
+
+function DestinationLine({ destination }: { destination: Destination }) {
+  return (
+    <>
+      {destination.bankName} ·{' '}
+      <span className="break-all font-mono tabular-nums">{destination.accountNumber}</span> ·{' '}
+      <span className="font-medium">{destination.accountName}</span>
+    </>
+  )
+}
+
+/**
+ * Kenapa pilihannya hanya ini. Tidak ada isian nomor rekening di mana pun di layar ini
+ * (§ 17.5, D22): satu orang yang bisa mengetik tujuan transfer adalah lubang jalur OTC
+ * lama. Rekening yang benar belum tersimpan → nasabah menambahkannya lewat app.
+ */
+function ReplacementAccountNote({ detail, hasAccounts }: { detail: PayoutFailureDetail; hasAccounts: boolean }) {
+  let text: string
+  if (hasAccounts) {
+    text =
+      'Rekening tujuan tidak bisa diketik di sini — hanya dipilih dari rekening yang disimpan nasabah. Kalau rekening yang benar tidak ada di daftar, nasabah harus menambahkannya lewat app dulu.'
+  } else if (detail.ownerKind === 'PARTNER') {
+    text =
+      'Order partner tidak punya rekening tersimpan di USDX, jadi kirim ulang selalu ke rekening di atas. Kalau rekening itu yang salah, jangan kirim ulang — selesaikan lewat partner.'
+  } else {
+    text =
+      'Nasabah belum menyimpan rekening lain, jadi kirim ulang selalu ke rekening di atas. Kalau rekening itu yang salah, jangan kirim ulang — rekening pengganti harus ditambahkan nasabah lewat app, lalu buka ulang detail ini.'
+  }
+  return (
+    <p className="flex items-start gap-2 text-[12px] text-muted-foreground" data-testid="replacement-account-note">
+      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>{text}</span>
+    </p>
+  )
+}
+
 /** Akibat tiap aksi (§ 17.5), ditulis sebagai yang AKAN terjadi — bukan nama kolom. */
-function Consequence({ action, detail }: { action: PayoutResolution; detail: PayoutFailureDetail }) {
+function Consequence({
+  action,
+  detail,
+  target,
+}: {
+  action: PayoutResolution
+  detail: PayoutFailureDetail
+  /** Tujuan `RESENT` yang sedang dipilih; `undefined` = rekening tujuan saat ini. */
+  target?: ReplacementBankAccount
+}) {
   if (action === 'RESENT') {
+    const destination: Destination = target
+      ? { bankName: target.bankName, accountNumber: target.accountNumber, accountName: target.accountName }
+      : currentDestination(detail)
     return (
       <div className="space-y-2" data-testid="resolve-consequence">
         <p className="text-[12.5px]">
           Referensi transfer <strong>baru</strong> diterbitkan dan order kembali ke antrean
           pengiriman — <strong>{formatIdrExact(detail.netPayoutIdr)}</strong> dikirim pada
-          putaran Disbursement Trigger berikutnya ke rekening ini:
+          putaran Disbursement Trigger berikutnya ke{' '}
+          {target ? <strong>rekening pengganti</strong> : 'rekening tujuan saat ini'}:
         </p>
         <p className="rounded-md border border-border px-3 py-2 text-[12.5px]">
-          {detail.bankName} ·{' '}
-          <span className="break-all font-mono tabular-nums">{detail.bankAccountNumber}</span> ·{' '}
-          <span className="font-medium">{detail.bankAccountName}</span>
+          <DestinationLine destination={destination} />
         </p>
-        {/* Tidak ada isian nomor rekening di mana pun di layar ini (§ 17.5, D22): satu
-            orang yang bisa mengetik tujuan transfer adalah lubang jalur OTC lama. Pemilih
-            rekening pengganti dari address book BELUM ada — kontrak `payout-failures.yaml`
-            belum menyediakan daftar rekening nasabah — jadi teksnya tidak menjanjikannya. */}
-        <p className="flex items-start gap-2 text-[12px] text-muted-foreground">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            Rekening tujuan tidak bisa diketik di sini, dan memilih rekening pengganti belum
-            tersedia di layar ini — kirim ulang selalu ke rekening di atas. Kalau rekening itu
-            yang salah, jangan kirim ulang.
-          </span>
-        </p>
+        {target && (
+          <p className="flex items-start gap-2 text-[12px] text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Menggantikan rekening tujuan saat ini ({detail.bankName} ·{' '}
+              <span className="font-mono tabular-nums">{detail.bankAccountNumber}</span>). Transfer
+              ke rekening yang salah tidak bisa ditarik kembali.
+            </span>
+          </p>
+        )}
       </div>
     )
   }
@@ -112,6 +173,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
   const resolve = useResolvePayoutFailure()
   const [reason, setReason] = useState('')
   const [externalRef, setExternalRef] = useState('')
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [touched, setTouched] = useState<ResolveFormErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -123,6 +185,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
     setLastKey(key)
     setReason('')
     setExternalRef('')
+    setSelectedAccountId(null)
     setTouched({})
     setServerError(null)
   }
@@ -130,7 +193,11 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
   if (!action) return null
 
   const isPending = resolve.isPending
-  const check = buildResolveBody({ action, reason, externalRef })
+  const accounts = detail.replacementBankAccounts
+  const currentAccount = findCurrentReplacementAccount(detail)
+  const bankAccountId = action === 'RESENT' ? selectedAccountId : null
+  const target = bankAccountId ? accounts.find((account) => account.id === bankAccountId) : undefined
+  const check = buildResolveBody({ action, reason, externalRef, bankAccountId })
   const errors: ResolveFormErrors = check.valid ? {} : check.errors
 
   function handleSubmit() {
@@ -140,7 +207,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
     }
     setServerError(null)
     resolve.mutate(
-      { id: detail.id, input: { action, reason, externalRef } },
+      { id: detail.id, input: { action, reason, externalRef, bankAccountId } },
       {
         onSuccess: () => {
           toast.success(`${RESOLVE_ACTION_LABELS[action]} tercatat`, {
@@ -174,7 +241,22 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
 
         <DialogBody>
           <div className="space-y-4">
-            <Consequence action={action} detail={detail} />
+            {action === 'RESENT' && accounts.length > 0 && (
+              <ReplacementAccountSelect
+                detail={detail}
+                accounts={accounts}
+                current={currentAccount}
+                value={selectedAccountId}
+                onChange={setSelectedAccountId}
+                disabled={isPending}
+              />
+            )}
+
+            <Consequence action={action} detail={detail} target={target} />
+
+            {action === 'RESENT' && (
+              <ReplacementAccountNote detail={detail} hasAccounts={accounts.length > 0} />
+            )}
 
             {action === 'SETTLED_MANUAL' && (
               <div className="space-y-1.5">

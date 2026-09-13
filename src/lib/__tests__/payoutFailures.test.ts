@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/apiFetch'
 import {
   allowedResolveActions,
   buildResolveBody,
+  findCurrentReplacementAccount,
   formatQueueAge,
   isPayoutIssueKind,
   isStaleStateError,
@@ -11,7 +12,7 @@ import {
   payoutIssueKindPill,
   summarizeSubmissions,
 } from '@/lib/payoutFailures'
-import type { PayoutSubmissionTrail } from '@/lib/types'
+import type { PayoutSubmissionTrail, ReplacementBankAccount } from '@/lib/types'
 
 // USDX-662 — sot/bni-integration.md § 17 + sot/api/payout-failures.yaml.
 
@@ -71,12 +72,35 @@ describe('buildResolveBody', () => {
         buildResolveBody({ action: 'RESENT', reason: 'Rekening sudah dikoreksi', externalRef: 'TRX-1' }),
       ).toEqual({ valid: true, body: { action: 'RESENT', reason: 'Rekening sudah dikoreksi' } })
     })
+    test('RESENT to a chosen replacement account sends its bankAccountId (USDX-678)', () => {
+      expect(
+        buildResolveBody({
+          action: 'RESENT',
+          reason: 'Rekening lama ditutup nasabah',
+          externalRef: '',
+          bankAccountId: 'acc-2',
+        }),
+      ).toEqual({
+        valid: true,
+        body: { action: 'RESENT', reason: 'Rekening lama ditutup nasabah', bankAccountId: 'acc-2' },
+      })
+    })
   })
   describe('negative', () => {
     test('a reason shorter than 10 characters is refused', () => {
       const result = buildResolveBody({ action: 'CLOSED', reason: 'terlalu', externalRef: '' })
       expect(result.valid).toBe(false)
       if (!result.valid) expect(result.errors.reason).toMatch(/minimal 10/)
+    })
+    test('a bankAccountId left over from RESENT never rides along on another action (USDX-678)', () => {
+      expect(
+        buildResolveBody({
+          action: 'CLOSED',
+          reason: 'Nasabah setuju tidak dibayar',
+          externalRef: '',
+          bankAccountId: 'acc-2',
+        }),
+      ).toEqual({ valid: true, body: { action: 'CLOSED', reason: 'Nasabah setuju tidak dibayar' } })
     })
     test('SETTLED_MANUAL without externalRef is refused', () => {
       const result = buildResolveBody({
@@ -89,6 +113,11 @@ describe('buildResolveBody', () => {
     })
   })
   describe('edge cases', () => {
+    test('RESENT with bankAccountId null sends no bankAccountId — resend to the current account', () => {
+      expect(
+        buildResolveBody({ action: 'RESENT', reason: 'Bank tujuan sudah pulih', externalRef: '', bankAccountId: null }),
+      ).toEqual({ valid: true, body: { action: 'RESENT', reason: 'Bank tujuan sudah pulih' } })
+    })
     test('ten spaces do not count as a reason', () => {
       const result = buildResolveBody({ action: 'CLOSED', reason: ' '.repeat(12), externalRef: '' })
       expect(result.valid).toBe(false)
@@ -216,6 +245,55 @@ describe('payoutFailureErrorMessage / isStaleStateError', () => {
       expect(isStaleStateError(new ApiError(404, 'NOT_FOUND', 'PAYOUT_FAILURE_NOT_FOUND'))).toBe(true)
       expect(payoutFailureErrorMessage(new Error('Alasan wajib diisi'))).toBe('Alasan wajib diisi')
       expect(isStaleStateError(new Error('x'))).toBe(false)
+    })
+  })
+})
+
+describe('findCurrentReplacementAccount', () => {
+  function account(overrides: Partial<ReplacementBankAccount> = {}): ReplacementBankAccount {
+    return {
+      id: 'acc-1',
+      bankCode: '014',
+      bankName: 'BCA',
+      accountNumber: '8730012245',
+      accountName: 'RINA SUSANTI',
+      label: null,
+      ...overrides,
+    }
+  }
+  const destination = { bankName: 'BCA', bankAccountNumber: '8730012245' }
+
+  describe('positive', () => {
+    test('finds the saved account matching bank and number, whatever the saved name', () => {
+      const current = account({ id: 'acc-current', accountName: 'RINA S' })
+      const result = findCurrentReplacementAccount({
+        ...destination,
+        replacementBankAccounts: [account({ id: 'acc-other', accountNumber: '1111' }), current],
+      })
+      expect(result?.id).toBe('acc-current')
+    })
+  })
+  describe('negative', () => {
+    test('the same number at another bank is not the current destination', () => {
+      expect(
+        findCurrentReplacementAccount({
+          ...destination,
+          replacementBankAccounts: [account({ bankCode: '009', bankName: 'BNI' })],
+        }),
+      ).toBeUndefined()
+    })
+    test('an empty address book has no current account', () => {
+      expect(findCurrentReplacementAccount({ ...destination, replacementBankAccounts: [] })).toBeUndefined()
+    })
+  })
+  describe('edge cases', () => {
+    test('the same account saved twice resolves to the first (newest) one', () => {
+      expect(
+        findCurrentReplacementAccount({
+          ...destination,
+          replacementBankAccounts: [account({ id: 'acc-newest' }), account({ id: 'acc-older' })],
+        })?.id,
+      ).toBe('acc-newest')
     })
   })
 })

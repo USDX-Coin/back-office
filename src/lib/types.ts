@@ -2955,6 +2955,28 @@ export interface PayoutFailureDetail extends PayoutFailureListItem {
   resolution: PayoutResolution | null
   resolvedAt: string | null
   resolvedByStaffName: string | null
+  /**
+   * Address book nasabah pemilik order — SATU-SATUNYA sumber `bankAccountId` pada
+   * `RESENT` (§ 17.5, rev 2026-09-13). Retail: semua rekening tersimpan, terbaru dulu,
+   * TERMASUK yang sama dengan tujuan saat ini. Partner: selalu `[]`. Hanya di detail.
+   * Kontrak tidak mewajibkannya dan backend sebelum USDX-677 tidak mengirimnya — absen / `null`
+   * dinormalisasi jadi `[]` di `usePayoutFailureDetail`, jadi di sini ia selalu array.
+   */
+  replacementBankAccounts: ReplacementBankAccount[]
+}
+
+/** Satu rekening address book nasabah yang boleh dipilih sebagai tujuan `RESENT`. */
+export interface ReplacementBankAccount {
+  /** `bank_accounts.id` — dikirim sebagai `bankAccountId`. */
+  id: string
+  bankCode: string
+  bankName: string
+  /** Nomor rekening PENUH (un-mask): ops harus bisa membedakan dua rekening yang mirip. */
+  accountNumber: string
+  /** Nama pemilik yang disimpan nasabah — BUKAN nama menurut bank. */
+  accountName: string
+  /** Satu-satunya properti di luar `required` kontrak — bisa absen, bisa `null`. */
+  label?: string | null
 }
 
 /** Body `POST /api/v1/payout-failures/{id}/resolve`. */
@@ -2977,4 +2999,18 @@ export interface ResolvePayoutFailureResult {
   /** Terisi HANYA pada RESENT. */
   newPartnerReferenceNo: string | null
   resolvedAt: string
+}
+
+// ─── Hitungan antrean (kontrak `sot/api/queue-counts.yaml`, USDX-678) ─────────
+//
+// Badge sidebar membaca angka ini, BUKAN `metadata.total` list: list Pencairan
+// Bermasalah dan Persetujuan Pencairan mendekripsi rekening dan menulis
+// `pii_access_audit` per baris, jadi `take=1` untuk sebuah angka mengarang jejak
+// akses PII yang tidak pernah terjadi (`conventions.md § Audit Akses PII`).
+// Kunci baru boleh ditambahkan server kelak — klien mengabaikan yang tak dikenalnya.
+
+/** `GET /api/v1/queue-counts` — predikat tiap angka SAMA dengan `metadata.total` list-nya. */
+export interface QueueCounts {
+  payoutFailuresOpen: number
+  redeemApprovalsOpen: number
 }
