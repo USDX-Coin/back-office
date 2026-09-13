@@ -55,6 +55,28 @@ import { handlers } from './handlers'
 // MOCK-served on purpose until the backend `dev` stack serves the module
 // (USDX-630, backend PR #305). When it does, add the three paths below —
 // an operational step, not a merge condition (ticket § Cara Kerjakan).
+//
+// USDX-669: the six Persetujuan Pencairan routes are MOCK-served for the same
+// reason — their backend (USDX-668) is being built in parallel and is not on
+// `dev` yet. They are deliberately ABSENT from the set below, so the browser
+// keeps hitting MSW. When USDX-668 ships, add all six here AND delete their
+// handlers from handlers.ts (the USDX-546 / USDX-47 / USDX-82 precedent — a mock
+// left registered for a live screen is how the next reader debugs the wrong
+// answer):
+//   /api/v1/redeem-approvals
+//   /api/v1/redeem-approvals/:id
+//   /api/v1/redeem-approvals/:id/approve
+//   /api/v1/redeem-approvals/:id/reject
+//   /api/v1/redeem-approval-controls  (GET + PUT share one path)
+//
+// USDX-662: the three Pencairan Bermasalah routes are MOCK-served too. Their
+// backend (USDX-471) IS merged to `dev` (backend#320), but api-dev did not serve
+// it yet when this screen was built (13 Sep 2026: GET /api/v1/payout-failures →
+// 404, not 401). Once it answers 401 unauthenticated, add the three paths here;
+// the handlers STAY in handlers.ts for Vitest (the USDX-154 precedent):
+//   /api/v1/payout-failures
+//   /api/v1/payout-failures/:id
+//   /api/v1/payout-failures/:id/resolve
 const INTEGRATION_PATHS = new Set([
   '/api/v1/auth/login',
   // USDX-392: server-side logout is live on the backend (PR #197).

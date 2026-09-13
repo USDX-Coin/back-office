@@ -26,8 +26,11 @@ import MintFormPage from '@/features/mint/MintFormPage'
 import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
+import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
+import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
+import MintModePage from '@/features/mint-mode/MintModePage'
 import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
@@ -132,6 +135,21 @@ export const appRoutes: RouteObject[] = [
           // list and opens the detail modal from URL state (deep-link safe).
           { path: '/transactions', element: <TransactionsListPage /> },
           { path: '/transactions/:id', element: <TransactionsListPage /> },
+          // USDX-669 — antrean Persetujuan Pencairan. TANPA RoleGuard, dan itu
+          // disengaja: kontraknya (`sot/api/redeem-approvals.yaml § Akses`) membuka
+          // list + detail untuk STAFF / MANAGER / ADMIN / DEVELOPER, dan MENYETUJUI
+          // / MENOLAK digerbangi MANAGER/ADMIN di dalam layarnya. Pola yang sama
+          // dengan /kyc, /kyb dan /screening: antrean kerja terbuka, aksinya
+          // digerbangi, backend menegakkan 403 sendiri. Menggerbangi rutenya akan
+          // menyembunyikan antrean yang menumpuk dari STAFF, yaitu orang yang
+          // biasanya lebih dulu menyadarinya.
+          { path: '/redeem-approvals', element: <RedeemApprovalsPage /> },
+          // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). TANPA RoleGuard, alasan
+          // yang sama dengan /redeem-approvals: list + detail terbuka untuk semua peran
+          // back office (`sot/api/payout-failures.yaml § Akses`), resolve digerbangi
+          // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
+          { path: '/payout-failures', element: <PayoutFailuresPage /> },
+          { path: '/payout-failures/:id', element: <PayoutFailuresPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects
@@ -179,6 +197,12 @@ export const appRoutes: RouteObject[] = [
           // admin only (gated inside the page, read-only notice for non-admin —
           // same as Rate). No route-level RoleGuard so DEVELOPER can view.
           { path: '/settings/fee', element: <FeeConfigPage /> },
+          // USDX-639 — mode mint PROD/UJI. TANPA RoleGuard, dan itu disengaja:
+          // AC tiketnya menuntut STAFF bisa MEMBUKA halaman ini (tombol kembali
+          // ke PROD tersedia untuk STAFF ke atas), sementara Settings lain
+          // berhenti di ADMIN+DEVELOPER. Kewenangan menggeser di-gate di dalam
+          // kartunya per aksi, dan backend menegakkan 403 sendiri.
+          { path: '/settings/mint-mode', element: <MintModePage /> },
           {
             // KONTRAK-API-TRANSPARANSI.md § 3: reading the reserve ledger is
             // ADMIN + DEVELOPER. Gated at the ROUTE, like /settings/threshold —

@@ -30,6 +30,28 @@ export function canManageFeeConfig(role: StaffRole): boolean {
   return role === 'ADMIN'
 }
 
+// USDX-669: menyetujui / menolak pencairan redeem dan mengubah ambang nominalnya
+// adalah MANAGER / ADMIN (`sot/api/redeem-approvals.yaml § Akses`). Dipakai handler
+// MSW supaya tiruannya menegakkan gerbang yang sama dengan server — tiruan yang
+// melepas STAFF membuat tes "tombol tidak dirender" hijau tanpa membuktikan apa pun
+// tentang permintaan yang tetap bisa dikirim dari konsol peramban.
+// Pasangan sisi UI-nya `canDecideRedeemPayout` di `src/lib/auth.tsx`, yang menerima
+// baris `Staff` utuh supaya sesi yang belum dimuat gagal tertutup.
+export function canDecideRedeemPayoutRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN'
+}
+
+// USDX-662: resolve antrean "Pencairan Bermasalah" (RESENT / SETTLED_MANUAL /
+// CLOSED) adalah MANAGER / ADMIN (`sot/bni-integration.md § 17.5` D22-d,
+// `sot/api/payout-failures.yaml § Akses`). Hari ini daftarnya sama dengan
+// `canDecideRedeemPayoutRole`, tapi SENGAJA fungsi terpisah: dua kontrak yang
+// kebetulan sepakat — kalau maker-checker (P1-19) mendarat untuk salah satunya,
+// yang lain tidak boleh ikut berubah diam-diam (preseden `canDecideScreening` vs
+// `canReviewKyc`). Dipakai handler MSW; pasangan UI-nya `canResolvePayoutFailure`.
+export function canResolvePayoutFailureRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN'
+}
+
 // SoT openapi.yaml L697-L717
 export interface Staff {
   id: string
@@ -224,20 +246,105 @@ export interface FeeConfig {
   redeemFeePct: string
   /** Disbursement fee Rp flat per payout (W3, referensi sampai provider real). */
   disbursementFeeFlat: string
+  /**
+   * Minimum mint Rp (USDX-635/637). Pindah dari konstanta backend ke kolom
+   * `fee_configs.min_mint_idr` supaya angkanya bisa digeser tanpa deploy.
+   * Backend punya lantai keras Rp 10.000.
+   */
+  minMintIdr: string
   updatedBy: string
   createdAt: string
 }
 
-// sot/api/fee.yaml § UpdateFeeConfig — POST = full 5-field snapshot (semua
-// required). Jangan kirim partial: BE meng-overwrite seluruh row, partial =
-// meng-nol-kan fee yang tidak dikirim (USDX-245). Body invalid → 422
-// VALIDATION_ERROR (conventions.md § Validation Error — fee-config allowlist).
+// sot/api/fee.yaml § UpdateFeeConfig — POST = full snapshot (semua field
+// required, kini 6 dengan `minMintIdr`, USDX-637). Jangan kirim partial: BE
+// meng-overwrite seluruh row, partial = meng-nol-kan fee yang tidak dikirim
+// (USDX-245). Body invalid → 422 VALIDATION_ERROR (conventions.md § Validation
+// Error — fee-config allowlist).
 export interface UpdateFeeConfig {
   mintFeePct: string
   pgFeeVaFlat: string
   pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
+  /** Minimum mint Rp — ikut snapshot penuh (USDX-637). */
+  minMintIdr: string
+}
+
+// ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───────
+// Mode menentukan TOKEN MANA yang dicetak untuk uang yang benar-benar masuk:
+// `PROD` mencetak USDX, `TEST` mencetak token uji. Karena itu mode uji selalu
+// punya batas waktu — `expiresAt` — dan selalu punya alasan yang tercatat.
+export type MintMode = 'PROD' | 'TEST'
+
+export interface MintModeConfig {
+  mode: MintMode
+  /** Kenapa mode ini dipilih. Kosong pada PROD baku. */
+  reason: string | null
+  /** ISO-8601 UTC. Kapan mode uji berakhir; `null` untuk PROD. */
+  expiresAt: string | null
+  /** UUID staf yang menggeser; `null` untuk baris yang ditulis lewat psql. */
+  updatedBy: string | null
+  /**
+   * Nama staf penggeser (`sot/api/mint-mode.yaml`). Ada supaya kartu bisa
+   * menjawab "siapa yang menggeser ini" tanpa lookup kedua — UUID tidak
+   * menjawabnya untuk orang yang sedang panik.
+   */
+  updatedByName: string | null
+  /**
+   * Email yang boleh mint SELAMA mode uji (USDX-639 tambahan lingkup 11 Sep
+   * 2026 + USDX-636 § 3). **Kosong berarti tidak ada yang bisa mint** — mode uji
+   * bukan untuk publik, jadi ketiadaan daftar dibaca sebagai tertutup, bukan
+   * terbuka. `null`/absen diperlakukan sama dengan kosong.
+   */
+  allowedEmails: string[] | null
+  /**
+   * Alamat bundle uji yang SEDANG berlaku (USDX-636 keputusan 11 Sep 2026 →
+   * USDX-654). Sejak alamat jadi isian back-office, ketiganya satu-satunya cara
+   * melihat ke token dan Safe mana sesi uji yang sedang jalan mencetak.
+   * `null` saat mode efektif `PROD` (`sot/api/mint-mode.yaml § MintMode`).
+   */
+  testUsdxAddress: string | null
+  testStaffSafeAddress: string | null
+  testManagerSafeAddress: string | null
+  /** ISO-8601 UTC. */
+  updatedAt: string
+}
+
+/**
+ * Menyalakan mode uji: MANAGER / ADMIN (predikat sisi role; pasangan berbasis
+ * `Staff`-nya ada di `lib/auth.tsx` sebagai `canEnableMintTestMode`, pola yang
+ * sama dengan canManageOncallContacts vs canManageOncall).
+ */
+export function canEnableMintTestMode(role: StaffRole): boolean {
+  return role === 'ADMIN' || role === 'MANAGER'
+}
+
+/** Kembali ke PROD: STAFF ke atas; DEVELOPER view-only seperti aksi tulis lain. */
+export function canRestoreMintProdMode(role: StaffRole): boolean {
+  return role !== 'DEVELOPER'
+}
+
+/**
+ * Body `POST /api/v1/mint-mode`.
+ *
+ * `reason` + `durationHours` hanya bermakna saat menyalakan mode uji; kembali
+ * ke PROD dikirim sebagai `{ mode: 'PROD' }` saja, mengikuti "konfirmasi
+ * ringan" di tiket — tidak ada input untuk diisi di sana.
+ */
+export interface SetMintModeBody {
+  mode: MintMode
+  reason?: string
+  durationHours?: number
+  /** Daftar email yang boleh mint selama mode uji. Hanya dikirim untuk `TEST`. */
+  allowedEmails?: string[]
+  /**
+   * Bundle uji: token + Safe STAFF + Safe MANAGER. WAJIB saat `mode=TEST`,
+   * diabaikan saat `mode=PROD` (`sot/api/mint-mode.yaml § SetMintMode`).
+   */
+  testUsdxAddress?: string
+  testStaffSafeAddress?: string
+  testManagerSafeAddress?: string
 }
 
 // ─── Threshold (sot/api/threshold.yaml § /api/v1/threshold) ─────────────────
@@ -2235,6 +2342,7 @@ export type OncallIncidentCategory =
   | 'FRAUD'
   | 'SECURITY'
   | 'INFRA'
+  | 'CUSTODIAL'
   | 'OTHER'
 
 export const ONCALL_CHANNELS: readonly OncallChannel[] = ['PHONE', 'EMAIL', 'SLACK']
@@ -2247,6 +2355,10 @@ export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
   'FRAUD',
   'SECURITY',
   'INFRA',
+  // USDX-632 — zona kunci custodial: backend memetakan semua kondisi WALLET_*
+  // (backstop salinan wallet, burn custodial hangus, alert wallet-service) ke sini.
+  // Pemiliknya pemegang kunci Vault/Web3Signer, bukan devops (INFRA).
+  'CUSTODIAL',
   'OTHER',
 ]
 
@@ -2259,6 +2371,7 @@ export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
   FRAUD: 'Aturan FDS menyala (velocity, structuring, fan-in)',
   SECURITY: 'Brute force login, aksi sensitif backoffice',
   INFRA: 'Kanal alert mati, transaksi Safe dibatalkan',
+  CUSTODIAL: 'Zona kunci wallet custodial: salinan wallet macet, burn custodial hangus',
   OTHER: 'Kondisi baru yang belum dipetakan ke kategori mana pun',
 }
 
@@ -2618,4 +2731,250 @@ export interface BniStatement {
   summary: BniStatementSummary
   /** Urut `postDate` menurun, stabil; baris `MALFORMED` tanggal di paling bawah. */
   rows: BniStatementRow[]
+}
+
+// ─── Persetujuan Pencairan (USDX-669, kontrak `sot/api/redeem-approvals.yaml`) ──
+//
+// Gerbang ops sebelum rupiah redeem keluar. Yang membentuk tipe-tipe di bawah:
+//
+//  1. UANG SELALU STRING. `netPayoutIdr`, `grossIdr`, `approvalThresholdIdr` dan
+//     kawan-kawannya adalah desimal atas kolom `numeric(20,2)`. Tidak ada satu
+//     pun di antaranya yang boleh jadi `number` — 20 digit tidak masuk ke JS
+//     number, dan `0.1 + 0.2` bukan `0.3`. Aritmetika dan pembandingannya ada di
+//     `@/lib/redeemApprovals` lewat BigInt.
+//  2. MENYETUJUI BUKAN MENGIRIM. `RedeemApprovalOutcome.status` tetap `BURNED`
+//     setelah APPROVED — gerbangnya terbuka, Disbursement Trigger baru menjemput
+//     order itu pada tick berikutnya. UI tidak boleh menulis "dana terkirim".
+//  3. AMBANG ADALAH RESOURCE SENDIRI (`/api/v1/redeem-approval-controls`), bukan
+//     sub-path `/redeem-approvals/threshold`: segmen literal yang bersaing dengan
+//     `{id}` adalah tabrakan rute yang menunggu terjadi, dan ambang memang sebuah
+//     KONTROL, bukan sebuah persetujuan.
+
+/** Order partner ikut melewati gerbang yang sama — tidak ada pintu belakang. */
+export type RedeemApprovalOwnerType = 'RETAIL' | 'PARTNER'
+
+/** Satu baris antrean menunggu persetujuan (`GET /api/v1/redeem-approvals`). */
+export interface RedeemApprovalListItem {
+  /** id baris `redeem_orders`. */
+  id: string
+  /** `partner_reference_no`, mis. `RDM250913ABCDEF`. */
+  orderNumber: string
+  /** Snapshot nama pemilik order saat create — ketikan nasabah. */
+  customerName: string
+  /** Mengikuti `canReadCustomerPii` (USDX-487): penuh untuk ADMIN, ter-mask untuk role lain. */
+  userEmail: string
+  /** Desimal USDX (6 desimal). */
+  amountUsdx: string
+  /** Desimal IDR — nominal yang akan ditransfer. */
+  netPayoutIdr: string
+  bankCode: string
+  bankName: string
+  /** PENUH, tidak disamarkan — inilah yang ops diminta nilai. */
+  bankAccountNumber: string
+  /**
+   * Nama menurut BANK (jawaban account-inquiry saat create), BUKAN ketikan
+   * nasabah. Kalau ia berbeda dari `customerName`, perbedaan itu sendiri
+   * informasi yang dibutuhkan ops — jadi layar merender keduanya, bukan salah satu.
+   */
+  bankAccountName: string
+  /** Kapan burn on-chain terkonfirmasi. Antrean urut TERLAMA dulu atas field ini. */
+  burnedAt: string
+  /**
+   * Jejak burn on-chain, ikut di LIST dan bukan hanya di detail, supaya ops bisa
+   * membuka explorer langsung dari baris antrean. Menariknya lewat `GET /:id` per
+   * baris berarti satu panggilan per baris DAN satu baris `pii_access_audit` per
+   * baris — mencatat akses PII untuk orang yang tidak sedang membuka PII siapa
+   * pun. Hash transaksi sendiri data publik di chain.
+   *
+   * `null` = pencatatannya belum menyusul, BUKAN "burn-nya belum terjadi":
+   * antrean ini hanya memuat order yang sudah `BURNED`.
+   */
+  burnTxHash: string | null
+  ownerType: RedeemApprovalOwnerType
+}
+
+/** `GET /api/v1/redeem-approvals/{id}` — superset list item + snapshot kurs/fee + jejak burn. */
+export interface RedeemApprovalDetail extends RedeemApprovalListItem {
+  chain: string
+  /** Wallet sumber burn. */
+  userAddress: string
+  /** bytes32 hex — argumen `id` pada `redeem(id, amount)`. */
+  redeemId: string
+  /** Alamat kontrak token yang dibakar order ini. */
+  contractAddress: string
+  baseRate: string
+  effectiveRate: string
+  spreadSellPct: string
+  grossIdr: string
+  redeemFeeIdr: string
+  disbursementFeeIdr: string
+  totalFeeIdr: string
+  createdAt: string
+  expiresAt: string
+  lateBurn: boolean
+  /** Nomor redeem milik partner; null untuk order retail. */
+  externalReference: string | null
+}
+
+/** Hasil satu keputusan ops (`approve` / `reject`). */
+export interface RedeemApprovalOutcome {
+  id: string
+  decision: 'APPROVED' | 'REJECTED'
+  /**
+   * Status order SESUDAH keputusan. `BURNED` untuk APPROVED — menyetujui hanya
+   * membuka gerbang, pengirimannya milik Disbursement Trigger. `PAYOUT_FAILED`
+   * untuk REJECTED (order mendarat di antrean "Pencairan Bermasalah").
+   */
+  status: string
+  decidedAt: string
+  decidedByName: string
+}
+
+/** `GET /api/v1/redeem-approval-controls` — ambang nominal aktif. */
+export interface RedeemApprovalControls {
+  /**
+   * IDR 2 desimal sebagai string. `"0"` = SEMUA pencairan wajib disetujui
+   * (default, dan keadaan paling ketat). Di atas 0 = pencairan dengan
+   * `netPayoutIdr` <= nilai ini dikirim tanpa persetujuan manusia.
+   */
+  approvalThresholdIdr: string
+  updatedAt: string | null
+  /** null kalau barisnya masih hasil seed migrasi. */
+  updatedByName: string | null
+}
+
+/** Body `PUT /api/v1/redeem-approval-controls` — `reason` WAJIB, masuk `activity_log`. */
+export interface UpdateRedeemApprovalControls {
+  approvalThresholdIdr: string
+  reason: string
+}
+
+/** Body `POST /api/v1/redeem-approvals/{id}/approve` — catatan opsional. */
+export interface ApproveRedeemPayoutBody {
+  reason?: string
+}
+
+/** Body `POST /api/v1/redeem-approvals/{id}/reject` — `reason` WAJIB. */
+export interface RejectRedeemPayoutBody {
+  reason: string
+}
+
+// ─── Pencairan Bermasalah (USDX-662, kontrak `sot/api/payout-failures.yaml`) ──
+//
+// Antrean penyelesaian manual payout redeem (`sot/bni-integration.md § 17`).
+// Subjeknya ORDER redeem, bukan kredit. Yang membentuk tipe-tipe di bawah:
+//
+//  1. UANG SELALU STRING (`numeric(20,2)` di `redeem_orders`) — formatnya lewat
+//     `formatIdrExact` / `formatUsdxExact` di `@/lib/redeemApprovals`, kolom yang sama.
+//  2. `issueKind` adalah enum TERBUKA menurut kontrak: setiap `switch` atasnya
+//     wajib punya cabang default (`@/lib/payoutFailures`).
+//  3. Nilai aksinya `RESENT`, bukan `RESEND`. Tiket dan § 17 menulis kata kerja;
+//     kontrak dan DTO backend memakai `PayoutResolution` yang sama untuk body DAN
+//     jejak audit. Yang dikirim ke server adalah ejaan kontrak.
+
+/** Populasi antrean (§ 17.4). Mirror enum DB `redeem_payout_issue_kind`. */
+export type PayoutIssueKind = 'PAYOUT_FAILED' | 'BURN_REJECTED' | 'PAYOUT_STUCK'
+
+/** Keputusan ops. Mirror enum DB `redeem_payout_resolution`. */
+export type PayoutResolution = 'RESENT' | 'SETTLED_MANUAL' | 'CLOSED'
+
+/** Order retail (baris `users`) atau order customer partner (`partner_customers`). */
+export type PayoutFailureOwnerKind = 'RETAIL' | 'PARTNER'
+
+/**
+ * Satu baris `payout_submissions` — jejak sekali-tulis tiap kali transfer
+ * diserahkan ke provider. Menjawab "pernahkah ada transfer yang berangkat?".
+ */
+export interface PayoutSubmissionTrail {
+  partnerReferenceNo: string
+  payoutProvider: string
+  /** IDR 2 desimal, seperti yang diperintahkan. */
+  amountIdr: string
+  submittedAt: string
+  /** Terisi hanya kalau percobaan ini TERBUKTI ditolak — arti "final" di § 17.2 #3. */
+  rejectedAt: string | null
+  rejectionReason: string | null
+}
+
+/** Satu keputusan ops dari jejak append-only `redeem_payout_reviews`. */
+export interface PayoutFailureReview {
+  action: PayoutResolution
+  reason: string
+  externalRef: string | null
+  newPartnerReferenceNo: string | null
+  actorStaffName: string
+  createdAt: string
+}
+
+/** Satu baris antrean terbuka (`GET /api/v1/payout-failures`). */
+export interface PayoutFailureListItem {
+  /** id `redeem_orders`. */
+  id: string
+  issueKind: PayoutIssueKind
+  /**
+   * Kode mesin — untuk pengelompokan, BUKAN untuk ditampilkan mentah (kontrak).
+   * Nullable mengikuti read model backend (`payout-failures.types.ts`).
+   */
+  issueCode: string | null
+  /** Kapan masuk antrean. Nullable mengikuti read model backend. */
+  issueAt: string | null
+  /** Status order SAAT INI — BURN_REJECTED sengaja masih AWAITING_BURN/EXPIRED (§ 17.4). */
+  status: string
+  amountUsdx: string
+  netPayoutIdr: string
+  bankName: string
+  /** Nomor rekening PENUH (un-mask) untuk keempat role — bahan keputusan ops. */
+  bankAccountNumber: string
+  /** Nama pemilik menurut BANK (hasil inquiry), bukan ketikan nasabah. */
+  bankAccountName: string
+  ownerKind: PayoutFailureOwnerKind
+  /**
+   * Retail: email nasabah, ter-mask untuk role selain ADMIN (USDX-487).
+   * Partner: `nama partner / id customer partner`.
+   */
+  ownerLabel: string
+  burnTxHash: string | null
+}
+
+/** `GET /api/v1/payout-failures/{id}` — semua bahan untuk SATU keputusan. */
+export interface PayoutFailureDetail extends PayoutFailureListItem {
+  issueReason: string | null
+  chain: string
+  userAddress: string | null
+  amountWei: string
+  effectiveRate: string
+  totalFeeIdr: string
+  burnedAt: string | null
+  lateBurn: boolean
+  staleBurn: boolean
+  payoutRef: string | null
+  /** SELURUH submission order ini, bukan yang terakhir saja. */
+  submissions: PayoutSubmissionTrail[]
+  reviews: PayoutFailureReview[]
+  /** null = antrean masih terbuka. Detail tetap terbaca sesudah di-resolve. */
+  resolution: PayoutResolution | null
+  resolvedAt: string | null
+  resolvedByStaffName: string | null
+}
+
+/** Body `POST /api/v1/payout-failures/{id}/resolve`. */
+export interface ResolvePayoutFailureBody {
+  action: PayoutResolution
+  /** Minimal 10 karakter; masuk jejak append-only dan tidak bisa diubah. */
+  reason: string
+  /** WAJIB pada `SETTLED_MANUAL` — nomor referensi transfer bank. */
+  externalRef?: string
+  /** Opsional, HANYA pada `RESENT`: rekening pengganti dari address book nasabah. */
+  bankAccountId?: string
+}
+
+/** Echo hasil resolve. */
+export interface ResolvePayoutFailureResult {
+  id: string
+  action: PayoutResolution
+  /** Status order SESUDAH resolve: PROCESSING_PAYOUT | PAYOUT_COMPLETE | PAYOUT_FAILED. */
+  status: string
+  /** Terisi HANYA pada RESENT. */
+  newPartnerReferenceNo: string | null
+  resolvedAt: string
 }

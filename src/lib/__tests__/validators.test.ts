@@ -19,6 +19,12 @@ import {
   validateRateUpdateForm,
   isManualRateUnusual,
   validateFeeConfigForm,
+  validateMinMintIdr,
+  feeConfigErrorField,
+  validateMintModeReason,
+  validateMintAllowedEmail,
+  validateMintModeDurationHours,
+  validateMintTestModeForm,
   validatePgFeeVaFlat,
   validateDisbursementFeeFlat,
   validateLedgerAmount,
@@ -713,9 +719,9 @@ describe('validateOptionalIdPhone', () => {
   })
 })
 
-// USDX-207 + USDX-245 — fee config form (sot/api/fee.yaml § UpdateFeeConfig).
-// Full 5-field snapshot: mint fee %, PG VA flat, PG QRIS %, redeem fee %,
-// disbursement fee flat.
+// USDX-207 + USDX-245 + USDX-637 — fee config form (sot/api/fee.yaml
+// § UpdateFeeConfig). Full 6-field snapshot: mint fee %, PG VA flat, PG QRIS %,
+// redeem fee %, disbursement fee flat, minimum mint Rp.
 describe('validateFeeConfigForm', () => {
   const ok = {
     mintFeePct: '1.0',
@@ -723,10 +729,11 @@ describe('validateFeeConfigForm', () => {
     pgFeeQrisPct: '0.7',
     redeemFeePct: '1.0',
     disbursementFeeFlat: '5000.00',
+    minMintIdr: '20000',
   }
 
   describe('positive', () => {
-    test('all 5 valid fields pass', () => {
+    test('all 6 valid fields pass', () => {
       expect(validateFeeConfigForm(ok).valid).toBe(true)
     })
     test('zero fees are allowed', () => {
@@ -737,6 +744,8 @@ describe('validateFeeConfigForm', () => {
           pgFeeQrisPct: '0',
           redeemFeePct: '0',
           disbursementFeeFlat: '0',
+          // Minimum mint has a hard floor and is deliberately NOT zeroable.
+          minMintIdr: '10000',
         }).valid,
       ).toBe(true)
     })
@@ -778,9 +787,22 @@ describe('validateFeeConfigForm', () => {
       expect(r.valid).toBe(false)
       expect(r.errors.disbursementFeeFlat).toBeDefined()
     })
+    test('missing minimum mint fails', () => {
+      const r = validateFeeConfigForm({ ...ok, minMintIdr: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.minMintIdr).toBeDefined()
+    })
+    test('minimum mint below the hard floor fails', () => {
+      const r = validateFeeConfigForm({ ...ok, minMintIdr: '5000' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.minMintIdr).toMatch(/at least 10,000/i)
+    })
   })
 
   describe('edge cases', () => {
+    test('minimum mint exactly at the floor passes', () => {
+      expect(validateFeeConfigForm({ ...ok, minMintIdr: '10000' }).valid).toBe(true)
+    })
     test('VA flat rejects non-numeric', () => {
       expect(validatePgFeeVaFlat('abc')).not.toBeNull()
     })
@@ -795,6 +817,315 @@ describe('validateFeeConfigForm', () => {
     })
   })
 })
+
+// USDX-637 — minimum mint Rp. Lantai keras Rp 10.000 disalin dari kontrak
+// backend (USDX-635); validasi klien hanya menjawab lebih cepat.
+describe('validateMinMintIdr', () => {
+  describe('positive', () => {
+    test('accepts a value above the floor', () => {
+      expect(validateMinMintIdr('20000')).toBeNull()
+    })
+    test('accepts the floor itself', () => {
+      expect(validateMinMintIdr('10000')).toBeNull()
+    })
+    test('trims surrounding whitespace before judging', () => {
+      expect(validateMinMintIdr('  15000  ')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects an empty value', () => {
+      expect(validateMinMintIdr('')).toMatch(/required/i)
+    })
+    test('rejects a value below the floor', () => {
+      expect(validateMinMintIdr('5000')).toMatch(/at least 10,000/i)
+    })
+    test('rejects a non-numeric value', () => {
+      expect(validateMinMintIdr('abc')).toMatch(/must be a number/i)
+    })
+    test('rejects a negative value', () => {
+      expect(validateMinMintIdr('-20000')).not.toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('whitespace only counts as empty, not as a number', () => {
+      expect(validateMinMintIdr('   ')).toMatch(/required/i)
+    })
+    // No upper bound is asserted on purpose: the contract sets none, and a
+    // client ceiling would refuse a figure the server accepts.
+    test('accepts an extremely large value', () => {
+      expect(validateMinMintIdr('1000000000')).toBeNull()
+    })
+    test('rejects 9999.99 — just under the floor', () => {
+      expect(validateMinMintIdr('9999.99')).not.toBeNull()
+    })
+  })
+})
+
+// USDX-637 — 422 `VALIDATION_ERROR` carries only a message, so the field it
+// refers to has to be read out of that message. Ambiguity resolves to "no
+// field" (the form-level slot) rather than to a guess.
+describe('feeConfigErrorField', () => {
+  describe('positive', () => {
+    test('finds the single field named in the message', () => {
+      expect(feeConfigErrorField('minMintIdr must be at least 10000')).toBe('minMintIdr')
+    })
+    test('finds a fee field just as well', () => {
+      expect(feeConfigErrorField('mintFeePct is required')).toBe('mintFeePct')
+    })
+  })
+
+  describe('negative', () => {
+    test('returns null when the message names no field', () => {
+      expect(feeConfigErrorField('Fee config is locked during settlement')).toBeNull()
+    })
+    test('returns null when the message names two fields', () => {
+      expect(
+        feeConfigErrorField('minMintIdr must not exceed disbursementFeeFlat'),
+      ).toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('returns null for an empty message', () => {
+      expect(feeConfigErrorField('')).toBeNull()
+    })
+    test('is case-sensitive — the payload key is the only match', () => {
+      expect(feeConfigErrorField('minmintidr must be at least 10000')).toBeNull()
+    })
+  })
+})
+
+// USDX-639 — mode uji mint. Menyalakannya sengaja sulit: alasan wajib, durasi
+// wajib, maksimal 24 jam.
+describe('validateMintModeReason', () => {
+  describe('positive', () => {
+    test('menerima alasan biasa', () => {
+      expect(validateMintModeReason('Uji bayar produksi')).toBeNull()
+    })
+    test('tepat 10 karakter lolos — batasnya inklusif', () => {
+      expect(validateMintModeReason('uji bayar1')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak alasan kosong', () => {
+      expect(validateMintModeReason('')).toMatch(/wajib/i)
+    })
+    test('menolak alasan di bawah 10 karakter (CHECK yang sama ada di DB)', () => {
+      expect(validateMintModeReason('uji')).toMatch(/minimal 10/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('spasi saja dihitung kosong, bukan "terlalu pendek"', () => {
+      expect(validateMintModeReason('    ')).toMatch(/wajib/i)
+    })
+    test('sepuluh spasi + satu huruf tetap ditolak — panjang dihitung setelah trim', () => {
+      expect(validateMintModeReason('          x')).toMatch(/minimal 10/i)
+    })
+  })
+})
+
+// USDX-639 (tambahan lingkup 11 Sep 2026) — daftar email yang boleh mint.
+describe('validateMintAllowedEmail', () => {
+  describe('positive', () => {
+    test('menerima email biasa', () => {
+      expect(validateMintAllowedEmail('budi@usdx.io')).toBeNull()
+    })
+    test('spasi di sekelilingnya tidak membatalkan', () => {
+      expect(validateMintAllowedEmail('  budi@usdx.io  ')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak kosong', () => {
+      expect(validateMintAllowedEmail('')).toMatch(/wajib/i)
+    })
+    test('menolak tanpa domain lengkap', () => {
+      expect(validateMintAllowedEmail('budi@usdx')).toMatch(/tidak valid/i)
+    })
+    test('menolak tanpa @', () => {
+      expect(validateMintAllowedEmail('budi.usdx.io')).toMatch(/tidak valid/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('menolak dua alamat sekaligus dalam satu entri', () => {
+      expect(validateMintAllowedEmail('a@usdx.io b@usdx.io')).toMatch(/tidak valid/i)
+    })
+    test('spasi saja dihitung kosong', () => {
+      expect(validateMintAllowedEmail('   ')).toMatch(/wajib/i)
+    })
+  })
+})
+
+describe('validateMintModeDurationHours', () => {
+  describe('positive', () => {
+    test('menerima 1 jam', () => {
+      expect(validateMintModeDurationHours('1')).toBeNull()
+    })
+    test('menerima batas atas 24 jam', () => {
+      expect(validateMintModeDurationHours('24')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('menolak kosong', () => {
+      expect(validateMintModeDurationHours('')).toMatch(/wajib/i)
+    })
+    test('menolak 0 jam', () => {
+      expect(validateMintModeDurationHours('0')).toMatch(/minimal/i)
+    })
+    test('menolak 25 jam', () => {
+      expect(validateMintModeDurationHours('25')).toMatch(/maksimal 24/i)
+    })
+    test('menolak bukan angka', () => {
+      expect(validateMintModeDurationHours('dua')).toMatch(/bulat/i)
+    })
+  })
+  describe('edge cases', () => {
+    test('menolak pecahan — kontrak berbicara dalam jam bulat', () => {
+      expect(validateMintModeDurationHours('1.5')).toMatch(/bulat/i)
+    })
+    test('menolak angka negatif', () => {
+      expect(validateMintModeDurationHours('-2')).toMatch(/bulat/i)
+    })
+    test('spasi di sekeliling angka tetap lolos', () => {
+      expect(validateMintModeDurationHours('  3  ')).toBeNull()
+    })
+  })
+})
+
+describe('validateMintTestModeForm', () => {
+  // Ketiga alamat bundle uji WAJIB sejak USDX-654 — tanpa mereka permintaannya
+  // selalu ditolak server, jadi form yang menganggapnya sah akan mengirim
+  // sesuatu yang pasti gagal.
+  const ok = {
+    reason: 'Uji bayar produksi',
+    durationHours: '2',
+    testUsdxAddress: '0x2702D70446C8d3b5B0Ef6Ad3eB58aA5D3d5a7426',
+    testStaffSafeAddress: '0x5b7C0000000000000000000000000000000000A1',
+    testManagerSafeAddress: '0x5B7C0000000000000000000000000000000000B2',
+  }
+
+  describe('positive', () => {
+    test('alasan + durasi valid', () => {
+      expect(validateMintTestModeForm(ok).valid).toBe(true)
+    })
+    test('kotak email KOSONG bukan kesalahan — daftar boleh kosong', () => {
+      expect(validateMintTestModeForm({ ...ok, allowedEmailDraft: '' }).valid).toBe(true)
+      expect(validateMintTestModeForm({ ...ok, allowedEmailDraft: '   ' }).valid).toBe(true)
+    })
+    test('kotak email berisi alamat sah tetap lolos', () => {
+      expect(
+        validateMintTestModeForm({ ...ok, allowedEmailDraft: 'budi@usdx.io' }).valid,
+      ).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('alasan kosong menggagalkan seluruh form', () => {
+      const r = validateMintTestModeForm({ ...ok, reason: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.reason).toBeDefined()
+    })
+    test('durasi kosong menggagalkan seluruh form', () => {
+      const r = validateMintTestModeForm({ ...ok, durationHours: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.durationHours).toBeDefined()
+    })
+    test('alamat setengah diketik menggagalkan form — supaya tidak terkirim diam-diam', () => {
+      const r = validateMintTestModeForm({ ...ok, allowedEmailDraft: 'budi@usdx' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.allowedEmailDraft).toMatch(/tidak valid/i)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('dua-duanya salah → dua pesan, bukan satu', () => {
+      const r = validateMintTestModeForm({ ...ok, reason: '  ', durationHours: '99' })
+      expect(Object.keys(r.errors).sort()).toEqual(['durationHours', 'reason'])
+    })
+    test('ketiga-tiganya salah → tiga pesan', () => {
+      const r = validateMintTestModeForm({
+        ...ok,
+        reason: '',
+        durationHours: '0',
+        allowedEmailDraft: 'x',
+      })
+      expect(Object.keys(r.errors).sort()).toEqual([
+        'allowedEmailDraft',
+        'durationHours',
+        'reason',
+      ])
+    })
+  })
+
+  // USDX-654 — alamat bundle uji.
+  describe('bundle uji', () => {
+    describe('positive', () => {
+      test('ketiga alamat ber-checksum → form sah', () => {
+        expect(validateMintTestModeForm(ok).valid).toBe(true)
+      })
+    })
+
+    describe('negative', () => {
+      test('satu alamat kosong menggagalkan form', () => {
+        const r = validateMintTestModeForm({ ...ok, testStaffSafeAddress: '' })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testStaffSafeAddress).toMatch(/wajib diisi/i)
+      })
+      test('bentuk alamat salah menggagalkan form', () => {
+        const r = validateMintTestModeForm({ ...ok, testUsdxAddress: '0xabc' })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testUsdxAddress).toMatch(/0x \+ 40 karakter hex/i)
+      })
+      test('huruf kecil semua ditolak — server menuntut ejaan ber-checksum', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testUsdxAddress: ok.testUsdxAddress.toLowerCase(),
+        })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testUsdxAddress).toMatch(/EIP-55/i)
+      })
+      test('token uji sama dengan Safe uji menggagalkan KEDUA isiannya', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testStaffSafeAddress: ok.testUsdxAddress,
+        })
+        expect(r.valid).toBe(false)
+        expect(r.errors.testUsdxAddress).toMatch(/token uji dan alamat Safe uji tidak boleh sama/i)
+        expect(r.errors.testStaffSafeAddress).toMatch(
+          /token uji dan alamat Safe uji tidak boleh sama/i,
+        )
+      })
+    })
+
+    describe('edge cases', () => {
+      test('alamat yang bentuknya sudah salah tidak ikut dihitung kembar — satu keluhan per isian', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testStaffSafeAddress: 'x',
+          testManagerSafeAddress: 'x',
+        })
+        expect(r.errors.testStaffSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
+        expect(r.errors.testManagerSafeAddress).toMatch(/0x \+ 40 karakter hex/i)
+      })
+      // USDX-655: bundle dev memakai SATU alamat untuk Safe staff dan manager.
+      // Menolaknya berarti mode uji tidak pernah bisa dinyalakan.
+      test('Safe staff = Safe manager tetap sah', () => {
+        const r = validateMintTestModeForm({
+          ...ok,
+          testManagerSafeAddress: ok.testStaffSafeAddress,
+        })
+        expect(r.valid).toBe(true)
+      })
+      test('spasi di sekeliling alamat tidak membatalkan', () => {
+        expect(
+          validateMintTestModeForm({ ...ok, testUsdxAddress: `  ${ok.testUsdxAddress}  ` }).valid,
+        ).toBe(true)
+      })
+    })
+  })
+})
+
 
 // ─── Transparency: reserve ledger + attestation upload ──────────────────────
 // Each block below names the contract `error.code` it mirrors

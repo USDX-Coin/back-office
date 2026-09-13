@@ -17,6 +17,9 @@ import {
   Landmark,
   PhoneCall,
   ShieldAlert,
+  FlaskConical,
+  Banknote as BanknoteIcon,
+  BanknoteX,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -28,7 +31,14 @@ import {
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
-export type BadgeKey = 'mint' | 'burn' | 'kyc' | 'kyb' | 'screening'
+export type BadgeKey =
+  | 'mint'
+  | 'burn'
+  | 'kyc'
+  | 'kyb'
+  | 'screening'
+  | 'redeemApprovals'
+  | 'payoutFailures'
 
 export interface NavItem {
   to: string
@@ -89,6 +99,25 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Consumer',
     items: [
       { to: '/transactions', label: 'User Transaction', icon: Receipt },
+      // USDX-669 — antrean Persetujuan Pencairan. ENTRI SENDIRI, bukan tab di
+      // dalam User Transaction (keputusan PM): yang satu monitoring read-only
+      // atas semua order, yang satu antrean kerja yang mengeluarkan rupiah, dan
+      // menyatukannya membuat pekerjaan yang menunggu tidak punya tempat yang
+      // bisa dihitung. Duduk di section Consumer karena subjeknya order redeem
+      // konsumen — yang dilarang tiket adalah menempelkannya pada LAYAR
+      // Transactions, bukan menaruhnya di kelompok yang sama.
+      //
+      // Visibilitas: SEMUA peran, pola KYC/KYB/Screening. Menyetujui dan menolak
+      // digerbangi MANAGER/ADMIN di dalam layarnya (`canDecideRedeemPayout`) —
+      // STAFF yang melihat antrean menumpuk adalah cara seseorang tahu harus
+      // memanggil yang berwenang, dan badge `(N)` ikut tampil untuknya karena
+      // `GET /api/v1/redeem-approvals` terbuka untuk peran itu.
+      {
+        to: '/redeem-approvals',
+        label: 'Persetujuan Pencairan',
+        icon: BanknoteIcon,
+        badgeKey: 'redeemApprovals',
+      },
     ],
   },
   {
@@ -140,6 +169,18 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/multisig', label: 'Multisig', icon: KeyRound, visibleWhen: canAccessTreasury },
       { to: '/bni-accounts', label: 'Rekening BNI', icon: Landmark },
+      // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). Linear menunjuk "sidebar
+      // TREASURY/OPS"; § 17.9 menyebut "satu grup dengan Mint Bermasalah", menu yang
+      // tidak ada di back-office ini, jadi section TREASURY yang dipakai. Visibilitas
+      // SEMUA peran tanpa `visibleWhen` (list terbuka untuk STAFF/DEVELOPER, pola
+      // Rekening BNI); resolve digerbangi MANAGER/ADMIN di dalam layar. Badge `(N)` =
+      // antrean terbuka, tampil untuk semua peran: tiap satuannya rupiah yang belum sampai.
+      {
+        to: '/payout-failures',
+        label: 'Pencairan Bermasalah',
+        icon: BanknoteX,
+        badgeKey: 'payoutFailures',
+      },
     ],
   },
   {
@@ -155,14 +196,28 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // USDX-639: gerbang section DIPINDAH ke item-itemnya, mengikuti preseden
+    // TREASURY (USDX-631 D21). Alasannya sama bentuknya: satu entri baru di
+    // section ini — Mode Mint — harus terlihat oleh SEMUA role, sementara
+    // Rate / Fee / Threshold / On-Call tetap persis seperti sebelumnya. Menaruh
+    // gerbang lama di section akan menyembunyikan Mode Mint dari STAFF dan
+    // MANAGER, yaitu dua role yang justru diminta tiketnya bisa membukanya.
     label: 'Settings',
-    visibleWhen: canManageSettings,
     items: [
-      { to: '/settings/rate', label: 'Rate', icon: TrendingUp },
+      { to: '/settings/rate', label: 'Rate', icon: TrendingUp, visibleWhen: canManageSettings },
       // USDX-207: fee config (mint fee % + PG fee VA/QRIS). Visible to the
       // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
-      { to: '/settings/fee', label: 'Fee', icon: Percent },
-      { to: '/settings/threshold', label: 'Threshold', icon: Sliders },
+      { to: '/settings/fee', label: 'Fee', icon: Percent, visibleWhen: canManageSettings },
+      // USDX-639 — mode mint PROD/UJI. SATU-SATUNYA entri Settings yang terbuka
+      // untuk semua role: STAFF yang menyadari mode uji menyala di jam produksi
+      // harus bisa sampai ke tombol yang mematikannya tanpa mencari atasan.
+      { to: '/settings/mint-mode', label: 'Mode Mint', icon: FlaskConical },
+      {
+        to: '/settings/threshold',
+        label: 'Threshold',
+        icon: Sliders,
+        visibleWhen: canManageSettings,
+      },
       // USDX-485 (audit P1-18): kontak on-call insiden uang. Di-gate di level
       // ITEM, bukan mengikuti section (canManageSettings = ADMIN+DEVELOPER):
       // daftarnya memuat nomor telepon dan menentukan siapa yang dipanggil saat
