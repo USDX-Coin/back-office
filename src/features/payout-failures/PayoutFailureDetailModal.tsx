@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ExternalLink, Info } from 'lucide-react'
 import {
   Dialog,
@@ -18,15 +18,18 @@ import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { formatWibDateTime, shortHash } from '@/lib/format'
 import {
+  allowedResolveActions,
   formatQueueAge,
   payoutFailureErrorMessage,
   payoutIssueCodeLabel,
   payoutIssueKindPill,
+  RESOLVE_ACTION_LABELS,
   resolutionTrailLabel,
 } from '@/lib/payoutFailures'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
-import type { PayoutFailureDetail } from '@/lib/types'
+import type { PayoutFailureDetail, PayoutResolution } from '@/lib/types'
 import ResolutionTrail from './ResolutionTrail'
+import ResolvePayoutFailureDialog from './ResolvePayoutFailureDialog'
 import SubmissionTrail from './SubmissionTrail'
 import { usePayoutFailureDetail } from './hooks'
 
@@ -145,6 +148,21 @@ export default function PayoutFailureDetailModal({
   const canResolve = canResolvePayoutFailure(user)
   const query = usePayoutFailureDetail(open ? orderId : null)
   const detail = query.data
+  const [chosenAction, setChosenAction] = useState<PayoutResolution | null>(null)
+
+  // Aksi yang dipilih untuk order sebelumnya tidak boleh terbawa ke order berikutnya.
+  const [lastOrderId, setLastOrderId] = useState(orderId)
+  if (orderId !== lastOrderId) {
+    setLastOrderId(orderId)
+    setChosenAction(null)
+  }
+
+  // Tombol HANYA untuk antrean terbuka, peran MANAGER/ADMIN, dan aksi yang sah bagi
+  // jenisnya (§ 17.4) — PAYOUT_STUCK dan jenis tak dikenal tidak punya satu pun.
+  // Menyembunyikan tombol bukan satu-satunya pagar: backend tetap menjawab 403/409,
+  // dan dialog resolve menerjemahkannya.
+  const actions =
+    detail && detail.resolution === null && canResolve ? allowedResolveActions(detail.issueKind) : []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -297,10 +315,32 @@ export default function PayoutFailureDetailModal({
         </DialogBody>
 
         <DialogFooter>
+          {actions.map((action) => (
+            <Button
+              key={action}
+              variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
+              onClick={() => setChosenAction(action)}
+            >
+              {RESOLVE_ACTION_LABELS[action]}
+            </Button>
+          ))}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Tutup
           </Button>
         </DialogFooter>
+
+        {/* Dirender DI DALAM konten modal detail supaya Radix menumpuk keduanya sebagai
+            lapisan bersarang: Esc menutup dialog resolve dulu, bukan detailnya. */}
+        {detail && (
+          <ResolvePayoutFailureDialog
+            detail={detail}
+            action={chosenAction}
+            open={chosenAction !== null}
+            onOpenChange={(next) => {
+              if (!next) setChosenAction(null)
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
