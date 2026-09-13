@@ -27,6 +27,7 @@ import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
+import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import MintModePage from '@/features/mint-mode/MintModePage'
@@ -143,6 +144,11 @@ export const appRoutes: RouteObject[] = [
           // menyembunyikan antrean yang menumpuk dari STAFF, yaitu orang yang
           // biasanya lebih dulu menyadarinya.
           { path: '/redeem-approvals', element: <RedeemApprovalsPage /> },
+          // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). TANPA RoleGuard, alasan
+          // yang sama dengan /redeem-approvals: list + detail terbuka untuk semua peran
+          // back office (`sot/api/payout-failures.yaml § Akses`), resolve digerbangi
+          // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
+          { path: '/payout-failures', element: <PayoutFailuresPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects
