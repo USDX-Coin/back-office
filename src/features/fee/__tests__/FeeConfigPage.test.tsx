@@ -11,10 +11,13 @@ import { findStaffByEmail, issueMockJwt } from '@/mocks/handlers'
 // USDX-207 — Fee config page (sot/api/fee.yaml). Read = all backoffice roles,
 // update = admin only. Mirrors the Rate page gating.
 // USDX-637 adds Minimum Mint (Rp) to the same form and the same snapshot.
+// USDX-682 adds Minimum Redeem (Rp) — required on the backend, so the snapshot
+// is 7 fields and a form that omits it cannot save ANY fee config.
 
 beforeAll(() => server.listen())
 afterEach(() => {
   server.resetHandlers()
+  server.events.removeAllListeners()
   resetMockData()
 })
 afterAll(() => server.close())
@@ -202,6 +205,8 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         redeemFeePct: '1.0',
         disbursementFeeFlat: '5000.00',
         minMintIdr: '12000',
+        // USDX-682 — rides along untouched.
+        minRedeemIdr: '20000',
       })
     })
   })
@@ -289,6 +294,207 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
   })
 })
 
+// USDX-682 — Minimum Redeem (Rp). Kembaran Minimum Mint di form yang sama, tapi
+// dengan taruhan yang lebih besar: backend menjadikannya field WAJIB, jadi form
+// yang tidak mengirimnya ditolak 422 dan menyimpan fee config yang LAMA pun
+// gagal. Karena itu AC utamanya bukan "field-nya ada", tapi "menyimpan tanpa
+// mengubah apa pun tetap berhasil".
+describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
+  /** Body POST fee-config yang benar-benar dikirim ke jaringan. */
+  function recordFeeConfigBodies() {
+    const bodies: Record<string, string>[] = []
+    server.events.on('request:start', async ({ request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname === '/api/v1/fee-config') {
+        bodies.push((await request.clone().json()) as Record<string, string>)
+      }
+    })
+    return bodies
+  }
+
+  /** Status jawaban mock untuk POST fee-config — 201 vs 422 adalah intinya. */
+  function recordFeeConfigStatuses() {
+    const statuses: number[] = []
+    server.events.on('response:mocked', ({ request, response }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname === '/api/v1/fee-config') {
+        statuses.push(response.status)
+      }
+    })
+    return statuses
+  }
+
+  function minRedeemInput() {
+    return screen.findByLabelText(/^minimum redeem \(rp\)$/i) as Promise<HTMLInputElement>
+  }
+
+  describe('positive', () => {
+    test('the field carries the active value from GET, and the card shows it too', async () => {
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await waitFor(() => {
+        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+      })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+    })
+
+    // AC inti: tanpa satu pun perubahan, form tetap mengirim `minRedeemIdr` dan
+    // mock — yang mewajibkannya persis seperti backend — menjawab 201. Ini yang
+    // membuktikan fee config lama masih bisa disimpan setelah backend naik.
+    test('saving without changing anything still sends minRedeemIdr and is accepted', async () => {
+      const user = userEvent.setup()
+      const bodies = recordFeeConfigBodies()
+      const statuses = recordFeeConfigStatuses()
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+
+      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+
+      await waitFor(() => expect(statuses).toEqual([201]))
+      expect(bodies).toHaveLength(1)
+      expect(bodies[0]).toEqual({
+        mintFeePct: '1.0',
+        pgFeeVaFlat: '4000.00',
+        pgFeeQrisPct: '0.7',
+        redeemFeePct: '1.0',
+        disbursementFeeFlat: '5000.00',
+        minMintIdr: '20000',
+        minRedeemIdr: '20000',
+      })
+      // Nothing was refused, so no validation message appeared on the form.
+      expect(screen.queryByText(/minimum redeem is required/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/must be at least/i)).not.toBeInTheDocument()
+    })
+
+    test('raising the minimum is saved and read back from the card', async () => {
+      const user = userEvent.setup()
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+
+      await user.clear(input)
+      await user.type(input, '35000')
+      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/35\.000/)
+      })
+      // The mint minimum was not dragged along by the edit.
+      expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/20\.000/)
+    })
+  })
+
+  describe('negative', () => {
+    test('blank blocks the submit inline and sends no request', async () => {
+      const user = userEvent.setup()
+      const bodies = recordFeeConfigBodies()
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+
+      await user.clear(input)
+      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+
+      expect(await screen.findByText(/minimum redeem is required/i)).toBeInTheDocument()
+      expect(bodies).toHaveLength(0)
+    })
+
+    test('5000 is refused by the client, never by a round trip', async () => {
+      const user = userEvent.setup()
+      const bodies = recordFeeConfigBodies()
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+
+      await user.clear(input)
+      await user.type(input, '5000')
+      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+
+      expect(
+        await screen.findByText(/minimum redeem must be at least 10,000/i),
+      ).toBeInTheDocument()
+      expect(bodies).toHaveLength(0)
+      // The active value is untouched.
+      expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+    })
+
+    test('STAFF gets the read-only view — no minimum redeem input at all', async () => {
+      loginAsStaffRole('marcus.a@usdx.io') // compliance → STAFF
+      renderWithProviders(<FeeConfigPage />)
+      expect(
+        await screen.findByText(/your role does not have permission/i),
+      ).toBeInTheDocument()
+      expect(screen.queryByLabelText(/^minimum redeem \(rp\)$/i)).not.toBeInTheDocument()
+      // Reading the active value stays open to every role.
+      await waitFor(() => {
+        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+      })
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a 422 naming minRedeemIdr lands on that input, not on Minimum Mint', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.post('/api/v1/fee-config', () =>
+          HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'minRedeemIdr must be at least 25000',
+              },
+            },
+            { status: 422 },
+          ),
+        ),
+      )
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      const input = await minRedeemInput()
+      await waitFor(() => expect(input.value).toBe('20000'))
+      await user.clear(input)
+      await user.type(input, '15000')
+      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+
+      expect(await screen.findByText(/minRedeemIdr must be at least 25000/)).toBeInTheDocument()
+      // Typed value intact, and the mint field was not blamed for it.
+      expect(input.value).toBe('15000')
+      const mint = screen.getByLabelText(/^minimum mint \(rp\)$/i) as HTMLInputElement
+      expect(mint.value).toBe('20000')
+    })
+
+    // Kartu merender em dash, bukan "Rp 0", saat backend belum membawa kolomnya:
+    // minimum yang belum ada dan minimum nol bukan hal yang sama, dan yang kedua
+    // tidak pernah sah.
+    test('a backend without the column yet renders an em dash in the card', async () => {
+      server.use(
+        http.get('/api/v1/fee-config', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              id: 'fee-0001',
+              mintFeePct: '1.0',
+              pgFeeVaFlat: '4000.00',
+              pgFeeQrisPct: '0.7',
+              redeemFeePct: '1.0',
+              disbursementFeeFlat: '5000.00',
+              minMintIdr: '20000',
+              updatedBy: 'seed',
+              createdAt: new Date().toISOString(),
+            },
+          }),
+        ),
+      )
+      renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await waitFor(() => {
+        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent('—')
+      })
+    })
+  })
+})
+
 describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
   test('403 with SoT ErrorResponse when caller is not ADMIN', async () => {
     const staff = findStaffByEmail('marcus.a@usdx.io')! // STAFF
@@ -311,7 +517,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
     expect(res.status).toBe(401)
   })
 
-  test('201 + FeeConfig (full 6-field snapshot) when caller is ADMIN', async () => {
+  test('201 + FeeConfig (full 7-field snapshot) when caller is ADMIN', async () => {
     const staff = findStaffByEmail('demo@usdx.io')! // super_admin → ADMIN
     const res = await fetch('/api/v1/fee-config', {
       method: 'POST',
@@ -323,6 +529,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
         redeemFeePct: '1.5',
         disbursementFeeFlat: '6000.00',
         minMintIdr: '25000',
+        minRedeemIdr: '30000',
       }),
     })
     expect(res.status).toBe(201)
@@ -334,6 +541,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
       redeemFeePct: '1.5',
       disbursementFeeFlat: '6000.00',
       minMintIdr: '25000',
+      minRedeemIdr: '30000',
       updatedBy: staff.id,
     })
     expect(typeof body.data.id).toBe('string')
@@ -368,6 +576,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
         redeemFeePct: '1.5',
         disbursementFeeFlat: '6000.00',
         minMintIdr: '5000',
+        minRedeemIdr: '20000',
       }),
     })
     expect(res.status).toBe(422)
@@ -388,10 +597,55 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
         pgFeeQrisPct: '0.8',
         redeemFeePct: '1.5',
         disbursementFeeFlat: '6000.00',
+        minRedeemIdr: '20000',
       }),
     })
     expect(res.status).toBe(422)
     expect((await res.json()).error.message).toContain('minMintIdr')
+  })
+
+  // USDX-682: `minRedeemIdr` wajib di kontrak (sot/api/fee.yaml
+  // § UpdateFeeConfig.required). Mock menolaknya sekeras backend supaya test
+  // hijau tidak menyembunyikan form yang lupa mengirim field wajib — kalau
+  // sampai lolos, yang gagal di produksi adalah SELURUH penyimpanan fee config.
+  test('422 VALIDATION_ERROR when minRedeemIdr is omitted from the snapshot', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')!
+    const res = await fetch('/api/v1/fee-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issueMockJwt(staff)}` },
+      body: JSON.stringify({
+        mintFeePct: '2.0',
+        pgFeeVaFlat: '5000.00',
+        pgFeeQrisPct: '0.8',
+        redeemFeePct: '1.5',
+        disbursementFeeFlat: '6000.00',
+        minMintIdr: '25000',
+      }),
+    })
+    expect(res.status).toBe(422)
+    expect((await res.json()).error.message).toContain('minRedeemIdr')
+  })
+
+  test('422 VALIDATION_ERROR when minRedeemIdr is below the hard floor', async () => {
+    const staff = findStaffByEmail('demo@usdx.io')!
+    const res = await fetch('/api/v1/fee-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issueMockJwt(staff)}` },
+      body: JSON.stringify({
+        mintFeePct: '2.0',
+        pgFeeVaFlat: '5000.00',
+        pgFeeQrisPct: '0.8',
+        redeemFeePct: '1.5',
+        disbursementFeeFlat: '6000.00',
+        minMintIdr: '25000',
+        minRedeemIdr: '9999',
+      }),
+    })
+    expect(res.status).toBe(422)
+    const body = await res.json()
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    // The message names the field so the form can put it on the right input.
+    expect(body.error.message).toContain('minRedeemIdr')
   })
 })
 
@@ -410,6 +664,9 @@ describe('GET /api/v1/fee-config response shape', () => {
       disbursementFeeFlat: expect.stringMatching(/^\d+(\.\d+)?$/),
       // Minimum mint (USDX-637) — the form's sixth field.
       minMintIdr: expect.stringMatching(/^\d+(\.\d+)?$/),
+      // Minimum redeem (USDX-682) — the seventh. Served by GET so the form can
+      // pre-fill it; a blank required field would block every save.
+      minRedeemIdr: expect.stringMatching(/^\d+(\.\d+)?$/),
     })
   })
 })

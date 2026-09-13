@@ -466,6 +466,8 @@ export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
     disbursementFeeFlat: '5000.00',
     // Minimum mint Rp (USDX-635/637) — pindah dari konstanta ke kolom config.
     minMintIdr: '20000',
+    // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
+    minRedeemIdr: '20000',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,

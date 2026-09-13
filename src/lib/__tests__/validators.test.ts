@@ -20,6 +20,7 @@ import {
   isManualRateUnusual,
   validateFeeConfigForm,
   validateMinMintIdr,
+  validateMinRedeemIdr,
   feeConfigErrorField,
   validateMintModeReason,
   validateMintAllowedEmail,
@@ -719,9 +720,9 @@ describe('validateOptionalIdPhone', () => {
   })
 })
 
-// USDX-207 + USDX-245 + USDX-637 — fee config form (sot/api/fee.yaml
-// § UpdateFeeConfig). Full 6-field snapshot: mint fee %, PG VA flat, PG QRIS %,
-// redeem fee %, disbursement fee flat, minimum mint Rp.
+// USDX-207 + USDX-245 + USDX-637 + USDX-682 — fee config form (sot/api/fee.yaml
+// § UpdateFeeConfig). Full 7-field snapshot: mint fee %, PG VA flat, PG QRIS %,
+// redeem fee %, disbursement fee flat, minimum mint Rp, minimum redeem Rp.
 describe('validateFeeConfigForm', () => {
   const ok = {
     mintFeePct: '1.0',
@@ -730,10 +731,11 @@ describe('validateFeeConfigForm', () => {
     redeemFeePct: '1.0',
     disbursementFeeFlat: '5000.00',
     minMintIdr: '20000',
+    minRedeemIdr: '20000',
   }
 
   describe('positive', () => {
-    test('all 6 valid fields pass', () => {
+    test('all 7 valid fields pass', () => {
       expect(validateFeeConfigForm(ok).valid).toBe(true)
     })
     test('zero fees are allowed', () => {
@@ -744,8 +746,9 @@ describe('validateFeeConfigForm', () => {
           pgFeeQrisPct: '0',
           redeemFeePct: '0',
           disbursementFeeFlat: '0',
-          // Minimum mint has a hard floor and is deliberately NOT zeroable.
+          // Both minimums have a hard floor and are deliberately NOT zeroable.
           minMintIdr: '10000',
+          minRedeemIdr: '10000',
         }).valid,
       ).toBe(true)
     })
@@ -797,11 +800,32 @@ describe('validateFeeConfigForm', () => {
       expect(r.valid).toBe(false)
       expect(r.errors.minMintIdr).toMatch(/at least 10,000/i)
     })
+    // USDX-682: required on the backend, so a blank one must be caught here —
+    // otherwise the whole snapshot (including fees the operator never touched)
+    // comes back 422 and nothing gets saved at all.
+    test('missing minimum redeem fails', () => {
+      const r = validateFeeConfigForm({ ...ok, minRedeemIdr: '' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.minRedeemIdr).toBeDefined()
+    })
+    test('minimum redeem below the hard floor fails', () => {
+      const r = validateFeeConfigForm({ ...ok, minRedeemIdr: '5000' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.minRedeemIdr).toMatch(/at least 10,000/i)
+    })
   })
 
   describe('edge cases', () => {
     test('minimum mint exactly at the floor passes', () => {
       expect(validateFeeConfigForm({ ...ok, minMintIdr: '10000' }).valid).toBe(true)
+    })
+    test('minimum redeem exactly at the floor passes', () => {
+      expect(validateFeeConfigForm({ ...ok, minRedeemIdr: '10000' }).valid).toBe(true)
+    })
+    test('the two minimums are judged independently', () => {
+      const r = validateFeeConfigForm({ ...ok, minMintIdr: '5000', minRedeemIdr: '20000' })
+      expect(r.errors.minMintIdr).toBeDefined()
+      expect(r.errors.minRedeemIdr).toBeUndefined()
     })
     test('VA flat rejects non-numeric', () => {
       expect(validatePgFeeVaFlat('abc')).not.toBeNull()
@@ -863,6 +887,57 @@ describe('validateMinMintIdr', () => {
   })
 })
 
+// USDX-682 — minimum redeem Rp. Lantai keras Rp 10.000 dari
+// `sot/api/fee.yaml § UpdateFeeConfig.minRedeemIdr`, disalin bukan dipilih.
+describe('validateMinRedeemIdr', () => {
+  describe('positive', () => {
+    test('accepts a value above the floor', () => {
+      expect(validateMinRedeemIdr('20000')).toBeNull()
+    })
+    test('accepts the floor itself', () => {
+      expect(validateMinRedeemIdr('10000')).toBeNull()
+    })
+    test('trims surrounding whitespace before judging', () => {
+      expect(validateMinRedeemIdr('  15000  ')).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('rejects an empty value', () => {
+      expect(validateMinRedeemIdr('')).toMatch(/required/i)
+    })
+    test('rejects a value below the floor', () => {
+      expect(validateMinRedeemIdr('5000')).toMatch(/at least 10,000/i)
+    })
+    test('rejects a non-numeric value', () => {
+      expect(validateMinRedeemIdr('abc')).toMatch(/must be a number/i)
+    })
+    test('rejects a negative value', () => {
+      expect(validateMinRedeemIdr('-20000')).not.toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('whitespace only counts as empty, not as a number', () => {
+      expect(validateMinRedeemIdr('   ')).toMatch(/required/i)
+    })
+    // No upper bound, same reason as minimum mint: the contract sets none.
+    test('accepts an extremely large value', () => {
+      expect(validateMinRedeemIdr('1000000000')).toBeNull()
+    })
+    test('rejects 9999.99 — just under the floor', () => {
+      expect(validateMinRedeemIdr('9999.99')).not.toBeNull()
+    })
+    // The message names REDEEM, not mint: an operator told "minimum mint" while
+    // fixing the redeem box edits the wrong number.
+    test('names minimum redeem in its message, never minimum mint', () => {
+      const msg = validateMinRedeemIdr('5000') ?? ''
+      expect(msg).toMatch(/minimum redeem/i)
+      expect(msg).not.toMatch(/minimum mint/i)
+    })
+  })
+})
+
 // USDX-637 — 422 `VALIDATION_ERROR` carries only a message, so the field it
 // refers to has to be read out of that message. Ambiguity resolves to "no
 // field" (the form-level slot) rather than to a guess.
@@ -873,6 +948,13 @@ describe('feeConfigErrorField', () => {
     })
     test('finds a fee field just as well', () => {
       expect(feeConfigErrorField('mintFeePct is required')).toBe('mintFeePct')
+    })
+    // USDX-682 — the two minimums have no substring overlap, so a 422 about one
+    // never lands on the other's input.
+    test('finds minRedeemIdr without dragging minMintIdr along', () => {
+      expect(feeConfigErrorField('minRedeemIdr must be at least 10000')).toBe(
+        'minRedeemIdr',
+      )
     })
   })
 

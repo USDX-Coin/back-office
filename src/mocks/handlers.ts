@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
-import { MIN_MINT_IDR_FLOOR } from '@/lib/validators'
+import { MIN_MINT_IDR_FLOOR, MIN_REDEEM_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
   BniStatementType,
@@ -1331,9 +1331,11 @@ export const handlers = [
       )
     }
 
-    // POST = full 6-field snapshot; every field required + non-negative (W3
+    // POST = full 7-field snapshot; every field required + non-negative (W3
     // redeem fields included so partial submits can't zero them out, USDX-245;
-    // `minMintIdr` since USDX-637 for the same reason).
+    // `minMintIdr` since USDX-637 and `minRedeemIdr` since USDX-682 for the same
+    // reason). `minRedeemIdr` is required on the real backend too, so the mock
+    // refusing it here is what proves the form still saves the OLD config.
     for (const key of [
       'mintFeePct',
       'pgFeeVaFlat',
@@ -1341,6 +1343,7 @@ export const handlers = [
       'redeemFeePct',
       'disbursementFeeFlat',
       'minMintIdr',
+      'minRedeemIdr',
     ] as const) {
       const raw = body[key]
       const n = Number(raw)
@@ -1356,6 +1359,11 @@ export const handlers = [
       return feeValidationError(`minMintIdr must be at least ${MIN_MINT_IDR_FLOOR}`)
     }
 
+    // Lantai keras minimum redeem (USDX-682) — sama alasannya.
+    if (Number(body.minRedeemIdr) < MIN_REDEEM_IDR_FLOOR) {
+      return feeValidationError(`minRedeemIdr must be at least ${MIN_REDEEM_IDR_FLOOR}`)
+    }
+
     const created = createFeeConfig({
       mintFeePct: body.mintFeePct,
       pgFeeVaFlat: body.pgFeeVaFlat,
@@ -1363,6 +1371,7 @@ export const handlers = [
       redeemFeePct: body.redeemFeePct,
       disbursementFeeFlat: body.disbursementFeeFlat,
       minMintIdr: body.minMintIdr,
+      minRedeemIdr: body.minRedeemIdr,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
