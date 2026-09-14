@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import { validateRejectReason, validateThresholdReason } from '@/lib/redeemApprovals'
 import type {
@@ -74,20 +75,6 @@ export function useRedeemApprovals(filters: RedeemApprovalFilters) {
   })
 }
 
-/** Badge `(N)` di sidebar — jumlah antrean terbuka menurut `metadata.total`. */
-export function useOpenRedeemApprovalCount() {
-  return useQuery({
-    queryKey: ['redeem-approvals', 'open-count'],
-    queryFn: async () => {
-      const json = await apiFetchRaw<PhaseOnePaginatedResponse<RedeemApprovalListItem>>(
-        `${QUEUE_PATH}?take=1`,
-      )
-      return json.metadata.total
-    },
-    staleTime: 30 * 1000,
-  })
-}
-
 /**
  * `GET /api/v1/redeem-approvals/:id` — snapshot kurs/fee + jejak burn + rekening penuh.
  *
@@ -117,10 +104,12 @@ export function useRedeemApprovalDetail(id: string | null) {
  * `['orders']` ada di daftar karena order yang sama dirender layar User
  * Transaction; menyetujui mengubah `payout_approved_at` dan menolak mengubah
  * status order menjadi `PAYOUT_FAILED`, jadi daftar itu memegang jawaban lama.
+ * `['queue-counts']` ikut karena badge sidebar (USDX-678) menghitung antrean ini —
+ * dan menolak juga MENAMBAH antrean Pencairan Bermasalah di hitungan yang sama.
  */
 function invalidateQueue(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'list'] })
-  qc.invalidateQueries({ queryKey: ['redeem-approvals', 'open-count'] })
+  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'detail', id] })
   qc.invalidateQueries({ queryKey: ['orders'] })
 }
@@ -219,7 +208,7 @@ export function useUpdateRedeemApprovalControls() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['redeem-approvals', 'controls'] })
       qc.invalidateQueries({ queryKey: ['redeem-approvals', 'list'] })
-      qc.invalidateQueries({ queryKey: ['redeem-approvals', 'open-count'] })
+      qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
     },
   })
 }

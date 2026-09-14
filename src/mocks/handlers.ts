@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
-import { MIN_MINT_IDR_FLOOR } from '@/lib/validators'
+import { MIN_MINT_IDR_FLOOR, MIN_REDEEM_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
   BniStatementType,
@@ -1331,9 +1331,11 @@ export const handlers = [
       )
     }
 
-    // POST = full 6-field snapshot; every field required + non-negative (W3
+    // POST = full 7-field snapshot; every field required + non-negative (W3
     // redeem fields included so partial submits can't zero them out, USDX-245;
-    // `minMintIdr` since USDX-637 for the same reason).
+    // `minMintIdr` since USDX-637 and `minRedeemIdr` since USDX-682 for the same
+    // reason). `minRedeemIdr` is required on the real backend too, so the mock
+    // refusing it here is what proves the form still saves the OLD config.
     for (const key of [
       'mintFeePct',
       'pgFeeVaFlat',
@@ -1341,6 +1343,7 @@ export const handlers = [
       'redeemFeePct',
       'disbursementFeeFlat',
       'minMintIdr',
+      'minRedeemIdr',
     ] as const) {
       const raw = body[key]
       const n = Number(raw)
@@ -1356,6 +1359,11 @@ export const handlers = [
       return feeValidationError(`minMintIdr must be at least ${MIN_MINT_IDR_FLOOR}`)
     }
 
+    // Lantai keras minimum redeem (USDX-682) — sama alasannya.
+    if (Number(body.minRedeemIdr) < MIN_REDEEM_IDR_FLOOR) {
+      return feeValidationError(`minRedeemIdr must be at least ${MIN_REDEEM_IDR_FLOOR}`)
+    }
+
     const created = createFeeConfig({
       mintFeePct: body.mintFeePct,
       pgFeeVaFlat: body.pgFeeVaFlat,
@@ -1363,6 +1371,7 @@ export const handlers = [
       redeemFeePct: body.redeemFeePct,
       disbursementFeeFlat: body.disbursementFeeFlat,
       minMintIdr: body.minMintIdr,
+      minRedeemIdr: body.minRedeemIdr,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
@@ -2583,9 +2592,16 @@ export const handlers = [
     if (action !== 'CLOSED' && last && last.rejectedAt === null) {
       return payoutFailureError(409, 'CONFLICT', 'SUBMISSION_NOT_FINAL')
     }
-    // Tiruan tidak punya address book: setiap `bankAccountId` dijawab seperti
-    // rekening yang tidak ditemukan di server — sama dengan milik orang lain.
-    if (body.bankAccountId) return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+    // Rekening pengganti hanya dari address book pemilik order (§ 17.5). Tiruan memakai
+    // `replacementBankAccounts` detail sebagai address book itu; id yang tidak ada di
+    // sana dijawab sama dengan milik nasabah lain, seperti `resolveReplacementAccount`
+    // di backend (membedakannya memberi cara menebak id rekening nasabah lain).
+    const replacement = body.bankAccountId
+      ? detail.replacementBankAccounts.find((account) => account.id === body.bankAccountId)
+      : undefined
+    if (body.bankAccountId && !replacement) {
+      return payoutFailureError(409, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED')
+    }
 
     const now = new Date().toISOString()
     const newPartnerReferenceNo =
@@ -2601,6 +2617,14 @@ export const handlers = [
       ...detail,
       status,
       payoutRef: action === 'RESENT' ? null : detail.payoutRef,
+      // Backend menyalin bank + nomor + nama rekening terpilih ke snapshot order.
+      ...(replacement
+        ? {
+            bankName: replacement.bankName,
+            bankAccountNumber: replacement.accountNumber,
+            bankAccountName: replacement.accountName,
+          }
+        : {}),
       resolution: action,
       resolvedAt: now,
       resolvedByStaffName: actorName,
@@ -2620,6 +2644,23 @@ export const handlers = [
       status: 'success',
       metadata: null,
       data: { id, action, status, newPartnerReferenceNo, resolvedAt: now },
+    })
+  }),
+
+  // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───
+  // MSW-served sampai api-dev menyajikan USDX-676 (13 Sep 2026: 404). Tiap angka
+  // dihitung dari predikat YANG SAMA dengan `metadata.total` list tiruannya — badge
+  // dan layar tidak boleh berbeda tentang antrean yang sama. Tanpa gerbang auth
+  // tiruan, alasan yang sama dengan GET payout-failures di atas: sesi dev adalah
+  // cookie httpOnly backend asli yang tidak terlihat oleh service worker.
+  http.get('/api/v1/queue-counts', () => {
+    const payoutFailuresOpen = [...payoutFailureStore.values()].filter(
+      (detail) => detail.resolution === null
+    ).length
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { payoutFailuresOpen, redeemApprovalsOpen: openRedeemApprovals().length },
     })
   }),
 

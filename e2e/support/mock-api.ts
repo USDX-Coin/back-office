@@ -98,8 +98,9 @@ const RATE_INFO = {
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
 const RATE_USED = RATE_INFO.effectiveBuyRate
 
-// USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full 5-field snapshot —
-// W2 mint/PG tariffs + W3 redeem fee % + disbursement fee flat.
+// USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full snapshot — W2
+// mint/PG tariffs + W3 redeem fee % + disbursement fee flat + minimum mint /
+// minimum redeem (USDX-637 / USDX-682).
 const FEE_CONFIG = {
   id: 'fee-0001',
   mintFeePct: '1.0',
@@ -109,6 +110,8 @@ const FEE_CONFIG = {
   disbursementFeeFlat: '5000.00',
   // Minimum mint Rp (USDX-635/637) — kolom config, bukan konstanta kode lagi.
   minMintIdr: '20000',
+  // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
+  minRedeemIdr: '20000',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
@@ -634,6 +637,23 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
 // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ──────────
 // Dua order: PAYOUT_FAILED (tiga aksi) dan BURN_REJECTED (tanpa RESENT). Satu seed per
 // panggilan `installMockApi`, jadi resolve di satu test tidak bocor ke test lain.
+// USDX-678: RINA (retail) membawa tiga rekening tersimpan termasuk tujuan saat ini —
+// sumber pemilih rekening pengganti di dialog Kirim ulang.
+
+export const RINA_REPLACEMENT_ACCOUNTS = {
+  mandiri: '019f2b01-0678-7c31-9b2d-00000000e2a1',
+  bcaCurrent: '019f2b02-0678-7c31-9b2d-00000000e2a2',
+  bni: '019f2b03-0678-7c31-9b2d-00000000e2a3',
+} as const
+
+interface MockReplacementAccount {
+  id: string
+  bankCode: string
+  bankName: string
+  accountNumber: string
+  accountName: string
+  label: string | null
+}
 interface MockPayoutReview {
   action: string
   reason: string
@@ -657,6 +677,7 @@ function seedPayoutFailures() {
     resolvedAt: null as string | null,
     resolvedByStaffName: null as string | null,
     reviews: [] as MockPayoutReview[],
+    replacementBankAccounts: [] as MockReplacementAccount[],
   })
   return [
     {
@@ -674,6 +695,11 @@ function seedPayoutFailures() {
       bankAccountName: 'RINA SUSANTI',
       ownerKind: 'RETAIL',
       ownerLabel: 'ri***@example.com',
+      replacementBankAccounts: [
+        { id: RINA_REPLACEMENT_ACCOUNTS.mandiri, bankCode: '008', bankName: 'Mandiri', accountNumber: '1370012245001', accountName: 'RINA SUSANTI', label: 'Mandiri gaji' },
+        { id: RINA_REPLACEMENT_ACCOUNTS.bcaCurrent, bankCode: '014', bankName: 'BCA', accountNumber: '8730012245', accountName: 'RINA SUSANTI', label: 'BCA utama' },
+        { id: RINA_REPLACEMENT_ACCOUNTS.bni, bankCode: '009', bankName: 'BNI', accountNumber: '0291884501', accountName: 'RINA S', label: null },
+      ],
       burnTxHash: `0x${'c1'.repeat(32)}`,
       burnedAt: '2026-09-12T00:30:00.000Z',
       submissions: [
@@ -897,9 +923,9 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
-      // Full 6-field snapshot, all required + non-negative (USDX-245, plus
-      // `minMintIdr` USDX-637). Body failures → 422 VALIDATION_ERROR
-      // (fee-config on the v1→422 allowlist).
+      // Full 7-field snapshot, all required + non-negative (USDX-245, plus
+      // `minMintIdr` USDX-637 and `minRedeemIdr` USDX-682). Body failures →
+      // 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
       for (const f of [
         'mintFeePct',
         'pgFeeVaFlat',
@@ -907,6 +933,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         'redeemFeePct',
         'disbursementFeeFlat',
         'minMintIdr',
+        'minRedeemIdr',
       ]) {
         const n = Number(b[f])
         if (b[f] == null || b[f] === '' || !Number.isFinite(n) || n < 0) {
@@ -918,6 +945,10 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       if (Number(b.minMintIdr) < 10000) {
         return error(route, 'VALIDATION_ERROR', 'minMintIdr must be at least 10000', 422)
       }
+      // Lantai keras minimum redeem (USDX-682) — sama alasannya.
+      if (Number(b.minRedeemIdr) < 10000) {
+        return error(route, 'VALIDATION_ERROR', 'minRedeemIdr must be at least 10000', 422)
+      }
       liveFee = {
         id: 'fee-live',
         mintFeePct: b.mintFeePct,
@@ -926,6 +957,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         redeemFeePct: b.redeemFeePct,
         disbursementFeeFlat: b.disbursementFeeFlat,
         minMintIdr: b.minMintIdr,
+        minRedeemIdr: b.minRedeemIdr,
         updatedBy: ADMIN_STAFF.id,
         createdAt: '2026-06-17T00:00:00.000Z',
       }
@@ -1226,6 +1258,15 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       })
     }
 
+    // ── Hitungan antrean badge (USDX-678, sot/api/queue-counts.yaml) ──────
+    // Antrean Persetujuan Pencairan tidak dimodelkan di suite ini → 0.
+    if (key === 'GET /api/v1/queue-counts') {
+      return envelope(route, {
+        payoutFailuresOpen: payoutFailures.filter((f) => f.resolution === null).length,
+        redeemApprovalsOpen: 0,
+      })
+    }
+
     // ── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ─────
     if (key === 'GET /api/v1/payout-failures') {
       const kind = url.searchParams.get('issueKind')
@@ -1248,6 +1289,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         // Bentuk galat filter Nest: nama kode di `message`, `code` dari status HTTP.
         if (failure.resolution !== null) return error(route, 'CONFLICT', 'ALREADY_RESOLVED', 409)
         const b = body()
+        // USDX-678: rekening pengganti hanya dari address book pemilik order.
+        const replacement = b.bankAccountId
+          ? failure.replacementBankAccounts.find((a) => a.id === b.bankAccountId)
+          : undefined
+        if (b.bankAccountId && !replacement) return error(route, 'CONFLICT', 'BANK_ACCOUNT_NOT_OWNED', 409)
         const now = '2026-09-13T08:00:00.000Z'
         const newRef = b.action === 'RESENT' ? 'RDM260913E2E001' : null
         failure.resolution = b.action
@@ -1255,6 +1301,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         failure.resolvedByStaffName = ADMIN_STAFF.name
         if (b.action === 'SETTLED_MANUAL') failure.status = 'PAYOUT_COMPLETE'
         if (b.action === 'RESENT') failure.status = 'PROCESSING_PAYOUT'
+        if (replacement) {
+          failure.bankName = replacement.bankName
+          failure.bankAccountNumber = replacement.accountNumber
+          failure.bankAccountName = replacement.accountName
+        }
         failure.reviews.push({
           action: b.action,
           reason: b.reason,

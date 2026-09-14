@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import Sidebar from '@/components/layout/Sidebar'
 import { renderWithProviders } from '@/test/test-utils'
@@ -230,93 +230,53 @@ describe('Sidebar @ USDX-50', () => {
     })
   })
 
-  // USDX-669 — Persetujuan Pencairan. Antreannya terbuka untuk SEMUA peran
-  // (kontrak § Akses: STAFF / MANAGER / ADMIN / DEVELOPER membaca), jadi badge-nya
-  // juga — berbeda dari badge Mint/Burn yang disembunyikan dari STAFF. Tiap satuan
-  // pada angka ini adalah nasabah yang USDX-nya sudah terbakar dan rupiahnya belum
-  // jalan, jadi ia memang harus terlihat dari halaman mana pun, oleh siapa pun yang
-  // bisa memanggil orang yang berwenang menekan tombolnya.
-  describe('USDX-669 — badge Persetujuan Pencairan', () => {
-    test('shows the open-queue count from metadata.total', async () => {
-      server.use(
-        http.get('/api/v1/redeem-approvals', () =>
-          HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 4 },
-            data: [],
-          })
-        )
-      )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
-    })
-
-    test('renders the badge for STAFF too — the queue is readable by every role', async () => {
-      server.use(
-        http.get('/api/v1/redeem-approvals', () =>
-          HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 2 },
-            data: [],
-          })
-        )
-      )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // Sarah King (STAFF)
-      })
-      expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('2')
-      expect(
-        screen.getByRole('link', { name: /persetujuan pencairan/i })
-      ).toHaveAttribute('href', '/redeem-approvals')
-    })
-
-    test('hides the badge when nothing is waiting', async () => {
-      server.use(
-        http.get('/api/v1/redeem-approvals', () =>
-          HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 0 },
-            data: [],
-          })
-        )
-      )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      await screen.findByRole('link', { name: /persetujuan pencairan/i })
-      expect(screen.queryByTestId('nav-badge-redeem-approvals')).not.toBeInTheDocument()
-    })
-  })
-
-  // USDX-662 — Pencairan Bermasalah. List terbuka untuk semua peran, jadi badge-nya
-  // juga; angkanya `metadata.total` antrean terbuka, sama dengan isi layarnya.
-  describe('USDX-662 — badge Pencairan Bermasalah', () => {
-    function emptyQueueWithTotal(total: number) {
-      return http.get('/api/v1/payout-failures', () =>
-        HttpResponse.json({
-          status: 'success',
-          metadata: { page: 1, limit: 1, total },
-          data: [],
-        })
+  // USDX-678 — badge Persetujuan Pencairan (USDX-669) dan Pencairan Bermasalah (USDX-662)
+  // dibaca dari `GET /api/v1/queue-counts`, BUKAN dari list `take=1`: list keduanya
+  // mendekripsi rekening dan menulis `pii_access_audit` per baris (sot/api/queue-counts.yaml).
+  // Kedua antrean terbuka untuk SEMUA peran, jadi badge-nya juga — berbeda dari Mint/Burn.
+  describe('USDX-678 — badge antrean dari queue-counts', () => {
+    function queueCounts(data: { payoutFailuresOpen: number; redeemApprovalsOpen: number }) {
+      return http.get('/api/v1/queue-counts', () =>
+        HttpResponse.json({ status: 'success', metadata: null, data })
       )
     }
 
+    function recordRequests() {
+      const calls: string[] = []
+      server.events.on('request:start', ({ request }) => {
+        const url = new URL(request.url)
+        calls.push(url.pathname + url.search)
+      })
+      return calls
+    }
+
+    afterEach(() => server.events.removeAllListeners())
+
     describe('positive', () => {
-      test('shows the open-queue count from metadata.total', async () => {
-        server.use(emptyQueueWithTotal(3))
+      test('shows payoutFailuresOpen and redeemApprovalsOpen on their entries', async () => {
+        server.use(queueCounts({ payoutFailuresOpen: 3, redeemApprovalsOpen: 4 }))
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           authenticated: true,
         })
         expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('3')
+        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
       })
 
-      test('sits in the Treasury section (Linear: sidebar TREASURY/OPS)', async () => {
+      test('reads both badges from ONE queue-counts request and never pulls the lists', async () => {
+        const calls = recordRequests()
+        server.use(queueCounts({ payoutFailuresOpen: 1, redeemApprovalsOpen: 2 }))
+        renderWithProviders(<Sidebar />, {
+          initialEntries: ['/dashboard'],
+          authenticated: true,
+        })
+        await screen.findByTestId('nav-badge-redeem-approvals')
+        expect(calls.filter((c) => c.startsWith('/api/v1/queue-counts'))).toEqual(['/api/v1/queue-counts'])
+        expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
+        expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
+      })
+
+      test('Pencairan Bermasalah sits in the Treasury section (Linear: sidebar TREASURY/OPS)', async () => {
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           authenticated: true,
@@ -329,29 +289,73 @@ describe('Sidebar @ USDX-50', () => {
     })
 
     describe('negative', () => {
-      test('hides the badge when the queue is empty', async () => {
-        server.use(emptyQueueWithTotal(0))
+      test('hides the badge of an empty queue while the other queue still shows its count', async () => {
+        server.use(queueCounts({ payoutFailuresOpen: 0, redeemApprovalsOpen: 7 }))
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           authenticated: true,
         })
-        await screen.findByRole('link', { name: /pencairan bermasalah/i })
+        // Badge yang TAMPIL membuktikan jawaban queue-counts sudah mendarat — tanpa itu
+        // "tidak ada badge" lolos juga sebelum request selesai.
+        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('7')
         expect(screen.queryByTestId('nav-badge-payout-failures')).not.toBeInTheDocument()
+      })
+
+      test('a failing queue-counts request shows no badge instead of a made-up number', async () => {
+        const calls = recordRequests()
+        const settled: string[] = []
+        server.events.on('response:mocked', ({ request }) => {
+          settled.push(new URL(request.url).pathname)
+        })
+        server.use(
+          http.get('/api/v1/queue-counts', () =>
+            HttpResponse.json(
+              { status: 'error', metadata: null, data: null, error: { code: 'INTERNAL_ERROR', message: 'boom' } },
+              { status: 500 }
+            )
+          )
+        )
+        renderWithProviders(<Sidebar />, {
+          initialEntries: ['/dashboard'],
+          authenticated: true,
+        })
+        // Tunggu jawaban 500-nya benar-benar mendarat, lalu beri React satu putaran render.
+        await waitFor(() => expect(settled).toContain('/api/v1/queue-counts'))
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(screen.queryByTestId('nav-badge-payout-failures')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('nav-badge-redeem-approvals')).not.toBeInTheDocument()
+        // Tidak ada jalan pintas kembali ke list yang mendekripsi PII saat hitungan gagal.
+        expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
+        expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
       })
     })
 
     describe('edge cases', () => {
-      test('renders the entry and badge for STAFF too — the queue is readable by every role', async () => {
+      test('renders both entries and badges for STAFF too — the queues are readable by every role', async () => {
+        server.use(queueCounts({ payoutFailuresOpen: 5, redeemApprovalsOpen: 2 }))
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           staffId: 'stf_4', // STAFF
         })
-        // Seed MSW bawaan: lima order terbuka.
         expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('5')
+        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('2')
         expect(screen.getByRole('link', { name: /pencairan bermasalah/i })).toHaveAttribute(
           'href',
           '/payout-failures'
         )
+        expect(screen.getByRole('link', { name: /persetujuan pencairan/i })).toHaveAttribute(
+          'href',
+          '/redeem-approvals'
+        )
+      })
+
+      test('caps a large count at 99+', async () => {
+        server.use(queueCounts({ payoutFailuresOpen: 140, redeemApprovalsOpen: 0 }))
+        renderWithProviders(<Sidebar />, {
+          initialEntries: ['/dashboard'],
+          authenticated: true,
+        })
+        expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('99+')
       })
     })
   })

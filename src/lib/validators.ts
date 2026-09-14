@@ -247,17 +247,38 @@ export function validateDisbursementFeeFlat(raw: string): string | null {
  */
 export const MIN_MINT_IDR_FLOOR = 10_000
 
+/**
+ * Lantai keras minimum redeem (USDX-682, `sot/api/fee.yaml § UpdateFeeConfig`:
+ * "Wajib >= 10000; di bawah itu 422"). Ditulis sebagai konstanta sendiri, BUKAN
+ * diturunkan dari `MIN_MINT_IDR_FLOOR`: keduanya kebetulan 10.000 hari ini
+ * karena dua ambang kontrak yang berbeda kebetulan sepakat, dan menautkannya
+ * berarti satu kontrak yang bergeser diam-diam menggeser yang lain. Tanpa
+ * plafon atas, alasan yang sama seperti minimum mint.
+ */
+export const MIN_REDEEM_IDR_FLOOR = 10_000
+
+// Validator minimum-rupiah bersama (minimum mint + minimum redeem). `label`
+// menamai field di pesan galat; `floor` adalah lantai milik kontrak masing-
+// masing — sengaja diminta sebagai argumen, bukan dibaca dari satu konstanta
+// global, supaya dua ambang yang kebetulan sama tetap bisa bergerak sendiri.
+function validateMinIdr(raw: string, label: string, floor: number): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return `${label} is required`
+  if (!DECIMAL_RE.test(trimmed)) return `${label} must be a number (up to 4 decimals)`
+  const n = Number(trimmed)
+  if (!Number.isFinite(n)) return `${label} must be a number (up to 4 decimals)`
+  if (n < floor) return `${label} must be at least ${floor.toLocaleString('en-US')}`
+  return null
+}
+
 /** Minimum mint, Rp. Wajib diisi, angka, >= lantai keras backend. */
 export function validateMinMintIdr(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return 'Minimum mint is required'
-  if (!DECIMAL_RE.test(trimmed)) return 'Minimum mint must be a number (up to 4 decimals)'
-  const n = Number(trimmed)
-  if (!Number.isFinite(n)) return 'Minimum mint must be a number (up to 4 decimals)'
-  if (n < MIN_MINT_IDR_FLOOR) {
-    return `Minimum mint must be at least ${MIN_MINT_IDR_FLOOR.toLocaleString('en-US')}`
-  }
-  return null
+  return validateMinIdr(raw, 'Minimum mint', MIN_MINT_IDR_FLOOR)
+}
+
+/** Minimum redeem, Rp. Wajib diisi, angka, >= lantai keras backend. */
+export function validateMinRedeemIdr(raw: string): string | null {
+  return validateMinIdr(raw, 'Minimum redeem', MIN_REDEEM_IDR_FLOOR)
 }
 
 export function validateFeeConfigForm(input: {
@@ -267,6 +288,7 @@ export function validateFeeConfigForm(input: {
   redeemFeePct: string
   disbursementFeeFlat: string
   minMintIdr: string
+  minRedeemIdr: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
@@ -281,6 +303,8 @@ export function validateFeeConfigForm(input: {
   if (disbErr) errors.disbursementFeeFlat = disbErr
   const minMintErr = validateMinMintIdr(input.minMintIdr)
   if (minMintErr) errors.minMintIdr = minMintErr
+  const minRedeemErr = validateMinRedeemIdr(input.minRedeemIdr)
+  if (minRedeemErr) errors.minRedeemIdr = minRedeemErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -302,6 +326,7 @@ const FEE_CONFIG_FIELD_KEYS = [
   'redeemFeePct',
   'disbursementFeeFlat',
   'minMintIdr',
+  'minRedeemIdr',
 ] as const
 
 export function feeConfigErrorField(message: string): string | null {

@@ -7,7 +7,11 @@ import {
   resetMockData,
   upsertPayoutFailureForTests,
 } from '@/mocks/handlers'
-import { createMockPayoutFailures, PAYOUT_FAILURE_MOCK_IDS as IDS } from '@/mocks/data'
+import {
+  createMockPayoutFailures,
+  PAYOUT_FAILURE_MOCK_IDS as IDS,
+  REPLACEMENT_BANK_ACCOUNT_MOCK_IDS as ACCOUNTS,
+} from '@/mocks/data'
 import type { PayoutFailureDetail, PayoutFailureListItem } from '@/lib/types'
 
 // USDX-662 — MSW mirror of sot/api/payout-failures.yaml (three endpoints).
@@ -47,6 +51,8 @@ describe('GET /api/v1/payout-failures', () => {
       expect(rows[0]!.id).toBe(IDS.failedRejected)
       expect(rows.map((r) => r.issueAt)).toEqual([...rows.map((r) => r.issueAt)].sort())
       expect(rows[0]).not.toHaveProperty('submissions')
+      // `replacementBankAccounts` HANYA di detail (kontrak) — list tidak membawanya.
+      expect(rows[0]).not.toHaveProperty('replacementBankAccounts')
     })
     test('filters on issueKind', async () => {
       const { rows } = await list('?issueKind=BURN_REJECTED')
@@ -77,8 +83,27 @@ describe('GET /api/v1/payout-failures/:id', () => {
       expect(detail.reviews.map((r) => r.action)).toEqual(['RESENT'])
       expect(detail.resolution).toBeNull()
     })
+    test('a retail order carries its address book newest-first, current destination included (USDX-678)', async () => {
+      const detail = (await (await fetch(`/api/v1/payout-failures/${IDS.failedRejected}`)).json())
+        .data as PayoutFailureDetail
+      expect(detail.replacementBankAccounts.map((a) => a.id)).toEqual([
+        ACCOUNTS.rinaMandiri,
+        ACCOUNTS.rinaBcaCurrent,
+        ACCOUNTS.rinaBni,
+      ])
+      expect(detail.replacementBankAccounts[1]).toMatchObject({
+        bankName: detail.bankName,
+        accountNumber: detail.bankAccountNumber,
+      })
+    })
   })
   describe('negative', () => {
+    test('a partner order carries an empty address book (USDX-678)', async () => {
+      const detail = (await (await fetch(`/api/v1/payout-failures/${IDS.failedAfterResend}`)).json())
+        .data as PayoutFailureDetail
+      expect(detail.ownerKind).toBe('PARTNER')
+      expect(detail.replacementBankAccounts).toEqual([])
+    })
     test('unknown id → 404 with the name in message (Nest filter shape)', async () => {
       const res = await fetch('/api/v1/payout-failures/019f0000-0000-7000-8000-000000000000')
       expect(res.status).toBe(404)
@@ -122,9 +147,31 @@ describe('POST /api/v1/payout-failures/:id/resolve', () => {
       const res = await resolve(IDS.burnRejected, { action: 'CLOSED', reason: 'Nasabah setuju tidak dibayar' })
       expect((await res.json()).data.status).toBe('EXPIRED')
     })
+    test('RESENT to an account from the owner address book moves the destination (USDX-678)', async () => {
+      const res = await resolve(IDS.failedRejected, {
+        action: 'RESENT',
+        reason: REASON,
+        bankAccountId: ACCOUNTS.rinaMandiri,
+      })
+      expect(res.status).toBe(200)
+      const detail = (await (await fetch(`/api/v1/payout-failures/${IDS.failedRejected}`)).json())
+        .data as PayoutFailureDetail
+      expect(detail).toMatchObject({
+        bankName: 'Mandiri',
+        bankAccountNumber: '1370012245001',
+        bankAccountName: 'RINA SUSANTI',
+      })
+    })
   })
 
   describe('negative', () => {
+    test('RESENT to another customer account or an unknown id → 409 BANK_ACCOUNT_NOT_OWNED (USDX-678)', async () => {
+      for (const bankAccountId of [ACCOUNTS.dewiMandiri, '019f0000-0000-7000-8000-00000000abcd']) {
+        const res = await resolve(IDS.failedRejected, { action: 'RESENT', reason: REASON, bankAccountId })
+        expect(res.status).toBe(409)
+        expect((await res.json()).error).toEqual({ code: 'CONFLICT', message: 'BANK_ACCOUNT_NOT_OWNED' })
+      }
+    })
     test('STAFF and DEVELOPER are refused with 403', async () => {
       expect((await resolve(IDS.failedRejected, { action: 'CLOSED', reason: REASON }, 'stf_4')).status).toBe(403)
       expect((await resolve(IDS.failedRejected, { action: 'CLOSED', reason: REASON }, 'stf_3')).status).toBe(403)
@@ -172,12 +219,13 @@ describe('POST /api/v1/payout-failures/:id/resolve', () => {
       expect((await res.json()).error.message).toBe('SUBMISSION_NOT_FINAL')
       expect((await resolve(IDS.failedRejected, { action: 'CLOSED', reason: REASON })).status).toBe(200)
     })
-    test('bankAccountId: with CLOSED → 400, with RESENT → 409 BANK_ACCOUNT_NOT_OWNED (no address book in the mock)', async () => {
-      const bankAccountId = '019f0000-0000-7000-8000-00000000abcd'
-      const closed = await resolve(IDS.failedRejected, { action: 'CLOSED', reason: REASON, bankAccountId })
+    test('bankAccountId with CLOSED → 400 BANK_ACCOUNT_NOT_ALLOWED_FOR_ACTION', async () => {
+      const closed = await resolve(IDS.failedRejected, {
+        action: 'CLOSED',
+        reason: REASON,
+        bankAccountId: ACCOUNTS.rinaMandiri,
+      })
       expect((await closed.json()).error.message).toBe('BANK_ACCOUNT_NOT_ALLOWED_FOR_ACTION')
-      const resent = await resolve(IDS.failedRejected, { action: 'RESENT', reason: REASON, bankAccountId })
-      expect((await resent.json()).error.message).toBe('BANK_ACCOUNT_NOT_OWNED')
     })
     test('without a mock session the role gate is skipped — the dev browser session is invisible to MSW', async () => {
       const res = await fetch(`/api/v1/payout-failures/${IDS.failedRejected}/resolve`, {

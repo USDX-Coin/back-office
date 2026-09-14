@@ -1,6 +1,23 @@
 # Netlify build + headers config.
 # SPA redirect rules live in public/_redirects so they ship with the bundle.
-# Auto-deploy from `develop` is configured at the site level in the Netlify dashboard.
+#
+# BRANCH MANA YANG DI-DEPLOY — setelannya ada di dashboard Netlify, bukan di berkas ini; yang bisa
+# ditulis di sini hanya apa yang terbukti. Komentar sebelumnya menyebut auto-deploy dari `develop`,
+# dan branch itu TIDAK ADA di repo — jadi selama berbulan-bulan tidak ada yang bisa tahu branch mana
+# yang benar-benar melayani produksi hanya dengan membaca repo.
+#
+# Diverifikasi 14 Sep 2026 dengan membandingkan bundle yang sedang tayang di site produksi terhadap
+# keempat branch lingkungan (`production` / `staging` / `main` / `dev`):
+#   - bundle live menunjuk `https://api.usdx.co.id` → backend PRODUKSI;
+#   - bundle memuat layar Pencairan Bermasalah (ada di `main` dan `dev`, TIDAK ada di `staging`
+#     maupun `production`) tetapi TIDAK memuat penanda `queue-counts` / `replacementBankAccounts`
+#     (hanya ada di `dev`).
+# Satu-satunya branch yang cocok = `main`. Branch `dev` punya jalur sendiri: pipeline Jenkins on-prem
+# `usdx/frontend-back-office/dev`.
+#
+# Konsekuensi praktis, dan alasan komentar ini ditulis panjang: rilis ke produksi = PR `dev` -> `main`.
+# Menaikkan backend tanpa menaikkan `main` pernah hampir mematikan seluruh tuas fee config di
+# produksi (USDX-682 menjadikan `minRedeemIdr` field wajib).
 
 [build]
   command = "pnpm build"

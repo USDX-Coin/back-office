@@ -63,6 +63,7 @@ import type {
   RedeemApprovalListItem,
   RedeemApprovalOwnerType,
   PayoutFailureDetail,
+  ReplacementBankAccount,
   PayoutSubmissionTrail,
   OrderOnBehalfOf,
   MintPaymentStatus,
@@ -465,6 +466,8 @@ export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
     disbursementFeeFlat: '5000.00',
     // Minimum mint Rp (USDX-635/637) — pindah dari konstanta ke kolom config.
     minMintIdr: '20000',
+    // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
+    minRedeemIdr: '20000',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -2449,6 +2452,23 @@ export const PAYOUT_FAILURE_MOCK_IDS = {
   failedNeverSubmitted: '019f2a05-0662-7c31-9b2d-000000000005',
 } as const
 
+/**
+ * Id rekening address book tiruan (USDX-678, `replacementBankAccounts`). Id stabil supaya
+ * test menunjuk rekening yang dimaksud, bukan posisi di daftar.
+ */
+export const REPLACEMENT_BANK_ACCOUNT_MOCK_IDS = {
+  /** Milik RINA SUSANTI — rekening terbaru, BUKAN tujuan order saat ini. */
+  rinaMandiri: '019f2b01-0678-7c31-9b2d-0000000000a1',
+  /** Milik RINA SUSANTI — SAMA dengan tujuan order `failedRejected` saat ini. */
+  rinaBcaCurrent: '019f2b02-0678-7c31-9b2d-0000000000a2',
+  /** Milik RINA SUSANTI — rekening tertua. */
+  rinaBni: '019f2b03-0678-7c31-9b2d-0000000000a3',
+  /** Milik DEWI KARTIKA — dipakai test "rekening nasabah lain". */
+  dewiMandiri: '019f2b04-0678-7c31-9b2d-0000000000a4',
+  /** Milik CITRA PARAMITHA. */
+  citraMaybank: '019f2b05-0678-7c31-9b2d-0000000000a5',
+} as const
+
 const PAYOUT_FAILURE_BASE_MS = Date.parse('2026-09-12T01:00:00.000Z')
 
 function payoutFailureAt(minutes: number): string {
@@ -2472,9 +2492,21 @@ function payoutSubmission(
   }
 }
 
+function replacementAccount(
+  id: string,
+  bankCode: string,
+  bankName: string,
+  accountNumber: string,
+  accountName: string,
+  label: string | null,
+): ReplacementBankAccount {
+  return { id, bankCode, bankName, accountNumber, accountName, label }
+}
+
 /**
  * Lima order bermasalah — satu per keadaan yang MENGUBAH layar (aksi yang tersedia,
- * blok submission kosong vs berisi, jejak review lama), bukan lima variasi warna.
+ * blok submission kosong vs berisi, jejak review lama, address book berisi / kosong),
+ * bukan lima variasi warna.
  * `ownerLabel` retail sudah dalam bentuk ter-mask: di server bentuknya bergantung
  * role pembaca (USDX-487), dan tiruan ini tidak berpura-pura tahu siapa pembacanya.
  */
@@ -2512,6 +2544,12 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
       burnedAt: payoutFailureAt(-30),
       submissions: [payoutSubmission('RDM260912A1B2C3', '4012350.00', -20, -19, 'Invalid beneficiary account')],
       reviews: [],
+      // Tiga rekening tersimpan, terbaru dulu — termasuk BCA yang sama dengan tujuan saat ini.
+      replacementBankAccounts: [
+        replacementAccount(REPLACEMENT_BANK_ACCOUNT_MOCK_IDS.rinaMandiri, '008', 'Mandiri', '1370012245001', 'RINA SUSANTI', 'Mandiri gaji'),
+        replacementAccount(REPLACEMENT_BANK_ACCOUNT_MOCK_IDS.rinaBcaCurrent, '014', 'BCA', '8730012245', 'RINA SUSANTI', 'BCA utama'),
+        replacementAccount(REPLACEMENT_BANK_ACCOUNT_MOCK_IDS.rinaBni, '009', 'BNI', '0291884501', 'RINA S', null),
+      ],
     },
     {
       ...common,
@@ -2547,6 +2585,8 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
           createdAt: payoutFailureAt(55),
         },
       ],
+      // Order partner: nasabah partner tidak punya address book di USDX — selalu kosong.
+      replacementBankAccounts: [],
     },
     {
       ...common,
@@ -2571,6 +2611,9 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
       lateBurn: true,
       submissions: [],
       reviews: [],
+      replacementBankAccounts: [
+        replacementAccount(REPLACEMENT_BANK_ACCOUNT_MOCK_IDS.dewiMandiri, '008', 'Mandiri', '1370098812345', 'DEWI KARTIKA', null),
+      ],
     },
     {
       ...common,
@@ -2595,6 +2638,9 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
       payoutRef: 'dp_trx_0091827',
       submissions: [payoutSubmission('RDM260912K1L2M3', '838080.00', 30, null, null)],
       reviews: [],
+      replacementBankAccounts: [
+        replacementAccount(REPLACEMENT_BANK_ACCOUNT_MOCK_IDS.citraMaybank, '016', 'Maybank', '2710033441', 'CITRA PARAMITHA', 'Maybank'),
+      ],
     },
     {
       ...common,
@@ -2618,6 +2664,8 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
       burnedAt: payoutFailureAt(500),
       submissions: [],
       reviews: [],
+      // Retail TANPA rekening tersimpan — daftar kosong walau ordernya retail.
+      replacementBankAccounts: [],
     },
   ]
   return new Map(rows.map((row) => [row.id, row]))

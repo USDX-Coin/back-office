@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
 import MobileNavDrawer from '@/components/layout/MobileNavDrawer'
+import { http, HttpResponse } from 'msw'
 import { renderWithProviders } from '@/test/test-utils'
 import { server } from '@/mocks/server'
 
@@ -70,6 +71,63 @@ describe('MobileNavDrawer @ USDX-27', () => {
       expect(hrefs).not.toContain('/requests')
       expect(hrefs).not.toContain('/otc')
       expect(hrefs).not.toContain('/notifications')
+    })
+  })
+
+  // USDX-678 — badge Pencairan Bermasalah & Persetujuan Pencairan dari queue-counts,
+  // sama dengan Sidebar; tidak ada tarikan list `take=1` yang menulis audit PII palsu.
+  describe('USDX-678 — badge antrean dari queue-counts', () => {
+    afterEach(() => server.events.removeAllListeners())
+
+    describe('positive', () => {
+      test('shows both queue badges from GET /api/v1/queue-counts', async () => {
+        server.use(
+          http.get('/api/v1/queue-counts', () =>
+            HttpResponse.json({
+              status: 'success',
+              metadata: null,
+              data: { payoutFailuresOpen: 6, redeemApprovalsOpen: 3 },
+            })
+          )
+        )
+        renderOpen()
+        const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
+        const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
+        expect(await within(payoutFailures).findByLabelText('6 pending')).toBeInTheDocument()
+        expect(await within(redeemApprovals).findByLabelText('3 pending')).toBeInTheDocument()
+      })
+    })
+
+    describe('negative', () => {
+      test('never pulls the PII-decrypting lists for a count', async () => {
+        const calls: string[] = []
+        server.events.on('request:start', ({ request }) => {
+          calls.push(new URL(request.url).pathname)
+        })
+        renderOpen()
+        await waitFor(() => expect(calls).toContain('/api/v1/queue-counts'))
+        expect(calls).not.toContain('/api/v1/payout-failures')
+        expect(calls).not.toContain('/api/v1/redeem-approvals')
+      })
+    })
+
+    describe('edge cases', () => {
+      test('a zero count renders no badge while the other queue still shows its count', async () => {
+        server.use(
+          http.get('/api/v1/queue-counts', () =>
+            HttpResponse.json({
+              status: 'success',
+              metadata: null,
+              data: { payoutFailuresOpen: 0, redeemApprovalsOpen: 2 },
+            })
+          )
+        )
+        renderOpen()
+        const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
+        expect(await within(redeemApprovals).findByLabelText('2 pending')).toBeInTheDocument()
+        const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
+        expect(within(payoutFailures).queryByLabelText(/pending/)).not.toBeInTheDocument()
+      })
     })
   })
 

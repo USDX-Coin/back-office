@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import { buildResolveBody, isStaleStateError, type ResolveFormInput } from '@/lib/payoutFailures'
 import type {
@@ -6,6 +7,7 @@ import type {
   PayoutFailureListItem,
   PayoutIssueKind,
   PhaseOnePaginatedResponse,
+  ReplacementBankAccount,
   ResolvePayoutFailureResult,
 } from '@/lib/types'
 
@@ -20,7 +22,8 @@ import type {
 // SETIAP pembacaan — list DAN detail — menulis `pii_access_audit` di server (satu
 // baris per order yang rekeningnya dirender). Karena itu tidak ada query di sini
 // yang menembak sendiri saat jendela kembali fokus: refetch latar belakang
-// mengarang jejak audit yang tidak diminta siapa pun.
+// mengarang jejak audit yang tidak diminta siapa pun. Untuk alasan yang sama badge
+// sidebar TIDAK membaca list ini, melainkan `GET /api/v1/queue-counts` (USDX-678).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const QUEUE_PATH = '/api/v1/payout-failures'
@@ -54,22 +57,12 @@ export function usePayoutFailures(filters: PayoutFailureFilters) {
 }
 
 /**
- * Badge `(N)` — jumlah antrean terbuka menurut `metadata.total`. `take=1` tetap
- * menulis satu baris audit per tarikan, jadi `staleTime` menahannya dari tiap
- * perpindahan halaman.
+ * Bentuk detail di kabel. `replacementBankAccounts` tidak `required` di kontrak dan backend
+ * sebelum USDX-677 tidak mengirimnya sama sekali — build yang di-deploy tidak memakai MSW,
+ * jadi keadaan itu nyata, bukan teori.
  */
-export function useOpenPayoutFailureCount() {
-  return useQuery({
-    queryKey: ['payout-failures', 'open-count'],
-    queryFn: async () => {
-      const json = await apiFetchRaw<PhaseOnePaginatedResponse<PayoutFailureListItem>>(
-        `${QUEUE_PATH}?take=1`,
-      )
-      return json.metadata.total
-    },
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
-  })
+type PayoutFailureDetailWire = Omit<PayoutFailureDetail, 'replacementBankAccounts'> & {
+  replacementBankAccounts?: ReplacementBankAccount[] | null
 }
 
 /**
@@ -82,7 +75,13 @@ export function useOpenPayoutFailureCount() {
 export function usePayoutFailureDetail(id: string | null) {
   return useQuery({
     queryKey: ['payout-failures', 'detail', id],
-    queryFn: () => apiFetch<PayoutFailureDetail>(`${QUEUE_PATH}/${id}`),
+    // Dinormalisasi DI SINI, satu titik batas (review #105): field absen / null = address book
+    // kosong ⇒ Kirim ulang tanpa dropdown ke rekening yang sama, perilaku #104. Tanpa ini
+    // ketiga dialog resolve meledak saat membaca `.find` pada `undefined`.
+    queryFn: async (): Promise<PayoutFailureDetail> => {
+      const wire = await apiFetch<PayoutFailureDetailWire>(`${QUEUE_PATH}/${id}`)
+      return { ...wire, replacementBankAccounts: wire.replacementBankAccounts ?? [] }
+    },
     enabled: Boolean(id),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -94,11 +93,12 @@ export function usePayoutFailureDetail(id: string | null) {
 /**
  * Kunci cache yang basi saat satu order keluar dari antrean — atau saat server
  * bilang keadaannya sudah berubah (409 ALREADY_RESOLVED dsb.). `['orders']` ikut
- * karena order yang sama dirender layar User Transaction.
+ * karena order yang sama dirender layar User Transaction; `['queue-counts']` ikut
+ * karena badge sidebar menghitung antrean yang sama.
  */
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['payout-failures', 'list'] })
-  qc.invalidateQueries({ queryKey: ['payout-failures', 'open-count'] })
+  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['payout-failures', 'detail', id] })
   qc.invalidateQueries({ queryKey: ['orders'] })
 }

@@ -80,11 +80,11 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   {formatIdrAmount(Number(data.disbursementFeeFlat))}
                 </dd>
               </div>
-              {/* Minimum mint (USDX-637). Nilai kosong dirender sebagai em
-                  dash, bukan "Rp 0": backend yang belum membawa kolom ini
-                  (USDX-635 belum naik) dan minimum yang benar-benar nol adalah
+              {/* Minimum mint (USDX-637) + minimum redeem (USDX-682). Nilai
+                  kosong dirender sebagai em dash, bukan "Rp 0": backend yang
+                  belum membawa kolomnya dan minimum yang benar-benar nol adalah
                   dua hal berbeda, dan yang kedua tidak pernah sah. */}
-              <div className="col-span-2">
+              <div>
                 <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                   Minimum Mint (Rp)
                 </dt>
@@ -93,6 +93,17 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   aria-label="minimum mint idr"
                 >
                   {data.minMintIdr ? formatIdrAmount(Number(data.minMintIdr)) : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                  Minimum Redeem (Rp)
+                </dt>
+                <dd
+                  className="mt-1 font-mono text-sm font-medium"
+                  aria-label="minimum redeem idr"
+                >
+                  {data.minRedeemIdr ? formatIdrAmount(Number(data.minRedeemIdr)) : '—'}
                 </dd>
               </div>
               <div className="col-span-2">

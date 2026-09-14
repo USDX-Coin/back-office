@@ -252,12 +252,25 @@ export interface FeeConfig {
    * Backend punya lantai keras Rp 10.000.
    */
   minMintIdr: string
+  /**
+   * Minimum redeem Rp (USDX-682). Kolom `fee_configs.min_redeem_idr`, kembaran
+   * `min_mint_idr`. Dibandingkan ke `net_payout_idr` — rupiah yang BENAR-BENAR
+   * diterima nasabah setelah fee, bukan bruto. Backend punya lantai keras
+   * Rp 10.000.
+   *
+   * Dibaca dari GET supaya form bisa mem-prefill nilai aktif: tanpa prefill,
+   * operator harus mengetik ulang angkanya tiap kali menyimpan fee lain — dan
+   * field wajib yang kosong membuat penyimpanan gagal sama sekali.
+   * `sot/api/fee.yaml § FeeConfig` belum mencantumkannya (baru ada di
+   * § UpdateFeeConfig); lihat SOT Corrections di PR.
+   */
+  minRedeemIdr: string
   updatedBy: string
   createdAt: string
 }
 
 // sot/api/fee.yaml § UpdateFeeConfig — POST = full snapshot (semua field
-// required, kini 6 dengan `minMintIdr`, USDX-637). Jangan kirim partial: BE
+// required, kini 7 dengan `minRedeemIdr`, USDX-682). Jangan kirim partial: BE
 // meng-overwrite seluruh row, partial = meng-nol-kan fee yang tidak dikirim
 // (USDX-245). Body invalid → 422 VALIDATION_ERROR (conventions.md § Validation
 // Error — fee-config allowlist).
@@ -269,6 +282,13 @@ export interface UpdateFeeConfig {
   disbursementFeeFlat: string
   /** Minimum mint Rp — ikut snapshot penuh (USDX-637). */
   minMintIdr: string
+  /**
+   * Minimum redeem Rp — ikut snapshot penuh (USDX-682). WAJIB: begitu backend
+   * menjadikannya field wajib, body tanpa field ini ditolak 422 — artinya
+   * menyimpan fee config yang lama pun gagal, bukan cuma minimum redeemnya
+   * yang tidak tersimpan.
+   */
+  minRedeemIdr: string
 }
 
 // ─── Mode mint PROD/UJI (sot/api/mint-mode.yaml, USDX-636 + USDX-639) ───────
@@ -2955,6 +2975,28 @@ export interface PayoutFailureDetail extends PayoutFailureListItem {
   resolution: PayoutResolution | null
   resolvedAt: string | null
   resolvedByStaffName: string | null
+  /**
+   * Address book nasabah pemilik order — SATU-SATUNYA sumber `bankAccountId` pada
+   * `RESENT` (§ 17.5, rev 2026-09-13). Retail: semua rekening tersimpan, terbaru dulu,
+   * TERMASUK yang sama dengan tujuan saat ini. Partner: selalu `[]`. Hanya di detail.
+   * Kontrak tidak mewajibkannya dan backend sebelum USDX-677 tidak mengirimnya — absen / `null`
+   * dinormalisasi jadi `[]` di `usePayoutFailureDetail`, jadi di sini ia selalu array.
+   */
+  replacementBankAccounts: ReplacementBankAccount[]
+}
+
+/** Satu rekening address book nasabah yang boleh dipilih sebagai tujuan `RESENT`. */
+export interface ReplacementBankAccount {
+  /** `bank_accounts.id` — dikirim sebagai `bankAccountId`. */
+  id: string
+  bankCode: string
+  bankName: string
+  /** Nomor rekening PENUH (un-mask): ops harus bisa membedakan dua rekening yang mirip. */
+  accountNumber: string
+  /** Nama pemilik yang disimpan nasabah — BUKAN nama menurut bank. */
+  accountName: string
+  /** Satu-satunya properti di luar `required` kontrak — bisa absen, bisa `null`. */
+  label?: string | null
 }
 
 /** Body `POST /api/v1/payout-failures/{id}/resolve`. */
@@ -2977,4 +3019,18 @@ export interface ResolvePayoutFailureResult {
   /** Terisi HANYA pada RESENT. */
   newPartnerReferenceNo: string | null
   resolvedAt: string
+}
+
+// ─── Hitungan antrean (kontrak `sot/api/queue-counts.yaml`, USDX-678) ─────────
+//
+// Badge sidebar membaca angka ini, BUKAN `metadata.total` list: list Pencairan
+// Bermasalah dan Persetujuan Pencairan mendekripsi rekening dan menulis
+// `pii_access_audit` per baris, jadi `take=1` untuk sebuah angka mengarang jejak
+// akses PII yang tidak pernah terjadi (`conventions.md § Audit Akses PII`).
+// Kunci baru boleh ditambahkan server kelak — klien mengabaikan yang tak dikenalnya.
+
+/** `GET /api/v1/queue-counts` — predikat tiap angka SAMA dengan `metadata.total` list-nya. */
+export interface QueueCounts {
+  payoutFailuresOpen: number
+  redeemApprovalsOpen: number
 }

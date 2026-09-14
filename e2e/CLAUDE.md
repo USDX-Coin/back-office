@@ -23,6 +23,7 @@ success UX, list refresh — without the side effects.
 | 6 | KYC review (USDX-154/155): sidebar badge → list oldest-first → detail modal (PII + photos) → approve / reject → refresh | `usdx-155-kyc.spec.ts` |
 | 7 | User activation (USDX-156): list filter + badges → detail resend (confirm, cooldown, 409/429) → create form phone + no password | `usdx-156-users-activation.spec.ts` |
 | 8 | Pencairan Bermasalah (USDX-662): sidebar badge → antrean → detail → resolve `SETTLED_MANUAL` (body request diperiksa) → jejak resolusi → baris hilang; 409 `ALREADY_RESOLVED` dijelaskan di dialog; `BURN_REJECTED` tanpa kirim ulang | `usdx-662-payout-failures.spec.ts` |
+| 9 | Badge antrean + rekening pengganti (USDX-678): badge dari `GET /api/v1/queue-counts` tanpa request list `take=1` → detail → Kirim ulang ke rekening tersimpan lain (body membawa `bankAccountId`) → badge turun; 409 `BANK_ACCOUNT_NOT_OWNED` di dialog; hitungan nol tanpa badge | `usdx-678-queue-counts-replacement-account.spec.ts` |
 
 Each spec has `positive` / `negative` / `edge cases` describe blocks.
 

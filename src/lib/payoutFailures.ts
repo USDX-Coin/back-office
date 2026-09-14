@@ -22,9 +22,11 @@
 import { ApiError } from './apiFetch'
 import type { StatusConfig } from './status'
 import type {
+  PayoutFailureDetail,
   PayoutIssueKind,
   PayoutResolution,
   PayoutSubmissionTrail,
+  ReplacementBankAccount,
   ResolvePayoutFailureBody,
 } from './types'
 
@@ -153,6 +155,11 @@ export interface ResolveFormInput {
   action: PayoutResolution
   reason: string
   externalRef: string
+  /**
+   * Rekening pengganti dari `replacementBankAccounts` (USDX-678). Kosong = kirim ulang
+   * ke rekening tujuan saat ini — `bankAccountId` tidak dikirim.
+   */
+  bankAccountId?: string | null
 }
 
 export type ResolveFormErrors = Partial<Record<'reason' | 'externalRef', string>>
@@ -168,7 +175,8 @@ type ResolveFormResult =
  * tapi kosong bagi siapa pun yang membaca jejak append-only ini kelak.
  * `externalRef` hanya ikut pada `SETTLED_MANUAL` — backend mengabaikannya di
  * aksi lain, dan referensi yang tertinggal dari pilihan sebelumnya tidak boleh
- * tercatat sebagai bukti transfer yang tidak pernah ada.
+ * tercatat sebagai bukti transfer yang tidak pernah ada. `bankAccountId` hanya ikut
+ * pada `RESENT` — di aksi lain backend menjawab `400`.
  */
 export function buildResolveBody(input: ResolveFormInput): ResolveFormResult {
   const errors: ResolveFormErrors = {}
@@ -191,13 +199,33 @@ export function buildResolveBody(input: ResolveFormInput): ResolveFormResult {
   }
 
   if (errors.reason || errors.externalRef) return { valid: false, errors }
-  return {
-    valid: true,
-    body:
-      input.action === 'SETTLED_MANUAL'
-        ? { action: input.action, reason, externalRef }
-        : { action: input.action, reason },
+  if (input.action === 'SETTLED_MANUAL') {
+    return { valid: true, body: { action: input.action, reason, externalRef } }
   }
+  if (input.action === 'RESENT' && input.bankAccountId) {
+    return { valid: true, body: { action: input.action, reason, bankAccountId: input.bankAccountId } }
+  }
+  return { valid: true, body: { action: input.action, reason } }
+}
+
+// ─── Rekening pengganti (USDX-678) ──────────────────────────────────────────
+
+/**
+ * Rekening address book yang SAMA dengan tujuan order saat ini, atau `undefined`.
+ *
+ * Detail tidak membawa id rekening tujuan — order menyimpan SALINAN rekening, bukan
+ * rujukan ke `bank_accounts` — jadi pencocokannya lewat bank + nomor rekening. Nama
+ * tidak ikut dicocokkan: nama di order adalah nama menurut BANK, nama di address book
+ * adalah ketikan nasabah, dan keduanya sah berbeda. Kalau nasabah menyimpan rekening
+ * yang sama dua kali, yang terbaru (urutan server) yang dipakai.
+ */
+export function findCurrentReplacementAccount(
+  detail: Pick<PayoutFailureDetail, 'bankName' | 'bankAccountNumber' | 'replacementBankAccounts'>,
+): ReplacementBankAccount | undefined {
+  return detail.replacementBankAccounts.find(
+    (account) =>
+      account.accountNumber === detail.bankAccountNumber && account.bankName === detail.bankName,
+  )
 }
 
 // ─── Jejak submission ───────────────────────────────────────────────────────

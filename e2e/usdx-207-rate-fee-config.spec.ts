@@ -69,6 +69,45 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
 
       await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/15\.000/)
     })
+
+    // USDX-682 — Minimum Redeem (Rp) rides in the same snapshot, and the mock
+    // requires it exactly like the backend: kalau form lupa mengirimnya, klik
+    // Update di bawah ini gagal 422 dan tidak ada satu pun fee yang tersimpan.
+    test('USDX-682 — saving with nothing changed still succeeds (minRedeemIdr sent)', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/fee')
+
+      const minRedeem = page.locator('#minRedeemIdr')
+      await expect(minRedeem).toBeVisible({ timeout: 15000 })
+      // Seeded from the active config, not blank.
+      await expect(minRedeem).toHaveValue('20000')
+
+      // Not one field touched — the whole point of the AC.
+      await page.getByRole('button', { name: /update fee config/i }).click()
+
+      // Nothing was refused: the card still reads the active config back.
+      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/20\.000/)
+      await expect(page.getByLabel(/mint fee percent/i)).toHaveText('1%')
+      await expect(page.getByText(/is required/i)).toHaveCount(0)
+    })
+
+    test('USDX-682 — admin raises the minimum redeem and the card shows it', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/fee')
+
+      const minRedeem = page.locator('#minRedeemIdr')
+      await expect(minRedeem).toBeVisible({ timeout: 15000 })
+      await minRedeem.fill('35000')
+      await page.getByRole('button', { name: /update fee config/i }).click()
+
+      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/35\.000/)
+      // The mint minimum was not dragged along.
+      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/20\.000/)
+    })
   })
 
   test.describe('negative', () => {
@@ -95,6 +134,28 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       expect(posted).toBe(false)
       // The active value is untouched.
       await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/20\.000/)
+    })
+
+    test('USDX-682 — minimum redeem below the floor is refused inline, no request', async ({
+      page,
+    }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/fee')
+
+      let posted = false
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && req.url().includes('/api/v1/fee-config')) posted = true
+      })
+
+      const minRedeem = page.locator('#minRedeemIdr')
+      await expect(minRedeem).toBeVisible({ timeout: 15000 })
+      await minRedeem.fill('5000')
+      await page.getByRole('button', { name: /update fee config/i }).click()
+
+      await expect(page.getByText(/minimum redeem must be at least 10,000/i)).toBeVisible()
+      expect(posted).toBe(false)
+      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/20\.000/)
     })
   })
 
