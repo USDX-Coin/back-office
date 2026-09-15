@@ -86,7 +86,9 @@ describe('FeeConfigPage @integration', () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
 
       const mintInput = (await screen.findByLabelText(/^mint fee$/i)) as HTMLInputElement
-      await waitFor(() => expect(mintInput.value).toBe('1.0'))
+      // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
+      // (kolom `numeric(5,4)`), dan validator form hanya menerima dua desimal.
+      await waitFor(() => expect(mintInput.value).toBe('1'))
 
       await user.clear(mintInput)
       await user.type(mintInput, '2.5')
@@ -101,7 +103,9 @@ describe('FeeConfigPage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
       const mintInput = (await screen.findByLabelText(/^mint fee$/i)) as HTMLInputElement
-      await waitFor(() => expect(mintInput.value).toBe('1.0'))
+      // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
+      // (kolom `numeric(5,4)`), dan validator form hanya menerima dua desimal.
+      await waitFor(() => expect(mintInput.value).toBe('1'))
       await user.clear(mintInput)
       await user.click(screen.getByRole('button', { name: /update fee config/i }))
       expect(await screen.findByText(/mint fee is required/i)).toBeInTheDocument()
@@ -199,11 +203,11 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
       // Append-only: POST replaces the whole row, so a partial body would zero
       // the fees the operator did not touch (USDX-245).
       expect(body).toEqual({
-        mintFeePct: '1.0',
-        pgFeeVaFlat: '4000.00',
+        mintFeePct: '1',
+        pgFeeVaFlat: '4000',
         pgFeeQrisPct: '0.7',
-        redeemFeePct: '1.0',
-        disbursementFeeFlat: '5000.00',
+        redeemFeePct: '1',
+        disbursementFeeFlat: '5000',
         minMintIdr: '12000',
         // USDX-682 — rides along untouched.
         minRedeemIdr: '20000',
@@ -352,11 +356,11 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       await waitFor(() => expect(statuses).toEqual([201]))
       expect(bodies).toHaveLength(1)
       expect(bodies[0]).toEqual({
-        mintFeePct: '1.0',
-        pgFeeVaFlat: '4000.00',
+        mintFeePct: '1',
+        pgFeeVaFlat: '4000',
         pgFeeQrisPct: '0.7',
-        redeemFeePct: '1.0',
-        disbursementFeeFlat: '5000.00',
+        redeemFeePct: '1',
+        disbursementFeeFlat: '5000',
         minMintIdr: '20000',
         minRedeemIdr: '20000',
       })
@@ -475,11 +479,11 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
             metadata: null,
             data: {
               id: 'fee-0001',
-              mintFeePct: '1.0',
-              pgFeeVaFlat: '4000.00',
+              mintFeePct: '1',
+              pgFeeVaFlat: '4000',
               pgFeeQrisPct: '0.7',
-              redeemFeePct: '1.0',
-              disbursementFeeFlat: '5000.00',
+              redeemFeePct: '1',
+              disbursementFeeFlat: '5000',
               minMintIdr: '20000',
               updatedBy: 'seed',
               createdAt: new Date().toISOString(),
@@ -501,7 +505,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
     const res = await fetch('/api/v1/fee-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issueMockJwt(staff)}` },
-      body: JSON.stringify({ mintFeePct: '1.0', pgFeeVaFlat: '4000.00', pgFeeQrisPct: '0.7' }),
+      body: JSON.stringify({ mintFeePct: '1.0', pgFeeVaFlat: '4000', pgFeeQrisPct: '0.7' }),
     })
     expect(res.status).toBe(403)
     const body = await res.json()
@@ -512,7 +516,7 @@ describe('POST /api/v1/fee-config authorization (sot/api/fee.yaml)', () => {
     const res = await fetch('/api/v1/fee-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mintFeePct: '1.0', pgFeeVaFlat: '4000.00', pgFeeQrisPct: '0.7' }),
+      body: JSON.stringify({ mintFeePct: '1.0', pgFeeVaFlat: '4000', pgFeeQrisPct: '0.7' }),
     })
     expect(res.status).toBe(401)
   })

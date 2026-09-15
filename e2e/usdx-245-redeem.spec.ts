@@ -104,7 +104,9 @@ test.describe('USDX-245 fee config redeem fields @e2e', () => {
       await page.goto('/settings/fee')
 
       const redeem = page.locator('#redeemFeePct')
-      await expect(redeem).toHaveValue('1.0', { timeout: 15000 })
+      // Prefill dipangkas nol belakangnya (USDX-687): API mengembalikan
+      // `'1.0000'`, validator form hanya menerima dua desimal.
+      await expect(redeem).toHaveValue('1', { timeout: 15000 })
       await redeem.fill('1.5')
       await page.locator('#disbursementFeeFlat').fill('6000')
       await page.getByRole('button', { name: /update fee config/i }).click()
