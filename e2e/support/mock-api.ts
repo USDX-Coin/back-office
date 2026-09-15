@@ -103,15 +103,20 @@ const RATE_USED = RATE_INFO.effectiveBuyRate
 // minimum redeem (USDX-637 / USDX-682).
 const FEE_CONFIG = {
   id: 'fee-0001',
-  mintFeePct: '1.0',
+  // Bentuknya meniru API sungguhan: kolom persentase `numeric(5,4)`, jadi yang
+  // benar-benar dikembalikan empat desimal. Mock yang lebih longgar dari server
+  // adalah mock yang menyembunyikan bug — versi satu-desimal di sini ikut
+  // membuat form fee config lolos test padahal di produksi tidak pernah bisa
+  // disimpan (USDX-687).
+  mintFeePct: '1.0000',
   pgFeeVaFlat: '4000.00',
-  pgFeeQrisPct: '0.7',
-  redeemFeePct: '1.0',
+  pgFeeQrisPct: '0.7000',
+  redeemFeePct: '1.0000',
   disbursementFeeFlat: '5000.00',
   // Minimum mint Rp (USDX-635/637) — kolom config, bukan konstanta kode lagi.
-  minMintIdr: '20000',
+  minMintIdr: '20000.00',
   // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
-  minRedeemIdr: '20000',
+  minRedeemIdr: '20000.00',
   updatedBy: ADMIN_STAFF.id,
   createdAt: '2026-05-01T00:00:00.000Z',
 }
