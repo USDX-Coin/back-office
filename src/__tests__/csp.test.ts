@@ -97,10 +97,27 @@ describe('index.html CSP frame-src', () => {
 // Reading the shipped policy off disk is the only guard available, which is why
 // it asserts the relationship between the directives rather than one literal.
 describe('index.html CSP — the storage host must be reachable by fetch, not only by <img>', () => {
-  const storageHosts = sources('img-src').filter((s) => s.includes('storageapi.dev'))
+  // Disaring dari DAFTAR host storage yang diketahui, bukan dari satu literal.
+  // Sejarahnya: `*.storageapi.dev` (Railway bucket) dulu satu-satunya. Sejak
+  // storage pindah ke Garage (`s3.usdx.co.id`, 2026-09), test ini masih hijau
+  // padahal KYC review di production menampilkan foto yang KOSONG: host lama
+  // masih terdaftar, jadi filter lama tetap menemukan sesuatu dan invariannya
+  // ikut memeriksa host yang sudah tidak dipakai. Yang salah bukan aturannya —
+  // yang salah adalah daftar hostnya yang tidak pernah ikut pindah.
+  const KNOWN_STORAGE_HOSTS = ['storageapi.dev', 's3.usdx.co.id']
+  const storageHosts = sources('img-src').filter((s) =>
+    KNOWN_STORAGE_HOSTS.some((h) => s.includes(h)),
+  )
 
   test('img-src carries the storage host (KYC presigned photos)', () => {
     expect(storageHosts.length).toBeGreaterThan(0)
+  })
+
+  // Host yang BENAR-BENAR dipakai sekarang, dikunci sebagai literal: filter di
+  // atas akan tetap hijau kalau hanya host lama yang tersisa, dan itu persis
+  // keadaan yang membuat foto KYC kosong di production.
+  test('img-src carries the CURRENT storage host (Garage)', () => {
+    expect(sources('img-src')).toContain('https://s3.usdx.co.id')
   })
 
   test.each(storageHosts)(
