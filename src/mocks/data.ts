@@ -458,16 +458,23 @@ function nextFeeId(): string {
 export function createFeeConfig(overrides: Partial<FeeConfig> = {}): FeeConfig {
   return {
     id: nextFeeId(),
-    mintFeePct: '1.0',
+    // BENTUKNYA MENIRU API SUNGGUHAN, dan itu disengaja. Kolom persentase di
+    // database `numeric(5,4)`, jadi yang benar-benar dikembalikan `'1.0000'` —
+    // bukan `'1.0'`. Mock ini dulu memakai satu desimal, dan karena lebih
+    // longgar dari kenyataan, seluruh suite tetap hijau sementara form fee
+    // config di produksi TIDAK PERNAH BISA DISIMPAN: prefill empat desimal
+    // selalu ditolak validator yang menerima paling banyak dua. Mock yang lebih
+    // permisif dari servernya adalah mock yang menyembunyikan bug.
+    mintFeePct: '1.0000',
     pgFeeVaFlat: '4000.00',
-    pgFeeQrisPct: '0.7',
+    pgFeeQrisPct: '0.7000',
     // Redeem fees (W3, USDX-245) — seeded so redeem orders compute; admin-set.
-    redeemFeePct: '1.0',
+    redeemFeePct: '1.0000',
     disbursementFeeFlat: '5000.00',
     // Minimum mint Rp (USDX-635/637) — pindah dari konstanta ke kolom config.
-    minMintIdr: '20000',
+    minMintIdr: '20000.00',
     // Minimum redeem Rp (USDX-682) — kembarannya, dibandingkan ke net payout.
-    minRedeemIdr: '20000',
+    minRedeemIdr: '20000.00',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
