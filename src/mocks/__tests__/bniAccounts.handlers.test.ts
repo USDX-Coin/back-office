@@ -5,7 +5,7 @@ import {
   configureBniRefreshForTests,
   resetMockData,
 } from '@/mocks/handlers'
-import { BNI_MOCK_ACCOUNTS, createBniStatementRows } from '@/mocks/data'
+import { BNI_MOCK_ACCOUNTS, BNI_MOCK_HISTORY_SINCE, createBniStatementRows } from '@/mocks/data'
 import type { BniBalances, BniStatement, BniStatementRefresh } from '@/lib/types'
 
 // USDX-631 / USDX-692 — MSW mirror of sot/api/bni-accounts.yaml rev 2026-09-18
@@ -180,6 +180,22 @@ describe('GET /api/v1/bni-accounts/:accountNo/statement', () => {
     test('2026-02-30 is rejected as not a real calendar date', async () => {
       const res = await get(NP, { startDate: '2026-02-30', endDate: '2026-03-01' })
       expect(res.status).toBe(422)
+    })
+
+    test('a range before the history is valid and EMPTY; one that straddles it holds no older row (K18)', async () => {
+      const dayBefore = '2026-08-31'
+      expect(dayBefore < BNI_MOCK_HISTORY_SINCE).toBe(true)
+      const before = await get(NP, { startDate: '2026-08-10', endDate: dayBefore, type: 'ALL' })
+      expect(before.status).toBe(200)
+      const empty = ((await before.json()) as { data: BniStatement }).data
+      expect(empty.rows).toEqual([])
+      expect(empty.historyAvailableSince).toBe(BNI_MOCK_HISTORY_SINCE)
+
+      const straddle = await get(NP, { startDate: '2026-08-25', endDate: '2026-09-05', type: 'ALL' })
+      const { data } = (await straddle.json()) as { data: BniStatement }
+      expect(data.rows.length).toBeGreaterThan(0)
+      const since = BNI_MOCK_HISTORY_SINCE.replace(/-/g, '')
+      expect(data.rows.every((r) => r.postDate!.slice(0, 8) >= since)).toBe(true)
     })
 
     test('factory rows stay inside the requested window', () => {

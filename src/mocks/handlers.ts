@@ -74,6 +74,7 @@ import {
   createBniStatement,
   createBniStatementRefresh,
   createBniStatementRows,
+  BNI_MOCK_HISTORY_SINCE,
   createMockRedeemApprovals,
   createInitialRedeemApprovalControls,
   createMockPayoutFailures,
@@ -965,7 +966,14 @@ export const handlers = [
     // Entries stored by "Segarkan dari bank" are today's, so they only join a
     // range that reaches today.
     const refreshed = endDate >= wibTodayMock() ? (bniRefreshedEntries.get(accountNo) ?? 0) : 0
-    const allRows = createBniStatementRows(BNI_MOCK_BASE_ROWS + refreshed, startDate, endDate)
+    // K18: the copy holds nothing older than its first capture — a range that
+    // predates the history is valid and EMPTY, never back-filled.
+    const from = startDate < BNI_MOCK_HISTORY_SINCE ? BNI_MOCK_HISTORY_SINCE : startDate
+    const recorded =
+      endDate < BNI_MOCK_HISTORY_SINCE
+        ? []
+        : createBniStatementRows(BNI_MOCK_BASE_ROWS + refreshed, from, endDate)
+    const allRows = recorded
       .map((row, index) => ({ row, index }))
       .sort((a, b) =>
         a.row.postDate === b.row.postDate
