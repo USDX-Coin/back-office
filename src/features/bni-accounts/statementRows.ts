@@ -1,14 +1,14 @@
 import type { BniStatementRow } from '@/lib/types'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "Tabel": order by `postDate`
-// descending, STABLE (original index breaks ties — `journalNo` repeats within a
-// day), rows whose date is MALFORMED (null) sink to the bottom. The backend
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Tabel": order by
+// `postDate` descending, STABLE (original index breaks ties — `journalNo`
+// repeats within a day), rows whose date is MALFORMED (null) sink to the bottom. The backend
 // already sends this order; sorting again here costs nothing and guarantees
 // the CSV and the table agree even if a future backend forgets.
 
 export interface IndexedStatementRow {
   row: BniStatementRow
-  /** Position in the backend response — the tie-breaker and part of the row key. */
+  /** Position in the backend response — the tie-breaker. */
   index: number
 }
 
@@ -26,9 +26,13 @@ export function sortStatementRows(rows: readonly BniStatementRow[]): IndexedStat
     })
 }
 
-/** `journalNo` + `postDate` + original index — the only combination that is unique. */
-export function statementRowKey({ row, index }: IndexedStatementRow): string {
-  return `${row.journalNo ?? ''}-${row.postDate ?? ''}-${index}`
+/**
+ * `statement_entries.id` (yaml § BniStatementRow, D24) — stable across pulls, so
+ * a refetch after "Segarkan dari bank" keeps every already-shown row mounted
+ * instead of re-keying the page by position.
+ */
+export function statementRowKey({ row }: IndexedStatementRow): string {
+  return row.id
 }
 
 /** Client-side page slice for `DataTable` (`rowCount` = total, data = this page). */

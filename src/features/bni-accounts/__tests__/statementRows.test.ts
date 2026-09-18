@@ -45,15 +45,15 @@ describe('sortStatementRows', () => {
   })
 
   describe('edge cases', () => {
-    test('equal postDate keeps original order (stable) and index survives for the key', () => {
+    test('equal postDate keeps original order (stable); the key is the row id even when journalNo + postDate repeat', () => {
       const out = sortStatementRows([
-        row({ postDate: '20260909000000', journalNo: 'same' }),
-        row({ postDate: '20260909000000', journalNo: 'same' }),
+        row({ id: 'entry-a', postDate: '20260909000000', journalNo: 'same' }),
+        row({ id: 'entry-b', postDate: '20260909000000', journalNo: 'same' }),
       ])
       expect(out.map((r) => r.index)).toEqual([0, 1])
-      expect(statementRowKey(out[0]!)).toBe('same-20260909000000-0')
-      expect(statementRowKey(out[1]!)).toBe('same-20260909000000-1')
-      expect(statementRowKey(out[0]!)).not.toBe(statementRowKey(out[1]!))
+      // D24: the key is the copy's row id, never journalNo/postDate/position.
+      expect(statementRowKey(out[0]!)).toBe('entry-a')
+      expect(statementRowKey(out[1]!)).toBe('entry-b')
     })
 
     test('does not mutate the input', () => {
