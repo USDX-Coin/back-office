@@ -132,7 +132,7 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
 
 // A bank timestamp is a digit string in WIB with NO zone marker:
 // `yyyyMMddHHmmss` (statement `postDate`), `yyyyMMddHHmm` (InquiryBalance
-// `date`) or `yyyyMMdd` (statement `fromPostingDate` / `toPostingDate`). It is
+// `date`, `gaps[].afterAt` of a balance observation) or `yyyyMMdd`. It is
 // re-punctuated as-is — never parsed through `Date`, which would shift it into
 // the browser's zone. Anything else (null, `MALFORMED`, stray spaces the
 // service could not repair) renders as "—", never `Invalid Date`.

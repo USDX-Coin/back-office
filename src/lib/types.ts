@@ -2648,8 +2648,8 @@ export interface BniAccount {
 /**
  * Jejak perbaikan nilai dari parser bni-service. `REPAIRED` = dinormalkan,
  * `MALFORMED` = tidak terbaca (UI "—"), `NO_ACCOUNT_DETAIL` = anomali level
- * rekening (bank tidak mengembalikan entri sama sekali) — hanya di
- * `BniStatementSummary.anomalies`.
+ * rekening dari tarikan langsung D21 — tidak lagi dikirim sejak D24, nilainya
+ * dipertahankan kontrak agar klien lama tidak patah.
  */
 export interface BniValueAnomaly {
   field: string
@@ -2740,13 +2740,11 @@ export interface BniStatementSummary {
   closingBalance?: string | null
   totalCredit?: string | null
   totalDebit?: string | null
-  /** Rentang yang BERLAKU menurut bank (`yyyyMMdd`); UI menandai bila beda dari yang diminta. */
-  fromPostingDate?: string | null
-  toPostingDate?: string | null
   /** Jumlah baris SETELAH saringan `type` backend. */
   rowCount: number
   /** Jumlah baris dengan ≥1 anomali (REPAIRED/MALFORMED). */
   anomalyRowCount: number
+  /** Selalu `[]` sejak D24 (anomali level rekening hanya ada pada tarikan langsung). */
   anomalies?: BniValueAnomaly[]
 }
 

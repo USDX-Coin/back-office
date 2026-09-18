@@ -14,13 +14,13 @@ import {
 } from '@/components/ui/select'
 import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { validateDateRange } from '@/lib/dateRange'
-import { formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
+import { formatBankAmount, formatWibDateTime } from '@/lib/format'
 import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
 import { describeBniError } from './errors'
 import { useBniStatement, type BniStatementParams } from './hooks'
 import { exportStatementCsv } from './statementCsv'
 import { sortStatementRows } from './statementRows'
-import { anomalyLine, countAnomalyRows, postingRangeDiffers, STATEMENT_TYPE_LABEL } from './statementSummary'
+import { anomalyLine, countAnomalyRows, STATEMENT_TYPE_LABEL } from './statementSummary'
 import StatementTable from './StatementTable'
 
 // USDX-631 — sot/bni-integration.md § 16.4 "Panel mutasi" / "Ringkasan" /
@@ -66,9 +66,6 @@ function ResultsHeader({
 }) {
   const summary = statement?.summary
   const rows = statement?.rows ?? []
-  const rangeDiffers =
-    summary !== undefined &&
-    postingRangeDiffers(applied, summary.fromPostingDate, summary.toPostingDate)
 
   return (
     <div className="space-y-3 border-b border-border px-4 py-3">
@@ -115,33 +112,30 @@ function ResultsHeader({
             id="bni-statement-summary-caption"
             className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
           >
-            Ringkasan menurut bank untuk rentang ini
+            Ringkasan menurut salinan USDX untuk rentang ini
           </div>
           <div>
-            <dt className="text-muted-foreground">Saldo awal (menurut bank)</dt>
+            <dt className="text-muted-foreground">Saldo awal</dt>
             <dd className="font-mono tabular-nums">
               {formatBankAmount(summary.beginningBalance, summary.currency)}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Total masuk (menurut bank)</dt>
+            <dt className="text-muted-foreground">Total masuk</dt>
             <dd className="font-mono tabular-nums">
               {formatBankAmount(summary.totalCredit, summary.currency)}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Total keluar (menurut bank)</dt>
+            <dt className="text-muted-foreground">Total keluar</dt>
             <dd className="font-mono tabular-nums">
               {formatBankAmount(summary.totalDebit, summary.currency)}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Rentang posting berlaku (menurut bank)</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBniPostDate(summary.fromPostingDate)} – {formatBniPostDate(summary.toPostingDate)}
-              {rangeDiffers && (
-                <span className="ml-1.5 font-sans text-warning">(beda dari yang diminta)</span>
-              )}
+            <dt className="text-muted-foreground">Saldo akhir</dt>
+            <dd className="font-mono tabular-nums" data-testid="bni-statement-closing-balance">
+              {formatBankAmount(summary.closingBalance, summary.currency)}
             </dd>
           </div>
           <div className="sm:col-span-2 lg:col-span-4">
@@ -150,7 +144,7 @@ function ResultsHeader({
               <span data-testid="bni-statement-row-count">{rows.length} baris ditampilkan</span>
               {' · '}
               <span data-testid="bni-statement-anomalies">
-                {anomalyLine(countAnomalyRows(rows), summary.anomalies)}
+                {anomalyLine(countAnomalyRows(rows))}
               </span>
             </dd>
           </div>

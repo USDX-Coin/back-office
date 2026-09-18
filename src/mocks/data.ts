@@ -2088,15 +2088,15 @@ function createBniStatementSummary(
     rows
       .filter((r) => r.flag === flag && r.amount !== null)
       .reduce((acc, r) => acc + Number(r.amount), 0)
-  const dates = rows.map((r) => r.postDate).filter((d): d is string => Boolean(d)).sort()
+  const beginning = 500_000_000
   return {
     accountName: 'PT MAF DIGITAL',
     currency: 'IDR',
-    beginningBalance: '500000000.00',
+    beginningBalance: `${beginning}.00`,
+    // § 16.8.6: saldo setelah baris terakhir; tanpa baris = saldo awal.
+    closingBalance: `${beginning + sum('C') - sum('D')}.00`,
     totalCredit: `${sum('C')}.00`,
     totalDebit: `${sum('D')}.00`,
-    fromPostingDate: dates[0]?.slice(0, 8) ?? null,
-    toPostingDate: dates[dates.length - 1]?.slice(0, 8) ?? null,
     rowCount: rows.length,
     anomalyRowCount: rows.filter((r) => (r.anomalies?.length ?? 0) > 0).length,
     anomalies: [],

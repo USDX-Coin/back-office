@@ -299,7 +299,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(pullButton()).toBeEnabled()
     })
 
-    test('NP + Keluar + Tarik → request type=DEBIT, only D rows, summary shows bank figures + rowCount', async () => {
+    test('NP + Keluar + Tarik → request type=DEBIT, only D rows, summary "menurut salinan USDX" + saldo akhir + rowCount', async () => {
       const user = userEvent.setup()
       const probe = recordRequests('/api/v1/bni-accounts/')
       renderPage()
@@ -319,8 +319,17 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(within(table).getAllByText('Keluar').length).toBeGreaterThan(0)
 
       const summary = screen.getByTestId('bni-statement-summary')
-      expect(within(summary).getByText('Saldo awal (menurut bank)')).toBeInTheDocument()
+      // § 16.8.8: the figures are the USDX copy's, and say so; the bank's
+      // "rentang posting berlaku" is gone with the direct pull.
+      expect(summary).toHaveTextContent('Ringkasan menurut salinan USDX')
+      expect(summary).not.toHaveTextContent('menurut bank')
+      expect(summary).not.toHaveTextContent('Rentang posting')
+      for (const label of ['Saldo awal', 'Total masuk', 'Total keluar', 'Saldo akhir']) {
+        expect(within(summary).getByText(label)).toBeInTheDocument()
+      }
       expect(within(summary).getByText('Rp 500.000.000,00')).toBeInTheDocument()
+      // 4 D rows of the factory: 1.25M + 2M + 1M + 1.75M out of 500M.
+      expect(screen.getByTestId('bni-statement-closing-balance')).toHaveTextContent('Rp 494.000.000,00')
       expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('4 baris ditampilkan')
       expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent('Keluar')
       probe.stop()
