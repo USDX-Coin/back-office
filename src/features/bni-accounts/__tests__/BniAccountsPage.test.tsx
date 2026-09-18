@@ -333,8 +333,10 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
         expect(within(summary).getByText(label)).toBeInTheDocument()
       }
       expect(within(summary).getByText('Rp 500.000.000,00')).toBeInTheDocument()
-      // 4 D rows of the factory: 1.25M + 2M + 1M + 1.75M out of 500M.
-      expect(screen.getByTestId('bni-statement-closing-balance')).toHaveTextContent('Rp 494.000.000,00')
+      // The summary is the ACCOUNT's for the range, not the filter's (§ 16.8.6):
+      // 500M + 13.75M in (8 C rows) − 6M out (4 D rows), although only D rows show.
+      expect(screen.getByTestId('bni-statement-closing-balance')).toHaveTextContent('Rp 507.750.000,00')
+      expect(within(summary).getByText('Rp 13.750.000,00')).toBeInTheDocument()
       expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('4 baris ditampilkan')
       expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent('Keluar')
       // § 16.8.8 header hasil: parameter terapan · "direkam s/d … WIB" · pullId.

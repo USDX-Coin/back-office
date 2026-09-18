@@ -5,6 +5,7 @@ import type {
   BniBalances,
   BniStatement,
   BniStatementApplied,
+  BniStatementRefresh,
   BniStatementRow,
   BniStatementSummary,
   Customer,
@@ -2128,6 +2129,28 @@ export function createBniStatement(
       ...summaryOverrides,
     }),
     rows,
+  }
+}
+
+/**
+ * `POST …/statement/refresh` (USDX-692, yaml § BniStatementRefresh). `newEntries`
+ * 0 with `txCount` > 0 is the COMMON answer — the bank re-serves the whole day
+ * on every pull and the copy already holds most of it (§ 16.8.3).
+ */
+export function createBniStatementRefresh(
+  accountNo: string,
+  overrides: Partial<BniStatementRefresh> = {},
+  at: Date = new Date()
+): BniStatementRefresh {
+  const txCount = overrides.txCount ?? 12
+  return {
+    pullId: nextBniPullId(),
+    accountNo,
+    outcome: txCount === 0 ? 'EMPTY' : 'OK',
+    capturedAt: at.toISOString(),
+    txCount,
+    newEntries: 0,
+    ...overrides,
   }
 }
 
