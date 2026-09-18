@@ -1,11 +1,20 @@
 import { describe, test, expect } from 'vitest'
 import type { BniStatementRow } from '@/lib/types'
-import { anomalyLine, countAnomalyRows, postingRangeDiffers } from '../statementSummary'
+import { anomalyLine, countAnomalyRows } from '../statementSummary'
 
-// USDX-631 — § 16.4 "Ringkasan": one anomaly line + posting-range marker.
+// USDX-631 / USDX-692 — § 16.4 "Ringkasan" (amended § 16.8.8): one anomaly line.
 
 function row(anomalies: BniStatementRow['anomalies']): BniStatementRow {
-  return { postDate: '20260909000000', flag: 'C', amount: '1', description: '', anomalies }
+  return {
+    id: '019e2b10-0000-7000-8000-000000000001',
+    source: 'BANK',
+    recordedAt: '2026-09-09T07:30:05.000Z',
+    postDate: '20260909000000',
+    flag: 'C',
+    amount: '1',
+    description: '',
+    anomalies,
+  }
 }
 
 describe('countAnomalyRows / anomalyLine', () => {
@@ -32,14 +41,6 @@ describe('countAnomalyRows / anomalyLine', () => {
   })
 
   describe('edge cases', () => {
-    test('NO_ACCOUNT_DETAIL at account level is appended to the line', () => {
-      expect(
-        anomalyLine(countAnomalyRows([]), [{ field: 'accountTransactionDetails', kind: 'NO_ACCOUNT_DETAIL' }])
-      ).toBe(
-        'Tidak ada nilai yang diperbaiki atau tidak terbaca · bank tidak mengembalikan entri rekening untuk rentang ini'
-      )
-    })
-
     test('a row with both kinds counts once, as MALFORMED', () => {
       const counts = countAnomalyRows([
         row([
@@ -48,29 +49,6 @@ describe('countAnomalyRows / anomalyLine', () => {
         ]),
       ])
       expect(counts).toEqual({ malformed: 1, repaired: 0 })
-    })
-  })
-})
-
-describe('postingRangeDiffers', () => {
-  const applied = { startDate: '2026-09-01', endDate: '2026-09-09' }
-
-  describe('positive', () => {
-    test('true when the bank applied a different window', () => {
-      expect(postingRangeDiffers(applied, '20260902', '20260909')).toBe(true)
-    })
-  })
-
-  describe('negative', () => {
-    test('false when the bank echoed the requested window', () => {
-      expect(postingRangeDiffers(applied, '20260901', '20260909')).toBe(false)
-    })
-  })
-
-  describe('edge cases', () => {
-    test('false when the bank sent no range (empty result) — nothing to mark', () => {
-      expect(postingRangeDiffers(applied, null, null)).toBe(false)
-      expect(postingRangeDiffers(applied, '20260901', undefined)).toBe(false)
     })
   })
 })

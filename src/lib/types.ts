@@ -2623,13 +2623,15 @@ export interface DecideScreeningBody {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// USDX-631 — Rekening BNI: saldo & mutasi LIVE dari BNIdirect (D21).
+// USDX-631 / USDX-692 — Rekening BNI: saldo LIVE dari BNIdirect (D21) + mutasi
+// dari SALINAN USDX (amandemen D24).
 //
-// Disalin dari `sot/api/bni-accounts.yaml` (rev 2026-09-09) — tiga endpoint
+// Disalin dari `sot/api/bni-accounts.yaml` (rev 2026-09-18) — empat endpoint
 // `GET /api/v1/bni-accounts`, `GET /api/v1/bni-accounts/balances`,
-// `GET /api/v1/bni-accounts/{accountNo}/statement`. Perilaku layar dan pemetaan
-// error ada di `sot/bni-integration.md § 16.3–16.4`. Data TIDAK disalin ke tabel
-// bisnis mana pun: tiap panggilan meneruskan ke bni-service → BNIdirect.
+// `GET /api/v1/bni-accounts/{accountNo}/statement` (baca salinan, nol kontak
+// bank) dan `POST …/statement/refresh` (tarik hari ini dari bank lalu SIMPAN).
+// Perilaku layar dan pemetaan error ada di `sot/bni-integration.md § 16.3–16.4`
+// dan `§ 16.8.8`. Saldo tidak disalin; mutasi direkam bni-service di `usdx_bni`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Peran rekening menurut bni-integration.md § 3.1d; nomornya dari env backend. */
@@ -2646,8 +2648,8 @@ export interface BniAccount {
 /**
  * Jejak perbaikan nilai dari parser bni-service. `REPAIRED` = dinormalkan,
  * `MALFORMED` = tidak terbaca (UI "—"), `NO_ACCOUNT_DETAIL` = anomali level
- * rekening (bank tidak mengembalikan entri sama sekali) — hanya di
- * `BniStatementSummary.anomalies`.
+ * rekening dari tarikan langsung D21 — tidak lagi dikirim sejak D24, nilainya
+ * dipertahankan kontrak agar klien lama tidak patah.
  */
 export interface BniValueAnomaly {
   field: string
@@ -2698,10 +2700,23 @@ export type BniStatementType = 'ALL' | 'CREDIT' | 'DEBIT'
 export type BniStatementFlag = 'C' | 'D'
 
 /**
- * Satu baris rekening koran apa adanya. TIDAK unik per `journalNo` — kunci
- * baris FE = `journalNo`+`postDate`+indeks.
+ * Asal baris salinan (D24). `BANK` = BNIdirect (perekam berkala atau
+ * `statement/refresh`); `UPLOAD` = unggahan rekening koran (fase 2, belum pernah
+ * dikirim). Diperlakukan TERBUKA oleh FE (yaml § BniStatementRowSource): nilai
+ * yang belum dikenal tampil apa adanya — pola `BniBalanceCardStatus`.
+ */
+export type BniStatementRowSource = 'BANK' | 'UPLOAD'
+
+/**
+ * Satu baris rekening koran dari salinan, nilai apa adanya dari bank. TIDAK
+ * unik per `journalNo` — sejak D24 kunci baris FE = `id`.
  */
 export interface BniStatementRow {
+  /** `statement_entries.id` — stabil lintas tarikan. */
+  id: string
+  source: BniStatementRowSource
+  /** Kapan baris pertama kali tersimpan di salinan (UTC ISO 8601). */
+  recordedAt: string
   /** `yyyyMMddHHmmss` (WIB); null bila `MALFORMED`. */
   postDate: string | null
   flag: BniStatementFlag
@@ -2715,20 +2730,21 @@ export interface BniStatementRow {
   anomalies?: BniValueAnomaly[]
 }
 
-/** Angka level rekening "menurut bank untuk rentang ini" + hitungan dari kita. */
+/** Angka level rekening "menurut salinan USDX" untuk rentang yang diminta (D24). */
 export interface BniStatementSummary {
   accountName?: string | null
   currency?: string | null
+  /** Saldo sebelum baris pertama di rentang; null bila belum ada riwayat. */
   beginningBalance?: string | null
+  /** Saldo setelah baris terakhir di rentang; tanpa baris = `beginningBalance`. */
+  closingBalance?: string | null
   totalCredit?: string | null
   totalDebit?: string | null
-  /** Rentang yang BERLAKU menurut bank (`yyyyMMdd`); UI menandai bila beda dari yang diminta. */
-  fromPostingDate?: string | null
-  toPostingDate?: string | null
   /** Jumlah baris SETELAH saringan `type` backend. */
   rowCount: number
   /** Jumlah baris dengan ≥1 anomali (REPAIRED/MALFORMED). */
   anomalyRowCount: number
+  /** Selalu `[]` sejak D24 (anomali level rekening hanya ada pada tarikan langsung). */
   anomalies?: BniValueAnomaly[]
 }
 
@@ -2742,12 +2758,52 @@ export interface BniStatementApplied {
   type: BniStatementType
 }
 
-/** `GET /api/v1/bni-accounts/{accountNo}/statement`. */
-export interface BniStatement {
+/**
+ * Selisih terbuka (D24, § 16.8.5): rantai saldo membuktikan ada mutasi di antara
+ * dua titik yang TIDAK terekam. Tertutup sendiri; tidak ada aksi abaikan (K15).
+ */
+export interface BniStatementGap {
+  kind: 'BETWEEN_ENTRIES' | 'TAIL'
+  /** `yyyyMMddHHmmss` / `yyyyMMddHHmm` (WIB); null bila pengapit di luar riwayat. */
+  afterAt?: string | null
+  afterBalance?: string | null
+  beforeAt: string
+  beforeBalance: string
+  /** String desimal BERTANDA; null bila salah satu nilai `MALFORMED`. */
+  difference?: string | null
+}
+
+/** `POST /api/v1/bni-accounts/{accountNo}/statement/refresh` — tanpa baris mutasi. */
+export interface BniStatementRefresh {
+  /** Sama dengan `api_call_log.correlation_id` kontak bank tarikan ini. */
   pullId: string
+  accountNo: string
+  /** `OK` = bank memulangkan daftar hari ini; `EMPTY` = belum ada mutasi hari ini. */
+  outcome: 'OK' | 'EMPTY'
+  capturedAt: string
+  /** Jumlah transaksi hari ini menurut jawaban bank. */
+  txCount: number
+  /** Jumlah di antaranya yang BARU tersimpan. */
+  newEntries: number
+}
+
+/** `GET /api/v1/bni-accounts/{accountNo}/statement` — dibaca dari salinan (D24). */
+export interface BniStatement {
+  /** Korelasi `activity_log`; sejak D24 TIDAK berpasangan dengan `api_call_log`. */
+  pullId: string
+  /** Waktu salinan dibaca (UTC ISO 8601). */
   pulledAt: string
+  /**
+   * Tarikan bank BERHASIL terakhir (UI "direkam s/d"); null = belum pernah
+   * direkam. Bukan anggota `required` di yaml — absen dibaca sama dengan null.
+   */
+  recordedThrough?: string | null
+  /** Tanggal WIB `YYYY-MM-DD` tarikan pertama (K18); null / absen = belum pernah direkam. */
+  historyAvailableSince?: string | null
+  /** Selisih terbuka yang beririsan dengan rentang (bisa kosong). */
+  gaps: BniStatementGap[]
   applied: BniStatementApplied
-  /** SELALU ada (rev 2026-09-09): hasil kosong → field null, `rowCount` 0, anomali `NO_ACCOUNT_DETAIL`. */
+  /** SELALU ada (rev 2026-09-09): hasil kosong → field angka boleh null, `rowCount` 0. */
   summary: BniStatementSummary
   /** Urut `postDate` menurun, stabil; baris `MALFORMED` tanggal di paling bawah. */
   rows: BniStatementRow[]

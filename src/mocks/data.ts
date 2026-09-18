@@ -5,6 +5,7 @@ import type {
   BniBalances,
   BniStatement,
   BniStatementApplied,
+  BniStatementRefresh,
   BniStatementRow,
   BniStatementSummary,
   Customer,
@@ -2062,6 +2063,11 @@ export function createBniStatementRows(
     const ss = String((i * 13) % 60).padStart(2, '0')
     const ymd = stamp.toISOString().slice(0, 10).replace(/-/g, '')
     rows.push({
+      // Stable per (window, position): the same pull twice yields the same ids,
+      // like `statement_entries.id` does across reads of the copy.
+      id: `019e2b10-${ymd.slice(0, 4)}-7${ymd.slice(4, 7)}-8000-${String(i).padStart(12, '0')}`,
+      source: 'BANK',
+      recordedAt: new Date(start + dayIndex * 86_400_000 + (i % 12) * 3_600_000).toISOString(),
       postDate: `${ymd}${hh}${mm}${ss}`,
       flag,
       amount: `${amount}.00`,
@@ -2083,15 +2089,15 @@ function createBniStatementSummary(
     rows
       .filter((r) => r.flag === flag && r.amount !== null)
       .reduce((acc, r) => acc + Number(r.amount), 0)
-  const dates = rows.map((r) => r.postDate).filter((d): d is string => Boolean(d)).sort()
+  const beginning = 500_000_000
   return {
     accountName: 'PT MAF DIGITAL',
     currency: 'IDR',
-    beginningBalance: '500000000.00',
+    beginningBalance: `${beginning}.00`,
+    // § 16.8.6: saldo setelah baris terakhir; tanpa baris = saldo awal.
+    closingBalance: `${beginning + sum('C') - sum('D')}.00`,
     totalCredit: `${sum('C')}.00`,
     totalDebit: `${sum('D')}.00`,
-    fromPostingDate: dates[0]?.slice(0, 8) ?? null,
-    toPostingDate: dates[dates.length - 1]?.slice(0, 8) ?? null,
     rowCount: rows.length,
     anomalyRowCount: rows.filter((r) => (r.anomalies?.length ?? 0) > 0).length,
     anomalies: [],
@@ -2099,21 +2105,52 @@ function createBniStatementSummary(
   }
 }
 
+/** Hari rilis D24 di data tiruan — riwayat salinan mulai di sini (K18, tanpa backfill). */
+export const BNI_MOCK_HISTORY_SINCE = '2026-09-01'
+
 export function createBniStatement(
   applied: BniStatementApplied,
   rows: BniStatementRow[],
   summaryOverrides: Partial<BniStatementSummary> = {},
-  at: Date = new Date()
+  at: Date = new Date(),
+  copyOverrides: Partial<Pick<BniStatement, 'recordedThrough' | 'historyAvailableSince' | 'gaps'>> = {}
 ): BniStatement {
   return {
     pullId: nextBniPullId(),
     pulledAt: at.toISOString(),
+    // The recorder ticks every 10 minutes (§ 16.8.3): "a few minutes ago".
+    recordedThrough: new Date(at.getTime() - 4 * 60_000).toISOString(),
+    historyAvailableSince: BNI_MOCK_HISTORY_SINCE,
+    gaps: [],
+    ...copyOverrides,
     applied,
     summary: createBniStatementSummary(rows, {
       currency: applied.role === 'TREASURY_USD' ? 'USD' : 'IDR',
       ...summaryOverrides,
     }),
     rows,
+  }
+}
+
+/**
+ * `POST …/statement/refresh` (USDX-692, yaml § BniStatementRefresh). `newEntries`
+ * 0 with `txCount` > 0 is the COMMON answer — the bank re-serves the whole day
+ * on every pull and the copy already holds most of it (§ 16.8.3).
+ */
+export function createBniStatementRefresh(
+  accountNo: string,
+  overrides: Partial<BniStatementRefresh> = {},
+  at: Date = new Date()
+): BniStatementRefresh {
+  const txCount = overrides.txCount ?? 12
+  return {
+    pullId: nextBniPullId(),
+    accountNo,
+    outcome: txCount === 0 ? 'EMPTY' : 'OK',
+    capturedAt: at.toISOString(),
+    txCount,
+    newEntries: 0,
+    ...overrides,
   }
 }
 

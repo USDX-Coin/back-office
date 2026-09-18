@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import { installMockApi } from './support/mock-api'
+import { test, expect, type Page } from '@playwright/test'
+import { ADMIN_STAFF, installMockApi, type MockBniStatementGap } from './support/mock-api'
 import { seedAuthenticatedSession } from './support/auth'
 
 // USDX-631 — backoffice "Rekening BNI" (sot/bni-integration.md § 16.4).
@@ -7,6 +7,9 @@ import { seedAuthenticatedSession } from './support/auth'
 // flows Vitest cannot see end to end: sidebar → page, three live cards, the
 // pull → table → CSV download in a real browser, and the "belum
 // dikonfigurasi" page state.
+//
+// USDX-692 (§ 16.8.8, D24): the statement is read from the USDX COPY — kolom
+// Sumber, "direkam s/d", banner riwayat, penanda selisih, Segarkan dari bank.
 
 test.describe('USDX-631 Rekening BNI @e2e', () => {
   test.describe('positive', () => {
@@ -42,6 +45,10 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       await page.getByRole('option', { name: 'Keluar' }).click()
       await page.getByRole('button', { name: '7 hari terakhir' }).click()
 
+      const refreshCalls: string[] = []
+      page.on('request', (r) => {
+        if (r.url().includes('/statement/refresh')) refreshCalls.push(r.url())
+      })
       const statementRequest = page.waitForRequest((r) => r.url().includes('/statement?'))
       await pull.click()
       const req = await statementRequest
@@ -53,6 +60,20 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       await expect(page.getByTestId('bni-statement-row-count')).toContainText('4 baris')
       // Only "Keluar" pills in the table body.
       await expect(page.getByRole('table').getByText('Masuk')).toHaveCount(0)
+      // USDX-692: kolom Sumber, header "direkam s/d … WIB" + pullId, ringkasan
+      // menurut salinan — and Tarik alone never asks the bank to refresh.
+      await expect(page.getByRole('columnheader', { name: 'Sumber' })).toBeVisible()
+      await expect(page.getByRole('table').getByText('BANK')).toHaveCount(4)
+      await expect(page.getByTestId('bni-statement-recorded-through')).toHaveText('direkam s/d 09/09/2026 14:30 WIB')
+      await expect(page.getByTestId('bni-statement-applied')).toContainText('pull 019e2b00-0000-7000-8000-000000000202')
+      // Statement pullId pairs with activity_log only (§ 16.8.8); the balance header keeps § 16.4.
+      await expect(page.getByTestId('bni-statement-applied').getByTitle('pullId (korelasi activity_log)', { exact: true })).toHaveCount(1)
+      await expect(page.getByTitle('pullId (korelasi activity_log ↔ api_call_log)', { exact: true })).toHaveCount(1)
+      await expect(page.getByTestId('bni-statement-summary')).toContainText('menurut salinan USDX')
+      await expect(page.getByTestId('bni-statement-summary')).not.toContainText('Rentang posting')
+      await expect(page.getByTestId('bni-statement-closing-balance')).toHaveText('Rp 504.500.000,00')
+      await expect(page.getByTestId('bni-statement-history-notice')).toHaveCount(0)
+      expect(refreshCalls).toHaveLength(0)
 
       const download = page.waitForEvent('download')
       await page.getByTestId('bni-statement-export-csv').click()
@@ -64,7 +85,8 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       const bytes = Buffer.concat(chunks)
       expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
       const text = bytes.subarray(3).toString('utf8')
-      expect(text.split('\n')[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang')
+      expect(text.split('\n')[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang,Sumber')
+      expect(text.split('\n')[1]).toMatch(/,BANK$/)
       expect(text.split('\n')).toHaveLength(1 + 4)
     })
   })
@@ -128,6 +150,167 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       await expect(page.getByRole('alert')).toContainText('31 hari')
       await expect(page.getByTestId('bni-statement-pull')).toBeDisabled()
       expect(statementCalls).toHaveLength(0)
+    })
+  })
+})
+
+// USDX-692 — sot/bni-integration.md § 16.8.8: the panel reads the USDX copy.
+test.describe('USDX-692 Rekening BNI — mutasi dari salinan @e2e', () => {
+  // WIB calendar day, `daysBack` days ago — the page computes its presets in WIB too.
+  function wibDay(daysBack = 0): string {
+    return new Date(Date.now() + 7 * 3_600_000 - daysBack * 86_400_000).toISOString().slice(0, 10)
+  }
+  const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+
+  const TWO_GAPS: MockBniStatementGap[] = [
+    { kind: 'BETWEEN_ENTRIES', afterAt: '20260917134015', afterBalance: '10014440.00', beforeAt: '20260918091233', beforeBalance: '10024451.00', difference: '10011.00' },
+    { kind: 'TAIL', afterAt: '20260918091233', afterBalance: '10024451.00', beforeAt: '202609181000', beforeBalance: '10000000.00', difference: null },
+  ]
+
+  // Every role may Tarik and Segarkan (§ 16 K5, yaml § Akses) — STAFF is the one
+  // most likely to be wrongly excluded.
+  const AS_STAFF = {
+    'GET /api/v1/auth/me': async (route: import('@playwright/test').Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'success', metadata: null, data: { ...ADMIN_STAFF, role: 'STAFF' } }),
+      })
+      return true
+    },
+  }
+
+  // Shared by the USDX-692 flows: pick Treasury NP, a preset, Tarik.
+  async function pullNp(page: Page, preset: 'Hari ini' | '7 hari terakhir' = 'Hari ini') {
+    await page.goto('/bni-accounts')
+    await expect(page.getByRole('heading', { name: /rekening bni/i })).toBeVisible({ timeout: 15000 })
+    await page.getByRole('combobox', { name: 'Rekening' }).click()
+    await page.getByRole('option', { name: /treasury np/i }).click()
+    await page.getByRole('button', { name: preset }).click()
+    await page.getByTestId('bni-statement-pull').click()
+    await expect(page.getByTestId('bni-statement-row-count')).toBeVisible()
+  }
+
+  test.describe('positive', () => {
+    test('STAFF: Tarik, then Segarkan dari bank → toast "2 mutasi baru terekam", table re-read with the applied params; again → "Tidak ada mutasi baru"', async ({ page }) => {
+      await installMockApi(page, { routes: AS_STAFF })
+      await seedAuthenticatedSession(page)
+      await page.goto('/bni-accounts')
+      await expect(page.getByRole('heading', { name: /rekening bni/i })).toBeVisible({ timeout: 15000 })
+      // The session really is STAFF (GET /auth/me re-validates the seeded profile).
+      await expect(page.getByText('STAFF', { exact: true }).first()).toBeVisible()
+      const refresh = page.getByTestId('bni-statement-refresh')
+      // idle: nothing pulled yet → nothing to refresh.
+      await expect(refresh).toBeDisabled()
+
+      await pullNp(page)
+      await expect(page.getByTestId('bni-statement-row-count')).toContainText('12 baris')
+      const statementUrls: string[] = []
+      page.on('request', (r) => {
+        if (r.url().includes('/statement?')) statementUrls.push(r.url())
+      })
+
+      const refreshRequest = page.waitForRequest((r) => r.url().includes('/statement/refresh'))
+      await refresh.click()
+      const req = await refreshRequest
+      expect(req.method()).toBe('POST')
+      expect(req.url()).toContain('/bni-accounts/108098391/statement/refresh')
+      expect(req.postData()).toBeNull()
+
+      await expect(page.getByText('2 mutasi baru terekam')).toBeVisible()
+      await expect(page.getByTestId('bni-statement-row-count')).toContainText('14 baris')
+      expect(statementUrls).toHaveLength(1)
+      expect(statementUrls[0]).toContain('/bni-accounts/108098391/statement?')
+
+      await expect(refresh).toBeEnabled()
+      await refresh.click()
+      await expect(page.getByText('Tidak ada mutasi baru')).toBeVisible()
+    })
+
+    test('history starting in the MIDDLE of the range + two gaps → banner and two warnings ABOVE a table that still holds rows', async ({ page }) => {
+      const since = wibDay(2)
+      await installMockApi(page, { bniStatementCopy: { historyAvailableSince: since, gaps: TWO_GAPS } })
+      await seedAuthenticatedSession(page)
+      await pullNp(page, '7 hari terakhir')
+
+      const notice = page.getByTestId('bni-statement-history-notice')
+      await expect(notice).toHaveCount(1)
+      await expect(notice).toContainText(
+        `Riwayat tersedia sejak ${dmy(since)} — untuk tanggal sebelumnya lihat portal BNIDirect`,
+      )
+      const gaps = page.getByTestId('bni-statement-gap')
+      await expect(gaps).toHaveCount(2)
+      await expect(gaps.nth(0)).toContainText('antara 2026-09-17 13:40:15 dan 2026-09-18 09:12:33 — selisih +Rp 10.011,00')
+      await expect(gaps.nth(1)).toContainText('nominal tidak dapat dihitung')
+      // K15: no dismiss / ignore control on a gap.
+      await expect(gaps.getByRole('button')).toHaveCount(0)
+
+      // The table is still filled, and both notices sit ABOVE it.
+      await expect(page.getByTestId('bni-statement-row-count')).toContainText('12 baris')
+      const noticeBox = (await notice.boundingBox())!
+      const lastGapBox = (await gaps.nth(1).boundingBox())!
+      const tableBox = (await page.getByRole('table').boundingBox())!
+      expect(noticeBox.y).toBeLessThan(tableBox.y)
+      expect(lastGapBox.y).toBeLessThan(tableBox.y)
+    })
+  })
+
+  test.describe('negative', () => {
+    test('refresh during bank EOD → the bank reason verbatim while the copy\'s table stays', async ({ page }) => {
+      await installMockApi(page, {
+        routes: {
+          'POST /api/v1/bni-accounts/108098391/statement/refresh': async (route) => {
+            await route.fulfill({
+              status: 502,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                status: 'error',
+                metadata: null,
+                data: null,
+                error: {
+                  code: 'BNI_BANK_REJECTED',
+                  message: 'Bank rejected the inquiry',
+                  details: { bankReason: 'MW - EOD - Please try again at 01:00 AM' },
+                },
+              }),
+            })
+            return true
+          },
+        },
+      })
+      await seedAuthenticatedSession(page)
+      await pullNp(page)
+
+      await page.getByTestId('bni-statement-refresh').click()
+      await expect(page.getByTestId('bni-statement-refresh-error')).toContainText('MW - EOD - Please try again at 01:00 AM')
+      await expect(page.getByTestId('bni-statement-row-count')).toContainText('12 baris')
+      await expect(page.getByRole('table').getByRole('row')).toHaveCount(1 + 10)
+    })
+  })
+
+  test.describe('edge cases', () => {
+    test('a range ENTIRELY before the history → only the history banner, never "Tidak ada mutasi terekam"', async ({ page }) => {
+      const since = wibDay(-400) // history starts long after the pulled range
+      await installMockApi(page, { bniStatementCopy: { historyAvailableSince: since } })
+      await seedAuthenticatedSession(page)
+      await pullNp(page, '7 hari terakhir')
+
+      await expect(page.getByTestId('bni-statement-row-count')).toContainText('0 baris')
+      await expect(page.getByTestId('bni-statement-history-notice')).toHaveCount(1)
+      await expect(page.getByTestId('bni-statement-history-notice')).toContainText(`Riwayat tersedia sejak ${dmy(since)}`)
+      await expect(page.getByText(/Tidak ada mutasi terekam/)).toHaveCount(0)
+      await expect(page.getByTestId('bni-statement-export-csv')).toBeDisabled()
+    })
+
+    test('never recorded (both null) → "belum pernah direkam" + a dateless banner, no "Invalid Date"', async ({ page }) => {
+      await installMockApi(page, { bniStatementCopy: { recordedThrough: null, historyAvailableSince: null } })
+      await seedAuthenticatedSession(page)
+      await pullNp(page)
+
+      await expect(page.getByTestId('bni-statement-recorded-through')).toHaveText('belum pernah direkam')
+      await expect(page.getByTestId('bni-statement-history-notice')).toContainText('belum pernah direkam')
+      await expect(page.getByText(/Tidak ada mutasi terekam/)).toHaveCount(0)
+      await expect(page.locator('body')).not.toContainText('Invalid Date')
     })
   })
 })
