@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Download, History, Loader2, Play } from 'lucide-react'
+import { Download, History, Loader2, Play, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import DateRangeFields from '@/components/DateRangeFields'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -16,9 +17,9 @@ import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { validateDateRange } from '@/lib/dateRange'
 import { formatBankAmount } from '@/lib/format'
 import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
-import { describeBniError } from './errors'
-import { useBniStatement, type BniStatementParams } from './hooks'
-import { historyNotice, recordedThroughLabel } from './statementCopy'
+import { describeBniError, type BniErrorView } from './errors'
+import { useBniStatement, useRefreshStatement, type BniStatementParams } from './hooks'
+import { historyNotice, recordedThroughLabel, refreshResultText } from './statementCopy'
 import { exportStatementCsv } from './statementCsv'
 import StatementNotices from './StatementNotices'
 import { sortStatementRows } from './statementRows'
@@ -55,18 +56,59 @@ function sameParams(a: BniStatementParams, b: BniStatementParams): boolean {
   )
 }
 
+// § 16.8.8 "Segarkan dari bank": ONE bank pull for today, stored into the copy.
+// It targets the APPLIED account (the one the header names), so it is inert in
+// the `idle` state — before any account has been pulled there is nothing to
+// re-read once the bank has answered.
+function RefreshButton({
+  onRefresh,
+  disabled,
+  refreshing,
+}: {
+  onRefresh?: () => void
+  disabled: boolean
+  refreshing: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onRefresh}
+      disabled={disabled}
+      title="Tarik mutasi hari ini dari bank lalu simpan ke salinan"
+      data-testid="bni-statement-refresh"
+    >
+      {refreshing ? (
+        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+      ) : (
+        <RefreshCw className="mr-1.5 h-4 w-4" />
+      )}
+      Segarkan dari bank
+    </Button>
+  )
+}
+
 function ResultsHeader({
   applied,
   accountLabel,
   statement,
   onExport,
   exportDisabled,
+  onRefresh,
+  refreshDisabled,
+  refreshing,
+  refreshError,
 }: {
   applied: BniStatementParams
   accountLabel: string
   statement: BniStatement | undefined
   onExport: () => void
   exportDisabled: boolean
+  onRefresh: () => void
+  refreshDisabled: boolean
+  refreshing: boolean
+  refreshError: BniErrorView | null
 }) {
   const summary = statement?.summary
   const rows = statement?.rows ?? []
@@ -102,18 +144,34 @@ function ResultsHeader({
             )}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onExport}
-          disabled={exportDisabled}
-          data-testid="bni-statement-export-csv"
-        >
-          <Download className="mr-1.5 h-4 w-4" />
-          Unduh CSV
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <RefreshButton onRefresh={onRefresh} disabled={refreshDisabled} refreshing={refreshing} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onExport}
+            disabled={exportDisabled}
+            data-testid="bni-statement-export-csv"
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            Unduh CSV
+          </Button>
+        </div>
       </div>
+
+      {/* A failed refresh changes nothing in the copy: the table under this
+          line stays exactly as it was (§ 16.8.8). Inline, not a toast — the
+          bank's own reason must stay readable. */}
+      {refreshError && (
+        <p
+          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+          role="alert"
+          data-testid="bni-statement-refresh-error"
+        >
+          Segarkan dari bank gagal — {refreshError.message}
+        </p>
+      )}
 
       <StatementNotices
         historyText={historyAboveTable}
@@ -182,6 +240,7 @@ export default function StatementPanel({ accounts }: Props) {
   const [draft, setDraft] = useState<Draft>(INITIAL_DRAFT)
   const [applied, setApplied] = useState<BniStatementParams | null>(null)
   const statement = useBniStatement(applied)
+  const refresh = useRefreshStatement(applied?.accountNo ?? null)
   const tableParams = useDataTableParams()
 
   // "Today" is read when a preset / Tarik is pressed, not at mount — an
@@ -208,12 +267,25 @@ export default function StatementPanel({ accounts }: Props) {
     // page the operator was on, and a stale `?page=` would render a false
     // "no rows" state (review finding, USDX-631).
     tableParams.updateParams({ page: null })
+    // A refresh failure belongs to the result it was shown on.
+    refresh.reset()
     if (applied && sameParams(applied, next)) {
       // Same parameters again = an explicit re-pull, never a cache hit.
       void statement.refetch()
       return
     }
     setApplied(next)
+  }
+
+  function refreshFromBank() {
+    if (!applied || refresh.isPending) return
+    refresh.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(refreshResultText(result))
+        // Re-read the copy under the APPLIED key — never the live form.
+        void statement.refetch()
+      },
+    })
   }
 
   const appliedAccount = applied
@@ -314,11 +386,16 @@ export default function StatementPanel({ accounts }: Props) {
 
       <div className="rounded-md border border-border bg-card">
         {applied === null ? (
-          <TableEmptyState
-            mode="no-data"
-            title="Belum ada tarikan"
-            description="Pilih rekening dan rentang, lalu tekan Tarik untuk melihat mutasi."
-          />
+          <>
+            <div className="flex justify-end border-b border-border px-4 py-3">
+              <RefreshButton disabled refreshing={false} />
+            </div>
+            <TableEmptyState
+              mode="no-data"
+              title="Belum ada tarikan"
+              description="Pilih rekening dan rentang, lalu tekan Tarik untuk melihat mutasi."
+            />
+          </>
         ) : errorView ? (
           <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert">
             <p className="text-[13px] font-medium text-destructive">{errorView.message}</p>
@@ -347,6 +424,10 @@ export default function StatementPanel({ accounts }: Props) {
                 accountLabel={statement.data?.applied.label ?? appliedAccount?.label ?? 'Rekening'}
                 statement={statement.data}
                 exportDisabled={sorted.length === 0 || statement.isFetching}
+                onRefresh={refreshFromBank}
+                refreshDisabled={refresh.isPending || statement.isFetching}
+                refreshing={refresh.isPending}
+                refreshError={refresh.error ? describeBniError(refresh.error) : null}
                 onExport={() => {
                   if (!statement.data) return
                   exportStatementCsv(statement.data.applied, statement.data.rows)

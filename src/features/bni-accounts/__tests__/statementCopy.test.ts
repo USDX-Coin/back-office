@@ -1,6 +1,11 @@
 import { describe, test, expect } from 'vitest'
 import type { BniStatementGap } from '@/lib/types'
-import { gapNoticeText, historyNotice, recordedThroughLabel } from '../statementCopy'
+import {
+  gapNoticeText,
+  historyNotice,
+  recordedThroughLabel,
+  refreshResultText,
+} from '../statementCopy'
 
 // USDX-692 — sot/bni-integration.md § 16.8.8: "direkam s/d", banner riwayat,
 // penanda selisih.
@@ -116,6 +121,26 @@ describe('gapNoticeText', () => {
 
     test('an unparsable difference is "tidak dapat dihitung", never NaN', () => {
       expect(gapNoticeText({ ...GAP, difference: '10 011' }, 'IDR')).toContain('nominal tidak dapat dihitung')
+    })
+  })
+})
+
+describe('refreshResultText', () => {
+  describe('positive', () => {
+    test('N new entries → "N mutasi baru terekam"', () => {
+      expect(refreshResultText({ newEntries: 2 })).toBe('2 mutasi baru terekam')
+    })
+  })
+
+  describe('negative', () => {
+    test('zero new entries → "Tidak ada mutasi baru"', () => {
+      expect(refreshResultText({ newEntries: 0 })).toBe('Tidak ada mutasi baru')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a nonsensical negative count never reads as new entries', () => {
+      expect(refreshResultText({ newEntries: -1 })).toBe('Tidak ada mutasi baru')
     })
   })
 })

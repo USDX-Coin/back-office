@@ -1,5 +1,5 @@
 import { formatBankAmount, formatBniPostDate, formatIsoDayDmy, formatWibDayMinute } from '@/lib/format'
-import type { BniStatementGap } from '@/lib/types'
+import type { BniStatementGap, BniStatementRefresh } from '@/lib/types'
 
 // USDX-692 — sot/bni-integration.md § 16.8.8. Since D24 the statement is read
 // from the USDX copy, so the screen owes the operator three honest answers the
@@ -75,4 +75,9 @@ export function gapNoticeText(gap: BniStatementGap, currency: string | null | un
   const amount = gap.difference == null ? null : signedAmount(gap.difference, currency)
   const difference = amount ? `selisih ${amount}` : 'selisih nominal tidak dapat dihitung'
   return `Ada mutasi yang tidak terekam antara ${after} dan ${before} — ${difference}. Cek rekening koran di ${PORTAL}.`
+}
+
+/** Toast after "Segarkan dari bank": "N mutasi baru terekam" / "Tidak ada mutasi baru". */
+export function refreshResultText(result: Pick<BniStatementRefresh, 'newEntries'>): string {
+  return result.newEntries > 0 ? `${result.newEntries} mutasi baru terekam` : 'Tidak ada mutasi baru'
 }
