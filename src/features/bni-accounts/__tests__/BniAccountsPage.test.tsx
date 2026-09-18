@@ -348,6 +348,15 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
         /^direkam s\/d \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} WIB$/
       )
       expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent(/pull 019e2b00-/)
+      // § 16.8.8 (keputusan PM, PR #112): reading the copy never contacts the
+      // bank, so the STATEMENT pullId pairs with activity_log only. The balance
+      // header still reaches the bank and keeps the § 16.4 text.
+      const statementPull = within(screen.getByTestId('bni-statement-applied')).getByText(/^pull 019e2b00-/)
+      expect(statementPull).toHaveAttribute('title', 'pullId (korelasi activity_log)')
+      const balancePulls = screen
+        .getAllByTitle('pullId (korelasi activity_log ↔ api_call_log)')
+        .filter((el) => !screen.getByTestId('bni-statement-applied').contains(el))
+      expect(balancePulls).toHaveLength(1)
       // Tarik reads the copy: it never asks the bank to refresh.
       expect(probe.urls.some((u) => u.includes('/statement/refresh'))).toBe(false)
       probe.stop()

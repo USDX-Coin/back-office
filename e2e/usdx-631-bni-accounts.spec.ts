@@ -66,6 +66,9 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       await expect(page.getByRole('table').getByText('BANK')).toHaveCount(4)
       await expect(page.getByTestId('bni-statement-recorded-through')).toHaveText('direkam s/d 09/09/2026 14:30 WIB')
       await expect(page.getByTestId('bni-statement-applied')).toContainText('pull 019e2b00-0000-7000-8000-000000000202')
+      // Statement pullId pairs with activity_log only (§ 16.8.8); the balance header keeps § 16.4.
+      await expect(page.getByTestId('bni-statement-applied').getByTitle('pullId (korelasi activity_log)', { exact: true })).toHaveCount(1)
+      await expect(page.getByTitle('pullId (korelasi activity_log ↔ api_call_log)', { exact: true })).toHaveCount(1)
       await expect(page.getByTestId('bni-statement-summary')).toContainText('menurut salinan USDX')
       await expect(page.getByTestId('bni-statement-summary')).not.toContainText('Rentang posting')
       await expect(page.getByTestId('bni-statement-closing-balance')).toHaveText('Rp 504.500.000,00')
