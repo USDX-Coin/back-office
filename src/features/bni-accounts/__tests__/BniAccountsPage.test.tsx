@@ -688,6 +688,86 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       // Above the table, not inside it.
       expect(notice.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
+
+    test('two gaps → two warnings with both bracketing times + the difference in the account currency, no dismiss control', async () => {
+      const user = userEvent.setup()
+      server.use(
+        statementHandler(createBniStatementRows(3, TODAY, TODAY), {
+          gaps: [
+            {
+              kind: 'BETWEEN_ENTRIES',
+              afterAt: '20260917134015',
+              afterBalance: '10014440.00',
+              beforeAt: '20260918091233',
+              beforeBalance: '10024451.00',
+              difference: '10011.00',
+            },
+            {
+              kind: 'TAIL',
+              afterAt: '20260918091233',
+              afterBalance: '10024451.00',
+              beforeAt: '202609181000',
+              beforeBalance: '10000000.00',
+              difference: null,
+            },
+          ],
+        })
+      )
+      await pullNp(user)
+
+      const gaps = screen.getAllByTestId('bni-statement-gap')
+      expect(gaps).toHaveLength(2)
+      expect(gaps[0]).toHaveTextContent(
+        'Ada mutasi yang tidak terekam antara 2026-09-17 13:40:15 dan 2026-09-18 09:12:33 — selisih +Rp 10.011,00. Cek rekening koran di portal BNIDirect.'
+      )
+      expect(gaps[1]).toHaveTextContent('antara 2026-09-18 09:12:33 dan 2026-09-18 10:00')
+      expect(gaps[1]).toHaveTextContent('nominal tidak dapat dihitung')
+      // K15: a gap cannot be dismissed or ignored.
+      for (const gap of gaps) expect(within(gap).queryByRole('button')).not.toBeInTheDocument()
+      // The table is still there, under the warnings.
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris')
+    })
+
+    test('a USD account formats the gap difference in dollars', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
+          const url = new URL(request.url)
+          return envelope(
+            createBniStatement(
+              {
+                accountNo: String(params.accountNo),
+                role: 'TREASURY_USD',
+                label: 'Treasury USD (Giro USD)',
+                startDate: url.searchParams.get('startDate') ?? '',
+                endDate: url.searchParams.get('endDate') ?? '',
+                type: 'ALL',
+              },
+              [],
+              {},
+              new Date(),
+              {
+                gaps: [
+                  {
+                    kind: 'TAIL',
+                    afterAt: null,
+                    afterBalance: null,
+                    beforeAt: '202609181000',
+                    beforeBalance: '12500.75',
+                    difference: '-1250.50',
+                  },
+                ],
+              }
+            )
+          )
+        })
+      )
+      await pullNp(user)
+
+      expect(screen.getByTestId('bni-statement-gap')).toHaveTextContent(
+        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1,250.50.'
+      )
+    })
   })
 
   describe('negative', () => {
@@ -701,12 +781,13 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
     })
 
-    test('a range inside the history shows no banner', async () => {
+    test('a range inside the history with an unbroken chain shows no banner at all', async () => {
       const user = userEvent.setup()
       server.use(statementHandler([], { historyAvailableSince: shiftIsoDate(TODAY, -10) }))
       await pullNp(user)
 
       expect(screen.queryByTestId('bni-statement-history-notice')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('bni-statement-gap')).not.toBeInTheDocument()
       expect(screen.getByText('Tidak ada mutasi terekam pada rentang ini')).toBeInTheDocument()
     })
   })

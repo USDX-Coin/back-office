@@ -115,7 +115,11 @@ function ResultsHeader({
         </Button>
       </div>
 
-      <StatementNotices historyText={historyAboveTable} />
+      <StatementNotices
+        historyText={historyAboveTable}
+        gaps={statement?.gaps ?? []}
+        currency={summary?.currency}
+      />
 
       {summary && (
         <dl
