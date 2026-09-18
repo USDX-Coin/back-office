@@ -1270,16 +1270,22 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const endDate = url.searchParams.get('endDate') ?? ''
       const type = url.searchParams.get('type') ?? 'ALL'
       const refreshed = bniRefreshedEntries.get(account.accountNo) ?? 0
-      const rows = seedBniStatementRows(startDate, endDate, BNI_BASE_ROWS + refreshed).filter((r) =>
+      const copy = opts.bniStatementCopy ?? {}
+      // K18: the copy holds nothing older than its first capture (and nothing at
+      // all when it never recorded) — such a range is valid and EMPTY.
+      const since = copy.historyAvailableSince === undefined ? '2026-09-01' : copy.historyAvailableSince
+      const recorded =
+        since === null || endDate < since
+          ? []
+          : seedBniStatementRows(startDate < since ? since : startDate, endDate, BNI_BASE_ROWS + refreshed)
+      const rows = recorded.filter((r) =>
         type === 'ALL' ? true : type === 'CREDIT' ? r.flag === 'C' : r.flag === 'D',
       )
-      const copy = opts.bniStatementCopy ?? {}
       return envelope(route, {
         pullId: '019e2b00-0000-7000-8000-000000000202',
         pulledAt: '2026-09-09T07:32:10.000Z',
         recordedThrough: copy.recordedThrough === undefined ? '2026-09-09T07:30:00.000Z' : copy.recordedThrough,
-        historyAvailableSince:
-          copy.historyAvailableSince === undefined ? '2026-09-01' : copy.historyAvailableSince,
+        historyAvailableSince: since,
         gaps: copy.gaps ?? [],
         applied: { ...account, startDate, endDate, type },
         summary: {
