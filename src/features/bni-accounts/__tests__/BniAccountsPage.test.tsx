@@ -348,7 +348,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
       const text = new TextDecoder().decode(bytes.slice(3))
       const lines = text.split('\n')
-      expect(lines[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang')
+      expect(lines[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang,Sumber')
       expect(lines).toHaveLength(1 + 120)
       const [postDate, flag, amount] = lines[1]!.split(',')
       expect(postDate).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)

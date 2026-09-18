@@ -7,7 +7,7 @@ import {
   toStatementCsvRows,
 } from '../statementCsv'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "CSV" (K6).
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "CSV" (K6) + § 16.8.8 (kolom sumber).
 
 function row(over: Partial<BniStatementRow>): BniStatementRow {
   return {
@@ -28,7 +28,7 @@ function row(over: Partial<BniStatementRow>): BniStatementRow {
 
 describe('toStatementCsvRows', () => {
   describe('positive', () => {
-    test('maps the seven bank columns: formatted date, D/C, unsigned amount', () => {
+    test('maps the seven bank columns + sumber: formatted date, D/C, unsigned amount', () => {
       const [out] = toStatementCsvRows([row({ flag: 'D' })])
       expect(out).toEqual({
         postDate: '2026-09-09 14:30:05',
@@ -38,13 +38,14 @@ describe('toStatementCsvRows', () => {
         description: 'TRF DARI BUDI',
         journalNo: '100001',
         branchName: 'KCP SUDIRMAN',
+        source: 'BANK',
       })
       expect(out!.amount.startsWith('-')).toBe(false)
     })
 
     test('header row follows the SoT column order', () => {
       const csv = buildCsvContent(toStatementCsvRows([]), STATEMENT_CSV_COLUMNS)
-      expect(csv).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang')
+      expect(csv).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang,Sumber')
     })
   })
 
@@ -77,6 +78,14 @@ describe('toStatementCsvRows', () => {
         STATEMENT_CSV_COLUMNS
       )
       expect(csv).toContain(`'=HYPERLINK`)
+    })
+
+    test('sumber carries the table label: UPLOAD → UNGGAHAN, an unknown value as-is', () => {
+      const out = toStatementCsvRows([
+        row({ source: 'UPLOAD', postDate: '20260909000002' }),
+        row({ source: 'X' as BniStatementRow['source'], postDate: '20260909000001' }),
+      ])
+      expect(out.map((r) => r.source)).toEqual(['UNGGAHAN', 'X'])
     })
   })
 })

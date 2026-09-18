@@ -1,9 +1,10 @@
 import { exportToCsv } from '@/lib/csv'
 import { formatBniPostDate } from '@/lib/format'
 import type { BniStatementApplied, BniStatementRow } from '@/lib/types'
-import { sortStatementRows } from './statementRows'
+import { sortStatementRows, statementSourceLabel } from './statementRows'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "CSV" (K6): the WHOLE filtered
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "CSV" (K6) + § 16.8.8
+// (kolom `sumber`, same label as the table): the WHOLE filtered
 // result in table order, bank columns as-is, amount unsigned + a D/C column,
 // `postDate` re-punctuated, MALFORMED cells EMPTY (not "—"), BOM opt-in. The
 // formula guard in `lib/csv` still applies to descriptions starting with
@@ -17,6 +18,7 @@ export interface StatementCsvRow {
   description: string
   journalNo: string
   branchName: string
+  source: string
 }
 
 export const STATEMENT_CSV_COLUMNS: { key: keyof StatementCsvRow; header: string }[] = [
@@ -27,6 +29,7 @@ export const STATEMENT_CSV_COLUMNS: { key: keyof StatementCsvRow; header: string
   { key: 'description', header: 'Deskripsi' },
   { key: 'journalNo', header: 'No. Jurnal' },
   { key: 'branchName', header: 'Cabang' },
+  { key: 'source', header: 'Sumber' },
 ]
 
 function cell(value: string | null | undefined): string {
@@ -44,6 +47,7 @@ export function toStatementCsvRows(rows: readonly BniStatementRow[]): StatementC
       description: row.description,
       journalNo: cell(row.journalNo),
       branchName: cell(row.branchName),
+      source: statementSourceLabel(row.source),
     }
   })
 }
