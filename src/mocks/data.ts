@@ -2062,6 +2062,11 @@ export function createBniStatementRows(
     const ss = String((i * 13) % 60).padStart(2, '0')
     const ymd = stamp.toISOString().slice(0, 10).replace(/-/g, '')
     rows.push({
+      // Stable per (window, position): the same pull twice yields the same ids,
+      // like `statement_entries.id` does across reads of the copy.
+      id: `019e2b10-${ymd.slice(0, 4)}-7${ymd.slice(4, 7)}-8000-${String(i).padStart(12, '0')}`,
+      source: 'BANK',
+      recordedAt: new Date(start + dayIndex * 86_400_000 + (i % 12) * 3_600_000).toISOString(),
       postDate: `${ymd}${hh}${mm}${ss}`,
       flag,
       amount: `${amount}.00`,
@@ -2099,15 +2104,24 @@ function createBniStatementSummary(
   }
 }
 
+/** Hari rilis D24 di data tiruan — riwayat salinan mulai di sini (K18, tanpa backfill). */
+export const BNI_MOCK_HISTORY_SINCE = '2026-09-01'
+
 export function createBniStatement(
   applied: BniStatementApplied,
   rows: BniStatementRow[],
   summaryOverrides: Partial<BniStatementSummary> = {},
-  at: Date = new Date()
+  at: Date = new Date(),
+  copyOverrides: Partial<Pick<BniStatement, 'recordedThrough' | 'historyAvailableSince' | 'gaps'>> = {}
 ): BniStatement {
   return {
     pullId: nextBniPullId(),
     pulledAt: at.toISOString(),
+    // The recorder ticks every 10 minutes (§ 16.8.3): "a few minutes ago".
+    recordedThrough: new Date(at.getTime() - 4 * 60_000).toISOString(),
+    historyAvailableSince: BNI_MOCK_HISTORY_SINCE,
+    gaps: [],
+    ...copyOverrides,
     applied,
     summary: createBniStatementSummary(rows, {
       currency: applied.role === 'TREASURY_USD' ? 'USD' : 'IDR',

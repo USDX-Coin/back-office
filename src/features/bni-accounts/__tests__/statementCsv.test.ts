@@ -11,6 +11,9 @@ import {
 
 function row(over: Partial<BniStatementRow>): BniStatementRow {
   return {
+    id: '019e2b10-0000-7000-8000-000000000001',
+    source: 'BANK',
+    recordedAt: '2026-09-09T07:30:05.000Z',
     postDate: '20260909143005',
     flag: 'C',
     amount: '1500000.00',

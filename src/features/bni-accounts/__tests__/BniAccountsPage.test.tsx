@@ -568,6 +568,9 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       const user = userEvent.setup()
       const good = createBniStatementRows(3, TODAY, TODAY)
       const bad: BniStatementRow = {
+        id: '019e2b10-0000-7000-8000-0000000000ba',
+        source: 'BANK',
+        recordedAt: '2026-09-09T07:30:05.000Z',
         postDate: null,
         flag: 'C',
         amount: null,
