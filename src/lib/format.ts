@@ -209,3 +209,36 @@ export function formatWibDateTime(iso: string | null | undefined): string {
   const hour = part('hour') === '24' ? '00' : part('hour')
   return `${part('year')}-${part('month')}-${part('day')} ${hour}:${part('minute')}:${part('second')} WIB`
 }
+
+// ─── Salinan mutasi BNI (USDX-692, sot/bni-integration.md § 16.8.8) ─────────
+
+/**
+ * `DD/MM/YYYY HH:mm WIB` — the "direkam s/d" stamp of the statement copy.
+ * Minute precision on purpose: the recorder ticks every 10 minutes, so seconds
+ * add digits without adding an answer. Null / unparsable → `null` (NOT "—"):
+ * the caller has a sentence of its own for "never recorded".
+ */
+export function formatWibDayMinute(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    WIB_DATETIME_FMT.formatToParts(date).find((p) => p.type === type)?.value ?? ''
+  const hour = part('hour') === '24' ? '00' : part('hour')
+  return `${part('day')}/${part('month')}/${part('year')} ${hour}:${part('minute')} WIB`
+}
+
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/**
+ * A WIB calendar day `YYYY-MM-DD` → `DD/MM/YYYY`, re-punctuated WITHOUT going
+ * through `Date` (it is already a WIB day; parsing would shift it into the
+ * browser's zone). Anything else → `null`, never "Invalid Date".
+ */
+export function formatIsoDayDmy(day: string | null | undefined): string | null {
+  if (!day) return null
+  const m = ISO_DAY.exec(day)
+  if (!m) return null
+  const [, y, mo, d] = m
+  return `${d}/${mo}/${y}`
+}
