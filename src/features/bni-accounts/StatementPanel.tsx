@@ -292,13 +292,13 @@ export default function StatementPanel({ accounts }: Props) {
               // § 16.8.8: a range the copy cannot cover is NOT "no mutations" —
               // the operator is pointed at the portal, never told the account was quiet.
               history?.kind === 'entire' ? (
-                <div data-testid="bni-statement-history-notice">
-                  <TableEmptyState
-                    mode="no-data"
-                    icon={<History className="h-10 w-10" strokeWidth={1.5} />}
-                    title="Rentang ini di luar riwayat salinan"
-                    description={history.text}
-                  />
+                <div
+                  className="flex flex-col items-center gap-3 px-4 py-12 text-center"
+                  role="status"
+                  data-testid="bni-statement-history-notice"
+                >
+                  <History className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} aria-hidden />
+                  <p className="max-w-xl text-[13px] font-medium text-foreground">{history.text}</p>
                 </div>
               ) : (
                 <TableEmptyState
