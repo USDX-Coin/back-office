@@ -14,17 +14,20 @@ import {
 } from '@/components/ui/select'
 import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { validateDateRange } from '@/lib/dateRange'
-import { formatBankAmount, formatWibDateTime } from '@/lib/format'
+import { formatBankAmount } from '@/lib/format'
 import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
 import { describeBniError } from './errors'
 import { useBniStatement, type BniStatementParams } from './hooks'
+import { recordedThroughLabel } from './statementCopy'
 import { exportStatementCsv } from './statementCsv'
 import { sortStatementRows } from './statementRows'
 import { anomalyLine, countAnomalyRows, STATEMENT_TYPE_LABEL } from './statementSummary'
 import StatementTable from './StatementTable'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "Panel mutasi" / "Ringkasan" /
-// "Tabel" / "CSV". The form is a DRAFT; "Tarik" snapshots it into the applied
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Panel mutasi" /
+// "Ringkasan" / "Tabel" / "CSV", amended by § 16.8.8 (D24): "Tarik" reads the
+// USDX COPY of the statement — zero bank contact — so the result header says
+// until when that copy was recorded. The form is a DRAFT; "Tarik" snapshots it into the applied
 // params that key the query, so the result header always names what was
 // actually pulled even while the operator edits the form.
 
@@ -81,7 +84,10 @@ function ResultsHeader({
             {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
             {statement && (
               <>
-                {' · '}Tarikan {formatWibDateTime(statement.pulledAt)}
+                {' · '}
+                <span data-testid="bni-statement-recorded-through">
+                  {recordedThroughLabel(statement.recordedThrough)}
+                </span>
                 {' · '}
                 <span title="pullId (korelasi activity_log ↔ api_call_log)">pull {statement.pullId}</span>
               </>
@@ -334,8 +340,8 @@ export default function StatementPanel({ accounts }: Props) {
             emptyState={
               <TableEmptyState
                 mode="no-data"
-                title="Tidak ada mutasi pada rentang ini"
-                description="Bank tidak mengembalikan transaksi untuk rekening, rentang, dan jenis yang diterapkan."
+                title="Tidak ada mutasi terekam pada rentang ini"
+                description="Salinan USDX tidak memuat mutasi untuk rekening, rentang, dan jenis yang diterapkan."
               />
             }
           />

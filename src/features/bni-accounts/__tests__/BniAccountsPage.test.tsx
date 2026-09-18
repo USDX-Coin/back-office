@@ -332,6 +332,13 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(screen.getByTestId('bni-statement-closing-balance')).toHaveTextContent('Rp 494.000.000,00')
       expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('4 baris ditampilkan')
       expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent('Keluar')
+      // § 16.8.8 header hasil: parameter terapan · "direkam s/d … WIB" · pullId.
+      expect(screen.getByTestId('bni-statement-recorded-through')).toHaveTextContent(
+        /^direkam s\/d \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} WIB$/
+      )
+      expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent(/pull 019e2b00-/)
+      // Tarik reads the copy: it never asks the bank to refresh.
+      expect(probe.urls.some((u) => u.includes('/statement/refresh'))).toBe(false)
       probe.stop()
     })
 
@@ -382,7 +389,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       probe.stop()
     })
 
-    test('empty result → "Tidak ada mutasi pada rentang ini" and Unduh CSV disabled', async () => {
+    test('empty result → "Tidak ada mutasi terekam pada rentang ini" (never blames the bank) and Unduh CSV disabled', async () => {
       const user = userEvent.setup()
       server.use(statementHandler([]))
       renderPage()
@@ -390,7 +397,8 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await pickAccount(user, /treasury np/i)
       setRange(TODAY, TODAY)
       await user.click(pullButton())
-      expect(await screen.findByText('Tidak ada mutasi pada rentang ini')).toBeInTheDocument()
+      expect(await screen.findByText('Tidak ada mutasi terekam pada rentang ini')).toBeInTheDocument()
+      expect(screen.queryByText(/Bank tidak mengembalikan transaksi/)).not.toBeInTheDocument()
       expect(screen.getByTestId('bni-statement-export-csv')).toBeDisabled()
     })
 
@@ -532,7 +540,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('5 baris'))
       // Back on page 1 with the 5 rows visible — not an empty slice of page 3.
       expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
-      expect(screen.queryByText('Tidak ada mutasi pada rentang ini')).not.toBeInTheDocument()
+      expect(screen.queryByText('Tidak ada mutasi terekam pada rentang ini')).not.toBeInTheDocument()
     })
 
     test('changing the account in the form after a pull keeps the APPLIED account in the results header', async () => {
