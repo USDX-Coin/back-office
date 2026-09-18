@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, History, Loader2, Play, RefreshCw } from 'lucide-react'
+import { History, Loader2, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import DateRangeFields from '@/components/DateRangeFields'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -15,23 +15,23 @@ import {
 } from '@/components/ui/select'
 import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { validateDateRange } from '@/lib/dateRange'
-import { formatBankAmount } from '@/lib/format'
-import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
-import { describeBniError, type BniErrorView } from './errors'
+import type { BniAccount, BniStatementType } from '@/lib/types'
+import { describeBniError } from './errors'
 import { useBniStatement, useRefreshStatement, type BniStatementParams } from './hooks'
-import { historyNotice, recordedThroughLabel, refreshResultText } from './statementCopy'
+import { historyNotice, refreshResultText } from './statementCopy'
 import { exportStatementCsv } from './statementCsv'
-import StatementNotices from './StatementNotices'
+import StatementRefreshButton from './StatementRefreshButton'
+import StatementResultsHeader from './StatementResultsHeader'
 import { sortStatementRows } from './statementRows'
-import { anomalyLine, countAnomalyRows, STATEMENT_TYPE_LABEL } from './statementSummary'
+import { STATEMENT_TYPE_LABEL } from './statementSummary'
 import StatementTable from './StatementTable'
 
-// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Panel mutasi" /
-// "Ringkasan" / "Tabel" / "CSV", amended by § 16.8.8 (D24): "Tarik" reads the
-// USDX COPY of the statement — zero bank contact — so the result header says
-// until when that copy was recorded. The form is a DRAFT; "Tarik" snapshots it into the applied
-// params that key the query, so the result header always names what was
-// actually pulled even while the operator edits the form.
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Panel mutasi" / "Tabel"
+// / "CSV", amended by § 16.8.8 (D24): "Tarik" reads the USDX COPY of the
+// statement — zero bank contact — and "Segarkan dari bank" is the only thing
+// here that reaches the bank. The form is a DRAFT; "Tarik" snapshots it into
+// the applied params that key the query, so the result header always names
+// what was actually pulled even while the operator edits the form.
 
 const PAGE_SIZE = 10
 const MAX_DAYS = 31
@@ -53,182 +53,6 @@ function sameParams(a: BniStatementParams, b: BniStatementParams): boolean {
     a.startDate === b.startDate &&
     a.endDate === b.endDate &&
     a.type === b.type
-  )
-}
-
-// § 16.8.8 "Segarkan dari bank": ONE bank pull for today, stored into the copy.
-// It targets the APPLIED account (the one the header names), so it is inert in
-// the `idle` state — before any account has been pulled there is nothing to
-// re-read once the bank has answered.
-function RefreshButton({
-  onRefresh,
-  disabled,
-  refreshing,
-}: {
-  onRefresh?: () => void
-  disabled: boolean
-  refreshing: boolean
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={onRefresh}
-      disabled={disabled}
-      title="Tarik mutasi hari ini dari bank lalu simpan ke salinan"
-      data-testid="bni-statement-refresh"
-    >
-      {refreshing ? (
-        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-      ) : (
-        <RefreshCw className="mr-1.5 h-4 w-4" />
-      )}
-      Segarkan dari bank
-    </Button>
-  )
-}
-
-function ResultsHeader({
-  applied,
-  accountLabel,
-  statement,
-  onExport,
-  exportDisabled,
-  onRefresh,
-  refreshDisabled,
-  refreshing,
-  refreshError,
-}: {
-  applied: BniStatementParams
-  accountLabel: string
-  statement: BniStatement | undefined
-  onExport: () => void
-  exportDisabled: boolean
-  onRefresh: () => void
-  refreshDisabled: boolean
-  refreshing: boolean
-  refreshError: BniErrorView | null
-}) {
-  const summary = statement?.summary
-  const rows = statement?.rows ?? []
-  // A range ENTIRELY before the history has no table to sit above: there the
-  // notice takes the place of the `empty` state instead (see the panel).
-  const history = statement ? historyNotice(applied, statement.historyAvailableSince) : null
-  const historyAboveTable =
-    history && history.kind !== 'none' && (history.kind === 'partial' || rows.length > 0)
-      ? history.text
-      : null
-
-  return (
-    <div className="space-y-3 border-b border-border px-4 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0" data-testid="bni-statement-applied">
-          <p className="text-[13px] font-semibold">
-            {accountLabel}{' '}
-            <span className="font-mono text-[11.5px] font-normal text-muted-foreground">
-              {applied.accountNo}
-            </span>
-          </p>
-          <p className="font-mono text-[11.5px] text-muted-foreground">
-            {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
-            {statement && (
-              <>
-                {' · '}
-                <span data-testid="bni-statement-recorded-through">
-                  {recordedThroughLabel(statement.recordedThrough)}
-                </span>
-                {' · '}
-                <span title="pullId (korelasi activity_log ↔ api_call_log)">pull {statement.pullId}</span>
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <RefreshButton onRefresh={onRefresh} disabled={refreshDisabled} refreshing={refreshing} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onExport}
-            disabled={exportDisabled}
-            data-testid="bni-statement-export-csv"
-          >
-            <Download className="mr-1.5 h-4 w-4" />
-            Unduh CSV
-          </Button>
-        </div>
-      </div>
-
-      {/* A failed refresh changes nothing in the copy: the table under this
-          line stays exactly as it was (§ 16.8.8). Inline, not a toast — the
-          bank's own reason must stay readable. */}
-      {refreshError && (
-        <p
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
-          role="alert"
-          data-testid="bni-statement-refresh-error"
-        >
-          Segarkan dari bank gagal — {refreshError.message}
-        </p>
-      )}
-
-      <StatementNotices
-        historyText={historyAboveTable}
-        gaps={statement?.gaps ?? []}
-        currency={summary?.currency}
-      />
-
-      {summary && (
-        <dl
-          className="grid gap-x-6 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4"
-          aria-labelledby="bni-statement-summary-caption"
-          data-testid="bni-statement-summary"
-        >
-          {/* `<dl>` only admits dt/dd/div children — the caption is a div. */}
-          <div
-            id="bni-statement-summary-caption"
-            className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
-          >
-            Ringkasan menurut salinan USDX untuk rentang ini
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Saldo awal</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.beginningBalance, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Total masuk</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.totalCredit, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Total keluar</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.totalDebit, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Saldo akhir</dt>
-            <dd className="font-mono tabular-nums" data-testid="bni-statement-closing-balance">
-              {formatBankAmount(summary.closingBalance, summary.currency)}
-            </dd>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-4">
-            <dt className="sr-only">Jumlah baris dan anomali</dt>
-            <dd className="text-muted-foreground">
-              <span data-testid="bni-statement-row-count">{rows.length} baris ditampilkan</span>
-              {' · '}
-              <span data-testid="bni-statement-anomalies">
-                {anomalyLine(countAnomalyRows(rows))}
-              </span>
-            </dd>
-          </div>
-        </dl>
-      )}
-    </div>
   )
 }
 
@@ -388,7 +212,7 @@ export default function StatementPanel({ accounts }: Props) {
         {applied === null ? (
           <>
             <div className="flex justify-end border-b border-border px-4 py-3">
-              <RefreshButton disabled refreshing={false} />
+              <StatementRefreshButton disabled refreshing={false} />
             </div>
             <TableEmptyState
               mode="no-data"
@@ -419,7 +243,7 @@ export default function StatementPanel({ accounts }: Props) {
             currency={statement.data?.summary.currency}
             isLoading={statement.isPending}
             toolbar={
-              <ResultsHeader
+              <StatementResultsHeader
                 applied={applied}
                 accountLabel={statement.data?.applied.label ?? appliedAccount?.label ?? 'Rekening'}
                 statement={statement.data}
