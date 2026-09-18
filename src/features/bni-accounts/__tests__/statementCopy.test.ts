@@ -68,6 +68,11 @@ describe('historyNotice', () => {
       expect(JSON.stringify(notice)).not.toMatch(/Invalid Date|null|undefined|NaN/)
     })
 
+    test('an ABSENT field (the yaml does not require it) reads exactly like null', () => {
+      const range = { startDate: '2026-09-18', endDate: '2026-09-18' }
+      expect(historyNotice(range, undefined)).toEqual(historyNotice(range, null))
+    })
+
     test('a malformed history day is read as "never recorded", not compared as a string', () => {
       const notice = historyNotice({ startDate: '2026-09-18', endDate: '2026-09-18' }, '18/09/2026')
       expect(notice.kind).toBe('entire')

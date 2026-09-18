@@ -2793,10 +2793,13 @@ export interface BniStatement {
   pullId: string
   /** Waktu salinan dibaca (UTC ISO 8601). */
   pulledAt: string
-  /** Tarikan bank BERHASIL terakhir (UI "direkam s/d"); null = belum pernah direkam. */
-  recordedThrough: string | null
-  /** Tanggal WIB `YYYY-MM-DD` tarikan pertama (K18); null = belum pernah direkam. */
-  historyAvailableSince: string | null
+  /**
+   * Tarikan bank BERHASIL terakhir (UI "direkam s/d"); null = belum pernah
+   * direkam. Bukan anggota `required` di yaml — absen dibaca sama dengan null.
+   */
+  recordedThrough?: string | null
+  /** Tanggal WIB `YYYY-MM-DD` tarikan pertama (K18); null / absen = belum pernah direkam. */
+  historyAvailableSince?: string | null
   /** Selisih terbuka yang beririsan dengan rentang (bisa kosong). */
   gaps: BniStatementGap[]
   applied: BniStatementApplied
