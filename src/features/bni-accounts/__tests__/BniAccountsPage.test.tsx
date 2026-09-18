@@ -300,12 +300,12 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
       expect(screen.getByRole('combobox', { name: 'Rekening' })).toHaveTextContent('Pilih rekening')
       expect(pullButton()).toBeDisabled()
-      // § 16.8.8: "Segarkan dari bank" is inert until an account has been pulled.
+      // § 16.8.8: "Segarkan dari bank" is active only once an account is selected.
       expect(screen.getByTestId('bni-statement-refresh')).toBeDisabled()
 
       await pickAccount(user, /treasury np/i)
       expect(pullButton()).toBeEnabled()
-      expect(screen.getByTestId('bni-statement-refresh')).toBeDisabled()
+      expect(screen.getByTestId('bni-statement-refresh')).toBeEnabled()
     })
 
     test('NP + Keluar + Tarik → request type=DEBIT, only D rows, summary "menurut salinan USDX" + saldo akhir + rowCount', async () => {
@@ -825,6 +825,30 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await user.click(screen.getByTestId('bni-statement-refresh'))
       await waitFor(() => expect(okSpy).toHaveBeenLastCalledWith('Tidak ada mutasi baru'))
     })
+
+    test('before any Tarik: Segarkan targets the account picked in the form, stores, toasts — and reads nothing (no result to re-read)', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+
+      expect(probe.urls.filter((u) => u.endsWith('/statement/refresh'))).toEqual([
+        `/api/v1/bni-accounts/${NP.accountNo}/statement/refresh`,
+      ])
+      expect(probe.urls.some((u) => u.includes('/statement?'))).toBe(false)
+      expect(screen.getByText('Belum ada tarikan')).toBeInTheDocument()
+
+      // The stored entries are there for the first Tarik.
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+      probe.stop()
+    })
   })
 
   describe('negative', () => {
@@ -890,6 +914,31 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await user.click(pullButton())
       await waitFor(() => expect(screen.queryByTestId('bni-statement-refresh-error')).not.toBeInTheDocument())
     })
+
+    test('the statement read failed → Segarkan is still offered for the applied account, and a success retries the read', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      let failing = true
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', () =>
+          failing ? apiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank tidak dapat dihubungi, coba lagi') : undefined
+        )
+      )
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      expect(await screen.findByText('Bank tidak dapat dihubungi, coba lagi')).toBeInTheDocument()
+
+      const refreshButton = screen.getByTestId('bni-statement-refresh')
+      expect(refreshButton).toBeEnabled()
+      failing = false
+      await user.click(refreshButton)
+
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+    })
   })
 
   describe('edge cases', () => {
@@ -902,6 +951,44 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       expect(screen.getByTestId('bni-statement-history-notice')).toHaveTextContent(/belum pernah direkam/)
       expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
       expect(document.body).not.toHaveTextContent(/Invalid Date|NaN/)
+    })
+
+    test('Tarik is disabled while Segarkan runs — a pull can never race the refetch that follows the refresh', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      server.use(
+        http.post('/api/v1/bni-accounts/:accountNo/statement/refresh', async () => {
+          await delay(80)
+        })
+      )
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      await pullNp(user)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      expect(pullButton()).toBeDisabled()
+      await user.click(pullButton())
+
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+      expect(pullButton()).toBeEnabled()
+      // First Tarik + the one refetch after the refresh — the mid-refresh click sent nothing.
+      expect(probe.urls.filter((u) => u.includes('/statement?'))).toHaveLength(2)
+      probe.stop()
+    })
+
+    test('before any Tarik a refresh failure follows the picked account: changing the pick clears it', async () => {
+      const user = userEvent.setup()
+      configureBniRefreshForTests('BANK_EOD')
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      expect(await screen.findByTestId('bni-statement-refresh-error')).toHaveTextContent(
+        'MW - EOD - Please try again at 01:00 AM'
+      )
+
+      await pickAccount(user, /collection/i)
+      expect(screen.queryByTestId('bni-statement-refresh-error')).not.toBeInTheDocument()
     })
   })
 })

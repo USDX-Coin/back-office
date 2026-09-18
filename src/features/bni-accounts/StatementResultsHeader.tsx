@@ -6,7 +6,7 @@ import type { BniErrorView } from './errors'
 import type { BniStatementParams } from './hooks'
 import { historyNotice, recordedThroughLabel } from './statementCopy'
 import StatementNotices from './StatementNotices'
-import StatementRefreshButton from './StatementRefreshButton'
+import StatementRefreshButton, { StatementRefreshError } from './StatementRefreshButton'
 import { anomalyLine, countAnomalyRows, STATEMENT_TYPE_LABEL } from './statementSummary'
 
 // USDX-631 / USDX-692 — § 16.4 "Header hasil" + "Ringkasan", amended by
@@ -85,18 +85,7 @@ export default function StatementResultsHeader({
         </div>
       </div>
 
-      {/* A failed refresh changes nothing in the copy: the table under this
-          line stays exactly as it was (§ 16.8.8). Inline, not a toast — the
-          bank's own reason must stay readable. */}
-      {refreshError && (
-        <p
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
-          role="alert"
-          data-testid="bni-statement-refresh-error"
-        >
-          Segarkan dari bank gagal — {refreshError.message}
-        </p>
-      )}
+      <StatementRefreshError error={refreshError} />
 
       <StatementNotices
         historyText={historyAboveTable}
