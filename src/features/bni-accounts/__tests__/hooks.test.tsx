@@ -3,13 +3,21 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { server } from '@/mocks/server'
-import { resetMockData, issueMockJwt, getDefaultStaff } from '@/mocks/handlers'
+import {
+  configureBniRefreshForTests,
+  resetMockData,
+  issueMockJwt,
+  getDefaultStaff,
+} from '@/mocks/handlers'
+import { ApiError } from '@/lib/apiFetch'
 import { createTestQueryClient } from '@/test/test-utils'
 import {
   bniAccountsKeys,
   buildBniStatementPath,
+  buildBniStatementRefreshPath,
   useBniBalances,
   useBniStatement,
+  useRefreshStatement,
   type BniStatementParams,
 } from '../hooks'
 
@@ -201,6 +209,77 @@ describe('useBniStatement', () => {
       await waitFor(() => expect(second.result.current.isSuccess).toBe(true))
       expect(probe.calls).toHaveLength(2)
       probe.stop()
+    })
+  })
+})
+
+// USDX-692 — § 16.8.7–16.8.8 "Segarkan dari bank".
+describe('useRefreshStatement', () => {
+  describe('positive', () => {
+    test('POSTs …/statement/refresh once, without a body, and resolves to the capture summary', async () => {
+      const { wrapper } = withClient()
+      const seen: { method: string; path: string; body: string }[] = []
+      const listener = async ({ request }: { request: Request }) => {
+        const url = new URL(request.url)
+        if (url.pathname.endsWith('/statement/refresh')) {
+          seen.push({ method: request.method, path: url.pathname, body: await request.clone().text() })
+        }
+      }
+      server.events.on('request:start', listener)
+      const { result } = renderHook(() => useRefreshStatement('108098391'), { wrapper })
+
+      await act(async () => {
+        await result.current.mutateAsync()
+      })
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      server.events.removeListener('request:start', listener)
+
+      expect(seen).toEqual([
+        { method: 'POST', path: '/api/v1/bni-accounts/108098391/statement/refresh', body: '' },
+      ])
+      expect(result.current.data).toMatchObject({ accountNo: '108098391', outcome: 'OK', newEntries: 2 })
+    })
+  })
+
+  describe('negative', () => {
+    test('bank EOD surfaces as ONE ApiError carrying the bank reason (never retried)', async () => {
+      configureBniRefreshForTests('BANK_EOD')
+      const { wrapper } = withClient()
+      const probe = countRequests('/api/v1/bni-accounts/')
+      const { result } = renderHook(() => useRefreshStatement('108098391'), { wrapper })
+
+      await act(async () => {
+        await result.current.mutateAsync().catch(() => {})
+      })
+      await waitFor(() => expect(result.current.isError).toBe(true))
+
+      expect(probe.calls).toHaveLength(1)
+      const err = result.current.error
+      expect(err).toBeInstanceOf(ApiError)
+      expect((err as ApiError).code).toBe('BNI_BANK_REJECTED')
+      expect((err as ApiError).details).toEqual({ bankReason: 'MW - EOD - Please try again at 01:00 AM' })
+      probe.stop()
+    })
+
+    test('no account picked → rejects without touching the network', async () => {
+      const { wrapper } = withClient()
+      const probe = countRequests('/api/v1/bni-accounts/')
+      const { result } = renderHook(() => useRefreshStatement(null), { wrapper })
+
+      await act(async () => {
+        await result.current.mutateAsync().catch(() => {})
+      })
+      await waitFor(() => expect(result.current.isError).toBe(true))
+      expect(probe.calls).toHaveLength(0)
+      probe.stop()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('an accountNo with reserved characters is percent-encoded in the refresh path', () => {
+      expect(buildBniStatementRefreshPath('12/34?x')).toBe(
+        '/api/v1/bni-accounts/12%2F34%3Fx/statement/refresh'
+      )
     })
   })
 })
