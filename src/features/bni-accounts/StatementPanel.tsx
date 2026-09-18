@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, Loader2, Play } from 'lucide-react'
+import { Download, History, Loader2, Play } from 'lucide-react'
 import DateRangeFields from '@/components/DateRangeFields'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -18,8 +18,9 @@ import { formatBankAmount } from '@/lib/format'
 import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
 import { describeBniError } from './errors'
 import { useBniStatement, type BniStatementParams } from './hooks'
-import { recordedThroughLabel } from './statementCopy'
+import { historyNotice, recordedThroughLabel } from './statementCopy'
 import { exportStatementCsv } from './statementCsv'
+import StatementNotices from './StatementNotices'
 import { sortStatementRows } from './statementRows'
 import { anomalyLine, countAnomalyRows, STATEMENT_TYPE_LABEL } from './statementSummary'
 import StatementTable from './StatementTable'
@@ -69,6 +70,13 @@ function ResultsHeader({
 }) {
   const summary = statement?.summary
   const rows = statement?.rows ?? []
+  // A range ENTIRELY before the history has no table to sit above: there the
+  // notice takes the place of the `empty` state instead (see the panel).
+  const history = statement ? historyNotice(applied, statement.historyAvailableSince) : null
+  const historyAboveTable =
+    history && history.kind !== 'none' && (history.kind === 'partial' || rows.length > 0)
+      ? history.text
+      : null
 
   return (
     <div className="space-y-3 border-b border-border px-4 py-3">
@@ -106,6 +114,8 @@ function ResultsHeader({
           Unduh CSV
         </Button>
       </div>
+
+      <StatementNotices historyText={historyAboveTable} />
 
       {summary && (
         <dl
@@ -207,6 +217,8 @@ export default function StatementPanel({ accounts }: Props) {
     : null
   const sorted = statement.data ? sortStatementRows(statement.data.rows) : []
   const errorView = statement.error ? describeBniError(statement.error) : null
+  const history =
+    applied && statement.data ? historyNotice(applied, statement.data.historyAvailableSince) : null
 
   return (
     <section aria-labelledby="bni-statement-heading">
@@ -338,11 +350,24 @@ export default function StatementPanel({ accounts }: Props) {
               />
             }
             emptyState={
-              <TableEmptyState
-                mode="no-data"
-                title="Tidak ada mutasi terekam pada rentang ini"
-                description="Salinan USDX tidak memuat mutasi untuk rekening, rentang, dan jenis yang diterapkan."
-              />
+              // § 16.8.8: a range the copy cannot cover is NOT "no mutations" —
+              // the operator is pointed at the portal, never told the account was quiet.
+              history?.kind === 'entire' ? (
+                <div data-testid="bni-statement-history-notice">
+                  <TableEmptyState
+                    mode="no-data"
+                    icon={<History className="h-10 w-10" strokeWidth={1.5} />}
+                    title="Rentang ini di luar riwayat salinan"
+                    description={history.text}
+                  />
+                </div>
+              ) : (
+                <TableEmptyState
+                  mode="no-data"
+                  title="Tidak ada mutasi terekam pada rentang ini"
+                  description="Salinan USDX tidak memuat mutasi untuk rekening, rentang, dan jenis yang diterapkan."
+                />
+              )
             }
           />
         )}

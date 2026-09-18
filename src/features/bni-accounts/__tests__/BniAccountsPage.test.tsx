@@ -10,7 +10,7 @@ import {
   createBniStatement,
   createBniStatementRows,
 } from '@/mocks/data'
-import { todayInJakarta } from '@/features/reports/dateRange'
+import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { UTF8_BOM } from '@/lib/csv'
 import type { BniStatementRow } from '@/lib/types'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
@@ -103,7 +103,9 @@ function pullButton() {
   return screen.getByTestId('bni-statement-pull')
 }
 
-function statementHandler(rows: BniStatementRow[]) {
+type CopyOverrides = Parameters<typeof createBniStatement>[4]
+
+function statementHandler(rows: BniStatementRow[], copy: CopyOverrides = {}) {
   return http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
     const url = new URL(request.url)
     const type = (url.searchParams.get('type') ?? 'ALL') as 'ALL' | 'CREDIT' | 'DEBIT'
@@ -120,7 +122,10 @@ function statementHandler(rows: BniStatementRow[]) {
           endDate: url.searchParams.get('endDate') ?? '',
           type,
         },
-        filtered
+        filtered,
+        {},
+        new Date(),
+        copy
       )
     )
   })
@@ -646,6 +651,76 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
         'UNGGAHAN',
         'X',
       ])
+    })
+  })
+})
+
+// USDX-692 — sot/bni-integration.md § 16.8.8: the statement is read from the
+// USDX copy, so the panel states since when history exists, where the balance
+// chain proves a missing mutation, and offers "Segarkan dari bank".
+describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
+  async function pullNp(user: ReturnType<typeof userEvent.setup>, startDate = TODAY, endDate = TODAY) {
+    renderPage()
+    await waitForCards()
+    await pickAccount(user, /treasury np/i)
+    setRange(startDate, endDate)
+    await user.click(pullButton())
+    await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toBeInTheDocument())
+  }
+
+  describe('positive', () => {
+    test('historyAvailableSince in the middle of the range → banner ABOVE a table that still holds rows', async () => {
+      const user = userEvent.setup()
+      const since = shiftIsoDate(TODAY, -2)
+      server.use(
+        statementHandler(createBniStatementRows(3, since, TODAY), { historyAvailableSince: since })
+      )
+      await pullNp(user, shiftIsoDate(TODAY, -6), TODAY)
+
+      const [d, m, y] = [since.slice(8, 10), since.slice(5, 7), since.slice(0, 4)]
+      const notice = screen.getByTestId('bni-statement-history-notice')
+      expect(notice).toHaveTextContent(
+        `Riwayat tersedia sejak ${d}/${m}/${y} — untuk tanggal sebelumnya lihat portal BNIDirect`
+      )
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris')
+      const table = screen.getByRole('table')
+      expect(within(table).getAllByRole('row').length).toBe(1 + 3)
+      // Above the table, not inside it.
+      expect(notice.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
+  describe('negative', () => {
+    test('a range entirely before the history → ONLY the history banner, never "Tidak ada mutasi terekam"', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: TODAY }))
+      await pullNp(user, shiftIsoDate(TODAY, -5), shiftIsoDate(TODAY, -1))
+
+      expect(screen.getAllByTestId('bni-statement-history-notice')).toHaveLength(1)
+      expect(screen.getByTestId('bni-statement-history-notice')).toHaveTextContent(/Riwayat tersedia sejak/)
+      expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
+    })
+
+    test('a range inside the history shows no banner', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: shiftIsoDate(TODAY, -10) }))
+      await pullNp(user)
+
+      expect(screen.queryByTestId('bni-statement-history-notice')).not.toBeInTheDocument()
+      expect(screen.getByText('Tidak ada mutasi terekam pada rentang ini')).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('never recorded (both null) → header "belum pernah direkam" + a dateless banner, no "Invalid Date"', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: null, recordedThrough: null }))
+      await pullNp(user)
+
+      expect(screen.getByTestId('bni-statement-recorded-through')).toHaveTextContent('belum pernah direkam')
+      expect(screen.getByTestId('bni-statement-history-notice')).toHaveTextContent(/belum pernah direkam/)
+      expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
+      expect(document.body).not.toHaveTextContent(/Invalid Date|NaN/)
     })
   })
 })
