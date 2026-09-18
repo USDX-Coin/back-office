@@ -5,9 +5,15 @@ import StatusPill from '@/components/StatusPill'
 import { formatBankAmount, formatBniPostDate } from '@/lib/format'
 import { getBniFlagConfig } from '@/lib/status'
 import type { BniStatementRow } from '@/lib/types'
-import { pageOf, statementRowKey, type IndexedStatementRow } from './statementRows'
+import {
+  pageOf,
+  statementRowKey,
+  statementSourceLabel,
+  type IndexedStatementRow,
+} from './statementRows'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "Tabel": bank columns as-is.
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Tabel" + § 16.8.8
+// (kolom Sumber): bank columns as-is.
 // Every nullable (MALFORMED) value renders "—", never NaN / Invalid Date; no
 // per-row anomaly icon (the count sits in the summary line).
 
@@ -73,6 +79,20 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
           {row.original.row.branchName || <Dash />}
         </span>
       ),
+    },
+    {
+      id: 'source',
+      header: 'Sumber',
+      cell: ({ row }) => {
+        const label = statementSourceLabel(row.original.row.source)
+        return label ? (
+          <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+            {label}
+          </span>
+        ) : (
+          <Dash />
+        )
+      },
     },
   ]
 }

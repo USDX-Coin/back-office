@@ -1,4 +1,4 @@
-import type { BniStatementRow } from '@/lib/types'
+import type { BniStatementRow, BniStatementRowSource } from '@/lib/types'
 
 // USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Tabel": order by
 // `postDate` descending, STABLE (original index breaks ties — `journalNo`
@@ -33,6 +33,24 @@ export function sortStatementRows(rows: readonly BniStatementRow[]): IndexedStat
  */
 export function statementRowKey({ row }: IndexedStatementRow): string {
   return row.id
+}
+
+const STATEMENT_SOURCE_LABEL: Record<BniStatementRowSource, string> = {
+  BANK: 'BANK',
+  UPLOAD: 'UNGGAHAN',
+}
+
+/**
+ * § 16.8.8 kolom "Sumber". The enum is OPEN (yaml § BniStatementRowSource): a
+ * value this build does not know is shown as-is, never blanked or guessed —
+ * the one label map serves the table and the CSV.
+ */
+export function statementSourceLabel(source: string | null | undefined): string {
+  if (!source) return ''
+  // Own keys only: a plain index would resolve `"toString"` to a function.
+  return Object.hasOwn(STATEMENT_SOURCE_LABEL, source)
+    ? STATEMENT_SOURCE_LABEL[source as BniStatementRowSource]
+    : source
 }
 
 /** Client-side page slice for `DataTable` (`rowCount` = total, data = this page). */

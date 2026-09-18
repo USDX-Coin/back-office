@@ -1,6 +1,11 @@
 import { describe, test, expect } from 'vitest'
 import type { BniStatementRow } from '@/lib/types'
-import { pageOf, sortStatementRows, statementRowKey } from '../statementRows'
+import {
+  pageOf,
+  sortStatementRows,
+  statementRowKey,
+  statementSourceLabel,
+} from '../statementRows'
 
 // USDX-631 — sot/bni-integration.md § 16.4 "Tabel" ordering rules.
 
@@ -61,6 +66,31 @@ describe('sortStatementRows', () => {
       const snapshot = input.map((r) => r.postDate)
       sortStatementRows(input)
       expect(input.map((r) => r.postDate)).toEqual(snapshot)
+    })
+  })
+})
+
+describe('statementSourceLabel', () => {
+  describe('positive', () => {
+    test('BANK → "BANK", UPLOAD → "UNGGAHAN" (§ 16.8.8)', () => {
+      expect(statementSourceLabel('BANK')).toBe('BANK')
+      expect(statementSourceLabel('UPLOAD')).toBe('UNGGAHAN')
+    })
+  })
+
+  describe('negative', () => {
+    test('a missing source is an empty label, never the word "undefined"', () => {
+      expect(statementSourceLabel(undefined)).toBe('')
+      expect(statementSourceLabel(null)).toBe('')
+      expect(statementSourceLabel('')).toBe('')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('an unknown value is shown as-is — the enum is open', () => {
+      expect(statementSourceLabel('X')).toBe('X')
+      // Object.prototype keys must not resolve to a function.
+      expect(statementSourceLabel('toString')).toBe('toString')
     })
   })
 })

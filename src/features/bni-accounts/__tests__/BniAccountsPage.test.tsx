@@ -599,5 +599,36 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(last).not.toHaveTextContent('NaN')
       expect(last).not.toHaveTextContent('Invalid Date')
     })
+
+    test('kolom Sumber: BANK / UNGGAHAN, and an unknown source ("X") is shown as-is without crashing', async () => {
+      const user = userEvent.setup()
+      const [bank, upload, unknown] = createBniStatementRows(3, TODAY, TODAY) as [
+        BniStatementRow,
+        BniStatementRow,
+        BniStatementRow,
+      ]
+      server.use(
+        statementHandler([
+          bank,
+          { ...upload, source: 'UPLOAD' },
+          { ...unknown, source: 'X' as BniStatementRow['source'] },
+        ])
+      )
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris'))
+
+      const table = within(screen.getByRole('table'))
+      expect(table.getByRole('columnheader', { name: 'Sumber' })).toBeInTheDocument()
+      const bodyRows = table.getAllByRole('row').slice(1)
+      expect(bodyRows.map((r) => within(r).getAllByRole('cell').at(-1)?.textContent)).toEqual([
+        'BANK',
+        'UNGGAHAN',
+        'X',
+      ])
+    })
   })
 })
