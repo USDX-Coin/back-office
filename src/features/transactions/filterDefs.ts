@@ -102,9 +102,14 @@ export const ORDER_COLUMN_CONFIG: ColumnConfig[] = [
   // an ops team with no partners yet can hide it.
   { key: 'partner', label: 'Partner' },
   { key: 'amount', label: 'Nominal', required: true },
-  { key: 'totalPayIdr', label: 'Total bayar (Rp)' },
-  { key: 'netPayoutIdr', label: 'Nominal transfer (Rp)' },
-  { key: 'chain', label: 'Jaringan' },
+  { key: 'totalPayIdr', label: 'Total bayar' },
+  { key: 'netPayoutIdr', label: 'Nominal transfer' },
+  // § 3.1 audit alur — "Chain" jadi "Jaringan", dan DISEMBUNYIKAN DEFAULT
+  // selama produksi hanya berjalan di satu rantai: kolom yang isinya selalu
+  // "Polygon" memakan lebar yang dibutuhkan kolom-kolom yang benar-benar
+  // membedakan baris. Tidak dibuang — satu klik di popover Kolom
+  // mengembalikannya, dan pilihannya tersimpan per peramban.
+  { key: 'chain', label: 'Jaringan', hiddenByDefault: true },
   { key: 'paymentStatus', label: 'Pembayaran' },
   // Eks kolom "Safe". Operator non-crypto membaca kata "Safe" enam kali sehari
   // tanpa pernah diberi tahu artinya; yang ia perlu tahu adalah tahap tanda

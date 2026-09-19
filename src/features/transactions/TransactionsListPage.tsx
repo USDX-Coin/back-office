@@ -171,7 +171,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'totalPayIdr',
-      header: 'Total bayar (Rp)',
+      header: 'Total bayar',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
@@ -185,7 +185,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'netPayoutIdr',
-      header: 'Nominal transfer (Rp)',
+      header: 'Nominal transfer',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
