@@ -3154,13 +3154,27 @@ export interface DurianpayApiCallDetail extends DurianpayApiCallListItem {
   createdAt: string
 }
 
-// Membaca Log Panggilan DurianPay: MANAGER / ADMIN / DEVELOPER
-// (`@Roles("MANAGER", "ADMIN", "DEVELOPER")` di `durianpay-api-calls.controller.ts`).
-// SATU TINGKAT LEBIH SEMPIT daripada "Pencairan Bermasalah" dan "Persetujuan
-// Pencairan" yang juga membuka STAFF, dan bedanya disengaja di backend: kedua
-// antrean itu adalah PEKERJAAN staf, layar ini tidak punya keputusan apa pun.
-// Dipakai handler MSW supaya tiruannya menolak STAFF dengan 403 seperti server.
+// Membaca Log Panggilan DurianPay: SEMUA peran back-office
+// (`@Roles("STAFF", "MANAGER", "ADMIN", "DEVELOPER")` di
+// `durianpay-api-calls.controller.ts`, kontrak `sot/api/durianpay-api-calls.yaml`).
+// Sejajar dengan "Pencairan Bermasalah" dan "Persetujuan Pencairan".
+//
+// Rancangan awal menyempitkannya ke MANAGER ke atas karena layar ini tidak punya
+// keputusan untuk diambil. Itu ditolak Wisnu (19 Sep 2026): yang menjaga jalur
+// uang sehari-hari justru STAFF, dan sejak log stdout produksi tidak terbaca
+// siapa pun, layar ini satu-satunya tempat "kenapa pembayaran ini tidak masuk"
+// bisa dijawab. Yang ditukar: badan pesan memuat nomor VA nasabah apa adanya
+// (sengaja, supaya baris bisa dicocokkan dengan keluhan yang masuk).
+//
+// Dipakai handler MSW supaya tiruannya memakai gerbang yang sama dengan server.
 // Pasangan sisi UI-nya `canReadDurianpayApiCalls` di `src/lib/auth.tsx`.
+export const DURIANPAY_API_CALLS_ROLES: readonly StaffRole[] = [
+  'STAFF',
+  'MANAGER',
+  'ADMIN',
+  'DEVELOPER',
+]
+
 export function canReadDurianpayApiCallsRole(role: StaffRole): boolean {
-  return role === 'MANAGER' || role === 'ADMIN' || role === 'DEVELOPER'
+  return DURIANPAY_API_CALLS_ROLES.includes(role)
 }

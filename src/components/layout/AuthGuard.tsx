@@ -31,7 +31,7 @@ export function RoleGuard({
   allowed,
   redirectTo = '/dashboard',
 }: {
-  allowed: StaffRole[]
+  allowed: readonly StaffRole[]
   redirectTo?: string
 }) {
   const { user } = useAuth()

@@ -123,10 +123,15 @@ describe('visibleNavSections — Settings (USDX-639)', () => {
 })
 
 // Log Panggilan DurianPay — entri Troubleshooting yang digerbangi di ITEM, pola
-// TREASURY (USDX-631) dan SETTINGS (USDX-639). Manual Sync tetap terbuka untuk
-// semua peran di section yang sama; layar ini mengikuti `@Roles` backendnya
-// (MANAGER / ADMIN / DEVELOPER), karena menu yang muncul lalu dijawab 403 adalah
-// cara tercepat membuat seseorang mengira layarnya rusak.
+// TREASURY (USDX-631) dan SETTINGS (USDX-639). Menunya mengikuti `@Roles`
+// backendnya, karena menu yang muncul lalu dijawab 403 adalah cara tercepat
+// membuat seseorang mengira layarnya rusak.
+//
+// Sejak 19 Sep 2026 daftar itu mencakup STAFF juga (keputusan Wisnu): yang
+// menjaga jalur uang sehari-hari justru staf, dan ini satu-satunya layar yang
+// bisa menjawab "kenapa pembayaran ini tidak masuk". Jadi seluruh section
+// Troubleshooting kini terbuka untuk semua peran — yang tetap dijaga adalah
+// sesi yang belum termuat (fail-closed).
 
 function troubleshootingItems(staffId: string): string[] {
   const staff = findStaffById(staffId) ?? null
@@ -136,17 +141,20 @@ function troubleshootingItems(staffId: string): string[] {
 
 describe('visibleNavSections — Troubleshooting / Log DurianPay', () => {
   describe('positive', () => {
-    test('MANAGER, ADMIN dan DEVELOPER melihat entrinya', () => {
+    test('keempat peran melihat entrinya', () => {
       expect(troubleshootingItems('stf_2')).toEqual(['Manual Sync', 'Log DurianPay'])
       expect(troubleshootingItems('stf_1')).toEqual(['Manual Sync', 'Log DurianPay'])
       expect(troubleshootingItems('stf_3')).toEqual(['Manual Sync', 'Log DurianPay'])
     })
+
+    // Dipisah dari ketiganya di atas supaya kalau entri ini disempitkan lagi ke
+    // MANAGER ke atas, yang merah adalah test yang menyebut alasannya.
+    test('STAFF melihatnya juga — mereka yang menjaga jalur uang', () => {
+      expect(troubleshootingItems('stf_4')).toEqual(['Manual Sync', 'Log DurianPay'])
+    })
   })
 
   describe('negative', () => {
-    test('STAFF tidak melihatnya — servernya menjawab 403 untuk peran itu', () => {
-      expect(troubleshootingItems('stf_4')).toEqual(['Manual Sync'])
-    })
 
     test('sesi yang belum termuat juga tidak melihatnya (fail-closed)', () => {
       const section = visibleNavSections(null).find((s) => s.label === 'Troubleshooting')

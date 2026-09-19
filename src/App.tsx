@@ -8,6 +8,7 @@ import {
 } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
+import { DURIANPAY_API_CALLS_ROLES } from '@/lib/types'
 import { ThemeProvider } from '@/lib/theme'
 import { ProtectedRoute, PublicRoute, RoleGuard } from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
@@ -283,16 +284,19 @@ export const appRoutes: RouteObject[] = [
           { path: '/manual-sync', element: <ManualSyncPage /> },
           {
             // Log Panggilan DurianPay — DIGERBANGI DI ROUTE, bukan hanya di
-            // menunya. Backend membuka kedua GET-nya untuk MANAGER / ADMIN /
-            // DEVELOPER saja (`@Roles` di `durianpay-api-calls.controller.ts`);
-            // STAFF dijawab 403. Menyembunyikan entri sidebar tanpa menggerbangi
-            // rutenya akan meninggalkan halaman yang tetap bisa dibuka dengan
-            // mengetik URL-nya — lalu setiap permintaannya gagal 403 dan layarnya
-            // terbaca sebagai rusak, bukan sebagai terlarang. Daftar perannya
-            // hidup sekali di `canReadDurianpayApiCallsRole` (`lib/types.ts`).
+            // menunya. Menyembunyikan entri sidebar tanpa menggerbangi rutenya
+            // meninggalkan halaman yang tetap bisa dibuka dengan mengetik URL-nya,
+            // lalu setiap permintaannya gagal 403 dan layarnya terbaca sebagai
+            // rusak, bukan sebagai terlarang.
+            //
+            // Daftar perannya diimpor, TIDAK ditulis ulang di sini. Sebelumnya
+            // baris ini memuat literalnya sendiri sementara komentarnya mengklaim
+            // daftar itu "hidup sekali" — dan saat backend membuka layar ini untuk
+            // STAFF, gerbang menu ikut terbuka tapi gerbang rute ini tidak. Satu
+            // sumber, satu tempat berubah.
             // `/durianpay-api-calls/:id` merender ulang daftar dan membuka detail
             // dari URL — aman untuk deep link (pola /payout-failures).
-            element: <RoleGuard allowed={['MANAGER', 'ADMIN', 'DEVELOPER']} />,
+            element: <RoleGuard allowed={DURIANPAY_API_CALLS_ROLES} />,
             children: [
               { path: '/durianpay-api-calls', element: <DurianpayApiCallsPage /> },
               { path: '/durianpay-api-calls/:id', element: <DurianpayApiCallsPage /> },
