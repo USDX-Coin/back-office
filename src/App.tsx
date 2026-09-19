@@ -36,6 +36,7 @@ import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
+import DurianpayApiCallsPage from '@/features/durianpay-api-calls/DurianpayApiCallsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 
 // Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
@@ -280,6 +281,23 @@ export const appRoutes: RouteObject[] = [
           // USDX-87 / sot/phase-1.md L583 — Manual Sync is reachable to every
           // authenticated role (on-call emergency surface). No RoleGuard.
           { path: '/manual-sync', element: <ManualSyncPage /> },
+          {
+            // Log Panggilan DurianPay — DIGERBANGI DI ROUTE, bukan hanya di
+            // menunya. Backend membuka kedua GET-nya untuk MANAGER / ADMIN /
+            // DEVELOPER saja (`@Roles` di `durianpay-api-calls.controller.ts`);
+            // STAFF dijawab 403. Menyembunyikan entri sidebar tanpa menggerbangi
+            // rutenya akan meninggalkan halaman yang tetap bisa dibuka dengan
+            // mengetik URL-nya — lalu setiap permintaannya gagal 403 dan layarnya
+            // terbaca sebagai rusak, bukan sebagai terlarang. Daftar perannya
+            // hidup sekali di `canReadDurianpayApiCallsRole` (`lib/types.ts`).
+            // `/durianpay-api-calls/:id` merender ulang daftar dan membuka detail
+            // dari URL — aman untuk deep link (pola /payout-failures).
+            element: <RoleGuard allowed={['MANAGER', 'ADMIN', 'DEVELOPER']} />,
+            children: [
+              { path: '/durianpay-api-calls', element: <DurianpayApiCallsPage /> },
+              { path: '/durianpay-api-calls/:id', element: <DurianpayApiCallsPage /> },
+            ],
+          },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },

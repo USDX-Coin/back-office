@@ -3090,3 +3090,77 @@ export interface QueueCounts {
   payoutFailuresOpen: number
   redeemApprovalsOpen: number
 }
+
+// ─── Log Panggilan DurianPay (backend `src/modules/durianpay-api-calls/`) ────
+//
+// TIDAK ADA KONTRAK SOT UNTUK ENDPOINT INI. Bentuk di bawah DITRANSKRIPSI dari
+// `durianpay-api-calls.types.ts` + `dto/list-durianpay-api-calls.dto.ts` di
+// branch backend `wisnubarata111/be-catat-log-panggilan-durianpay`, yang BELUM
+// merge. Kalau kontraknya nanti masuk `sot/api/`, berkas itu yang menang dan
+// bentuk ini menyesuaikan — bukan sebaliknya.
+//
+// DUA HAL YANG TIDAK ADA DI SINI, DAN ITU DISENGAJA DI BACKEND:
+//   1. HEADER HTTP tidak pernah disimpan sama sekali — di situlah `Authorization`,
+//      `X-SIGNATURE` dan `X-CLIENT-KEY` hidup. Layar ini tidak boleh menjanjikan
+//      tampilan header, karena tidak ada satu pun yang bisa ditampilkan.
+//   2. PENCARIAN TEKS BEBAS di badan pesan. Saringan yang ADA hanya tujuh di
+//      `ListDurianpayApiCallsQuery`; `path` pun AWALAN, bukan `LIKE '%…%'`.
+
+/** Vonis transport satu panggilan (mirror enum DB `durianpay_api_call_outcome`). */
+export type DurianpayApiCallOutcome = 'SUCCESS' | 'REJECTED' | 'UNAVAILABLE'
+
+/** Integrasi yang dipakai (mirror enum DB `durianpay_api_flavor`). */
+export type DurianpayApiFlavor = 'SNAP' | 'LEGACY'
+
+/** Satu baris list. SENGAJA tanpa badan request/response — badannya hanya di detail. */
+export interface DurianpayApiCallListItem {
+  id: string
+  /** Kapan panggilannya BERANGKAT (bukan kapan barisnya ditulis). */
+  requestedAt: string
+  /** Hari ini SELALU `OUTBOUND`; arah masuk punya tiga tabel notifikasinya sendiri. */
+  direction: 'OUTBOUND'
+  apiFlavor: DurianpayApiFlavor
+  httpMethod: string
+  /** Path endpoint saja (mis. `/v1.0/transfer-va/create-va`). */
+  path: string
+  /** `null` berarti TIDAK ADA respons sama sekali: timeout atau error jaringan. */
+  httpStatus: number | null
+  /** `responseCode` SNAP (mis. `2002700`) atau `error_code` Legacy. */
+  responseCode: string | null
+  outcome: DurianpayApiCallOutcome
+  /** `trxId` / `partnerReferenceNo` KITA. `null` = panggilannya memang tidak membawanya. */
+  referenceNo: string | null
+  /** `trace_id` milik DurianPay — pengenal SISI MEREKA. */
+  traceId: string | null
+  durationMs: number
+  /** Satu baris "kenapa ini tidak mulus". `null` saat panggilannya benar-benar bersih. */
+  errorSummary: string | null
+}
+
+/** `GET /api/v1/durianpay-api-calls/{id}` — plus badan pesan yang SUDAH diredaksi. */
+export interface DurianpayApiCallDetail extends DurianpayApiCallListItem {
+  /** Tujuan panggilan. Ia yang menjawab "sandbox atau production?". */
+  baseUrl: string
+  /** `X-EXTERNAL-ID` panggilan SNAP; `null` untuk Legacy (tak punya header itu). */
+  externalId: string | null
+  responseMessage: string | null
+  /**
+   * Badan SESUDAH redaksi: rahasia jadi `[REDACTED:SECRET]`, PII jadi `[REDACTED:PII]`,
+   * dan badan di atas 16 KiB diganti `{ _truncated, _bytes, _head }`. Respons yang
+   * BUKAN JSON disimpan sebagai `{ _raw: "…" }`.
+   */
+  requestBody: Record<string, unknown> | null
+  responseBody: Record<string, unknown> | null
+  createdAt: string
+}
+
+// Membaca Log Panggilan DurianPay: MANAGER / ADMIN / DEVELOPER
+// (`@Roles("MANAGER", "ADMIN", "DEVELOPER")` di `durianpay-api-calls.controller.ts`).
+// SATU TINGKAT LEBIH SEMPIT daripada "Pencairan Bermasalah" dan "Persetujuan
+// Pencairan" yang juga membuka STAFF, dan bedanya disengaja di backend: kedua
+// antrean itu adalah PEKERJAAN staf, layar ini tidak punya keputusan apa pun.
+// Dipakai handler MSW supaya tiruannya menolak STAFF dengan 403 seperti server.
+// Pasangan sisi UI-nya `canReadDurianpayApiCalls` di `src/lib/auth.tsx`.
+export function canReadDurianpayApiCallsRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN' || role === 'DEVELOPER'
+}

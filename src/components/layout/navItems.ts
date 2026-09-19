@@ -18,6 +18,7 @@ import {
   PhoneCall,
   ShieldAlert,
   FlaskConical,
+  RadioTower,
   Banknote as BanknoteIcon,
   BanknoteX,
 } from 'lucide-react'
@@ -28,6 +29,7 @@ import {
   canAccessTreasury,
   canManageSettings,
   canManageStaff,
+  canReadDurianpayApiCalls,
 } from '@/lib/auth'
 import type { Staff } from '@/lib/types'
 
@@ -238,6 +240,23 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Troubleshooting',
     items: [
       { to: '/manual-sync', label: 'Manual Sync', icon: Wrench },
+      // Log Panggilan DurianPay — jejak setiap panggilan KELUAR ke DurianPay.
+      // Duduk di Troubleshooting karena ia dibuka saat ada yang bermasalah, bukan
+      // sebagai antrean kerja: tidak ada satu pun keputusan di layarnya (backend
+      // hanya menyediakan dua GET).
+      //
+      // Digerbangi di ITEM, bukan section — pola TREASURY (USDX-631) dan SETTINGS
+      // (USDX-639): Manual Sync tetap terbuka untuk semua peran, sementara layar
+      // ini mengikuti `@Roles` backendnya (MANAGER / ADMIN / DEVELOPER). STAFF
+      // tidak melihat entrinya karena setiap permintaannya akan dijawab 403, dan
+      // menu yang muncul lalu ditolak adalah cara tercepat membuat seseorang
+      // mengira layarnya rusak. Rutenya digerbangi ulang di App.tsx.
+      {
+        to: '/durianpay-api-calls',
+        label: 'Log DurianPay',
+        icon: RadioTower,
+        visibleWhen: canReadDurianpayApiCalls,
+      },
     ],
   },
 ]

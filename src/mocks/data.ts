@@ -66,6 +66,7 @@ import type {
   PayoutFailureDetail,
   ReplacementBankAccount,
   PayoutSubmissionTrail,
+  DurianpayApiCallDetail,
   OrderOnBehalfOf,
   MintPaymentStatus,
   MintSafeStatus,
@@ -2710,6 +2711,283 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
       reviews: [],
       // Retail TANPA rekening tersimpan — daftar kosong walau ordernya retail.
       replacementBankAccounts: [],
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Log Panggilan DurianPay ────────────────────────────────────────────────
+//
+// DILAYANI MSW karena backendnya belum merge (branch
+// `wisnubarata111/be-catat-log-panggilan-durianpay`). Bentuk barisnya disalin
+// dari `durianpay-api-calls.types.ts` + `durianpay-api-call-log.service.ts`, dan
+// `errorSummary` di tiap baris ditulis PERSIS seperti `summarize()` akan
+// menuliskannya — tiruan yang mengarang ringkasannya sendiri membuat test setuju
+// dengan UI karena konstruksinya, bukan karena servernya berperilaku begitu.
+
+const DURIANPAY_CALL_BASE_MS = Date.parse('2026-09-18T02:00:00.000Z')
+
+function durianpayCallAt(minutes: number): string {
+  return new Date(DURIANPAY_CALL_BASE_MS + minutes * 60_000).toISOString()
+}
+
+/** Id tetap supaya test bisa menembak satu baris tanpa menebak urutan. */
+export const DURIANPAY_CALL_MOCK_IDS = {
+  /** create-va yang bersih — satu-satunya baris yang benar-benar "Berhasil". */
+  createVaOk: '019f3a01-0678-7c31-9b2d-0000000000b1',
+  /** Kejadian 5–7 Sep 2026: create-va production gagal `5002701`. */
+  createVaUnavailable: '019f3a02-0678-7c31-9b2d-0000000000b2',
+  /** HTTP 200 dengan responseCode yang TIDAK berawalan 2 — amplop menolak di dalam hijau. */
+  inquiryVaRefusedInside: '019f3a03-0678-7c31-9b2d-0000000000b3',
+  /** 4xx: permintaan sampai lalu ditolak, operasinya TIDAK terjadi. */
+  transferRejected: '019f3a04-0678-7c31-9b2d-0000000000b4',
+  /** Timeout: `httpStatus` null, tidak ada badan respons sama sekali. */
+  statusTimeout: '019f3a05-0678-7c31-9b2d-0000000000b5',
+  /** Token B2B: tanpa referenceNo, dan `accessToken` sudah diredaksi. */
+  tokenOk: '019f3a06-0678-7c31-9b2d-0000000000b6',
+  /** Balasan BUKAN JSON — halaman HTML reverse proxy, tersimpan sebagai `_raw`. */
+  balanceRawHtml: '019f3a07-0678-7c31-9b2d-0000000000b7',
+  /** Jalur lama + badan respons yang DIPOTONG di 16 KiB. */
+  legacyTruncated: '019f3a08-0678-7c31-9b2d-0000000000b8',
+} as const
+
+const SNAP_BASE_URL = 'https://api.durianpay.id'
+const LEGACY_BASE_URL = 'https://api.durianpay.id'
+
+export function createMockDurianpayApiCalls(): Map<string, DurianpayApiCallDetail> {
+  const rows: DurianpayApiCallDetail[] = [
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.createVaOk,
+      requestedAt: durianpayCallAt(0),
+      createdAt: durianpayCallAt(0),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/create-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918090000001',
+      httpStatus: 200,
+      responseCode: '2002700',
+      responseMessage: 'Successful',
+      outcome: 'SUCCESS',
+      referenceNo: 'MNT7K2X9QP',
+      traceId: 'dp-trace-7f31a0',
+      durationMs: 412,
+      errorSummary: null,
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000012345',
+        virtualAccountNo: '89993203000000012345',
+        virtualAccountName: '[REDACTED:PII]',
+        trxId: 'MNT7K2X9QP',
+        totalAmount: { value: '5000000.00', currency: 'IDR' },
+      },
+      responseBody: {
+        responseCode: '2002700',
+        responseMessage: 'Successful',
+        virtualAccountData: {
+          partnerServiceId: '  89993203',
+          customerNo: '000000012345',
+          virtualAccountNo: '89993203000000012345',
+          trxId: 'MNT7K2X9QP',
+          totalAmount: { value: '5000000.00', currency: 'IDR' },
+        },
+        additionalInfo: { trace_id: 'dp-trace-7f31a0' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.createVaUnavailable,
+      requestedAt: durianpayCallAt(-35),
+      createdAt: durianpayCallAt(-35),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/create-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918082500009',
+      httpStatus: 500,
+      responseCode: '5002701',
+      responseMessage: 'Internal Server Error',
+      outcome: 'UNAVAILABLE',
+      referenceNo: 'MNT4QW8ZR1',
+      traceId: 'dp-trace-2b90cc',
+      durationMs: 9840,
+      errorSummary: 'HTTP 500 responseCode=5002701 Internal Server Error',
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000067890',
+        virtualAccountNo: '89993203000000067890',
+        virtualAccountName: '[REDACTED:PII]',
+        trxId: 'MNT4QW8ZR1',
+        totalAmount: { value: '12500000.00', currency: 'IDR' },
+      },
+      responseBody: {
+        responseCode: '5002701',
+        responseMessage: 'Internal Server Error',
+        additionalInfo: { trace_id: 'dp-trace-2b90cc' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.inquiryVaRefusedInside,
+      requestedAt: durianpayCallAt(-70),
+      createdAt: durianpayCallAt(-70),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/inquiry-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918075000004',
+      httpStatus: 200,
+      responseCode: '4043001',
+      responseMessage: 'Transaction Not Found',
+      // Transportnya 2xx, jadi backend mencatatnya SUCCESS — `errorSummary`-lah
+      // yang menyatakan amplopnya menolak di dalam status hijau.
+      outcome: 'SUCCESS',
+      referenceNo: 'MNT9LD3TVB',
+      traceId: null,
+      durationMs: 305,
+      errorSummary: 'HTTP 200 tapi responseCode=4043001 Transaction Not Found',
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000099001',
+        virtualAccountNo: '89993203000000099001',
+        inquiryRequestId: 'MNT9LD3TVB',
+      },
+      responseBody: { responseCode: '4043001', responseMessage: 'Transaction Not Found' },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.transferRejected,
+      requestedAt: durianpayCallAt(-140),
+      createdAt: durianpayCallAt(-140),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-interbank',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918064000002',
+      httpStatus: 400,
+      responseCode: '4001801',
+      responseMessage: 'Invalid Field Format beneficiaryAccountNo',
+      outcome: 'REJECTED',
+      referenceNo: 'RDM5HG2NMC',
+      traceId: 'dp-trace-51aa03',
+      durationMs: 688,
+      errorSummary: 'HTTP 400 responseCode=4001801 Invalid Field Format beneficiaryAccountNo',
+      requestBody: {
+        partnerReferenceNo: 'RDM5HG2NMC',
+        amount: { value: '1188210.00', currency: 'IDR' },
+        beneficiaryAccountNo: '[REDACTED:PII]',
+        beneficiaryAccountName: '[REDACTED:PII]',
+        beneficiaryBankCode: '014',
+        sourceAccountNo: '[REDACTED:SECRET]',
+      },
+      responseBody: {
+        responseCode: '4001801',
+        responseMessage: 'Invalid Field Format beneficiaryAccountNo',
+        additionalInfo: { trace_id: 'dp-trace-51aa03' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.statusTimeout,
+      requestedAt: durianpayCallAt(-210),
+      createdAt: durianpayCallAt(-210),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer/status',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918053000007',
+      httpStatus: null,
+      responseCode: null,
+      responseMessage: null,
+      outcome: 'UNAVAILABLE',
+      referenceNo: 'RDM5HG2NMC',
+      traceId: null,
+      durationMs: 30000,
+      errorSummary: 'POST /v1.0/transfer/status network error/timeout',
+      requestBody: { originalPartnerReferenceNo: 'RDM5HG2NMC', serviceCode: '18' },
+      // Tidak ada respons sama sekali — kolomnya null, bukan objek kosong.
+      responseBody: null,
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.tokenOk,
+      requestedAt: durianpayCallAt(-260),
+      createdAt: durianpayCallAt(-260),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/access-token/b2b',
+      baseUrl: SNAP_BASE_URL,
+      externalId: null,
+      httpStatus: 200,
+      responseCode: '2007300',
+      responseMessage: 'Successful',
+      outcome: 'SUCCESS',
+      // Token B2B memang tidak membawa referensi order.
+      referenceNo: null,
+      traceId: null,
+      durationMs: 233,
+      errorSummary: null,
+      requestBody: { grantType: 'client_credentials' },
+      responseBody: {
+        responseCode: '2007300',
+        responseMessage: 'Successful',
+        accessToken: '[REDACTED:SECRET]',
+        tokenType: 'Bearer',
+        expiresIn: '900',
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.balanceRawHtml,
+      requestedAt: durianpayCallAt(-320),
+      createdAt: durianpayCallAt(-320),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/balance-inquiry',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918043000003',
+      httpStatus: 503,
+      responseCode: null,
+      responseMessage: null,
+      outcome: 'UNAVAILABLE',
+      referenceNo: null,
+      traceId: null,
+      durationMs: 1502,
+      errorSummary: 'HTTP 503',
+      requestBody: { accountNo: '[REDACTED:SECRET]' },
+      // Balasan yang BUKAN JSON: inilah bentuk kegagalan yang dulu hanya
+      // menyisakan "HTTP 503" telanjang.
+      responseBody: {
+        _raw: '<html><head><title>503 Service Temporarily Unavailable</title></head><body><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>nginx</center></body></html>',
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.legacyTruncated,
+      requestedAt: durianpayCallAt(-410),
+      createdAt: durianpayCallAt(-410),
+      direction: 'OUTBOUND',
+      apiFlavor: 'LEGACY',
+      httpMethod: 'POST',
+      // Path Legacy `submit` memang membawa query stringnya apa adanya.
+      path: '/v1/disbursements/submit?force_disburse=true',
+      baseUrl: LEGACY_BASE_URL,
+      externalId: null,
+      httpStatus: 400,
+      responseCode: 'invalid_bank_account',
+      responseMessage: null,
+      outcome: 'REJECTED',
+      referenceNo: null,
+      traceId: null,
+      durationMs: 774,
+      errorSummary: 'HTTP 400 responseCode=invalid_bank_account',
+      requestBody: { name: '[REDACTED:PII]', description: 'redeem payout' },
+      // Lebih dari 16 KiB: yang tersimpan hanya kepalanya.
+      responseBody: {
+        _truncated: true,
+        _bytes: 41233,
+        _head: '{"error":"invalid_bank_account","data":{"items":[{"id":"dis_item_001","account_number":"[REDACTED:PII]"',
+      },
     },
   ]
   return new Map(rows.map((row) => [row.id, row]))

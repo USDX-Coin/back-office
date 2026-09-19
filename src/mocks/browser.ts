@@ -78,6 +78,16 @@ import { handlers } from './handlers'
 //   /api/v1/payout-failures/:id
 //   /api/v1/payout-failures/:id/resolve
 //
+// Log Panggilan DurianPay: the two /api/v1/durianpay-api-calls routes are MOCK-served
+// for the strongest version of the same reason — their backend is not merged at all.
+// It lives on the branch `wisnubarata111/be-catat-log-panggilan-durianpay` and has no
+// SOT contract yet, so this side was built by reading that branch's module. They are
+// deliberately ABSENT from the set below. When that PR merges AND api-dev serves it
+// (GET /api/v1/durianpay-api-calls answering 401 unauthenticated rather than 404), add
+// both paths here; the handlers STAY in handlers.ts for Vitest (the USDX-154 precedent):
+//   /api/v1/durianpay-api-calls
+//   /api/v1/durianpay-api-calls/:id
+//
 // USDX-678: the sidebar badges read /api/v1/queue-counts (backend USDX-676) and the
 // Kirim ulang dialog reads `replacementBankAccounts` from the detail (backend
 // USDX-677). Still 404 on api-dev on 13 Sep 2026, so MOCK-served as well — add

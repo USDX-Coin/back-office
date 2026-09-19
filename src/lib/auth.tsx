@@ -6,6 +6,7 @@ import {
   canRestoreMintProdMode as canRestoreMintProdModeRole,
   canDecideRedeemPayoutRole,
   canResolvePayoutFailureRole,
+  canReadDurianpayApiCallsRole,
 } from './types'
 import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
@@ -334,4 +335,14 @@ export function canResolvePayoutFailure(staff: Staff | null): boolean {
 // kewenangan yang sama dengan memutus satu berkas. BE menegakkan 403 sendiri.
 export function canManageSanctionLists(staff: Staff | null): boolean {
   return staff?.role === 'ADMIN' || staff?.role === 'MANAGER'
+}
+
+// Membaca Log Panggilan DurianPay: MANAGER / ADMIN / DEVELOPER — daftar yang
+// ditulis `@Roles(...)` di `durianpay-api-calls.controller.ts`. STAFF dijawab 403,
+// jadi entri menunya DAN rutenya digerbangi dengan daftar yang sama: menu yang
+// muncul lalu ditolak server adalah cara tercepat membuat orang mengira layarnya
+// rusak. Daftar perannya hidup SEKALI di `canReadDurianpayApiCallsRole`
+// (`lib/types.ts`), dipakai bersama handler MSW. `null` staff = tidak berwenang.
+export function canReadDurianpayApiCalls(staff: Staff | null): boolean {
+  return staff !== null && canReadDurianpayApiCallsRole(staff.role)
 }
