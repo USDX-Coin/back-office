@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
@@ -90,6 +90,17 @@ const mintExecutedDetail = {
   updatedAt: '2026-05-01T00:00:00Z',
 }
 
+// § 4 P1-2 — nilai mentah (hash Safe, wei, kode anti-dobel, id request, nama
+// jaringan) dilipat ke blok "Detail teknis" yang tertutup secara default.
+// ATURANNYA: boleh dilipat, TIDAK boleh dibuang — jadi tes ini membukanya dan
+// membuktikan nilainya masih utuh, lengkap dengan tautan explorer/Safe-nya.
+// Tanpa langkah ini `Collapsible` Radix memang tidak merender isinya sama sekali.
+async function openDetailTeknis() {
+  const trigger = await screen.findByText('Detail teknis')
+  fireEvent.click(trigger)
+  return trigger
+}
+
 function open(props?: Partial<React.ComponentProps<typeof RequestDetailModal>>) {
   return renderWithProviders(
     <RequestDetailModal
@@ -121,6 +132,7 @@ describe('RequestDetailModal — on-chain links', () => {
     test('renders safeTxHash as a Safe UI link using the STAFF safe address', async () => {
       server.use(chainsOk(), detailOk(mintExecutedDetail))
       open()
+      await openDetailTeknis()
       await waitFor(() => {
         const a = document.querySelector('a[href^="https://app.safe.global/transactions/tx"]')
         expect(a).not.toBeNull()
@@ -135,6 +147,7 @@ describe('RequestDetailModal — on-chain links', () => {
     test('uses the MANAGER safe address when safeType is MANAGER', async () => {
       server.use(chainsOk(), detailOk({ ...mintExecutedDetail, safeType: 'MANAGER' }))
       open({ listItem: { ...listRow, safeType: 'MANAGER' } })
+      await openDetailTeknis()
       await waitFor(() => {
         const a = document.querySelector('a[href^="https://app.safe.global/transactions/tx"]')
         expect(a?.getAttribute('href')).toContain(`matic%3A${MANAGER_SAFE}`)
@@ -175,7 +188,8 @@ describe('RequestDetailModal — on-chain links', () => {
       )
       open()
       // wait until the detail body has rendered
-      await screen.findByText('On-chain tx hash')
+      await screen.findByText('Bukti blockchain')
+      await openDetailTeknis()
       expect(document.querySelector('a[href^="https://polygonscan.com/tx/"]')).toBeNull()
       expect(document.querySelector('a[href^="https://app.safe.global/"]')).toBeNull()
     })
@@ -186,9 +200,37 @@ describe('RequestDetailModal — on-chain links', () => {
         detailOk({ ...mintExecutedDetail, status: 'PENDING_APPROVAL', onChainTxHash: null })
       )
       open({ listItem: { ...listRow, status: 'PENDING_APPROVAL', onChainTxHash: null } })
-      const label = await screen.findByText('On-chain tx hash')
+      const label = await screen.findByText('Bukti blockchain')
       expect(label.parentElement?.textContent).toContain('—')
       expect(document.querySelector(`a[href*="${ON_CHAIN_TX}"]`)).toBeNull()
+    })
+
+    // P1-2 — pagar yang membuat "boleh dilipat, tidak boleh dibuang" bisa gagal
+    // kalau seseorang menghapus field-nya alih-alih melipatnya.
+    test('Detail teknis tetap membawa SELURUH nilai mentah yang dulu di layar utama', async () => {
+      server.use(chainsOk(), detailOk(mintExecutedDetail))
+      open()
+      await openDetailTeknis()
+      for (const label of [
+        'ID request',
+        'Kode anti-dobel',
+        'Nominal satuan terkecil (wei)',
+        'Jaringan',
+        'Nomor antrean tanda tangan',
+      ]) {
+        expect(await screen.findByText(label)).toBeInTheDocument()
+      }
+      // Nilai wei-nya sendiri, bukan cuma labelnya.
+      expect(screen.getByText(mintExecutedDetail.amountWei)).toBeInTheDocument()
+    })
+
+    test('Detail teknis tertutup secara default', async () => {
+      server.use(chainsOk(), detailOk(mintExecutedDetail))
+      open()
+      await screen.findByText('Detail teknis')
+      // P1-5 — "Amount (wei)" dulu berdiri sebagai label field di layar utama.
+      expect(screen.queryByText('Nominal satuan terkecil (wei)')).not.toBeInTheDocument()
+      expect(screen.queryByText(/amount \(wei\)/i)).not.toBeInTheDocument()
     })
   })
 })
@@ -201,7 +243,9 @@ describe('RequestDetailModal — Created by (USDX-78)', () => {
       detailOk({ ...mintExecutedDetail, createdByName: 'Detail Owner' })
     )
     open()
-    const label = await screen.findByText('Created by')
+    // P1-1 — "Created by" → "Dibuat oleh"; tetap di layar utama karena ia bahan
+    // penilaian, bukan bahan penelusuran.
+    const label = await screen.findByText('Dibuat oleh')
     // sibling div under the same <Field> wrapper renders the value.
     expect(label.parentElement?.textContent).toContain('Detail Owner')
   })
@@ -210,7 +254,7 @@ describe('RequestDetailModal — Created by (USDX-78)', () => {
     server.use(chainsOk(), detailOk(mintExecutedDetail))
     // listRow fixture has createdByName = 'Sam Operator'.
     open()
-    const label = await screen.findByText('Created by')
+    const label = await screen.findByText('Dibuat oleh')
     expect(label.parentElement?.textContent).toContain('Sam Operator')
   })
 })
