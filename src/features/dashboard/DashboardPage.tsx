@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/PageHeader'
 import TableErrorState from '@/components/TableErrorState'
 import Phase1Stats from './Phase1Stats'
+import QueueBoard from './QueueBoard'
 import { useDashboardStats } from './hooks'
 
 export default function DashboardPage() {
@@ -21,15 +22,15 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="USDX network"
-        title="Dashboard"
-        italicAccent="overview"
+        eyebrow="Pekerjaan Hari Ini"
+        title="Beranda"
+        italicAccent="ringkasan"
         subtitle={
           stats
-            ? `${stats.pendingRequests} pending request${stats.pendingRequests === 1 ? '' : 's'} · rate Rp${stats.currentRate}/USDX`
+            ? `${stats.pendingRequests} request OTC menunggu persetujuan · kurs Rp${stats.currentRate}/USDX`
             : showError
-              ? 'Stats unavailable'
-              : 'Loading…'
+              ? 'Statistik tidak dapat dimuat'
+              : 'Memuat…'
         }
         actions={
           <>
@@ -39,14 +40,14 @@ export default function DashboardPage() {
               className="h-7 text-[12px] font-mono font-normal"
               disabled
             >
-              Live · 30s refresh
+              Diperbarui tiap 30 detik
             </Button>
             <Button
               variant="outline"
               size="icon"
               className="h-7 w-7"
               onClick={() => refetchStats()}
-              aria-label="Refresh"
+              aria-label="Muat ulang"
             >
               <RefreshCw className="h-3 w-3" />
             </Button>
@@ -54,10 +55,16 @@ export default function DashboardPage() {
         }
       />
 
+      {/* P1-3 — pertanyaan pertama operator tiap pagi ("apa yang menunggu
+          saya hari ini") dijawab di baris paling atas. Papan antrean berdiri
+          SENDIRI dari query statistik on-chain: `/api/v1/dashboard/stats` yang
+          gagal tidak boleh ikut menghapus daftar pekerjaan dari layar. */}
+      <QueueBoard />
+
       {showError ? (
         <div className="rounded-md bg-card">
           <TableErrorState
-            title="Couldn't load dashboard stats"
+            title="Statistik jaringan tidak dapat dimuat"
             onRetry={() => refetchStats()}
           />
         </div>

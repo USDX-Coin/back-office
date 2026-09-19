@@ -3,18 +3,20 @@
 // on-chain decimals; the API returns the human-readable form). This view
 // formats them as USDX with grouping but never coerces to Number, so we
 // don't lose precision on > 2^53 values.
-import { Link } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { canAccessRequestList, useAuth } from '@/lib/auth'
+import { getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import type { DashboardStats } from '@/lib/types'
 
+// P1-5 — label diambil dari peta `Record<Enum, StatusConfig>` yang sudah jadi
+// sumber tunggal (`src/lib/status.ts`), bukan dari salinan kedua yang bisa
+// menyimpang diam-diam dari layar lain.
 const REQUEST_STATUS_LABELS: Record<keyof DashboardStats['requestsByStatus'], string> = {
-  PENDING_APPROVAL: 'Pending approval',
-  APPROVED: 'Approved',
-  EXECUTED: 'Executed',
-  REJECTED: 'Rejected',
+  PENDING_APPROVAL: getRequestStatusConfig('PENDING_APPROVAL').label,
+  APPROVED: getRequestStatusConfig('APPROVED').label,
+  EXECUTED: getRequestStatusConfig('EXECUTED').label,
+  REJECTED: getRequestStatusConfig('REJECTED').label,
 }
 
 const REQUEST_STATUS_DOT: Record<keyof DashboardStats['requestsByStatus'], string> = {
@@ -90,69 +92,44 @@ interface Phase1StatsProps {
 }
 
 export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
-  const { user } = useAuth()
-  // USDX-78: STAFF doesn't have access to the mint/burn request list, so the
-  // "Pending requests" shortcut/widget is hidden — the link would just bounce
-  // them away. Non-STAFF see all four cards in a 4-col grid; STAFF gets a
-  // 3-col grid that fills cleanly.
-  const showPendingRequests = canAccessRequestList(user)
-
+  // P0-5 — kartu "Pending requests" DIHAPUS dari sini. Ia menaut ke
+  // `/requests?status=PENDING_APPROVAL`, rute yang tidak pernah didaftarkan di
+  // `App.tsx`: kena wildcard → `Navigate to="/login"` → `PublicRoute` melihat
+  // sesi masih hidup → dilempar balik ke `/dashboard`. Kartu itu memantul diam-
+  // diam ke halaman yang sama selama berbulan-bulan, dan tesnya hijau karena
+  // hanya memeriksa atribut `href`.
+  //
+  // Angkanya TIDAK hilang: `QueueBoard` di atas menampilkannya sebagai dua
+  // kartu terpisah (Mint OTC + Burn OTC) yang menaut ke `/mint?status=…` dan
+  // `/burn?status=…` — dua rute yang benar-benar ada, dan masing-masing
+  // mendarat di daftar yang tepat. Subtitle halaman masih menyebut totalnya.
   return (
-    <section data-testid="dashboard-phase1-stats" aria-label="USDX network statistics">
-      <div
-        className={cn(
-          'mb-6 grid gap-3 sm:grid-cols-2',
-          showPendingRequests ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-        )}
-      >
+    <section data-testid="dashboard-phase1-stats" aria-label="Statistik jaringan USDX">
+      <div className={cn('mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3')}>
         <StatCard
-          label="Total supply"
+          label="Pasokan beredar"
           value={data ? formatDecimal(data.totalSupply) : '—'}
           unit="USDX"
-          description="On-chain supply"
+          description="Jumlah token di blockchain"
           loading={isLoading}
           testId="stat-total-supply"
         />
         <StatCard
-          label="Total minted"
+          label="Total pernah dicetak"
           value={data ? formatDecimal(data.totalMinted) : '—'}
           unit="USDX"
-          description="Lifetime mint volume"
+          description="Sejak awal"
           loading={isLoading}
           testId="stat-total-minted"
         />
         <StatCard
-          label="Total burned"
+          label="Total pernah dibakar"
           value={data ? formatDecimal(data.totalBurned) : '—'}
           unit="USDX"
-          description="Lifetime burn volume"
+          description="Sejak awal"
           loading={isLoading}
           testId="stat-total-burned"
         />
-        {showPendingRequests && (
-          <Card
-            className="rounded-md py-0 gap-0 shadow-none dark:border-0 transition-colors hover:bg-muted/40"
-            data-testid="stat-pending-requests"
-          >
-            <Link
-              to="/requests?status=PENDING_APPROVAL"
-              className="block px-4 py-3.5"
-              aria-label="View pending requests"
-            >
-              <p className="text-[11px] text-muted-foreground">Pending requests</p>
-              {isLoading ? (
-                <Skeleton className="mt-2 h-6 w-12" />
-              ) : (
-                <p className="mt-2 text-[22px] font-semibold leading-none tracking-tight tabular-nums text-warning">
-                  {data ? data.pendingRequests.toLocaleString() : '—'}
-                </p>
-              )}
-              <p className="mt-2.5 font-mono text-[11.5px] text-muted-foreground">
-                View pending → /requests
-              </p>
-            </Link>
-          </Card>
-        )}
       </div>
 
       <div className="mb-6 grid gap-3 lg:grid-cols-3">
@@ -162,7 +139,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
         >
           <CardHeader className="px-4 pt-3.5 pb-3 border-b border-border [&]:!gap-0">
             <CardTitle className="text-[13px] font-semibold">
-              Requests by status
+              Request OTC per status
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -204,7 +181,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
         >
           <CardHeader className="px-4 pt-3.5 pb-3 border-b border-border [&]:!gap-0">
             <CardTitle className="text-[13px] font-semibold">
-              Safe wallet balances
+              Saldo dompet Safe
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
@@ -213,7 +190,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
             ) : (
               <>
                 <div data-testid="safe-balance-staff">
-                  <p className="text-[11px] text-muted-foreground">Staff Safe</p>
+                  <p className="text-[11px] text-muted-foreground">Dompet Staf</p>
                   <p className="mt-1 font-mono text-[14px] font-semibold tabular-nums">
                     {formatDecimal(data.safeBalances.staff)}
                     <span className="ml-1 text-[11.5px] font-normal text-muted-foreground">
@@ -222,7 +199,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
                   </p>
                 </div>
                 <div data-testid="safe-balance-manager">
-                  <p className="text-[11px] text-muted-foreground">Manager Safe</p>
+                  <p className="text-[11px] text-muted-foreground">Dompet Manager</p>
                   <p className="mt-1 font-mono text-[14px] font-semibold tabular-nums">
                     {formatDecimal(data.safeBalances.manager)}
                     <span className="ml-1 text-[11.5px] font-normal text-muted-foreground">
@@ -241,7 +218,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
         >
           <CardHeader className="px-4 pt-3.5 pb-3 border-b border-border [&]:!gap-0">
             <CardTitle className="text-[13px] font-semibold">
-              Current rate
+              Kurs berlaku
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
