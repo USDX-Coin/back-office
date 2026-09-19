@@ -23,7 +23,7 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       })
 
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Type' }).click()
+      await page.getByRole('combobox', { name: 'Jenis' }).click()
       await page.getByRole('option', { name: /^redeem$/i }).click()
       await page.getByRole('button', { name: /^apply$/i }).click()
 
@@ -44,8 +44,8 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
 
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Status' }).click()
-      await expect(page.getByRole('option', { name: /awaiting burn/i })).toBeVisible()
-      await expect(page.getByRole('option', { name: /payout complete/i })).toBeVisible()
+      await expect(page.getByRole('option', { name: /menunggu pembakaran/i })).toBeVisible()
+      await expect(page.getByRole('option', { name: /rupiah sudah dikirim/i })).toBeVisible()
     })
 
     test('AC #2 — redeem detail shows fee / net payout / bank (full) + burn tx', async ({
@@ -58,17 +58,20 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
 
       await expect(page).toHaveURL(/\/transactions\/ord_redeem_done/)
       const dialog = page.getByRole('dialog')
-      await expect(dialog.getByText(/redeem order/i)).toBeVisible()
+      await expect(dialog.getByText(/order redeem/i)).toBeVisible()
       await expect(dialog.getByText(/spread jual/i)).toBeVisible()
-      await expect(dialog.getByText(/disbursement fee/i)).toBeVisible()
-      await expect(dialog.getByText(/net payout/i)).toBeVisible()
+      await expect(dialog.getByText(/^biaya transfer bank$/i)).toBeVisible()
+      await expect(dialog.getByText(/^nominal transfer \(rp\)$/i)).toBeVisible()
       await expect(dialog.getByText(/bank tujuan/i)).toBeVisible()
       // Bank name + full account number + account name shown (un-mask, USDX-270).
       await expect(dialog.getByText('BCA')).toBeVisible()
       await expect(dialog.getByText('1234563271')).toBeVisible()
       await expect(dialog.getByText('BUDI SANTOSO')).toBeVisible()
-      // Burn tx hash field present (redeem on-chain reference).
-      await expect(dialog.getByText(/burn tx hash/i)).toBeVisible()
+      // § 4 P1-2 — bukti pembakaran (eks "Burn tx hash") dilipat ke blok
+      // "Detail teknis". Nomor rekening + nama pemilik di atas SENGAJA tidak
+      // ikut dilipat: keduanya bahan keputusan, bukan penelusuran.
+      await dialog.getByText('Detail teknis').click()
+      await expect(dialog.getByText(/^bukti pembakaran$/i)).toBeVisible()
     })
   })
 

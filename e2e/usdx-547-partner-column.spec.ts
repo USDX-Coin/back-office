@@ -67,7 +67,7 @@ test.describe('USDX-547 partner column @e2e', () => {
       await expect(dialog.getByText('PT Juara Remiten Indonesia')).toBeVisible()
       // Character for character — this is the number the partner quotes.
       await expect(dialog.getByText('JUARA-ORD-2026-000042')).toBeVisible()
-      await expect(dialog.getByText("Partner's customer")).toBeVisible()
+      await expect(dialog.getByText('Nasabah milik partner')).toBeVisible()
     })
 
     test('Owner=Partner narrows the mixed list to partner orders only', async ({ page }) => {
@@ -79,8 +79,8 @@ test.describe('USDX-547 partner column @e2e', () => {
       })
 
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Owner' }).click()
-      await page.getByRole('option', { name: /partner orders/i }).click()
+      await page.getByRole('combobox', { name: 'Pemilik order' }).click()
+      await page.getByRole('option', { name: /order partner/i }).click()
       await page.getByRole('button', { name: /^apply$/i }).click()
 
       await expect(page).toHaveURL(/ownerType=PARTNER/)
@@ -128,7 +128,7 @@ test.describe('USDX-547 partner column @e2e', () => {
 
       const dialog = page.getByRole('dialog')
       await expect(dialog).toBeVisible({ timeout: 15000 })
-      await expect(dialog.getByText(/exchange rate & spread/i)).toBeVisible()
+      await expect(dialog.getByText(/^kurs & spread$/i)).toBeVisible()
       await expect(dialog.getByText('External reference')).toHaveCount(0)
       await expect(dialog.getByText('On behalf of')).toHaveCount(0)
     })
@@ -146,7 +146,7 @@ test.describe('USDX-547 partner column @e2e', () => {
       })
 
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Type' }).click()
+      await page.getByRole('combobox', { name: 'Jenis' }).click()
       await page.getByRole('option', { name: /^mint$/i }).click()
       await page.getByRole('button', { name: /^apply$/i }).click()
 

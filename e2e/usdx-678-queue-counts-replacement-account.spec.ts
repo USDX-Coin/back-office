@@ -22,7 +22,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await page.goto('/dashboard')
 
       await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2', { timeout: 15000 })
-      await page.getByRole('link', { name: /persetujuan pencairan/i }).click()
+      await page.locator('aside').getByRole('link', { name: /persetujuan pencairan/i }).click()
       await expect(page).toHaveURL(/\/redeem-approvals$/)
 
       expect(apiCalls).toContain('/api/v1/queue-counts')
@@ -123,7 +123,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await expect(page.getByRole('link', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
+      await expect(page.locator('aside').getByRole('link', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
       await expect.poll(() => served).toBe(true)
       await expect(page.getByTestId('nav-badge-payout-failures')).toHaveCount(0)
       await expect(page.getByTestId('nav-badge-redeem-approvals')).toHaveCount(0)

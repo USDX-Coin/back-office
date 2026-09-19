@@ -16,9 +16,10 @@ test.describe('USDX-206 user transaction @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await page.getByRole('link', { name: /user transaction/i }).click()
+      // § 4 P2-1 — "User Transaction" jadi "Transaksi Nasabah".
+      await page.getByRole('link', { name: /^transaksi nasabah$/i }).click()
       await expect(page).toHaveURL(/\/transactions/)
-      await expect(page.getByRole('heading', { name: /user transaction/i })).toBeVisible({
+      await expect(page.getByRole('heading', { name: /transaksi nasabah/i })).toBeVisible({
         timeout: 15000,
       })
 
@@ -38,7 +39,7 @@ test.describe('USDX-206 user transaction @e2e', () => {
 
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Status' }).click()
-      await page.getByRole('option', { name: /^completed$/i }).click()
+      await page.getByRole('option', { name: /^selesai$/i }).click()
       await page.getByRole('button', { name: /^apply$/i }).click()
 
       await expect(page).toHaveURL(/status=COMPLETED/)
@@ -55,12 +56,12 @@ test.describe('USDX-206 user transaction @e2e', () => {
 
       await expect(page).toHaveURL(/\/transactions\/ord_completed/)
       const dialog = page.getByRole('dialog')
-      await expect(dialog.getByText(/exchange rate & spread/i)).toBeVisible()
-      await expect(dialog.getByText(/fee breakdown/i)).toBeVisible()
-      await expect(dialog.getByText(/estimated revenue/i)).toBeVisible()
+      await expect(dialog.getByText(/^kurs & spread$/i)).toBeVisible()
+      await expect(dialog.getByText(/^rincian biaya$/i)).toBeVisible()
+      await expect(dialog.getByText(/^perkiraan pendapatan$/i)).toBeVisible()
       await expect(dialog.getByText(/spread beli/i)).toBeVisible()
       await expect(dialog.getByText(/spread jual/i)).toBeVisible()
-      await expect(dialog.getByText(/payment gateway fee/i)).toBeVisible()
+      await expect(dialog.getByText(/^biaya payment gateway$/i)).toBeVisible()
     })
   })
 
@@ -91,7 +92,7 @@ test.describe('USDX-206 user transaction @e2e', () => {
 
       const dialog = page.getByRole('dialog')
       await expect(dialog).toBeVisible({ timeout: 15000 })
-      await expect(dialog.getByText(/mint order/i)).toBeVisible()
+      await expect(dialog.getByText(/order mint/i)).toBeVisible()
     })
 
     test('order without a chosen channel shows a dash for Total pay (IDR)', async ({ page }) => {

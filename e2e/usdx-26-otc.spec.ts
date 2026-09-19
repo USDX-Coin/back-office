@@ -46,7 +46,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
   test.describe('positive', () => {
     test('should submit the form and list the new request on /mint', async ({ page }) => {
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '777')
       await page.getByRole('button', { name: /submit mint request/i }).click()
 
@@ -59,7 +59,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
 
     test('should convert an IDR-currency submission and show it in the list', async ({ page }) => {
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
       await page.getByRole('combobox', { name: /chain/i }).click()
       await page.getByRole('option', { name: /polygon/i }).click()
@@ -101,7 +101,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '5')
       await page.getByRole('button', { name: /submit mint request/i }).click()
       await expect(page.getByRole('alert')).toContainText(/amount must be greater than 0/i)
@@ -119,7 +119,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint request/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '99999')
       await page.getByRole('button', { name: /submit mint request/i }).click()
       await expect(page.getByRole('alert')).toContainText(/insufficient role/i)

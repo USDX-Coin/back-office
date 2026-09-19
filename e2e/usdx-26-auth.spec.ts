@@ -13,7 +13,8 @@ test.describe('USDX-26 auth @e2e', () => {
     test('should sign in with valid credentials and persist the session', async ({ page }) => {
       await installMockApi(page)
       await loginViaForm(page)
-      await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible()
+      // § 4 P1-3 — judul halaman "Dashboard" jadi "Beranda".
+      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible()
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeTruthy()
       // USDX-392: the persisted profile is v5 and must NOT carry a session token
@@ -26,10 +27,10 @@ test.describe('USDX-26 auth @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
-      await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await page.reload()
       await expect(page).toHaveURL(/\/dashboard/)
-      await expect(page.getByRole('heading', { name: /dashboard/i, level: 1 })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible()
     })
 
     test('should clear the session and return to /login on logout', async ({ page }) => {

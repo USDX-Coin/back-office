@@ -82,7 +82,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await expect(banner).toContainText(/dibatasi ke 2 email/i)
 
       // Pindah rute: banner ikut, dan tidak ada tombol untuk menutupnya.
-      await page.getByRole('link', { name: /^dashboard$/i }).click()
+      await page.getByRole('link', { name: /^beranda$/i }).click()
       await expect(page.getByTestId('mint-test-mode-banner')).toBeVisible()
       await expect(banner.getByRole('button')).toHaveCount(0)
     })
@@ -310,8 +310,10 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await expect(page.getByRole('link', { name: /^mode mint$/i })).toBeVisible({
         timeout: 15000,
       })
-      await expect(page.getByRole('link', { name: /^rate$/i })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: /^threshold$/i })).toHaveCount(0)
+      // § 4 P2-1 — empat entri Settings jadi SATU entri "Pengaturan"
+      // (canManageSettings = ADMIN + DEVELOPER). Yang diuji tetap hal yang sama:
+      // MANAGER melihat Mode Mint dan tidak melihat pengaturan lain.
+      await expect(page.getByRole('link', { name: /^pengaturan$/i })).toHaveCount(0)
     })
   })
 })

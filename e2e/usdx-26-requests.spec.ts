@@ -66,8 +66,13 @@ test.describe('USDX-26 request list filters @e2e', () => {
       await page.goto('/mint')
       await page.getByRole('button', { name: /Open mint request for .* 1000\.000000 USDX/ }).click()
       const dialog = page.getByRole('dialog')
-      await expect(dialog.getByRole('heading', { name: /mint request/i })).toBeVisible()
+      await expect(dialog.getByRole('heading', { name: /request mint otc/i })).toBeVisible()
+      // Bukti blockchain tetap di layar utama — itu bukti yang dibuka operator.
       await expect(dialog.locator('a[href^="https://polygonscan.com/tx/"]')).toBeVisible()
+      // § 4 P1-2 — nomor antrean tanda tangan (tautan Safe) dilipat ke blok
+      // "Detail teknis" yang tertutup default. BOLEH DILIPAT, TIDAK BOLEH
+      // DIBUANG: dibuka di sini, dan tautannya harus masih utuh.
+      await dialog.getByText('Detail teknis').click()
       await expect(dialog.locator('a[href^="https://app.safe.global/transactions/tx"]')).toBeVisible()
     })
   })

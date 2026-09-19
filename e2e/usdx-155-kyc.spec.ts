@@ -30,7 +30,10 @@ test.describe('USDX-155 KYC review @e2e', () => {
       const badge = page.getByTestId('nav-badge-kyc')
       await expect(badge).toHaveText('1')
 
-      await page.getByRole('link', { name: /kyc review/i }).click()
+      // § 4 P2-1 — "KYC Review" jadi "Verifikasi Perorangan" di menu.
+      // § 4 P1-3 — Beranda kini juga punya kartu antrean ke /kyc, jadi nama
+      // yang sama muncul dua kali. Yang diuji tes ini tetap SIDEBAR-nya.
+      await page.locator('aside').getByRole('link', { name: /^verifikasi perorangan/i }).click()
       await expect(page).toHaveURL(/\/kyc$/)
 
       // Oldest submission (the PENDING one) is row #1 — fixed ascending sort.
@@ -147,7 +150,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       // Modal closes back to the list; the row is VERIFIED now.
       await expect(page).toHaveURL(/\/kyc$/)
       const row = page.getByRole('button', { name: /open kyc submission for alice\.pending/i })
-      await expect(row).toContainText('Verified')
+      await expect(row).toContainText('Terverifikasi')
       // No PENDING left → the (N) badge unmounts.
       await expect(page.getByTestId('nav-badge-kyc')).toHaveCount(0)
     })
@@ -182,7 +185,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       await expect(page).toHaveURL(/\/kyc$/)
       const row = page.getByRole('button', { name: /open kyc submission for alice\.pending/i })
-      await expect(row).toContainText('Rejected')
+      await expect(row).toContainText('Ditolak')
     })
   })
 
