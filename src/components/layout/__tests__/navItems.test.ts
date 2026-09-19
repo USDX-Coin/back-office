@@ -121,3 +121,48 @@ describe('visibleNavSections — Settings (USDX-639)', () => {
     })
   })
 })
+
+// Log Panggilan DurianPay — entri Troubleshooting yang digerbangi di ITEM, pola
+// TREASURY (USDX-631) dan SETTINGS (USDX-639). Manual Sync tetap terbuka untuk
+// semua peran di section yang sama; layar ini mengikuti `@Roles` backendnya
+// (MANAGER / ADMIN / DEVELOPER), karena menu yang muncul lalu dijawab 403 adalah
+// cara tercepat membuat seseorang mengira layarnya rusak.
+
+function troubleshootingItems(staffId: string): string[] {
+  const staff = findStaffById(staffId) ?? null
+  const section = visibleNavSections(staff).find((s) => s.label === 'Troubleshooting')
+  return section ? section.items.map((i) => i.label) : []
+}
+
+describe('visibleNavSections — Troubleshooting / Log DurianPay', () => {
+  describe('positive', () => {
+    test('MANAGER, ADMIN dan DEVELOPER melihat entrinya', () => {
+      expect(troubleshootingItems('stf_2')).toEqual(['Manual Sync', 'Log DurianPay'])
+      expect(troubleshootingItems('stf_1')).toEqual(['Manual Sync', 'Log DurianPay'])
+      expect(troubleshootingItems('stf_3')).toEqual(['Manual Sync', 'Log DurianPay'])
+    })
+  })
+
+  describe('negative', () => {
+    test('STAFF tidak melihatnya — servernya menjawab 403 untuk peran itu', () => {
+      expect(troubleshootingItems('stf_4')).toEqual(['Manual Sync'])
+    })
+
+    test('sesi yang belum termuat juga tidak melihatnya (fail-closed)', () => {
+      const section = visibleNavSections(null).find((s) => s.label === 'Troubleshooting')
+      expect(section?.items.map((i) => i.label)).toEqual(['Manual Sync'])
+    })
+  })
+
+  describe('edge cases', () => {
+    test('entrinya menunjuk /durianpay-api-calls dan tidak membawa badge antrean', () => {
+      // Ini bukan antrean kerja: tidak ada satu pun keputusan di layarnya, jadi
+      // tidak ada angka yang berarti "sekian menunggu kamu".
+      const item = visibleNavSections(findStaffById('stf_2') ?? null)
+        .flatMap((s) => s.items)
+        .find((i) => i.label === 'Log DurianPay')
+      expect(item?.to).toBe('/durianpay-api-calls')
+      expect(item?.badgeKey).toBeUndefined()
+    })
+  })
+})

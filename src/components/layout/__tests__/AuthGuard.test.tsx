@@ -268,6 +268,70 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
   })
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Log Panggilan DurianPay — the backend opens both GETs to MANAGER / ADMIN /
+// DEVELOPER only (`@Roles` in `durianpay-api-calls.controller.ts`; STAFF gets
+// 403). Hiding the sidebar entry is not enough: the page would still be one
+// typed URL away, and every request from it would fail 403 — which reads as a
+// broken screen, not as a forbidden one. Read from `appRoutes`, the array the
+// router actually mounts, so deleting the wrapper fails here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the SHIPPED /durianpay-api-calls route guard', () => {
+  const roleGuard = findRoleGuardAbove('/durianpay-api-calls', appRoutes)
+
+  function renderRealGuard(staffId?: string) {
+    return renderWithProviders(
+      <Routes>
+        <Route element={roleGuard?.element}>
+          <Route path="/durianpay-api-calls" element={<div>DURIANPAY_LOG_PAGE</div>} />
+        </Route>
+        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+      </Routes>,
+      { initialEntries: ['/durianpay-api-calls'], staffId },
+    )
+  }
+
+  test('both the list route and its deep link are wrapped in a guard at all', () => {
+    // Without this, deleting the RoleGuard wrapper would just make the tests
+    // below render an unguarded tree and pass.
+    expect(roleGuard).not.toBeNull()
+    expect(isGuarded('/durianpay-api-calls', appRoutes)).toBe(true)
+    expect(isGuarded('/durianpay-api-calls/:id', appRoutes)).toBe(true)
+  })
+
+  describe('positive — the three roles the backend allows', () => {
+    test('MANAGER reaches the log', () => {
+      renderRealGuard('stf_2') // Linda Chen, MANAGER
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+
+    test('ADMIN reaches the log', () => {
+      renderRealGuard('stf_1') // Marcus Thorne, ADMIN
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+
+    test('DEVELOPER reaches the log', () => {
+      renderRealGuard('stf_3') // Marcus Aurelius, DEVELOPER
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative — STAFF is refused by the server, so the route refuses too', () => {
+    test('STAFF is redirected to /dashboard', () => {
+      renderRealGuard('stf_4') // Sarah King, STAFF
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('DURIANPAY_LOG_PAGE')).not.toBeInTheDocument()
+    })
+
+    test('an unauthenticated visit is redirected', () => {
+      renderRealGuard()
+      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.queryByText('DURIANPAY_LOG_PAGE')).not.toBeInTheDocument()
+    })
+  })
+})
+
 /** The nearest RoleGuard route object above `path`. */
 function findRoleGuardAbove(
   path: string,
