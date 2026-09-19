@@ -212,8 +212,12 @@ describe('TransactionsListPage @ USDX-206', () => {
       await screen.findByText('alice@example.com')
       // list columns: amount + status badges visible
       expect(screen.getByText('250.00')).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /payment/i })).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /safe/i })).toBeInTheDocument()
+      // § 4 P1-1 — header kolom berbahasa Indonesia. "Safe" khususnya: operator
+      // non-crypto membacanya enam kali sehari tanpa pernah diberi tahu artinya,
+      // sementara yang perlu ia tahu adalah tahap tanda tangannya. Nilai enum
+      // (`paymentStatus` / `safeStatus`) TIDAK ikut diterjemahkan.
+      expect(screen.getByRole('columnheader', { name: /pembayaran/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /tanda tangan/i })).toBeInTheDocument()
     })
 
     test('AC #1 — Status filter wires to ?status=COMPLETED', async () => {
@@ -230,7 +234,7 @@ describe('TransactionsListPage @ USDX-206', () => {
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /^completed$/i }))
+      await user.click(await screen.findByRole('option', { name: /^selesai$/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
       await waitFor(() =>
@@ -251,8 +255,8 @@ describe('TransactionsListPage @ USDX-206', () => {
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Payment' }))
-      await user.click(await screen.findByRole('option', { name: /^paid$/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Pembayaran' }))
+      await user.click(await screen.findByRole('option', { name: /sudah dibayar/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
       await waitFor(() =>
@@ -271,14 +275,20 @@ describe('TransactionsListPage @ USDX-206', () => {
 
       const dialog = await screen.findByRole('dialog')
       // Breakdown sections + key figures present
-      expect(within(dialog).getByText(/exchange rate & spread/i)).toBeInTheDocument()
-      expect(within(dialog).getByText(/fee breakdown/i)).toBeInTheDocument()
-      expect(within(dialog).getByText(/estimated revenue/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^kurs & spread$/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^rincian biaya$/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^perkiraan pendapatan$/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/spread beli/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/spread jual/i)).toBeInTheDocument()
-      expect(within(dialog).getByText(/payment gateway fee/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^biaya payment gateway$/i)).toBeInTheDocument()
       // Effective rate + estimated revenue values rendered
       expect(within(dialog).getByText(/32.*310/)).toBeInTheDocument()
+      // P1-2 — blok Detail teknis ada, dan tertutup sampai dibuka.
+      expect(within(dialog).getByText('Detail teknis')).toBeInTheDocument()
+      expect(within(dialog).queryByText('Kode anti-dobel')).not.toBeInTheDocument()
+      await user.click(within(dialog).getByText('Detail teknis'))
+      expect(await within(dialog).findByText('Kode anti-dobel')).toBeInTheDocument()
+      expect(within(dialog).getByText('ID order')).toBeInTheDocument()
     })
 
     test('AC #2 — detail links safe/on-chain tx hashes out via chains config', async () => {
@@ -293,6 +303,10 @@ describe('TransactionsListPage @ USDX-206', () => {
       setup()
       await user.click(await screen.findByText('alice@example.com'))
       await screen.findByRole('dialog')
+      // § 4 P1-2 — hash dan tautannya dilipat ke blok "Detail teknis" yang
+      // tertutup default. BOLEH DILIPAT, TIDAK BOLEH DIBUANG: tes ini membukanya
+      // dan membuktikan tautan explorer-nya masih utuh beserta rel-nya.
+      await user.click(await screen.findByText('Detail teknis'))
       await waitFor(() => {
         expect(
           document.querySelector(`a[href="https://polygonscan.com/tx/${onChain}"]`),
@@ -309,7 +323,7 @@ describe('TransactionsListPage @ USDX-206', () => {
       )
       setup(['/transactions/ord_deep'])
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/mint order/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/order mint/i)).toBeInTheDocument()
     })
   })
 
@@ -340,7 +354,7 @@ describe('TransactionsListPage @ USDX-206', () => {
     test('renders the empty state when there are no orders', async () => {
       server.use(http.get('/api/v1/orders', () => okList([])))
       setup()
-      await screen.findByText(/no user transactions yet/i)
+      await screen.findByText(/belum ada transaksi nasabah/i)
     })
 
     test('null totalPayIdr renders a dash (channel not yet chosen)', async () => {
@@ -369,7 +383,7 @@ describe('TransactionsListPage @ USDX-206', () => {
       setup()
       await screen.findByText('alice@example.com')
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       const redeem = await screen.findByRole('option', { name: /redeem/i })
       expect(redeem).not.toHaveAttribute('aria-disabled', 'true')
     })
@@ -392,7 +406,7 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
@@ -414,8 +428,8 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       await screen.findByText('bob@example.com')
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      expect(await screen.findByRole('option', { name: /awaiting burn/i })).toBeInTheDocument()
-      expect(screen.getByRole('option', { name: /payout complete/i })).toBeInTheDocument()
+      expect(await screen.findByRole('option', { name: /menunggu pembakaran/i })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: /rupiah sudah dikirim/i })).toBeInTheDocument()
     })
 
     test('AC #2 — redeem detail shows fee / net payout / bank + burn tx link', async () => {
@@ -431,17 +445,20 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       await user.click(await screen.findByText('bob@example.com'))
 
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/redeem order/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/order redeem/i)).toBeInTheDocument()
       // Redeem-specific fields.
       expect(within(dialog).getByText(/spread jual/i)).toBeInTheDocument()
-      expect(within(dialog).getByText(/disbursement fee/i)).toBeInTheDocument()
-      expect(within(dialog).getByText(/net payout/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^biaya transfer bank$/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/^nominal transfer \(rp\)$/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/bank tujuan/i)).toBeInTheDocument()
       // Bank name + full account number + account name shown (un-mask, USDX-270).
       expect(within(dialog).getByText('BCA')).toBeInTheDocument()
       expect(within(dialog).getByText('1234563271')).toBeInTheDocument()
       expect(within(dialog).getByText('BOB SETIAWAN')).toBeInTheDocument()
-      // Burn tx hash deep-links to the block explorer.
+      // Burn tx hash deep-links to the block explorer — sekarang di dalam blok
+      // "Detail teknis" (P1-2). Nomor rekening dan nama menurut bank di atas
+      // SENGAJA tidak ikut dilipat: keduanya bahan keputusan, bukan penelusuran.
+      await user.click(await within(dialog).findByText('Detail teknis'))
       await waitFor(() => {
         expect(
           document.querySelector(`a[href="https://polygonscan.com/tx/${burn}"]`),
@@ -485,7 +502,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /processing payout/i }))
+      await user.click(await screen.findByRole('option', { name: /pencairan diproses/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
       await waitFor(() =>
@@ -516,7 +533,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
       )
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^mint$/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
@@ -688,7 +705,7 @@ describe('TransactionsListPage @ USDX-547 — Partner column', () => {
       // quotes when it reports a problem, so ops must be able to match it
       // character for character.
       expect(within(dialog).getByText('JUARA-ORD-2026-000042')).toBeInTheDocument()
-      expect(within(dialog).getByText("Partner's customer")).toBeInTheDocument()
+      expect(within(dialog).getByText('Nasabah milik partner')).toBeInTheDocument()
       expect(within(dialog).getByText('pc_9f3a2b')).toBeInTheDocument()
     })
   })
@@ -714,8 +731,8 @@ describe('TransactionsListPage @ USDX-547 — Partner column', () => {
       // Every pre-existing cell still says what it said before USDX-547.
       expect(screen.getByText('250.00')).toBeInTheDocument()
       expect(screen.getByText('Rp 4.078.500,00')).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /payment/i })).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /safe/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /pembayaran/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /tanda tangan/i })).toBeInTheDocument()
       // The email is still rendered as an email (avatar + plain text), not as the
       // partner-customer marker.
       expect(screen.queryByText('(partner customer)')).not.toBeInTheDocument()
@@ -733,7 +750,7 @@ describe('TransactionsListPage @ USDX-547 — Partner column', () => {
       // skeleton state would make this pass for the wrong reason.
       expect(await within(dialog).findByText('alice@example.com')).toBeInTheDocument()
       // An always-present section full of dashes would suggest missing data.
-      expect(within(dialog).queryByText('External reference')).not.toBeInTheDocument()
+      expect(within(dialog).queryByText('Nomor order menurut partner')).not.toBeInTheDocument()
       expect(within(dialog).queryByText('On behalf of')).not.toBeInTheDocument()
       expect(within(dialog).queryByText(/^partner$/i)).not.toBeInTheDocument()
     })
@@ -766,7 +783,7 @@ describe('TransactionsListPage @ USDX-547 — Partner column', () => {
       setup(['/transactions/ord_ptn_cust'])
 
       const dialog = await screen.findByRole('dialog')
-      expect(await within(dialog).findByText('External reference')).toBeInTheDocument()
+      expect(await within(dialog).findByText('Nomor order menurut partner')).toBeInTheDocument()
       expect(
         within(dialog).queryByText('JUARA-ORD-2026-000042'),
       ).not.toBeInTheDocument()
@@ -789,8 +806,8 @@ describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Owner' }))
-      await user.click(await screen.findByRole('option', { name: /partner orders/i }))
+      await user.click(await screen.findByRole('combobox', { name: 'Pemilik order' }))
+      await user.click(await screen.findByRole('option', { name: /order partner/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 
       await waitFor(() =>
@@ -871,7 +888,7 @@ describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Type' }))
+      await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
       await user.click(screen.getByRole('button', { name: /^apply$/i }))
 

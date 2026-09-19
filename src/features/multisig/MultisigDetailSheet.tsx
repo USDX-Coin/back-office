@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router'
 import {
   Copy,
   ExternalLink,
@@ -62,9 +63,9 @@ import SignatureProgressBar from './SignatureProgressBar'
 async function copy(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(`${label} copied`)
+    toast.success(`${label} disalin`)
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -74,7 +75,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => copy(value, label)}
       className="text-muted-foreground hover:text-primary"
-      aria-label={`Copy ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <Copy className="h-3 w-3" />
     </button>
@@ -88,7 +89,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
       onClick={() => copy(value, label)}
       className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
       title={value}
-      aria-label={`Copy ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <span className="break-all">{shortHash(value)}</span>
       <Copy className="h-3 w-3 opacity-50" />
@@ -587,10 +588,21 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   </Field>
                 )}
                 {detail.linkedOrderId && (
-                  <Field label="Linked order">
+                  <Field label="Order asalnya">
+                    {/* P0-2, arah sebaliknya — dulu id ini cuma teks yang bisa
+                        disalin, jadi penandatangan yang ingin melihat order
+                        asalnya harus pindah menu dan mencarinya ulang. Tautan
+                        navigasi saja; keputusan sign/execute tetap di sini. */}
                     <span className="inline-flex items-center gap-1.5">
                       <Link2 className="h-3 w-3 text-muted-foreground" />
-                      <CopyableMono value={detail.linkedOrderId} label="Order ID" />
+                      <Link
+                        to={`/transactions/${detail.linkedOrderId}`}
+                        className="font-mono text-[12px] text-primary hover:underline"
+                        title={detail.linkedOrderId}
+                      >
+                        {shortHash(detail.linkedOrderId)}
+                      </Link>
+                      <CopyButton value={detail.linkedOrderId} label="ID order" />
                     </span>
                   </Field>
                 )}

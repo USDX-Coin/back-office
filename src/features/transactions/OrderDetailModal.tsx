@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Copy, ExternalLink } from 'lucide-react'
+import { Link } from 'react-router'
+import { ArrowRight, Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -10,6 +11,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import DetailTeknis from '@/components/DetailTeknis'
+import { canAccessTreasury, useAuth } from '@/lib/auth'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { findChainConfig } from '@/lib/chainLinks'
@@ -30,6 +33,7 @@ import {
 import type { OrderListItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useOrderDetail } from './hooks'
+import { resolveOrderNextStep } from './nextStep'
 
 interface OrderDetailModalProps {
   orderId: string | null
@@ -44,9 +48,11 @@ interface OrderDetailModalProps {
 async function copy(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(`${label} copied`)
+    // P1-1 — perbuatan yang sama persis dengan `${label} disalin` di layar
+    // screening; dulu di sini berbunyi "copied" / "Copy failed".
+    toast.success(`${label} disalin`)
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -56,8 +62,8 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => copy(value, label)}
       className="text-muted-foreground hover:text-primary"
-      title={`Copy ${label}`}
-      aria-label={`Copy ${label}`}
+      title={`Salin ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <Copy className="h-3 w-3" />
     </button>
@@ -71,7 +77,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
       onClick={() => copy(value, label)}
       className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
       title={value}
-      aria-label={`Copy ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <span className="break-all">{shortHash(value)}</span>
       <Copy className="h-3 w-3 opacity-50" />
@@ -91,7 +97,7 @@ function CopyableFull({ value, label }: { value: string; label: string }) {
       onClick={() => copy(value, label)}
       className="inline-flex items-start gap-1.5 text-left font-mono text-[12px] text-foreground hover:text-primary"
       title={value}
-      aria-label={`Copy ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <span className="break-all">{value}</span>
       <Copy className="mt-0.5 h-3 w-3 shrink-0 opacity-50" />
@@ -188,6 +194,7 @@ export default function OrderDetailModal({
 }: OrderDetailModalProps) {
   const query = useOrderDetail(open ? orderId : null)
   const { data: chains } = useChainConfig()
+  const { user } = useAuth()
   const detail = query.data?.data
 
   const resolvedType = detail?.type ?? listItem?.type
@@ -199,14 +206,22 @@ export default function OrderDetailModal({
 
   const isRedeem = detail?.type === 'REDEEM'
 
+  // P0-2 — satu tautan keluar dari layar monitoring menuju layar yang bisa
+  // MENINDAK order ini. Aturannya ada di `nextStep.ts`; ringkasnya: navigasi
+  // saja, dibangun dari `safeTxHash` (bukan id order), dan tidak muncul kalau
+  // tujuannya belum tentu mendarat.
+  const nextStep = detail
+    ? resolveOrderNextStep(detail, { canOpenSignatureQueue: canAccessTreasury(user) })
+    : null
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card">
         <DialogHeader>
-          <DialogTitle>{`${typeLabel} order`}</DialogTitle>
+          <DialogTitle>{`Order ${typeLabel.toLowerCase()}`}</DialogTitle>
           <DialogDescription>
-            Payment / payout, execution, and the fee / spread / revenue breakdown
-            for this consumer order.
+            Pembayaran, pencairan, eksekusi, serta rincian biaya, spread, dan
+            pendapatan untuk order nasabah ini.
           </DialogDescription>
         </DialogHeader>
 
@@ -221,7 +236,7 @@ export default function OrderDetailModal({
             <p className="py-2 text-center text-sm text-destructive">
               {query.error instanceof Error
                 ? query.error.message
-                : 'Failed to load order detail.'}
+                : 'Detail order gagal dimuat.'}
             </p>
           ) : (
             <div className="space-y-6">
@@ -231,17 +246,49 @@ export default function OrderDetailModal({
                   <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   {isRedeem && detail.lateBurn ? (
                     <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
-                      Late burn
+                      Dibakar setelah kedaluwarsa
                     </span>
                   ) : null}
-                  <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                    {isRedeem ? 'redeem' : `${detail.safeType ?? '—'} safe`} · {detail.chain}
+                  {/* P1-5 — dulu: `STAFF safe · polygon`. Nama rantainya turun
+                      ke Detail teknis di bawah; yang dibaca sekilas cuma dompet
+                      mana yang memegang order ini. */}
+                  <span className="text-[11.5px] text-muted-foreground">
+                    {isRedeem
+                      ? 'Redeem'
+                      : detail.safeType === 'MANAGER'
+                        ? 'Dompet Manager'
+                        : detail.safeType === 'STAFF'
+                          ? 'Dompet Staf'
+                          : 'Dompet belum ditentukan'}
                   </span>
                 </div>
                 <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
                   {formatDate(detail.createdAt)}
                 </span>
               </div>
+
+              {nextStep && (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2.5"
+                  data-testid="order-next-step"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[12.5px] font-medium text-foreground">
+                      Langkah berikutnya
+                    </p>
+                    <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                      {nextStep.hint}
+                    </p>
+                  </div>
+                  <Link
+                    to={nextStep.to}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1.5 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                  >
+                    {nextStep.label}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              )}
 
               {/* USDX-547 — partner block. Rendered only for partner orders:
                   a retail order has no partner, and an always-present section
@@ -258,30 +305,30 @@ export default function OrderDetailModal({
                       </span>
                     </div>
                   </Field>
-                  <Field label="On behalf of">
+                  <Field label="Atas nama">
                     {detail.onBehalfOf === 'CUSTOMER'
-                      ? "Partner's customer"
+                      ? 'Nasabah milik partner'
                       : detail.onBehalfOf === 'SELF'
-                        ? 'The partner itself'
+                        ? 'Partner itu sendiri'
                         : <Dim />}
                   </Field>
                   {/* The number the partner quotes when it reports a problem —
                       ops must be able to read it back and match it. */}
-                  <Field label="External reference">
+                  <Field label="Nomor order menurut partner">
                     {detail.externalReference ? (
                       <CopyableFull
                         value={detail.externalReference}
-                        label="External reference"
+                        label="Nomor order menurut partner"
                       />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Partner customer ID">
+                  <Field label="ID nasabah di sisi partner">
                     {detail.partnerCustomerId ? (
                       <CopyableMono
                         value={detail.partnerCustomerId}
-                        label="Partner customer ID"
+                        label="ID nasabah di sisi partner"
                       />
                     ) : (
                       <Dim />
@@ -290,19 +337,19 @@ export default function OrderDetailModal({
                 </Section>
               )}
 
-              <Section title="Overview">
-                <Field label="Type">{typeLabel}</Field>
-                <Field label="User email">
+              <Section title="Ringkasan">
+                <Field label="Jenis">{typeLabel}</Field>
+                <Field label="Email nasabah">
                   <span className="break-all">{detail.userEmail}</span>
                 </Field>
-                <Field label="Amount (USDX)">
+                <Field label="Nominal (USDX)">
                   <span className="font-mono tabular-nums">{detail.amount}</span>
                 </Field>
-                <Field label={isRedeem ? 'Wallet (burn source)' : 'Address tujuan'}>
+                <Field label={isRedeem ? 'Dompet asal pembakaran' : 'Dompet tujuan'}>
                   {detail.userAddress ? (
                     <CopyableMono
                       value={detail.userAddress}
-                      label={isRedeem ? 'Wallet address' : 'User address'}
+                      label={isRedeem ? 'Alamat dompet asal' : 'Alamat dompet tujuan'}
                     />
                   ) : (
                     <Dim />
@@ -310,11 +357,11 @@ export default function OrderDetailModal({
                 </Field>
               </Section>
 
-              <Section title="Exchange rate & spread">
-                <Field label="Base rate">
+              <Section title="Kurs & spread">
+                <Field label="Kurs dasar">
                   <span className="font-mono tabular-nums">{formatRate(detail.baseRate)}</span>
                 </Field>
-                <Field label="Effective rate">
+                <Field label="Kurs efektif">
                   <span className="font-mono tabular-nums">
                     {formatRate(detail.effectiveRate)}
                   </span>
@@ -327,28 +374,28 @@ export default function OrderDetailModal({
                     <Field label="Spread jual">{pct(detail.spreadSellPct)}</Field>
                   </>
                 )}
-                <Field label={isRedeem ? 'Gross (IDR)' : 'Subtotal (IDR)'}>
+                <Field label={isRedeem ? 'Bruto (Rp)' : 'Subtotal (Rp)'}>
                   {money(isRedeem ? detail.grossIdr : detail.subtotalIdr)}
                 </Field>
               </Section>
 
               {isRedeem ? (
-                <Section title="Fee breakdown">
-                  <Field label="Redeem fee">
+                <Section title="Rincian biaya">
+                  <Field label="Biaya redeem">
                     <span className="font-mono tabular-nums">
                       {pct(detail.redeemFeePct)} ·{' '}
                       {formatIdrAmount(Number(detail.redeemFeeIdr ?? 0))}
                     </span>
                   </Field>
-                  <Field label="Disbursement fee">{money(detail.disbursementFeeIdr)}</Field>
-                  <Field label="Total fee (IDR)">{money(detail.totalFeeIdr)}</Field>
-                  <Field label="Net payout (IDR)">
+                  <Field label="Biaya transfer bank">{money(detail.disbursementFeeIdr)}</Field>
+                  <Field label="Total biaya (Rp)">{money(detail.totalFeeIdr)}</Field>
+                  <Field label="Nominal transfer (Rp)">
                     <span className="font-semibold">{money(detail.netPayoutIdr)}</span>
                   </Field>
                 </Section>
               ) : (
-                <Section title="Fee breakdown">
-                  <Field label="Payment channel">
+                <Section title="Rincian biaya">
+                  <Field label="Cara pembayaran">
                     {detail.paymentChannel ? (
                       <span>
                         {detail.paymentChannel}
@@ -358,14 +405,14 @@ export default function OrderDetailModal({
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Mint fee">
+                  <Field label="Biaya mint">
                     <span className="font-mono tabular-nums">
                       {pct(detail.mintFeePct)} · {formatIdrAmount(Number(detail.mintFeeIdr ?? 0))}
                     </span>
                   </Field>
-                  <Field label="Payment gateway fee">{money(detail.pgFeeIdr)}</Field>
-                  <Field label="Total fee (IDR)">{money(detail.totalFeeIdr)}</Field>
-                  <Field label="Total pay (IDR)">
+                  <Field label="Biaya payment gateway">{money(detail.pgFeeIdr)}</Field>
+                  <Field label="Total biaya (Rp)">{money(detail.totalFeeIdr)}</Field>
+                  <Field label="Total bayar (Rp)">
                     <span className="font-semibold">{money(detail.totalPayIdr)}</span>
                   </Field>
                 </Section>
@@ -375,12 +422,12 @@ export default function OrderDetailModal({
               <div className="flex items-center justify-between rounded-md bg-primary/5 px-3 py-2.5">
                 <div>
                   <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-primary">
-                    Estimated revenue
+                    Perkiraan pendapatan
                   </p>
                   <p className="text-[11px] text-muted-foreground">
                     {isRedeem
-                      ? 'spread revenue + redeem fee (disbursement pass-through)'
-                      : 'spread revenue + mint fee (PG fee pass-through)'}
+                      ? 'pendapatan spread + biaya redeem (biaya transfer bank diteruskan apa adanya)'
+                      : 'pendapatan spread + biaya mint (biaya payment gateway diteruskan apa adanya)'}
                   </p>
                 </div>
                 <span className="font-mono text-[15px] font-semibold tabular-nums text-primary">
@@ -389,51 +436,56 @@ export default function OrderDetailModal({
               </div>
 
               {isRedeem ? (
-                <Section title="Status & payout">
-                  <Field label="Order status">
+                <Section title="Status & pencairan">
+                  <Field label="Status order">
                     <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   </Field>
-                  <Field label="Late burn">{detail.lateBurn ? 'Yes' : 'No'}</Field>
-                  <Field label="Payout provider">{detail.payoutProvider ?? <Dim />}</Field>
-                  <Field label="Burned at">
+                  <Field label="Dibakar setelah kedaluwarsa">
+                    {detail.lateBurn ? 'Ya' : 'Tidak'}
+                  </Field>
+                  <Field label="Penyedia pencairan">{detail.payoutProvider ?? <Dim />}</Field>
+                  <Field label="Waktu pembakaran">
                     {detail.burnedAt ? formatDate(detail.burnedAt) : <Dim />}
                   </Field>
-                  <Field label="Payout completed at">
+                  <Field label="Waktu rupiah terkirim">
                     {detail.payoutCompletedAt ? formatDate(detail.payoutCompletedAt) : <Dim />}
                   </Field>
-                  <Field label="Expires at">{formatDate(detail.expiresAt)}</Field>
+                  <Field label="Kedaluwarsa pada">{formatDate(detail.expiresAt)}</Field>
                 </Section>
               ) : (
-                <Section title="Payment & status">
-                  <Field label="Payment status">
+                <Section title="Pembayaran & status">
+                  <Field label="Status pembayaran">
                     {detail.paymentStatus ? (
                       <StatusBadge cfg={getPaymentStatusConfig(detail.paymentStatus)} />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Safe status">
+                  <Field label="Tanda tangan">
                     {detail.safeStatus ? (
                       <StatusBadge cfg={getSafeStatusConfig(detail.safeStatus)} />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Order status">
+                  <Field label="Status order">
                     <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   </Field>
-                  <Field label="Payment provider">{detail.paymentProvider ?? <Dim />}</Field>
-                  <Field label="Paid at">
+                  <Field label="Penyedia pembayaran">{detail.paymentProvider ?? <Dim />}</Field>
+                  <Field label="Waktu dibayar">
                     {detail.paidAt ? formatDate(detail.paidAt) : <Dim />}
                   </Field>
-                  <Field label="Expires at">{formatDate(detail.expiresAt)}</Field>
+                  <Field label="Kedaluwarsa pada">{formatDate(detail.expiresAt)}</Field>
                 </Section>
               )}
 
+              {/* Nomor rekening dan nama menurut bank TETAP di layar utama,
+                  tidak pernah dilipat: keduanya bahan keputusan, dan yang
+                  dilipat cenderung tidak dibaca. */}
               {isRedeem ? (
                 <Section title="Bank tujuan">
                   <Field label="Bank">{detail.bankName ?? detail.bankCode ?? <Dim />}</Field>
-                  <Field label="Account number">
+                  <Field label="Nomor rekening">
                     {detail.bankAccountNumber ? (
                       <span className="font-mono tabular-nums">
                         {detail.bankAccountNumber}
@@ -442,60 +494,70 @@ export default function OrderDetailModal({
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Account name">{detail.bankAccountName ?? <Dim />}</Field>
+                  <Field label="Nama pemilik rekening">
+                    {detail.bankAccountName ?? <Dim />}
+                  </Field>
                 </Section>
               ) : null}
 
+              {/* P1-2 — BOLEH DILIPAT, TIDAK BOLEH DIBUANG. Blok ini dulu
+                  bernama "References" dan duduk di layar utama dengan label
+                  mesin ("Safe tx hash", "Idempotency key", "Payout ref"). Tidak
+                  satu pun dipakai MEMUTUSKAN apa pun di layar monitoring ini;
+                  semuanya dipakai MENELUSURI setelah ada yang perlu ditelusuri.
+                  Nilainya utuh, tautan explorer-nya utuh, tombol salinnya utuh.
+                  Nomor rekening dan nama menurut bank SENGAJA tidak ikut ke
+                  sini — keduanya bahan keputusan. */}
               {isRedeem ? (
-                <Section title="References">
-                  <Field label="Order ID">
-                    <CopyableMono value={detail.id} label="Order ID" />
+                <DetailTeknis>
+                  <Field label="ID order">
+                    <CopyableMono value={detail.id} label="ID order" />
                   </Field>
-                  <Field label="Redeem ID">
+                  <Field label="ID redeem (on-chain)">
                     {detail.redeemId ? (
-                      <CopyableMono value={detail.redeemId} label="Redeem ID" />
+                      <CopyableMono value={detail.redeemId} label="ID redeem" />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Burn tx hash">
+                  <Field label="Bukti pembakaran">
                     {detail.burnTxHash ? (
                       <HashLink
                         value={detail.burnTxHash}
-                        label="Burn tx hash"
-                        linkLabel="View on block explorer"
+                        label="Bukti pembakaran"
+                        linkLabel="Lihat di block explorer"
                         href={explorerTx(detail.burnTxHash)}
                       />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Payout ref">
+                  <Field label="Nomor referensi bank">
                     {detail.payoutRef ? (
-                      <CopyableMono value={detail.payoutRef} label="Payout ref" />
+                      <CopyableMono value={detail.payoutRef} label="Nomor referensi bank" />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                </Section>
+                </DetailTeknis>
               ) : (
-                <Section title="References">
-                  <Field label="Order ID">
-                    <CopyableMono value={detail.id} label="Order ID" />
+                <DetailTeknis>
+                  <Field label="ID order">
+                    <CopyableMono value={detail.id} label="ID order" />
                   </Field>
-                  <Field label="Idempotency key">
+                  <Field label="Kode anti-dobel">
                     {detail.idempotencyKey ? (
-                      <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />
+                      <CopyableMono value={detail.idempotencyKey} label="Kode anti-dobel" />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                  <Field label="Safe tx hash">
+                  <Field label="Nomor antrean tanda tangan">
                     {detail.safeTxHash ? (
                       <HashLink
                         value={detail.safeTxHash}
-                        label="Safe tx hash"
-                        linkLabel="View in Safe"
+                        label="Nomor antrean tanda tangan"
+                        linkLabel="Lihat di Safe"
                         href={
                           detail.safeType
                             ? safeTxUrl({
@@ -510,19 +572,19 @@ export default function OrderDetailModal({
                       <Dim />
                     )}
                   </Field>
-                  <Field label="On-chain tx hash">
+                  <Field label="Bukti blockchain">
                     {detail.onChainTxHash ? (
                       <HashLink
                         value={detail.onChainTxHash}
-                        label="On-chain tx hash"
-                        linkLabel="View on block explorer"
+                        label="Bukti blockchain"
+                        linkLabel="Lihat di block explorer"
                         href={explorerTx(detail.onChainTxHash)}
                       />
                     ) : (
                       <Dim />
                     )}
                   </Field>
-                </Section>
+                </DetailTeknis>
               )}
             </div>
           )}
