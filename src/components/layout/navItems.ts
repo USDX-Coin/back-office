@@ -1,29 +1,25 @@
 import {
-  LayoutDashboard,
+  Home,
   Users,
   UserCog,
   Coins,
   Flame,
   ShieldCheck,
   Building2,
-  TrendingUp,
   Sliders,
-  CalendarDays,
-  UsersRound,
   Wrench,
   Receipt,
-  Percent,
   KeyRound,
   Landmark,
-  PhoneCall,
   ShieldAlert,
   FlaskConical,
+  FileBarChart,
   Banknote as BanknoteIcon,
   BanknoteX,
+  ScrollText,
 } from 'lucide-react'
 import {
   canAccessReports,
-  canManageOncall,
   canAccessRequestList,
   canAccessTreasury,
   canManageSettings,
@@ -58,186 +54,192 @@ export interface NavSection {
 // Sidebar and the mobile MobileNavDrawer (USDX-27 replaced the bottom nav with
 // a hamburger drawer, so there is now exactly one nav tree to keep in sync).
 //
-// Layout per Linear USDX-50 + sot/phase-1.md § Sidebar L452-467.
+// ─────────────────────────────────────────────────────────────────────────────
+// PEROMBAKAN ALUR (audit back-office 19 Sep 2026, § 4 P2-1)
 //
-// Role gating:
-//   - Staff entry         → ADMIN only (Linear AC; SoT § Pages #8 says non-admin
-//                           read-only — Linear takes precedence at the menu
-//                           level, see PR Flag-A).
-//   - SETTINGS section    → ADMIN + DEVELOPER (SoT § Backoffice Role System
-//                           grants `System Config = Ya` to both; Linear writes
-//                           "admin only" — see PR Flag-B).
-//   - Mint/Burn lists     → ADMIN / DEVELOPER / MANAGER navigate to the list
-//                           (`/mint`, `/burn`) with the (N) PENDING_APPROVAL
-//                           badge. STAFF navigates directly to the form
-//                           (`/mint/new`, `/burn/new`) with no badge —
-//                           sot/phase-1.md L34 + L653-655 (USDX-78). DEVELOPER
-//                           cannot submit mint/burn (SoT role table) — the
-//                           "Add Mint/Burn OTC" button is hidden inside the
-//                           page (Flag-E).
+// Dulu: 8 section / 24 entri untuk ADMIN, dikelompokkan menurut LAPISAN TEKNIS
+// (Workspace, OTC, Consumer, Compliance, Treasury, Reporting, Settings,
+// Troubleshooting). Operator yang memegang satu order harus tahu lebih dulu di
+// lapisan mana pekerjaannya duduk sebelum bisa menemukan menunya.
+//
+// Sekarang: 5 section, dikelompokkan menurut PEKERJAAN OPERATOR. Nama menu
+// berbahasa Indonesia, sama seperti layar yang dibukanya.
+//
+//   PEKERJAAN HARI INI  antrean yang menunggu diputuskan hari ini
+//   NASABAH             siapa orangnya + berkas verifikasinya
+//   MEJA OTC            request mint/burn yang diinput operator sendiri
+//   KEUANGAN            uang, tanda tangan, rekap, cadangan
+//   PENGATURAN          angka yang mengatur sistem + siapa operatornya
+//
+// TIGA HAL YANG TIDAK BOLEH DILANGGAR SAAT MENYUNTING BERKAS INI:
+//
+//  1. GERBANG PERAN TIDAK IKUT DIRAPIKAN. Tiap `visibleWhen` di bawah adalah
+//     gerbang yang sama persis dengan sebelum perombakan — hanya urutan dan
+//     labelnya yang berubah. "Pengaturan" (satu entri, empat tab) memakai
+//     `canManageSettings` seperti entri Rate/Fee dulu, dan gerbang per-halaman
+//     tetap hidup DI ROUTE (`App.tsx`: Threshold + On-Call ADMIN-only). Menu
+//     ini tidak pernah menjadi satu-satunya gerbang untuk apa pun.
+//
+//  2. "Mode Mint" TETAP ENTRI SENDIRI, di luar "Pengaturan" (USDX-639). Ia
+//     satu-satunya Settings yang terbuka untuk SEMUA peran: STAFF yang melihat
+//     mode uji menyala di jam produksi harus sampai ke tombol yang mematikannya
+//     tanpa mencari atasan. Menguburnya di dalam tab "Pengaturan" yang di-gate
+//     `canManageSettings` akan mematikan rem darurat itu.
+//
+//  3. DUA ANTREAN PENYELESAIAN UANG DUDUK BERDAMPINGAN (keputusan PM
+//     2026-09-13, `sot/bni-integration.md § 17.9`): "Pencairan Bermasalah" dan
+//     "Mint Bermasalah" (USDX-342, belum dibangun) harus berada di section yang
+//     SAMA. Keduanya sekarang tinggal di PEKERJAAN HARI INI — tempat untuk
+//     "Mint Bermasalah" sudah disediakan di bawah, jangan ditaruh di tempat lain.
+//     CATATAN: memindahkan "Pencairan Bermasalah" keluar dari section TREASURY
+//     mengubah keputusan PM itu dan masih menunggu sign-off.
+//
+// Gerbang yang diwarisi apa adanya:
+//   - Pengguna Internal (/staff)  → ADMIN (`canManageStaff`, Linear USDX-50 Flag-A)
+//   - Mint/Burn list              → ADMIN/DEVELOPER/MANAGER; STAFF diarahkan ke
+//                                   form (`/mint/new`) tanpa badge —
+//                                   sot/phase-1.md L34 + L653-655 (USDX-78)
+//   - Antrean Tanda Tangan        → `canAccessTreasury` (STAFF tidak; penandatangan
+//                                   = pemilik Safe, USDX-275)
+//   - Laporan                     → `canAccessReports` (USDX-81)
+//   - Cadangan & Atestasi         → `canManageSettings` (KONTRAK-API-TRANSPARANSI § 3)
+// ─────────────────────────────────────────────────────────────────────────────
 export const NAV_SECTIONS: NavSection[] = [
   {
-    label: 'Workspace',
+    // Antrean yang menunggu keputusan. Urutannya mengikuti urutan pekerjaan:
+    // lihat semua order → putuskan pencairan → bereskan yang gagal → perbaiki
+    // yang nyangkut.
+    label: 'Pekerjaan Hari Ini',
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'Users', icon: Users },
-      { to: '/staff', label: 'Staff', icon: UserCog, visibleWhen: canManageStaff },
-    ],
-  },
-  {
-    label: 'OTC',
-    items: [
-      { to: '/mint', label: 'Mint', icon: Coins, badgeKey: 'mint' },
-      { to: '/burn', label: 'Burn', icon: Flame, badgeKey: 'burn' },
-    ],
-  },
-  {
-    // USDX-206 + sot/phase-2/week2.md § Backoffice — User Transaction:
-    // read-only monitoring of consumer mint orders. Visible to every backoffice
-    // role (no visibleWhen) — distinct from the OTC desk above (different table
-    // / lifecycle). Redeem orders join the same menu in Week 3.
-    label: 'Consumer',
-    items: [
-      { to: '/transactions', label: 'User Transaction', icon: Receipt },
-      // USDX-669 — antrean Persetujuan Pencairan. ENTRI SENDIRI, bukan tab di
-      // dalam User Transaction (keputusan PM): yang satu monitoring read-only
-      // atas semua order, yang satu antrean kerja yang mengeluarkan rupiah, dan
-      // menyatukannya membuat pekerjaan yang menunggu tidak punya tempat yang
-      // bisa dihitung. Duduk di section Consumer karena subjeknya order redeem
-      // konsumen — yang dilarang tiket adalah menempelkannya pada LAYAR
-      // Transactions, bukan menaruhnya di kelompok yang sama.
-      //
-      // Visibilitas: SEMUA peran, pola KYC/KYB/Screening. Menyetujui dan menolak
-      // digerbangi MANAGER/ADMIN di dalam layarnya (`canDecideRedeemPayout`) —
-      // STAFF yang melihat antrean menumpuk adalah cara seseorang tahu harus
-      // memanggil yang berwenang, dan badge `(N)` ikut tampil untuknya karena
-      // `GET /api/v1/redeem-approvals` terbuka untuk peran itu.
+      { to: '/dashboard', label: 'Beranda', icon: Home },
+      // Pintu masuk utama: pertanyaan "order si X kenapa?" selalu mulai di sini.
+      { to: '/transactions', label: 'Transaksi Nasabah', icon: Receipt },
+      // USDX-669 — entri sendiri, bukan tab di dalam Transaksi Nasabah
+      // (keputusan PM): yang satu monitoring read-only, yang satu antrean kerja
+      // yang mengeluarkan rupiah. Terbuka semua peran; menyetujui/menolak
+      // digerbangi MANAGER/ADMIN di dalam layarnya (`canDecideRedeemPayout`).
       {
         to: '/redeem-approvals',
         label: 'Persetujuan Pencairan',
         icon: BanknoteIcon,
         badgeKey: 'redeemApprovals',
       },
-    ],
-  },
-  {
-    // USDX-154 + sot/phase-2/week1.md § Backoffice Approval Menu — Sidebar:
-    // KYC Review is visible to ALL roles (Admin/Manager/Staff/Developer;
-    // approve/reject is gated inside the detail, not at the menu). Unlike
-    // Mint/Burn, the (N) badge also renders for STAFF — GET /api/v1/kyc is
-    // staff-accessible per week1.md § Authorization Guard role matrix.
-    label: 'Compliance',
-    items: [
-      { to: '/kyc', label: 'KYC Review', icon: ShieldCheck, badgeKey: 'kyc' },
-      // USDX-546 — KYB Review sits beside KYC Review and follows the same
-      // visibility rule (all roles read; DEVELOPER cannot act). Its own entry
-      // rather than a tab inside KYC: the two carry different data (an entity
-      // plus its UBOs versus one person) and KYB additionally has a data-entry
-      // form, because KYB is manual.
-      { to: '/kyb', label: 'KYB Review', icon: Building2, badgeKey: 'kyb' },
-      // USDX-588 — antrean screening DTTOT & DPPSPM. Aturan visibilitas sama
-      // dengan KYC/KYB: semua role membaca antrean, memutuskan digerbangi di
-      // dalam. Badge `(N)` menghitung temuan yang MASIH MENAHAN subjeknya
-      // (`open=true`), bukan yang belum disentuh — temuan yang sudah diputus
-      // CONFIRMED_MATCH tetap menahan, dan angka yang mengecualikannya akan
-      // menyatakan pekerjaan sudah selesai padahal ada nasabah yang tertahan.
-      { to: '/screening', label: 'Screening', icon: ShieldAlert, badgeKey: 'screening' },
-      // Transparency: the append-only reserve ledger + attestation reports
-      // behind the public usdx.co.id figures. Read audience is ADMIN +
-      // DEVELOPER (KONTRAK-API-TRANSPARANSI.md § 3), which is exactly what
-      // canManageSettings already resolves to; the route itself is guarded by
-      // RoleGuard in App.tsx, so this only controls menu noise. Recording
-      // entries is ADMIN-only (canManageTransparency) and re-enforced by the BE.
-      {
-        to: '/transparency',
-        label: 'Transparency',
-        icon: Landmark,
-        visibleWhen: canManageSettings,
-      },
-    ],
-  },
-  {
-    // sot/phase-1.md § Sidebar (TREASURY): visible to EVERY role since
-    // USDX-631 (D21) — the gate moved from the section to its items.
-    //   - Multisig (USDX-275 + week4.md § Backoffice Multisig Page): self-hosted
-    //     Safe transaction queue, ADMIN / DEVELOPER / MANAGER (STAFF excluded —
-    //     signer = Safe owner). No (N) badge (status counts live on the tabs).
-    //   - Rekening BNI (USDX-631, sot/bni-integration.md § 16 K5): LIVE
-    //     balances + statements of the three MAF accounts, all roles including
-    //     STAFF (PM decision 2026-09-09). Read-only; route has no RoleGuard.
-    label: 'Treasury',
-    items: [
-      { to: '/multisig', label: 'Multisig', icon: KeyRound, visibleWhen: canAccessTreasury },
-      { to: '/bni-accounts', label: 'Rekening BNI', icon: Landmark },
-      // USDX-662 — antrean Pencairan Bermasalah (§ 17.9). Linear menunjuk "sidebar
-      // TREASURY/OPS"; § 17.9 menyebut "satu grup dengan Mint Bermasalah", menu yang
-      // tidak ada di back-office ini, jadi section TREASURY yang dipakai. Visibilitas
-      // SEMUA peran tanpa `visibleWhen` (list terbuka untuk STAFF/DEVELOPER, pola
-      // Rekening BNI); resolve digerbangi MANAGER/ADMIN di dalam layar. Badge `(N)` =
-      // antrean terbuka, tampil untuk semua peran: tiap satuannya rupiah yang belum sampai.
+      // USDX-662 — terbuka semua peran (list terbuka untuk STAFF/DEVELOPER);
+      // resolve digerbangi MANAGER/ADMIN di dalam layar. Badge `(N)` = antrean
+      // terbuka: tiap satuannya rupiah yang belum sampai ke nasabah.
+      //
+      // TEMPAT "Mint Bermasalah" (USDX-342) ADA TEPAT DI BAWAH BARIS INI ketika
+      // menunya dibangun — § 17.9 mewajibkan dua antrean penyelesaian uang
+      // duduk berdampingan.
       {
         to: '/payout-failures',
         label: 'Pencairan Bermasalah',
         icon: BanknoteX,
         badgeKey: 'payoutFailures',
       },
+      // USDX-87 — eks "Manual Sync". "Troubleshooting" bukan kelompok yang
+      // berarti buat operator; memperbaiki request yang nyangkut adalah
+      // pekerjaan, jadi ia naik ke antrean harian. Semua peran (permukaan
+      // darurat on-call, sot/phase-1.md L583+).
+      { to: '/manual-sync', label: 'Perbaiki Status Nyangkut', icon: Wrench },
     ],
   },
   {
-    // USDX-81 + sot/phase-1.md § Reporting access: ADMIN + DEVELOPER + MANAGER.
-    // STAFF never sees these entries; BE also enforces 403.
-    label: 'Reporting',
-    visibleWhen: canAccessReports,
+    // Siapa orangnya + berkas verifikasinya. Nama menu KYC/KYB dibuka
+    // kepanjangannya karena petugas yang membacanya bukan orang crypto —
+    // muatan layarnya sendiri tidak disentuh (terkunci POJK 8/2023).
+    label: 'Nasabah',
     items: [
-      { to: '/reports/mint/daily', label: 'Daily Mint', icon: CalendarDays },
-      { to: '/reports/mint/by-user', label: 'Mint By User', icon: UsersRound },
-      { to: '/reports/burn/daily', label: 'Daily Burn', icon: CalendarDays },
-      { to: '/reports/burn/by-user', label: 'Burn By User', icon: UsersRound },
-    ],
-  },
-  {
-    // USDX-639: gerbang section DIPINDAH ke item-itemnya, mengikuti preseden
-    // TREASURY (USDX-631 D21). Alasannya sama bentuknya: satu entri baru di
-    // section ini — Mode Mint — harus terlihat oleh SEMUA role, sementara
-    // Rate / Fee / Threshold / On-Call tetap persis seperti sebelumnya. Menaruh
-    // gerbang lama di section akan menyembunyikan Mode Mint dari STAFF dan
-    // MANAGER, yaitu dua role yang justru diminta tiketnya bisa membukanya.
-    label: 'Settings',
-    items: [
-      { to: '/settings/rate', label: 'Rate', icon: TrendingUp, visibleWhen: canManageSettings },
-      // USDX-207: fee config (mint fee % + PG fee VA/QRIS). Visible to the
-      // Settings section (ADMIN + DEVELOPER); update is admin-only inside.
-      { to: '/settings/fee', label: 'Fee', icon: Percent, visibleWhen: canManageSettings },
-      // USDX-639 — mode mint PROD/UJI. SATU-SATUNYA entri Settings yang terbuka
-      // untuk semua role: STAFF yang menyadari mode uji menyala di jam produksi
-      // harus bisa sampai ke tombol yang mematikannya tanpa mencari atasan.
-      { to: '/settings/mint-mode', label: 'Mode Mint', icon: FlaskConical },
+      { to: '/users', label: 'Nasabah', icon: Users },
+      // USDX-154 — terbuka semua peran; memutus digerbangi di dalam detail.
+      { to: '/kyc', label: 'Verifikasi Perorangan', icon: ShieldCheck, badgeKey: 'kyc' },
+      // USDX-546 — entri sendiri, bukan tab di dalam KYC: datanya beda (satu
+      // badan usaha + para UBO-nya vs satu orang) dan KYB punya form input manual.
+      { to: '/kyb', label: 'Verifikasi Badan Usaha', icon: Building2, badgeKey: 'kyb' },
+      // USDX-588 — antrean DTTOT & DPPSPM. Badge `(N)` menghitung temuan yang
+      // MASIH MENAHAN subjeknya (`open=true`), bukan yang belum disentuh.
       {
-        to: '/settings/threshold',
-        label: 'Threshold',
+        to: '/screening',
+        label: 'Pemeriksaan Daftar Sanksi',
+        icon: ShieldAlert,
+        badgeKey: 'screening',
+      },
+    ],
+  },
+  {
+    // Request yang diinput operator sendiri — beda lifecycle dan beda tabel
+    // dari order konsumen di "Transaksi Nasabah". Diberi akhiran "OTC" supaya
+    // tidak tertukar dengan tahap mint/burn milik order konsumen.
+    label: 'Meja OTC',
+    items: [
+      { to: '/mint', label: 'Mint OTC', icon: Coins, badgeKey: 'mint' },
+      { to: '/burn', label: 'Burn OTC', icon: Flame, badgeKey: 'burn' },
+    ],
+  },
+  {
+    label: 'Keuangan',
+    items: [
+      // USDX-631 — saldo LIVE + mutasi tiga rekening MAF, semua peran termasuk
+      // STAFF (keputusan PM 2026-09-09). Read-only.
+      { to: '/bni-accounts', label: 'Rekening BNI', icon: Landmark },
+      // USDX-275 — eks "Multisig". STAFF tidak melihatnya: penandatangan =
+      // pemilik Safe, dan gerbangnya juga ada di route (`App.tsx`).
+      {
+        to: '/multisig',
+        label: 'Antrean Tanda Tangan',
+        icon: KeyRound,
+        visibleWhen: canAccessTreasury,
+      },
+      // USDX-81 — empat entri Reporting jadi SATU. Keempat laporannya tidak
+      // hilang: rutenya tetap persis seperti dulu (jadi bookmark lama tetap
+      // hidup) dan berpindah lewat tab di dalam halaman (`ReportTabs`).
+      // Gerbangnya tetap `canAccessReports` + RoleGuard di route.
+      {
+        to: '/reports/mint/daily',
+        label: 'Laporan',
+        icon: FileBarChart,
+        visibleWhen: canAccessReports,
+      },
+      // Eks "Transparency" di section Compliance — subjeknya angka cadangan,
+      // bukan berkas nasabah, jadi ia duduk dengan uang. Gerbang baca
+      // ADMIN+DEVELOPER tidak berubah dan tetap ditegakkan di route.
+      {
+        to: '/transparency',
+        label: 'Cadangan & Atestasi',
+        icon: ScrollText,
+        visibleWhen: canManageSettings,
+      },
+    ],
+  },
+  {
+    label: 'Pengaturan',
+    items: [
+      // Rate / Fee / Threshold / On-Call jadi SATU entri dengan tab. Entri ini
+      // menunjuk /settings/rate karena itu tab pertama yang boleh dibuka oleh
+      // kedua peran yang melihat entri ini (ADMIN + DEVELOPER).
+      //
+      // GERBANGNYA TIDAK DILONGGARKAN: tiap tab tetap punya gerbang sendiri DI
+      // ROUTE (`App.tsx` — Threshold dan On-Call ADMIN-only), dan `SettingsTabs`
+      // hanya menampilkan tab yang boleh dibuka peran itu. Menyembunyikan tab
+      // saja tidak pernah cukup — preseden `/screening/lists` (USDX-588).
+      {
+        to: '/settings/rate',
+        label: 'Pengaturan',
         icon: Sliders,
         visibleWhen: canManageSettings,
       },
-      // USDX-485 (audit P1-18): kontak on-call insiden uang. Di-gate di level
-      // ITEM, bukan mengikuti section (canManageSettings = ADMIN+DEVELOPER):
-      // daftarnya memuat nomor telepon dan menentukan siapa yang dipanggil saat
-      // uang bermasalah, jadi DEVELOPER pun tidak melihatnya.
+      // USDX-639 — JANGAN dijadikan tab di dalam "Pengaturan" di atas. Lihat
+      // catatan no. 2 di kepala berkas: ini rem darurat untuk SEMUA peran.
+      { to: '/settings/mint-mode', label: 'Mode Mint', icon: FlaskConical },
+      // Eks "Staff" di section Workspace. Ia bukan nasabah dan bukan pekerjaan
+      // harian — ia pengaturan tentang siapa yang boleh memakai back-office.
+      // ADMIN saja, sama seperti sebelumnya.
       {
-        to: '/settings/oncall',
-        label: 'On-Call',
-        icon: PhoneCall,
-        visibleWhen: canManageOncall,
+        to: '/staff',
+        label: 'Pengguna Internal',
+        icon: UserCog,
+        visibleWhen: canManageStaff,
       },
-    ],
-  },
-  // USDX-87: Manual Sync — recovery tool for stuck PENDING_APPROVAL / APPROVED
-  // requests when auto Status Sync fails (sot/phase-1.md § Manual Sync). All
-  // roles can access; staff need it because Manual Sync is an on-call
-  // emergency surface (sot/phase-1.md L583+ "Akses: all roles").
-  {
-    label: 'Troubleshooting',
-    items: [
-      { to: '/manual-sync', label: 'Manual Sync', icon: Wrench },
     ],
   },
 ]

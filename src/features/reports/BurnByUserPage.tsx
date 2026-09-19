@@ -23,10 +23,10 @@ export default function BurnByUserPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Reporting"
-      title="Burn By User"
-      italicAccent="aggregate"
-      subtitle="Burn volume aggregated per user. Sorted by total USDX, descending."
+      eyebrow="Laporan"
+      title="Burn per Nasabah"
+      italicAccent="rekap"
+      subtitle="Volume burn OTC dijumlahkan per nasabah. Diurutkan dari total USDX terbesar."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker
       isFetching={query.isFetching}

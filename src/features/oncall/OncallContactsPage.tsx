@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import PageHeader from '@/components/PageHeader'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import TableEmptyState from '@/components/TableEmptyState'
 import { canManageOncall, useAuth } from '@/lib/auth'
 import {
@@ -101,10 +102,10 @@ export default function OncallContactsPage() {
     return (
       <div>
         <PageHeader
-          eyebrow="Settings"
-          title="On-Call"
-          italicAccent="money incidents"
-          subtitle="Who answers when money goes wrong."
+          eyebrow="Pengaturan"
+          title="Kontak Darurat"
+          italicAccent="insiden uang"
+          subtitle="Siapa yang diangkat teleponnya saat uang bermasalah."
         />
         <div
           role="note"
@@ -197,11 +198,12 @@ export default function OncallContactsPage() {
 
   return (
     <div>
+      <SettingsTabs />
       <PageHeader
-        eyebrow="Settings"
-        title="On-Call"
-        italicAccent="money incidents"
-        subtitle="Money alerts carry the contacts registered here for the matching incident category, so the person who receives an alert knows who to reach."
+        eyebrow="Pengaturan"
+        title="Kontak Darurat"
+        italicAccent="insiden uang"
+        subtitle="Peringatan soal uang membawa serta kontak yang terdaftar di sini untuk kategori insiden yang cocok, supaya yang menerima peringatan tahu harus menghubungi siapa."
         actions={
           <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
             <Plus className="mr-1 h-3.5 w-3.5" />

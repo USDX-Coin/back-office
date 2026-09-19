@@ -242,10 +242,10 @@ export default function UsersPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="User"
-        italicAccent="directory"
-        subtitle={`Phase-1 user directory · ${list.isLoading ? '…' : total} total`}
+        eyebrow="Nasabah"
+        title="Nasabah"
+        italicAccent="daftar"
+        subtitle={`${list.isLoading ? '…' : total} nasabah terdaftar`}
         actions={
           canManage ? (
             <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">

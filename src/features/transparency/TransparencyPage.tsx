@@ -27,13 +27,13 @@ export default function TransparencyPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Transparency"
-        title="Reserve"
-        italicAccent="ledger"
+        eyebrow="Keuangan"
+        title="Cadangan & Atestasi"
+        italicAccent="buku besar"
         subtitle={
           canWrite
-            ? 'Every entry recorded here changes the reserve figure published on usdx.co.id immediately. The ledger is append-only — corrections are made by recording a new entry, never by editing or deleting one.'
-            : 'View the reserve ledger and attestation reports behind the public figures on usdx.co.id. Recording entries is restricted to the admin role.'
+            ? 'Setiap entri yang dicatat di sini langsung mengubah angka cadangan yang tayang di usdx.co.id. Buku besarnya hanya bisa ditambah — koreksi dilakukan dengan mencatat entri baru, tidak pernah dengan menyunting atau menghapus.'
+            : 'Buku besar cadangan dan laporan atestasi di balik angka publik di usdx.co.id. Mencatat entri hanya untuk peran Admin.'
         }
       />
 

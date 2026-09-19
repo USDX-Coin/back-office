@@ -193,7 +193,7 @@ export default function ManualSyncPage() {
                 void copyId(row.original.id)
               }}
               className="text-muted-foreground hover:text-primary"
-              aria-label="Copy request ID"
+              aria-label="Salin ID request"
               title="Copy full request ID"
             >
               <Copy className="h-3 w-3" />
@@ -318,10 +318,10 @@ export default function ManualSyncPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Troubleshooting"
-        title="Manual Sync"
-        italicAccent="reconcile stuck requests"
-        subtitle="Recovery surface for requests that stayed pending after auto status sync failed. Paste the on-chain tx hash to verify and flip the record to executed."
+        eyebrow="Pekerjaan Hari Ini"
+        title="Perbaiki Status Nyangkut"
+        italicAccent="request tertahan"
+        subtitle="Untuk request yang sudah jalan di blockchain tapi statusnya di sistem belum ikut berubah. Tempelkan bukti transaksinya, sistem memeriksa kecocokannya, lalu statusnya diperbaiki."
       />
 
       <DataTable<ManualSyncItem>

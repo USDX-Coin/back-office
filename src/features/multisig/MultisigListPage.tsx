@@ -190,10 +190,10 @@ export default function MultisigListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Treasury"
-        title="Multisig"
-        italicAccent="queue"
-        subtitle="Self-hosted Safe transaction queue — sign (EIP-712) and execute mint / burn and governance operations."
+        eyebrow="Keuangan"
+        title="Antrean Tanda Tangan"
+        italicAccent="dompet Safe"
+        subtitle="Transaksi dompet Safe yang menunggu ditandatangani lalu dijalankan — mint, burn, dan operasi tata kelola."
         actions={
           <div className="flex items-center gap-2">
             {canPropose && (

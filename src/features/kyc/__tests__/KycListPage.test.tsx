@@ -66,7 +66,7 @@ describe('KycListPage @ USDX-154', () => {
       setup()
       await screen.findByText('alice.anderson@example.com')
       expect(screen.getByText('Individual')).toBeInTheDocument()
-      expect(screen.getByText('Rejected')).toBeInTheDocument()
+      expect(screen.getByText('Ditolak')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
     })
 

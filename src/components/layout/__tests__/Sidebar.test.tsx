@@ -5,8 +5,12 @@ import Sidebar from '@/components/layout/Sidebar'
 import { renderWithProviders } from '@/test/test-utils'
 import { server } from '@/mocks/server'
 
-// USDX-50: sidebar layout = 3 sections (WORKSPACE / OTC / SETTINGS) per
-// sot/phase-1.md § Sidebar L452-467 and Linear AC #1.
+// USDX-50 dulu: 3 section (WORKSPACE / OTC / SETTINGS), lalu tumbuh jadi 8.
+//
+// PEROMBAKAN ALUR (§ 4 P2-1): 5 section berbahasa Indonesia, dikelompokkan
+// menurut pekerjaan operator. Tes ini DIUBAH mengikuti struktur baru — bentuk
+// menunya dikunci per-peran di `navItems.test.ts`; yang dikunci DI SINI adalah
+// apa yang benar-benar dirender Sidebar beserta badge-nya.
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -14,16 +18,21 @@ afterAll(() => server.close())
 
 describe('Sidebar @ USDX-50', () => {
   describe('layout (admin)', () => {
-    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
+    test('renders 5 section headers berbahasa Indonesia', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true,
       })
-      expect(screen.getByText(/workspace/i)).toBeInTheDocument()
-      expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
-      expect(screen.getByText(/settings/i)).toBeInTheDocument()
-      // USDX-87: Manual Sync lives in its own Troubleshooting section.
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
+      expect(screen.getByText(/^pekerjaan hari ini$/i)).toBeInTheDocument()
+      expect(screen.getByText(/^meja otc$/i)).toBeInTheDocument()
+      expect(screen.getByText(/^keuangan$/i)).toBeInTheDocument()
+      // "Nasabah" dan "Pengaturan" masing-masing dipakai sebagai judul section
+      // SEKALIGUS sebagai nama satu entri di dalamnya — dicek lewat jumlahnya.
+      expect(screen.getAllByText(/^nasabah$/i).length).toBeGreaterThanOrEqual(2)
+      expect(screen.getAllByText(/^pengaturan$/i).length).toBeGreaterThanOrEqual(2)
+      // "Troubleshooting" sengaja hilang: memperbaiki request yang nyangkut
+      // adalah pekerjaan, bukan kategori teknis tersendiri.
+      expect(screen.queryByText(/troubleshooting/i)).not.toBeInTheDocument()
     })
 
     test('renders all admin nav links', () => {
@@ -31,20 +40,32 @@ describe('Sidebar @ USDX-50', () => {
         initialEntries: ['/dashboard'],
         authenticated: true,
       })
-      // WORKSPACE
-      expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^staff$/i })).toBeInTheDocument()
-      // OTC
-      expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^burn$/i })).toBeInTheDocument()
-      // SETTINGS
-      expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      // USDX-485 — kontak on-call insiden uang (Settings, ADMIN saja).
-      expect(screen.getByRole('link', { name: /^on-call$/i })).toBeInTheDocument()
-      // TROUBLESHOOTING (USDX-87)
-      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
+      // PEKERJAAN HARI INI
+      expect(screen.getByRole('link', { name: /^beranda$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^transaksi nasabah$/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: /^perbaiki status nyangkut$/i })
+      ).toBeInTheDocument()
+      // NASABAH
+      expect(screen.getByRole('link', { name: /^nasabah$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^verifikasi perorangan$/i })).toBeInTheDocument()
+      // MEJA OTC
+      expect(screen.getByRole('link', { name: /^mint otc$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^burn otc$/i })).toBeInTheDocument()
+      // KEUANGAN — empat entri Reporting sekarang satu entri "Laporan" yang
+      // menunjuk laporan pertama; tiga sisanya dicapai lewat tab di halaman.
+      expect(screen.getByRole('link', { name: /^laporan$/i })).toHaveAttribute(
+        'href',
+        '/reports/mint/daily'
+      )
+      expect(screen.getByRole('link', { name: /^antrean tanda tangan$/i })).toBeInTheDocument()
+      // PENGATURAN — empat entri Settings sekarang satu entri "Pengaturan".
+      expect(screen.getByRole('link', { name: /^pengaturan$/i })).toHaveAttribute(
+        'href',
+        '/settings/rate'
+      )
+      expect(screen.getByRole('link', { name: /^mode mint$/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^pengguna internal$/i })).toBeInTheDocument()
     })
   })
 
@@ -68,57 +89,70 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.queryByRole('link', { name: /^notifications$/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /^report$/i })).not.toBeInTheDocument()
     })
+
+    test('tidak ada satu pun tautan sidebar yang menuju rute tak terdaftar', () => {
+      // P0-5 lahir dari kartu Dashboard yang menaut ke `/requests`, rute yang
+      // tidak pernah ada di `App.tsx` dan diam-diam memantul balik.
+      renderWithProviders(<Sidebar />, {
+        initialEntries: ['/dashboard'],
+        authenticated: true,
+      })
+      const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
+      expect(hrefs).not.toContain('/requests')
+      expect(hrefs.every((h) => typeof h === 'string' && h.startsWith('/'))).toBe(true)
+    })
   })
 
   describe('role gating', () => {
-    test('Staff link hidden for non-admin (Flag-A: hidden per Linear)', () => {
+    test('Pengguna Internal hidden for non-admin (Flag-A: hidden per Linear)', () => {
       // stf_4 = Sarah King (STAFF role) per data.ts seed factory.
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4',
       })
-      expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: /^pengguna internal$/i })
+      ).not.toBeInTheDocument()
     })
 
-    test('SETTINGS section hidden for STAFF role (Flag-B)', () => {
+    test('entri Pengaturan hidden for STAFF role (Flag-B) — Mode Mint tetap tampil', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4', // STAFF role
       })
-      expect(screen.queryByRole('link', { name: /^rate$/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^threshold$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^pengaturan$/i })).not.toBeInTheDocument()
+      // USDX-639 — rem darurat: STAFF harus tetap bisa mematikan mode uji.
+      expect(screen.getByRole('link', { name: /^mode mint$/i })).toBeInTheDocument()
     })
 
     // USDX-485 (audit P1-18): On-Call di-gate di level ITEM, lebih ketat dari
     // section-nya. Daftar itu memuat nomor telepon (PII → ADMIN saja per
     // conventions.md § Audit Akses PII) dan menentukan siapa yang boleh menarik
     // rem darurat payout — DEVELOPER melihat Rate/Fee/Threshold, tapi tidak ini.
-    test('On-Call link hidden for DEVELOPER even though the SETTINGS section is visible (USDX-485)', () => {
+    // USDX-485 — gerbang On-Call (ADMIN saja, termasuk membaca) sekarang hidup
+    // sebagai TAB di dalam halaman Pengaturan, bukan sebagai entri sidebar. Yang
+    // menegakkannya tetap `RoleGuard` di `App.tsx`; daftar tabnya diuji di
+    // `settingsTabDefs.test.ts`. Di sidebar yang tersisa untuk diuji adalah
+    // entri "Pengaturan"-nya sendiri.
+    test('entri Pengaturan visible for DEVELOPER (Flag-B: SoT § Backoffice Role System grants System Config)', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_3', // Marcus Aurelius DEVELOPER
       })
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^pengaturan$/i })).toBeInTheDocument()
+      // Pengguna Internal tetap tersembunyi (ADMIN saja) walau untuk DEVELOPER.
+      expect(
+        screen.queryByRole('link', { name: /^pengguna internal$/i })
+      ).not.toBeInTheDocument()
     })
 
-    test('On-Call link hidden for STAFF (USDX-485)', () => {
+    test('entri Pengaturan hidden for MANAGER', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // STAFF role
+        staffId: 'stf_2', // Linda Chen, MANAGER
       })
-      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
-    })
-
-    test('SETTINGS section visible for DEVELOPER role (Flag-B: SoT § Backoffice Role System grants System Config)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_3', // Marcus Aurelius DEVELOPER
-      })
-      expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      // Staff entry stays hidden (admin only) even for DEVELOPER per Flag-A.
-      expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^pengaturan$/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^mode mint$/i })).toBeInTheDocument()
     })
 
     // Transparency lives under COMPLIANCE but carries the settings-level read
@@ -128,13 +162,13 @@ describe('Sidebar @ USDX-50', () => {
     // the staff member who filed it, neither of which appears publicly.
     // Recording is ADMIN-only inside the page, and the route itself is guarded
     // (see AuthGuard.test.tsx) — this only controls menu noise.
-    test('Compliance > Transparency visible to ADMIN and DEVELOPER, hidden for STAFF and MANAGER', () => {
+    test('Keuangan > Cadangan & Atestasi visible to ADMIN and DEVELOPER, hidden for STAFF and MANAGER', () => {
       const { unmount: unmountAdmin } = renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true, // ADMIN
       })
       expect(
-        screen.getByRole('link', { name: /^transparency$/i })
+        screen.getByRole('link', { name: /^cadangan & atestasi$/i })
       ).toHaveAttribute('href', '/transparency')
       unmountAdmin()
 
@@ -145,7 +179,7 @@ describe('Sidebar @ USDX-50', () => {
         staffId: 'stf_3', // Marcus Aurelius, DEVELOPER
       })
       expect(
-        screen.getByRole('link', { name: /^transparency$/i })
+        screen.getByRole('link', { name: /^cadangan & atestasi$/i })
       ).toHaveAttribute('href', '/transparency')
       unmountDev()
 
@@ -154,7 +188,7 @@ describe('Sidebar @ USDX-50', () => {
         staffId: 'stf_4', // STAFF role
       })
       expect(
-        screen.queryByRole('link', { name: /^transparency$/i })
+        screen.queryByRole('link', { name: /^cadangan & atestasi$/i })
       ).not.toBeInTheDocument()
       unmountStaff()
 
@@ -163,19 +197,22 @@ describe('Sidebar @ USDX-50', () => {
         staffId: 'stf_2', // Linda Chen, MANAGER
       })
       expect(
-        screen.queryByRole('link', { name: /^transparency$/i })
+        screen.queryByRole('link', { name: /^cadangan & atestasi$/i })
       ).not.toBeInTheDocument()
     })
 
     // USDX-87: Manual Sync is an emergency recovery surface — every role
     // (incl. STAFF who has no Settings access) must see it.
-    test('Troubleshooting > Manual Sync visible to STAFF role', () => {
+    test('Perbaiki Status Nyangkut visible to STAFF role', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4', // STAFF role
       })
-      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
+      const link = screen.getByRole('link', { name: /^perbaiki status nyangkut$/i })
+      expect(link).toHaveAttribute('href', '/manual-sync')
+      // Naik ke "Pekerjaan Hari Ini": memperbaiki request yang nyangkut memang
+      // pekerjaan, dan "Troubleshooting" bukan kelompok yang berarti buat operator.
+      expect(screen.getByText(/^pekerjaan hari ini$/i)).toBeInTheDocument()
     })
   })
 
@@ -276,7 +313,12 @@ describe('Sidebar @ USDX-50', () => {
         expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
       })
 
-      test('Pencairan Bermasalah sits in the Treasury section (Linear: sidebar TREASURY/OPS)', async () => {
+      // § 4 P2-1 memindahkannya dari TREASURY ke "Pekerjaan Hari Ini". Yang
+      // DIJAGA keputusan PM 2026-09-13 (`sot/bni-integration.md § 17.9`) bukan
+      // nama sectionnya melainkan ketetanggaannya dengan antrean penyelesaian
+      // uang yang lain — jadi itu yang diuji di sini.
+      // CATATAN: pindah section ini masih menunggu sign-off PM.
+      test('Pencairan Bermasalah duduk berdampingan dengan Persetujuan Pencairan', async () => {
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           authenticated: true,
@@ -284,7 +326,8 @@ describe('Sidebar @ USDX-50', () => {
         const link = await screen.findByRole('link', { name: /pencairan bermasalah/i })
         const section = link.closest('div.flex.flex-col')
         expect(section).not.toBeNull()
-        expect(section!.firstElementChild).toHaveTextContent(/treasury/i)
+        expect(section!.firstElementChild).toHaveTextContent(/pekerjaan hari ini/i)
+        expect(section!).toHaveTextContent(/persetujuan pencairan/i)
       })
     })
 
@@ -364,21 +407,21 @@ describe('Sidebar @ USDX-50', () => {
   // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
   // the (N) badge so STAFF doesn't see a counter they can't act on.
   describe('USDX-78 — STAFF sidebar', () => {
-    test('STAFF Mint link targets /mint/new instead of /mint', () => {
+    test('STAFF Mint OTC link targets /mint/new instead of /mint', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4', // Sarah King (STAFF)
       })
-      const mintLink = screen.getByRole('link', { name: /^mint$/i })
+      const mintLink = screen.getByRole('link', { name: /^mint otc$/i })
       expect(mintLink).toHaveAttribute('href', '/mint/new')
     })
 
-    test('STAFF Burn link targets /burn/new instead of /burn', () => {
+    test('STAFF Burn OTC link targets /burn/new instead of /burn', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4',
       })
-      const burnLink = screen.getByRole('link', { name: /^burn$/i })
+      const burnLink = screen.getByRole('link', { name: /^burn otc$/i })
       expect(burnLink).toHaveAttribute('href', '/burn/new')
     })
 
@@ -419,10 +462,14 @@ describe('Sidebar @ USDX-50', () => {
     })
   })
 
-  // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
+  // USDX-154 — entri KYC + badge (N). Visible to every role
   // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
   // unlike Mint/Burn the badge also renders for STAFF.
-  describe('USDX-154 — COMPLIANCE / KYC Review', () => {
+  // § 4 P2-1: section "Compliance" jadi "Nasabah" dan label menunya dibuka
+  // kepanjangannya — "KYC Review" → "Verifikasi Perorangan" — karena petugas
+  // yang membacanya bukan orang crypto. MUATAN layarnya tidak disentuh: audit
+  // ke kontrak SOT (§ 3.6) menunjukkan hampir seluruhnya terkunci POJK 8/2023.
+  describe('USDX-154 — Nasabah / Verifikasi Perorangan', () => {
     function kycCount(total: number) {
       return http.get('/api/v1/kyc', () =>
         HttpResponse.json({
@@ -433,13 +480,13 @@ describe('Sidebar @ USDX-50', () => {
       )
     }
 
-    test('renders Compliance section with a KYC Review link to /kyc (admin)', () => {
+    test('renders section Nasabah with a Verifikasi Perorangan link to /kyc (admin)', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true,
       })
-      expect(screen.getByText(/compliance/i)).toBeInTheDocument()
-      const link = screen.getByRole('link', { name: /kyc review/i })
+      expect(screen.queryByText(/compliance/i)).not.toBeInTheDocument()
+      const link = screen.getByRole('link', { name: /^verifikasi perorangan$/i })
       expect(link).toHaveAttribute('href', '/kyc')
     })
 
@@ -460,29 +507,29 @@ describe('Sidebar @ USDX-50', () => {
         authenticated: true,
       })
       // Link renders; badge node only mounts when count > 0.
-      await screen.findByRole('link', { name: /kyc review/i })
+      await screen.findByRole('link', { name: /^verifikasi perorangan$/i })
       expect(screen.queryByTestId('nav-badge-kyc')).not.toBeInTheDocument()
     })
 
-    test('STAFF sees KYC Review with the badge (list is staff-accessible, unlike /mint)', async () => {
+    test('STAFF sees Verifikasi Perorangan with the badge (list is staff-accessible, unlike /mint)', async () => {
       server.use(kycCount(3))
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4', // Sarah King (STAFF)
       })
-      const link = screen.getByRole('link', { name: /kyc review/i })
+      const link = screen.getByRole('link', { name: /^verifikasi perorangan$/i })
       expect(link).toHaveAttribute('href', '/kyc')
       const badge = await screen.findByTestId('nav-badge-kyc')
       expect(badge).toHaveTextContent('3')
     })
 
-    test('DEVELOPER sees KYC Review (view-only role still gets the list menu)', async () => {
+    test('DEVELOPER sees Verifikasi Perorangan (view-only role still gets the list menu)', async () => {
       server.use(kycCount(2))
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_3', // Marcus Aurelius (DEVELOPER)
       })
-      expect(screen.getByRole('link', { name: /kyc review/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^verifikasi perorangan$/i })).toBeInTheDocument()
       const badge = await screen.findByTestId('nav-badge-kyc')
       expect(badge).toHaveTextContent('2')
     })
@@ -492,7 +539,7 @@ describe('Sidebar @ USDX-50', () => {
   // visibility rule as KYC Review (all roles read; acting is gated inside the
   // detail). Its own entry rather than a tab under KYC: the two carry different
   // data and KYB additionally has a manual data-entry form.
-  describe('USDX-546 — COMPLIANCE / KYB Review', () => {
+  describe('USDX-546 — Nasabah / Verifikasi Badan Usaha', () => {
     function kybCount(total: number) {
       return http.get('/api/v1/kyb', () =>
         HttpResponse.json({
@@ -510,12 +557,12 @@ describe('Sidebar @ USDX-50', () => {
       server.use(kybCount(0))
     })
 
-    test('renders a KYB Review link to /kyb (admin)', () => {
+    test('renders a Verifikasi Badan Usaha link to /kyb (admin)', () => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         authenticated: true,
       })
-      expect(screen.getByRole('link', { name: /kyb review/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /^verifikasi badan usaha$/i })).toHaveAttribute(
         'href',
         '/kyb'
       )
@@ -537,7 +584,7 @@ describe('Sidebar @ USDX-50', () => {
         initialEntries: ['/dashboard'],
         authenticated: true,
       })
-      await screen.findByRole('link', { name: /kyb review/i })
+      await screen.findByRole('link', { name: /^verifikasi badan usaha$/i })
       expect(screen.queryByTestId('nav-badge-kyb')).not.toBeInTheDocument()
     })
 
@@ -545,12 +592,12 @@ describe('Sidebar @ USDX-50', () => {
       ['STAFF', 'stf_4'],
       ['MANAGER', 'stf_2'],
       ['DEVELOPER', 'stf_3'],
-    ])('%s also sees KYB Review', (_role, staffId) => {
+    ])('%s also sees Verifikasi Badan Usaha', (_role, staffId) => {
       renderWithProviders(<Sidebar />, {
         initialEntries: ['/dashboard'],
         staffId,
       })
-      expect(screen.getByRole('link', { name: /kyb review/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /^verifikasi badan usaha$/i })).toBeInTheDocument()
     })
   })
 })

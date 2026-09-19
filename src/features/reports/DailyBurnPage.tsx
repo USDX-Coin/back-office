@@ -25,10 +25,10 @@ export default function DailyBurnPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Reporting"
-      title="Daily Burn"
-      italicAccent="aggregate"
-      subtitle="Per-day burn volume and status mix. All times Asia/Jakarta."
+      eyebrow="Laporan"
+      title="Burn Harian"
+      italicAccent="rekap"
+      subtitle="Volume burn OTC per hari beserta sebaran statusnya. Seluruh waktu WIB (Asia/Jakarta)."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker={false}
       isFetching={query.isFetching}

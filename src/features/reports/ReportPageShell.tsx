@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import ReportFiltersToolbar, { type StatusOption } from './ReportFiltersToolbar'
+import ReportTabs from './ReportTabs'
 import type { ReportPageState } from './useReportPageState'
 
 interface Props {
@@ -33,6 +34,9 @@ export default function ReportPageShell({
 
   return (
     <div>
+      {/* § 4 P2-1 — empat entri sidebar Reporting jadi satu entri "Laporan";
+          perpindahan antar laporan turun ke tab ini. Rutenya tidak berubah. */}
+      <ReportTabs />
       <PageHeader
         eyebrow={eyebrow}
         title={title}

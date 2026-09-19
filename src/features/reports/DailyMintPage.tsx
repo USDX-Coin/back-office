@@ -24,10 +24,10 @@ export default function DailyMintPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Reporting"
-      title="Daily Mint"
-      italicAccent="aggregate"
-      subtitle="Per-day mint volume and status mix. All times Asia/Jakarta."
+      eyebrow="Laporan"
+      title="Mint Harian"
+      italicAccent="rekap"
+      subtitle="Volume mint OTC per hari beserta sebaran statusnya. Seluruh waktu WIB (Asia/Jakarta)."
       statusOptions={MINT_STATUS_OPTIONS}
       showUserPicker={false}
       isFetching={query.isFetching}

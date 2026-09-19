@@ -19,9 +19,9 @@ export default function ProfilePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Account"
+        eyebrow="Akun"
         title={user.name}
-        italicAccent="profile"
+        italicAccent="profil"
         subtitle={formatRole(user.role)}
       />
 

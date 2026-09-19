@@ -1,4 +1,5 @@
 import PageHeader from '@/components/PageHeader'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageFeeConfig } from '@/lib/types'
 import CurrentFeeConfigCard from './CurrentFeeConfigCard'
@@ -15,14 +16,15 @@ export default function FeeConfigPage() {
 
   return (
     <div>
+      <SettingsTabs />
       <PageHeader
-        eyebrow="Settings"
-        title="Fee"
-        italicAccent="mint & payment"
+        eyebrow="Pengaturan"
+        title="Biaya"
+        italicAccent="mint & pembayaran"
         subtitle={
           canEdit
-            ? 'Set the mint fee and payment-gateway reference fees. Changes apply to every subsequent order.'
-            : 'View the active fee config. Updates are restricted to the admin role.'
+            ? 'Atur biaya mint dan biaya acuan payment gateway. Perubahan berlaku untuk setiap order berikutnya.'
+            : 'Biaya yang sedang berlaku. Hanya peran Admin yang boleh mengubahnya.'
         }
       />
 

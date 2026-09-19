@@ -1,4 +1,5 @@
 import PageHeader from '@/components/PageHeader'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageRate } from '@/lib/types'
 import CurrentRateCard from './CurrentRateCard'
@@ -12,14 +13,18 @@ export default function RatePage() {
 
   return (
     <div>
+      {/* § 4 P2-1 — empat entri sidebar Settings jadi satu entri "Pengaturan";
+          perpindahan antar halaman turun ke tab ini. Gerbang perannya tetap di
+          route (`App.tsx`), bukan di tab. */}
+      <SettingsTabs />
       <PageHeader
-        eyebrow="Configuration"
-        title="Rate"
+        eyebrow="Pengaturan"
+        title="Kurs"
         italicAccent="USD/IDR"
         subtitle={
           canEdit
-            ? 'Update the active rate. Changes apply immediately to every subsequent mint and redeem.'
-            : 'View the active rate. Updates are restricted to the admin role.'
+            ? 'Ubah kurs yang berlaku. Perubahan langsung dipakai oleh setiap mint dan redeem berikutnya.'
+            : 'Kurs yang sedang berlaku. Hanya peran Admin yang boleh mengubahnya.'
         }
       />
 

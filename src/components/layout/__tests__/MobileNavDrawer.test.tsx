@@ -25,26 +25,31 @@ function renderOpen(onOpenChange = vi.fn()) {
 
 describe('MobileNavDrawer @ USDX-27', () => {
   describe('layout (admin)', () => {
-    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
+    // § 4 P2-1 — struktur menu 8 section → 5, berbahasa Indonesia. Drawer
+    // mobile memakai `NAV_SECTIONS` yang sama dengan Sidebar, jadi ia ikut
+    // berubah; tes ini diubah supaya tetap membuktikan keduanya sinkron.
+    test('renders 5 section headers berbahasa Indonesia', () => {
       renderOpen()
-      expect(screen.getByText(/workspace/i)).toBeInTheDocument()
-      expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
-      expect(screen.getByText(/settings/i)).toBeInTheDocument()
-      // USDX-87: Manual Sync lives in its own Troubleshooting section.
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
+      expect(screen.getByText(/^pekerjaan hari ini$/i)).toBeInTheDocument()
+      expect(screen.getByText(/^meja otc$/i)).toBeInTheDocument()
+      expect(screen.getByText(/^keuangan$/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/^nasabah$/i).length).toBeGreaterThanOrEqual(2)
+      expect(screen.getAllByText(/^pengaturan$/i).length).toBeGreaterThanOrEqual(2)
+      expect(screen.queryByText(/troubleshooting/i)).not.toBeInTheDocument()
     })
 
     test('renders every admin nav link', () => {
       renderOpen()
       for (const name of [
-        /dashboard/i,
-        /^users$/i,
-        /^staff$/i,
-        /^mint$/i,
-        /^burn$/i,
-        /^rate$/i,
-        /^threshold$/i,
-        /manual sync/i,
+        /^beranda$/i,
+        /^transaksi nasabah$/i,
+        /^nasabah$/i,
+        /^pengguna internal$/i,
+        /^mint otc$/i,
+        /^burn otc$/i,
+        /^pengaturan$/i,
+        /^mode mint$/i,
+        /^perbaiki status nyangkut$/i,
       ]) {
         expect(screen.getByRole('link', { name })).toBeInTheDocument()
       }
@@ -59,7 +64,7 @@ describe('MobileNavDrawer @ USDX-27', () => {
   describe('interaction', () => {
     test('clicking a nav link closes the drawer', () => {
       const { onOpenChange } = renderOpen()
-      fireEvent.click(screen.getByRole('link', { name: /^mint$/i }))
+      fireEvent.click(screen.getByRole('link', { name: /^mint otc$/i }))
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
   })
@@ -134,16 +139,16 @@ describe('MobileNavDrawer @ USDX-27', () => {
   // USDX-78 — STAFF on mobile mirrors the desktop sidebar (sot/phase-1.md
   // L653-655): Mint/Burn target the form directly, no PENDING_APPROVAL badge.
   describe('USDX-78 — STAFF nav', () => {
-    test('STAFF Mint and Burn target the form routes, no badge', () => {
+    test('STAFF Mint OTC and Burn OTC target the form routes, no badge', () => {
       renderWithProviders(<MobileNavDrawer open onOpenChange={vi.fn()} />, {
         initialEntries: ['/dashboard'],
         staffId: 'stf_4', // Sarah King (STAFF)
       })
-      expect(screen.getByRole('link', { name: /^mint$/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /^mint otc$/i })).toHaveAttribute(
         'href',
         '/mint/new'
       )
-      expect(screen.getByRole('link', { name: /^burn$/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /^burn otc$/i })).toHaveAttribute(
         'href',
         '/burn/new'
       )

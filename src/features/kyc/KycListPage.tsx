@@ -153,10 +153,10 @@ export default function KycListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compliance"
-        title="KYC"
-        italicAccent="Review"
-        subtitle="Review consumer identity submissions — oldest first for fairness."
+        eyebrow="Nasabah"
+        title="Verifikasi Perorangan"
+        italicAccent="KYC"
+        subtitle="Periksa berkas identitas nasabah perorangan — yang paling lama menunggu tampil lebih dulu."
       />
 
       <DataTable<KycListItem>

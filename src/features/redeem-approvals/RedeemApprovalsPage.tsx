@@ -172,7 +172,9 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'burnTx',
-      header: 'Burn on-chain',
+      // P1-1 — dulu header ini berbunyi "Burn on-chain" di tengah tabel yang
+      // seluruh kolom lainnya berbahasa Indonesia.
+      header: 'Bukti pembakaran',
       cell: ({ row }) => {
         const hash = row.original.burnTxHash
         if (!hash) {
@@ -246,7 +248,7 @@ export default function RedeemApprovalsPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Consumer"
+          eyebrow="Pekerjaan Hari Ini"
           title="Persetujuan Pencairan"
           italicAccent="redeem"
           subtitle="Pencairan yang menunggu persetujuan sebelum rupiahnya dikirim. USDX nasabah sudah terbakar, jadi setiap baris di sini adalah orang yang sedang menunggu uangnya."
