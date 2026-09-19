@@ -297,7 +297,7 @@ describe('MintListPage @ USDX-51', () => {
       const cell = await screen.findByText('Modal Target')
       await user.click(cell)
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/mint request/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/request mint otc/i)).toBeInTheDocument()
     })
   })
 
@@ -436,7 +436,7 @@ describe('MintListPage @ USDX-51', () => {
       setup()
       await user.click(await screen.findByText('Deep Link'))
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/mint request/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/request mint otc/i)).toBeInTheDocument()
       // Created By field also visible in the modal (USDX-78 detail AC).
       expect(within(dialog).getByText('Detail Owner')).toBeInTheDocument()
     })
@@ -479,7 +479,7 @@ describe('MintListPage @ USDX-51', () => {
         authenticated: true,
       })
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/mint request/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/request mint otc/i)).toBeInTheDocument()
     })
   })
 })

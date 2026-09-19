@@ -256,7 +256,13 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       await confirmThrough(user)
 
       await waitFor(() =>
-        expect(errSpy).toHaveBeenCalledWith('Status sudah berubah ke REJECTED. Refresh list.')
+        // § 4 P1-1 + P1-5 — kalimat ini dulu mencampur dua bahasa DAN mencetak
+        // nilai enum mentah ("Status sudah berubah ke REJECTED. Refresh list.").
+        // Peta labelnya sudah ada di `src/lib/status.ts`; yang kurang cuma
+        // pemakaiannya di sini.
+        expect(errSpy).toHaveBeenCalledWith(
+          'Status request ini sudah berubah menjadi "Ditolak". Daftarnya dimuat ulang.'
+        )
       )
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
       errSpy.mockRestore()
@@ -270,8 +276,10 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       await confirmThrough(user)
 
       await waitFor(() =>
+        // Status yang belum dikenal peta label tetap membawa KODENYA — itu yang
+        // dikutip operator saat melapor ke tim teknis (P1-5).
         expect(errSpy).toHaveBeenCalledWith(
-          'Status sudah berubah ke SOME_FUTURE_STATUS. Refresh list.'
+          'Status request ini sudah berubah menjadi "Status belum dikenali (SOME_FUTURE_STATUS)". Daftarnya dimuat ulang.'
         )
       )
       errSpy.mockRestore()
@@ -304,7 +312,9 @@ describe('UpdateTxHashModal @ USDX-87', () => {
 
       // Falls through to the generic error path instead of crashing.
       await waitFor(() =>
-        expect(errSpy).toHaveBeenCalledWith("Couldn't confirm the update. Please verify again.")
+        expect(errSpy).toHaveBeenCalledWith(
+          'Perubahan tidak bisa dikonfirmasi. Periksa ulang bukti transaksinya.'
+        )
       )
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
       errSpy.mockRestore()
@@ -337,7 +347,9 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       await confirmThrough(user)
 
       await waitFor(() =>
-        expect(errSpy).toHaveBeenCalledWith("Couldn't confirm the update. Please verify again.")
+        expect(errSpy).toHaveBeenCalledWith(
+          'Perubahan tidak bisa dikonfirmasi. Periksa ulang bukti transaksinya.'
+        )
       )
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
       errSpy.mockRestore()

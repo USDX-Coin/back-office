@@ -194,10 +194,10 @@ export default function MintFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Operations"
-        title="Mint request"
-        italicAccent="propose to Safe"
-        subtitle="Submit a Phase-1 mint request. The request enters PENDING_APPROVAL and is auto-routed to the Staff or Manager Safe based on the IDR threshold."
+        eyebrow="Meja OTC"
+        title="Mint OTC baru"
+        italicAccent="ajukan ke Safe"
+        subtitle="Ajukan request mint OTC. Request masuk berstatus Menunggu persetujuan dan otomatis diarahkan ke dompet Safe Staf atau Safe Manager mengikuti batas nominalnya."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">
@@ -205,7 +205,7 @@ export default function MintFormPage() {
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-[15px] font-semibold tracking-tight">
-                New mint request
+                Request mint OTC baru
               </CardTitle>
             </CardHeader>
             <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Mint request form">
@@ -323,23 +323,23 @@ export default function MintFormPage() {
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-[14px] font-semibold tracking-tight">
-                What happens next
+                Apa yang terjadi berikutnya
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-[12.5px] text-muted-foreground">
               <p>
-                Backend computes IDR equivalent, picks the appropriate Safe by
-                threshold, generates an idempotency key, and proposes the
-                transaction.
+                Sistem menghitung nilai rupiahnya, memilih dompet Safe yang
+                sesuai berdasarkan batas nominal, lalu mengajukan transaksinya
+                ke antrean tanda tangan.
               </p>
               <p>
-                The request appears on the{' '}
-                <span className="font-medium text-foreground">Mint</span> list
-                immediately as <code>PENDING_APPROVAL</code>.
+                Request langsung muncul di daftar{' '}
+                <span className="font-medium text-foreground">Mint OTC</span>{' '}
+                dengan status <span className="font-medium text-foreground">Menunggu persetujuan</span>.
               </p>
               <p>
-                Manager Safe submissions (≥ 1 milyar IDR) require a Manager or
-                Admin role.
+                Pengajuan yang masuk ke dompet Safe Manager (≥ 1 miliar rupiah)
+                hanya boleh dilakukan peran Manager atau Admin.
               </p>
             </CardContent>
           </Card>
