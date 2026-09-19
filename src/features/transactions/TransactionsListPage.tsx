@@ -95,7 +95,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'createdAt',
       size: 112,
-      header: 'Date',
+      header: 'Tanggal',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
@@ -105,7 +105,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'type',
       size: 68,
-      header: 'Type',
+      header: 'Jenis',
       cell: ({ getValue }) => (
         <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {getValue() as string}
@@ -115,7 +115,7 @@ export default function TransactionsListPage() {
     {
       id: 'user',
       size: 200,
-      header: 'User',
+      header: 'Nasabah',
       cell: ({ row }) => {
         // The backend sends the literal marker `(partner customer)` when the
         // order has no `users` row (USDX-571). It is a label, not a person, so
@@ -164,7 +164,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'amount',
       size: 116,
-      header: 'Amount',
+      header: 'Nominal',
       cell: ({ getValue }) => (
         <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
           {Number(getValue() as string).toLocaleString('en-US', {
@@ -178,7 +178,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'totalPayIdr',
       size: 128,
-      header: 'Total pay (IDR)',
+      header: 'Total bayar',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
@@ -193,7 +193,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'netPayoutIdr',
       size: 128,
-      header: 'Net payout (IDR)',
+      header: 'Nominal transfer',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
@@ -208,7 +208,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'chain',
       size: 88,
-      header: 'Chain',
+      header: 'Jaringan',
       cell: ({ getValue }) => {
         const c = getValue() as string
         return (
@@ -227,7 +227,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'paymentStatus',
       size: 108,
-      header: 'Payment',
+      header: 'Pembayaran',
       // Redeem rows have no payment leg (null) → dash.
       cell: ({ getValue }) => {
         const v = getValue() as OrderListItem['paymentStatus']
@@ -241,7 +241,7 @@ export default function TransactionsListPage() {
     {
       accessorKey: 'safeStatus',
       size: 104,
-      header: 'Safe',
+      header: 'Tanda tangan',
       // Redeem rows don't go through Safe (null) → dash.
       cell: ({ getValue }) => {
         const v = getValue() as OrderListItem['safeStatus']
@@ -272,10 +272,10 @@ export default function TransactionsListPage() {
             navigate(`/transactions/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`View order for ${row.original.userEmail}`}
+          aria-label={`Buka order milik ${row.original.userEmail}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          View
+          Lihat
         </button>
       ),
     },
@@ -289,18 +289,18 @@ export default function TransactionsListPage() {
     <TableEmptyState
       mode="no-data"
       icon={<Receipt className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No user transactions yet"
-      description="Consumer mint & redeem orders will appear here as users transact."
+      title="Belum ada transaksi nasabah"
+      description="Order mint dan redeem nasabah akan muncul di sini begitu ada yang bertransaksi."
     />
   )
 
   return (
     <div>
       <PageHeader
-        eyebrow="Consumer"
-        title="User Transaction"
-        italicAccent="orders"
-        subtitle="Read-only monitoring of consumer mint & redeem orders — payment / payout, execution, and fee / spread / revenue."
+        eyebrow="Pekerjaan Hari Ini"
+        title="Transaksi Nasabah"
+        italicAccent="order"
+        subtitle="Pemantauan semua order mint dan redeem nasabah — pembayaran, pencairan, eksekusi, serta rincian biaya dan spread. Hanya membaca; tindakannya ada di layar yang ditautkan tiap order."
       />
 
       <DataTable<OrderListItem>
@@ -348,7 +348,7 @@ export default function TransactionsListPage() {
         hasFilters={hasFilters}
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/transactions/${r.id}`)}
-        rowAriaLabel={(r) => `Open order for ${r.userEmail}, ${r.amount} USDX`}
+        rowAriaLabel={(r) => `Buka order milik ${r.userEmail}, ${r.amount} USDX`}
       />
 
       <OrderDetailModal

@@ -241,12 +241,12 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="Staff"
-        italicAccent="directory"
-        subtitle={`Internal back-office operators · ${
+        eyebrow="Pengaturan"
+        title="Pengguna Internal"
+        italicAccent="daftar"
+        subtitle={`${
           list.isLoading ? '…' : totalLoaded
-        } total`}
+        } operator back-office terdaftar`}
         actions={
           canManage ? (
             <Button onClick={openAdd} size="sm" className="h-7 text-xs">

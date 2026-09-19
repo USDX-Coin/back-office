@@ -14,6 +14,7 @@ import { apiFetchRaw } from '@/lib/apiFetch'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { formatDate, shortHash } from '@/lib/format'
+import DetailTeknis from '@/components/DetailTeknis'
 import { getRequestStatusConfig, isRequestTerminal } from '@/lib/status'
 import { findChainConfig } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
@@ -61,9 +62,9 @@ function useRequestDetail(id: string | null) {
 async function copy(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(`${label} copied`)
+    toast.success(`${label} disalin`)
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -73,8 +74,8 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => copy(value, label)}
       className="text-muted-foreground hover:text-primary"
-      title={`Copy ${label}`}
-      aria-label={`Copy ${label}`}
+      title={`Salin ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <Copy className="h-3 w-3" />
     </button>
@@ -88,7 +89,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
       onClick={() => copy(value, label)}
       className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
       title={value}
-      aria-label={`Copy ${label}`}
+      aria-label={`Salin ${label}`}
     >
       <span className="break-all">{shortHash(value)}</span>
       <Copy className="h-3 w-3 opacity-50" />
@@ -179,11 +180,11 @@ export default function RequestDetailModal({
         <DialogHeader>
           <DialogTitle>
             {resolvedType
-              ? `${resolvedType === 'mint' ? 'Mint' : 'Burn'} request`
-              : 'Request detail'}
+              ? `Request ${resolvedType === 'mint' ? 'mint' : 'burn'} OTC`
+              : 'Detail request'}
           </DialogTitle>
           <DialogDescription>
-            Approval lifecycle and on-chain trace for this request.
+            Perjalanan persetujuan dan jejak blockchain untuk request ini.
           </DialogDescription>
         </DialogHeader>
 
@@ -213,8 +214,11 @@ export default function RequestDetailModal({
                   <span className={cn('h-1.5 w-1.5 rounded-full', cfg!.dotClass)} />
                   {cfg!.label}
                 </span>
-                <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  {detail.safeType} safe · {detail.chain}
+                {/* P1-5 — dulu baris ini berbunyi `STAFF safe · polygon`. Nama
+                    rantainya turun ke Detail teknis; yang perlu dibaca sekilas
+                    hanyalah dompet mana yang memegang request ini. */}
+                <span className="text-2xs text-muted-foreground">
+                  {detail.safeType === 'MANAGER' ? 'Dompet Manager' : 'Dompet Staf'}
                 </span>
               </div>
               <span className="font-mono text-2xs tabular-nums text-muted-foreground">
@@ -223,50 +227,69 @@ export default function RequestDetailModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="User name">
+              <Field label="Nama nasabah">
                 {resolvedUserName ?? (
                   <span className="text-muted-foreground">—</span>
                 )}
               </Field>
-              <Field label="User wallet">
-                <CopyableMono value={detail.userAddress} label="User address" />
+              <Field label="Dompet nasabah">
+                <CopyableMono value={detail.userAddress} label="Alamat dompet nasabah" />
               </Field>
-              <Field label="Amount (USDX)">
+              <Field label="Nominal (USDX)">
                 <span className="font-mono tabular-nums">{detail.amount}</span>
               </Field>
-              <Field label="Amount (IDR)">
+              <Field label="Nominal (Rp)">
                 <span className="font-mono tabular-nums">
                   Rp {Number(detail.amountIdr).toLocaleString('id-ID')}
                 </span>
               </Field>
-              <Field label="Rate used">
+              <Field label="Kurs yang dipakai">
                 <span className="font-mono tabular-nums">{detail.rateUsed}</span>
               </Field>
-              <Field label="Amount (wei)">
-                <span className="break-all font-mono text-2xs">
-                  {detail.amountWei}
-                </span>
-              </Field>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Request ID">
-                <CopyableMono value={detail.id} label="Request ID" />
-              </Field>
-              <Field label="Created by">
+              <Field label="Dibuat oleh">
                 {resolvedCreatedByName ?? (
                   <span className="text-muted-foreground">—</span>
                 )}
               </Field>
-              <Field label="Idempotency key">
-                <CopyableMono value={detail.idempotencyKey} label="Idempotency key" />
+              <Field label="Bukti blockchain">
+                {detail.onChainTxHash ? (
+                  <HashLink
+                    value={detail.onChainTxHash}
+                    label="Bukti blockchain"
+                    linkLabel="Lihat di block explorer"
+                    href={explorerTx(detail.onChainTxHash)}
+                  />
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </Field>
-              <Field label="Safe tx hash">
+            </div>
+
+            {/* P1-2 — BOLEH DILIPAT, TIDAK BOLEH DIBUANG. Lima nilai di bawah
+                adalah bahan penelusuran, bukan bahan keputusan: tidak satu pun
+                dipakai untuk menyetujui atau menolak request ini. Yang dipakai
+                memutuskan tetap di layar utama di atas. */}
+            <DetailTeknis>
+              <Field label="ID request">
+                <CopyableMono value={detail.id} label="ID request" />
+              </Field>
+              <Field label="Kode anti-dobel">
+                <CopyableMono value={detail.idempotencyKey} label="Kode anti-dobel" />
+              </Field>
+              <Field label="Nominal satuan terkecil (wei)">
+                <span className="break-all font-mono text-2xs">
+                  {detail.amountWei}
+                </span>
+              </Field>
+              <Field label="Jaringan">
+                <span className="font-mono text-2xs">{detail.chain}</span>
+              </Field>
+              <Field label="Nomor antrean tanda tangan">
                 {detail.safeTxHash ? (
                   <HashLink
                     value={detail.safeTxHash}
-                    label="Safe tx hash"
-                    linkLabel="View in Safe"
+                    label="Nomor antrean tanda tangan"
+                    linkLabel="Lihat di Safe"
                     href={safeTxUrl({
                       chain: chainCfg,
                       safeType: detail.safeType,
@@ -277,28 +300,16 @@ export default function RequestDetailModal({
                   <span className="text-muted-foreground">—</span>
                 )}
               </Field>
-              <Field label="On-chain tx hash">
-                {detail.onChainTxHash ? (
-                  <HashLink
-                    value={detail.onChainTxHash}
-                    label="On-chain tx hash"
-                    linkLabel="View on block explorer"
-                    href={explorerTx(detail.onChainTxHash)}
-                  />
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </Field>
-            </div>
+            </DetailTeknis>
 
             {isBurn(detail, resolvedType) && (
               <div className="grid gap-4 rounded-md bg-muted/40 p-3 sm:grid-cols-2">
-                <Field label="Deposit tx hash">
+                <Field label="Bukti setoran USDX">
                   {detail.depositTxHash ? (
                     <HashLink
                       value={detail.depositTxHash}
-                      label="Deposit tx"
-                      linkLabel="View on block explorer"
+                      label="Bukti setoran USDX"
+                      linkLabel="Lihat di block explorer"
                       href={explorerTx(detail.depositTxHash)}
                     />
                   ) : (
@@ -312,7 +323,7 @@ export default function RequestDetailModal({
                     )}
                   </span>
                 </Field>
-                <Field label="Bank account">
+                <Field label="Nomor rekening">
                   <span className="font-mono tabular-nums">
                     {detail.bankAccount ?? (
                       <span className="text-muted-foreground">—</span>
@@ -322,7 +333,7 @@ export default function RequestDetailModal({
               </div>
             )}
 
-            <Field label="Notes">
+            <Field label="Catatan">
               {detail.notes ? (
                 <p className="whitespace-pre-wrap">{detail.notes}</p>
               ) : (

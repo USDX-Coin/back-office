@@ -213,7 +213,7 @@ export default function SanctionListsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compliance"
+        eyebrow="Nasabah"
         title="Daftar sanksi"
         italicAccent="DTTOT & DPPSPM"
         subtitle="Versi daftar yang dipakai memeriksa nasabah. Pembaruan daftar adalah prosedur manusia — publikasi PPATK/Bappebti berbentuk berkas, bukan API — jadi tiap versi disimpan beserta tanggal terbit dan siapa yang mengimpornya."

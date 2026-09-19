@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router'
+import { ArrowLeft, ArrowRight, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -88,9 +88,25 @@ export default function UserDetailPage() {
       </Button>
 
       <PageHeader
-        eyebrow="Workspace · User"
+        eyebrow="Nasabah"
         title={data.name ?? data.email}
-        subtitle={`Joined ${formatShortDate(data.createdAt)}`}
+        subtitle={`Bergabung ${formatShortDate(data.createdAt)}`}
+        actions={
+          /* P0-3 — jalan keluar dari halaman nasabah menuju transaksinya.
+             Filter `?userId=` SUDAH dihormati `/transactions` sejak USDX-206
+             (komentarnya sendiri menyebut "arriving from a user detail page");
+             yang tidak pernah ada cuma tautannya. Read-only, gerbang PII tidak
+             berubah. Kartu "Recent requests" di bawah hanya memuat request OTC
+             — order konsumen milik nasabah ini tidak pernah tampil di halaman
+             ini sama sekali. */
+          <Link
+            to={`/transactions?userId=${encodeURIComponent(data.id)}`}
+            className="inline-flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted/60"
+          >
+            Lihat transaksi nasabah ini
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        }
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">

@@ -275,10 +275,10 @@ export default function MintListPage() {
           `actions` slot (compact, top-right at ≥sm) instead of a separate
           full-width button below the title. */}
       <PageHeader
-        eyebrow="Operations"
-        title="Mint"
-        italicAccent="OTC requests"
-        subtitle="Track every mint request across its approval lifecycle."
+        eyebrow="Meja OTC"
+        title="Mint OTC"
+        italicAccent="request"
+        subtitle="Pantau setiap request mint OTC sepanjang alur persetujuannya."
         actions={
           canCreate ? (
             <Button onClick={() => navigate('/mint/new')} size="sm" className="h-7 text-xs">

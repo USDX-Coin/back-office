@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import type { SafeMeta, SafeTxDetail, SafeTxSigner } from '@/lib/types'
 
 // Owner-verification is driven purely by the data returned from useMultisigDetail
@@ -288,6 +289,69 @@ describe('MultisigDetailSheet execute simulate gate', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       expect(simRefetch).toHaveBeenCalledTimes(1)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 4 P0-2, arah sebaliknya — "Linked order" dulu cuma TEKS yang bisa disalin
+// (`MultisigDetailSheet.tsx:579-596`), jadi penandatangan yang ingin memeriksa
+// order asalnya harus mengingat id-nya, pindah menu, dan mencarinya ulang.
+//
+// Hanya blok ini yang butuh Router: seluruh tes di atas memakai fixture dengan
+// `linkedOrderId: null`, sehingga `<Link>` tidak pernah dirender di sana.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MultisigDetailSheet — tautan ke order asalnya (P0-2)', () => {
+  const ORDER_ID = 'ord_9f3a2b'
+
+  beforeEach(() => {
+    refetchDetail = vi.fn()
+    refetchSafes = vi.fn()
+    setSafes([safeMeta([OWNER])])
+    state.wallet = { address: OTHER, isConnected: true, isWrongNetwork: false }
+    state.simulate = { status: 'idle', reason: null, refetch: vi.fn(), isRefetching: false }
+  })
+
+  function renderWithRouter() {
+    return render(
+      <MemoryRouter>
+        <MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={null} />
+      </MemoryRouter>,
+    )
+  }
+
+  describe('positive', () => {
+    test('id order jadi tautan ke /transactions/:id', () => {
+      setDetail({ linkedOrderId: ORDER_ID })
+      renderWithRouter()
+      const link = screen.getByRole('link', { name: new RegExp(ORDER_ID.slice(0, 6), 'i') })
+      expect(link).toHaveAttribute('href', `/transactions/${ORDER_ID}`)
+    })
+
+    test('tombol salin tetap ada — id penuhnya tidak hilang oleh tautan', () => {
+      setDetail({ linkedOrderId: ORDER_ID })
+      renderWithRouter()
+      expect(screen.getByRole('button', { name: /salin id order/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('tanpa linkedOrderId tidak ada tautan yang mengarang tujuan', () => {
+      setDetail({ linkedOrderId: null })
+      renderWithRouter()
+      expect(
+        screen.queryByRole('link', { name: /transactions/i }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('pagar blind-sign di sekitarnya tidak ikut berubah', () => {
+      // Kalimat cross-check adalah alasan blok ini ada; menautkannya tidak
+      // boleh diam-diam membuang peringatannya.
+      setDetail({ linkedOrderId: ORDER_ID })
+      renderWithRouter()
+      expect(screen.getByText(/blind-sign guard/i)).toBeInTheDocument()
     })
   })
 })

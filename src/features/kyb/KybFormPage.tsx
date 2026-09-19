@@ -280,10 +280,10 @@ export default function KybFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compliance"
-        title="New KYB"
-        italicAccent="record"
-        subtitle="Enter the entity's due-diligence data from its documents. The account must already exist under Users."
+        eyebrow="Nasabah"
+        title="Verifikasi Badan Usaha baru"
+        italicAccent="KYB"
+        subtitle="Ketik data penelaahan badan usaha dari dokumennya. Akunnya harus sudah ada lebih dulu di menu Nasabah."
         actions={
           <Button
             variant="outline"

@@ -220,7 +220,7 @@ describe('BurnListPage @ USDX-52', () => {
       const cell = await screen.findByText('Modal Target')
       await user.click(cell)
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/burn request/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/request burn otc/i)).toBeInTheDocument()
     })
   })
 
@@ -358,7 +358,7 @@ describe('BurnListPage @ USDX-52', () => {
         authenticated: true,
       })
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/burn request/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/request burn otc/i)).toBeInTheDocument()
       expect(within(dialog).getByText('Burn Refresh Owner')).toBeInTheDocument()
     })
   })

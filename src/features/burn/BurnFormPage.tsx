@@ -7,10 +7,10 @@ export default function BurnFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Operations"
-        title="Burn"
-        italicAccent="redeem USDX"
-        subtitle="Submit an OTC burn after the user has deposited USDX to the Safe wallet. The request enters the approval lifecycle and appears on the Burn list."
+        eyebrow="Meja OTC"
+        title="Burn OTC baru"
+        italicAccent="tarik USDX"
+        subtitle="Ajukan burn OTC setelah nasabah menyetor USDX ke dompet Safe. Request masuk ke alur persetujuan dan muncul di daftar Burn OTC."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">

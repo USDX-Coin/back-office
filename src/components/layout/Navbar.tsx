@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router'
-import { Search, ChevronRight, Menu } from 'lucide-react'
+import { ChevronRight, Menu } from 'lucide-react'
 import ProfileDropdown from './ProfileDropdown'
 import MobileNavDrawer from './MobileNavDrawer'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -8,22 +8,49 @@ import { usePendingMintCount } from '@/features/mint/hooks'
 import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
 
-// Breadcrumb mapping mirrors the sidebar groupings per Linear USDX-50.
-// Form pages use a verbose tail so operators see "Mint OTC / New" while
-// editing rather than a bare "/mint/new".
+// Peta breadcrumb mengikuti section sidebar (`navItems.ts`) — kalau nama menu
+// berubah, baris di sini ikut berubah, supaya operator tidak membaca dua nama
+// berbeda untuk satu halaman.
+//
+// P1-4 — dulu peta ini hanya mengenal 12 dari 39 rute. Sisanya jatuh ke
+// potongan URL mentah, jadi `/redeem-approvals` terbaca "USDX ›
+// redeem-approvals" dan `/reports/mint/daily` terbaca "reports › mint › daily".
+// Yang tidak terpetakan justru seluruh halaman uang yang paling baru.
 const BREADCRUMB_MAP: Record<string, [string, string]> = {
-  '/dashboard': ['Workspace', 'Dashboard'],
-  '/users': ['Workspace', 'Users'],
-  '/staff': ['Workspace', 'Staff'],
-  '/mint': ['OTC', 'Mint'],
-  '/mint/new': ['OTC', 'New mint OTC'],
-  '/burn': ['OTC', 'Burn'],
-  '/burn/new': ['OTC', 'New burn OTC'],
-  '/transactions': ['Consumer', 'User Transaction'],
-  '/settings/rate': ['Settings', 'Rate'],
-  '/settings/fee': ['Settings', 'Fee'],
-  '/settings/threshold': ['Settings', 'Threshold'],
-  '/profile': ['Account', 'Profile'],
+  // Pekerjaan Hari Ini
+  '/dashboard': ['Pekerjaan Hari Ini', 'Beranda'],
+  '/transactions': ['Pekerjaan Hari Ini', 'Transaksi Nasabah'],
+  '/redeem-approvals': ['Pekerjaan Hari Ini', 'Persetujuan Pencairan'],
+  '/payout-failures': ['Pekerjaan Hari Ini', 'Pencairan Bermasalah'],
+  '/manual-sync': ['Pekerjaan Hari Ini', 'Perbaiki Status Nyangkut'],
+  // Nasabah
+  '/users': ['Nasabah', 'Nasabah'],
+  '/kyc': ['Nasabah', 'Verifikasi Perorangan'],
+  '/kyb': ['Nasabah', 'Verifikasi Badan Usaha'],
+  '/kyb/new': ['Nasabah', 'Verifikasi Badan Usaha baru'],
+  '/screening': ['Nasabah', 'Pemeriksaan Daftar Sanksi'],
+  '/screening/lists': ['Nasabah', 'Daftar Sanksi'],
+  // Meja OTC
+  '/mint': ['Meja OTC', 'Mint OTC'],
+  '/mint/new': ['Meja OTC', 'Mint OTC baru'],
+  '/burn': ['Meja OTC', 'Burn OTC'],
+  '/burn/new': ['Meja OTC', 'Burn OTC baru'],
+  // Keuangan
+  '/bni-accounts': ['Keuangan', 'Rekening BNI'],
+  '/multisig': ['Keuangan', 'Antrean Tanda Tangan'],
+  '/transparency': ['Keuangan', 'Cadangan & Atestasi'],
+  '/reports/mint/daily': ['Laporan', 'Mint Harian'],
+  '/reports/mint/by-user': ['Laporan', 'Mint per Nasabah'],
+  '/reports/burn/daily': ['Laporan', 'Burn Harian'],
+  '/reports/burn/by-user': ['Laporan', 'Burn per Nasabah'],
+  // Pengaturan
+  '/settings/rate': ['Pengaturan', 'Kurs'],
+  '/settings/fee': ['Pengaturan', 'Biaya'],
+  '/settings/threshold': ['Pengaturan', 'Batas Safe Manager'],
+  '/settings/oncall': ['Pengaturan', 'Kontak Darurat'],
+  '/settings/mint-mode': ['Pengaturan', 'Mode Mint'],
+  '/staff': ['Pengaturan', 'Pengguna Internal'],
+  '/profile': ['Akun', 'Profil'],
 }
 
 function buildBreadcrumb(pathname: string): string[] {
@@ -92,15 +119,16 @@ export default function Navbar() {
           ))}
         </nav>
 
+        {/* P0-4 — kotak cari palsu DIBUANG. Yang berdiri di sini dulu adalah
+            sebuah <div> berisi ikon kaca pembesar, teks "Search…", dan lencana
+            ⌘K: bukan <input>, tanpa onClick, tanpa handler, dan tidak ada
+            command palette di mana pun di repo ini. Operator yang mau mencari
+            satu order melihat kotak cari yang tidak bisa diklik — kontrol yang
+            tidak bisa dipakai lebih buruk daripada tidak ada kontrol.
+            Penggantinya bukan command palette melainkan tautan antar layar
+            (P0-2/P0-3); kotak cari nyata di /transactions menunggu parameter
+            `search` di `sot/api/orders.yaml`, yang belum ada. */}
         <div className="flex items-center gap-1">
-          <div className="relative hidden lg:flex h-7 w-64 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-xs text-muted-foreground/80 hover:border-border/80 transition-colors">
-            <Search className="h-3.5 w-3.5" />
-            <span>Search…</span>
-            <kbd className="ml-auto rounded border border-border px-1 font-mono text-2xs leading-none py-0.5">
-              ⌘K
-            </kbd>
-          </div>
-
           <ThemeToggle />
 
           <div className="ml-1">

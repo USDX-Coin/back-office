@@ -18,8 +18,9 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
 import { shortRequestId } from '@/lib/format'
+import { getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { ManualSyncItem } from '@/lib/types'
+import type { ManualSyncItem, RequestStatus } from '@/lib/types'
 import { isInvalidStatusError, useExecuteSync, useVerifyTxHash } from './hooks'
 
 // USDX-87 — Update Transaction Hash modal.
@@ -40,11 +41,12 @@ const TX_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/
 // Display labels for the canonical field names BE sends back in
 // `MatchResult.fields[].field`. Unknown keys fall through to start-case.
 const FIELD_LABEL: Record<string, string> = {
-  safeAddress: 'Safe Address',
-  amount: 'Amount',
-  destination: 'Destination',
-  idempotencyKey: 'Idempotency Key',
-  safeTxHash: 'Safe Tx Hash',
+  safeAddress: 'Alamat dompet Safe',
+  amount: 'Nominal',
+  destination: 'Alamat tujuan',
+  // "Idempotency key" = kunci yang mencegah satu request tercatat dua kali.
+  idempotencyKey: 'Kode anti-dobel',
+  safeTxHash: 'Nomor antrean tanda tangan',
 }
 
 function fieldLabel(field: string): string {
@@ -112,7 +114,7 @@ export default function UpdateTxHashModal({
     if (!verify.data?.allMatch) return
     try {
       await execute.mutateAsync({ txHash: trimmed })
-      toast.success('Status updated to EXECUTED')
+      toast.success('Status diperbarui — request ini sekarang tercatat sudah dieksekusi.')
       onOpenChange(false)
     } catch (err) {
       if (isInvalidStatusError(err)) {
@@ -120,14 +122,19 @@ export default function UpdateTxHashModal({
         // already executed it). The list refresh is handled by the mutation's
         // onError; surface the new status and auto-close — the row is gone, so
         // keeping the modal open would only let the operator retry a no-op.
-        const currentStatus = err.details.currentStatus
-        toast.error(`Status sudah berubah ke ${currentStatus}. Refresh list.`)
+        // P1-1/P1-5 — dulu kalimat ini mencampur dua bahasa DAN mencetak nilai
+        // enum mentah ("Status sudah berubah ke EXECUTED. Refresh list."). Peta
+        // labelnya sudah ada; yang kurang cuma pemakaiannya di sini.
+        const currentStatus = err.details.currentStatus as RequestStatus
+        toast.error(
+          `Status request ini sudah berubah menjadi "${getRequestStatusConfig(currentStatus).label}". Daftarnya dimuat ulang.`,
+        )
         onOpenChange(false)
         return
       }
       // 400 mismatch / tx-not-found (anti race): surface as a toast and keep
       // the modal open so the operator can amend the tx hash.
-      toast.error("Couldn't confirm the update. Please verify again.")
+      toast.error('Perubahan tidak bisa dikonfirmasi. Periksa ulang bukti transaksinya.')
     }
   }
 

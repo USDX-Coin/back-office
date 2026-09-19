@@ -1,4 +1,5 @@
 import PageHeader from '@/components/PageHeader'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import CurrentThresholdCard from './CurrentThresholdCard'
 import ThresholdUpdateForm from './ThresholdUpdateForm'
 import { useThreshold } from './hooks'
@@ -11,11 +12,12 @@ export default function ThresholdPage() {
 
   return (
     <div>
+      <SettingsTabs />
       <PageHeader
-        eyebrow="Settings"
-        title="Threshold"
-        italicAccent="Safe routing"
-        subtitle="Define the boundary that routes large requests to the Manager Safe."
+        eyebrow="Pengaturan"
+        title="Batas Safe Manager"
+        italicAccent="pembagian dompet"
+        subtitle="Batas nominal yang membuat request besar diarahkan ke dompet Safe Manager, bukan dompet Safe Staf."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">

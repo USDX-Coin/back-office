@@ -23,10 +23,10 @@ export default function MintByUserPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Reporting"
-      title="Mint By User"
-      italicAccent="aggregate"
-      subtitle="Mint volume aggregated per user. Sorted by total USDX, descending."
+      eyebrow="Laporan"
+      title="Mint per Nasabah"
+      italicAccent="rekap"
+      subtitle="Volume mint OTC dijumlahkan per nasabah. Diurutkan dari total USDX terbesar."
       statusOptions={MINT_STATUS_OPTIONS}
       showUserPicker
       isFetching={query.isFetching}

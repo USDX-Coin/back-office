@@ -16,7 +16,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
     await installMockApi(page)
     await seedAuthenticatedSession(page)
     await page.goto('/users')
-    await expect(page.getByRole('heading', { name: /^user/i, level: 1 })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('heading', { name: /^nasabah/i, level: 1 })).toBeVisible({ timeout: 15000 })
   })
 
   test.describe('positive', () => {

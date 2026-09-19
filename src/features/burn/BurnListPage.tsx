@@ -271,10 +271,10 @@ export default function BurnListPage() {
           `actions` slot (compact, top-right at ≥sm) instead of a separate
           full-width button below the title. */}
       <PageHeader
-        eyebrow="Operations"
-        title="Burn"
-        italicAccent="OTC requests"
-        subtitle="Track every burn request across its approval lifecycle."
+        eyebrow="Meja OTC"
+        title="Burn OTC"
+        italicAccent="request"
+        subtitle="Pantau setiap request burn OTC sepanjang alur persetujuannya."
         actions={
           canCreate ? (
             <Button onClick={() => navigate('/burn/new')} size="sm" className="h-7 text-xs">

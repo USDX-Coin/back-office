@@ -19,7 +19,7 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await page.getByRole('link', { name: /pencairan bermasalah/i }).click()
+      await page.locator('aside').getByRole('link', { name: /pencairan bermasalah/i }).click()
       await expect(page).toHaveURL(/\/payout-failures$/)
       await expect(page.getByRole('heading', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
       await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2')

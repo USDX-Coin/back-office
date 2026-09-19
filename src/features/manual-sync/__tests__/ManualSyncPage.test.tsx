@@ -154,7 +154,7 @@ describe('ManualSyncPage @ USDX-87', () => {
       })
       setup()
 
-      await user.click(await screen.findByRole('button', { name: /copy request id/i }))
+      await user.click(await screen.findByRole('button', { name: /salin id request/i }))
       await waitFor(() => expect(writeText).toHaveBeenCalledWith(BASE_ITEM.id))
     })
   })

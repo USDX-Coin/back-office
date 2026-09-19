@@ -182,10 +182,10 @@ export default function KybListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compliance"
-        title="KYB"
-        italicAccent="Review"
-        subtitle="Business-entity due diligence — entered manually by an operator, then approved or rejected."
+        eyebrow="Nasabah"
+        title="Verifikasi Badan Usaha"
+        italicAccent="KYB"
+        subtitle="Penelaahan badan usaha — datanya diketik operator dari dokumen, lalu disetujui atau ditolak."
         actions={
           canCreate ? (
             <Button
