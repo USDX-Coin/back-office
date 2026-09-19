@@ -46,7 +46,10 @@ export default defineConfig(({ mode }) => {
         'Referrer-Policy': 'strict-origin-when-cross-origin',
       },
       // Same-origin proxy so dev fetch ke /api/* tidak hit cross-origin CORS.
-      // Mirrors the Netlify _redirects rule for production deploys.
+      // HANYA untuk `pnpm dev`. Build yang di-deploy tidak punya padanan proxy ini:
+      // nginx di image produksi cuma melayani `dist` + fallback SPA ke index.html,
+      // jadi VITE_API_URL WAJIB di-set di tiap deploy (dipasang pipeline sebagai
+      // --build-arg) dan fetch pergi langsung ke backend, bukan same-origin.
       proxy: {
         '/api': {
           target: apiProxyTarget,
