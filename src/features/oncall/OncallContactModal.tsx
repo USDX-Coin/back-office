@@ -237,8 +237,8 @@ export default function OncallContactModal({
             </div>
 
             <fieldset>
-              <legend className="text-[13px] font-medium">Incident categories</legend>
-              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+              <legend className="text-sm font-medium">Incident categories</legend>
+              <p className="mt-0.5 text-2xs text-muted-foreground">
                 Which money incidents this person answers for. A contact with no
                 category is never called.
               </p>
@@ -261,10 +261,10 @@ export default function OncallContactModal({
                         className="mt-0.5"
                       />
                       <span className="flex flex-col leading-tight">
-                        <span className="text-[12.5px] font-medium">
+                        <span className="text-xs font-medium">
                           {formatCategory(category)}
                         </span>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-2xs text-muted-foreground">
                           {ONCALL_CATEGORY_HINTS[category]}
                         </span>
                       </span>

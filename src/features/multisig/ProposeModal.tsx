@@ -190,12 +190,12 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
               </Select>
               <FieldError message={errors.operation} />
               {meta && (
-                <p className="mt-1.5 text-[11.5px] text-muted-foreground">{meta.description}</p>
+                <p className="mt-1.5 text-2xs text-muted-foreground">{meta.description}</p>
               )}
             </div>
 
             {meta?.destructive && (
-              <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[12px] text-warning">
+              <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span className="text-foreground/90">
                   This is a high-impact operation. Double-check the parameters — it will still need owner
@@ -213,14 +213,14 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                   value={values.address ?? ''}
                   onChange={(e) => setField('address', e.target.value)}
                   placeholder="0x…"
-                  className="mt-1.5 font-mono text-[13px]"
+                  className="mt-1.5 font-mono text-sm"
                 />
                 <FieldError message={errors.address} />
               </div>
             )}
 
             {kind === 'none' && (
-              <p className="rounded-md bg-surface-container-low/40 px-3 py-2 text-[12.5px] text-muted-foreground">
+              <p className="rounded-md bg-surface-container-low/40 px-3 py-2 text-xs text-muted-foreground">
                 This operation takes no parameters.
               </p>
             )}
@@ -235,16 +235,16 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.chainId ?? ''}
                     onChange={(e) => setField('chainId', e.target.value)}
                     placeholder="137"
-                    className="mt-1.5 font-mono text-[13px]"
+                    className="mt-1.5 font-mono text-sm"
                   />
                   <FieldError message={errors.chainId} />
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-border bg-secondary/30 p-3">
                   <div>
-                    <Label htmlFor="propose-supported" className="text-[13px] font-medium">
+                    <Label htmlFor="propose-supported" className="text-sm font-medium">
                       Supported
                     </Label>
-                    <p className="text-[11.5px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Enable (on) or disable (off) bridge mint/burn for this chain.
                     </p>
                   </div>
@@ -268,7 +268,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                         setRoleMode((m) => (m === 'name' ? 'raw' : 'name'))
                         setField('role', '')
                       }}
-                      className="text-[11px] text-primary hover:underline"
+                      className="text-2xs text-primary hover:underline"
                     >
                       {roleMode === 'name' ? 'Enter raw bytes32' : 'Pick a known role'}
                     </button>
@@ -292,7 +292,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                       value={values.role ?? ''}
                       onChange={(e) => setField('role', e.target.value)}
                       placeholder="0x… (bytes32 role hash)"
-                      className="mt-1.5 font-mono text-[13px]"
+                      className="mt-1.5 font-mono text-sm"
                     />
                   )}
                   <FieldError message={errors.role} />
@@ -304,7 +304,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.account ?? ''}
                     onChange={(e) => setField('account', e.target.value)}
                     placeholder="0x…"
-                    className="mt-1.5 font-mono text-[13px]"
+                    className="mt-1.5 font-mono text-sm"
                   />
                   <FieldError message={errors.account} />
                 </div>
@@ -313,7 +313,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
 
             {kind === 'timelock' && (
               <div className="space-y-3 rounded-md border border-outline-variant/20 bg-surface-container-low/30 p-3">
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Advanced — raw TimelockController parameters (e.g. a UUPS upgrade). Values must be
                   exact; a wrong payload will revert on execute.
                 </p>
@@ -324,7 +324,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.target ?? ''}
                     onChange={(e) => setField('target', e.target.value)}
                     placeholder="0x… (contract to call)"
-                    className="mt-1.5 font-mono text-[13px]"
+                    className="mt-1.5 font-mono text-sm"
                   />
                   <FieldError message={errors.target} />
                 </div>
@@ -336,7 +336,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.value ?? ''}
                     onChange={(e) => setField('value', e.target.value)}
                     placeholder="0"
-                    className="mt-1.5 font-mono text-[13px]"
+                    className="mt-1.5 font-mono text-sm"
                   />
                   <FieldError message={errors.value} />
                 </div>
@@ -348,7 +348,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     onChange={(e) => setField('payload', e.target.value)}
                     placeholder="0x…"
                     rows={2}
-                    className="mt-1.5 font-mono text-[12px]"
+                    className="mt-1.5 font-mono text-xs"
                   />
                   <FieldError message={errors.payload} />
                 </div>
@@ -359,7 +359,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.predecessor ?? ''}
                     onChange={(e) => setField('predecessor', e.target.value)}
                     placeholder={`${ZERO_BYTES32} (none)`}
-                    className="mt-1.5 font-mono text-[12px]"
+                    className="mt-1.5 font-mono text-xs"
                   />
                   <FieldError message={errors.predecessor} />
                 </div>
@@ -370,7 +370,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.salt ?? ''}
                     onChange={(e) => setField('salt', e.target.value)}
                     placeholder="0x…"
-                    className="mt-1.5 font-mono text-[12px]"
+                    className="mt-1.5 font-mono text-xs"
                   />
                   <FieldError message={errors.salt} />
                 </div>
@@ -382,7 +382,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.delay ?? ''}
                     onChange={(e) => setField('delay', e.target.value)}
                     placeholder="86400"
-                    className="mt-1.5 font-mono text-[13px]"
+                    className="mt-1.5 font-mono text-sm"
                   />
                   <FieldError message={errors.delay} />
                 </div>
@@ -393,7 +393,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
             {queueOccupied && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5 text-[12.5px] text-warning"
+                className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs text-warning"
               >
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1 text-foreground/90">
@@ -406,7 +406,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     {queueOccupied.blockingRequestId ? (
                       <>
                         {' '}
-                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-[11.5px]">
+                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-2xs">
                           {shortRequestId(queueOccupied.blockingRequestId)}
                         </code>
                       </>
@@ -426,7 +426,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
 
             {/* Backend error (422 validation / simulate-revert reject) */}
             {formError && (
-              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive">
+              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
                 {formError}
               </p>
             )}

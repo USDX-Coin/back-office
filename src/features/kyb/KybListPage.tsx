@@ -93,7 +93,7 @@ export default function KybListPage() {
       accessorKey: 'userEmail',
       header: 'Account email',
       cell: ({ getValue }) => (
-        <span className="break-all text-[12.5px] text-muted-foreground">
+        <span className="truncate text-xs text-muted-foreground">
           {getValue() as string}
         </span>
       ),
@@ -102,7 +102,7 @@ export default function KybListPage() {
       accessorKey: 'entityForm',
       header: 'Legal form',
       cell: ({ getValue }) => (
-        <span className="text-[12.5px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {labelFor(getValue() as KybEntityForm, KYB_ENTITY_FORM_LABELS) ?? '—'}
         </span>
       ),
@@ -115,7 +115,7 @@ export default function KybListPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
               cfg.className,
             )}
           >
@@ -131,7 +131,7 @@ export default function KybListPage() {
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return (
-          <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {v ? formatShortDate(v) : '—'}
           </span>
         )
@@ -141,7 +141,7 @@ export default function KybListPage() {
       accessorKey: 'submissionCount',
       header: 'Submissions',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="font-mono text-xs tabular-nums">
           {getValue() as number}
         </span>
       ),
@@ -156,7 +156,7 @@ export default function KybListPage() {
             e.stopPropagation()
             navigate(`/kyb/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`Review KYB record for ${rowLabel(row.original)}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -191,7 +191,7 @@ export default function KybListPage() {
             <Button
               onClick={() => navigate('/kyb/new')}
               size="sm"
-              className="h-7 text-[12px]"
+              className="h-7 text-xs"
             >
               <Plus className="mr-1 h-3.5 w-3.5" />
               Add KYB record

@@ -50,7 +50,7 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="text-[12.5px] text-muted-foreground">Loading user…</div>
+      <div className="text-xs text-muted-foreground">Loading user…</div>
     )
   }
 
@@ -61,12 +61,12 @@ export default function UserDetailPage() {
           variant="ghost"
           size="sm"
           onClick={() => navigate('/users')}
-          className="mb-4 h-7 text-[12px]"
+          className="mb-4 h-7 text-xs"
         >
           <ArrowLeft className="mr-1 h-3.5 w-3.5" />
           Back to users
         </Button>
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-[13px] text-destructive">
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
           {error instanceof Error ? error.message : 'User not found'}
         </div>
       </div>
@@ -81,7 +81,7 @@ export default function UserDetailPage() {
         variant="ghost"
         size="sm"
         onClick={() => navigate('/users')}
-        className="mb-4 h-7 text-[12px]"
+        className="mb-4 h-7 text-xs"
       >
         <ArrowLeft className="mr-1 h-3.5 w-3.5" />
         Back to users
@@ -114,9 +114,9 @@ export default function UserDetailPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1 rounded-md shadow-none dark:border-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-[13px]">Profile</CardTitle>
+            <CardTitle className="text-sm">Profile</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-[12.5px]">
+          <CardContent className="space-y-3 text-xs">
             <div className="flex items-center gap-2.5">
               {/* users.yaml § User.name nullable (self-signup pre-KYC) */}
               <Avatar name={data.name ?? data.email} size="md" />
@@ -128,18 +128,18 @@ export default function UserDetailPage() {
 
             {/* USDX-47 S6: surface entityType, kycStatus, suspended in detail. */}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 border-t pt-3">
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
                 Entity
               </span>
               <span>{ENTITY_LABEL[data.entityType] ?? data.entityType}</span>
 
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
                 KYC
               </span>
               <span>
                 <span
                   className={cn(
-                    'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                    'inline-flex rounded-sm px-2 py-0.5 text-2xs font-medium',
                     kycCfg.className
                   )}
                 >
@@ -147,12 +147,12 @@ export default function UserDetailPage() {
                 </span>
               </span>
 
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
                 Status
               </span>
               <span>
                 {data.suspended ? (
-                  <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
+                  <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
                     Suspended
                   </span>
                 ) : (
@@ -166,7 +166,7 @@ export default function UserDetailPage() {
 
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
-                <p className="mb-1 text-[11px] uppercase tracking-wide">Notes</p>
+                <p className="mb-1 text-2xs uppercase tracking-wide">Notes</p>
                 <p className="whitespace-pre-wrap">{data.notes}</p>
               </div>
             )}
@@ -175,13 +175,13 @@ export default function UserDetailPage() {
 
         <Card className="lg:col-span-2 rounded-md shadow-none dark:border-0">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-[13px]">Wallets</CardTitle>
+            <CardTitle className="text-sm">Wallets</CardTitle>
             {canManage && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setWalletModalOpen(true)}
-                className="h-7 text-[12px]"
+                className="h-7 text-xs"
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
                 Add Wallet
@@ -190,7 +190,7 @@ export default function UserDetailPage() {
           </CardHeader>
           <CardContent>
             {data.wallets.length === 0 ? (
-              <div className="rounded-md border border-dashed py-8 text-center text-[12.5px] text-muted-foreground">
+              <div className="rounded-md border border-dashed py-8 text-center text-xs text-muted-foreground">
                 <WalletIcon className="mx-auto mb-2 h-8 w-8 opacity-40" strokeWidth={1.5} />
                 No wallets yet.
               </div>
@@ -202,10 +202,10 @@ export default function UserDetailPage() {
                     className="flex items-center justify-between gap-3 py-2.5"
                   >
                     <div className="min-w-0">
-                      <p className="text-[12.5px] font-medium capitalize">
+                      <p className="text-xs font-medium capitalize">
                         {w.chain}
                       </p>
-                      <p className="truncate font-mono text-[11.5px] text-muted-foreground tabular-nums">
+                      <p className="truncate font-mono text-2xs text-muted-foreground tabular-nums">
                         <span className="hidden md:inline">{w.address}</span>
                         <span className="md:hidden">{shortAddress(w.address)}</span>
                       </p>
@@ -231,11 +231,11 @@ export default function UserDetailPage() {
 
       <Card className="mt-4 rounded-md shadow-none dark:border-0">
         <CardHeader className="pb-3">
-          <CardTitle className="text-[13px]">Recent requests</CardTitle>
+          <CardTitle className="text-sm">Recent requests</CardTitle>
         </CardHeader>
         <CardContent>
           {data.recentRequests.length === 0 ? (
-            <p className="py-6 text-center text-[12.5px] text-muted-foreground">
+            <p className="py-6 text-center text-xs text-muted-foreground">
               No recent requests.
             </p>
           ) : (
@@ -245,19 +245,19 @@ export default function UserDetailPage() {
                 return (
                   <li
                     key={r.id}
-                    className="flex items-center justify-between gap-3 py-2.5 text-[12.5px]"
+                    className="flex items-center justify-between gap-3 py-2.5 text-xs"
                   >
                     <div className="min-w-0">
                       <p className="font-medium capitalize">
                         {r.type} · {r.amount} USDX
                       </p>
-                      <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">
+                      <p className="truncate font-mono text-2xs text-muted-foreground tabular-nums">
                         {r.chain} · {formatShortDate(r.createdAt)}
                       </p>
                     </div>
                     <span
                       className={cn(
-                        'inline-flex shrink-0 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                        'inline-flex shrink-0 rounded-sm px-2 py-0.5 text-2xs font-medium',
                         status.className
                       )}
                     >

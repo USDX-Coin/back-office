@@ -86,7 +86,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={() => copy(value, label)}
-      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
       title={value}
       aria-label={`Copy ${label}`}
     >
@@ -114,7 +114,7 @@ function HashLink({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
+        className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
         title={`${linkLabel}: ${value}`}
       >
         <span className="break-all">{shortHash(value)}</span>
@@ -128,10 +128,10 @@ function HashLink({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -139,7 +139,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         {title}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
@@ -151,7 +151,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         cfg.className,
       )}
     >
@@ -179,7 +179,7 @@ function Banner({
         ? 'border-success/30 bg-success/5 text-success'
         : 'border-warning/30 bg-warning/5 text-warning'
   return (
-    <div className={cn('flex items-start gap-2 rounded-md border px-3 py-2 text-[12.5px]', toneClass)}>
+    <div className={cn('flex items-start gap-2 rounded-md border px-3 py-2 text-xs', toneClass)}>
       <span className="mt-0.5 shrink-0">{icon}</span>
       <div className="text-foreground/90">{children}</div>
     </div>
@@ -195,17 +195,17 @@ function SignerRow({ signer }: { signer: SafeTxSigner }) {
         ) : (
           <Circle className="h-4 w-4 text-muted-foreground/40" />
         )}
-        <span className="font-mono text-[12px]">{truncateMiddle(signer.address, 8, 6)}</span>
+        <span className="font-mono text-xs">{truncateMiddle(signer.address, 8, 6)}</span>
         {signer.isBackend && (
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
             backend
           </span>
         )}
         {signer.staffName && (
-          <span className="text-[11.5px] text-muted-foreground">{signer.staffName}</span>
+          <span className="text-2xs text-muted-foreground">{signer.staffName}</span>
         )}
       </div>
-      <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground">
+      <span className="font-mono text-2xs tabular-nums text-muted-foreground">
         {signer.signed && signer.signedAt ? formatDate(signer.signedAt) : 'Not signed'}
       </span>
     </li>
@@ -430,11 +430,11 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge cfg={getSafeTxStatusConfig(detail.status)} />
-                <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   {detail.safeType} safe · {detail.chain} · nonce {detail.nonce}
                 </span>
               </div>
-              <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+              <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                 {formatDate(detail.createdAt)}
               </span>
             </div>
@@ -452,7 +452,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 <strong>Undecoded calldata.</strong> The backend could not decode this operation
                 (activity = UNKNOWN). Do not sign blind — verify the raw calldata + target below.
                 {showSign && hashOk && (
-                  <label className="mt-2 flex items-center gap-2 text-[12px] text-foreground">
+                  <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
                     <input
                       type="checkbox"
                       checked={ackUnknown}
@@ -474,11 +474,11 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Wallet / network */}
             <div className="rounded-md border border-outline-variant/15 bg-surface-container-low/40 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="flex items-center gap-1.5 font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   <Wallet className="h-3.5 w-3.5" /> Signer wallet
                 </span>
                 {wallet.isConnected ? (
-                  <span className="font-mono text-[11.5px]">
+                  <span className="font-mono text-2xs">
                     {truncateMiddle(wallet.address ?? '', 6, 4)}{' '}
                     {ownerVerification === 'owner' ? (
                       <span className="text-success">· owner</span>
@@ -491,12 +491,12 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     )}
                   </span>
                 ) : (
-                  <span className="text-[11.5px] text-muted-foreground">Not connected</span>
+                  <span className="text-2xs text-muted-foreground">Not connected</span>
                 )}
               </div>
               {wallet.isConnected && !wallet.chainOk && (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-[11.5px] text-warning">Wrong network — Polygon required.</span>
+                  <span className="text-2xs text-warning">Wrong network — Polygon required.</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -509,7 +509,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               )}
               {wallet.isConnected && ownerVerification === 'unavailable' && (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-[11.5px] text-warning">
+                  <span className="text-2xs text-warning">
                     Couldn't verify Safe ownership — the owner list is unavailable. Contact an admin
                     if it persists.
                   </span>
@@ -553,14 +553,14 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
 
             {Object.keys(detail.decodedArgs ?? {}).length > 0 && (
               <div>
-                <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+                <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
                   Decoded arguments
                 </p>
                 <dl className="space-y-1.5 rounded-md bg-surface-container-low/40 p-3">
                   {Object.entries(detail.decodedArgs).map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-3">
-                      <dt className="font-mono text-[11px] text-muted-foreground">{k}</dt>
-                      <dd className="break-all text-right font-mono text-[11.5px]">{String(v)}</dd>
+                      <dt className="font-mono text-2xs text-muted-foreground">{k}</dt>
+                      <dd className="break-all text-right font-mono text-2xs">{String(v)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -571,7 +571,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               {detail.data && detail.data !== '0x' ? (
                 <CopyableMono value={detail.data} label="Calldata" />
               ) : (
-                <span className="font-mono text-[12px] text-muted-foreground">0x (empty)</span>
+                <span className="font-mono text-xs text-muted-foreground">0x (empty)</span>
               )}
             </Field>
 
@@ -595,7 +595,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   </Field>
                 )}
                 <div className="sm:col-span-2">
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Verify the decoded arguments above match this linked operation before signing
                     (blind-sign guard).
                   </p>
@@ -606,7 +606,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Signers */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+                <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
                   Signers
                 </p>
                 <SignatureProgressBar progress={detail.signatureProgress} />
@@ -618,7 +618,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   ))}
                 </ul>
               ) : (
-                <p className="text-[12px] text-muted-foreground">No signer data.</p>
+                <p className="text-xs text-muted-foreground">No signer data.</p>
               )}
             </div>
 
@@ -768,13 +768,13 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
 
               {/* Blocked-reason hint */}
               {showSign && signBlockedReason && wallet.isConnected && (
-                <p className="text-[11.5px] text-muted-foreground">{signBlockedReason}</p>
+                <p className="text-2xs text-muted-foreground">{signBlockedReason}</p>
               )}
 
               {/* Inline two-step cancel */}
               {showCancel && cancelOpen && (
                 <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-                  <p className="text-[12.5px] font-medium text-destructive">
+                  <p className="text-xs font-medium text-destructive">
                     Cancel this transaction? It will be discarded off-chain (no gas) and the linked
                     request marked rejected.
                   </p>
@@ -782,7 +782,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
                     placeholder="Reason (optional)"
-                    className="text-[13px]"
+                    className="text-sm"
                     rows={2}
                   />
                   <div className="flex items-center gap-2">

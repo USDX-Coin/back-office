@@ -139,10 +139,10 @@ export default function RedeemApprovalControlsCard() {
     <Card className="mb-6 rounded-md shadow-none dark:border-0">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
-          <CardTitle className="text-[15px] font-semibold tracking-tight">
+          <CardTitle className="text-base font-semibold tracking-tight">
             Ambang nominal persetujuan
           </CardTitle>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Batas nominal di mana pencairan berhenti untuk dilihat manusia.
           </p>
         </div>
@@ -150,7 +150,7 @@ export default function RedeemApprovalControlsCard() {
             terbaca berarti menimpa keadaan gerbang uang tanpa tahu keadaan itu.
             Badan kartu sudah menawarkan "Coba lagi" di tempat yang sama. */}
         {canEdit && !editing && current && (
-          <Button variant="outline" size="sm" className="h-7 shrink-0 text-[12px]" onClick={openEditor}>
+          <Button variant="outline" size="sm" className="h-7 shrink-0 text-xs" onClick={openEditor}>
             Ubah ambang
           </Button>
         )}
@@ -164,7 +164,7 @@ export default function RedeemApprovalControlsCard() {
           </div>
         ) : controls.isError ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[12.5px] text-destructive">
+            <p className="text-xs text-destructive">
               Ambang aktif gagal dimuat, jadi antrean di bawah tidak bisa dijelaskan
               angkanya. Muat ulang sebelum mengambil keputusan.
             </p>
@@ -176,26 +176,26 @@ export default function RedeemApprovalControlsCard() {
           <>
             <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
               <p
-                className="font-mono text-[26px] font-semibold leading-none tracking-tight tabular-nums"
+                className="font-mono text-xl font-semibold leading-none tracking-tight tabular-nums"
                 aria-label="ambang nominal aktif"
                 data-testid="threshold-active-value"
               >
                 {formatIdrExact(currentValue)}
               </p>
               {strict && (
-                <span className="inline-flex items-center gap-1.5 rounded-sm bg-emerald-500/10 px-2 py-0.5 text-[11.5px] font-medium text-emerald-800 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 rounded-sm bg-emerald-500/10 px-2 py-0.5 text-2xs font-medium text-emerald-800 dark:text-emerald-300">
                   <Lock className="h-3 w-3" />
                   Paling ketat
                 </span>
               )}
             </div>
 
-            <p className="text-[12.5px] text-foreground" data-testid="threshold-meaning">
+            <p className="text-xs text-foreground" data-testid="threshold-meaning">
               {thresholdMeaning(currentValue)}
             </p>
 
             {!strict && (
-              <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+              <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                 <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
                   Selama ambangnya di atas nol, ada rupiah yang keluar tanpa dilihat
@@ -206,19 +206,19 @@ export default function RedeemApprovalControlsCard() {
             )}
 
             {current?.updatedAt && (
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Terakhir diubah {formatWibDateTime(current.updatedAt)}
                 {current.updatedByName ? ` oleh ${current.updatedByName}` : ''}.
               </p>
             )}
             {current && !current.updatedAt && (
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Belum pernah diubah — ini nilai bawaan sejak gerbang dipasang.
               </p>
             )}
 
             {!canEdit && (
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Hanya Manager dan Admin yang bisa mengubah ambang. Anda bisa melihatnya
                 karena angka ini menjelaskan isi antrean di bawah.
               </p>
@@ -245,24 +245,24 @@ export default function RedeemApprovalControlsCard() {
                     aria-invalid={Boolean(errors.amount)}
                     disabled={update.isPending}
                   />
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     <span className="font-mono">0</span> = semua pencairan wajib
                     disetujui. Angka di atas nol berarti pencairan sampai nominal itu
                     dikirim otomatis, tanpa ada yang memeriksa rekening tujuannya.
                   </p>
                   <FieldError message={errors.amount} />
                   {change === 'raised-from-zero' && (
-                    <p className="text-[12px] font-medium text-destructive">
+                    <p className="text-xs font-medium text-destructive">
                       Ini melepas pencairan dari pengawasan manusia untuk pertama kali.
                     </p>
                   )}
                   {change === 'raised' && (
-                    <p className="text-[12px] font-medium text-amber-700 dark:text-amber-400">
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
                       Lebih banyak rupiah akan keluar tanpa persetujuan daripada sekarang.
                     </p>
                   )}
                   {change === 'lowered' && (
-                    <p className="text-[12px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Lebih banyak pencairan akan wajib disetujui daripada sekarang.
                     </p>
                   )}
@@ -286,7 +286,7 @@ export default function RedeemApprovalControlsCard() {
                     disabled={update.isPending}
                   />
                   <FieldError message={errors.reason} />
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Tercatat di jejak audit bersama nilai lama dan nilai baru.
                   </p>
                 </div>
@@ -347,7 +347,7 @@ export default function RedeemApprovalControlsCard() {
 
           <DialogBody>
             <p
-              className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-[12.5px]"
+              className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs"
               data-testid="threshold-raise-confirm"
             >
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />

@@ -27,11 +27,11 @@ export default function PageHeader({
     >
       <div className="min-w-0">
         {eyebrow && (
-          <p className="mb-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-primary">
+          <p className="mb-1.5 font-mono text-2xs font-medium uppercase tracking-[0.06em] text-primary">
             › {eyebrow}
           </p>
         )}
-        <h1 className="text-[22px] font-semibold leading-tight tracking-tight">
+        <h1 className="text-xl font-semibold leading-tight tracking-tight">
           {title}
           {italicAccent && (
             <span className="ml-1.5 font-serif text-[0.92em] font-normal italic text-muted-foreground">
@@ -40,7 +40,7 @@ export default function PageHeader({
           )}
         </h1>
         {subtitle && (
-          <p className="mt-1 text-[12.5px] text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
       {actions && <div className="flex items-center gap-1.5">{actions}</div>}

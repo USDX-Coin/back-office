@@ -116,7 +116,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                 className="space-y-2 rounded-md bg-muted/60 px-3 py-2.5"
                 data-testid="reject-consequences"
               >
-                <p className="flex items-start gap-2 text-[12.5px]">
+                <p className="flex items-start gap-2 text-xs">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span>
                     <strong>USDX nasabah sudah terbakar permanen.</strong> Tidak ada
@@ -126,7 +126,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                     menutupnya.
                   </span>
                 </p>
-                <p className="pl-[1.375rem] text-[12.5px] text-muted-foreground">
+                <p className="pl-[1.375rem] text-xs text-muted-foreground">
                   Nasabah <strong>tidak</strong> diberi tahu otomatis. Kabar ke nasabah
                   menyusul keputusan di antrean itu.
                 </p>
@@ -135,7 +135,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
               <div className="space-y-2">
                 <label
                   htmlFor="reject-reason"
-                  className="text-[12.5px] font-medium text-foreground"
+                  className="text-xs font-medium text-foreground"
                 >
                   Alasan penolakan <span className="text-destructive">*</span>
                 </label>
@@ -161,7 +161,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                   <FieldError message={reasonError} />
                   <span
                     className={cn(
-                      'ml-auto font-mono text-[11px] tabular-nums',
+                      'ml-auto font-mono text-2xs tabular-nums',
                       reason.length >= REDEEM_REASON_MAX
                         ? 'text-destructive'
                         : 'text-muted-foreground',
@@ -170,7 +170,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                     {reason.length}/{REDEEM_REASON_MAX}
                   </span>
                 </div>
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Ditulis ke berkas order sebagai keterangan masalahnya. Yang
                   membacanya adalah ops yang harus menuntaskan order ini — jadi tulis
                   APA yang salah, bukan “tidak valid”.

@@ -56,12 +56,12 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-background">
       <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-4">
-        <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
+        <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-sm font-bold tracking-tight">
           U
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-[13.5px] font-semibold tracking-tight">USDX</span>
-          <span className="text-[10.5px] text-muted-foreground">
+          <span className="text-sm font-semibold tracking-tight">USDX</span>
+          <span className="text-2xs text-muted-foreground">
             Operator console
           </span>
         </div>
@@ -70,7 +70,7 @@ export default function Sidebar() {
       <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2 pt-1">
         {sections.map((section) => (
           <div key={section.label} className="flex flex-col">
-            <div className="px-2 pt-3 pb-1.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
+            <div className="px-2 pt-3 pb-1.5 text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
               {section.label}
             </div>
             {section.items.map((item) => (
@@ -87,14 +87,14 @@ export default function Sidebar() {
       {user && (
         <div className="shrink-0 border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
-            <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-[10.5px] font-medium">
+            <div className="grid h-7 w-7 place-items-center rounded-md border border-border bg-muted text-2xs font-medium">
               {getInitials(user.name)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-[12.5px] font-medium">
+              <span className="truncate text-xs font-medium">
                 {user.name}
               </span>
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span className="truncate text-2xs text-muted-foreground">
                 {formatRole(user.role)}
               </span>
             </div>
@@ -116,7 +116,7 @@ function SidebarLink({
       to={to}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors',
+          'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
           isActive
             ? 'bg-muted text-foreground'
             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -127,7 +127,7 @@ function SidebarLink({
       <span className="flex-1">{label}</span>
       {badgeCount > 0 && (
         <span
-          className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
+          className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
           aria-label={`${badgeCount} pending`}
           data-testid={`nav-badge-${to.replace(/^\//, '').replace(/\//g, '-')}`}
         >

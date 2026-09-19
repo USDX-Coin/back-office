@@ -39,7 +39,7 @@ export default function SafeQueueOccupiedBanner({
       role="alert"
       aria-live="polite"
       data-testid="safe-queue-occupied-banner"
-      className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5 text-[12.5px] text-warning"
+      className="flex items-start gap-2.5 rounded-md border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs text-warning"
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <div className="space-y-1">
@@ -51,7 +51,7 @@ export default function SafeQueueOccupiedBanner({
               {' '}
               Selesaikan dulu request{' '}
               <code
-                className="rounded bg-warning/10 px-1 py-0.5 font-mono text-[11.5px]"
+                className="rounded bg-warning/10 px-1 py-0.5 font-mono text-2xs"
                 title={blockingRequestId}
               >
                 {shortRequestId(blockingRequestId)}

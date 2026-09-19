@@ -66,10 +66,10 @@ const Dim = () => <span className="text-muted-foreground">—</span>
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -77,7 +77,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         {title}
       </p>
       {children}
@@ -105,7 +105,7 @@ async function copyText(value: string, label: string) {
 function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
   if (!entry) {
     return (
-      <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] text-muted-foreground">
+      <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
         Temuan ini tidak menunjuk satu entri daftar pun. Itu wajar untuk hasil
         yang bukan kecocokan — misalnya pemeriksaan yang berjalan saat belum ada
         daftar aktif.
@@ -125,7 +125,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
             {entry.aliases.map((alias) => (
               <li
                 key={alias}
-                className="rounded-sm bg-muted px-1.5 py-0.5 text-[12px]"
+                className="rounded-sm bg-muted px-1.5 py-0.5 text-xs"
               >
                 {alias}
               </li>
@@ -143,7 +143,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
       <Field label="Alamat">{entry.address ?? <Dim />}</Field>
       <Field label="Kode referensi">
         {entry.referenceCode ? (
-          <span className="font-mono text-[12.5px]">{entry.referenceCode}</span>
+          <span className="font-mono text-xs">{entry.referenceCode}</span>
         ) : (
           <Dim />
         )}
@@ -219,7 +219,7 @@ function SubjectPanel({
             <span className="flex flex-wrap items-baseline gap-1.5">
               <span>{shown}</span>
               {isPiiWithheld(address || null, staff) && (
-                <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+                <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
                   {PII_WITHHELD_LABEL}
                 </span>
               )}
@@ -379,7 +379,7 @@ export default function ScreeningDecisionModal({
                     {outcomeStyle && (
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                          'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
                           outcomeStyle.className,
                         )}
                       >
@@ -390,7 +390,7 @@ export default function ScreeningDecisionModal({
                     <button
                       type="button"
                       onClick={() => copyText(result.id, 'ID temuan')}
-                      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
                       title={result.id}
                       aria-label="Salin ID temuan"
                     >
@@ -398,22 +398,22 @@ export default function ScreeningDecisionModal({
                       <Copy className="h-3 w-3 opacity-50" />
                     </button>
                   </div>
-                  <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                     Diperiksa {formatDate(result.createdAt)}
                   </span>
                 </div>
 
                 <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-4">
                   <Field label="Skor kemiripan">
-                    <span className="font-mono text-[14px] font-semibold tabular-nums">
+                    <span className="font-mono text-base font-semibold tabular-nums">
                       {formatScore(result.score) ?? '—'}
                     </span>
-                    <span className="ml-1.5 text-[11px] text-muted-foreground">
+                    <span className="ml-1.5 text-2xs text-muted-foreground">
                       ambang {(SCREENING_MATCH_THRESHOLD * 100).toFixed(0)}%
                     </span>
                   </Field>
                   <Field label="Entri yang cocok">
-                    <span className="font-mono text-[13px] tabular-nums">
+                    <span className="font-mono text-sm tabular-nums">
                       {result.matchCount ?? '—'}
                     </span>
                   </Field>
@@ -422,9 +422,9 @@ export default function ScreeningDecisionModal({
                   </Field>
                   <Field label="Daftar yang dipakai">
                     {result.listType ? (
-                      <span className="text-[12.5px]">
+                      <span className="text-xs">
                         {SANCTION_LIST_TYPE_LABELS[result.listType].split(' — ')[0]}
-                        <span className="ml-1 font-mono text-[11.5px] text-muted-foreground">
+                        <span className="ml-1 font-mono text-2xs text-muted-foreground">
                           terbit {result.listPublishedAt ?? '—'}
                         </span>
                       </span>
@@ -435,7 +435,7 @@ export default function ScreeningDecisionModal({
                 </div>
 
                 {result.matchCount !== null && result.matchCount > 1 && (
-                  <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+                  <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                       {result.matchCount} entri daftar melewati ambang, tapi yang
@@ -459,7 +459,7 @@ export default function ScreeningDecisionModal({
                         // ini tidak punya data" — arti yang berbeda, dan bisa
                         // ditindaklanjuti dengan keliru.
                         <div className="space-y-2">
-                          <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] text-muted-foreground">
+                          <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                             Subjek temuan ini adalah pemilik manfaat (UBO). Back
                             office belum punya endpoint yang mengambil satu UBO
                             berdasarkan idnya — UBO hanya muncul menempel pada
@@ -470,7 +470,7 @@ export default function ScreeningDecisionModal({
                             <button
                               type="button"
                               onClick={() => copyText(result.subjectId, 'ID subjek')}
-                              className="inline-flex items-center gap-1.5 break-all font-mono text-[12px] hover:text-primary"
+                              className="inline-flex items-center gap-1.5 break-all font-mono text-xs hover:text-primary"
                             >
                               {result.subjectId}
                               <Copy className="h-3 w-3 shrink-0 opacity-50" />
@@ -485,7 +485,7 @@ export default function ScreeningDecisionModal({
                         </div>
                       ) : subjectQuery.isError ? (
                         <div className="space-y-2">
-                          <p className="text-[12.5px] text-destructive">
+                          <p className="text-xs text-destructive">
                             {subjectQuery.error instanceof Error
                               ? subjectQuery.error.message
                               : 'Gagal memuat data nasabah.'}
@@ -510,7 +510,7 @@ export default function ScreeningDecisionModal({
                                   : `/kyc/${result.subjectId}`,
                               )
                             }
-                            className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
+                            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                           >
                             Buka berkas {source.kind} lengkap
                             <ExternalLink className="h-3 w-3" />
@@ -540,7 +540,7 @@ export default function ScreeningDecisionModal({
                         </Field>
                         <Field label="Diputuskan oleh">
                           {result.decision.decidedByName ?? 'Akun petugas sudah dihapus'}
-                          <span className="ml-1.5 font-mono text-[11.5px] text-muted-foreground">
+                          <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                             {formatDate(result.decision.createdAt)}
                           </span>
                         </Field>
@@ -550,7 +550,7 @@ export default function ScreeningDecisionModal({
                           </Field>
                         </div>
                       </div>
-                      <p className="mt-2 text-[11.5px] text-muted-foreground">
+                      <p className="mt-2 text-2xs text-muted-foreground">
                         Keputusan ditulis sebagai baris baru dan tidak bisa diubah
                         atau dihapus — tabelnya append-only, dijaga dua trigger
                         database.
@@ -569,10 +569,10 @@ export default function ScreeningDecisionModal({
                         : 'border-emerald-600/40 bg-emerald-500/5',
                     )}
                   >
-                    <p className="text-[13px] font-medium">
+                    <p className="text-sm font-medium">
                       {SCREENING_DECISION_LABELS[pending]}
                     </p>
-                    <p className="text-[12px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {pending === 'CLEARED'
                         ? 'Subjek dilepas dan bisa diproses seperti biasa. Tulis apa yang membuat Anda yakin ini BUKAN pihak yang sama — tanggal lahir berbeda, kebangsaan berbeda, dan seterusnya.'
                         : 'Subjek tetap tertahan dan berkasnya wajib ditolak lewat layar KYC/KYB-nya sendiri (Pasal 49). Tulis apa yang membuat Anda yakin ini pihak yang sama.'}
@@ -593,7 +593,7 @@ export default function ScreeningDecisionModal({
                       <FieldError message={reasonError} />
                       <span
                         className={cn(
-                          'ml-auto font-mono text-[11px] tabular-nums',
+                          'ml-auto font-mono text-2xs tabular-nums',
                           reason.length >= SCREENING_REASON_MAX
                             ? 'text-destructive'
                             : 'text-muted-foreground',
@@ -602,7 +602,7 @@ export default function ScreeningDecisionModal({
                         {reason.length}/{SCREENING_REASON_MAX}
                       </span>
                     </div>
-                    <p className="text-[11.5px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Alasan wajib dan bukan formalitas: inilah “hasil analisis”
                       yang POJK 8/2023 Pasal 63 ayat (2) huruf c wajibkan
                       ditatausahakan, dan yang dibaca pemeriksa bertahun kemudian.

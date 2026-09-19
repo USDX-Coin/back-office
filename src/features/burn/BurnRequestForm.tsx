@@ -201,7 +201,7 @@ export default function BurnRequestForm() {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           New burn request
         </CardTitle>
       </CardHeader>
@@ -333,7 +333,7 @@ export default function BurnRequestForm() {
           {submitError && (
             <div
               role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
             >
               {submitError}
             </div>

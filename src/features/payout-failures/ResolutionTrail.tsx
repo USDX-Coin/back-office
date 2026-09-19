@@ -10,7 +10,7 @@ import type { PayoutFailureReview } from '@/lib/types'
 export default function ResolutionTrail({ reviews }: { reviews: PayoutFailureReview[] }) {
   if (reviews.length === 0) {
     return (
-      <p className="text-[12.5px] text-muted-foreground" data-testid="reviews-empty">
+      <p className="text-xs text-muted-foreground" data-testid="reviews-empty">
         Belum ada keputusan ops untuk order ini.
       </p>
     )
@@ -20,11 +20,11 @@ export default function ResolutionTrail({ reviews }: { reviews: PayoutFailureRev
       {reviews.map((review) => (
         <li
           key={`${review.createdAt}-${review.action}`}
-          className="rounded-md border border-border px-3 py-2 text-[12px]"
+          className="rounded-md border border-border px-3 py-2 text-xs"
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="font-medium">{resolutionTrailLabel(review.action)}</span>
-            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span className="font-mono text-2xs tabular-nums text-muted-foreground">
               {formatWibDateTime(review.createdAt)}
             </span>
           </div>

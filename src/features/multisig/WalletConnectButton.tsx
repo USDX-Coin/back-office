@@ -53,7 +53,7 @@ export default function WalletConnectButton() {
                   type="button"
                   onClick={openAccountModal}
                   aria-label={`Wallet ${account.displayName} on ${chain.name ?? 'network'} — open account`}
-                  className="ring-offset-background focus-visible:ring-ring group inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background pl-2 pr-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  className=" focus-visible:ring-ring/55 group inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background pl-2 pr-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2"
                 >
                   {chain.hasIcon && chain.iconUrl && (
                     <img

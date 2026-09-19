@@ -57,11 +57,13 @@ export default function KycListPage() {
   const columns: ColumnDef<KycListItem>[] = [
     {
       id: 'id',
+      size: 150,
       header: 'ID',
       cell: ({ row }) => <RequestIdCell id={row.original.id} />,
     },
     {
       accessorKey: 'userEmail',
+      size: 232,
       header: 'User Email',
       cell: ({ getValue }) => (
         <span className="font-medium">{getValue() as string}</span>
@@ -69,22 +71,24 @@ export default function KycListPage() {
     },
     {
       accessorKey: 'entityType',
+      size: 120,
       header: 'Entity Type',
       cell: ({ getValue }) => (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {ENTITY_LABEL[getValue() as EntityType]}
         </span>
       ),
     },
     {
       accessorKey: 'status',
+      size: 124,
       header: 'Status',
       cell: ({ getValue }) => {
         const cfg = getKycStatusConfig(getValue() as KycListItem['status'])
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
               cfg.className
             )}
           >
@@ -96,11 +100,12 @@ export default function KycListPage() {
     },
     {
       accessorKey: 'submittedAt',
+      size: 136,
       header: 'Submitted At',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return (
-          <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {v ? formatShortDate(v) : '—'}
           </span>
         )
@@ -108,15 +113,17 @@ export default function KycListPage() {
     },
     {
       accessorKey: 'submissionCount',
+      size: 110,
       header: 'Submissions',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="font-mono text-xs tabular-nums">
           {getValue() as number}
         </span>
       ),
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button
@@ -125,7 +132,7 @@ export default function KycListPage() {
             e.stopPropagation()
             navigate(`/kyc/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`Review KYC submission for ${row.original.userEmail}`}
         >
           <Eye className="h-3.5 w-3.5" />

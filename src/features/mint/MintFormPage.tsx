@@ -204,7 +204,7 @@ export default function MintFormPage() {
         <div className="lg:col-span-8">
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
-              <CardTitle className="text-[15px] font-semibold tracking-tight">
+              <CardTitle className="text-base font-semibold tracking-tight">
                 New mint request
               </CardTitle>
             </CardHeader>
@@ -322,11 +322,11 @@ export default function MintFormPage() {
           <RateSnapshotCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
-              <CardTitle className="text-[14px] font-semibold tracking-tight">
+              <CardTitle className="text-base font-semibold tracking-tight">
                 What happens next
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-[12.5px] text-muted-foreground">
+            <CardContent className="space-y-3 text-xs text-muted-foreground">
               <p>
                 Backend computes IDR equivalent, picks the appropriate Safe by
                 threshold, generates an idempotency key, and proposes the

@@ -77,7 +77,7 @@ export default function PayoutFailuresPage() {
       id: 'issueAt',
       header: 'Masuk antrean',
       cell: ({ row }) => (
-        <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
           {formatWibDateTime(row.original.issueAt)}
         </span>
       ),
@@ -92,7 +92,7 @@ export default function PayoutFailuresPage() {
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={payoutIssueKindPill(kind)} className="w-fit" />
             {issueCode && (
-              <span className="text-[11.5px] text-muted-foreground" title={issueCode}>
+              <span className="text-2xs text-muted-foreground" title={issueCode}>
                 {codeLabel ?? <span className="font-mono">{issueCode}</span>}
               </span>
             )}
@@ -105,10 +105,10 @@ export default function PayoutFailuresPage() {
       header: 'Nominal',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[13px] font-semibold tabular-nums">
+          <span className="font-mono text-sm font-semibold tabular-nums">
             {formatIdrExact(row.original.netPayoutIdr)}
           </span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
             {formatUsdxExact(row.original.amountUsdx)}
           </span>
         </div>
@@ -119,12 +119,12 @@ export default function PayoutFailuresPage() {
       header: 'Rekening tujuan',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="text-[12.5px]">{row.original.bankName}</span>
+          <span className="text-xs">{row.original.bankName}</span>
           {/* PENUH, tidak dipotong: nilai yang dicocokkan ops dengan keluhan nasabah. */}
-          <span className="break-all font-mono text-[12px] tabular-nums">
+          <span className="font-mono text-xs tabular-nums">
             {row.original.bankAccountNumber}
           </span>
-          <span className="truncate text-[11.5px] text-muted-foreground">
+          <span className="truncate text-2xs text-muted-foreground">
             {row.original.bankAccountName}
           </span>
         </div>
@@ -135,10 +135,10 @@ export default function PayoutFailuresPage() {
       header: 'Pemilik order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-[12.5px]">{row.original.ownerLabel}</span>
+          <span className="truncate text-xs">{row.original.ownerLabel}</span>
           {row.original.ownerKind === 'PARTNER' && (
             // Order partner yang bermasalah dikejar ke PARTNER-nya, bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
               Partner
             </span>
           )}
@@ -149,7 +149,7 @@ export default function PayoutFailuresPage() {
       id: 'age',
       header: 'Umur antrean',
       cell: ({ row }) => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="font-mono text-xs tabular-nums">
           {formatQueueAge(row.original.issueAt)}
         </span>
       ),
@@ -164,7 +164,7 @@ export default function PayoutFailuresPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`Buka detail pencairan ${row.original.bankAccountName}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -188,7 +188,7 @@ export default function PayoutFailuresPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-[11.5px] font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

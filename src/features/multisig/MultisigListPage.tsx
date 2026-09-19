@@ -38,7 +38,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         cfg.className,
       )}
     >
@@ -92,7 +92,7 @@ export default function MultisigListPage() {
       accessorKey: 'createdAt',
       header: 'Date',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
         </span>
       ),
@@ -105,11 +105,11 @@ export default function MultisigListPage() {
         const unknown = isUnknownActivity(activity)
         return (
           <div className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 text-[12.5px] font-medium">
+            <span className="flex items-center gap-1.5 text-xs font-medium">
               {unknown && <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
               {activityLabel || getActivityLabel(activity)}
             </span>
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
               {activity}
             </span>
           </div>
@@ -120,8 +120,8 @@ export default function MultisigListPage() {
       accessorKey: 'safeType',
       header: 'Safe',
       cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.04em]">
+        <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs uppercase tracking-[0.04em]">
             {row.original.safeType}
           </span>
         </span>
@@ -137,10 +137,10 @@ export default function MultisigListPage() {
       header: 'Proposer',
       cell: ({ row }) => (
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-[12px] tabular-nums">
+          <span className="font-mono text-xs tabular-nums">
             {truncateMiddle(row.original.proposerAddress, 6, 4)}
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
             {row.original.proposerType === 'BACKEND' ? 'backend' : 'staff'}
           </span>
         </div>
@@ -163,7 +163,7 @@ export default function MultisigListPage() {
             e.stopPropagation()
             navigate(`/multisig/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`View Safe transaction ${row.original.activityLabel}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -228,7 +228,7 @@ export default function MultisigListPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search activity, proposer, or safeTxHash…"
-              className="h-9 w-full max-w-xs text-[13px]"
+              className="h-9 w-full max-w-xs text-sm"
               aria-label="Search Safe transactions"
             />
             <Select
@@ -237,7 +237,7 @@ export default function MultisigListPage() {
                 params.updateParams({ safeType: v === 'ALL' ? null : v, page: '1' })
               }
             >
-              <SelectTrigger className="h-9 w-[150px] text-[13px]" aria-label="Filter by Safe">
+              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Filter by Safe">
                 <SelectValue placeholder="All Safes" />
               </SelectTrigger>
               <SelectContent>

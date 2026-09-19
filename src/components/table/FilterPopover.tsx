@@ -67,12 +67,12 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-[12.5px]">
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-xs">
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>Filter</span>
           {activeCount > 0 && (
             <span
-              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
+              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
               aria-label={`${activeCount} active filter${activeCount === 1 ? '' : 's'}`}
             >
               {activeCount}
@@ -83,14 +83,14 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
       <PopoverContent className="w-[min(92vw,360px)]">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold">Filters</p>
+            <p className="text-sm font-semibold">Filters</p>
             <button
               type="button"
               onClick={() => {
                 clearDraft()
                 onClearAll()
               }}
-              className="text-[12px] text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
               Clear all
             </button>
@@ -102,14 +102,14 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                 const v = draft[def.key] ?? ''
                 return (
                   <div key={def.key}>
-                    <Label className="text-[12px] font-medium">{def.label}</Label>
+                    <Label className="text-xs font-medium">{def.label}</Label>
                     <Select
                       value={v || ALL}
                       onValueChange={(next) => setKey(def.key, next === ALL ? '' : next)}
                     >
                       <SelectTrigger
                         aria-label={def.label}
-                        className="mt-1 h-9 text-[12.5px]"
+                        className="mt-1 h-9 text-xs"
                       >
                         <SelectValue placeholder={`All ${def.label.toLowerCase()}`} />
                       </SelectTrigger>
@@ -119,7 +119,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                           <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.label}
                             {opt.disabled && opt.disabledHint && (
-                              <span className="ml-1.5 text-[10.5px] text-muted-foreground">
+                              <span className="ml-1.5 text-2xs text-muted-foreground">
                                 {opt.disabledHint}
                               </span>
                             )}
@@ -135,21 +135,21 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
               const end = draft[def.endKey] ?? ''
               return (
                 <div key={`${def.startKey}-${def.endKey}`}>
-                  <Label className="text-[12px] font-medium">{def.label}</Label>
+                  <Label className="text-xs font-medium">{def.label}</Label>
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     <Input
                       type="date"
                       value={start}
                       onChange={(e) => setKey(def.startKey, e.target.value)}
                       aria-label={`${def.label} start`}
-                      className="h-9 text-[12.5px]"
+                      className="h-9 text-xs"
                     />
                     <Input
                       type="date"
                       value={end}
                       onChange={(e) => setKey(def.endKey, e.target.value)}
                       aria-label={`${def.label} end`}
-                      className="h-9 text-[12.5px]"
+                      className="h-9 text-xs"
                     />
                   </div>
                 </div>

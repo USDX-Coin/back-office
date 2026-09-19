@@ -9,7 +9,7 @@ function TabCount({ status }: { status: SafeTxStatus }) {
   const { data } = useMultisigStatusCount(status)
   if (data == null || data === 0) return null
   return (
-    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-primary">
+    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary">
       {data}
     </span>
   )
@@ -38,7 +38,7 @@ export default function MultisigTabs({
             type="button"
             onClick={() => onChange(tab.value)}
             className={cn(
-              'relative -mb-px flex items-center px-3 py-2 text-[12.5px] font-medium transition-colors',
+              'relative -mb-px flex items-center px-3 py-2 text-xs font-medium transition-colors',
               isActive
                 ? 'border-b-2 border-primary text-primary'
                 : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground',

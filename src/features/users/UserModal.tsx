@@ -339,7 +339,7 @@ export default function UserModal({
                     checked={form.suspended}
                     onCheckedChange={(val) => setField('suspended', val)}
                   />
-                  <span className="text-[12px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {form.suspended
                       ? 'User cannot mint or burn'
                       : 'User can transact (subject to KYC)'}
@@ -352,7 +352,7 @@ export default function UserModal({
           <div>
             <Label htmlFor="notes">
               Notes
-              <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+              <span className="ml-2 text-2xs font-normal text-muted-foreground">
                 {form.notes.length} / {USER_LIMITS.MAX_NOTES_LEN}
               </span>
             </Label>
@@ -371,7 +371,7 @@ export default function UserModal({
               <div className="flex items-center justify-between">
                 <Label>
                   Wallets
-                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                  <span className="ml-2 text-2xs font-normal text-muted-foreground">
                     {walletCount} / {USER_LIMITS.MAX_WALLETS}
                   </span>
                 </Label>

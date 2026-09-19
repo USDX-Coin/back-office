@@ -45,7 +45,7 @@ export default function ReportTable<T>({ columns, rows, isFetching, isError }: P
               <TableHead
                 key={col.key}
                 className={cn(
-                  'h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80',
+                  'h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80',
                   col.align === 'right' && 'text-right'
                 )}
               >
@@ -81,7 +81,7 @@ export default function ReportTable<T>({ columns, rows, isFetching, isError }: P
                 {columns.map((col) => (
                   <TableCell
                     key={col.key}
-                    className={cn('px-4 py-2.5 text-[13px]', col.align === 'right' && 'text-right')}
+                    className={cn('px-4 py-2.5 text-sm', col.align === 'right' && 'text-right')}
                   >
                     {col.render(row)}
                   </TableCell>

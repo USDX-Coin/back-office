@@ -87,13 +87,13 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
 
   return (
     <div className="border-t pt-3">
-      <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <p className="mb-2 text-2xs uppercase tracking-wide text-muted-foreground">
         Activation
       </p>
       <div className="space-y-2">
         <span
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
             cfg.className
           )}
           data-testid={`activation-badge-${status.toLowerCase()}`}
@@ -103,17 +103,17 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
         </span>
 
         {status === 'ACTIVATED' && user.emailVerifiedAt && (
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Email verified · {formatDate(user.emailVerifiedAt)}
           </p>
         )}
         {status === 'PENDING' && (
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Email not verified yet — the activation link is valid for 7 days.
           </p>
         )}
         {status === 'FAILED' && user.activationEmailFailedAt && (
-          <p className="flex items-start gap-1.5 text-[12px] text-destructive">
+          <p className="flex items-start gap-1.5 text-xs text-destructive">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Activation email failed to send ({formatDate(user.activationEmailFailedAt)}).
             Resend it manually.
@@ -124,7 +124,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1.5 text-[12px]"
+            className="h-7 gap-1.5 text-xs"
             onClick={() => setConfirmOpen(true)}
             disabled={cooldown > 0 || resend.isPending}
           >

@@ -77,7 +77,7 @@ export default function OncallContactDeleteDialog({
           {orphanedCategories.length > 0 && (
             <p
               role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+              className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
             >
               This is the last contact for {orphanedCategories.join(', ')}. Alerts in{' '}
               {orphanedCategories.length > 1 ? 'those categories' : 'that category'} will

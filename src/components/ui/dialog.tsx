@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-tirai-masuk data-[state=closed]:animate-tirai-keluar",
       className
     )}
     {...props}
@@ -56,7 +56,7 @@ const DialogContent = React.forwardRef<
         // overflow-hidden: the BODY (DialogBody) is the scroll container, not
         // the modal as a whole. Header/footer are fixed-height flex items so
         // they pin naturally; body gets flex-1 + min-h-0 + overflow-y-auto.
-        "fixed left-[50%] top-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-lg bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:w-full",
+        "fixed left-[50%] top-[50%] z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-lg bg-card shadow-lg sm:w-full data-[state=open]:animate-panel-masuk data-[state=closed]:animate-panel-keluar",
         className
       )}
       {...props}
@@ -82,7 +82,7 @@ const DialogHeader = ({
     {...props}
   >
     {children}
-    <DialogPrimitive.Close className="absolute right-3.5 top-3.5 rounded-sm p-0.5 text-muted-foreground opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+    <DialogPrimitive.Close className="absolute right-3.5 top-3.5 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/55 disabled:pointer-events-none">
       <X className="h-4 w-4" />
       <span className="sr-only">Close</span>
     </DialogPrimitive.Close>

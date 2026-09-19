@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
+import { TableCellText } from '@/components/ui/table'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { buildOrderFilterDefs, ORDER_COLUMN_CONFIG } from './filterDefs'
@@ -28,7 +29,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         cfg.className,
       )}
     >
@@ -93,24 +94,27 @@ export default function TransactionsListPage() {
   const columns: ColumnDef<OrderListItem>[] = [
     {
       accessorKey: 'createdAt',
+      size: 112,
       header: 'Date',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
         </span>
       ),
     },
     {
       accessorKey: 'type',
+      size: 68,
       header: 'Type',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {getValue() as string}
         </span>
       ),
     },
     {
       id: 'user',
+      size: 200,
       header: 'User',
       cell: ({ row }) => {
         // The backend sends the literal marker `(partner customer)` when the
@@ -120,13 +124,13 @@ export default function TransactionsListPage() {
         const email = row.original.userEmail
         if (email === PARTNER_CUSTOMER_EMAIL_LABEL) {
           return (
-            <span className="text-[12.5px] italic text-muted-foreground">{email}</span>
+            <TableCellText value={email} className="text-xs italic text-muted-foreground" />
           )
         }
         return (
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <Avatar name={email} size="sm" />
-            <span className="break-all text-[12.5px] font-medium">{email}</span>
+            <TableCellText value={email} className="text-xs font-medium" />
           </div>
         )
       },
@@ -137,6 +141,7 @@ export default function TransactionsListPage() {
       // it does not say who to contact, and for a partner order the party to
       // contact is the PARTNER, never its customer.
       id: 'partner',
+      size: 120,
       header: 'Partner',
       cell: ({ row }) => {
         const partner = row.original.partner
@@ -145,11 +150,11 @@ export default function TransactionsListPage() {
         // "this concept does not apply", which is the truth for retail.
         if (!partner) return null
         return (
-          <div className="flex flex-col leading-tight">
-            <span className="text-[12.5px] font-medium">{partner.displayName}</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <TableCellText value={partner.displayName} className="text-xs font-medium" />
             {/* `code` is what appears in transaction references and survives a
                 change of legal name, so it is worth the second line. */}
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
               {partner.code}
             </span>
           </div>
@@ -158,6 +163,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'amount',
+      size: 116,
       header: 'Amount',
       cell: ({ getValue }) => (
         <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
@@ -165,17 +171,18 @@ export default function TransactionsListPage() {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
-          <span className="text-[10.5px] text-muted-foreground">USDX</span>
+          <span className="text-2xs text-muted-foreground">USDX</span>
         </span>
       ),
     },
     {
       accessorKey: 'totalPayIdr',
+      size: 128,
       header: 'Total pay (IDR)',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
-          <span className="font-mono text-[12px] tabular-nums">
+          <span className="font-mono text-xs tabular-nums">
             {formatIdrAmount(Number(v))}
           </span>
         ) : (
@@ -185,11 +192,12 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'netPayoutIdr',
+      size: 128,
       header: 'Net payout (IDR)',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
-          <span className="font-mono text-[12px] tabular-nums">
+          <span className="font-mono text-xs tabular-nums">
             {formatIdrAmount(Number(v))}
           </span>
         ) : (
@@ -199,11 +207,12 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'chain',
+      size: 88,
       header: 'Chain',
       cell: ({ getValue }) => {
         const c = getValue() as string
         return (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span
               className={cn(
                 'h-1.5 w-1.5 rounded-full',
@@ -217,6 +226,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'paymentStatus',
+      size: 108,
       header: 'Payment',
       // Redeem rows have no payment leg (null) → dash.
       cell: ({ getValue }) => {
@@ -230,6 +240,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'safeStatus',
+      size: 104,
       header: 'Safe',
       // Redeem rows don't go through Safe (null) → dash.
       cell: ({ getValue }) => {
@@ -243,6 +254,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'status',
+      size: 124,
       header: 'Status',
       cell: ({ getValue }) => (
         <StatusBadge cfg={getOrderStatusConfig(getValue() as OrderListItem['status'])} />
@@ -250,6 +262,7 @@ export default function TransactionsListPage() {
     },
     {
       id: 'actions',
+      size: 76,
       header: '',
       cell: ({ row }) => (
         <button
@@ -258,7 +271,7 @@ export default function TransactionsListPage() {
             e.stopPropagation()
             navigate(`/transactions/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`View order for ${row.original.userEmail}`}
         >
           <Eye className="h-3.5 w-3.5" />

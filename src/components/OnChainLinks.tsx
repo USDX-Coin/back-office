@@ -26,7 +26,7 @@ export function TxHashLink({
   if (!hash) return <span className="text-muted-foreground/40">—</span>
   if (!href) {
     return (
-      <span className="font-mono text-[11px] tabular-nums text-muted-foreground" title={hash}>
+      <span className="font-mono text-2xs tabular-nums text-muted-foreground" title={hash}>
         <TruncatedHash value={hash} mobile={HASH_MOBILE} desktop={HASH_DESKTOP} />
       </span>
     )
@@ -39,7 +39,7 @@ export function TxHashLink({
       onClick={(e) => e.stopPropagation()}
       title={`${label}: ${hash}`}
       aria-label={`${label} ${hash}`}
-      className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums text-primary transition-colors hover:underline"
+      className="inline-flex items-center gap-1 font-mono text-2xs tabular-nums text-primary transition-colors hover:underline"
     >
       <TruncatedHash value={hash} mobile={HASH_MOBILE} desktop={HASH_DESKTOP} />
       <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />

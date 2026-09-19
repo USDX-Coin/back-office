@@ -126,7 +126,7 @@ export default function SanctionListsPage() {
       accessorKey: 'publishedAt',
       header: 'Terbit',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">{getValue() as string}</span>
+        <span className="font-mono text-xs tabular-nums">{getValue() as string}</span>
       ),
     },
     {
@@ -134,11 +134,11 @@ export default function SanctionListsPage() {
       header: 'Penerbit',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="text-[12.5px]">
+          <span className="text-xs">
             {SANCTION_LIST_SOURCE_LABELS[row.original.source]}
           </span>
           {row.original.sourceFileName && (
-            <span className="truncate text-[11px] text-muted-foreground">
+            <span className="truncate text-2xs text-muted-foreground">
               {row.original.sourceFileName}
             </span>
           )}
@@ -154,7 +154,7 @@ export default function SanctionListsPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
               style.className,
             )}
           >
@@ -168,7 +168,7 @@ export default function SanctionListsPage() {
       accessorKey: 'entryCount',
       header: 'Entri',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="font-mono text-xs tabular-nums">
           {(getValue() as number).toLocaleString('id-ID')}
         </span>
       ),
@@ -178,12 +178,12 @@ export default function SanctionListsPage() {
       header: 'Diimpor oleh',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-[12.5px]">
+          <span className="truncate text-xs">
             {/* `null` = akun petugasnya sudah dihapus. Bukan "tidak diketahui":
                 barisnya tetap mencatat siapa, akunnya saja yang sudah tiada. */}
             {row.original.importedByName ?? 'Akun petugas sudah dihapus'}
           </span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
             {formatShortDate(row.original.importedAt)}
           </span>
         </div>
@@ -197,7 +197,7 @@ export default function SanctionListsPage() {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-[11.5px]"
+            className="h-7 text-2xs"
             disabled={activate.isPending}
             onClick={() => handleActivate(row.original)}
           >
@@ -222,7 +222,7 @@ export default function SanctionListsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[12px]"
+              className="h-7 text-xs"
               onClick={() => navigate('/screening')}
             >
               <ArrowLeft className="mr-1 h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ export default function SanctionListsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[12px]"
+              className="h-7 text-xs"
               disabled={rescan.isPending}
               onClick={() => {
                 setRescanPrompt(null)
@@ -243,7 +243,7 @@ export default function SanctionListsPage() {
               />
               {rescan.isPending ? 'Memindai…' : 'Pindai ulang'}
             </Button>
-            <Button size="sm" className="h-7 text-[12px]" onClick={() => setImportOpen(true)}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => setImportOpen(true)}>
               <Plus className="mr-1 h-3.5 w-3.5" />
               Impor daftar
             </Button>
@@ -256,8 +256,8 @@ export default function SanctionListsPage() {
           className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2.5"
           data-testid="rescan-summary"
         >
-          <p className="text-[13px] font-medium">Hasil pemindaian ulang</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
+          <p className="text-sm font-medium">Hasil pemindaian ulang</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             {rescanResult.scanned.toLocaleString('id-ID')} subjek diperiksa ·{' '}
             <strong className="text-destructive">
               {rescanResult.matched.toLocaleString('id-ID')} temuan
@@ -268,21 +268,21 @@ export default function SanctionListsPage() {
           {rescanResult.skipped > 0 && (
             // Bukan kegagalan: nama subjeknya sudah dikosongkan sweeper retensi,
             // jadi tidak ada yang bisa dicocokkan.
-            <p className="mt-1 text-[11.5px] text-muted-foreground">
+            <p className="mt-1 text-2xs text-muted-foreground">
               Yang dilewati adalah subjek yang datanya sudah dihapus sweeper
               retensi — namanya tidak ada lagi untuk dicocokkan.
             </p>
           )}
           {rescanResult.truncated && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <p className="text-[12.5px] text-amber-800 dark:text-amber-300">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
                 Batas per-panggilan tercapai — masih ada subjek yang belum
                 diperiksa.
               </p>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[11.5px]"
+                className="h-7 text-2xs"
                 disabled={rescan.isPending}
                 onClick={handleRescan}
               >
@@ -294,7 +294,7 @@ export default function SanctionListsPage() {
             <Button
               size="sm"
               variant="outline"
-              className="mt-2 h-7 text-[11.5px]"
+              className="mt-2 h-7 text-2xs"
               onClick={() => navigate('/screening')}
             >
               Buka antrean temuan
@@ -363,18 +363,18 @@ export default function SanctionListsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               POJK 8/2023 Pasal 53 ayat (3) mewajibkan pemeriksaan sejak daftar
               DITERIMA, bukan hanya saat onboarding — jadi nasabah yang sudah
               lolos harus diperiksa lagi setiap daftarnya diperbarui.
             </p>
-            <p className="mt-2 text-[12.5px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               Pemindaian menulis jejak baru dan tidak mengubah apa pun, jadi aman
               dijalankan berkali-kali. Kalau subjeknya banyak, pemindaian berhenti
               di batas per-panggilan dan bisa dilanjutkan.
             </p>
             {rescanPrompt?.activatedAt && (
-              <p className="mt-2 font-mono text-[11.5px] text-muted-foreground">
+              <p className="mt-2 font-mono text-2xs text-muted-foreground">
                 Diaktifkan {formatDate(rescanPrompt.activatedAt)}
               </p>
             )}

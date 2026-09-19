@@ -104,7 +104,7 @@ export default function AddWalletModal({
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogBody className="space-y-4">
           {limitError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-[12.5px] text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
               {limitError}
             </div>
           )}
@@ -141,7 +141,7 @@ export default function AddWalletModal({
                 if (errors.address) setErrors((p) => ({ ...p, address: '' }))
               }}
               placeholder="0x…"
-              className="mt-1.5 font-mono text-[12px]"
+              className="mt-1.5 font-mono text-xs"
             />
             <FieldError message={errors.address} />
           </div>

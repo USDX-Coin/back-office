@@ -227,7 +227,7 @@ export default function LedgerEntryForm({ balance }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Record a ledger entry
         </CardTitle>
       </CardHeader>
@@ -253,7 +253,7 @@ export default function LedgerEntryForm({ balance }: Props) {
                     className="mt-0.5 accent-primary"
                   />
                   <span className="min-w-0">
-                    <span className="block font-mono text-[13px] font-medium">
+                    <span className="block font-mono text-sm font-medium">
                       {type}
                     </span>
                     <span className="block text-xs text-muted-foreground">

@@ -271,7 +271,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                   {allowedEmails.map((email) => (
                     <li
                       key={email}
-                      className="flex items-center gap-1 rounded-full border border-border bg-muted/60 py-0.5 pl-2.5 pr-1 font-mono text-[12px]"
+                      className="flex items-center gap-1 rounded-full border border-border bg-muted/60 py-0.5 pl-2.5 pr-1 font-mono text-xs"
                     >
                       {email}
                       <button
@@ -293,7 +293,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 <div
                   role="note"
                   data-testid="allowed-emails-empty-warning"
-                  className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-[12.5px] text-destructive"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-destructive"
                 >
                   <p className="font-medium">
                     Daftar kosong = TIDAK ADA yang bisa mint.
@@ -311,7 +311,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 ketiganya WAJIB — tanpa ini permintaan selalu ditolak 422 dan
                 mode uji tidak bisa dinyalakan sama sekali. */}
             <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
                 Bundle uji
               </p>
               {(Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]).map(
@@ -330,7 +330,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                       placeholder="0x…"
                       spellCheck={false}
                       autoComplete="off"
-                      className="font-mono text-[12.5px]"
+                      className="font-mono text-xs"
                     />
                     <FieldError message={errors[field] || undefined} />
                   </div>
@@ -346,7 +346,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
             {serverError ? (
               <div
                 role="alert"
-                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-[12.5px] text-destructive"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-xs text-destructive"
               >
                 <p>{serverError}</p>
                 {serverDetails.length > 0 ? (

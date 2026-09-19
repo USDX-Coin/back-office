@@ -61,12 +61,12 @@ export default function ScreeningSubjectPanel({
 
   return (
     <div className="space-y-2" data-testid="screening-panel">
-      <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         Screening DTTOT &amp; DPPSPM
       </p>
 
       {query.isPending && (
-        <p className="text-[12px] text-muted-foreground">Memuat status screening…</p>
+        <p className="text-xs text-muted-foreground">Memuat status screening…</p>
       )}
 
       {/* Kegagalan dinyatakan, bukan dirender sebagai panel kosong. Panel kosong
@@ -74,7 +74,7 @@ export default function ScreeningSubjectPanel({
           diketahui: statusnya TIDAK DIKETAHUI. */}
       {query.isError && (
         <p
-          className="text-[12px] text-destructive"
+          className="text-xs text-destructive"
           role="alert"
           data-testid="screening-panel-error"
         >
@@ -87,7 +87,7 @@ export default function ScreeningSubjectPanel({
         <>
           {summary.neverScreened ? (
             <p
-              className="text-[12px] text-muted-foreground"
+              className="text-xs text-muted-foreground"
               data-testid="screening-never"
             >
               Belum ada satu pun jejak pemeriksaan untuk berkas ini. POJK 8/2023
@@ -110,7 +110,7 @@ export default function ScreeningSubjectPanel({
               bisa ditindaklanjuti siapa pun; "DPPSPM belum pernah tercek" bisa. */}
           {summary.unchecked.length > 0 && !summary.neverScreened && (
             <p
-              className="rounded-sm bg-warning/10 px-2.5 py-2 text-[12px] leading-relaxed text-warning-foreground"
+              className="rounded-sm bg-warning/10 px-2.5 py-2 text-xs leading-relaxed text-warning-foreground"
               data-testid="screening-unchecked"
             >
               <strong>
@@ -132,7 +132,7 @@ export default function ScreeningSubjectPanel({
 
           {summary.unavailableCount > 0 && summary.unchecked.length === 0 && (
             <p
-              className="text-[12px] text-muted-foreground"
+              className="text-xs text-muted-foreground"
               data-testid="screening-unavailable-history"
             >
               {summary.unavailableCount} pemeriksaan tercatat{' '}
@@ -143,7 +143,7 @@ export default function ScreeningSubjectPanel({
 
           {summary.holding.length > 0 && (
             <p
-              className="rounded-sm bg-destructive/10 px-2.5 py-2 text-[12px] leading-relaxed text-destructive"
+              className="rounded-sm bg-destructive/10 px-2.5 py-2 text-xs leading-relaxed text-destructive"
               data-testid="screening-holding"
             >
               {summary.holding.length} temuan masih menahan subjek ini. Approve akan
@@ -153,14 +153,14 @@ export default function ScreeningSubjectPanel({
           )}
 
           {total > rows.length && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Menampilkan {rows.length} jejak terbaru dari {total}.
             </p>
           )}
 
           <Link
             to={`/screening?subjectType=${subjectType}&subjectId=${subjectId ?? ''}`}
-            className="inline-block text-[12px] text-primary underline-offset-2 hover:underline"
+            className="inline-block text-xs text-primary underline-offset-2 hover:underline"
           >
             Buka antrean screening
           </Link>
@@ -185,17 +185,17 @@ function ListCoverageRow({
   const style = latest ? SCREENING_OUTCOME_STYLES[latest.outcome] : null
   return (
     <div data-testid={`screening-list-${listType}`}>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {SANCTION_LIST_TYPE_LABELS[listType]}
       </p>
       {latest === null ? (
-        <p className="mt-1 text-[13px] font-medium text-warning">Belum pernah dicek</p>
+        <p className="mt-1 text-sm font-medium text-warning">Belum pernah dicek</p>
       ) : (
         <div className="mt-1 space-y-0.5">
           <Badge className={cn('font-normal', style?.className)}>
             {SCREENING_OUTCOME_LABELS[latest.outcome]}
           </Badge>
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {/* Versi daftarnya, bukan hanya "lolos": inilah yang menjawab
                 "lolos pakai daftar terbitan tanggal berapa" saat diperiksa. */}
             {latest.listPublishedAt

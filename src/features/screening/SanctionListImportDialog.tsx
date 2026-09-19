@@ -263,7 +263,7 @@ export default function SanctionListImportDialog({
         <DialogBody>
           {stage === 'imported' ? (
             <div className="space-y-3">
-              <p className="flex items-start gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-[12.5px] text-emerald-800 dark:text-emerald-300">
+              <p className="flex items-start gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   <strong>{totalEntries.toLocaleString('id-ID')} entri</strong> masuk
@@ -271,19 +271,19 @@ export default function SanctionListImportDialog({
                   ia baru jadi dasar pemeriksaan setelah diaktifkan.
                 </span>
               </p>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Mengaktifkan versi ini membuat versi {listType} yang sedang aktif
                 otomatis berstatus <strong>Digantikan</strong>. Versi lama tetap
                 disimpan karena hasil screening lama menunjuk ke sana.
               </p>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Mengaktifkan <strong>tidak</strong> memeriksa ulang nasabah lama.
                 Pemindaian ulang ditawarkan setelah ini.
               </p>
             </div>
           ) : stage === 'importing' ? (
             <div className="space-y-3">
-              <p className="text-[13px]">
+              <p className="text-sm">
                 Mengirim entri… potongan {progress.done} dari {progress.total}
               </p>
               <div
@@ -301,7 +301,7 @@ export default function SanctionListImportDialog({
                   }}
                 />
               </div>
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Berkas dipecah karena body JSON dibatasi 100 kB di server,
                 sementara daftar DTTOT jauh lebih besar. Jangan tutup jendela ini.
               </p>
@@ -363,7 +363,7 @@ export default function SanctionListImportDialog({
                 {/* Bukan tanggal impor: yang ditanyakan pemeriksa adalah "nasabah
                     ini lolos memakai daftar terbitan tanggal berapa". Tanggal
                     impor dicatat server sendiri. */}
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Tanggal terbit menurut PENERBITNYA — bukan tanggal hari ini.
                   Inilah yang menjawab “lolos pakai daftar tanggal berapa”.
                 </p>
@@ -386,13 +386,13 @@ export default function SanctionListImportDialog({
                 />
                 <label
                   htmlFor="sanction-file"
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-[12.5px] transition-colors hover:border-primary hover:bg-primary/5"
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-xs transition-colors hover:border-primary hover:bg-primary/5"
                 >
                   <Upload className="h-4 w-4 text-muted-foreground" />
                   {fileName || 'Pilih berkas CSV…'}
                 </label>
                 <FieldError message={errors.file} />
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Kolom wajib: <code className="font-mono">full_name</code>. Kolom
                   opsional: {SANCTION_CSV_KNOWN_COLUMNS.slice(1).join(', ')}. Alias
                   dipisah tanda <code className="font-mono">|</code>.
@@ -404,11 +404,11 @@ export default function SanctionListImportDialog({
                   className="space-y-2 rounded-md border border-border bg-muted/40 px-3 py-2.5"
                   data-testid="sanction-csv-preview"
                 >
-                  <p className="flex items-center gap-2 text-[13px] font-medium">
+                  <p className="flex items-center gap-2 text-sm font-medium">
                     <FileSpreadsheet className="h-4 w-4 text-primary" />
                     {preview.entryCount.toLocaleString('id-ID')} entri terbaca
                   </p>
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {(preview.entryCount - preview.entityCount).toLocaleString('id-ID')}{' '}
                     perorangan · {preview.entityCount.toLocaleString('id-ID')} badan
                     usaha · dikirim dalam {chunkSanctionCsv(csv).length} potongan
@@ -416,12 +416,12 @@ export default function SanctionListImportDialog({
                   {preview.sampleNames.length > 0 && (
                     // Bukti bagi petugas bahwa kolom yang terbaca benar-benar
                     // kolom nama — angka saja tidak membuktikan itu.
-                    <p className="text-[12px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Contoh nama: {preview.sampleNames.join(' · ')}
                     </p>
                   )}
                   {preview.ignoredColumns.length > 0 && (
-                    <p className="flex items-start gap-2 text-[12px] text-amber-800 dark:text-amber-300">
+                    <p className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         Kolom yang tidak dipakai dan akan diabaikan:{' '}

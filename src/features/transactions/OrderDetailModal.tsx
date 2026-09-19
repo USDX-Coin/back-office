@@ -69,7 +69,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={() => copy(value, label)}
-      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
       title={value}
       aria-label={`Copy ${label}`}
     >
@@ -89,7 +89,7 @@ function CopyableFull({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={() => copy(value, label)}
-      className="inline-flex items-start gap-1.5 text-left font-mono text-[12px] text-foreground hover:text-primary"
+      className="inline-flex items-start gap-1.5 text-left font-mono text-xs text-foreground hover:text-primary"
       title={value}
       aria-label={`Copy ${label}`}
     >
@@ -119,7 +119,7 @@ function HashLink({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
+        className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
         title={`${linkLabel}: ${value}`}
       >
         <span className="break-all">{shortHash(value)}</span>
@@ -133,10 +133,10 @@ function HashLink({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -144,7 +144,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         {title}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
@@ -156,7 +156,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         cfg.className,
       )}
     >
@@ -230,15 +230,15 @@ export default function OrderDetailModal({
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   {isRedeem && detail.lateBurn ? (
-                    <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+                    <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
                       Late burn
                     </span>
                   ) : null}
-                  <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                  <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                     {isRedeem ? 'redeem' : `${detail.safeType ?? '—'} safe`} · {detail.chain}
                   </span>
                 </div>
-                <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+                <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                   {formatDate(detail.createdAt)}
                 </span>
               </div>
@@ -253,7 +253,7 @@ export default function OrderDetailModal({
                   <Field label="Partner">
                     <div className="flex flex-col leading-tight">
                       <span className="font-medium">{detail.partner.displayName}</span>
-                      <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+                      <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
                         {detail.partner.code}
                       </span>
                     </div>
@@ -374,16 +374,16 @@ export default function OrderDetailModal({
               {/* Estimated revenue — emphasized monitoring figure (backoffice only) */}
               <div className="flex items-center justify-between rounded-md bg-primary/5 px-3 py-2.5">
                 <div>
-                  <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-primary">
+                  <p className="font-mono text-2xs uppercase tracking-[0.06em] text-primary">
                     Estimated revenue
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {isRedeem
                       ? 'spread revenue + redeem fee (disbursement pass-through)'
                       : 'spread revenue + mint fee (PG fee pass-through)'}
                   </p>
                 </div>
-                <span className="font-mono text-[15px] font-semibold tabular-nums text-primary">
+                <span className="font-mono text-base font-semibold tabular-nums text-primary">
                   {formatIdrAmount(Number(detail.estimatedRevenueIdr))}
                 </span>
               </div>

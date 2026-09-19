@@ -63,7 +63,7 @@ export default function ReportFiltersToolbar({
       />
 
       <div className="flex flex-col gap-1.5">
-        <Label className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">Chain</Label>
+        <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">Chain</Label>
         <Select
           value={values.chain || ALL}
           onValueChange={(val) =>
@@ -85,7 +85,7 @@ export default function ReportFiltersToolbar({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">Status</Label>
+        <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">Status</Label>
         <Select
           value={values.status || ALL}
           onValueChange={(val) =>
@@ -108,7 +108,7 @@ export default function ReportFiltersToolbar({
 
       {showUserPicker && (
         <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
-          <Label className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+          <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
             User <span className="font-normal normal-case text-muted-foreground/70">(optional)</span>
           </Label>
           <UserPicker

@@ -91,27 +91,30 @@ export default function MintListPage() {
   const columns: ColumnDef<RequestListItem>[] = [
     {
       accessorKey: 'createdAt',
+      size: 120,
       header: 'Date',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
         </span>
       ),
     },
     {
       id: 'id',
+      size: 150,
       header: 'ID',
       cell: ({ row }) => <RequestIdCell id={row.original.id} />,
     },
     {
       id: 'user',
+      size: 176,
       header: 'User',
       cell: ({ row }) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.original.userName} size="sm" />
           <div className="flex flex-col leading-tight">
             <span className="font-medium">{row.original.userName}</span>
-            <span className="font-mono text-[10.5px] text-muted-foreground">
+            <span className="font-mono text-2xs text-muted-foreground">
               <TruncatedHash value={row.original.userAddress} />
             </span>
           </div>
@@ -120,6 +123,7 @@ export default function MintListPage() {
     },
     {
       accessorKey: 'amount',
+      size: 148,
       header: 'Amount',
       cell: ({ row }) => {
         const input = row.original.inputCurrency
@@ -130,10 +134,10 @@ export default function MintListPage() {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
-              <span className="text-[10.5px] text-muted-foreground">USDX</span>
+              <span className="text-2xs text-muted-foreground">USDX</span>
               {input === 'USD' && <InputCurrencyBadge currency="USD" />}
             </span>
-            <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground tabular-nums">
+            <span className="flex items-center gap-1.5 font-mono text-2xs text-muted-foreground tabular-nums">
               <span>Rp {Number(row.original.amountIdr).toLocaleString('id-ID')}</span>
               {input === 'IDR' && <InputCurrencyBadge currency="IDR" />}
             </span>
@@ -143,11 +147,12 @@ export default function MintListPage() {
     },
     {
       accessorKey: 'chain',
+      size: 92,
       header: 'Chain',
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
         return (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span className={cn('h-1.5 w-1.5 rounded-full', CHAIN_DOT[c])} />
             {CHAIN_LABEL[c]}
           </span>
@@ -156,15 +161,17 @@ export default function MintListPage() {
     },
     {
       accessorKey: 'safeType',
+      size: 84,
       header: 'Safe',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
         </span>
       ),
     },
     {
       accessorKey: 'status',
+      size: 152,
       header: 'Status',
       cell: ({ getValue }) => {
         const s = getValue() as RequestListItem['status']
@@ -172,7 +179,7 @@ export default function MintListPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
               cfg.className
             )}
           >
@@ -184,15 +191,17 @@ export default function MintListPage() {
     },
     {
       id: 'createdByName',
+      size: 104,
       header: 'Created by',
       cell: ({ row }) => (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {row.original.createdByName || '—'}
         </span>
       ),
     },
     {
       id: 'onchainTx',
+      size: 160,
       header: 'On-chain tx',
       cell: ({ row }) => (
         <TxHashLink
@@ -204,6 +213,7 @@ export default function MintListPage() {
     },
     {
       id: 'safeTx',
+      size: 144,
       header: 'Safe tx',
       cell: ({ row }) => (
         <TxHashLink
@@ -215,6 +225,7 @@ export default function MintListPage() {
     },
     {
       id: 'actions',
+      size: 76,
       header: '',
       cell: ({ row }) => (
         <button
@@ -223,7 +234,7 @@ export default function MintListPage() {
             e.stopPropagation()
             navigate(`/mint/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`View mint request for ${row.original.userName}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -270,7 +281,7 @@ export default function MintListPage() {
         subtitle="Track every mint request across its approval lifecycle."
         actions={
           canCreate ? (
-            <Button onClick={() => navigate('/mint/new')} size="sm" className="h-7 text-[12px]">
+            <Button onClick={() => navigate('/mint/new')} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
               Add Mint OTC
             </Button>

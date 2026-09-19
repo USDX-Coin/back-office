@@ -87,6 +87,7 @@ export default function UsersPage() {
   const columns: ColumnDef<PhaseOneUser>[] = [
     {
       id: 'name',
+      size: 190,
       header: 'Name',
       cell: ({ row }) => {
         const u = row.original
@@ -110,31 +111,34 @@ export default function UsersPage() {
     },
     {
       id: 'email',
+      size: 216,
       header: 'Email',
       cell: ({ row }) => (
-        <span className="text-[12.5px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {row.original.email || '—'}
         </span>
       ),
     },
     {
       id: 'entityType',
+      size: 104,
       header: 'Entity',
       cell: ({ row }) => (
-        <span className="text-[12.5px]">
+        <span className="text-xs">
           {ENTITY_LABEL[row.original.entityType] ?? row.original.entityType}
         </span>
       ),
     },
     {
       id: 'kycStatus',
+      size: 112,
       header: 'KYC',
       cell: ({ row }) => {
         const cfg = getKycStatusConfig(row.original.kycStatus)
         return (
           <span
             className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex rounded-sm px-2 py-0.5 text-2xs font-medium',
               cfg.className
             )}
           >
@@ -147,6 +151,7 @@ export default function UsersPage() {
       // USDX-156 — activation badge: FAILED (destructive) wins over PENDING
       // (warning); ACTIVATED renders muted-success so the column scans quietly.
       id: 'activation',
+      size: 168,
       header: 'Activation',
       cell: ({ row }) => {
         const status = deriveActivationStatus(row.original)
@@ -154,7 +159,7 @@ export default function UsersPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
               cfg.className
             )}
             data-testid={`activation-badge-${status.toLowerCase()}`}
@@ -167,10 +172,11 @@ export default function UsersPage() {
     },
     {
       id: 'suspended',
+      size: 110,
       header: 'Status',
       cell: ({ row }) =>
         row.original.suspended ? (
-          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
+          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
             Suspended
           </span>
         ) : null,
@@ -248,7 +254,7 @@ export default function UsersPage() {
         subtitle={`Phase-1 user directory · ${list.isLoading ? '…' : total} total`}
         actions={
           canManage ? (
-            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+            <Button onClick={openAdd} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
               Add User
             </Button>

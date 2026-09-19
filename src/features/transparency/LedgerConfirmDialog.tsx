@@ -122,7 +122,7 @@ export default function LedgerConfirmDialog({
           {entry ? (
             <>
               <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-warning">
+                <p className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-[0.06em] text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                   Cannot be edited or deleted
                 </p>
@@ -213,7 +213,7 @@ export default function LedgerConfirmDialog({
                     </p>
                   ) : (
                     <>
-                      <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                         {conflict
                           ? 'Balance after the OTHER entry that holds this key'
                           : 'Balance re-read after the error'}
@@ -294,7 +294,7 @@ export default function LedgerConfirmDialog({
               )}
 
               <div className="rounded-md border border-border px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Reason (internal — not shown publicly)
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
@@ -348,7 +348,7 @@ function Row({
 }) {
   return (
     <div className="grid grid-cols-[104px_1fr] items-baseline gap-3">
-      <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd

@@ -136,7 +136,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Update fee config
         </CardTitle>
       </CardHeader>
@@ -211,7 +211,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
 
           {/* Redeem fees (W3, USDX-245) — required; part of the full snapshot. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Redeem
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -263,7 +263,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               Bukan tarif: ini nominal terkecil yang boleh di-mint, dan angkanya
               akan sering digeser saat uji bayar produksi. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Mint limit
             </p>
             <div className="space-y-1.5">
@@ -297,7 +297,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               nasabah menilai minimum dari uang yang benar-benar masuk ke
               rekeningnya. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
               Redeem limit
             </p>
             <div className="space-y-1.5">

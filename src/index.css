@@ -1,12 +1,55 @@
 @import "tailwindcss";
+
+/* IBM Plex, DIBUNDEL — bukan dari Google Fonts.
+ *
+ * Sebelumnya tiga keluarga huruf ditarik dari `fonts.googleapis.com` lewat
+ * <link> di index.html. Itu berarti tiap muat halaman konsol internal ini
+ * menembak pihak ketiga, dan tampilan hurufnya bergantung pada jaringan yang
+ * tidak kita kendalikan. Di-bundel lewat @fontsource: berkasnya ikut build,
+ * disajikan dari origin sendiri, dan CSP tidak lagi perlu membuka dua host
+ * Google.
+ *
+ * Bobot dibatasi ke yang benar-benar dipakai (400/500/600 sans, 400/500 mono,
+ * 400 italic serif) supaya muatannya tidak ikut membengkak. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-serif/400-italic.css';
+
 @custom-variant dark (&:is(.dark *));
 
-/* ──────────────────────────────────────────────────────────────
- * USDX Back Office — Linear Console theme
- * Dense operator console with brand-teal accent.
- * Light: white surfaces with cool-gray hairlines.
- * Dark:  near-black surfaces, brand-cyan accent (#1eaed5).
- * ──────────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────────────────────
+ * USDX Back Office — tema global
+ *
+ * Konsol operator padat. Netral HANGAT, sepuluh langkah, dengan tiga tingkat
+ * isian yang benar-benar berbeda. Terang dan gelap ditala dari skala yang sama.
+ *
+ * Apa yang diperbaiki dan kenapa — tiga hal, ketiganya terukur, bukan selera:
+ *
+ * 1. SATU TINGKAT ISIAN → SEPULUH LANGKAH NETRAL.
+ *    Tema sebelumnya memberi `--secondary`, `--muted`, dan `--accent` nilai
+ *    yang IDENTIK (220 14% 96%) — dan kebetulan itu juga nilai `--background`.
+ *    Dengan satu tingkat isian, satu-satunya alat yang tersisa untuk memisahkan
+ *    kelompok adalah GARIS. Itulah mekanisme di balik keluhan "terlalu kotak":
+ *    bukan seleranya yang salah, temanya memang kehabisan alat. Di sini
+ *    ketiganya berbeda (93.5% / 92.5% / 87%), jadi kelompok bisa dipisah oleh
+ *    permukaan dan garis boleh mundur.
+ *
+ * 2. HUE 220 (DINGIN) → HUE 30-40 (HANGAT).
+ *    Seluruh netral lama memakai hue 220, jadi satu layar penuh punya rona
+ *    kebiruan yang sama. Bedanya halus per elemen dan menentukan di satu layar:
+ *    permukaan hangat terbaca sebagai kertas, bukan sebagai panel.
+ *
+ * 3. KONTRAS YANG DIHITUNG, BUKAN DIKIRA.
+ *    Badge "Pending" lama — status yang paling sering muncul di antrean —
+ *    berada di 2.72:1, gagal ambang 4.5. Sorotan baris di 1.04:1: operator
+ *    menyorot, layar praktis tidak berubah. Garis pemisah di mode gelap di
+ *    1.05:1, praktis tidak terlihat. Semua nilai di bawah dihitung ulang
+ *    (WCAG 2.1, komposit alfa di ruang gamma seperti yang dilakukan peramban)
+ *    dan angkanya ditulis di sebelah tokennya.
+ * ──────────────────────────────────────────────────────────────────────── */
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -33,9 +76,42 @@
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
 
-  --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+
+  /* ── Skala huruf: ENAM langkah, dan hanya enam ────────────────────────────
+   *
+   * Yang digantikan: 17 ukuran sembarang (sembilan-setengah piksel,
+   * sebelas-setengah, dua-belas-setengah, …) yang muncul 673 kali di 93 berkas. Itu bukan skala,
+   * itu tebakan per layar — dan karena tiap layar menebak sendiri, dua halaman
+   * yang menampilkan hal yang sama bisa memakai dua ukuran berbeda.
+   *
+   * `--text-*: initial` MENGHAPUS seluruh skala bawaan Tailwind lebih dulu.
+   * Jadi enam langkah ini bukan "yang dianjurkan" — langkah ketujuh tidak ada,
+   * dan `text-2xl` gagal dikompilasi alih-alih diam-diam lolos.
+   *
+   * Tiap langkah punya satu pekerjaan:
+   *   2xs 11px  label mikro, kepala kolom, badge, kbd
+   *   xs  12px  teks sekunder, meta, keterangan
+   *   sm  13px  isi tabel dan daftar padat
+   *   base 14px teks badan, label formulir, isian
+   *   lg  16px  judul kartu dan judul bagian
+   *   xl  24px  judul halaman dan angka besar
+   */
+  --text-*: initial;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.375rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.75rem;
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -44,83 +120,128 @@
 }
 
 :root {
-  --radius: 0.3125rem;
+  --radius: 0.375rem;
 
-  /* Light — clean monochrome with brand teal */
-  --background: 220 14% 96%;
-  --foreground: 220 13% 9%;
+  /* ── Netral hangat, sepuluh langkah ──────────────────────────────────────
+   * Rasio di komentar dihitung terhadap `--card` (#fdfdfc) kecuali disebut
+   * lain. Sumbernya kalkulator WCAG sendiri, bukan ingatan. */
+  --n0: 40 33% 99%;    /* kartu, popover                                     */
+  --n1: 38 20% 94%;    /* kanvas halaman                    kartu 1.11       */
+  --n2: 38 16% 92.5%;  /* baris belang (zebra)              kartu 1.15       */
+  --n3: 38 15% 93.5%;  /* isian kontrol (input, segmented)  kartu 1.14       */
+  --n4: 36 16% 87%;    /* sorotan / keadaan aktif           kartu 1.30       */
+  --n5: 38 14% 83%;    /* garis tenang                      kartu 1.43       */
+  --n6: 38 13% 80%;    /* garis tegas / tepi isian                           */
+  --n7: 30 6% 41%;     /* teks sekunder      kartu 5.25 · zebra 4.57         */
+  --n8: 34 6% 21%;     /* teks di atas isian sekunder       10.37            */
+  --n9: 30 8% 10%;     /* teks utama                        17.11            */
 
-  --card: 0 0% 100%;
-  --card-foreground: 220 13% 9%;
+  --background: var(--n1);
+  --foreground: var(--n9);
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 220 13% 9%;
+  --card: var(--n0);
+  --card-foreground: var(--n9);
 
-  /* USDX brand teal #006780 */
+  --popover: var(--n0);
+  --popover-foreground: var(--n9);
+
+  /* Teal merek USDX #006780 dipertahankan — yang ditala rasa, bukan merek.
+   * Putih di atasnya 6.54:1; sebagai teks/ikon di atas kartu 6.42:1. */
   --primary: 192 100% 25%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 220 13% 18%;
+  /* Tiga tingkat isian yang BERBEDA. Inilah inti perbaikan nomor 1. */
+  --secondary: var(--n3);
+  --secondary-foreground: var(--n8);
 
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
+  --muted: var(--n2);
+  --muted-foreground: var(--n7);
 
-  --accent: 220 14% 96%;
-  --accent-foreground: 220 13% 18%;
+  --accent: var(--n4);
+  --accent-foreground: var(--n9);
 
-  --destructive: 0 76% 50%;
+  /* ── Status ──────────────────────────────────────────────────────────────
+   * Ditala supaya SATU token melayani tiga pemakaian yang semuanya ada di
+   * kode: teks di atas kartu, teks di atas isian lembut `bg-X/10`, dan isian
+   * pekat `bg-X` dengan `-foreground` di atasnya. Yang lama gagal di pemakaian
+   * kedua — dan justru itu yang paling sering tampil (badge status).
+   *
+   *                       kartu   bg-X/10 di kartu   bg-X/10 di baris zebra
+   *   warning     #945014  6.03        5.23                  4.58
+   *   success     #116949  6.54        5.64                  4.94
+   *   destructive #ab2521  6.80        5.77                  5.05
+   * Putih di atas isian pekat: 6.15 / 6.66 / 6.93. */
+  --destructive: 2 68% 40%;
   --destructive-foreground: 0 0% 100%;
 
-  --success: 145 63% 38%;
+  --success: 158 72% 24%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 38 92% 42%;
+  --warning: 28 76% 33%;
   --warning-foreground: 0 0% 100%;
 
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
+  --border: var(--n5);
+  --input: var(--n6);
   --ring: 192 100% 25%;
 
   color-scheme: light;
 }
 
 .dark {
-  /* Linear-style near-black */
-  --background: 220 13% 4%;
-  --foreground: 220 6% 91%;
+  /* Gelap HANGAT, bukan abu kebiruan — sumbu hue yang sama dengan mode terang.
+   * Rasio dihitung terhadap `--card` (#1e1c1a). */
+  --n0: 30 6% 11%;     /* kartu, permukaan terangkat                         */
+  --n1: 30 6% 7%;      /* kanvas halaman                    kartu 1.10       */
+  --n2: 30 6% 15%;     /* baris belang (zebra)              kartu 1.13       */
+  --n3: 30 5% 17%;     /* isian kontrol                     kartu 1.21       */
+  --n4: 30 6% 23%;     /* sorotan / keadaan aktif           kartu 1.52       */
+  --n5: 30 6% 24%;     /* garis tenang                      kartu 1.58       */
+  --n6: 30 6% 27%;     /* garis tegas / tepi isian                           */
+  --n7: 32 8% 66%;     /* teks sekunder      kartu 7.28 · zebra 6.44         */
+  --n8: 36 12% 92%;
+  --n9: 36 12% 92%;    /* teks utama                        14.29            */
 
-  --card: 220 12% 9%;
-  --card-foreground: 220 6% 91%;
+  --background: var(--n1);
+  --foreground: var(--n9);
 
-  --popover: 220 12% 9%;
-  --popover-foreground: 220 6% 91%;
+  --card: var(--n0);
+  --card-foreground: var(--n9);
 
-  /* USDX brand cyan #1eaed5 — dark-mode primary */
-  --primary: 192 75% 48%;
-  --primary-foreground: 220 13% 4%;
+  --popover: 30 6% 13%;
+  --popover-foreground: var(--n9);
 
-  --secondary: 220 10% 13%;
-  --secondary-foreground: 220 6% 91%;
+  /* Cyan merek USDX #1eaed5, dicerahkan sedikit agar lolos sebagai teks:
+   * 7.47:1 di atas kartu, dan teks gelap di atasnya 8.12:1. */
+  --primary: 191 70% 52%;
+  --primary-foreground: 196 40% 7%;
 
-  --muted: 220 10% 13%;
-  --muted-foreground: 220 6% 56%;
+  --secondary: var(--n3);
+  --secondary-foreground: var(--n8);
 
-  --accent: 220 10% 13%;
-  --accent-foreground: 220 6% 91%;
+  --muted: var(--n2);
+  --muted-foreground: var(--n7);
 
-  --destructive: 0 84% 71%;
-  --destructive-foreground: 220 13% 4%;
+  --accent: var(--n4);
+  --accent-foreground: var(--n9);
 
-  --success: 142 71% 56%;
-  --success-foreground: 220 13% 4%;
+  /*                       kartu   bg-X/10 di kartu   bg-X/10 di baris zebra
+   *   warning     #f3b75e  9.51        7.75                  6.78
+   *   success     #50ce9b  8.58        7.13                  6.25
+   *   destructive #ef756c  6.00        5.20                  4.57  */
+  --destructive: 4 80% 68%;
+  --destructive-foreground: 30 6% 7%;
 
-  --warning: 38 92% 60%;
-  --warning-foreground: 220 13% 4%;
+  --success: 156 56% 56%;
+  --success-foreground: 30 6% 7%;
 
-  --border: 220 8% 11%;
-  --input: 220 8% 14%;
-  --ring: 192 75% 48%;
+  --warning: 36 86% 66%;
+  --warning-foreground: 30 6% 7%;
+
+  /* Yang lama `220 8% 11%` duduk di 1.05:1 terhadap kartu — garis pemisah yang
+   * secara praktis tidak terlihat. Sekarang 1.58:1. */
+  --border: var(--n5);
+  --input: var(--n6);
+  --ring: 191 70% 52%;
 
   color-scheme: dark;
 }
@@ -132,33 +253,216 @@ html {
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* CSS MATI yang dibuang dari berkas ini:
+ *
+ * 1. `font-feature-settings: 'cv11', 'ss01', 'ss03'` di <body>. Ketiganya
+ *    adalah fitur alternat milik Inter. Tidak ada satu pun di IBM Plex — dan
+ *    `cv11` juga tidak ada di Inter Tight yang dipakai sebelumnya. Aturan itu
+ *    tidak pernah berlaku sekali pun sejak ditulis.
+ * 2. `@keyframes pulse-dot` + `@utility animate-pulse-dot`. Nol pemakai di
+ *    seluruh src/.
+ * 3. Aturan `.tabular-nums` tulisan tangan. Tailwind v4 sudah menyediakan
+ *    utilitas `tabular-nums` bawaan, jadi yang tulisan tangan hanya menggandakan
+ *    deklarasi yang sama.
+ */
+
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-/* Tabular numbers for amounts/IDs in tables */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
-}
-
-@utility animate-pulse-dot {
-  animation: pulse-dot 1.5s ease-in-out infinite;
+  letter-spacing: -0.011em;
 }
 
 ::selection {
-  background-color: hsl(var(--primary) / 0.25);
+  background-color: hsl(var(--primary) / 0.22);
   color: hsl(var(--foreground));
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CINCIN FOKUS
+ *
+ * Pola `ring-offset-background` ada di 10 berkas. Ia menggambar cincin KEDUA
+ * berwarna LATAR HALAMAN di antara elemen dan cincin fokusnya. Di atas kartu
+ * — dan hampir semua isian di aplikasi ini duduk di atas kartu — warna itu
+ * bukan warna di belakang elemennya, jadi hasilnya terbaca sebagai garis tebal
+ * berlapis, bukan sebagai fokus.
+ *
+ * Diganti satu cincin tipis tanpa offset, di komponen `ui/`, bukan ditambal
+ * per halaman. Aturan di bawah adalah jaring pengaman untuk pemanggil yang
+ * masih menyisipkan `ring-offset-*` lewat className.
+ * ──────────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: transparent;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * TABEL BERSAMA
+ *
+ * `[data-usdx-table]` dipasang oleh `components/ui/table.tsx`, jadi seluruh
+ * halaman tabel ikut sekaligus.
+ *
+ * a. BARIS DIPISAH OLEH ISIAN, BUKAN OLEH GARIS. Garis antar-baris memaksa mata
+ *    membaca tiap baris sebagai kotak tersendiri — persis keluhan "terlalu
+ *    kotak". Belang tipis (1.15:1) plus sorotan yang benar-benar terlihat
+ *    (1.30:1, sebelumnya 1.04:1) melakukan pekerjaan yang sama tanpa garis.
+ *
+ * b. SEL MEMOTONG, BUKAN MELUAP. `overflow: hidden` + elipsis berlaku saat sel
+ *    memang punya lebar yang mengikat (tabel dengan `size` per kolom). Sengaja
+ *    TANPA `white-space: nowrap` global: beberapa kolom memang berisi kalimat
+ *    yang harus boleh turun baris (alasan resolve, catatan mutasi), dan
+ *    memaksanya satu baris akan menarik tabelnya jadi ribuan piksel.
+ *
+ *    Yang memecah alamat surel jadi satu huruf per baris bukan pembungkusan
+ *    biasa melainkan `word-break: break-all` di dalam selnya: ia membuat lebar
+ *    minimum kolom = SATU HURUF, dan itulah izin yang dipakai peramban untuk
+ *    memeras kolom sampai habis. Kelas itu dibuang dari sel tabel; nilai yang
+ *    memang panjang dipotong lewat `TableCellText` (elipsis + tooltip).
+ * ──────────────────────────────────────────────────────────────────────── */
+[data-usdx-table] tbody tr {
+  border-bottom: 0;
+}
+[data-usdx-table] tbody tr:nth-child(odd) {
+  background-color: hsl(var(--muted) / 0.7);
+}
+[data-usdx-table] tbody tr[data-hoverable]:hover {
+  background-color: hsl(var(--accent));
+}
+[data-usdx-table] thead tr {
+  border-bottom: 1px solid hsl(var(--border));
+}
+/* Sel BARIS DATA dipotong, tidak dilipat.
+ *
+ * Dipasangkan dengan `table-layout: fixed` di DataTable. Tanpa ini peramban
+ * memilih melipat isi yang tidak muat, dan satu nilai yang patah dua baris
+ * menaikkan tinggi SELURUH barisnya — irama 42px hilang di satu baris karena
+ * satu sel. Yang memang harus turun baris (catatan mutasi BNI) menyatakannya
+ * sendiri lewat `whitespace-pre-wrap` di anaknya, yang menang atas aturan ini.
+ *
+ * Sengaja hanya `tr[data-hoverable]`, yaitu baris DATA. Baris keadaan kosong
+ * dan baris galat berisi kalimat utuh yang memang harus melipat. */
+[data-usdx-table] tbody tr[data-hoverable] > td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Bayangan gulir mendatar, tanpa JavaScript.
+ *
+ * Dua lapis pertama sewarna kartu dan ikut MENGGULIR bersama isi
+ * (`background-attachment: local`); dua lapis bayangan diam di tepi
+ * (`scroll`). Hasilnya bayangan hanya terlihat selama masih ada isi ke arah
+ * itu dan hilang sendiri di ujungnya — jawaban atas "apakah masih ada kolom di
+ * sebelah kanan" tanpa satu baris skrip dan tanpa gerak. */
+[data-usdx-scroll] {
+  background:
+    linear-gradient(to right, hsl(var(--card)) 0 60%, hsl(var(--card) / 0)) left center / 30px 100% no-repeat local,
+    linear-gradient(to left, hsl(var(--card)) 0 60%, hsl(var(--card) / 0)) right center / 30px 100% no-repeat local,
+    linear-gradient(to right, hsl(var(--foreground) / 0.16), hsl(var(--foreground) / 0)) left center / 16px 100% no-repeat scroll,
+    linear-gradient(to left, hsl(var(--foreground) / 0.16), hsl(var(--foreground) / 0)) right center / 16px 100% no-repeat scroll;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * GERAK — tiga, disengaja, masing-masing menjawab satu pertanyaan operator
+ *
+ * Tema sebelumnya punya NOL gerak yang benar-benar jalan. Komponen `ui/`
+ * menuliskan `data-[state=open]:animate-in`, `fade-in-0`, `zoom-in-95`, dan
+ * `slide-in-from-*` di tujuh berkas — tapi utilitas itu datang dari paket
+ * `tailwindcss-animate`, yang TIDAK terpasang di repo ini. Jadi seluruh kelas
+ * itu tidak pernah menghasilkan satu baris CSS pun: dialog, sheet, dropdown,
+ * select, popover, dan tooltip semuanya muncul mendadak.
+ *
+ * Diganti tiga gerak yang ditulis sendiri supaya durasi dan asalnya bisa
+ * ditentukan, bukan diwarisi:
+ *
+ *   1. SOROTAN BARIS (120ms)  → "mana yang sedang saya tunjuk"
+ *   2. PANEL DARI ASALNYA     → "panel ini datang dari mana / milik apa"
+ *   3. BARIS BARU (180ms)     → "yang ini baru masuk"
+ *
+ * Nomor 3 hanya berjalan pada baris yang benar-benar baru dipasang: React
+ * memakai id baris sebagai key, jadi baris yang bertahan melewati penarikan
+ * ulang tidak ikut berkedip. Di antrean yang menarik ulang tiap 15 detik, itu
+ * membedakan "ada yang masuk" dari "layarnya cuma disegarkan".
+ * ──────────────────────────────────────────────────────────────────────── */
+@keyframes usdx-redup-masuk {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes usdx-panel-masuk {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.975); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes usdx-panel-keluar {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -48%) scale(0.975); }
+}
+@keyframes usdx-pop-masuk {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes usdx-pop-keluar {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.97); }
+}
+@keyframes usdx-laci-kanan-masuk {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes usdx-laci-kanan-keluar {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+@keyframes usdx-laci-kiri-masuk {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes usdx-laci-kiri-keluar {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+
+@utility animate-tirai-masuk { animation: usdx-redup-masuk 160ms ease-out; }
+@utility animate-tirai-keluar { animation: usdx-redup-masuk 140ms ease-in reverse; }
+@utility animate-panel-masuk { animation: usdx-panel-masuk 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+@utility animate-panel-keluar { animation: usdx-panel-keluar 140ms ease-in; }
+
+/* `--radix-popper-transform-origin` membuat menu tumbuh DARI pemicunya, bukan
+ * dari tengah dirinya sendiri. Itu yang menjawab "panel ini milik tombol yang
+ * mana" tanpa satu kata pun. */
+@utility animate-pop-masuk {
+  animation: usdx-pop-masuk 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: var(--radix-popper-transform-origin, center);
+}
+@utility animate-pop-keluar {
+  animation: usdx-pop-keluar 110ms ease-in;
+  transform-origin: var(--radix-popper-transform-origin, center);
+}
+@utility animate-laci-kanan-masuk { animation: usdx-laci-kanan-masuk 240ms cubic-bezier(0.32, 0.72, 0, 1); }
+@utility animate-laci-kanan-keluar { animation: usdx-laci-kanan-keluar 200ms ease-in; }
+@utility animate-laci-kiri-masuk { animation: usdx-laci-kiri-masuk 240ms cubic-bezier(0.32, 0.72, 0, 1); }
+@utility animate-laci-kiri-keluar { animation: usdx-laci-kiri-keluar 200ms ease-in; }
+@utility animate-baris-masuk { animation: usdx-redup-masuk 180ms ease-out both; }
+
+/* Tinggi baris tabel 42px. Carbon, Fluent, MUI, dan Ant semuanya mendarat di
+ * 40-44; yang lama 52px dan selisih 10px itu tiga baris lebih sedikit per
+ * layar. Dinamai supaya tidak kembali jadi angka sembarang di tiap halaman. */
+@utility h-baris-tabel { height: 2.625rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -22,13 +22,13 @@ function Dash() {
 }
 
 function MonoCell({ value }: { value: string | null | undefined }) {
-  return value ? <span className="font-mono text-[12px] tabular-nums">{value}</span> : <Dash />
+  return value ? <span className="font-mono text-xs tabular-nums">{value}</span> : <Dash />
 }
 
 function buildStatementColumns(currency: string | null | undefined): ColumnDef<IndexedStatementRow>[] {
   const amount = (row: BniStatementRow, key: 'amount' | 'balance') =>
     row[key] == null ? <Dash /> : (
-      <span className="font-mono text-[12px] font-medium tabular-nums">
+      <span className="font-mono text-xs font-medium tabular-nums">
         {formatBankAmount(row[key], currency)}
       </span>
     )
@@ -37,7 +37,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       id: 'postDate',
       header: 'Tanggal posting',
       cell: ({ row }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatBniPostDate(row.original.row.postDate)}
         </span>
       ),
@@ -61,7 +61,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       id: 'description',
       header: 'Deskripsi',
       cell: ({ row }) => (
-        <span className="block max-w-[28rem] whitespace-pre-wrap break-words text-[12.5px]">
+        <span className="block max-w-[28rem] whitespace-pre-wrap break-words text-xs">
           {row.original.row.description || <Dash />}
         </span>
       ),
@@ -75,7 +75,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       id: 'branchName',
       header: 'Cabang',
       cell: ({ row }) => (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {row.original.row.branchName || <Dash />}
         </span>
       ),
@@ -86,7 +86,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       cell: ({ row }) => {
         const label = statementSourceLabel(row.original.row.source)
         return label ? (
-          <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
             {label}
           </span>
         ) : (

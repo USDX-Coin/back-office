@@ -66,7 +66,7 @@ function TestBundleAddress({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 text-sm text-foreground">{children}</dd>
@@ -117,7 +117,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Mode Mint
         </CardTitle>
       </CardHeader>
@@ -140,7 +140,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
               >
                 {isTest ? 'MODE UJI' : 'PROD'}
               </Badge>
-              <p className="text-[12.5px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {isTest
                   ? 'Mint mencetak token uji, bukan USDX.'
                   : 'Mint mencetak USDX.'}
@@ -183,17 +183,17 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 token dan Safe MANA sesi uji yang sedang jalan mencetak. */}
             {isTest ? (
               <div className="border-t border-border pt-4">
-                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Bundle uji
                 </p>
                 <dl className="mt-2 space-y-2" data-testid="test-bundle-addresses">
                   {(Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]).map(
                     (field) => (
                       <div key={field} className="flex items-baseline justify-between gap-3">
-                        <dt className="text-[12.5px] text-muted-foreground">
+                        <dt className="text-xs text-muted-foreground">
                           {TEST_BUNDLE_ADDRESS_LABELS[field]}
                         </dt>
-                        <dd className="font-mono text-[12.5px]">
+                        <dd className="font-mono text-xs">
                           <TestBundleAddress
                             address={data[field]}
                             explorerBaseUrl={explorerBaseUrl}
@@ -213,7 +213,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 boleh menuntut seseorang membuka layar penggeseran mode. */}
             {isTest ? (
               <div className="border-t border-border pt-4">
-                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Boleh mint selama mode uji
                 </p>
                 {allowedEmails.length > 0 ? (
@@ -224,7 +224,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                     {allowedEmails.map((email) => (
                       <li
                         key={email}
-                        className="rounded-full border border-border bg-muted/60 px-2.5 py-0.5 font-mono text-[12px]"
+                        className="rounded-full border border-border bg-muted/60 px-2.5 py-0.5 font-mono text-xs"
                       >
                         {email}
                       </li>
@@ -236,7 +236,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                   // dibatasi", dan itu kebalikan artinya.
                   <p
                     data-testid="allowed-emails-empty"
-                    className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+                    className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
                   >
                     Kosong — tidak ada satu pun user yang bisa mint sekarang.
                     Semua melihat pemberitahuan pemeliharaan.
@@ -262,7 +262,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 </Button>
               ) : null}
               {!isTest && !canEnableTest ? (
-                <p className="text-[12.5px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Hanya Manager dan Admin yang bisa menggeser mint ke mode uji.
                 </p>
               ) : null}

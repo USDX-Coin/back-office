@@ -48,7 +48,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-[12.5px]">
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-xs">
           {active ? (
             order === 'asc' ? (
               <ArrowUp className="h-3.5 w-3.5" />
@@ -70,7 +70,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
       <PopoverContent className="w-64">
         <div className="space-y-3">
           <div>
-            <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
               Sort by
             </p>
             <Select value={sortBy || NONE} onValueChange={setField}>
@@ -88,7 +88,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
             </Select>
           </div>
           <div>
-            <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
               Order
             </p>
             <div className="grid grid-cols-2 gap-1.5">
@@ -120,7 +120,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
             <button
               type="button"
               onClick={() => onChange('', '')}
-              className="text-[12px] text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
               Clear sort
             </button>

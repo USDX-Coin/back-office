@@ -64,14 +64,14 @@ export default function Navbar() {
               />
             )}
           </button>
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
+          <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-sm font-bold tracking-tight">
             U
           </div>
-          <span className="text-[14px] font-semibold tracking-tight">USDX</span>
+          <span className="text-base font-semibold tracking-tight">USDX</span>
         </div>
 
         <nav
-          className="hidden lg:flex items-center gap-1.5 text-[12.5px]"
+          className="hidden lg:flex items-center gap-1.5 text-xs"
           aria-label="Breadcrumb"
         >
           {segments.map((seg, i) => (
@@ -93,10 +93,10 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-1">
-          <div className="relative hidden lg:flex h-7 w-64 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-[12px] text-muted-foreground/80 hover:border-border/80 transition-colors">
+          <div className="relative hidden lg:flex h-7 w-64 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-xs text-muted-foreground/80 hover:border-border/80 transition-colors">
             <Search className="h-3.5 w-3.5" />
             <span>Search…</span>
-            <kbd className="ml-auto rounded border border-border px-1 font-mono text-[10px] leading-none py-0.5">
+            <kbd className="ml-auto rounded border border-border px-1 font-mono text-2xs leading-none py-0.5">
               ⌘K
             </kbd>
           </div>

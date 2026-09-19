@@ -111,10 +111,10 @@ function Field({
 }) {
   return (
     <div data-testid={testId}>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -122,7 +122,7 @@ function Field({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         {title}
       </p>
       {children}
@@ -151,15 +151,15 @@ function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) 
   if (value === PII_MASK) {
     return (
       <span className="flex flex-wrap items-baseline gap-1.5">
-        <span className="font-mono text-[12.5px]">{PII_MASK}</span>
-        <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="font-mono text-xs">{PII_MASK}</span>
+        <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {PII_WITHHELD_LABEL}
         </span>
       </span>
     )
   }
   return mono ? (
-    <span className="break-all font-mono text-[12.5px] tabular-nums">{value}</span>
+    <span className="break-all font-mono text-xs tabular-nums">{value}</span>
   ) : (
     <>{value}</>
   )
@@ -177,9 +177,9 @@ function PiiValue({ value, staff }: { value: string | null; staff: Staff | null 
   if (shown === null) return <Dim />
   return (
     <span className="flex flex-wrap items-baseline gap-1.5">
-      <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
+      <span className="break-all font-mono text-xs tabular-nums">{shown}</span>
       {isPiiWithheld(value, staff) && (
-        <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {PII_WITHHELD_LABEL}
         </span>
       )}
@@ -239,9 +239,9 @@ function UboDocLink({
             Buka dokumen
           </a>
         ) : uploadedNow ? (
-          <span className="text-[11.5px] text-primary">Terunggah — muat ulang untuk membuka</span>
+          <span className="text-2xs text-primary">Terunggah — muat ulang untuk membuka</span>
         ) : urlsWithheld ? (
-          <span className="text-[11.5px] uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
             not shown to your role
           </span>
         ) : (
@@ -251,12 +251,12 @@ function UboDocLink({
         {canUpload && (
           <>
             {uploading && (
-              <span className="text-[11px] text-muted-foreground">Uploading…</span>
+              <span className="text-2xs text-muted-foreground">Uploading…</span>
             )}
             <label
               htmlFor={inputId}
               className={cn(
-                'cursor-pointer rounded-md border border-border px-2 py-0.5 text-[11px] font-medium hover:bg-muted',
+                'cursor-pointer rounded-md border border-border px-2 py-0.5 text-2xs font-medium hover:bg-muted',
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
@@ -287,7 +287,7 @@ function UboDocLink({
         )}
       </div>
       {error && (
-        <p className="mt-1 text-[11.5px] text-destructive" role="alert">
+        <p className="mt-1 text-2xs text-destructive" role="alert">
           {error}
         </p>
       )}
@@ -359,24 +359,24 @@ function UboCard({
   return (
     <li className="rounded-md border border-border px-3 py-2.5" data-testid="kyb-ubo">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-[13px] font-medium">
-          <span className="mr-1.5 font-mono text-[11px] text-muted-foreground">
+        <span className="text-sm font-medium">
+          <span className="mr-1.5 font-mono text-2xs text-muted-foreground">
             #{index + 1}
           </span>
           {name}
           {ubo.aliasName && (
-            <span className="ml-1.5 text-[12px] font-normal text-muted-foreground">
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
               alias {presentPii(ubo.aliasName, staff) ?? '—'}
             </span>
           )}
         </span>
-        <span className="font-mono text-[12px] tabular-nums text-primary">
+        <span className="font-mono text-xs tabular-nums text-primary">
           {ubo.ownershipPct}%
         </span>
       </div>
 
       {ubo.cascadeStep !== null && (
-        <p className="mb-2 text-[11.5px] text-muted-foreground">
+        <p className="mb-2 text-2xs text-muted-foreground">
           Ditemukan lewat{' '}
           <span className="text-foreground">
             {labelFor(ubo.cascadeStep, UBO_CASCADE_STEP_LABELS)}
@@ -465,7 +465,7 @@ function UboCard({
           {relationshipWithoutDoc && (
             <li
               data-testid="kyb-ubo-finding-legal-doc"
-              className="flex items-start gap-1.5 text-[11.5px] text-muted-foreground"
+              className="flex items-start gap-1.5 text-2xs text-muted-foreground"
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
               <span>
@@ -477,7 +477,7 @@ function UboCard({
           {declarationMissing && (
             <li
               data-testid="kyb-ubo-finding-declaration"
-              className="flex items-start gap-1.5 text-[11.5px] text-muted-foreground"
+              className="flex items-start gap-1.5 text-2xs text-muted-foreground"
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
               <span>
@@ -574,14 +574,14 @@ function DocumentSlotRow({
             href={doc.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[12.5px] font-medium text-primary hover:underline"
+            className="text-xs font-medium text-primary hover:underline"
           >
             {label}
           </a>
         ) : (
           <span
             className={cn(
-              'text-[12.5px] font-medium',
+              'text-xs font-medium',
               missing
                 ? 'text-destructive'
                 : uploadedNow
@@ -595,7 +595,7 @@ function DocumentSlotRow({
         {!doc && (
           <span
             className={cn(
-              'rounded-sm px-1.5 py-0.5 text-[10.5px] uppercase tracking-[0.04em]',
+              'rounded-sm px-1.5 py-0.5 text-2xs uppercase tracking-[0.04em]',
               missing
                 ? 'bg-destructive/10 font-medium text-destructive'
                 : uploadedNow
@@ -616,12 +616,12 @@ function DocumentSlotRow({
         {canUpload && (
           <div className="ml-auto flex items-center gap-2">
             {uploading && (
-              <span className="text-[11px] text-muted-foreground">Uploading…</span>
+              <span className="text-2xs text-muted-foreground">Uploading…</span>
             )}
             <label
               htmlFor={inputId}
               className={cn(
-                'cursor-pointer rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted',
+                'cursor-pointer rounded-md border border-border px-2 py-1 text-2xs font-medium hover:bg-muted',
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
@@ -654,7 +654,7 @@ function DocumentSlotRow({
       {error && (
         <p
           data-testid={`kyb-upload-error-${slot}`}
-          className="mt-1.5 text-[11.5px] text-destructive"
+          className="mt-1.5 text-2xs text-destructive"
         >
           {error}
         </p>
@@ -1015,7 +1015,7 @@ export default function KybDetailModal({
                   {status && (
                     <span
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
                         getKycStatusConfig(status).className,
                       )}
                     >
@@ -1032,7 +1032,7 @@ export default function KybDetailModal({
                     <button
                       type="button"
                       onClick={() => copyText(kybId, 'KYB ID')}
-                      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
                       title={kybId}
                       aria-label="Copy KYB ID"
                     >
@@ -1042,7 +1042,7 @@ export default function KybDetailModal({
                   )}
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                     Submitted{' '}
                     {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
@@ -1160,7 +1160,7 @@ export default function KybDetailModal({
                         dokumen tambahan bisa diperbaiki petugas, keliru
                         melepasnya ketahuan saat diperiksa OJK. */}
                     <p
-                      className="mt-3 text-[12px] text-muted-foreground"
+                      className="mt-3 text-xs text-muted-foreground"
                       data-testid="kyb-business-scale"
                     >
                       {detail.entityForm === 'PT_PERORANGAN' ? (
@@ -1212,7 +1212,7 @@ export default function KybDetailModal({
                       // Not a neutral empty state: without a UBO there is nothing
                       // to run due diligence ON, so this record cannot honestly
                       // be approved.
-                      <p className="rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+                      <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
                         No UBO recorded. A KYB record without an ultimate
                         beneficial owner has no due-diligence subject — add at
                         least one before approving.
@@ -1240,7 +1240,7 @@ export default function KybDetailModal({
                         </ul>
                         <p
                           className={cn(
-                            'mt-1.5 font-mono text-[11px] tabular-nums',
+                            'mt-1.5 font-mono text-2xs tabular-nums',
                             ownershipTotal > 100.0001
                               ? 'text-destructive'
                               : 'text-muted-foreground',
@@ -1278,7 +1278,7 @@ export default function KybDetailModal({
                     {missingDocuments !== null && (
                       <p
                         data-testid="kyb-documents-incomplete"
-                        className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+                        className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
                       >
                         {missingDocuments.length > 0 ? (
                           <>
@@ -1327,7 +1327,7 @@ export default function KybDetailModal({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="mt-2 h-7 text-[11.5px]"
+                        className="mt-2 h-7 text-2xs"
                         onClick={() => detailQuery.refetch()}
                         disabled={detailQuery.isFetching}
                       >
@@ -1336,7 +1336,7 @@ export default function KybDetailModal({
                           : 'Reload record to open the new documents'}
                       </Button>
                     )}
-                    <p className="mt-2 text-[11px] text-muted-foreground">
+                    <p className="mt-2 text-2xs text-muted-foreground">
                       {urlsWithheld
                         ? 'Your role is not given document links — an empty slot here does not mean the document is missing.'
                         : canUpload
@@ -1348,7 +1348,7 @@ export default function KybDetailModal({
                   {(detail.rejectionReason || detail.reviewedAt) && (
                     <div className="space-y-2 rounded-md bg-muted/60 px-3 py-2.5">
                       {detail.rejectionReason && (
-                        <p className="text-[12.5px] text-foreground">
+                        <p className="text-xs text-foreground">
                           <span className="font-medium text-destructive">
                             Rejection reason:
                           </span>{' '}
@@ -1356,7 +1356,7 @@ export default function KybDetailModal({
                         </p>
                       )}
                       {detail.reviewedAt && (
-                        <p className="text-[12px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Reviewed by {detail.reviewedByName ?? '—'} ·{' '}
                           {formatDate(detail.reviewedAt)}
                         </p>
@@ -1491,7 +1491,7 @@ export default function KybDetailModal({
                 <FieldError message={reasonError} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-[11px] tabular-nums',
+                    'ml-auto font-mono text-2xs tabular-nums',
                     reason.length >= KYB_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground',

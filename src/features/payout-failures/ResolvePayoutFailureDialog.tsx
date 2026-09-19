@@ -85,7 +85,7 @@ function ReplacementAccountNote({ detail, hasAccounts }: { detail: PayoutFailure
       'Nasabah belum menyimpan rekening lain, jadi kirim ulang selalu ke rekening di atas. Kalau rekening itu yang salah, jangan kirim ulang — rekening pengganti harus ditambahkan nasabah lewat app, lalu buka ulang detail ini.'
   }
   return (
-    <p className="flex items-start gap-2 text-[12px] text-muted-foreground" data-testid="replacement-account-note">
+    <p className="flex items-start gap-2 text-xs text-muted-foreground" data-testid="replacement-account-note">
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <span>{text}</span>
     </p>
@@ -109,17 +109,17 @@ function Consequence({
       : currentDestination(detail)
     return (
       <div className="space-y-2" data-testid="resolve-consequence">
-        <p className="text-[12.5px]">
+        <p className="text-xs">
           Referensi transfer <strong>baru</strong> diterbitkan dan order kembali ke antrean
           pengiriman — <strong>{formatIdrExact(detail.netPayoutIdr)}</strong> dikirim pada
           putaran Disbursement Trigger berikutnya ke{' '}
           {target ? <strong>rekening pengganti</strong> : 'rekening tujuan saat ini'}:
         </p>
-        <p className="rounded-md border border-border px-3 py-2 text-[12.5px]">
+        <p className="rounded-md border border-border px-3 py-2 text-xs">
           <DestinationLine destination={destination} />
         </p>
         {target && (
-          <p className="flex items-start gap-2 text-[12px] text-amber-700 dark:text-amber-400">
+          <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Menggantikan rekening tujuan saat ini ({detail.bankName} ·{' '}
@@ -134,7 +134,7 @@ function Consequence({
   if (action === 'SETTLED_MANUAL') {
     return (
       <p
-        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-[12.5px]"
+        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs"
         data-testid="resolve-consequence"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -148,7 +148,7 @@ function Consequence({
   }
   return (
     <p
-      className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+      className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
       data-testid="resolve-consequence"
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -260,7 +260,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
 
             {action === 'SETTLED_MANUAL' && (
               <div className="space-y-1.5">
-                <label htmlFor="resolve-external-ref" className="text-[12.5px] font-medium">
+                <label htmlFor="resolve-external-ref" className="text-xs font-medium">
                   Nomor referensi transfer bank <span className="text-destructive">*</span>
                 </label>
                 <Input
@@ -278,7 +278,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="resolve-reason" className="text-[12.5px] font-medium">
+              <label htmlFor="resolve-reason" className="text-xs font-medium">
                 Alasan <span className="text-destructive">*</span>
               </label>
               <Textarea
@@ -296,7 +296,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
                 <FieldError message={touched.reason ? errors.reason ?? '' : ''} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-[11px] tabular-nums',
+                    'ml-auto font-mono text-2xs tabular-nums',
                     reason.length >= PAYOUT_RESOLVE_REASON_MAX ? 'text-destructive' : 'text-muted-foreground',
                   )}
                 >
@@ -308,7 +308,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
             {serverError && (
               <p
                 role="alert"
-                className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive"
+                className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
               >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{serverError}</span>

@@ -116,10 +116,10 @@ function Field({
 }) {
   return (
     <div data-testid={testId}>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -161,9 +161,9 @@ function PiiField({
         <span className="text-muted-foreground">—</span>
       ) : (
         <span className="flex flex-wrap items-baseline gap-1.5">
-          <span className="break-all font-mono text-[12.5px] tabular-nums">{shown}</span>
+          <span className="break-all font-mono text-xs tabular-nums">{shown}</span>
           {withheld && (
-            <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
               {PII_WITHHELD_LABEL}
             </span>
           )}
@@ -215,7 +215,7 @@ function CddFinding({
     <p
       role="status"
       data-testid={testId}
-      className="flex items-start gap-2 rounded-sm border border-warning/30 bg-warning/5 px-2.5 py-2 text-[12px] text-foreground"
+      className="flex items-start gap-2 rounded-sm border border-warning/30 bg-warning/5 px-2.5 py-2 text-xs text-foreground"
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
       <span>{children}</span>
@@ -228,7 +228,7 @@ function StatusBadge({ status }: { status: KycDetail['status'] }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         cfg.className
       )}
     >
@@ -272,18 +272,18 @@ function PhotoFigure({
 }) {
   return (
     <figure>
-      <figcaption className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <figcaption className="mb-1 font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </figcaption>
       {url === null ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-[11.5px]">Photo no longer available (purged)</span>
+          <span className="text-2xs">Photo no longer available (purged)</span>
         </div>
       ) : expired ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-[11.5px]">Photo link expired</span>
+          <span className="text-2xs">Photo link expired</span>
         </div>
       ) : (
         <a
@@ -314,18 +314,18 @@ function AuditTrailRow({ row }: { row: KycReviewLog }) {
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5">
       <span
         className={cn(
-          'inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em]',
+          'inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em]',
           cfg.className
         )}
       >
         {cfg.label}
       </span>
-      <span className="text-[12px] text-foreground">{actor}</span>
-      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+      <span className="text-xs text-foreground">{actor}</span>
+      <span className="font-mono text-2xs tabular-nums text-muted-foreground">
         {formatDate(row.createdAt)}
       </span>
       {row.reason && (
-        <span className="basis-full text-[12px] text-muted-foreground">
+        <span className="basis-full text-xs text-muted-foreground">
           “{row.reason}”
         </span>
       )}
@@ -499,7 +499,7 @@ export default function KycDetailModal({
                     <button
                       type="button"
                       onClick={() => copyText(kycId, 'KYC ID')}
-                      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
                       title={kycId}
                       aria-label="Copy KYC ID"
                     >
@@ -509,7 +509,7 @@ export default function KycDetailModal({
                   )}
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                     Submitted {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
@@ -544,7 +544,7 @@ export default function KycDetailModal({
                       {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
                     </Field>
                     <Field label="Identity" testId="kyc-identity-number">
-                      <span className="font-mono text-[12.5px] tabular-nums">
+                      <span className="font-mono text-xs tabular-nums">
                         {detail.identityType}
                         {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
                       </span>
@@ -602,11 +602,11 @@ export default function KycDetailModal({
                       the reviewer back where this ticket started — deciding
                       without looking at what was collected. */}
                   <div className="space-y-2" data-testid="kyc-cdd">
-                    <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+                    <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
                       Customer due diligence
                     </p>
                     {!hasCdd && (
-                      <p className="text-[12px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         No CDD data on this submission — it predates the CDD fields
                         (USDX-545 / USDX-583). Occupation, source of funds, income,
                         net worth, purpose, source of wealth, NPWP and PEP status
@@ -693,7 +693,7 @@ export default function KycDetailModal({
                         ) : detail.pepStatus ? (
                           // Emphasised: a PEP hit changes what the reviewer is
                           // supposed to do, so it must not read like any other row.
-                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-[11.5px] font-medium text-warning">
+                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
                             <span className="h-1.5 w-1.5 rounded-full bg-warning" />
                             Politically exposed person
                           </span>
@@ -724,11 +724,11 @@ export default function KycDetailModal({
                   {/* Photos — presigned GET URLs, TTL 5 min */}
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+                      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
                         Documents
                       </p>
                       {expiryLabel && (
-                        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                           {expiryLabel}
                         </span>
                       )}
@@ -737,7 +737,7 @@ export default function KycDetailModal({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 gap-1.5 text-[12px]"
+                            className="h-7 gap-1.5 text-xs"
                             onClick={() => detailQuery.refetch()}
                             disabled={detailQuery.isFetching}
                           >
@@ -766,7 +766,7 @@ export default function KycDetailModal({
                   {(detail.rejectionReason || detail.reviewedAt) && (
                     <div className="space-y-2 rounded-md bg-muted/60 px-3 py-2.5">
                       {detail.rejectionReason && (
-                        <p className="text-[12.5px] text-foreground">
+                        <p className="text-xs text-foreground">
                           <span className="font-medium text-destructive">
                             Rejection reason:
                           </span>{' '}
@@ -774,7 +774,7 @@ export default function KycDetailModal({
                         </p>
                       )}
                       {detail.reviewedAt && (
-                        <p className="text-[12px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Reviewed by {detail.reviewedByName ?? '—'} ·{' '}
                           {formatDate(detail.reviewedAt)}
                         </p>
@@ -787,7 +787,7 @@ export default function KycDetailModal({
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-[12.5px] font-medium hover:bg-muted/60"
+                        className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
                       >
                         Audit trail
                         <ChevronDown
@@ -806,7 +806,7 @@ export default function KycDetailModal({
                             <Skeleton className="h-3.5 w-2/3" />
                           </div>
                         ) : reviewsQuery.isError ? (
-                          <p className="py-1 text-[12px] text-destructive">
+                          <p className="py-1 text-xs text-destructive">
                             Failed to load audit trail.
                           </p>
                         ) : (
@@ -815,7 +815,7 @@ export default function KycDetailModal({
                               <AuditTrailRow key={row.id} row={row} />
                             ))}
                             {reviewsQuery.data?.length === 0 && (
-                              <li className="py-1 text-[12px] text-muted-foreground">
+                              <li className="py-1 text-xs text-muted-foreground">
                                 No audit entries yet.
                               </li>
                             )}
@@ -950,7 +950,7 @@ export default function KycDetailModal({
                 <FieldError message={reasonError} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-[11px] tabular-nums',
+                    'ml-auto font-mono text-2xs tabular-nums',
                     reason.length >= KYC_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground'

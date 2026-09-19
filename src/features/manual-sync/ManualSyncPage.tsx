@@ -180,7 +180,7 @@ export default function ManualSyncPage() {
         const isHighlight = activeHighlight === row.original.id
         return (
           <span
-            className="inline-flex items-center gap-1.5 font-mono text-[11.5px]"
+            className="inline-flex items-center gap-1.5 font-mono text-2xs"
             data-highlight-anchor={isHighlight ? 'true' : undefined}
           >
             <span className="text-foreground" title={row.original.id}>
@@ -211,7 +211,7 @@ export default function ManualSyncPage() {
           <Badge
             variant="secondary"
             className={cn(
-              'rounded-sm text-[10.5px] font-medium uppercase tracking-[0.04em]',
+              'rounded-sm text-2xs font-medium uppercase tracking-[0.04em]',
               TYPE_BADGE_CLASS[t]
             )}
           >
@@ -226,7 +226,7 @@ export default function ManualSyncPage() {
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
         return (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span className={cn('h-1.5 w-1.5 rounded-full', CHAIN_DOT[c])} />
             {CHAIN_LABEL[c] ?? c}
           </span>
@@ -239,7 +239,7 @@ export default function ManualSyncPage() {
       cell: ({ row }) => (
         <div className="flex flex-col leading-tight">
           <span className="font-medium">{row.original.userName}</span>
-          <span className="font-mono text-[10.5px] text-muted-foreground">
+          <span className="font-mono text-2xs text-muted-foreground">
             <TruncatedHash value={row.original.userAddress} />
           </span>
         </div>
@@ -249,7 +249,7 @@ export default function ManualSyncPage() {
       accessorKey: 'safeType',
       header: 'Safe',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
         </span>
       ),
@@ -263,7 +263,7 @@ export default function ManualSyncPage() {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
-          <span className="text-[10.5px] text-muted-foreground">USDX</span>
+          <span className="text-2xs text-muted-foreground">USDX</span>
         </span>
       ),
     },
@@ -294,7 +294,7 @@ export default function ManualSyncPage() {
           type="button"
           size="sm"
           variant="secondary"
-          className="h-7 text-[11.5px]"
+          className="h-7 text-2xs"
           onClick={(e) => {
             e.stopPropagation()
             setActiveItem(row.original)

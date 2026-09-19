@@ -288,7 +288,7 @@ export default function KybFormPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-[12px]"
+            className="h-7 text-xs"
             onClick={() => navigate('/kyb')}
           >
             <ArrowLeft className="mr-1 h-3.5 w-3.5" />
@@ -299,7 +299,7 @@ export default function KybFormPage() {
 
       <form onSubmit={handleSubmit} className="max-w-3xl space-y-7" noValidate>
         <section className="space-y-3">
-          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+          <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
             Account
           </h2>
           <div>
@@ -321,7 +321,7 @@ export default function KybFormPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+          <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
             Entity
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -529,7 +529,7 @@ export default function KybFormPage() {
               KYB, dan itu baru ada setelah berkas ini tersimpan. */}
           {form.isMicroOrSmall !== '' && (
             <p
-              className="rounded-md bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground"
+              className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground"
               data-testid="kyb-required-documents-preview"
             >
               Dokumen yang harus lengkap sebelum berkas ini bisa disetujui —
@@ -549,14 +549,14 @@ export default function KybFormPage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+            <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
               Ultimate beneficial owners
             </h2>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 text-[12px]"
+              className="h-7 text-xs"
               onClick={addUbo}
               disabled={create.isPending}
             >
@@ -570,7 +570,7 @@ export default function KybFormPage() {
             {form.ubos.map((ubo, index) => (
               <li key={index} className="rounded-md border border-border p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+                  <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
                     UBO #{index + 1}
                   </span>
                   {form.ubos.length > 1 && (
@@ -684,7 +684,7 @@ export default function KybFormPage() {
                       usaha kalau identitas Pemilik Manfaat tidak bisa diyakini;
                       nama dan nomor identitas saja bukan bahan untuk itu. */}
                   <div className="sm:col-span-2 mt-1 border-t border-border pt-2">
-                    <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="font-mono text-2xs uppercase tracking-[0.08em] text-muted-foreground">
                       Pasal 33 (3) — identitas &amp; profil
                     </span>
                   </div>
@@ -883,7 +883,7 @@ export default function KybFormPage() {
           <Button type="submit" disabled={create.isPending}>
             {create.isPending ? 'Saving…' : 'Save KYB record'}
           </Button>
-          <span className="text-[12px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Saved as <strong>PENDING</strong> — documents are attached and the record
             is approved or rejected on the review screen.
           </span>

@@ -45,14 +45,14 @@ function BreakdownRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className={strong ? 'text-[12.5px] font-medium' : 'text-[12.5px] text-muted-foreground'}>
+      <span className={strong ? 'text-xs font-medium' : 'text-xs text-muted-foreground'}>
         {label}
       </span>
       <span
         className={
           strong
-            ? 'font-mono text-[13px] font-semibold tabular-nums'
-            : 'font-mono text-[12.5px] tabular-nums text-muted-foreground'
+            ? 'font-mono text-sm font-semibold tabular-nums'
+            : 'font-mono text-xs tabular-nums text-muted-foreground'
         }
       >
         {value}
@@ -97,11 +97,11 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
         </div>
       </div>
 
-      <div className="grid gap-2 text-[12px] sm:grid-cols-2">
+      <div className="grid gap-2 text-xs sm:grid-cols-2">
         <p className="text-muted-foreground">
           Kurs terpakai{' '}
           <span className="font-mono tabular-nums text-foreground">{detail.effectiveRate}</span>{' '}
-          <span className="text-[11px]">(dasar {detail.baseRate}, spread jual {detail.spreadSellPct}%)</span>
+          <span className="text-2xs">(dasar {detail.baseRate}, spread jual {detail.spreadSellPct}%)</span>
         </p>
         <p className="text-muted-foreground">
           Burn on-chain{' '}
@@ -139,7 +139,7 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
       </div>
 
       {detail.lateBurn && (
-        <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+        <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             Burn terjadi setelah order kedaluwarsa. Nominal di atas dihitung dari
@@ -232,7 +232,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
               <PayoutDestinationSummary row={row} />
 
               <p
-                className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-[12.5px]"
+                className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs"
                 data-testid="approve-irreversible-warning"
               >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
@@ -251,7 +251,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
                 </div>
               ) : detailQuery.isError ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/60 px-3 py-2">
-                  <p className="text-[12.5px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Rincian kurs dan biaya gagal dimuat. Nominal, bank, dan rekening
                     di atas tetap berlaku — keputusan masih bisa diambil.
                   </p>
@@ -266,7 +266,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
               <div className="space-y-2">
                 <label
                   htmlFor="approve-note"
-                  className="text-[12.5px] font-medium text-foreground"
+                  className="text-xs font-medium text-foreground"
                 >
                   Catatan (opsional)
                 </label>
@@ -283,7 +283,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
                   disabled={isMutating}
                 />
                 <FieldError message={noteError} />
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Masuk ke jejak audit bersama nama Anda. Kosongkan kalau tidak ada
                   yang perlu dijelaskan.
                 </p>

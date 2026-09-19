@@ -31,7 +31,7 @@ export default function RateSnapshotCard({
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <TrendingUp className="h-3.5 w-3.5 text-primary" />
           Current rate USD/IDR
         </CardTitle>
@@ -44,12 +44,12 @@ export default function RateSnapshotCard({
         ) : (
           <>
             <p
-              className="text-[22px] font-semibold tracking-tight tabular-nums"
+              className="text-xl font-semibold tracking-tight tabular-nums"
               data-testid="rate-display"
             >
               Rp {formatIdr(effective ?? rate.baseRate)}
             </p>
-            <p className="text-[11.5px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {rate.mode === 'MANUAL' ? 'Manual rate' : 'Dynamic rate'} · spread{' '}
               {direction === 'sell' ? 'jual' : 'beli'} {spread}%
             </p>

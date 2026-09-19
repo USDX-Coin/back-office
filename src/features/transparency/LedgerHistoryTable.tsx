@@ -64,7 +64,7 @@ export default function LedgerHistoryTable({
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Ledger history
         </CardTitle>
       </CardHeader>
@@ -84,7 +84,7 @@ export default function LedgerHistoryTable({
                   {COLUMNS.map((header) => (
                     <TableHead
                       key={header}
-                      className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                      className="h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
                     >
                       {header}
                     </TableHead>
@@ -120,19 +120,19 @@ export default function LedgerHistoryTable({
                         key={entry.id}
                         className="border-border hover:bg-muted/40"
                       >
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-[13px]">
+                        <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-sm">
                           {formatOccurredAt(entry.occurredAt)}
                         </TableCell>
                         <TableCell className="px-4 py-2.5">
                           <Badge
                             variant="outline"
-                            className="font-mono text-[11px] font-medium"
+                            className="font-mono text-2xs font-medium"
                           >
                             {entry.entryType}
                           </Badge>
                         </TableCell>
                         <TableCell
-                          className={`whitespace-nowrap px-4 py-2.5 text-right font-mono text-[13px] font-medium ${
+                          className={`whitespace-nowrap px-4 py-2.5 text-right font-mono text-sm font-medium ${
                             negative ? 'text-destructive' : 'text-foreground'
                           }`}
                         >
@@ -141,13 +141,13 @@ export default function LedgerHistoryTable({
                         {/* `reason` is internal only — it is deliberately absent
                             from the public payload, and this table is the only
                             place it is shown. */}
-                        <TableCell className="max-w-[320px] px-4 py-2.5 text-[13px] text-muted-foreground">
+                        <TableCell className="max-w-[320px] px-4 py-2.5 text-sm text-muted-foreground">
                           {entry.reason}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-[13px]">
+                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm">
                           {entry.createdByName}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-[13px] text-muted-foreground">
+                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
                           {formatDate(entry.createdAt)}
                         </TableCell>
                       </TableRow>

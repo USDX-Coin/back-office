@@ -51,14 +51,14 @@ function ScoreCell({ score }: { score: number | null }) {
   const text = formatScore(score)
   if (text === null) {
     return (
-      <span className="font-mono text-[12px] text-muted-foreground" title="Skor hanya kosong untuk LIST_UNAVAILABLE">
+      <span className="font-mono text-xs text-muted-foreground" title="Skor hanya kosong untuk LIST_UNAVAILABLE">
         —
       </span>
     )
   }
   return (
     <div className="flex min-w-[84px] flex-col gap-1">
-      <span className="font-mono text-[12.5px] font-semibold tabular-nums">{text}</span>
+      <span className="font-mono text-xs font-semibold tabular-nums">{text}</span>
       <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-muted">
         <span
           className="block h-full rounded-full bg-destructive"
@@ -74,7 +74,7 @@ function OutcomeBadge({ outcome }: { outcome: ScreeningOutcome }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
         style.className,
       )}
     >
@@ -140,7 +140,7 @@ export default function ScreeningQueuePage() {
             {matchCount !== null && matchCount > 1 && (
               // Lebih dari satu entri melewati ambang: layak ditinjau lebih
               // hati-hati, karena entri yang ditampilkan hanya salah satunya.
-              <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              <span className="text-2xs text-amber-700 dark:text-amber-400">
                 +{matchCount - 1} entri lain juga cocok
               </span>
             )}
@@ -153,7 +153,7 @@ export default function ScreeningQueuePage() {
       header: 'Subjek',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="text-[12.5px]">
+          <span className="text-xs">
             {SCREENING_SUBJECT_TYPE_LABELS[row.original.subjectType]}
           </span>
           <RequestIdCell id={row.original.subjectId} />
@@ -172,7 +172,7 @@ export default function ScreeningQueuePage() {
         const decision = row.original.decision
         if (!decision) {
           return (
-            <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400">
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
               Menunggu keputusan
             </span>
           )
@@ -180,7 +180,7 @@ export default function ScreeningQueuePage() {
         return (
           <div className="flex min-w-0 flex-col">
             <OutcomeBadge outcome={decision.outcome} />
-            <span className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <span className="mt-0.5 truncate text-2xs text-muted-foreground">
               {decision.decidedByName ?? 'Petugas dihapus'}
             </span>
           </div>
@@ -195,10 +195,10 @@ export default function ScreeningQueuePage() {
         if (!listType) return <span className="text-muted-foreground">—</span>
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="text-[12.5px]">{SANCTION_LIST_TYPE_SHORT[listType]}</span>
+            <span className="text-xs">{SANCTION_LIST_TYPE_SHORT[listType]}</span>
             {/* Menjawab "lolos pakai daftar terbitan tanggal berapa" — pertanyaan
                 pertama seorang pemeriksa, dan alasan tiap versi disimpan. */}
-            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span className="font-mono text-2xs tabular-nums text-muted-foreground">
               terbit {listPublishedAt ?? '—'}
             </span>
           </div>
@@ -209,7 +209,7 @@ export default function ScreeningQueuePage() {
       id: 'trigger',
       header: 'Pemicu',
       cell: ({ row }) => (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {SCREENING_TRIGGER_LABELS[row.original.trigger]}
         </span>
       ),
@@ -218,7 +218,7 @@ export default function ScreeningQueuePage() {
       id: 'createdAt',
       header: 'Diperiksa',
       cell: ({ row }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(row.original.createdAt)}
         </span>
       ),
@@ -233,7 +233,7 @@ export default function ScreeningQueuePage() {
             e.stopPropagation()
             navigate(`/screening/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`Buka banding temuan ${row.original.matchedName ?? row.original.id}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -258,7 +258,7 @@ export default function ScreeningQueuePage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[12px]"
+              className="h-7 text-xs"
               onClick={() => navigate('/screening/lists')}
             >
               <ListChecks className="mr-1 h-3.5 w-3.5" />

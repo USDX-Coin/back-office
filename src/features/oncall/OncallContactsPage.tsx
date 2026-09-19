@@ -149,7 +149,7 @@ export default function OncallContactsPage() {
       header: 'Contact',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="font-mono text-[12px]">{row.original.contactValue}</span>
+        <span className="font-mono text-xs">{row.original.contactValue}</span>
       ),
     },
     {
@@ -159,7 +159,7 @@ export default function OncallContactsPage() {
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.categories.map((category) => (
-            <Badge key={category} variant="outline" className="text-[10.5px]">
+            <Badge key={category} variant="outline" className="text-2xs">
               {formatCategory(category)}
             </Badge>
           ))}
@@ -203,7 +203,7 @@ export default function OncallContactsPage() {
         italicAccent="money incidents"
         subtitle="Money alerts carry the contacts registered here for the matching incident category, so the person who receives an alert knows who to reach."
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+          <Button onClick={openAdd} size="sm" className="h-7 text-xs">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Add Contact
           </Button>
@@ -213,7 +213,7 @@ export default function OncallContactsPage() {
       {!list.isLoading && uncovered.length > 0 && (
         <p
           role="alert"
-          className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400"
+          className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
         >
           {contacts.length === 0
             ? 'No on-call contact is registered at all. '

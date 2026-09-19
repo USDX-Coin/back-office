@@ -249,7 +249,7 @@ export default function StaffPage() {
         } total`}
         actions={
           canManage ? (
-            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
+            <Button onClick={openAdd} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
               Add Staff
             </Button>

@@ -86,7 +86,7 @@ function CopyableMono({ value, label }: { value: string; label: string }) {
     <button
       type="button"
       onClick={() => copy(value, label)}
-      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
       title={value}
       aria-label={`Copy ${label}`}
     >
@@ -117,7 +117,7 @@ function HashLink({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
+        className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
         title={`${linkLabel}: ${value}`}
       >
         <span className="break-all">{shortHash(value)}</span>
@@ -137,10 +137,10 @@ function Field({
 }) {
   return (
     <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -206,18 +206,18 @@ export default function RequestDetailModal({
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+                    'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
                     cfg!.className
                   )}
                 >
                   <span className={cn('h-1.5 w-1.5 rounded-full', cfg!.dotClass)} />
                   {cfg!.label}
                 </span>
-                <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   {detail.safeType} safe · {detail.chain}
                 </span>
               </div>
-              <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+              <span className="font-mono text-2xs tabular-nums text-muted-foreground">
                 {formatDate(detail.createdAt)}
               </span>
             </div>
@@ -243,7 +243,7 @@ export default function RequestDetailModal({
                 <span className="font-mono tabular-nums">{detail.rateUsed}</span>
               </Field>
               <Field label="Amount (wei)">
-                <span className="break-all font-mono text-[11.5px]">
+                <span className="break-all font-mono text-2xs">
                   {detail.amountWei}
                 </span>
               </Field>

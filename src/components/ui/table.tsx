@@ -1,20 +1,80 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
-))
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /**
+   * Lebar minimum tabel dalam piksel. Di bawah angka ini pembungkusnya
+   * menggulir ke samping alih-alih memeras kolom.
+   *
+   * Tanpa ini `<table className="w-full">` akan MENYUSUT sampai muat, dan
+   * kolom yang isinya bisa dipecah (alamat surel di `/transactions` memakai
+   * `break-all`) menyusut sampai selebar SATU HURUF. Hasilnya di layar 900px:
+   * satu baris setinggi ±350px, dan hanya dua transaksi yang terlihat. Lebar
+   * minimum memindahkan keputusannya dari "peras apa pun yang bisa diperas"
+   * ke "gulir kalau memang tidak muat".
+   */
+  minWidth?: number
+  /**
+   * Pasang `table-layout: fixed`. Dipakai bersama `<colgroup>`: lebar kolom
+   * jadi mengikat, bukan saran, jadi satu sel panjang tidak bisa lagi menarik
+   * lebar kolom lain.
+   */
+  fixedLayout?: boolean
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, minWidth, fixedLayout, style, children, ...props }, ref) => (
+    // `data-usdx-scroll` memasang bayangan gulir CSS murni (index.css): tepi
+    // menggelap HANYA selama masih ada isi di arah itu, dan hilang sendiri di
+    // ujungnya. Yang lama sebuah gradien `md:hidden` — jadi di layar desktop,
+    // tempat tabel 12 kolom justru paling sering meluap, tidak ada tanda sama
+    // sekali bahwa ada kolom lain di sebelah kanan.
+    <div data-usdx-scroll="" className="relative w-full overflow-auto">
+      <table
+        ref={ref}
+        // `data-usdx-table` adalah kait untuk aturan tabel bersama di
+        // `src/index.css`: baris dipisah oleh isian (belang + sorotan) alih-alih
+        // garis, dan sel memotong teks panjang dengan elipsis. Dipasang di sini
+        // supaya SEMUA halaman tabel ikut sekaligus, bukan per halaman.
+        data-usdx-table=""
+        className={cn(
+          "w-full caption-bottom text-sm",
+          fixedLayout && "table-fixed",
+          className
+        )}
+        style={minWidth ? { minWidth, ...style } : style}
+        {...props}
+      >
+        {children}
+      </table>
+    </div>
+  )
+)
 Table.displayName = "Table"
+
+/**
+ * `<colgroup>` dari lebar kolom TanStack.
+ *
+ * `DataTable` sebelumnya tidak pernah meneruskan lebar kolom ke DOM sama
+ * sekali — nol `getSize()`, nol `<colgroup>` — jadi definisi `size` di
+ * `ColumnDef` tidak berpengaruh apa pun dan peramban membagi lebar hanya dari
+ * isi sel. Ini yang menutupnya.
+ */
+const TableColgroup = ({ widths }: { widths: number[] }) => (
+  <colgroup>
+    {widths.map((w, i) => (
+      <col key={i} style={{ width: `${w}px` }} />
+    ))}
+  </colgroup>
+)
+TableColgroup.displayName = "TableColgroup"
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
@@ -58,7 +118,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "border-b transition-colors duration-[120ms] data-[state=selected]:bg-accent",
       className
     )}
     {...props}
@@ -73,7 +133,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "h-9 px-3 text-left align-middle text-2xs font-medium tracking-[0.01em] text-muted-foreground [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -87,7 +147,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)}
+    className={cn("px-3 py-2 align-middle [&:has([role=checkbox])]:pr-0", className)}
     {...props}
   />
 ))
@@ -99,19 +159,57 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn("mt-4 text-sm text-muted-foreground", className)}
+    className={cn("mt-4 text-xs text-muted-foreground", className)}
     {...props}
   />
 ))
 TableCaption.displayName = "TableCaption"
 
+/**
+ * Teks sel satu baris yang dipotong elipsis, dengan nilai UTUH di tooltip.
+ *
+ * Memotong tanpa menyediakan nilai utuhnya hanya menukar satu kerusakan dengan
+ * kerusakan lain: operator yang mencari "surel siapa ini" tetap tidak bisa
+ * menjawabnya. `title` dipasang juga supaya nilainya tetap terbaca oleh
+ * perangkat yang tidak punya hover.
+ */
+function TableCellText({
+  value,
+  className,
+  children,
+}: {
+  value: string
+  className?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            title={value}
+            className={cn("block min-w-0 truncate text-left", className)}
+          >
+            {children ?? value}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="start" className="max-w-[24rem] break-all">
+          {value}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 export {
   Table,
+  TableColgroup,
   TableHeader,
   TableBody,
   TableFooter,
   TableHead,
   TableRow,
   TableCell,
+  TableCellText,
   TableCaption,
 }

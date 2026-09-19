@@ -148,7 +148,7 @@ export default function UpdateTxHashModal({
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>Update Transaction Hash</span>
             <code
-              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] font-medium text-foreground"
+              className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-foreground"
               title={item.id}
             >
               {shortRequestId(item.id)}
@@ -156,7 +156,7 @@ export default function UpdateTxHashModal({
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-2">
             <span>Paste the on-chain tx hash and verify it matches the record.</span>
-            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-[11.5px]">
+            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-2xs">
               <span className="font-medium text-foreground">
                 {chainCfg?.name ?? item.chain}
               </span>
@@ -192,7 +192,7 @@ export default function UpdateTxHashModal({
               }
             />
             {chainCfg && (
-              <div className="flex flex-wrap items-center gap-3 pt-1 text-[12px]">
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                 <a
                   href={buildAddressExplorerUrl(
                     chainCfg.blockExplorerUrl,
@@ -239,7 +239,7 @@ export default function UpdateTxHashModal({
           {verify.isError && !verify.isPending && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
@@ -254,7 +254,7 @@ export default function UpdateTxHashModal({
               {!verify.data.allMatch && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
@@ -263,8 +263,8 @@ export default function UpdateTxHashModal({
                 </div>
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
-                  <thead className="text-left text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+                <table className="w-full text-xs">
+                  <thead className="text-left text-2xs uppercase tracking-[0.04em] text-muted-foreground">
                     <tr>
                       <th className="px-2 py-1.5 font-medium">Field</th>
                       <th className="px-2 py-1.5 font-medium">Request data</th>
@@ -282,7 +282,7 @@ export default function UpdateTxHashModal({
                         )}
                         data-testid={`comparison-row-${f.field}`}
                       >
-                        <td className="px-2 py-2 font-sans text-[12px] font-medium text-foreground">
+                        <td className="px-2 py-2 font-sans text-xs font-medium text-foreground">
                           {fieldLabel(f.field)}
                         </td>
                         <td className="break-all px-2 py-2 text-foreground">

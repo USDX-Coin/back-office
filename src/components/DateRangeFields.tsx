@@ -42,7 +42,7 @@ interface Props extends DateRangeRules {
 }
 
 const LABEL_CLASS =
-  'text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground'
+  'text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground'
 
 export default function DateRangeFields({
   value,
@@ -96,7 +96,7 @@ export default function DateRangeFields({
           required
         />
         {showProblem && (
-          <p id={messageId} role="alert" className="text-[11.5px] text-destructive">
+          <p id={messageId} role="alert" className="text-2xs text-destructive">
             {problemMessage(verdict.problem!, rules)}
           </p>
         )}

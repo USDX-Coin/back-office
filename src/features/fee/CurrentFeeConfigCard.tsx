@@ -12,7 +12,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Current fee config
         </CardTitle>
       </CardHeader>
@@ -25,11 +25,11 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
         ) : (
           <>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                 Mint fee (% dari subtotal)
               </p>
               <p
-                className="mt-1 font-mono text-[28px] font-semibold leading-tight tracking-tight"
+                className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
                 aria-label="mint fee percent"
               >
                 {formatSpreadPct(data.mintFeePct)}
@@ -37,7 +37,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   PG fee VA (flat)
                 </dt>
                 <dd
@@ -48,7 +48,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   PG fee QRIS (%)
                 </dt>
                 <dd
@@ -59,7 +59,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Redeem fee (%)
                 </dt>
                 <dd
@@ -70,7 +70,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Disbursement fee (flat)
                 </dt>
                 <dd
@@ -85,7 +85,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   belum membawa kolomnya dan minimum yang benar-benar nol adalah
                   dua hal berbeda, dan yang kedua tidak pernah sah. */}
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Minimum Mint (Rp)
                 </dt>
                 <dd
@@ -96,7 +96,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Minimum Redeem (Rp)
                 </dt>
                 <dd
@@ -107,7 +107,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div className="col-span-2">
-                <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
                   Last updated
                 </dt>
                 <dd

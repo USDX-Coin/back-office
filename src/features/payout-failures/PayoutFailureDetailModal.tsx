@@ -42,10 +42,10 @@ interface Props {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
         {label}
       </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
+      <div className="mt-1 text-sm text-foreground">{children}</div>
     </div>
   )
 }
@@ -53,7 +53,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <h3 className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
         {title}
       </h3>
       {children}
@@ -70,7 +70,7 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
   const href = chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, detail.burnTxHash) : null
   if (!href) {
     return (
-      <span className="break-all font-mono text-[12px]" title={detail.burnTxHash}>
+      <span className="break-all font-mono text-xs" title={detail.burnTxHash}>
         {shortHash(detail.burnTxHash)}
       </span>
     )
@@ -80,7 +80,7 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
+      className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
       title={`Lihat di block explorer: ${detail.burnTxHash}`}
     >
       {shortHash(detail.burnTxHash)}
@@ -99,7 +99,7 @@ function ActionAvailabilityNote({
 }) {
   if (detail.resolution !== null) {
     return (
-      <p className="text-[12.5px] text-muted-foreground" data-testid="resolved-note">
+      <p className="text-xs text-muted-foreground" data-testid="resolved-note">
         Sudah dituntaskan: <strong>{resolutionTrailLabel(detail.resolution)}</strong>
         {detail.resolvedByStaffName ? ` oleh ${detail.resolvedByStaffName}` : ''}
         {detail.resolvedAt ? ` · ${formatWibDateTime(detail.resolvedAt)}` : ''}.
@@ -109,7 +109,7 @@ function ActionAvailabilityNote({
   if (detail.issueKind === 'PAYOUT_STUCK') {
     return (
       <p
-        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-[12.5px]"
+        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs"
         data-testid="stuck-readonly"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -124,7 +124,7 @@ function ActionAvailabilityNote({
   }
   if (!canResolve) {
     return (
-      <p className="text-[12.5px] text-muted-foreground" data-testid="role-readonly">
+      <p className="text-xs text-muted-foreground" data-testid="role-readonly">
         Menuntaskan order ini hanya untuk Manager dan Admin.
       </p>
     )
@@ -189,7 +189,7 @@ export default function PayoutFailureDetailModal({
 
           {query.isError && (
             <div className="space-y-2" role="alert">
-              <p className="text-[13px] text-destructive">{payoutFailureErrorMessage(query.error)}</p>
+              <p className="text-sm text-destructive">{payoutFailureErrorMessage(query.error)}</p>
               <Button variant="outline" size="sm" onClick={() => query.refetch()}>
                 Coba lagi
               </Button>
@@ -204,16 +204,16 @@ export default function PayoutFailureDetailModal({
                     {/* Kode tak dikenal (daftar kontrak terbuka): hanya kodenya, tanpa arti karangan. */}
                     {payoutIssueCodeLabel(detail.issueCode) ?? (detail.issueCode ? null : <Dim />)}
                     {detail.issueCode && (
-                      <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
+                      <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                         {detail.issueCode}
                       </span>
                     )}
                   </Field>
                   <Field label="Status order">
-                    <span className="font-mono text-[12.5px]">{detail.status}</span>
+                    <span className="font-mono text-xs">{detail.status}</span>
                   </Field>
                   <Field label="Masuk antrean">
-                    <span className="font-mono text-[12.5px] tabular-nums">
+                    <span className="font-mono text-xs tabular-nums">
                       {formatWibDateTime(detail.issueAt)}
                     </span>
                   </Field>
@@ -231,7 +231,7 @@ export default function PayoutFailureDetailModal({
                 <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-2">
                   <Field label="Nominal transfer">
                     <span
-                      className="font-mono text-[18px] font-semibold tabular-nums"
+                      className="font-mono text-lg font-semibold tabular-nums"
                       data-testid="payout-failure-net-idr"
                     >
                       {formatIdrExact(detail.netPayoutIdr)}
@@ -261,7 +261,7 @@ export default function PayoutFailureDetailModal({
                   <Field label="Pemilik order">
                     {detail.ownerLabel}
                     {detail.ownerKind === 'PARTNER' && (
-                      <span className="ml-1.5 rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+                      <span className="ml-1.5 rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
                         Partner
                       </span>
                     )}
@@ -275,25 +275,25 @@ export default function PayoutFailureDetailModal({
                     <BurnHash detail={detail} />
                   </Field>
                   <Field label="Dibakar">
-                    <span className="font-mono text-[12.5px] tabular-nums">
+                    <span className="font-mono text-xs tabular-nums">
                       {formatWibDateTime(detail.burnedAt)}
                     </span>
                     {(detail.lateBurn || detail.staleBurn) && (
-                      <span className="ml-1.5 text-[11.5px] font-medium text-amber-700 dark:text-amber-400">
+                      <span className="ml-1.5 text-2xs font-medium text-amber-700 dark:text-amber-400">
                         {detail.staleBurn ? 'burn basi' : 'burn terlambat'}
                       </span>
                     )}
                   </Field>
                   <Field label="Wallet sumber">
                     {detail.userAddress ? (
-                      <span className="break-all font-mono text-[12px]">{detail.userAddress}</span>
+                      <span className="break-all font-mono text-xs">{detail.userAddress}</span>
                     ) : (
                       <Dim />
                     )}
                   </Field>
                   <Field label="Referensi payout provider">
                     {detail.payoutRef ? (
-                      <span className="break-all font-mono text-[12px]">{detail.payoutRef}</span>
+                      <span className="break-all font-mono text-xs">{detail.payoutRef}</span>
                     ) : (
                       <Dim />
                     )}

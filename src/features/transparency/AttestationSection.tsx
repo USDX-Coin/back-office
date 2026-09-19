@@ -152,7 +152,7 @@ export default function AttestationSection({ canManage }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
+        <CardTitle className="text-base font-semibold tracking-tight">
           Attestation reports
         </CardTitle>
       </CardHeader>
@@ -252,7 +252,7 @@ export default function AttestationSection({ canManage }: Props) {
                   {['Period', 'Title', 'Published', ''].map((header, i) => (
                     <TableHead
                       key={header || `col-${i}`}
-                      className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                      className="h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
                     >
                       {header}
                     </TableHead>
@@ -283,10 +283,10 @@ export default function AttestationSection({ canManage }: Props) {
                 ) : (
                   rows.map((row) => (
                     <TableRow key={row.id} className="border-border hover:bg-muted/40">
-                      <TableCell className="px-4 py-2.5 text-[13px] font-medium">
+                      <TableCell className="px-4 py-2.5 text-sm font-medium">
                         {formatPeriod(row.period)}
                       </TableCell>
-                      <TableCell className="px-4 py-2.5 text-[13px]">
+                      <TableCell className="px-4 py-2.5 text-sm">
                         <a
                           href={row.fileUrl}
                           target="_blank"
@@ -297,7 +297,7 @@ export default function AttestationSection({ canManage }: Props) {
                           {row.title}
                         </a>
                       </TableCell>
-                      <TableCell className="px-4 py-2.5 text-[13px] text-muted-foreground">
+                      <TableCell className="px-4 py-2.5 text-sm text-muted-foreground">
                         {formatShortDate(row.publishedAt)}
                       </TableCell>
                       <TableCell className="px-4 py-2.5 text-right">

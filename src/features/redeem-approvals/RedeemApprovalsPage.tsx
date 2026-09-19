@@ -87,12 +87,12 @@ export default function RedeemApprovalsPage() {
       header: 'Order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[12px]">{row.original.orderNumber}</span>
+          <span className="font-mono text-xs">{row.original.orderNumber}</span>
           {row.original.ownerType === 'PARTNER' && (
             // Order partner melewati gerbang yang sama — tidak ada pintu belakang.
             // Ditandai karena order partner yang bermasalah dikejar ke PARTNER-nya,
             // bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
               Partner
             </span>
           )}
@@ -105,7 +105,7 @@ export default function RedeemApprovalsPage() {
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.original.customerName}</span>
-          <span className="truncate text-[11px] text-muted-foreground">
+          <span className="truncate text-2xs text-muted-foreground">
             {row.original.userEmail}
           </span>
         </div>
@@ -116,10 +116,10 @@ export default function RedeemApprovalsPage() {
       header: 'Nominal transfer',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[13px] font-semibold tabular-nums">
+          <span className="font-mono text-sm font-semibold tabular-nums">
             {formatIdrExact(row.original.netPayoutIdr)}
           </span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
             {formatUsdxExact(row.original.amountUsdx)}
           </span>
         </div>
@@ -135,22 +135,22 @@ export default function RedeemApprovalsPage() {
           customerName.trim().toUpperCase() !== bankAccountName.trim().toUpperCase()
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="text-[12.5px]">
+            <span className="text-xs">
               {bankName}
-              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
+              <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
                 {bankCode}
               </span>
             </span>
             {/* Nomor PENUH, tidak dipotong: ini nilai yang dicocokkan ops dengan
                 berkas nasabah, dan nomor yang terpotong tidak bisa dicocokkan. */}
-            <span className="break-all font-mono text-[12px] tabular-nums">
+            <span className="font-mono text-xs tabular-nums">
               {bankAccountNumber}
             </span>
             <span
               className={
                 mismatch
-                  ? 'truncate text-[11.5px] font-medium text-amber-700 dark:text-amber-400'
-                  : 'truncate text-[11.5px] text-muted-foreground'
+                  ? 'truncate text-2xs font-medium text-amber-700 dark:text-amber-400'
+                  : 'truncate text-2xs text-muted-foreground'
               }
               title={mismatch ? `Nama pada order: ${customerName}` : undefined}
             >
@@ -165,7 +165,7 @@ export default function RedeemApprovalsPage() {
       id: 'burnedAt',
       header: 'Dibakar',
       cell: ({ row }) => (
-        <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
           {formatWibDateTime(row.original.burnedAt)}
         </span>
       ),
@@ -181,7 +181,7 @@ export default function RedeemApprovalsPage() {
           // belum terjadi. Em dash telanjang akan terbaca sebagai yang kedua, dan
           // ops lalu menahan pencairan atas alasan yang tidak ada.
           return (
-            <span className="text-[11.5px] text-muted-foreground">belum tercatat</span>
+            <span className="text-2xs text-muted-foreground">belum tercatat</span>
           )
         }
         const href = queueBurnTxHref(hash, chains)
@@ -190,7 +190,7 @@ export default function RedeemApprovalsPage() {
           // tetap terbaca utuh lewat `title`, tanpa tautan yang bisa salah arah.
           return (
             <span
-              className="break-all font-mono text-[11.5px] text-muted-foreground"
+              className="font-mono text-2xs text-muted-foreground"
               title={hash}
             >
               {shortHash(hash)}
@@ -203,7 +203,7 @@ export default function RedeemApprovalsPage() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 font-mono text-[11.5px] text-primary hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-2xs text-primary hover:underline"
             title={`Lihat di block explorer: ${hash}`}
           >
             {shortHash(hash)}
@@ -221,7 +221,7 @@ export default function RedeemApprovalsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 border-destructive/40 text-[11.5px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="h-7 border-destructive/40 text-2xs text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setRejecting(row.original)}
               aria-label={`Tolak pencairan ${row.original.orderNumber}`}
             >
@@ -230,7 +230,7 @@ export default function RedeemApprovalsPage() {
             </Button>
             <Button
               size="sm"
-              className="h-7 text-[11.5px]"
+              className="h-7 text-2xs"
               onClick={() => setApproving(row.original)}
               aria-label={`Setujui pencairan ${row.original.orderNumber}`}
             >
@@ -256,7 +256,7 @@ export default function RedeemApprovalsPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-[11.5px] font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

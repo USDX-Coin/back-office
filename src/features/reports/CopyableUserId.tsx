@@ -19,7 +19,7 @@ export default function CopyableUserId({ id }: { id: string }) {
       onClick={handleCopy}
       title={id}
       aria-label="Copy user ID"
-      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
+      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
     >
       <span>{shortHash(id, 8, 6)}</span>
       <Copy className="h-3 w-3 opacity-50" />
