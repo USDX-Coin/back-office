@@ -93,7 +93,7 @@ describe('durianpayOutcomeView', () => {
         'SUCCESS',
         'HTTP 200 tapi responseCode=4043001 Transaction Not Found',
       )
-      expect(view.pill.label).toBe('Ditolak di dalam jawaban')
+      expect(view.pill.label).toBe('Ditolak di jawaban')
       expect(view.pill.dotClass).toBe('bg-destructive')
       expect(view.meaning).toMatch(/Perlakukan sebagai gagal/)
     })

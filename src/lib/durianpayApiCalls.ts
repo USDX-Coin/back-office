@@ -260,7 +260,7 @@ const OUTCOME_PILL_CLEAN: StatusConfig = {
 }
 
 const OUTCOME_PILL_REFUSED_INSIDE: StatusConfig = {
-  label: 'Ditolak di dalam jawaban',
+  label: 'Ditolak di jawaban',
   variant: 'destructive',
   className: 'bg-destructive/10 text-destructive',
   dotClass: 'bg-destructive',

@@ -90,7 +90,7 @@ describe('DurianpayApiCallsPage', () => {
       await screen.findByText('Cek status tagihan VA')
       const row = rowFor(container, 'MNT9LD3TVB')
       expect(within(row).getByText('HTTP 200')).toBeInTheDocument()
-      expect(within(row).getByText('Ditolak di dalam jawaban')).toBeInTheDocument()
+      expect(within(row).getByText('Ditolak di jawaban')).toBeInTheDocument()
       expect(within(row).queryByText('Berhasil')).not.toBeInTheDocument()
     })
 

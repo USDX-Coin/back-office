@@ -85,10 +85,7 @@ export const DURIANPAY_CALL_FILTER_DEFS: FilterDef[] = [
  *
  * Lima kolom pertama menjawab pertanyaan operator tanpa perlu paham SNAP —
  * kapan, apa yang dipanggil, berhasil atau tidak, kenapa gagal, order mana — dan
- * kelimanya TIDAK bisa disembunyikan. Dua terakhir teknis: lama panggilan dan
- * integrasi mana yang dipakai. `Integrasi` mati secara bawaan: SNAP vs Legacy
- * adalah beda kredensial dan amplop error, pertanyaan engineer, bukan pertanyaan
- * orang yang sedang mencari uang nasabah.
+ * kelimanya TIDAK bisa disembunyikan. Dua terakhir teknis dan mati secara bawaan.
  */
 export const DURIANPAY_CALL_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'requestedAt', label: 'Waktu (WIB)', required: true },
@@ -96,6 +93,11 @@ export const DURIANPAY_CALL_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'outcome', label: 'Hasil', required: true },
   { key: 'cause', label: 'Kenapa', required: true },
   { key: 'reference', label: 'Order', required: true },
-  { key: 'duration', label: 'Lama' },
+  // Dua kolom teknis, keduanya MATI secara bawaan. Lama panggilan dan integrasi
+  // mana yang dipakai adalah pertanyaan engineer — yang pertama berguna saat
+  // mengejar timeout, yang kedua beda kredensial dan amplop error. Keduanya tidak
+  // membantu orang yang sedang mencari uang nasabah, dan menyalakannya secara
+  // bawaan mendorong lima kolom yang menjawab pertanyaannya keluar layar.
+  { key: 'duration', label: 'Lama', hiddenByDefault: true },
   { key: 'flavor', label: 'Integrasi', hiddenByDefault: true },
 ]

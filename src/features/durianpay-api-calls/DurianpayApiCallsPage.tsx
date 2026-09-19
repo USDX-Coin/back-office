@@ -102,7 +102,7 @@ export default function DurianpayApiCallsPage() {
         const { path, httpMethod } = row.original
         const label = durianpayCallLabel(path)
         return (
-          <div className="flex min-w-0 max-w-[22rem] flex-col gap-0.5">
+          <div className="flex min-w-0 max-w-[18rem] flex-col gap-0.5">
             {/* Path tak dikenal dirender sebagai pathnya sendiri — tanpa arti karangan. */}
             <span className="truncate text-[12.5px] font-medium" title={path}>
               {label ?? path}
@@ -140,7 +140,7 @@ export default function DurianpayApiCallsPage() {
         if (!errorSummary) return <span className="text-muted-foreground">—</span>
         return (
           <span
-            className="line-clamp-2 max-w-[20rem] text-[12px] text-foreground"
+            className="line-clamp-2 max-w-[14rem] text-[12px] text-foreground"
             title={errorSummary}
           >
             {errorSummary}
@@ -156,16 +156,21 @@ export default function DurianpayApiCallsPage() {
         if (!referenceNo) {
           return (
             <span
-              className="text-[11.5px] text-muted-foreground"
+              className="whitespace-nowrap text-[11.5px] text-muted-foreground"
               title="Sebagian panggilan memang tidak membawa referensi order — mis. ambil token akses dan cek saldo."
             >
               tanpa nomor order
             </span>
           )
         }
-        // PENUH, tidak dipotong: ini nilai yang dicocokkan ops dengan ordernya.
+        // PENUH, tidak dipotong dan tidak dipatahkan di tengah: ini nilai yang
+        // dicocokkan ops dengan ordernya, dan `MNT7K2X9QP` yang jatuh jadi tiga
+        // baris tidak bisa dibaca sekilas. Referensi yang luar biasa panjang
+        // melebarkan tabel, yang memang bisa digeser mendatar.
         return (
-          <span className="break-all font-mono text-[12px] tabular-nums">{referenceNo}</span>
+          <span className="whitespace-nowrap font-mono text-[12px] tabular-nums">
+            {referenceNo}
+          </span>
         )
       },
     },
@@ -197,7 +202,7 @@ export default function DurianpayApiCallsPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
           aria-label={`Buka detail panggilan ${row.original.httpMethod} ${row.original.path}`}
         >
           <Eye className="h-3.5 w-3.5" />
