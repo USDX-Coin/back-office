@@ -63,18 +63,18 @@ export default function ReportFiltersToolbar({
       />
 
       <div className="flex flex-col gap-1.5">
-        <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">Chain</Label>
+        <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">Jaringan</Label>
         <Select
           value={values.chain || ALL}
           onValueChange={(val) =>
             onChange({ ...values, chain: val === ALL ? '' : val })
           }
         >
-          <SelectTrigger className="h-9 bg-card" aria-label="Chain filter">
-            <SelectValue placeholder="All chains" />
+          <SelectTrigger className="h-9 bg-card" aria-label="Filter jaringan">
+            <SelectValue placeholder="Semua jaringan" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All chains</SelectItem>
+            <SelectItem value={ALL}>Semua jaringan</SelectItem>
             {chains?.map((c) => (
               <SelectItem key={c.chain} value={c.chain}>
                 {c.name}
@@ -92,11 +92,11 @@ export default function ReportFiltersToolbar({
             onChange({ ...values, status: val === ALL ? '' : val })
           }
         >
-          <SelectTrigger className="h-9 bg-card" aria-label="Status filter">
-            <SelectValue placeholder="All statuses" />
+          <SelectTrigger className="h-9 bg-card" aria-label="Filter status">
+            <SelectValue placeholder="Semua status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value={ALL}>Semua status</SelectItem>
             {statusOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -109,7 +109,10 @@ export default function ReportFiltersToolbar({
       {showUserPicker && (
         <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
           <Label className="text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
-            User <span className="font-normal normal-case text-muted-foreground/70">(optional)</span>
+            Nasabah{' '}
+            <span className="font-normal normal-case text-muted-foreground/70">
+              (opsional)
+            </span>
           </Label>
           <UserPicker
             value={values.user}
@@ -130,7 +133,7 @@ export default function ReportFiltersToolbar({
           ) : (
             <Play className="mr-1.5 h-4 w-4" />
           )}
-          Process
+          Proses
         </Button>
       </div>
     </div>

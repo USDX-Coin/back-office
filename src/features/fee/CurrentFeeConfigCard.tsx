@@ -13,7 +13,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Current fee config
+          Biaya saat ini
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -26,11 +26,11 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
           <>
             <div>
               <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                Mint fee (% dari subtotal)
+                Biaya mint (% dari subtotal)
               </p>
               <p
                 className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
-                aria-label="mint fee percent"
+                aria-label="persen biaya mint"
               >
                 {formatSpreadPct(data.mintFeePct)}
               </p>
@@ -38,44 +38,44 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  PG fee VA (flat)
+                  Biaya VA (flat)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="pg fee va flat"
+                  aria-label="biaya VA flat"
                 >
                   {formatIdrAmount(Number(data.pgFeeVaFlat))}
                 </dd>
               </div>
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  PG fee QRIS (%)
+                  Biaya QRIS (%)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="pg fee qris percent"
+                  aria-label="persen biaya QRIS"
                 >
                   {formatSpreadPct(data.pgFeeQrisPct)}
                 </dd>
               </div>
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Redeem fee (%)
+                  Biaya redeem (%)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="redeem fee percent"
+                  aria-label="persen biaya redeem"
                 >
                   {formatSpreadPct(data.redeemFeePct)}
                 </dd>
               </div>
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Disbursement fee (flat)
+                  Biaya pencairan (flat)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="disbursement fee flat"
+                  aria-label="biaya pencairan flat"
                 >
                   {formatIdrAmount(Number(data.disbursementFeeFlat))}
                 </dd>
@@ -90,7 +90,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="minimum mint idr"
+                  aria-label="minimum mint aktif"
                 >
                   {data.minMintIdr ? formatIdrAmount(Number(data.minMintIdr)) : '—'}
                 </dd>
@@ -101,14 +101,14 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="minimum redeem idr"
+                  aria-label="minimum redeem aktif"
                 >
                   {data.minRedeemIdr ? formatIdrAmount(Number(data.minRedeemIdr)) : '—'}
                 </dd>
               </div>
               <div className="col-span-2">
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Last updated
+                  Terakhir diubah
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"

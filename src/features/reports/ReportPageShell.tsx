@@ -56,7 +56,7 @@ export default function ReportPageShell({
             ) : (
               <Download className="mr-1.5 h-4 w-4" />
             )}
-            Export CSV
+            Unduh CSV
           </Button>
         }
       />
@@ -74,8 +74,8 @@ export default function ReportPageShell({
         {state.appliedFilter === null ? (
           <TableEmptyState
             mode="no-data"
-            title="Run a report to view data"
-            description="Pick a date range and click Process to populate the table."
+            title="Laporan belum dijalankan"
+            description="Pilih rentang tanggalnya lalu tekan Proses untuk mengisi tabel."
           />
         ) : (
           children

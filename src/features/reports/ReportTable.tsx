@@ -31,7 +31,7 @@ export default function ReportTable<T>({ columns, rows, isFetching, isError }: P
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-error">
         <AlertCircle className="h-4 w-4" />
-        Unable to load report. Please try again.
+        Laporan gagal dimuat. Periksa koneksi lalu tekan Proses lagi.
       </div>
     )
   }
@@ -70,8 +70,8 @@ export default function ReportTable<T>({ columns, rows, isFetching, isError }: P
               <TableCell colSpan={columns.length} className="p-0">
                 <TableEmptyState
                   mode="no-data"
-                  title="No data for the selected range"
-                  description="Try widening the date range or clearing filters."
+                  title="Tidak ada data pada rentang ini"
+                  description="Longgarkan rentang tanggalnya atau hapus filternya."
                 />
               </TableCell>
             </TableRow>

@@ -84,7 +84,7 @@ describe('PayoutFailuresPage @ USDX-662', () => {
       )
       setup()
       await waitFor(() => expect(screen.queryByText('Tidak ada pencairan bermasalah')).not.toBeInTheDocument())
-      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
     })
   })
 

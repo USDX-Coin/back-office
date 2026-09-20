@@ -84,7 +84,7 @@ const DialogHeader = ({
     {children}
     <DialogPrimitive.Close className="absolute right-3.5 top-3.5 rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/55 disabled:pointer-events-none">
       <X className="h-4 w-4" />
-      <span className="sr-only">Tutup</span>
+      <span className="sr-only">Tutup dialog</span>
     </DialogPrimitive.Close>
   </div>
 )

@@ -90,7 +90,10 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
 
       // Antrean diperiksa SETELAH modal ditutup: selama modal terbuka isi halaman di
       // belakangnya `aria-hidden`, dan "baris hilang" akan lolos tanpa membuktikan apa pun.
-      await user.click(within(refreshed).getByRole('button', { name: 'Tutup' }))
+      // Dua tombol bernama "Tutup" sejak `ui/dialog.tsx` menerjemahkan label
+      // sr-only tombol X-nya: X ada di header (indeks 0), tombol footer paling
+      // belakang. Yang ditekan di sini yang footer.
+      await user.click(within(refreshed).getAllByRole('button', { name: 'Tutup' }).at(-1)!)
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(await screen.findByRole('button', { name: /Buka detail pencairan DEWI KARTIKA/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ })).not.toBeInTheDocument()

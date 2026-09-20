@@ -8,9 +8,9 @@ export default function CopyableUserId({ id }: { id: string }) {
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(id)
-      toast.success('User ID copied')
+      toast.success('ID nasabah tersalin')
     } catch {
-      toast.error('Copy failed')
+      toast.error('Gagal menyalin')
     }
   }
   return (
@@ -18,7 +18,7 @@ export default function CopyableUserId({ id }: { id: string }) {
       type="button"
       onClick={handleCopy}
       title={id}
-      aria-label="Copy user ID"
+      aria-label="Salin ID nasabah"
       className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
     >
       <span>{shortHash(id, 8, 6)}</span>
