@@ -527,3 +527,74 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
     })
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOMINAL DAN NOMOR REKENING HARUS BISA DIBACA UTUH — PEMBLOKIR.
+//
+// Komentar pada kolom "Rekening tujuan" berbunyi "Nomor PENUH, tidak dipotong:
+// nomor yang terpotong tidak bisa dicocokkan". Yang membuat kalimat itu benar
+// dulu adalah `break-all` (nomornya turun baris daripada terpotong); kelasnya
+// dibuang saat sel dipaksa satu baris, dan tidak ada penggantinya — jadi
+// komentarnya berbohong dan nomornya terpotong tanpa tanda.
+//
+// LEBARNYA diukur di `e2e/usdx-lebar-sel.spec.ts`; NILAI UTUHNYA dikunci di sini.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `title` terdekat ke atas dari sebuah simpul teks, sampai batas selnya.
+ *
+ * Judulnya tidak selalu di elemen yang memegang teks: baris "Bank Negara
+ * Indonesia 009" adalah satu `title` di pembungkusnya dengan `<span>` kode bank
+ * di dalamnya. Yang dijaga adalah pertanyaan operator — "nilai penuhnya masih
+ * bisa saya baca?" — bukan di elemen mana atributnya kebetulan dipasang.
+ */
+function titleTerdekat(el: HTMLElement, batas: HTMLElement): string | null {
+  let cur: HTMLElement | null = el
+  while (cur && cur !== batas.parentElement) {
+    const t = cur.getAttribute('title')
+    if (t) return t
+    cur = cur.parentElement
+  }
+  return null
+}
+
+describe('RedeemApprovalsPage — nilai uang & rekening tidak pernah hilang', () => {
+  describe('positive', () => {
+    test('setiap sel Nominal / Rekening tujuan / Dibakar membawa title berisi teksnya', async () => {
+      const { container } = setup()
+      await screen.findByText(OLDEST_CUSTOMER)
+      const tanpaTitle: string[] = []
+      for (const row of container.querySelectorAll<HTMLElement>('tbody tr')) {
+        for (const kolom of ['amount', 'destination', 'burnedAt']) {
+          const sel = row.querySelector<HTMLElement>(`[data-col="${kolom}"]`)
+          if (!sel) continue
+          for (const span of sel.querySelectorAll<HTMLElement>('span')) {
+            const teks = span.textContent?.trim() ?? ''
+            if (!teks || span.querySelector('span')) continue
+            const title = titleTerdekat(span, sel)
+            if (!title || !title.includes(teks)) {
+              tanpaTitle.push(`${kolom}: "${teks}" (title=${title ?? 'tidak ada'})`)
+            }
+          }
+        }
+      }
+      expect(tanpaTitle).toEqual([])
+    })
+
+    test('nomor rekening dirender UTUH, bukan disamarkan atau dipendekkan', async () => {
+      // Pagar terhadap "dipendekkan supaya muat": kalau seseorang memasang
+      // `shortHash`-style truncation di sini, gerbang ini jadi teater.
+      const { container } = setup()
+      await screen.findByText(OLDEST_CUSTOMER)
+      const sel = container.querySelector<HTMLElement>(
+        'tbody tr [data-col="destination"]',
+      )!
+      const nomor = [...sel.querySelectorAll<HTMLElement>('span')]
+        .map((s) => s.textContent?.trim() ?? '')
+        .find((t) => /^\d{8,}$/.test(t))
+      expect(nomor, 'nomor rekening penuh tidak ditemukan di sel').toBeTruthy()
+      expect(nomor).not.toContain('…')
+      expect(nomor).not.toContain('*')
+    })
+  })
+})
