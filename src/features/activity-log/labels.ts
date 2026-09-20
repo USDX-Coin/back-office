@@ -25,6 +25,7 @@ export function parseRouteAction(action: string): { method: string; path: string
  * kode backend, bukan dikarang — yang tidak ada di sini dirender apa adanya.
  */
 const EXPLICIT_ACTION_LABELS: Record<string, string> = {
+  AUTH_LOGIN: 'Login berhasil',
   AUTH_LOGIN_FAILED: 'Login gagal',
   AUTH_LOGOUT: 'Logout',
   AUTH_PASSWORD_CHANGED: 'Kata sandi diganti',
@@ -44,6 +45,25 @@ const EXPLICIT_ACTION_LABELS: Record<string, string> = {
   ACCOUNT_DELETE_FAILED: 'Hapus akun nasabah gagal',
   ACCOUNT_EXPORTED: 'Data akun nasabah diekspor',
   CDD_COMPLETED: 'Uji tuntas berkelanjutan (CDD) selesai',
+  AUTH_PASSWORD_RESET_REQUESTED: 'Minta setel ulang kata sandi',
+  AUTH_PASSWORD_RESET: 'Kata sandi disetel ulang',
+  AUTH_PIN_FAILED: 'PIN salah',
+  AUTH_PIN_LOCKED: 'PIN terkunci',
+  AUTH_2FA_DISABLED: 'Verifikasi dua langkah dimatikan',
+  AUTH_2FA_BACKUP_REGENERATED: 'Kode cadangan dua langkah dibuat ulang',
+  AUTH_2FA_FAILED: 'Verifikasi dua langkah gagal',
+  AUTH_SESSION_REVOKED: 'Satu sesi dicabut',
+  AUTH_SESSIONS_REVOKED_OTHERS: 'Semua sesi lain dicabut',
+  BNI_BALANCE_INQUIRY: 'Cek saldo rekening BNI',
+  BNI_STATEMENT_INQUIRY: 'Tarik mutasi rekening BNI',
+  MINT_MODE_TEST_ENABLED: 'Mode mint UJI dinyalakan',
+  MINT_MODE_PROD_RESTORED: 'Mode mint dikembalikan ke PRODUKSI',
+  REDEEM_APPROVAL_THRESHOLD_UPDATED: 'Ambang persetujuan pencairan diubah',
+  REDEEM_PAYOUT_APPROVED: 'Pencairan disetujui',
+  REDEEM_PAYOUT_REJECTED: 'Pencairan ditolak',
+  ONCALL_CONTACT_CREATED: 'Kontak on-call ditambahkan',
+  ONCALL_CONTACT_UPDATED: 'Kontak on-call diubah',
+  ONCALL_CONTACT_DELETED: 'Kontak on-call dihapus',
 }
 
 /** Terjemahan aksi, atau `null` kalau memang belum ada — pemanggil merender kodenya. */
@@ -89,9 +109,26 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
   FEE_CONFIG: 'Biaya',
   THRESHOLD: 'Ambang multisig',
   MINT_MODE: 'Mode mint',
+  // DUA ejaan untuk satu layar, dan dua-duanya benar-benar ditulis backend dari
+  // jalur yang berbeda: interseptor menurunkan `MINT_MODE` dari segmen rute
+  // `/api/v1/mint-mode`, sementara `mint-mode.service.ts` mencatat
+  // `MINT_MODE_CONTROLS` secara eksplisit untuk MINT_MODE_TEST_ENABLED /
+  // MINT_MODE_PROD_RESTORED. Satu perbuatan karena itu meninggalkan DUA baris.
+  //
+  // Keduanya wajib ada di sini. Saringan "Kelompok objek" hanya menerima SATU
+  // nilai (`ListActivityLogsDto.resourceType` sebuah string), jadi ejaan yang
+  // hilang berarti barisnya tidak bisa disaring sama sekali — dan labelnya
+  // harus BERBEDA, karena dua pilihan bernama sama membuat operator mengira
+  // salah satunya menampilkan semuanya.
+  MINT_MODE_CONTROLS: 'Mode mint — pergantian mode',
   ONCALL_CONTACTS: 'Kontak on-call',
   TRANSPARENCY: 'Cadangan & atestasi',
   BNI_ACCOUNTS: 'Rekening BNI',
+  // Sama seperti MINT_MODE di atas: interseptor menulis `BNI_ACCOUNTS` (dari
+  // rute), `bni-accounts.service.ts` menulis `BNI_ACCOUNT` (eksplisit) untuk
+  // setiap BNI_BALANCE_INQUIRY / BNI_STATEMENT_INQUIRY — yaitu SELURUH baris
+  // pembacaan saldo dan mutasi, yang sebelumnya tidak bisa disaring.
+  BNI_ACCOUNT: 'Rekening BNI — cek saldo & mutasi',
   HELD_CREDITS: 'Mint bermasalah',
   PAYOUT_FAILURES: 'Pencairan bermasalah',
   REDEEM_APPROVALS: 'Persetujuan pencairan',
@@ -107,8 +144,30 @@ export function resourceTypeLabel(resourceType: string): string | null {
   return RESOURCE_TYPE_LABELS[resourceType] ?? null
 }
 
-/** Pilihan saringan "Kelompok objek" — hanya nilai yang punya terjemahan. */
+/**
+ * Nilai yang PUNYA terjemahan tapi TIDAK ditawarkan sebagai saringan.
+ *
+ * Keempatnya hanya ditulis ke `pii_access_audit`, bukan ke `activity_log`, dan
+ * `GET /api/v1/activity-logs` membaca `activity_log` saja. Menawarkannya
+ * sebagai pilihan berarti memberi pemeriksa saringan yang SELALU menjawab
+ * "tidak ada" — jawaban yang bentuknya sama persis dengan "sudah dicek, memang
+ * tidak ada", dan itu kesimpulan yang salah pada layar bukti kepatuhan.
+ *
+ * Terjemahannya TETAP ada di peta: kalau suatu hari nilai itu benar-benar
+ * muncul di `activity_log`, barisnya tetap terbaca, tidak jatuh ke kode mentah.
+ * (`USER` juga berlabel sama dengan `USERS` — dua pilihan bernama "Nasabah"
+ * terbaca sebagai satu pilihan yang diduplikasi.)
+ */
+const HANYA_DI_PII_ACCESS_AUDIT = new Set([
+  'USER',
+  'KYC_UBO',
+  'REPORT_EXPORT',
+  'PARTNER_CUSTOMER',
+])
+
+/** Pilihan saringan "Kelompok objek" — nilai yang benar-benar bisa muncul. */
 export const RESOURCE_TYPE_OPTIONS = Object.entries(RESOURCE_TYPE_LABELS)
+  .filter(([value]) => !HANYA_DI_PII_ACCESS_AUDIT.has(value))
   .map(([value, label]) => ({ value, label }))
   .sort((a, b) => a.label.localeCompare(b.label))
 

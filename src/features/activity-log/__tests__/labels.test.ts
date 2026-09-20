@@ -118,3 +118,65 @@ describe('httpStatusMeaning', () => {
     })
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARITAS DENGAN BACKEND — dikunci karena cacatnya DIAM.
+//
+// Backend menulis `resourceType` dari DUA jalur: interseptor global
+// menurunkannya dari segmen rute (`/api/v1/bni-accounts` → `BNI_ACCOUNTS`),
+// sementara beberapa service menulis ejaannya sendiri (`BNI_ACCOUNT`,
+// `MINT_MODE_CONTROLS`). Peta ini dulu hanya memuat ejaan pertama, jadi setiap
+// baris cek-saldo dan pergantian mode mint TIDAK BISA DISARING sama sekali —
+// saringan menjawab "tidak ada", bukan "tidak didukung".
+//
+// `ListActivityLogsDto.resourceType` sebuah STRING tunggal, jadi satu ejaan
+// tidak bisa mewakili yang lain: keduanya harus jadi pilihan tersendiri, dan
+// labelnya harus berbeda supaya dua pilihan bernama sama tidak membuat operator
+// mengira salah satunya sudah mencakup semuanya.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('paritas resourceType dengan penulis di backend', () => {
+  describe('positive', () => {
+    test.each([
+      ['BNI_ACCOUNTS', 'interseptor, dari rute /api/v1/bni-accounts'],
+      ['BNI_ACCOUNT', 'eksplisit, bni-accounts.service.ts'],
+      ['MINT_MODE', 'interseptor, dari rute /api/v1/mint-mode'],
+      ['MINT_MODE_CONTROLS', 'eksplisit, mint-mode.service.ts'],
+    ])('%s punya terjemahan (%s)', (resourceType) => {
+      expect(resourceTypeLabel(resourceType)).not.toBeNull()
+    })
+
+    test.each([
+      ['BNI_BALANCE_INQUIRY'],
+      ['BNI_STATEMENT_INQUIRY'],
+      ['MINT_MODE_TEST_ENABLED'],
+      ['MINT_MODE_PROD_RESTORED'],
+      ['REDEEM_PAYOUT_APPROVED'],
+      ['REDEEM_PAYOUT_REJECTED'],
+      ['REDEEM_APPROVAL_THRESHOLD_UPDATED'],
+      ['ONCALL_CONTACT_CREATED'],
+      ['ONCALL_CONTACT_UPDATED'],
+      ['ONCALL_CONTACT_DELETED'],
+      ['AUTH_LOGIN'],
+    ])('aksi %s punya terjemahan', (action) => {
+      expect(explicitActionLabel(action)).not.toBeNull()
+    })
+
+    test('keempat ejaan itu muncul sebagai pilihan saringan tersendiri', () => {
+      const nilai = RESOURCE_TYPE_OPTIONS.map((o) => o.value)
+      for (const v of ['BNI_ACCOUNTS', 'BNI_ACCOUNT', 'MINT_MODE', 'MINT_MODE_CONTROLS']) {
+        expect(nilai).toContain(v)
+      }
+    })
+  })
+
+  describe('edge cases', () => {
+    test('tidak ada dua pilihan saringan bernama sama', () => {
+      // Dua pilihan berlabel "Rekening BNI" terbaca sebagai satu pilihan yang
+      // diduplikasi — operator memilih salah satunya dan mengira sudah melihat
+      // semuanya, padahal setengah barisnya ada di pilihan yang satu lagi.
+      const label = RESOURCE_TYPE_OPTIONS.map((o) => o.label)
+      const ganda = label.filter((l, i) => label.indexOf(l) !== i)
+      expect([...new Set(ganda)]).toEqual([])
+    })
+  })
+})
