@@ -22,7 +22,7 @@ import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
 import { validateBurnRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser, RequestChain } from '@/lib/types'
-import { ApiError } from '@/lib/apiFetch'
+import { pesanGalat } from '@/lib/apiFetch'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { useCreateBurn } from './hooks'
 
@@ -187,12 +187,9 @@ export default function BurnRequestForm() {
         setQueueBlock(queueInfo)
         return
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Request gagal dikirim. Periksa koneksi lalu coba lagi.'
+      // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
+      // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
+      const message = pesanGalat(err, 'Request gagal dikirim. Periksa koneksi lalu coba lagi.')
       setSubmitError(message)
       toast.error(message)
     }

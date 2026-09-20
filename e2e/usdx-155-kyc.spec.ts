@@ -37,7 +37,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(page).toHaveURL(/\/kyc$/)
 
       // Oldest submission (the PENDING one) is row #1 — fixed ascending sort.
-      const rows = page.getByRole('button', { name: /open kyc submission/i })
+      const rows = page.getByRole('button', { name: /buka berkas kyc/i })
       await expect(rows).toHaveCount(3)
       await expect(rows.first()).toContainText('alice.pending@example.com')
     })
@@ -48,15 +48,15 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/kyc')
 
-      await page.getByRole('button', { name: /open kyc submission for alice\.pending/i }).click()
+      await page.getByRole('button', { name: /buka berkas kyc alice\.pending/i }).click()
       await expect(page).toHaveURL(/\/kyc\/kyc_pending$/)
 
       const dialog = page.getByRole('dialog')
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
       await expect(dialog.getByText('3171234567890123')).toBeVisible()
-      await expect(dialog.getByText(/photo links expire in/i)).toBeVisible()
-      await expect(dialog.getByAltText('KTP photo')).toBeVisible()
-      await expect(dialog.getByAltText('Selfie with KTP')).toBeVisible()
+      await expect(dialog.getByText(/tautan foto kedaluwarsa dalam/i)).toBeVisible()
+      await expect(dialog.getByAltText('Foto KTP')).toBeVisible()
+      await expect(dialog.getByAltText('Selfie dengan KTP')).toBeVisible()
 
       // USDX-545 — the CDD block is on the review screen. Without it the
       // reviewer decides without seeing the data that was just collected.
@@ -111,7 +111,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await page.goto('/kyc/kyc_pending')
 
       const dialog = page.getByRole('dialog')
-      await expect(dialog.getByText(/kyc submission/i).first()).toBeVisible()
+      await expect(dialog.getByText(/berkas verifikasi perorangan/i).first()).toBeVisible()
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
     })
 
@@ -131,7 +131,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(banner).toContainText('LIST_UNAVAILABLE')
       // Daftar yang MEMANG tercek tampil dengan versinya, bukan cuma "lolos".
       await expect(dialog.getByTestId('screening-list-DTTOT')).toContainText('2026-08-16')
-      await expect(dialog.getByRole('button', { name: /^approve$/i })).toBeEnabled()
+      await expect(dialog.getByRole('button', { name: /^setujui$/i })).toBeEnabled()
     })
 
     test('approve: confirm dialog → list shows VERIFIED and the badge clears', async ({ page }) => {
@@ -142,14 +142,14 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       const dialog = page.getByRole('dialog').first()
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
-      await dialog.getByRole('button', { name: /^approve$/i }).click()
+      await dialog.getByRole('button', { name: /^setujui$/i }).click()
 
-      const confirm = page.getByRole('dialog').filter({ hasText: /approve this kyc submission\?/i })
-      await confirm.getByRole('button', { name: /^approve$/i }).click()
+      const confirm = page.getByRole('dialog').filter({ hasText: /setujui berkas kyc ini\?/i })
+      await confirm.getByRole('button', { name: /^ya, setujui$/i }).click()
 
       // Modal closes back to the list; the row is VERIFIED now.
       await expect(page).toHaveURL(/\/kyc$/)
-      const row = page.getByRole('button', { name: /open kyc submission for alice\.pending/i })
+      const row = page.getByRole('button', { name: /buka berkas kyc alice\.pending/i })
       await expect(row).toContainText('Terverifikasi')
       // No PENDING left → the (N) badge unmounts.
       await expect(page.getByTestId('nav-badge-kyc')).toHaveCount(0)
@@ -163,28 +163,28 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       const dialog = page.getByRole('dialog').first()
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
-      await dialog.getByRole('button', { name: /^reject$/i }).click()
+      await dialog.getByRole('button', { name: /^tolak$/i }).click()
 
-      const rejectDialog = page.getByRole('dialog').filter({ hasText: /reject this kyc submission\?/i })
+      const rejectDialog = page.getByRole('dialog').filter({ hasText: /tolak berkas kyc ini\?/i })
       // Submit empty → inline validation, no navigation.
-      await rejectDialog.getByRole('button', { name: /^reject$/i }).click()
-      await expect(rejectDialog.getByText(/rejection reason is required/i)).toBeVisible()
+      await rejectDialog.getByRole('button', { name: /^ya, tolak$/i }).click()
+      await expect(rejectDialog.getByText(/alasan penolakan wajib diisi/i)).toBeVisible()
 
       // USDX-610 — satu huruf juga ditahan di sini, bukan dikirim lalu dijawab 400.
       // Nasabah yang menerima "x" lewat email `kyc-rejected.html` tidak tahu apa
       // yang harus diperbaiki, jadi ia mengunggah ulang berkas yang sama persis.
-      await rejectDialog.getByLabel('Rejection reason').fill('x')
-      await rejectDialog.getByRole('button', { name: /^reject$/i }).click()
+      await rejectDialog.getByLabel('Alasan penolakan').fill('x')
+      await rejectDialog.getByRole('button', { name: /^ya, tolak$/i }).click()
       await expect(
-        rejectDialog.getByRole('alert').filter({ hasText: /at least 10 characters/i }),
+        rejectDialog.getByRole('alert').filter({ hasText: /minimal 10 karakter/i }),
       ).toBeVisible()
       await expect(page).toHaveURL(/\/kyc\/kyc_pending$/)
 
-      await rejectDialog.getByLabel('Rejection reason').fill('Foto KTP buram, mohon submit ulang')
-      await rejectDialog.getByRole('button', { name: /^reject$/i }).click()
+      await rejectDialog.getByLabel('Alasan penolakan').fill('Foto KTP buram, mohon submit ulang')
+      await rejectDialog.getByRole('button', { name: /^ya, tolak$/i }).click()
 
       await expect(page).toHaveURL(/\/kyc$/)
-      const row = page.getByRole('button', { name: /open kyc submission for alice\.pending/i })
+      const row = page.getByRole('button', { name: /buka berkas kyc alice\.pending/i })
       await expect(row).toContainText('Ditolak')
     })
   })
@@ -198,12 +198,12 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       const dialog = page.getByRole('dialog')
       await expect(dialog.getByText('Alice Anderson')).toBeVisible()
-      await dialog.getByRole('button', { name: /audit trail/i }).click()
+      await dialog.getByRole('button', { name: /jejak audit/i }).click()
 
       // The deep-link's own detail GET already wrote a VIEWED row. Exact match:
       // the modal header also contains "Submitted {date}".
-      await expect(dialog.getByText('Viewed', { exact: true }).first()).toBeVisible()
-      await expect(dialog.getByText('Submitted', { exact: true })).toBeVisible()
+      await expect(dialog.getByText('Dilihat', { exact: true }).first()).toBeVisible()
+      await expect(dialog.getByText('Diajukan', { exact: true })).toBeVisible()
     })
   })
 })

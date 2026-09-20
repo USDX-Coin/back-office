@@ -312,7 +312,7 @@ export function useUploadKybDocument() {
       const fileType = declaredContentType(file)
       if (!fileType) {
         throw new Error(
-          `Only ${KYB_DOCUMENT_TYPE_LABEL} files can be uploaded as KYB documents`,
+          `Dokumen KYB hanya boleh berupa berkas ${KYB_DOCUMENT_TYPE_LABEL}`,
         )
       }
 
@@ -385,7 +385,7 @@ export function useUploadKybUboDocument() {
       const fileType = isPhoto ? declaredPhotoContentType(file) : declaredContentType(file)
       if (!fileType) {
         throw new Error(
-          `Only ${isPhoto ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL} files can be uploaded here`,
+          `Di sini hanya boleh berkas ${isPhoto ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL}`,
         )
       }
 

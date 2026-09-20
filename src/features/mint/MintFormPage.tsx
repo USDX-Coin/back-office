@@ -26,7 +26,7 @@ import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
-import { ApiError } from '@/lib/apiFetch'
+import { pesanGalat } from '@/lib/apiFetch'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser } from '@/lib/types'
@@ -180,12 +180,9 @@ export default function MintFormPage() {
         setQueueBlock(queueInfo)
         return
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Request gagal dikirim. Periksa koneksi lalu coba lagi.'
+      // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
+      // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
+      const message = pesanGalat(err, 'Request gagal dikirim. Periksa koneksi lalu coba lagi.')
       setApiError(message)
       toast.error(message)
     }

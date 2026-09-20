@@ -145,7 +145,7 @@ export function newIdempotencyKey(): string {
     ].join('-')
   }
   throw new Error(
-    'No cryptographic random source available to generate an idempotency key'
+    'Peramban ini tidak punya sumber acak kriptografis, jadi kode anti-dobel tidak bisa dibuat (crypto.randomUUID / crypto.getRandomValues tidak tersedia)'
   )
 }
 

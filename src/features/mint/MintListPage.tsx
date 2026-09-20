@@ -235,7 +235,7 @@ export default function MintListPage() {
             navigate(`/mint/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`Buka request mint OTC milik ${row.original.userName}`}
+          aria-label={`Lihat request mint OTC milik ${row.original.userName}`}
         >
           <Eye className="h-3.5 w-3.5" />
           Lihat

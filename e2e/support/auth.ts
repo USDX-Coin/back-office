@@ -7,8 +7,8 @@ const STORAGE_KEY = 'usdx_auth_user'
 export async function loginViaForm(page: Page, email = 'admin@usdx.io', password = 'admin123456') {
   await page.goto('/login')
   await page.getByLabel(/^email$/i).fill(email)
-  await page.getByLabel(/^password$/i).fill(password)
-  await page.getByRole('button', { name: /^sign in$/i }).click()
+  await page.getByLabel(/^kata sandi$/i).fill(password)
+  await page.getByRole('button', { name: /^masuk$/i }).click()
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 })
 }
 

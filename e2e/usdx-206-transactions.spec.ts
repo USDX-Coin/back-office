@@ -40,7 +40,7 @@ test.describe('USDX-206 user transaction @e2e', () => {
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Status' }).click()
       await page.getByRole('option', { name: /^selesai$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
 
       await expect(page).toHaveURL(/status=COMPLETED/)
       await expect(page.getByRole('button', { name: /1000\.00 USDX/ })).toBeVisible()
