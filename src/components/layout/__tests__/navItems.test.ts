@@ -55,12 +55,17 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
       ])
     })
 
-    test('ADMIN melihat 18 entri di lima section', () => {
-      // Dokumen audit mengusulkan 17; angkanya 18 karena usulan itu tidak
+    test('ADMIN melihat 22 entri di lima section', () => {
+      // Dokumen audit mengusulkan 17; angkanya jadi 18 karena usulan itu tidak
       // menyebut /staff sama sekali, dan membuangnya akan menghapus satu-satunya
       // pintu mengelola operator internal. Ia dipindah ke Pengaturan, tetap
       // ADMIN-only.
-      expect(allLabels(ADMIN)).toHaveLength(18)
+      //
+      // 18 → 22: empat layar yang endpoint-nya sudah lama jadi tapi tidak pernah
+      // punya pintu — Mint Bermasalah, Persetujuan Orang Kedua, Plafon
+      // Pencairan, Jejak Audit. Tiga yang pertama terbuka untuk semua peran,
+      // Jejak Audit ADMIN saja (lihat gerbangnya di bawah).
+      expect(allLabels(ADMIN)).toHaveLength(22)
       expect(sectionsFor(ADMIN)).toHaveLength(5)
     })
 
@@ -72,6 +77,8 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
         '/transactions',
         '/redeem-approvals',
         '/payout-failures',
+        '/mint-bermasalah',
+        '/persetujuan',
         '/manual-sync',
         '/users',
         '/kyc',
@@ -85,7 +92,9 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
         '/transparency',
         '/settings/rate',
         '/settings/mint-mode',
+        '/plafon-pencairan',
         '/staff',
+        '/jejak-audit',
       ])
     })
 
@@ -95,6 +104,8 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
         'Transaksi Nasabah',
         'Persetujuan Pencairan',
         'Pencairan Bermasalah',
+        'Mint Bermasalah',
+        'Persetujuan Orang Kedua',
         'Perbaiki Status Nyangkut',
       ])
       expect(itemsIn(ADMIN, 'Nasabah')).toEqual([
@@ -110,13 +121,22 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
   describe('edge cases', () => {
     test('dua antrean penyelesaian uang duduk BERDAMPINGAN (keputusan PM 2026-09-13)', () => {
       // `sot/bni-integration.md § 17.9`: "Pencairan Bermasalah" dan "Mint
-      // Bermasalah" (USDX-342, belum dibangun) tidak boleh dipisah. Selama yang
-      // kedua belum ada, yang dijaga adalah tetangganya: keduanya harus berada
-      // di satu section dan berurutan dengan antrean uang yang lain.
+      // Bermasalah" tidak boleh dipisah. Yang kedua kini ADA, jadi yang dijaga
+      // bukan lagi tetangganya melainkan keduanya sendiri: satu section, dan
+      // Mint Bermasalah PERSIS di bawah Pencairan Bermasalah.
       const kerja = itemsIn(ADMIN, 'Pekerjaan Hari Ini')
       expect(kerja.indexOf('Pencairan Bermasalah')).toBe(
         kerja.indexOf('Persetujuan Pencairan') + 1,
       )
+      expect(kerja.indexOf('Mint Bermasalah')).toBe(
+        kerja.indexOf('Pencairan Bermasalah') + 1,
+      )
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) {
+        const items = itemsIn(id, 'Pekerjaan Hari Ini')
+        expect(items.indexOf('Mint Bermasalah')).toBe(
+          items.indexOf('Pencairan Bermasalah') + 1,
+        )
+      }
     })
   })
 })
@@ -175,6 +195,44 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
       }
     })
 
+    test('Jejak Audit ADMIN saja — sama dengan @Roles("ADMIN") di controller-nya', () => {
+      // Gerbangnya juga hidup DI ROUTE (`App.tsx`). Menu ini tidak boleh jadi
+      // satu-satunya penjaga: menyembunyikan entri tetap meninggalkan
+      // halamannya sejauh satu URL.
+      expect(itemsIn(ADMIN, 'Pengaturan')).toContain('Jejak Audit')
+      for (const id of [DEVELOPER, MANAGER, STAFF]) {
+        expect(itemsIn(id, 'Pengaturan')).not.toContain('Jejak Audit')
+      }
+      expect(itemFor(ADMIN, 'Jejak Audit')?.to).toBe('/jejak-audit')
+    })
+
+    test('Mint Bermasalah + Persetujuan Orang Kedua terbuka untuk SEMUA peran', () => {
+      // Kontraknya membuka list + detail untuk keempat peran; yang digerbangi
+      // adalah AKSINYA, di dalam layar. Menggerbangi menunya akan menyembunyikan
+      // antrean yang menumpuk dari peran yang biasanya lebih dulu menyadarinya —
+      // dan untuk Persetujuan Orang Kedua ia juga akan menyembunyikan usulan
+      // milik pengusulnya sendiri.
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) {
+        expect(itemsIn(id, 'Pekerjaan Hari Ini')).toContain('Mint Bermasalah')
+        expect(itemsIn(id, 'Pekerjaan Hari Ini')).toContain('Persetujuan Orang Kedua')
+      }
+      // Tanpa badge: `GET /api/v1/queue-counts` tidak menghitung kedua antrean
+      // ini, dan menghitungnya sendiri lewat query list akan menembak endpoint
+      // uang tiap halaman dimuat.
+      expect(itemFor(STAFF, 'Mint Bermasalah')?.badgeKey).toBeUndefined()
+      expect(itemFor(STAFF, 'Persetujuan Orang Kedua')?.badgeKey).toBeUndefined()
+    })
+
+    test('Plafon Pencairan terbuka untuk SEMUA peran, di luar entri "Pengaturan"', () => {
+      // Alasan yang sama dengan Mode Mint: `GET /api/v1/payout-controls` terbuka
+      // untuk keempat peran karena keadaan rem harus bisa dilihat cepat saat
+      // insiden. MENGUBAH plafon tetap MANAGER/ADMIN, digerbangi di dalam layar.
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) {
+        expect(itemsIn(id, 'Pengaturan')).toContain('Plafon Pencairan')
+      }
+      expect(itemFor(STAFF, 'Plafon Pencairan')?.to).toBe('/plafon-pencairan')
+    })
+
     test('Rekening BNI + kedua antrean uang terbuka untuk SEMUA peran, badge ikut', () => {
       for (const id of [ADMIN, DEVELOPER, MANAGER, STAFF]) {
         expect(itemsIn(id, 'Keuangan')).toContain('Rekening BNI')
@@ -195,15 +253,16 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
   })
 
   describe('negative', () => {
-    test('STAFF melihat 13 entri, dan tidak satu pun yang di-gate', () => {
+    test('STAFF melihat 16 entri, dan tidak satu pun yang di-gate', () => {
       const labels = allLabels(STAFF)
-      expect(labels).toHaveLength(13)
+      expect(labels).toHaveLength(16)
       for (const hidden of [
         'Antrean Tanda Tangan',
         'Laporan',
         'Cadangan & Atestasi',
         'Pengaturan',
         'Pengguna Internal',
+        'Jejak Audit',
       ]) {
         expect(labels).not.toContain(hidden)
       }
@@ -219,8 +278,10 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
 
     test('DEVELOPER: semua kecuali Pengguna Internal', () => {
       const labels = allLabels(DEVELOPER)
-      expect(labels).toHaveLength(17)
+      expect(labels).toHaveLength(20)
       expect(labels).not.toContain('Pengguna Internal')
+      // Jejak Audit juga tidak: `GET /api/v1/activity-logs` ADMIN saja.
+      expect(labels).not.toContain('Jejak Audit')
     })
   })
 

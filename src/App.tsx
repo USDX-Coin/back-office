@@ -28,6 +28,10 @@ import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
+import HeldCreditsPage from '@/features/held-credits/HeldCreditsPage'
+import ApprovalsPage from '@/features/approvals/ApprovalsPage'
+import PayoutControlsPage from '@/features/payout-controls/PayoutControlsPage'
+import ActivityLogPage from '@/features/activity-log/ActivityLogPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import MintModePage from '@/features/mint-mode/MintModePage'
@@ -150,6 +154,27 @@ export const appRoutes: RouteObject[] = [
           // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
           { path: '/payout-failures', element: <PayoutFailuresPage /> },
           { path: '/payout-failures/:id', element: <PayoutFailuresPage /> },
+          // USDX-342 — antrean Mint Bermasalah (kredit masuk yang tertahan,
+          // `sot/bni-integration.md § 6`). TANPA RoleGuard, alasan yang sama
+          // dengan /payout-failures: `HeldCreditsController` membuka list +
+          // detail untuk keempat peran dan menutup RESOLVE untuk DEVELOPER
+          // (403), jadi yang digerbangi adalah aksinya, di dalam layar.
+          // Menggerbangi rutenya akan menyembunyikan uang nasabah yang belum
+          // jadi USDX dari peran yang paling sering melihat antrean lebih dulu.
+          { path: '/mint-bermasalah', element: <HeldCreditsPage /> },
+          { path: '/mint-bermasalah/:id', element: <HeldCreditsPage /> },
+          // USDX-486 — antrean maker-checker. TANPA RoleGuard: `ApprovalsController`
+          // membuka list + detail untuk keempat peran justru supaya PENGUSUL bisa
+          // melihat nasib usulannya sendiri; memutuskan digerbangi MANAGER/ADMIN di
+          // dalam layar, dengan alasannya ditulis saat tombolnya mati.
+          { path: '/persetujuan', element: <ApprovalsPage /> },
+          { path: '/persetujuan/:id', element: <ApprovalsPage /> },
+          // Plafon pencairan. TANPA RoleGuard: `GET /api/v1/payout-controls`
+          // terbuka untuk keempat peran karena keadaan rem harus bisa dilihat
+          // cepat saat insiden. MENGUBAH plafon dan MEMBACA RIWAYATNYA
+          // (MANAGER/ADMIN) digerbangi per-bagian di dalam halaman — dua gerbang
+          // berbeda di satu layar tidak bisa diwakili satu gerbang rute.
+          { path: '/plafon-pencairan', element: <PayoutControlsPage /> },
           {
             // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
             // `/mint/:id`) is admin/developer/manager only — STAFF redirects
@@ -221,6 +246,11 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN']} />,
             children: [
               { path: '/settings/threshold', element: <ThresholdPage /> },
+              // Jejak Audit — `GET /api/v1/activity-logs` adalah `@Roles("ADMIN")`,
+              // satu-satunya peran. Digerbangi DI ROUTE, bukan hanya di menu:
+              // menu yang disembunyikan tetap meninggalkan halamannya sejauh satu
+              // URL, dan 403 dari server dibaca operator sebagai layar rusak.
+              { path: '/jejak-audit', element: <ActivityLogPage /> },
               // USDX-485 (audit alur uang P1-18): kontak on-call insiden uang.
               // ADMIN-only termasuk untuk MEMBACA — daftarnya memuat nomor
               // telepon (PII → ADMIN saja per conventions.md § Audit Akses PII)

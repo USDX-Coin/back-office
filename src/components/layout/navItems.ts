@@ -17,6 +17,10 @@ import {
   Banknote as BanknoteIcon,
   BanknoteX,
   ScrollText,
+  HandCoins,
+  UserCheck,
+  Gauge,
+  History,
 } from 'lucide-react'
 import {
   canAccessReports,
@@ -25,6 +29,7 @@ import {
   canManageSettings,
   canManageStaff,
 } from '@/lib/auth'
+import { canReadActivityLog } from '@/features/activity-log/access'
 import type { Staff } from '@/lib/types'
 
 export type BadgeKey =
@@ -137,6 +142,22 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BanknoteX,
         badgeKey: 'payoutFailures',
       },
+      // TEMPAT YANG SUDAH DIPESAN DI ATAS, kini terisi (USDX-342). § 17.9 +
+      // keputusan PM 2026-09-13 mewajibkan dua antrean penyelesaian uang duduk
+      // BERDAMPINGAN: yang satu rupiah yang belum sampai ke nasabah, yang satu
+      // rupiah nasabah yang belum jadi USDX. Jangan dipindah ke section lain.
+      //
+      // Tanpa badge: `GET /api/v1/queue-counts` hanya menghitung dua antrean
+      // (payoutFailuresOpen, redeemApprovalsOpen). Menghitungnya dengan query
+      // list `take=1` seperti badge mint/burn akan menembak endpoint uang tiap
+      // halaman dimuat — angka yang tidak diminta siapa pun. Dicatat sebagai
+      // kebutuhan backend, bukan ditambal di sidebar.
+      { to: '/mint-bermasalah', label: 'Mint Bermasalah', icon: HandCoins },
+      // USDX-486 — antrean maker-checker. Terbuka semua peran (pengusul harus
+      // bisa melihat nasib usulannya); memutuskan digerbangi MANAGER/ADMIN di
+      // dalam layar. Duduk di sini, bukan di Pengaturan: usulan punya masa
+      // berlaku, dan yang punya masa berlaku adalah pekerjaan hari ini.
+      { to: '/persetujuan', label: 'Persetujuan Orang Kedua', icon: UserCheck },
       // USDX-87 — eks "Manual Sync". "Troubleshooting" bukan kelompok yang
       // berarti buat operator; memperbaiki request yang nyangkut adalah
       // pekerjaan, jadi ia naik ke antrean harian. Semua peran (permukaan
@@ -231,6 +252,13 @@ export const NAV_SECTIONS: NavSection[] = [
       // USDX-639 — JANGAN dijadikan tab di dalam "Pengaturan" di atas. Lihat
       // catatan no. 2 di kepala berkas: ini rem darurat untuk SEMUA peran.
       { to: '/settings/mint-mode', label: 'Mode Mint', icon: FlaskConical },
+      // Plafon pencairan. Entri SENDIRI, di luar "Pengaturan" yang di-gate
+      // `canManageSettings`, dengan alasan yang sama seperti Mode Mint: membaca
+      // keadaan rem dan plafon yang berlaku terbuka untuk KEEMPAT peran
+      // (`GET /api/v1/payout-controls`), dan orang yang sedang menangani
+      // insiden uang tidak boleh harus mencari atasan untuk melihatnya.
+      // Mengubahnya tetap MANAGER/ADMIN, digerbangi di dalam layar.
+      { to: '/plafon-pencairan', label: 'Plafon Pencairan', icon: Gauge },
       // Eks "Staff" di section Workspace. Ia bukan nasabah dan bukan pekerjaan
       // harian — ia pengaturan tentang siapa yang boleh memakai back-office.
       // ADMIN saja, sama seperti sebelumnya.
@@ -239,6 +267,16 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Pengguna Internal',
         icon: UserCog,
         visibleWhen: canManageStaff,
+      },
+      // Jejak Audit — duduk di sini karena subjeknya adalah OPERATOR, bukan
+      // nasabah: ia tetangga langsung "Pengguna Internal". ADMIN saja, sama
+      // dengan `@Roles("ADMIN")` di controller-nya, DAN digerbangi lagi di
+      // route (`App.tsx`) — menu ini tidak pernah menjadi satu-satunya gerbang.
+      {
+        to: '/jejak-audit',
+        label: 'Jejak Audit',
+        icon: History,
+        visibleWhen: canReadActivityLog,
       },
     ],
   },
