@@ -46,11 +46,12 @@ export default function AttestationRevokeDialog({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Revoke this attestation report?</DialogTitle>
+          <DialogTitle>Cabut laporan atestasi ini?</DialogTitle>
           <DialogDescription>
-            The report stops being listed on the public transparency page at
-            usdx.co.id. The record itself is kept for the audit trail — revoking
-            marks it withdrawn, it does not erase it.
+            Laporan ini langsung hilang dari daftar dokumen di halaman
+            transparansi publik usdx.co.id. Datanya tetap disimpan untuk jejak
+            audit — mencabut menandainya tidak berlaku lagi, bukan
+            menghapusnya.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-3">
@@ -62,7 +63,7 @@ export default function AttestationRevokeDialog({
               <p className="mt-1 font-medium text-foreground">{report.title}</p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No report selected.</p>
+            <p className="text-sm text-muted-foreground">Belum ada laporan yang dipilih.</p>
           )}
           <FieldError message={error ?? undefined} />
         </DialogBody>
@@ -73,7 +74,7 @@ export default function AttestationRevokeDialog({
             onClick={() => handleOpenChange(false)}
             disabled={isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -82,7 +83,7 @@ export default function AttestationRevokeDialog({
             aria-busy={isPending}
             className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
-            {isPending ? 'Revoking…' : 'Revoke report'}
+            {isPending ? 'Mencabut…' : 'Cabut laporan'}
           </Button>
         </DialogFooter>
       </DialogContent>

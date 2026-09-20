@@ -3,20 +3,33 @@ import { ApiError } from '@/lib/apiFetch'
 import { BNI_ERROR_TEXT, describeBniError } from '../errors'
 
 // USDX-631 — sot/bni-integration.md § 16.3 (backend code → UI text).
+//
+// Tiap kalimat untuk operator membawa KODE galat servernya dalam kurung: itu
+// yang dikutip operator saat melapor ke tim teknis (pola `unknownStatusLabel()`
+// di `src/lib/status.ts`). Status HTTP mentah dan URL layanan tetap tidak ikut.
+
+/** Kalimat + kode, persis seperti yang terbaca di layar. */
+function shown(message: string, code: string): string {
+  return `${message} (${code})`
+}
 
 describe('describeBniError', () => {
   describe('positive', () => {
     test('503 BNI_SERVICE_UNCONFIGURED → belum aktif, not retryable', () => {
       const view = describeBniError(new ApiError(503, 'BNI_SERVICE_UNCONFIGURED', 'x'))
       expect(view.kind).toBe('unconfigured')
-      expect(view.message).toBe(BNI_ERROR_TEXT.unconfigured)
+      expect(view.message).toBe(
+        shown(BNI_ERROR_TEXT.unconfigured, 'BNI_SERVICE_UNCONFIGURED')
+      )
       expect(view.retryable).toBe(false)
     })
 
     test('502 BNI_SERVICE_UNAVAILABLE → coba lagi, retryable (default text when message is empty)', () => {
       const view = describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', ''))
       expect(view.kind).toBe('unavailable')
-      expect(view.message).toBe(BNI_ERROR_TEXT.unavailable)
+      expect(view.message).toBe(
+        shown(BNI_ERROR_TEXT.unavailable, 'BNI_SERVICE_UNAVAILABLE')
+      )
       expect(view.retryable).toBe(true)
     })
 
@@ -25,10 +38,10 @@ describe('describeBniError', () => {
     test('502 BNI_SERVICE_UNAVAILABLE shows the backend message verbatim (timeout / mismatch variants)', () => {
       expect(
         describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank lambat menjawab, coba lagi')).message
-      ).toBe('Bank lambat menjawab, coba lagi')
+      ).toBe(shown('Bank lambat menjawab, coba lagi', 'BNI_SERVICE_UNAVAILABLE'))
       expect(
         describeBniError(new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank tidak mengembalikan rekening ini')).message
-      ).toBe('Bank tidak mengembalikan rekening ini')
+      ).toBe(shown('Bank tidak mengembalikan rekening ini', 'BNI_SERVICE_UNAVAILABLE'))
     })
 
     test('429 → terlalu sering, retryable', () => {
@@ -42,14 +55,18 @@ describe('describeBniError', () => {
         new ApiError(502, 'BNI_BANK_REJECTED', 'x', { bankReason: 'Account not authorized for inquiry' })
       )
       expect(view.kind).toBe('bank-rejected')
-      expect(view.message).toBe('Ditolak bank: Account not authorized for inquiry')
+      expect(view.message).toBe(
+        shown('Ditolak bank: Account not authorized for inquiry', 'BNI_BANK_REJECTED')
+      )
       expect(view.retryable).toBe(false)
     })
 
     test('422 BNI_ACCOUNT_NOT_ALLOWED → periksa konfigurasi', () => {
       const view = describeBniError(new ApiError(422, 'BNI_ACCOUNT_NOT_ALLOWED', 'x'))
       expect(view.kind).toBe('not-allowed')
-      expect(view.message).toBe(BNI_ERROR_TEXT.notAllowed)
+      expect(view.message).toBe(
+        shown(BNI_ERROR_TEXT.notAllowed, 'BNI_ACCOUNT_NOT_ALLOWED')
+      )
     })
   })
 
@@ -57,7 +74,7 @@ describe('describeBniError', () => {
     test('401 → neutral session text that never mentions the bank being unreachable', () => {
       const view = describeBniError(new ApiError(401, 'UNAUTHORIZED', 'x'))
       expect(view.kind).toBe('unauthorized')
-      expect(view.message).toBe(BNI_ERROR_TEXT.unauthorized)
+      expect(view.message).toBe(shown(BNI_ERROR_TEXT.unauthorized, 'UNAUTHORIZED'))
       expect(view.message).not.toMatch(/dihubungi|lambat/)
       expect(view.retryable).toBe(false)
     })
@@ -82,7 +99,9 @@ describe('describeBniError', () => {
       const view = describeBniError(
         new ApiError(502, 'BNI_SERVICE_UNAVAILABLE', 'upstream fetch to http://bni-service:3000 failed')
       )
-      expect(view.message).toBe(BNI_ERROR_TEXT.unavailable)
+      expect(view.message).toBe(
+        shown(BNI_ERROR_TEXT.unavailable, 'BNI_SERVICE_UNAVAILABLE')
+      )
       expect(view.message).not.toContain('502')
       expect(view.message).not.toContain('http://')
     })
@@ -99,7 +118,7 @@ describe('describeBniError', () => {
     test('BNI_BANK_REJECTED with an empty bankReason still reads as rejected', () => {
       const view = describeBniError(new ApiError(502, 'BNI_BANK_REJECTED', 'x', { bankReason: '  ' }))
       expect(view.kind).toBe('bank-rejected')
-      expect(view.message).toBe('Ditolak bank tanpa alasan.')
+      expect(view.message).toBe(shown('Ditolak bank tanpa alasan.', 'BNI_BANK_REJECTED'))
     })
 
     test('422 VALIDATION_ERROR echoes the backend message (the range was re-checked)', () => {

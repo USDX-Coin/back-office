@@ -39,8 +39,8 @@ interface Props {
 }
 
 const ENTRY_TYPE_HINTS: Record<SelectableLedgerEntryType, string> = {
-  SEED: 'First recording of a reserve that already exists.',
-  ADJUSTMENT: 'Any later change, including corrections (use a negative amount).',
+  SEED: 'Pencatatan pertama untuk cadangan yang sudah ada.',
+  ADJUSTMENT: 'Perubahan sesudahnya, termasuk koreksi (pakai nominal negatif).',
 }
 
 const EMPTY_FORM = {
@@ -65,8 +65,9 @@ export default function LedgerEntryForm({ balance }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   // A failure the dialog has to keep showing (500, 403, network). Field-level
   // contract errors go into `errors` instead, so a message is never rendered
-  // twice. Either way the backend's wording is passed through verbatim — the
-  // operator needs to see exactly what the API objected to.
+  // twice. Either way the backend's wording is passed through verbatim, with
+  // its error CODE in brackets (see errorText) — the operator needs to see
+  // exactly what the API objected to, and to be able to quote the code.
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [pending, setPending] = useState<CreateLedgerEntryInput | null>(null)
   // Whether the balance behind the dialog has been re-read since the last
@@ -127,6 +128,26 @@ export default function LedgerEntryForm({ balance }: Props) {
   }
 
   /**
+   * Kalimat galat untuk operator: pesan dari server APA ADANYA plus KODE-nya
+   * dalam kurung.
+   *
+   * Kodenya ikut karena itulah yang dikutip operator saat melapor ke tim
+   * teknis — pola yang sama dengan `unknownStatusLabel()` di `lib/status.ts`.
+   * Pesannya sendiri tidak diterjemahkan di sini: server yang tahu persis apa
+   * yang ditolaknya, dan menulis ulang kalimatnya berisiko menyebut sebab yang
+   * bukan sebabnya.
+   */
+  function errorText(err: unknown): string {
+    if (err instanceof ApiError) {
+      const message = err.message?.trim()
+      const base = message || 'Permintaan ditolak server.'
+      return err.code ? `${base} (${err.code})` : base
+    }
+    if (err instanceof Error && err.message.trim()) return err.message
+    return 'Entri gagal dicatat. Coba lagi.'
+  }
+
+  /**
    * Files the entry EXACTLY as handed over — the key included.
    *
    * The input is a parameter rather than read from `pending` so the caller owns
@@ -139,15 +160,12 @@ export default function LedgerEntryForm({ balance }: Props) {
     setConflict(false)
     try {
       await create.mutateAsync(input)
-      toast.success('Ledger entry recorded')
+      toast.success('Entri buku besar tercatat')
       setPending(null)
       setForm(EMPTY_FORM)
       setErrors({})
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Couldn't record the entry. Please try again."
+      const message = errorText(err)
 
       // 409: this key is already on an entry whose content differs, so the
       // backend wrote NOTHING and answering "success" would be a lie. It is also
@@ -228,14 +246,14 @@ export default function LedgerEntryForm({ balance }: Props) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Record a ledger entry
+          Catat entri buku besar
         </CardTitle>
       </CardHeader>
 
       <form onSubmit={handleSubmit} noValidate id="ledger-entry-form">
         <CardContent className="space-y-5">
           <fieldset className="space-y-1.5">
-            <legend className="mb-1.5 text-sm font-medium">Entry type</legend>
+            <legend className="mb-1.5 text-sm font-medium">Jenis entri</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {LEDGER_ENTRY_TYPES_SELECTABLE.map((type) => (
                 <label
@@ -268,7 +286,7 @@ export default function LedgerEntryForm({ balance }: Props) {
 
           <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
             <div className="space-y-1.5">
-              <Label htmlFor="ledgerAmount">Amount</Label>
+              <Label htmlFor="ledgerAmount">Nominal</Label>
               <Input
                 id="ledgerAmount"
                 // `type="text"` on purpose: a negative amount is a first-class
@@ -284,14 +302,14 @@ export default function LedgerEntryForm({ balance }: Props) {
                 aria-describedby="ledgerAmountHint"
               />
               <p id="ledgerAmountHint" className="text-xs text-muted-foreground">
-                Up to 2 decimals. Use a negative amount (e.g. −1250.00) to
-                correct an earlier entry. Zero is not allowed.
+                Maksimal 2 desimal. Pakai nominal negatif (mis. −1250.00) untuk
+                mengoreksi entri sebelumnya. Nol tidak diterima.
               </p>
               <FieldError message={errors.amount} />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ledgerCurrency">Currency</Label>
+              <Label htmlFor="ledgerCurrency">Mata uang</Label>
               <Input
                 id="ledgerCurrency"
                 readOnly
@@ -300,14 +318,14 @@ export default function LedgerEntryForm({ balance }: Props) {
                 aria-describedby="ledgerCurrencyHint"
               />
               <p id="ledgerCurrencyHint" className="text-xs text-muted-foreground">
-                USD only at this stage.
+                Tahap ini hanya USD.
               </p>
               <FieldError message={errors.currency} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ledgerOccurredAt">Event date</Label>
+            <Label htmlFor="ledgerOccurredAt">Tanggal kejadian</Label>
             <Input
               id="ledgerOccurredAt"
               type="date"
@@ -318,14 +336,14 @@ export default function LedgerEntryForm({ balance }: Props) {
               aria-describedby="ledgerOccurredAtHint"
             />
             <p id="ledgerOccurredAtHint" className="text-xs text-muted-foreground">
-              When it actually happened in the real world (the bank transfer
-              date, for example) — not today's date. Cannot be in the future.
+              Tanggal kejadian sesungguhnya — misalnya tanggal transfer bank —
+              bukan tanggal hari ini. Tidak boleh tanggal yang akan datang.
             </p>
             <FieldError message={errors.occurredAt} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ledgerReason">Reason</Label>
+            <Label htmlFor="ledgerReason">Alasan</Label>
             <Textarea
               id="ledgerReason"
               value={form.reason}
@@ -335,9 +353,9 @@ export default function LedgerEntryForm({ balance }: Props) {
               aria-describedby="ledgerReasonHint"
             />
             <p id="ledgerReasonHint" className="text-xs text-muted-foreground">
-              Required, at least {LEDGER_REASON_MIN_LEN} characters. This is the
-              internal record of why the public figure moved — it is kept for
-              audit and is never shown on the public page.
+              Wajib diisi, minimal {LEDGER_REASON_MIN_LEN} karakter. Ini catatan
+              internal tentang kenapa angka publik berubah — disimpan untuk
+              audit dan tidak pernah tampil di halaman publik.
             </p>
             <FieldError message={errors.reason} />
           </div>
@@ -351,7 +369,7 @@ export default function LedgerEntryForm({ balance }: Props) {
             aria-busy={create.isPending}
             className="w-full"
           >
-            {create.isPending ? 'Recording…' : 'Review and record'}
+            {create.isPending ? 'Mencatat…' : 'Periksa lalu catat'}
           </Button>
         </CardFooter>
       </form>

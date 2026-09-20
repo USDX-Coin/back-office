@@ -30,12 +30,12 @@ interface Props {
 }
 
 const COLUMNS = [
-  'Event date',
-  'Type',
-  'Amount',
-  'Reason',
-  'Recorded by',
-  'Recorded at',
+  'Tanggal kejadian',
+  'Jenis',
+  'Nominal',
+  'Alasan',
+  'Dicatat oleh',
+  'Dicatat pada',
 ]
 
 /**
@@ -65,20 +65,20 @@ export default function LedgerHistoryTable({
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Ledger history
+          Riwayat buku besar
         </CardTitle>
       </CardHeader>
 
       <CardContent className="px-0 pb-0">
         {isError ? (
           <TableErrorState
-            title="Couldn't load the reserve ledger"
-            description="The transparency service did not respond. Nothing was changed."
+            title="Buku besar cadangan gagal dimuat"
+            description="Layanan transparansi tidak menjawab dan tidak ada yang berubah. Periksa koneksi lalu coba lagi."
             onRetry={onRetry}
           />
         ) : (
           <div className="overflow-x-auto">
-            <Table aria-label="Reserve ledger entries">
+            <Table aria-label="Entri buku besar cadangan">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   {COLUMNS.map((header) => (
@@ -107,8 +107,8 @@ export default function LedgerHistoryTable({
                     <TableCell colSpan={COLUMNS.length} className="p-0">
                       <TableEmptyState
                         mode="no-data"
-                        title="No ledger entries yet"
-                        description="Record the first entry to publish a reserve figure on usdx.co.id."
+                        title="Belum ada entri buku besar"
+                        description="Catat entri pertama supaya angka cadangan tayang di usdx.co.id."
                       />
                     </TableCell>
                   </TableRow>
@@ -163,34 +163,34 @@ export default function LedgerHistoryTable({
       {!isError && total > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            {`Showing ${firstRow}–${lastRow} of ${total} entries`}
+            {`Menampilkan ${firstRow}–${lastRow} dari ${total} entri`}
           </p>
           <div className="flex items-center gap-2">
             {/* Named explicitly: the attestation table below has its own
-                Previous/Next, and "Next" alone is ambiguous to a screen reader
+                pager, and "Berikutnya" alone is ambiguous to a screen reader
                 landing anywhere on this page. */}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              aria-label="Previous page of ledger entries"
+              aria-label="Halaman sebelumnya buku besar"
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1 || isLoading}
             >
-              Previous
+              Sebelumnya
             </Button>
             <span className="text-xs text-muted-foreground">
-              Page {page} of {lastPage}
+              Halaman {page} dari {lastPage}
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              aria-label="Next page of ledger entries"
+              aria-label="Halaman berikutnya buku besar"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= lastPage || isLoading}
             >
-              Next
+              Berikutnya
             </Button>
           </div>
         </div>

@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import FieldError from '@/components/FieldError'
+import { ApiError } from '@/lib/apiFetch'
 import { formatShortDate } from '@/lib/format'
 import { activeAttestations, formatPeriod, looksLikePdf } from '@/lib/transparency'
 import {
@@ -38,6 +39,23 @@ import AttestationUploadDialog, {
 
 interface Props {
   canManage: boolean
+}
+
+/**
+ * Kalimat galat untuk operator: pesan server apa adanya + KODE-nya dalam
+ * kurung, karena kode itulah yang dikutip operator saat melapor ke tim teknis
+ * (pola `unknownStatusLabel()` di `lib/status.ts`). Galat yang bukan dari API
+ * — jaringan putus, unggahan ke penyimpanan — tidak punya kode, jadi
+ * kalimatnya lewat apa adanya.
+ */
+function attestationErrorText(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const message = err.message?.trim()
+    const base = message || 'Permintaan ditolak server.'
+    return err.code ? `${base} (${err.code})` : base
+  }
+  if (err instanceof Error && err.message.trim()) return err.message
+  return fallback
 }
 
 export default function AttestationSection({ canManage }: Props) {
@@ -113,7 +131,7 @@ export default function AttestationSection({ canManage }: Props) {
     setUploadError(null)
     try {
       await upload.mutateAsync(pendingUpload)
-      toast.success('Attestation report published')
+      toast.success('Laporan atestasi terbit')
       setPendingUpload(null)
       setPeriod('')
       setTitle('')
@@ -123,10 +141,7 @@ export default function AttestationSection({ canManage }: Props) {
     } catch (err) {
       // Dialog stays open with the server's own message; the form keeps its
       // values so the operator can retry without re-picking the file.
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Couldn't upload the report. Please try again."
+      const message = attestationErrorText(err, 'Laporan gagal diunggah. Coba lagi.')
       setUploadError(message)
       toast.error(message)
     }
@@ -137,13 +152,10 @@ export default function AttestationSection({ canManage }: Props) {
     setRevokeError(null)
     try {
       await revoke.mutateAsync(pendingRevoke.id)
-      toast.success('Attestation report revoked')
+      toast.success('Laporan atestasi dicabut')
       setPendingRevoke(null)
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Couldn't revoke the report. Please try again."
+      const message = attestationErrorText(err, 'Laporan gagal dicabut. Coba lagi.')
       setRevokeError(message)
       toast.error(message)
     }
@@ -153,7 +165,7 @@ export default function AttestationSection({ canManage }: Props) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Attestation reports
+          Laporan atestasi
         </CardTitle>
       </CardHeader>
 
@@ -162,7 +174,7 @@ export default function AttestationSection({ canManage }: Props) {
           <form onSubmit={handleSubmit} noValidate id="attestation-form">
             <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
               <div className="space-y-1.5">
-                <Label htmlFor="attestationPeriod">Period</Label>
+                <Label htmlFor="attestationPeriod">Periode</Label>
                 <Input
                   id="attestationPeriod"
                   value={period}
@@ -177,12 +189,12 @@ export default function AttestationSection({ canManage }: Props) {
                 {/* The public document table derives its Month / Year columns
                     from this value, so the format is strict and required. */}
                 <p id="attestationPeriodHint" className="text-xs text-muted-foreground">
-                  YYYY-MM. Drives the Month / Year columns shown publicly.
+                  YYYY-MM. Menentukan kolom Bulan / Tahun yang tampil di publik.
                 </p>
                 <FieldError message={errors.period} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="attestationTitle">Title</Label>
+                <Label htmlFor="attestationTitle">Judul</Label>
                 <Input
                   id="attestationTitle"
                   value={title}
@@ -197,7 +209,7 @@ export default function AttestationSection({ canManage }: Props) {
             </div>
 
             <div className="mt-4 space-y-1.5">
-              <Label htmlFor="attestationFile">Report file (PDF)</Label>
+              <Label htmlFor="attestationFile">Berkas laporan (PDF)</Label>
               <Input
                 id="attestationFile"
                 ref={fileInputRef}
@@ -215,10 +227,10 @@ export default function AttestationSection({ canManage }: Props) {
                   would not raise the limit, only move the rejection to after
                   the operator waited for the upload. */}
               <p className="text-xs text-muted-foreground">
-                PDF only, up to {ATTESTATION_MAX_FILE_LABEL}. The file is
-                uploaded straight to storage and then registered here; once
-                published anyone can download it from usdx.co.id — you will be
-                asked to confirm first.
+                Hanya PDF, maksimal {ATTESTATION_MAX_FILE_LABEL}. Berkasnya
+                diunggah langsung ke penyimpanan lalu didaftarkan di sini; begitu
+                terbit, siapa pun bisa mengunduhnya dari usdx.co.id — akan ada
+                konfirmasi dulu sebelum itu.
               </p>
               <FieldError message={errors.file} />
             </div>
@@ -230,7 +242,7 @@ export default function AttestationSection({ canManage }: Props) {
                 disabled={upload.isPending}
                 aria-busy={upload.isPending}
               >
-                {upload.isPending ? 'Uploading…' : 'Review and upload'}
+                {upload.isPending ? 'Mengunggah…' : 'Periksa lalu unggah'}
               </Button>
             </div>
           </form>
@@ -240,16 +252,16 @@ export default function AttestationSection({ canManage }: Props) {
       <CardContent className="px-0 pb-0">
         {list.isError ? (
           <TableErrorState
-            title="Couldn't load attestation reports"
-            description="The transparency service did not respond. Nothing was changed."
+            title="Laporan atestasi gagal dimuat"
+            description="Layanan transparansi tidak menjawab dan tidak ada yang berubah. Periksa koneksi lalu coba lagi."
             onRetry={() => list.refetch()}
           />
         ) : (
           <div className="overflow-x-auto">
-            <Table aria-label="Attestation reports">
+            <Table aria-label="Laporan atestasi">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  {['Period', 'Title', 'Published', ''].map((header, i) => (
+                  {['Periode', 'Judul', 'Terbit', ''].map((header, i) => (
                     <TableHead
                       key={header || `col-${i}`}
                       className="h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
@@ -275,8 +287,8 @@ export default function AttestationSection({ canManage }: Props) {
                     <TableCell colSpan={4} className="p-0">
                       <TableEmptyState
                         mode="no-data"
-                        title="No active attestation reports"
-                        description="Upload the monthly audit or attestation PDF to publish it."
+                        title="Belum ada laporan atestasi aktif"
+                        description="Unggah PDF audit atau atestasi bulanan untuk menerbitkannya."
                       />
                     </TableCell>
                   </TableRow>
@@ -310,9 +322,9 @@ export default function AttestationSection({ canManage }: Props) {
                               setRevokeError(null)
                               setPendingRevoke(row)
                             }}
-                            aria-label={`Revoke report ${row.title}`}
+                            aria-label={`Cabut laporan ${row.title}`}
                           >
-                            Revoke
+                            Cabut
                           </Button>
                         )}
                       </TableCell>
@@ -329,10 +341,10 @@ export default function AttestationSection({ canManage }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
           {/* Deliberately NOT phrased as a row range. Revoked reports are
               filtered out client-side, so the visible count is not a slice of
-              `total` and claiming "showing 1–20 of 60" would be a lie on any
-              page holding a revoked row. */}
+              `total` and claiming "menampilkan 1–20 dari 60" would be a lie on
+              any page holding a revoked row. */}
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            {`${rows.length} active on this page · ${total} report${total === 1 ? '' : 's'} in total (including revoked)`}
+            {`${rows.length} aktif di halaman ini · ${total} laporan seluruhnya (termasuk yang sudah dicabut)`}
           </p>
           <div className="flex items-center gap-2">
             {/* The page has two paginators. Both need names a screen-reader
@@ -341,24 +353,24 @@ export default function AttestationSection({ canManage }: Props) {
               type="button"
               variant="outline"
               size="sm"
-              aria-label="Previous page of attestation reports"
+              aria-label="Halaman sebelumnya laporan atestasi"
               onClick={() => setPage(page - 1)}
               disabled={page <= 1 || list.isFetching}
             >
-              Previous
+              Sebelumnya
             </Button>
             <span className="text-xs text-muted-foreground">
-              Page {page} of {lastPage}
+              Halaman {page} dari {lastPage}
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              aria-label="Next page of attestation reports"
+              aria-label="Halaman berikutnya laporan atestasi"
               onClick={() => setPage(page + 1)}
               disabled={page >= lastPage || list.isFetching}
             >
-              Next
+              Berikutnya
             </Button>
           </div>
         </div>

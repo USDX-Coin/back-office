@@ -42,6 +42,20 @@ export const BNI_ERROR_TEXT = {
   unknown: 'Gagal menarik data dari bank.',
 } as const
 
+/**
+ * Kalimat untuk operator + KODE galat dari server dalam kurung.
+ *
+ * Kalimatnya tetap yang menjelaskan apa yang terjadi; kodenya ikut karena itu
+ * yang dikutip operator saat melapor ke tim teknis — pola `unknownStatusLabel()`
+ * di `src/lib/status.ts`. Yang TIDAK ikut tetap tidak ikut: status HTTP mentah,
+ * URL layanan, dan kredensial (§ 16.3). Galat tanpa kode — abort di peramban,
+ * jaringan putus — tampil tanpa kurung, karena tidak ada kode untuk dikutip.
+ */
+function withCode(message: string, code: string | null | undefined): string {
+  const named = code?.trim()
+  return named ? `${message} (${named})` : message
+}
+
 function bankReasonOf(details: unknown): string | null {
   if (details && typeof details === 'object' && 'bankReason' in details) {
     const reason = (details as { bankReason?: unknown }).bankReason
@@ -70,22 +84,41 @@ export function describeBniError(err: unknown): BniErrorView {
       // apiFetch has already re-verified the session and, if it is dead,
       // signed the operator out. If we are still here the session is alive
       // (cross-audience 401) — say so neutrally, never blame the bank.
-      return { kind: 'unauthorized', message: BNI_ERROR_TEXT.unauthorized, retryable: false }
+      return {
+        kind: 'unauthorized',
+        message: withCode(BNI_ERROR_TEXT.unauthorized, err.code),
+        retryable: false,
+      }
     case 503:
       // Only the contract's own code means "not configured" (§ 16.3). A 503
       // from the load balancer during a deploy carries no SoT code and is a
       // transient outage — "coba lagi", not a config investigation.
       return err.code.endsWith('_UNCONFIGURED')
-        ? { kind: 'unconfigured', message: BNI_ERROR_TEXT.unconfigured, retryable: false }
-        : { kind: 'unavailable', message: BNI_ERROR_TEXT.unavailable, retryable: true }
+        ? {
+            kind: 'unconfigured',
+            message: withCode(BNI_ERROR_TEXT.unconfigured, err.code),
+            retryable: false,
+          }
+        : {
+            kind: 'unavailable',
+            message: withCode(BNI_ERROR_TEXT.unavailable, err.code),
+            retryable: true,
+          }
     case 429:
-      return { kind: 'rate-limited', message: BNI_ERROR_TEXT.rateLimited, retryable: true }
+      return {
+        kind: 'rate-limited',
+        message: withCode(BNI_ERROR_TEXT.rateLimited, err.code),
+        retryable: true,
+      }
     case 502: {
       if (err.code === 'BNI_BANK_REJECTED') {
         const reason = bankReasonOf(err.details)
         return {
           kind: 'bank-rejected',
-          message: reason ? `Ditolak bank: ${reason}` : 'Ditolak bank tanpa alasan.',
+          message: withCode(
+            reason ? `Ditolak bank: ${reason}` : 'Ditolak bank tanpa alasan.',
+            err.code
+          ),
           retryable: false,
         }
       }
@@ -97,19 +130,27 @@ export function describeBniError(err: unknown): BniErrorView {
       // is not one of the contract's texts, so it falls back too.
       const backendText = err.message?.trim()
       const usable = backendText && !/:\/\//.test(backendText) ? backendText : BNI_ERROR_TEXT.unavailable
-      return { kind: 'unavailable', message: usable, retryable: true }
+      return { kind: 'unavailable', message: withCode(usable, err.code), retryable: true }
     }
     case 422: {
       if (err.code === 'BNI_ACCOUNT_NOT_ALLOWED') {
-        return { kind: 'not-allowed', message: BNI_ERROR_TEXT.notAllowed, retryable: false }
+        return {
+          kind: 'not-allowed',
+          message: withCode(BNI_ERROR_TEXT.notAllowed, err.code),
+          retryable: false,
+        }
       }
       return {
         kind: 'validation',
-        message: `Parameter ditolak backend: ${err.message}`,
+        message: withCode(`Parameter ditolak backend: ${err.message}`, err.code),
         retryable: false,
       }
     }
     default:
-      return { kind: 'unknown', message: BNI_ERROR_TEXT.unknown, retryable: true }
+      return {
+        kind: 'unknown',
+        message: withCode(BNI_ERROR_TEXT.unknown, err.code),
+        retryable: true,
+      }
   }
 }
