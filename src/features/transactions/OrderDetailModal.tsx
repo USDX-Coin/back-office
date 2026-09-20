@@ -539,6 +539,16 @@ export default function OrderDetailModal({
                       <Dim />
                     )}
                   </Field>
+                  {/* BOLEH DILIPAT, TIDAK BOLEH DIBUANG. Nama rantai dulu
+                      dirender di kepala modal; saat kepala itu disederhanakan,
+                      komentarnya menjanjikan rantainya "turun ke Detail teknis"
+                      — dan tidak pernah sampai. Kolom Jaringan di tabel juga
+                      `hiddenByDefault`, jadi selama beberapa commit nama rantai
+                      tidak terbaca di mana pun secara bawaan. Polanya menyalin
+                      `RequestDetailModal`. */}
+                  <Field label="Jaringan">
+                    <span className="font-mono text-2xs">{detail.chain}</span>
+                  </Field>
                 </DetailTeknis>
               ) : (
                 <DetailTeknis>
@@ -583,6 +593,11 @@ export default function OrderDetailModal({
                     ) : (
                       <Dim />
                     )}
+                  </Field>
+                  {/* Lihat catatan pada cabang redeem di atas: dilipat, bukan
+                      dibuang. */}
+                  <Field label="Jaringan">
+                    <span className="font-mono text-2xs">{detail.chain}</span>
                   </Field>
                 </DetailTeknis>
               )}

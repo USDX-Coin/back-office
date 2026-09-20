@@ -285,7 +285,11 @@ describe('TransactionsListPage @ USDX-206', () => {
       expect(within(dialog).getByText(/32.*310/)).toBeInTheDocument()
       // P1-2 — blok Detail teknis ada, dan tertutup sampai dibuka.
       expect(within(dialog).getByText('Detail teknis')).toBeInTheDocument()
-      expect(within(dialog).queryByText('Kode anti-dobel')).not.toBeInTheDocument()
+      // TERTUTUP = TIDAK TERLIHAT, bukan tidak ada di DOM. Sejak `DetailTeknis`
+      // memakai `hidden="until-found"` isinya sengaja TETAP di DOM supaya Ctrl+F
+      // menemukannya — jadi yang dijaga di sini keadaan yang benar-benar dialami
+      // operator: ia tidak melihatnya sampai membukanya.
+      expect(within(dialog).getByText('Kode anti-dobel')).not.toBeVisible()
       await user.click(within(dialog).getByText('Detail teknis'))
       expect(await within(dialog).findByText('Kode anti-dobel')).toBeInTheDocument()
       expect(within(dialog).getByText('ID order')).toBeInTheDocument()
@@ -910,6 +914,54 @@ describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
       expect(captured.every((s) => !s.includes('ownerType'))).toBe(true)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOLEH DILIPAT, TIDAK BOLEH DIBUANG — nama rantai.
+//
+// `origin/dev` merender `STAFF safe · polygon` di kepala modal. Saat kepala itu
+// disederhanakan, komentarnya berbunyi "Nama rantainya turun ke Detail teknis di
+// bawah" — dan tidak pernah sampai ke sana. Kolom "Jaringan" di tabel juga
+// `hiddenByDefault`, jadi selama beberapa commit nama rantai sebuah order TIDAK
+// TERBACA DI MANA PUN secara bawaan.
+//
+// Dua cabang, dua tes: modal MINT dan modal REDEEM merender blok Detail teknis
+// yang berbeda, dan menambal salah satunya saja adalah cara cacat ini lahir.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('OrderDetailModal — nama rantai dilipat, tidak dibuang', () => {
+  describe('positive', () => {
+    test('MINT: Jaringan ada di Detail teknis, dengan nilai rantainya', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/orders', () => okList([baseRow({ id: 'ord_chain_mint' })])),
+        http.get('/api/v1/orders/ord_chain_mint', () =>
+          okDetail(baseDetail({ id: 'ord_chain_mint', chain: 'polygon' })),
+        ),
+      )
+      setup()
+      await user.click(await screen.findByText('alice@example.com'))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(await within(dialog).findByText('Detail teknis'))
+      const label = await within(dialog).findByText('Jaringan')
+      expect(label.parentElement?.textContent).toContain('polygon')
+    })
+
+    test('REDEEM: Jaringan ada di Detail teknis, dengan nilai rantainya', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/orders', () => okList([redeemRow({ id: 'ord_chain_rdm' })])),
+        http.get('/api/v1/orders/ord_chain_rdm', () =>
+          okDetail(redeemDetail({ id: 'ord_chain_rdm', chain: 'polygon' })),
+        ),
+      )
+      setup()
+      await user.click(await screen.findByText('bob@example.com'))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(await within(dialog).findByText('Detail teknis'))
+      const label = await within(dialog).findByText('Jaringan')
+      expect(label.parentElement?.textContent).toContain('polygon')
     })
   })
 })
