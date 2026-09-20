@@ -128,11 +128,17 @@ describe('ActivityLogPage @ jejak audit', () => {
         )
       )
       setup()
-      // Judul default `TableErrorState`, yang diterjemahkan di cabang bahasa.
-      // Yang dijaga test ini bukan kata-katanya, melainkan bahwa kegagalan
-      // memuat TERLIHAT sebagai kegagalan — tabel kosong yang menenangkan di
+      // Judul default `TableErrorState` (`TableErrorState.tsx:13`), dicocokkan
+      // UTUH dan bukan sekadar "gagal dimuat".
+      //
+      // Pencocokan longgar sempat dipakai saat menggabungkan cabang bahasa, dan
+      // itu keliru: halaman ini juga mencetak "Nama staf gagal dimuat" saat
+      // direktori staf gagal (`ActivityLogPage.tsx:406`). Keduanya berbagi satu
+      // origin, jadi backend yang mati menjatuhkan dua-duanya — dan test longgar
+      // akan tetap hijau kalau suatu saat tabelnya jatuh ke keadaan KOSONG
+      // sementara baris kecil itu tetap muncul. Tabel kosong yang menenangkan di
       // layar bukti kepatuhan membuat pemeriksa menyimpulkan tidak ada jejaknya.
-      expect(await screen.findByText(/gagal dimuat/i)).toBeInTheDocument()
+      expect(await screen.findByText(/Data ini gagal dimuat/i)).toBeInTheDocument()
       expect(screen.queryByText(/Belum ada jejak/)).not.toBeInTheDocument()
     })
   })
