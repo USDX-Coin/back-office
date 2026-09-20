@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 // ConnectButton.Custom so we keep its connect / account / chain modals and all
 // wallet logic, but render an Azure-Horizon-styled trigger instead of the stock
 // RainbowKit button:
-//   - disconnected  → primary teal CTA (matches the adjacent "Propose" button)
+//   - disconnected  → primary teal CTA (matches the adjacent "Ajukan" button)
 //   - wrong network → destructive button that opens the chain modal
 //   - connected     → outline chip: chain icon + green dot + address → account modal
 export default function WalletConnectButton() {
@@ -34,7 +34,7 @@ export default function WalletConnectButton() {
                 return (
                   <Button size="sm" onClick={openConnectModal}>
                     <Wallet className="mr-1 h-4 w-4" />
-                    Connect Wallet
+                    Hubungkan Wallet
                   </Button>
                 )
               }
@@ -43,7 +43,7 @@ export default function WalletConnectButton() {
                 return (
                   <Button size="sm" variant="destructive" onClick={openChainModal}>
                     <AlertTriangle className="mr-1 h-4 w-4" />
-                    Wrong network
+                    Jaringan salah
                   </Button>
                 )
               }
@@ -52,7 +52,7 @@ export default function WalletConnectButton() {
                 <button
                   type="button"
                   onClick={openAccountModal}
-                  aria-label={`Wallet ${account.displayName} on ${chain.name ?? 'network'} — open account`}
+                  aria-label={`Wallet ${account.displayName} di jaringan ${chain.name ?? 'yang tidak dikenali'} — buka akun`}
                   className=" focus-visible:ring-ring/55 group inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background pl-2 pr-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2"
                 >
                   {chain.hasIcon && chain.iconUrl && (

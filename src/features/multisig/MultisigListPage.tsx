@@ -90,7 +90,7 @@ export default function MultisigListPage() {
   const columns: ColumnDef<SafeTxListItem>[] = [
     {
       accessorKey: 'createdAt',
-      header: 'Date',
+      header: 'Tanggal',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
@@ -99,7 +99,7 @@ export default function MultisigListPage() {
     },
     {
       id: 'activity',
-      header: 'Activity',
+      header: 'Aktivitas',
       cell: ({ row }) => {
         const { activity, activityLabel } = row.original
         const unknown = isUnknownActivity(activity)
@@ -129,19 +129,19 @@ export default function MultisigListPage() {
     },
     {
       id: 'signatureProgress',
-      header: 'Signatures',
+      header: 'Tanda tangan',
       cell: ({ row }) => <SignatureProgressBar progress={row.original.signatureProgress} />,
     },
     {
       accessorKey: 'proposerAddress',
-      header: 'Proposer',
+      header: 'Pengaju',
       cell: ({ row }) => (
         <div className="flex flex-col gap-0.5">
           <span className="font-mono text-xs tabular-nums">
             {truncateMiddle(row.original.proposerAddress, 6, 4)}
           </span>
           <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
-            {row.original.proposerType === 'BACKEND' ? 'backend' : 'staff'}
+            {row.original.proposerType === 'BACKEND' ? 'backend' : 'petugas'}
           </span>
         </div>
       ),
@@ -164,10 +164,10 @@ export default function MultisigListPage() {
             navigate(`/multisig/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`View Safe transaction ${row.original.activityLabel}`}
+          aria-label={`Lihat transaksi Safe ${row.original.activityLabel}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          View
+          Lihat
         </button>
       ),
     },
@@ -182,8 +182,8 @@ export default function MultisigListPage() {
     <TableEmptyState
       mode="no-data"
       icon={<KeyRound className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No Safe transactions yet"
-      description="Mint / burn and governance Safe transactions awaiting signatures will appear here."
+      title="Belum ada transaksi Safe"
+      description="Transaksi Safe untuk mint, burn, dan tata kelola yang menunggu tanda tangan akan muncul di sini."
     />
   )
 
@@ -192,14 +192,14 @@ export default function MultisigListPage() {
       <PageHeader
         eyebrow="Keuangan"
         title="Antrean Tanda Tangan"
-        italicAccent="dompet Safe"
-        subtitle="Transaksi dompet Safe yang menunggu ditandatangani lalu dijalankan — mint, burn, dan operasi tata kelola."
+        italicAccent="wallet Safe"
+        subtitle="Transaksi wallet Safe yang menunggu ditandatangani lalu dieksekusi — mint, burn, dan operasi tata kelola."
         actions={
           <div className="flex items-center gap-2">
             {canPropose && (
               <Button size="sm" onClick={() => setProposeOpen(true)}>
                 <Plus className="mr-1 h-4 w-4" />
-                Propose
+                Ajukan
               </Button>
             )}
             <WalletConnectButton />
@@ -227,9 +227,9 @@ export default function MultisigListPage() {
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search activity, proposer, or safeTxHash…"
+              placeholder="Cari aktivitas, pengaju, atau safeTxHash…"
               className="h-9 w-full max-w-xs text-sm"
-              aria-label="Search Safe transactions"
+              aria-label="Cari transaksi Safe"
             />
             <Select
               value={safeType || 'ALL'}
@@ -237,13 +237,13 @@ export default function MultisigListPage() {
                 params.updateParams({ safeType: v === 'ALL' ? null : v, page: '1' })
               }
             >
-              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Filter by Safe">
-                <SelectValue placeholder="All Safes" />
+              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Saring per Safe">
+                <SelectValue placeholder="Semua Safe" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Safes</SelectItem>
-                <SelectItem value="STAFF">Staff Safe</SelectItem>
-                <SelectItem value="MANAGER">Manager Safe</SelectItem>
+                <SelectItem value="ALL">Semua Safe</SelectItem>
+                <SelectItem value="STAFF">Safe Staff</SelectItem>
+                <SelectItem value="MANAGER">Safe Manager</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -251,7 +251,7 @@ export default function MultisigListPage() {
         hasFilters={hasFilters}
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/multisig/${r.id}`)}
-        rowAriaLabel={(r) => `Open Safe transaction ${r.activityLabel}`}
+        rowAriaLabel={(r) => `Buka transaksi Safe ${r.activityLabel}`}
       />
 
       <MultisigDetailSheet

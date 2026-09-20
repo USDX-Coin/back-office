@@ -39,7 +39,7 @@ export default function CurrentThresholdCard({ data, isLoading }: Props) {
           <>
             <div>
               <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                Nominal segini atau lebih masuk ke Safe Manager
+                Nominal sebesar ini atau lebih masuk ke Safe Manager
               </p>
               <p
                 className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"

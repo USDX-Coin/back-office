@@ -148,7 +148,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Request dengan nominal segini atau lebih diarahkan ke Safe Manager,
+              Request dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
               bukan Safe Staf.
             </p>
             <FieldError message={errors.amount} />

@@ -25,7 +25,7 @@ export default function MultisigTabs({
   return (
     <div
       role="tablist"
-      aria-label="Safe transaction status"
+      aria-label="Status transaksi Safe"
       className="mb-3 flex flex-wrap items-center gap-1 border-b border-outline-variant/15"
     >
       {SAFE_TX_TABS.map((tab) => {
