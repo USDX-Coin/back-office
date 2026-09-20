@@ -398,14 +398,14 @@ function UboCard({
           />
         </Field>
         <Field label="Kewarganegaraan">{ubo.nationality ?? <Dim />}</Field>
-        <Field label="Country">{ubo.country ?? <Dim />}</Field>
+        <Field label="Negara">{ubo.country ?? <Dim />}</Field>
         <Field label="Jenis kelamin">
           {labelFor(ubo.gender, GENDER_LABELS) ?? <Dim />}
         </Field>
         <Field label="Status perkawinan">
           {labelFor(ubo.maritalStatus, MARITAL_STATUS_LABELS) ?? <Dim />}
         </Field>
-        <Field label="Address">
+        <Field label="Alamat">
           {ubo.addressLine1 ?? <Dim />}
           {ubo.addressLine2 && (
             <>
@@ -424,10 +424,10 @@ function UboCard({
           <PiiValue value={ubo.employerPhone} staff={staff} />
         </Field>
         {/* Huruf b & c — profil finansial UBO, bukan profil badan usahanya */}
-        <Field label="Source of funds">
+        <Field label="Sumber dana">
           {labelFor(ubo.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
         </Field>
-        <Field label="Annual income">
+        <Field label="Penghasilan per tahun">
           {labelFor(ubo.annualIncomeRange, ANNUAL_INCOME_LABELS) ?? <Dim />}
         </Field>
         <Field label="Harta kekayaan (net worth)">
@@ -1078,19 +1078,19 @@ export default function KybDetailModal({
                       masked — they render directly. */}
                   <Section title="Badan usaha">
                     <div className="grid gap-4 sm:grid-cols-2" data-testid="kyb-entity">
-                      <Field label="Entity name">
+                      <Field label="Nama badan usaha">
                         <EntityValue value={detail.entityName} />
                       </Field>
-                      <Field label="Legal form">
+                      <Field label="Bentuk badan usaha">
                         {labelFor(detail.entityForm, KYB_ENTITY_FORM_LABELS) ?? <Dim />}
                       </Field>
-                      <Field label="Registration number (NIB)">
+                      <Field label="Nomor Induk Berusaha (NIB)">
                         <EntityValue value={detail.registrationNumber} mono />
                       </Field>
                       {/* Entity NPWP is a COMPANY tax number, but it is one of
                           the six ENCRYPTED `kyb` columns, so the backend masks it
                           alongside the rest for a role that may not read PII. */}
-                      <Field label="Entity NPWP">
+                      <Field label="NPWP badan usaha">
                         <EntityValue value={detail.taxId} mono />
                       </Field>
                       {/* Pasal 25 (1) b angka 5 berbunyi "tempat DAN tanggal
@@ -1113,28 +1113,28 @@ export default function KybDetailModal({
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Business sector">{detail.businessSector}</Field>
-                      <Field label="Country">{detail.country}</Field>
+                      <Field label="Bidang usaha">{detail.businessSector}</Field>
+                      <Field label="Negara">{detail.country}</Field>
                       {/* Pasal 25 (1) b angka 8 & 9 (USDX-584) — enum yang sama
                           dengan sisi retail, bukan kosakata korporasi sendiri. */}
-                      <Field label="Source of funds">
+                      <Field label="Sumber dana">
                         {labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
                       </Field>
-                      <Field label="Transaction purpose">
+                      <Field label="Tujuan hubungan usaha">
                         {labelFor(detail.transactionPurpose, TRANSACTION_PURPOSE_LABELS) ?? (
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Phone">
+                      <Field label="Telepon">
                         <EntityValue value={detail.phone} />
                       </Field>
-                      <Field label="Registered address">
+                      <Field label="Alamat terdaftar">
                         <EntityValue value={detail.registeredAddress} />
                       </Field>
-                      <Field label="Operational address">
+                      <Field label="Alamat operasional">
                         <EntityValue value={detail.operationalAddress} />
                       </Field>
-                      <Field label="Website">
+                      <Field label="Situs web">
                         {detail.website ? (
                           <a
                             href={detail.website}
@@ -1148,7 +1148,7 @@ export default function KybDetailModal({
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Account email">
+                      <Field label="Email akun">
                         <span className="break-all">{detail.userEmail}</span>
                       </Field>
                     </div>

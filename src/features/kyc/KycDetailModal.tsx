@@ -539,14 +539,14 @@ export default function KycDetailModal({
                 <>
                   {/* Decrypted PII (kyc.yaml § KycDetail) */}
                   <div className="grid gap-4 sm:grid-cols-2" data-testid="kyc-identity">
-                    <Field label="User email">{detail.userEmail}</Field>
-                    <Field label="Entity type">{ENTITY_LABEL[detail.entityType]}</Field>
-                    <Field label="Full name">{fullName}</Field>
-                    <Field label="Date of birth · birth place" testId="kyc-dob">
+                    <Field label="Email akun">{detail.userEmail}</Field>
+                    <Field label="Jenis nasabah">{ENTITY_LABEL[detail.entityType]}</Field>
+                    <Field label="Nama lengkap">{fullName}</Field>
+                    <Field label="Tanggal lahir · tempat lahir" testId="kyc-dob">
                       {detail.dob ?? '—'}
                       {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
                     </Field>
-                    <Field label="Identity" testId="kyc-identity-number">
+                    <Field label="Jenis &amp; nomor identitas" testId="kyc-identity-number">
                       <span className="font-mono text-xs tabular-nums">
                         {detail.identityType}
                         {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
@@ -582,10 +582,10 @@ export default function KycDetailModal({
                       staff={user}
                       testId="kyc-mothers-maiden-name"
                     />
-                    <Field label="Country" testId="kyc-country">
+                    <Field label="Negara" testId="kyc-country">
                       {detail.country ?? '—'}
                     </Field>
-                    <Field label="Address">
+                    <Field label="Alamat">
                       {detail.addressLine1 ?? '—'}
                       {detail.addressLine2 && (
                         <>
@@ -594,7 +594,7 @@ export default function KycDetailModal({
                         </>
                       )}
                     </Field>
-                    <Field label="Submissions">
+                    <Field label="Jumlah pengajuan">
                       <span className="tabular-nums">{detail.submissionCount}</span>
                     </Field>
                   </div>
@@ -606,7 +606,7 @@ export default function KycDetailModal({
                       without looking at what was collected. */}
                   <div className="space-y-2" data-testid="kyc-cdd">
                     <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-                      Customer due diligence
+                      Uji tuntas nasabah (CDD)
                     </p>
                     {!hasCdd && (
                       <p className="text-xs text-muted-foreground">
@@ -641,7 +641,7 @@ export default function KycDetailModal({
                         pengelompokan itu di kepala tiap kali membuka berkas. */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <CddField
-                        label="Occupation"
+                        label="Pekerjaan"
                         value={labelFor(detail.occupation, OCCUPATION_LABELS)}
                         testId="kyc-occupation"
                       />
@@ -660,11 +660,11 @@ export default function KycDetailModal({
                         testId="kyc-employer-phone"
                       />
                       <CddField
-                        label="Source of funds"
+                        label="Sumber dana"
                         value={labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS)}
                       />
                       <CddField
-                        label="Annual income"
+                        label="Penghasilan per tahun"
                         value={labelFor(detail.annualIncomeRange, ANNUAL_INCOME_LABELS)}
                       />
                       <CddField
@@ -673,7 +673,7 @@ export default function KycDetailModal({
                         testId="kyc-net-worth"
                       />
                       <CddField
-                        label="Transaction purpose"
+                        label="Tujuan transaksi"
                         value={labelFor(
                           detail.transactionPurpose,
                           TRANSACTION_PURPOSE_LABELS,
@@ -691,7 +691,7 @@ export default function KycDetailModal({
                         staff={user}
                         testId="kyc-npwp"
                       />
-                      <Field label="PEP status" testId="kyc-pep-status">
+                      <Field label="Status PEP" testId="kyc-pep-status">
                         {detail.pepStatus === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : detail.pepStatus ? (
@@ -708,7 +708,7 @@ export default function KycDetailModal({
                       {/* PEP relation names a real person and their office — PII,
                           gated exactly like NPWP. */}
                       <PiiField
-                        label="PEP relation"
+                        label="Hubungan dengan PEP"
                         value={detail.pepRelation}
                         staff={user}
                         testId="kyc-pep-relation"

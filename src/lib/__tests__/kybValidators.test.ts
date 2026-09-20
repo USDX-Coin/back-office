@@ -98,7 +98,7 @@ describe('validateKybForm', () => {
       // subject at all — this is the point of the whole record.
       const result = validateKybForm(validForm({ ubos: [] }))
       expect(result.valid).toBe(false)
-      expect(result.errors.ubos).toMatch(/at least one ubo/i)
+      expect(result.errors.ubos).toMatch(/minimal satu ubo/i)
     })
 
     test('should reject ownership totalling more than 100%', () => {
@@ -111,13 +111,13 @@ describe('validateKybForm', () => {
         }),
       )
       expect(result.valid).toBe(false)
-      expect(result.errors.ubos).toMatch(/cannot exceed 100/i)
+      expect(result.errors.ubos).toMatch(/tidak boleh lebih dari 100/i)
     })
 
     test('should reject a missing legal-entity account', () => {
       const result = validateKybForm(validForm({ userId: '   ' }))
       expect(result.valid).toBe(false)
-      expect(result.errors.userId).toMatch(/required/i)
+      expect(result.errors.userId).toMatch(/wajib/i)
     })
 
     test('should reject a malformed NIB and a malformed NPWP', () => {
@@ -135,7 +135,7 @@ describe('validateKybForm', () => {
         .slice(0, 10)
       const result = validateKybForm(validForm({ establishmentDate: nextYear }))
       expect(result.valid).toBe(false)
-      expect(result.errors.establishmentDate).toMatch(/future/i)
+      expect(result.errors.establishmentDate).toMatch(/masa depan/i)
     })
 
     test('should reject a website without a scheme', () => {
@@ -151,8 +151,8 @@ describe('validateKybForm', () => {
         }),
       )
       expect(result.valid).toBe(false)
-      expect(result.errors['ubo.1.firstName']).toMatch(/required/i)
-      expect(result.errors['ubo.1.identityNumber']).toMatch(/digits/i)
+      expect(result.errors['ubo.1.firstName']).toMatch(/wajib/i)
+      expect(result.errors['ubo.1.identityNumber']).toMatch(/angka/i)
       // Row 0 was fine and must not be blamed.
       expect(result.errors['ubo.0.firstName']).toBeUndefined()
     })
@@ -263,7 +263,7 @@ describe('validateKybForm vs CreateKybDto @ USDX-546', () => {
       // and the backend refuses it rather than storing two spellings of one NIB.
       const result = validateKybForm(validForm({ registrationNumber: '8120-0123-45678' }))
       expect(result.valid).toBe(false)
-      expect(result.errors.registrationNumber).toMatch(/digits/i)
+      expect(result.errors.registrationNumber).toMatch(/angka/i)
     })
 
     test('should reject a country that is not ISO 3166-1 alpha-2', () => {
@@ -306,7 +306,7 @@ describe('validateKybForm vs CreateKybDto @ USDX-546', () => {
       // on file. The DTO regex refuses it outright.
       const result = validateKybForm(validForm({ ubos: [validUbo({ ownershipPct: '33.333' })] }))
       expect(result.valid).toBe(false)
-      expect(result.errors['ubo.0.ownershipPct']).toMatch(/decimal/i)
+      expect(result.errors['ubo.0.ownershipPct']).toMatch(/angka di belakang koma/i)
     })
 
     test('should reject an entity name shorter than the DTO minimum', () => {

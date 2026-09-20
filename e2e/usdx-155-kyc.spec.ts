@@ -60,7 +60,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       // USDX-545 — the CDD block is on the review screen. Without it the
       // reviewer decides without seeing the data that was just collected.
-      await expect(dialog.getByText(/customer due diligence/i)).toBeVisible()
+      await expect(dialog.getByText(/uji tuntas nasabah/i)).toBeVisible()
       // Permendagri label, not the `PEGAWAI_NEGERI_SIPIL` enum value — the
       // officer is comparing this against the "Pekerjaan" column of the KTP
       // shown right below it.

@@ -1229,124 +1229,124 @@ export function kybUboErrorKey(index: number, field: string): string {
 export function validateKybForm(input: KybFormInput): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!input.userId.trim()) errors.userId = 'Legal-entity user is required'
+  if (!input.userId.trim()) errors.userId = 'Akun badan usaha wajib dipilih'
 
   if (!input.entityName.trim()) {
-    errors.entityName = 'Entity name is required'
+    errors.entityName = 'Nama badan usaha wajib diisi'
   } else if (input.entityName.trim().length < MIN_KYB_NAME_LEN) {
-    errors.entityName = `Entity name must be at least ${MIN_KYB_NAME_LEN} characters`
+    errors.entityName = `Nama badan usaha minimal ${MIN_KYB_NAME_LEN} karakter`
   } else if (input.entityName.length > MAX_KYB_NAME_LEN) {
-    errors.entityName = `Entity name must be under ${MAX_KYB_NAME_LEN} characters`
+    errors.entityName = `Nama badan usaha maksimal ${MAX_KYB_NAME_LEN} karakter`
   }
 
-  if (!input.entityForm.trim()) errors.entityForm = 'Legal form is required'
+  if (!input.entityForm.trim()) errors.entityForm = 'Bentuk badan usaha wajib dipilih'
 
   if (!input.country.trim()) {
-    errors.country = 'Country is required'
+    errors.country = 'Negara wajib diisi'
   } else if (!KYB_COUNTRY_RE.test(input.country.trim())) {
-    errors.country = 'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    errors.country = 'Negara harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
   }
 
   if (!input.registrationNumber.trim()) {
-    errors.registrationNumber = 'Registration number (NIB) is required'
+    errors.registrationNumber = 'Nomor Induk Berusaha (NIB) wajib diisi'
   } else if (!KYB_REGISTRATION_RE.test(input.registrationNumber.trim())) {
-    errors.registrationNumber = 'Registration number must be 8-32 digits, no dashes or spaces'
+    errors.registrationNumber = 'NIB harus 8-32 angka, tanpa strip maupun spasi'
   }
 
   if (!input.taxId.trim()) {
-    errors.taxId = 'Entity NPWP is required'
+    errors.taxId = 'NPWP badan usaha wajib diisi'
   } else if (!KYB_TAX_ID_RE.test(input.taxId.trim())) {
-    errors.taxId = 'NPWP must be 15-16 digits (dots / dashes allowed)'
+    errors.taxId = 'NPWP harus 15-16 angka (titik dan strip boleh)'
   }
 
   if (!input.establishmentDate.trim()) {
-    errors.establishmentDate = 'Establishment date is required'
+    errors.establishmentDate = 'Tanggal pendirian wajib diisi'
   } else if (!KYB_ISO_DATE_RE.test(input.establishmentDate.trim())) {
-    errors.establishmentDate = 'Establishment date must be YYYY-MM-DD'
+    errors.establishmentDate = 'Tanggal pendirian harus memakai format YYYY-MM-DD'
   } else if (isFutureWibDate(input.establishmentDate.trim())) {
     // An entity cannot have been established tomorrow. Judged in WIB, like every
     // other date in this app (lib/transparency.ts).
-    errors.establishmentDate = 'Establishment date cannot be in the future'
+    errors.establishmentDate = 'Tanggal pendirian tidak boleh di masa depan'
   }
 
   if (!input.businessSector.trim()) {
-    errors.businessSector = 'Business sector is required'
+    errors.businessSector = 'Bidang usaha wajib diisi'
   } else if (input.businessSector.length > MAX_KYB_SECTOR_LEN) {
-    errors.businessSector = `Business sector must be under ${MAX_KYB_SECTOR_LEN} characters`
+    errors.businessSector = `Bidang usaha maksimal ${MAX_KYB_SECTOR_LEN} karakter`
   }
 
   if (!input.registeredAddress.trim()) {
-    errors.registeredAddress = 'Registered address is required'
+    errors.registeredAddress = 'Alamat terdaftar wajib diisi'
   } else if (input.registeredAddress.length > MAX_KYB_ADDRESS_LEN) {
-    errors.registeredAddress = `Registered address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    errors.registeredAddress = `Alamat terdaftar maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
   }
 
   if (!input.operationalAddress.trim()) {
-    errors.operationalAddress = 'Operational address is required'
+    errors.operationalAddress = 'Alamat operasional wajib diisi'
   } else if (input.operationalAddress.length > MAX_KYB_ADDRESS_LEN) {
-    errors.operationalAddress = `Operational address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    errors.operationalAddress = `Alamat operasional maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
   }
 
   // Website is optional (the `kyb.website` column is nullable); only its shape
   // is checked when present.
   const website = input.website.trim()
   if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(website)) {
-    errors.website = 'Website must start with http:// or https://'
+    errors.website = 'Situs web harus diawali http:// atau https://'
   } else if (website.length > MAX_KYB_WEBSITE_LEN) {
-    errors.website = `Website must be under ${MAX_KYB_WEBSITE_LEN} characters`
+    errors.website = `Situs web maksimal ${MAX_KYB_WEBSITE_LEN} karakter`
   }
 
   if (!input.phone.trim()) {
-    errors.phone = 'Phone is required'
+    errors.phone = 'Telepon wajib diisi'
   } else if (!PHONE_RE.test(input.phone.trim())) {
-    errors.phone = 'Phone must be 10-15 digits (leading + allowed)'
+    errors.phone = 'Telepon harus 10-15 angka (boleh diawali +)'
   }
 
   // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
   // `required` di `sot/api/kyb.yaml § CreateKybRequest`. Keempatnya diterima
   // backend sejak USDX-604 dan tidak pernah dikirim form ini.
   if (!input.incorporationPlace.trim()) {
-    errors.incorporationPlace = 'Place of incorporation is required'
+    errors.incorporationPlace = 'Tempat pendirian wajib diisi'
   } else if (input.incorporationPlace.trim().length < 2) {
-    errors.incorporationPlace = 'Place of incorporation must be at least 2 characters'
+    errors.incorporationPlace = 'Tempat pendirian minimal 2 karakter'
   } else if (input.incorporationPlace.length > MAX_KYB_SECTOR_LEN) {
-    errors.incorporationPlace = `Place of incorporation must be under ${MAX_KYB_SECTOR_LEN} characters`
+    errors.incorporationPlace = `Tempat pendirian maksimal ${MAX_KYB_SECTOR_LEN} karakter`
   }
 
-  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Source of funds is required'
+  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Sumber dana wajib dipilih'
   if (!input.transactionPurpose.trim()) {
-    errors.transactionPurpose = 'Purpose of the business relationship is required'
+    errors.transactionPurpose = 'Tujuan hubungan usaha wajib dipilih'
   }
   // Tidak ada default: lihat catatan di `KybFormInput.isMicroOrSmall`.
   if (input.isMicroOrSmall !== 'YES' && input.isMicroOrSmall !== 'NO') {
-    errors.isMicroOrSmall = 'Answer whether this is a micro/small enterprise'
+    errors.isMicroOrSmall = 'Jawab dulu: badan usaha ini termasuk usaha mikro atau kecil atau bukan'
   }
 
   // ── UBOs ──
   if (input.ubos.length === 0) {
-    errors.ubos = 'At least one UBO is required'
+    errors.ubos = 'Minimal satu UBO wajib diisi'
   } else if (input.ubos.length > MAX_KYB_UBOS) {
-    errors.ubos = `At most ${MAX_KYB_UBOS} UBOs`
+    errors.ubos = `Maksimal ${MAX_KYB_UBOS} UBO`
   }
 
   let ownershipTotal = 0
   let ownershipParsable = input.ubos.length > 0
   input.ubos.forEach((ubo, i) => {
     if (!ubo.firstName.trim())
-      errors[kybUboErrorKey(i, 'firstName')] = 'First name is required'
-    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Last name is required'
+      errors[kybUboErrorKey(i, 'firstName')] = 'Nama depan wajib diisi'
+    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Nama belakang wajib diisi'
 
     const pctRaw = ubo.ownershipPct.trim()
     const pct = Number(pctRaw)
     if (!pctRaw) {
-      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % is required'
+      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Kepemilikan (%) wajib diisi'
       ownershipParsable = false
     } else if (!KYB_OWNERSHIP_PCT_RE.test(pctRaw)) {
       // One rule, two failures it has to separate: out of range, and more
       // precision than `numeric(5,2)` can hold. Both are 400s from the API, and
       // the second one is the surprising one — say which it is.
       errors[kybUboErrorKey(i, 'ownershipPct')] =
-        'Ownership % must be a decimal between 0.01 and 100.00 with at most 2 decimals'
+        'Kepemilikan (%) harus angka antara 0,01 dan 100,00 dengan maksimal 2 angka di belakang koma'
       ownershipParsable = false
     } else {
       ownershipTotal += pct
@@ -1357,27 +1357,27 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // verified here.
     const idNumber = ubo.identityNumber.trim()
     if (!idNumber) {
-      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number is required'
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Nomor identitas wajib diisi'
     } else if (!/^[0-9]{8,20}$/.test(idNumber)) {
-      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number must be 8-20 digits'
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Nomor identitas harus 8-20 angka'
     }
 
     if (!ubo.country.trim()) {
-      errors[kybUboErrorKey(i, 'country')] = 'Country is required'
+      errors[kybUboErrorKey(i, 'country')] = 'Negara wajib diisi'
     } else if (!KYB_COUNTRY_RE.test(ubo.country.trim())) {
       errors[kybUboErrorKey(i, 'country')] =
-        'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+        'Negara harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
     }
 
     if (!ubo.addressLine1.trim()) {
-      errors[kybUboErrorKey(i, 'addressLine1')] = 'Address is required'
+      errors[kybUboErrorKey(i, 'addressLine1')] = 'Alamat wajib diisi'
     } else if (ubo.addressLine1.length > MAX_KYB_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'addressLine1')] =
-        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+        `Alamat maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
     }
     if (ubo.addressLine2.length > MAX_KYB_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'addressLine2')] =
-        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+        `Alamat maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
     }
 
     // ── Pasal 33 ayat (3) selengkapnya (USDX-605) ───────────────────────────
@@ -1386,44 +1386,44 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // tempat kerja — tetap opsional di sini, dan itu ikut pasalnya: angka 8
     // berbunyi "jika ada", dan tidak semua orang punya nama alias.
     if (!ubo.birthPlace.trim()) {
-      errors[kybUboErrorKey(i, 'birthPlace')] = 'Place of birth is required'
+      errors[kybUboErrorKey(i, 'birthPlace')] = 'Tempat lahir wajib diisi'
     } else if (ubo.birthPlace.trim().length > MAX_KYB_UBO_NAME_LEN) {
       errors[kybUboErrorKey(i, 'birthPlace')] =
-        `Place of birth must be under ${MAX_KYB_UBO_NAME_LEN} characters`
+        `Tempat lahir maksimal ${MAX_KYB_UBO_NAME_LEN} karakter`
     }
 
     const dob = ubo.dob.trim()
     if (!dob) {
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is required'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir wajib diisi'
     } else if (!KYB_ISO_DATE_RE.test(dob)) {
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth must be YYYY-MM-DD'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir harus memakai format YYYY-MM-DD'
     } else if (!isRealCalendarDate(dob)) {
       // `CreateKybUboDto.dob` memakai `@Matches` + `@IsISO8601({ strict: true })`: bentuknya
       // benar TIDAK cukup, tanggalnya harus ada di kalender. Tanpa cermin di sini, 1980-02-30
       // lolos form dan baru ditolak server sebagai 400 yang tidak menunjuk barisnya.
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is not a real calendar date'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir itu tidak ada di kalender'
     } else if (isFutureWibDate(dob)) {
       // Seseorang tidak bisa lahir besok. Dinilai di WIB, sama dengan setiap
       // tanggal lain di aplikasi ini.
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth cannot be in the future'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir tidak boleh di masa depan'
     }
 
     if (!ubo.nationality.trim()) {
-      errors[kybUboErrorKey(i, 'nationality')] = 'Nationality is required'
+      errors[kybUboErrorKey(i, 'nationality')] = 'Kewarganegaraan wajib diisi'
     } else if (!KYB_COUNTRY_RE.test(ubo.nationality.trim())) {
       errors[kybUboErrorKey(i, 'nationality')] =
-        'Nationality must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+        'Kewarganegaraan harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
     }
 
     // Panjang diukur SETELAH trim, karena yang dikirim juga hasil trim — tanpa itu satu spasi di
     // ekor menolak nilai yang server justru terima.
     if (ubo.aliasName.trim().length > MAX_KYB_UBO_ALIAS_LEN) {
       errors[kybUboErrorKey(i, 'aliasName')] =
-        `Alias must be under ${MAX_KYB_UBO_ALIAS_LEN} characters`
+        `Nama alias maksimal ${MAX_KYB_UBO_ALIAS_LEN} karakter`
     }
     if (ubo.employerAddress.trim().length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'employerAddress')] =
-        `Employer address must be under ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} characters`
+        `Alamat tempat kerja maksimal ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} karakter`
     }
     // HANYA panjangnya. `PHONE_RE` (10–15 digit, tanpa pemisah) di sini akan menolak
     // `021-1234567`, `+62 21 4000 1234`, dan nomor kantor 8 digit — semuanya diterima kontrak
@@ -1434,7 +1434,7 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // tidak dipakai mencari, tidak di-hash, tidak dikirim OTP.
     if (ubo.employerPhone.trim().length > MAX_KYB_UBO_PHONE_LEN) {
       errors[kybUboErrorKey(i, 'employerPhone')] =
-        `Employer phone must be under ${MAX_KYB_UBO_PHONE_LEN} characters`
+        `Telepon tempat kerja maksimal ${MAX_KYB_UBO_PHONE_LEN} karakter`
     }
 
     // Enum tertutup: yang diperiksa di sini hanya "sudah dipilih atau belum".
@@ -1442,14 +1442,14 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // menyalinnya ke sini akan membuat salinan kedua yang bisa basi, persis
     // kesalahan yang membuat `PARTNER_OCCUPATIONS` menolak 95 nilai sah (USDX-603).
     const REQUIRED_UBO_CHOICES: ReadonlyArray<[keyof KybUboFormInput, string]> = [
-      ['occupation', 'Occupation is required'],
-      ['gender', 'Gender is required'],
-      ['maritalStatus', 'Marital status is required'],
-      ['sourceOfFunds', 'Source of funds is required'],
-      ['annualIncomeRange', 'Annual income range is required'],
-      ['netWorthRange', 'Net worth range is required'],
-      ['legalRelationship', 'Legal relationship is required'],
-      ['cascadeStep', 'Cascading-test step is required'],
+      ['occupation', 'Pekerjaan wajib dipilih'],
+      ['gender', 'Jenis kelamin wajib dipilih'],
+      ['maritalStatus', 'Status perkawinan wajib dipilih'],
+      ['sourceOfFunds', 'Sumber dana wajib dipilih'],
+      ['annualIncomeRange', 'Penghasilan per tahun wajib dipilih'],
+      ['netWorthRange', 'Harta kekayaan wajib dipilih'],
+      ['legalRelationship', 'Bentuk hubungan hukum wajib dipilih'],
+      ['cascadeStep', 'Langkah cascading test wajib dipilih'],
     ]
     for (const [field, message] of REQUIRED_UBO_CHOICES) {
       if (!String(ubo[field]).trim()) errors[kybUboErrorKey(i, field)] = message
@@ -1459,7 +1459,7 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
   // Only meaningful once every row parsed — otherwise the total is a partial sum
   // and the message would blame the wrong thing.
   if (ownershipParsable && ownershipTotal > 100.0001) {
-    errors.ubos = `Declared ownership totals ${ownershipTotal.toFixed(2)}% — it cannot exceed 100%`
+    errors.ubos = `Total kepemilikan yang dideklarasikan ${ownershipTotal.toFixed(2)}% — tidak boleh lebih dari 100%`
   }
 
   return { valid: Object.keys(errors).length === 0, errors }

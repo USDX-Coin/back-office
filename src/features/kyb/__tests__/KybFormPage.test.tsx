@@ -154,17 +154,17 @@ async function fillEntity(
   user: ReturnType<typeof userEvent.setup>,
   { microSmall = true }: { microSmall?: boolean } = {},
 ) {
-  await user.type(screen.getByLabelText('Entity name'), 'PT Juara Remiten Indonesia')
-  await user.type(screen.getByLabelText(/registration number/i), '8120012345678')
-  await user.type(screen.getByLabelText(/entity npwp/i), '012345678901234')
-  await user.type(screen.getByLabelText(/establishment date/i), '2018-04-12')
-  await user.type(screen.getByLabelText(/business sector/i), 'Jasa pengiriman uang')
-  await user.type(screen.getByLabelText(/registered address/i), 'Jl. Sudirman No. 10')
-  await user.type(screen.getByLabelText(/operational address/i), 'Jl. Thamrin No. 5')
-  await user.type(screen.getByLabelText(/^phone$/i), '+622140001234')
+  await user.type(screen.getByLabelText('Nama badan usaha'), 'PT Juara Remiten Indonesia')
+  await user.type(screen.getByLabelText(/nomor induk berusaha/i), '8120012345678')
+  await user.type(screen.getByLabelText(/npwp badan usaha/i), '012345678901234')
+  await user.type(screen.getByLabelText(/tanggal pendirian/i), '2018-04-12')
+  await user.type(screen.getByLabelText(/bidang usaha/i), 'Jasa pengiriman uang')
+  await user.type(screen.getByLabelText(/alamat terdaftar/i), 'Jl. Sudirman No. 10')
+  await user.type(screen.getByLabelText(/alamat operasional/i), 'Jl. Thamrin No. 5')
+  await user.type(screen.getByLabelText(/^telepon$/i), '+622140001234')
   // Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605. Keempatnya `required`
   // di kontraknya dan tidak pernah dikirim form ini sebelum tiket itu.
-  await user.type(screen.getByLabelText(/place of incorporation/i), 'Jakarta Selatan')
+  await user.type(screen.getByLabelText(/tempat pendirian/i), 'Jakarta Selatan')
   await selectByTypeahead(user, 'kyb-source-of-funds', 'Business', 'Business')
   await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investment', 'Investment')
   if (microSmall) {
@@ -192,8 +192,8 @@ async function fillUboBasic(
   pct: string,
   identity: string,
 ) {
-  await user.type(screen.getByLabelText(`First name`, { selector: `#ubo-first-${index}` }), 'Andi')
-  await user.type(screen.getByLabelText(`Last name`, { selector: `#ubo-last-${index}` }), 'Wijaya')
+  await user.type(screen.getByLabelText(`Nama depan`, { selector: `#ubo-first-${index}` }), 'Andi')
+  await user.type(screen.getByLabelText(`Nama belakang`, { selector: `#ubo-last-${index}` }), 'Wijaya')
   await user.type(document.querySelector(`#ubo-pct-${index}`)!, pct)
   await user.type(document.querySelector(`#ubo-id-${index}`)!, identity)
   await user.type(document.querySelector(`#ubo-address1-${index}`)!, 'Jl. Sudirman No. 1')
@@ -317,10 +317,10 @@ describe('KybFormPage @ USDX-546', () => {
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
-        await screen.findByText(/legal-entity user is required/i),
+        await screen.findByText(/akun badan usaha wajib dipilih/i),
       ).toBeInTheDocument()
-      expect(screen.getByText(/entity name is required/i)).toBeInTheDocument()
-      expect(screen.getByText(/registration number \(nib\) is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/nama badan usaha wajib diisi/i)).toBeInTheDocument()
+      expect(screen.getByText(/nomor induk berusaha \(nib\) wajib diisi/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -347,7 +347,7 @@ describe('KybFormPage @ USDX-546', () => {
 
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
-      expect(await screen.findByText(/cannot exceed 100%/i)).toBeInTheDocument()
+      expect(await screen.findByText(/tidak boleh lebih dari 100%/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -368,7 +368,7 @@ describe('KybFormPage @ USDX-546', () => {
 
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
-        await screen.findByText(/identity number must be 8-20 digits/i),
+        await screen.findByText(/nomor identitas harus 8-20 angka/i),
       ).toBeInTheDocument()
       expect(posted).toBe(0)
     })
@@ -395,11 +395,11 @@ describe('KybFormPage @ USDX-546', () => {
       await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
-        (await screen.findAllByText(/first name is required/i)).length,
+        (await screen.findAllByText(/nama depan wajib diisi/i)).length,
       ).toBeGreaterThan(1)
 
       await user.click(screen.getByRole('button', { name: /hapus ubo 2/i }))
-      expect(screen.queryByText(/first name is required/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/nama depan wajib diisi/i)).not.toBeInTheDocument()
     })
 
     test('a server error keeps the typed values on screen', async () => {
@@ -426,7 +426,7 @@ describe('KybFormPage @ USDX-546', () => {
 
       // Still on the form, values intact — retyping a deed is not a retry.
       await waitFor(() =>
-        expect(screen.getByLabelText('Entity name')).toHaveValue(
+        expect(screen.getByLabelText('Nama badan usaha')).toHaveValue(
           'PT Juara Remiten Indonesia',
         ),
       )
@@ -534,7 +534,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
 
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
-      expect(await screen.findByText(/place of birth is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/tempat lahir wajib diisi/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -561,7 +561,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
-        await screen.findByText(/answer whether this is a micro\/small enterprise/i),
+        await screen.findByText(/termasuk usaha mikro atau kecil/i),
       ).toBeInTheDocument()
       expect(posted).toBe(0)
       // Dan daftar dokumennya pun tidak muncul: konsekuensinya belum bisa dihitung.

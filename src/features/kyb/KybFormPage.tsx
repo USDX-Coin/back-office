@@ -303,7 +303,7 @@ export default function KybFormPage() {
             Akun
           </h2>
           <div>
-            <Label htmlFor="kyb-user">Legal-entity account</Label>
+            <Label htmlFor="kyb-user">Akun badan usaha</Label>
             <div className="mt-1.5">
               <LegalEntityPicker
                 id="kyb-user"
@@ -326,7 +326,7 @@ export default function KybFormPage() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="kyb-entity-name">Entity name</Label>
+              <Label htmlFor="kyb-entity-name">Nama badan usaha</Label>
               <Input
                 id="kyb-entity-name"
                 className="mt-1.5"
@@ -341,7 +341,7 @@ export default function KybFormPage() {
               {/* Lewat `EnumSelect` seperti sebelas select lainnya — sebelumnya select ini
                   satu-satunya yang ditulis tangan, dan satu-satunya yang kehilangan
                   `aria-invalid`. Persis kegagalan yang keberadaan helper itu cegah. */}
-              <Label htmlFor="kyb-entity-form">Legal form</Label>
+              <Label htmlFor="kyb-entity-form">Bentuk badan usaha</Label>
               <EnumSelect
                 id="kyb-entity-form"
                 value={form.entityForm}
@@ -353,7 +353,7 @@ export default function KybFormPage() {
               <FieldError message={errors.entityForm} />
             </div>
             <div>
-              <Label htmlFor="kyb-registration">Registration number (NIB)</Label>
+              <Label htmlFor="kyb-registration">Nomor Induk Berusaha (NIB)</Label>
               <Input
                 id="kyb-registration"
                 className="mt-1.5"
@@ -366,7 +366,7 @@ export default function KybFormPage() {
               <FieldError message={errors.registrationNumber} />
             </div>
             <div>
-              <Label htmlFor="kyb-tax-id">Entity NPWP</Label>
+              <Label htmlFor="kyb-tax-id">NPWP badan usaha</Label>
               <Input
                 id="kyb-tax-id"
                 className="mt-1.5"
@@ -378,7 +378,7 @@ export default function KybFormPage() {
               <FieldError message={errors.taxId} />
             </div>
             <div>
-              <Label htmlFor="kyb-established">Establishment date</Label>
+              <Label htmlFor="kyb-established">Tanggal pendirian</Label>
               <Input
                 id="kyb-established"
                 type="date"
@@ -391,7 +391,7 @@ export default function KybFormPage() {
               <FieldError message={errors.establishmentDate} />
             </div>
             <div>
-              <Label htmlFor="kyb-sector">Business sector</Label>
+              <Label htmlFor="kyb-sector">Bidang usaha</Label>
               <Input
                 id="kyb-sector"
                 className="mt-1.5"
@@ -403,7 +403,7 @@ export default function KybFormPage() {
               <FieldError message={errors.businessSector} />
             </div>
             <div>
-              <Label htmlFor="kyb-country">Country</Label>
+              <Label htmlFor="kyb-country">Negara</Label>
               <Input
                 id="kyb-country"
                 className="mt-1.5"
@@ -415,7 +415,7 @@ export default function KybFormPage() {
               <FieldError message={errors.country} />
             </div>
             <div>
-              <Label htmlFor="kyb-phone">Phone</Label>
+              <Label htmlFor="kyb-phone">Telepon</Label>
               <Input
                 id="kyb-phone"
                 className="mt-1.5"
@@ -427,7 +427,7 @@ export default function KybFormPage() {
               <FieldError message={errors.phone} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="kyb-website">Website (optional)</Label>
+              <Label htmlFor="kyb-website">Situs web (opsional)</Label>
               <Input
                 id="kyb-website"
                 className="mt-1.5"
@@ -439,7 +439,7 @@ export default function KybFormPage() {
               <FieldError message={errors.website} />
             </div>
             <div>
-              <Label htmlFor="kyb-incorporation-place">Place of incorporation</Label>
+              <Label htmlFor="kyb-incorporation-place">Tempat pendirian</Label>
               <Input
                 id="kyb-incorporation-place"
                 className="mt-1.5"
@@ -451,7 +451,7 @@ export default function KybFormPage() {
               <FieldError message={errors.incorporationPlace} />
             </div>
             <div>
-              <Label htmlFor="kyb-source-of-funds">Source of funds</Label>
+              <Label htmlFor="kyb-source-of-funds">Sumber dana</Label>
               <EnumSelect
                 id="kyb-source-of-funds"
                 value={form.sourceOfFunds}
@@ -463,7 +463,7 @@ export default function KybFormPage() {
               <FieldError message={errors.sourceOfFunds} />
             </div>
             <div>
-              <Label htmlFor="kyb-transaction-purpose">Purpose of relationship</Label>
+              <Label htmlFor="kyb-transaction-purpose">Tujuan hubungan usaha</Label>
               <EnumSelect
                 id="kyb-transaction-purpose"
                 value={form.transactionPurpose}
@@ -479,7 +479,7 @@ export default function KybFormPage() {
                   itu keputusan kontraknya: menebak "bukan usaha kecil" menahan
                   nasabah dengan syarat yang tidak diwajibkan kepadanya, menebak
                   "usaha kecil" melepas enam dokumen yang diwajibkan pasal. */}
-              <Label htmlFor="kyb-micro-small">Micro / small enterprise?</Label>
+              <Label htmlFor="kyb-micro-small">Usaha mikro atau kecil?</Label>
               <EnumSelect
                 id="kyb-micro-small"
                 value={form.isMicroOrSmall}
@@ -491,7 +491,7 @@ export default function KybFormPage() {
               <FieldError message={errors.isMicroOrSmall} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="kyb-registered-address">Registered address</Label>
+              <Label htmlFor="kyb-registered-address">Alamat terdaftar</Label>
               <Textarea
                 id="kyb-registered-address"
                 className="mt-1.5"
@@ -504,7 +504,7 @@ export default function KybFormPage() {
               <FieldError message={errors.registeredAddress} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="kyb-operational-address">Operational address</Label>
+              <Label htmlFor="kyb-operational-address">Alamat operasional</Label>
               <Textarea
                 id="kyb-operational-address"
                 className="mt-1.5"
@@ -587,7 +587,7 @@ export default function KybFormPage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor={`ubo-first-${index}`}>First name</Label>
+                    <Label htmlFor={`ubo-first-${index}`}>Nama depan</Label>
                     <Input
                       id={`ubo-first-${index}`}
                       className="mt-1.5"
@@ -599,7 +599,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'firstName')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-last-${index}`}>Last name</Label>
+                    <Label htmlFor={`ubo-last-${index}`}>Nama belakang</Label>
                     <Input
                       id={`ubo-last-${index}`}
                       className="mt-1.5"
@@ -611,7 +611,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'lastName')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-pct-${index}`}>Ownership %</Label>
+                    <Label htmlFor={`ubo-pct-${index}`}>Kepemilikan (%)</Label>
                     <Input
                       id={`ubo-pct-${index}`}
                       className="mt-1.5"
@@ -624,7 +624,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'ownershipPct')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-id-${index}`}>Identity number (KTP)</Label>
+                    <Label htmlFor={`ubo-id-${index}`}>Nomor identitas (KTP)</Label>
                     <Input
                       id={`ubo-id-${index}`}
                       className="mt-1.5"
@@ -641,7 +641,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'identityNumber')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-country-${index}`}>Country</Label>
+                    <Label htmlFor={`ubo-country-${index}`}>Negara</Label>
                     <Input
                       id={`ubo-country-${index}`}
                       className="mt-1.5"
@@ -653,7 +653,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'country')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-address2-${index}`}>Address line 2 (optional)</Label>
+                    <Label htmlFor={`ubo-address2-${index}`}>Alamat baris 2 (opsional)</Label>
                     <Input
                       id={`ubo-address2-${index}`}
                       className="mt-1.5"
@@ -663,7 +663,7 @@ export default function KybFormPage() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label htmlFor={`ubo-address1-${index}`}>Address</Label>
+                    <Label htmlFor={`ubo-address1-${index}`}>Alamat</Label>
                     <Input
                       id={`ubo-address1-${index}`}
                       className="mt-1.5"
@@ -689,7 +689,7 @@ export default function KybFormPage() {
                     </span>
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-alias-${index}`}>Alias (optional)</Label>
+                    <Label htmlFor={`ubo-alias-${index}`}>Nama alias (opsional)</Label>
                     <Input
                       id={`ubo-alias-${index}`}
                       className="mt-1.5"
@@ -701,7 +701,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'aliasName')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-birthplace-${index}`}>Place of birth</Label>
+                    <Label htmlFor={`ubo-birthplace-${index}`}>Tempat lahir</Label>
                     <Input
                       id={`ubo-birthplace-${index}`}
                       className="mt-1.5"
@@ -713,7 +713,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'birthPlace')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-dob-${index}`}>Date of birth</Label>
+                    <Label htmlFor={`ubo-dob-${index}`}>Tanggal lahir</Label>
                     <Input
                       id={`ubo-dob-${index}`}
                       type="date"
@@ -728,7 +728,7 @@ export default function KybFormPage() {
                   <div>
                     {/* Bukan duplikat `Country` di atas: itu negara ALAMAT,
                         ini kewarganegaraan (angka 6 vs angka 3). */}
-                    <Label htmlFor={`ubo-nationality-${index}`}>Nationality</Label>
+                    <Label htmlFor={`ubo-nationality-${index}`}>Kewarganegaraan</Label>
                     <Input
                       id={`ubo-nationality-${index}`}
                       className="mt-1.5"
@@ -740,7 +740,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'nationality')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-occupation-${index}`}>Occupation</Label>
+                    <Label htmlFor={`ubo-occupation-${index}`}>Pekerjaan</Label>
                     <EnumSelect
                       id={`ubo-occupation-${index}`}
                       value={ubo.occupation}
@@ -752,7 +752,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'occupation')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-gender-${index}`}>Gender</Label>
+                    <Label htmlFor={`ubo-gender-${index}`}>Jenis kelamin</Label>
                     <EnumSelect
                       id={`ubo-gender-${index}`}
                       value={ubo.gender}
@@ -764,7 +764,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'gender')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-marital-${index}`}>Marital status</Label>
+                    <Label htmlFor={`ubo-marital-${index}`}>Status perkawinan</Label>
                     <EnumSelect
                       id={`ubo-marital-${index}`}
                       value={ubo.maritalStatus}
@@ -778,7 +778,7 @@ export default function KybFormPage() {
                   <div>
                     {/* Angka 8 berbunyi "jika ada" — opsional, dan dikatakan. */}
                     <Label htmlFor={`ubo-employer-address-${index}`}>
-                      Employer address (optional)
+                      Alamat tempat kerja (opsional)
                     </Label>
                     <Input
                       id={`ubo-employer-address-${index}`}
@@ -792,7 +792,7 @@ export default function KybFormPage() {
                   </div>
                   <div>
                     <Label htmlFor={`ubo-employer-phone-${index}`}>
-                      Employer phone (optional)
+                      Telepon tempat kerja (opsional)
                     </Label>
                     <Input
                       id={`ubo-employer-phone-${index}`}
@@ -805,7 +805,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'employerPhone')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-source-of-funds-${index}`}>Source of funds</Label>
+                    <Label htmlFor={`ubo-source-of-funds-${index}`}>Sumber dana</Label>
                     <EnumSelect
                       id={`ubo-source-of-funds-${index}`}
                       value={ubo.sourceOfFunds}
@@ -817,7 +817,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'sourceOfFunds')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-annual-income-${index}`}>Annual income</Label>
+                    <Label htmlFor={`ubo-annual-income-${index}`}>Penghasilan per tahun</Label>
                     <EnumSelect
                       id={`ubo-annual-income-${index}`}
                       value={ubo.annualIncomeRange}
@@ -829,7 +829,7 @@ export default function KybFormPage() {
                     <FieldError message={errors[kybUboErrorKey(index, 'annualIncomeRange')]} />
                   </div>
                   <div>
-                    <Label htmlFor={`ubo-net-worth-${index}`}>Net worth</Label>
+                    <Label htmlFor={`ubo-net-worth-${index}`}>Harta kekayaan</Label>
                     <EnumSelect
                       id={`ubo-net-worth-${index}`}
                       value={ubo.netWorthRange}
@@ -846,7 +846,7 @@ export default function KybFormPage() {
                         KYB dan `:uboId`, dan keduanya baru ada setelah berkas ini
                         tersimpan. */}
                     <Label htmlFor={`ubo-legal-relationship-${index}`}>
-                      Legal relationship
+                      Bentuk hubungan hukum
                     </Label>
                     <EnumSelect
                       id={`ubo-legal-relationship-${index}`}
@@ -862,7 +862,7 @@ export default function KybFormPage() {
                     {/* Ayat (7)–(8): langkah mana yang DIPAKAI sampai pada orang
                         ini. Disimpan, bukan dihitung — yang menentukannya petugas
                         yang memeriksa struktur kepemilikan. */}
-                    <Label htmlFor={`ubo-cascade-${index}`}>Cascading-test step</Label>
+                    <Label htmlFor={`ubo-cascade-${index}`}>Langkah cascading test</Label>
                     <EnumSelect
                       id={`ubo-cascade-${index}`}
                       value={ubo.cascadeStep}
