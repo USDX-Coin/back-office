@@ -387,7 +387,15 @@ export default function DataTable<T>({
                     }
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="text-sm">
+                      <TableCell
+                        key={cell.id}
+                        className="text-sm"
+                        // Id kolom ikut ke DOM. Dipakai uji lebar Playwright
+                        // (`e2e/usdx-lebar-sel.spec.ts`) untuk menyebut sel yang
+                        // terpotong dengan NAMA kolomnya, bukan nomor urut yang
+                        // berubah tiap kali ada kolom disembunyikan.
+                        data-col={cell.column.id}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}

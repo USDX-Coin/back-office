@@ -201,6 +201,56 @@ function TableCellText({
   )
 }
 
+/** Satu baris di dalam `TableCellStack`. */
+export interface TableCellLine {
+  /**
+   * Nilai UTUH. Ini yang masuk ke `title` dan ke tooltip — bukan yang dirender.
+   * Untuk nilai yang sengaja dipendekkan (hash, uuid) isi `children` dengan
+   * bentuk pendeknya dan `value` dengan nilai penuhnya.
+   */
+  value: string
+  /** Bentuk yang dirender, kalau berbeda dari `value`. */
+  children?: React.ReactNode
+  className?: string
+  /** Baris yang boleh hilang (mis. penanda opsional) — `false`/`null` dilewati. */
+  key?: string
+}
+
+/**
+ * Sel BERTINGKAT — dua atau tiga baris teks dalam satu sel, masing-masing
+ * memotong dengan elipsis dan masing-masing membawa nilai utuhnya.
+ *
+ * KENAPA ADA: pola `<div className="flex flex-col"><span>…</span></div>` yang
+ * ditulis tangan adalah jebakan. `text-overflow` di `td` tidak berlaku untuk
+ * anak blok, jadi sel seperti itu dipotong TANPA TANDA — "Rp 4.012.350,00"
+ * terbaca "Rp 4.012.350,0" dan tidak ada apa pun yang mengatakan ada digit yang
+ * hilang. `src/index.css` sekarang memasang jaring pengaman supaya tandanya
+ * selalu muncul; komponen ini adalah sisi keduanya: nilai utuhnya tetap ada di
+ * `title` dan tooltip, jadi angka yang terpotong masih bisa dibaca.
+ *
+ * Kolom uang, nomor rekening, dan stempel waktu WAJIB lewat sini (atau lewat
+ * `TableCellText` untuk sel satu baris).
+ */
+function TableCellStack({
+  lines,
+  className,
+}: {
+  lines: (TableCellLine | false | null | undefined)[]
+  className?: string
+}) {
+  const visible = lines.filter((l): l is TableCellLine => Boolean(l))
+  return (
+    <div className={cn("flex min-w-0 flex-col", className)}>
+      {visible.map((line, i) => (
+        <TableCellText key={line.key ?? i} value={line.value} className={line.className}>
+          {line.children}
+        </TableCellText>
+      ))}
+    </div>
+  )
+}
+TableCellStack.displayName = "TableCellStack"
+
 export {
   Table,
   TableColgroup,
@@ -211,5 +261,6 @@ export {
   TableRow,
   TableCell,
   TableCellText,
+  TableCellStack,
   TableCaption,
 }

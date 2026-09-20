@@ -355,6 +355,37 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
 }
 
+/* ELIPSIS IKUT TURUN KE ANAK BLOK — ini yang membuat pemotongan selalu BERTANDA.
+ *
+ * `text-overflow` hanya berlaku untuk isi INLINE milik elemen yang memasangnya.
+ * Aturan di atas karenanya hanya menandai sel yang isinya teks telanjang. Sel
+ * dua baris — pola yang dipakai hampir semua kolom uang dan rekening —
+ *
+ *     <td><div class="flex flex-col"><span>Rp 4.012.350,00</span>…</div></td>
+ *
+ * isinya kotak BLOK (anak sebuah flex container ikut di-blok-kan), jadi
+ * `overflow: hidden` di `td` MEMOTONGNYA TANPA SATU PUN TANDA: "Rp 4.012.350,00"
+ * terbaca "Rp 4.012.350,0" dan tidak ada apa pun di layar yang mengatakan ada
+ * digit yang hilang. Operator memutuskan mengirim ulang rupiah atas angka yang
+ * salah dan tidak punya cara tahu.
+ *
+ * Aturan ini memasang elipsis pada tiap keturunan sel data, jadi elemen mana pun
+ * yang benar-benar memegang teks menandai sendiri pemotongannya. Untuk elemen
+ * inline `overflow` memang tidak berlaku — di sana induk bloknyalah yang
+ * menandai, jadi aturannya tidak merugikan.
+ *
+ * Ini JARING PENGAMAN, bukan izin memotong: kolom uang, rekening, dan stempel
+ * waktu tetap wajib menyebut `size` yang cukup DAN membawa nilai utuhnya di
+ * `title` (lihat `TableCellText` / `TableCellStack` di `components/ui/table.tsx`).
+ * Yang dijamin di sini cuma satu: tidak ada lagi pemotongan yang diam.
+ *
+ * `:where()` dipakai supaya kekhususannya nol — satu kelas utilitas di selnya
+ * (`overflow-visible`, `whitespace-pre-wrap`) tetap menang tanpa `!important`. */
+[data-usdx-table] tbody tr[data-hoverable] > td :where(div, p, span, a, button, label, strong, em, code, time, dd, dt, li) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Bayangan gulir mendatar, tanpa JavaScript.
  *
  * Dua lapis pertama sewarna kartu dan ikut MENGGULIR bersama isi
