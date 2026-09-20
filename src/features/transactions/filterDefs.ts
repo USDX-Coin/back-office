@@ -17,6 +17,7 @@ const MINT_STATUS_OPTIONS: FilterOption[] = [
   { value: 'WAITING_FOR_APPROVAL', label: 'Menunggu persetujuan' },
   { value: 'COMPLETED', label: 'Selesai' },
   { value: 'FAILED', label: 'Gagal' },
+  { value: 'HELD', label: 'Uang masuk tertahan' },
 ]
 
 // sot/api/common.yaml § RedeemStatus — redeem has its own single-dimension
@@ -27,6 +28,7 @@ const REDEEM_STATUS_OPTIONS: FilterOption[] = [
   { value: 'PROCESSING_PAYOUT', label: 'Pencairan diproses' },
   { value: 'PAYOUT_COMPLETE', label: 'Rupiah sudah dikirim' },
   { value: 'EXPIRED', label: 'Kedaluwarsa' },
+  { value: 'PAYOUT_FAILED', label: 'Pencairan gagal' },
 ]
 
 const PAYMENT_STATUS_OPTIONS: FilterOption[] = [
@@ -34,6 +36,7 @@ const PAYMENT_STATUS_OPTIONS: FilterOption[] = [
   { value: 'WAITING_FOR_PAYMENT', label: 'Menunggu pembayaran' },
   { value: 'PAID', label: 'Sudah dibayar' },
   { value: 'EXPIRED', label: 'Kedaluwarsa' },
+  { value: 'HELD', label: 'Uang masuk tertahan' },
 ]
 
 // USDX-547 — "which population am I looking at". The moment partner orders

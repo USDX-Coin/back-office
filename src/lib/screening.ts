@@ -65,6 +65,7 @@ export const SCREENING_SUBJECT_TYPE_LABELS: Record<ScreeningSubjectType, string>
   KYC: 'Nasabah perorangan',
   KYC_UBO: 'Pemilik manfaat (UBO)',
   KYB: 'Badan usaha',
+  PARTNER_CUSTOMER: 'Nasabah partner',
 }
 
 export const SCREENING_OUTCOME_LABELS: Record<ScreeningOutcome, string> = {
@@ -78,6 +79,7 @@ export const SCREENING_OUTCOME_LABELS: Record<ScreeningOutcome, string> = {
 export const SCREENING_TRIGGER_LABELS: Record<ScreeningTrigger, string> = {
   KYC_SUBMIT: 'Pengajuan KYC',
   KYB_SUBMIT: 'Pengajuan KYB',
+  PARTNER_CUSTOMER_SUBMIT: 'Pengajuan nasabah partner',
   RESCAN: 'Pemindaian ulang',
   BACKOFFICE_DECISION: 'Keputusan back office',
 }

@@ -154,6 +154,15 @@ const orderStatusMap: Record<MintOrderStatus, StatusConfig> = {
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
   },
+  // Uangnya SUDAH masuk, ordernya belum bisa dicocokkan — persis keadaan yang
+  // ditangani layar "Mint Bermasalah". Nadanya peringatan, bukan galat: tidak
+  // ada yang rusak, ada satu keputusan manusia yang belum diambil.
+  HELD: {
+    label: 'Uang masuk tertahan',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
+  },
 }
 
 const paymentStatusMap: Record<MintPaymentStatus, StatusConfig> = {
@@ -180,6 +189,14 @@ const paymentStatusMap: Record<MintPaymentStatus, StatusConfig> = {
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
+  },
+  // Sisi PEMBAYARAN dari keadaan yang sama: notifikasi uang masuk diterima,
+  // tapi belum bisa diikatkan ke satu order.
+  HELD: {
+    label: 'Uang masuk tertahan',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
   },
 }
 
@@ -246,6 +263,15 @@ const redeemStatusMap: Record<RedeemStatus, StatusConfig> = {
   },
   EXPIRED: {
     label: 'Kedaluwarsa',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+  // Penyedia menolak pencairan secara DEFINITIF (USDX-471). USDX nasabah sudah
+  // terbakar permanen dan rupiahnya tidak berangkat — order inilah yang
+  // mendarat di antrean "Pencairan Bermasalah".
+  PAYOUT_FAILED: {
+    label: 'Pencairan gagal',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',

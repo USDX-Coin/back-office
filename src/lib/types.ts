@@ -796,6 +796,11 @@ export type MintPaymentStatus =
   | 'WAITING_FOR_PAYMENT'
   | 'PAID'
   | 'EXPIRED'
+  // `HELD` — uang MASUK tapi belum bisa dicocokkan ke order (BNI/DurianPay,
+  // USDX-349). Nilai enum backend yang sungguhan
+  // (`mint_payment_status` di `src/database/schema/mint-orders.ts`), bukan
+  // keadaan karangan: ia justru keadaan yang ditangani layar Mint Bermasalah.
+  | 'HELD'
 
 // sot/api/common.yaml § MintSafeStatus — on-chain Safe execution (mirrors OTC).
 export type MintSafeStatus =
@@ -811,6 +816,9 @@ export type MintOrderStatus =
   | 'WAITING_FOR_APPROVAL'
   | 'COMPLETED'
   | 'FAILED'
+  // Cermin ter-denormalisasi dari `payment_status = HELD` (`mint_order_status`
+  // di backend `src/database/schema/mint-orders.ts`).
+  | 'HELD'
 
 // sot/api/common.yaml § RedeemStatus — single-dimension redeem lifecycle (W3,
 // USDX-245). Redeem tidak lewat Safe: burn = self-sign user, payout =
@@ -821,6 +829,10 @@ export type RedeemStatus =
   | 'PROCESSING_PAYOUT'
   | 'PAYOUT_COMPLETE'
   | 'EXPIRED'
+  // `PAYOUT_FAILED` — penyedia menolak pencairan secara DEFINITIF (USDX-471,
+  // `redeem_order_status`). USDX nasabah sudah terbakar dan rupiahnya tidak
+  // berangkat; inilah order yang mendarat di antrean Pencairan Bermasalah.
+  | 'PAYOUT_FAILED'
 
 // Union overall status: MINT → MintOrderStatus, REDEEM → RedeemStatus.
 export type OrderStatus = MintOrderStatus | RedeemStatus
@@ -837,6 +849,8 @@ export type VaBank =
   | 'MANDIRI'
   | 'PERMATA'
   | 'MAYBANK'
+  // NOBU — ditambahkan backend untuk go-live (USDX-621, `payment_bank`).
+  | 'NOBU'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-547 — partner ownership on an order (migration 0076 already landed:
@@ -2475,7 +2489,7 @@ export type SanctionEntryType = 'INDIVIDUAL' | 'ENTITY'
  * yang induknya tidak diketahui dari temuan. Layarnya menyatakan itu apa adanya
  * alih-alih menampilkan panel kosong yang terbaca seperti "nasabah tanpa data".
  */
-export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB'
+export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB' | 'PARTNER_CUSTOMER'
 
 /**
  * Tiga nilai pertama ditulis MESIN, dua terakhir ditulis PETUGAS sebagai baris
@@ -2496,6 +2510,8 @@ export type ScreeningOutcome =
 export type ScreeningTrigger =
   | 'KYC_SUBMIT'
   | 'KYB_SUBMIT'
+  // Nasabah yang diserahkan PARTNER — nilai `screening_trigger` backend.
+  | 'PARTNER_CUSTOMER_SUBMIT'
   | 'RESCAN'
   | 'BACKOFFICE_DECISION'
 
