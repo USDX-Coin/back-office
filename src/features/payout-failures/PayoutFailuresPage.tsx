@@ -92,7 +92,14 @@ export default function PayoutFailuresPage() {
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={payoutIssueKindPill(kind)} className="w-fit" />
             {issueCode && (
-              <span className="text-2xs text-muted-foreground" title={issueCode}>
+              // `title` memuat kalimat UTUH plus kodenya: keterangan masalah
+              // dalam bahasa Indonesia lebih panjang dari lebar kolom dan
+              // terpotong elipsis, dan dulu hover hanya memunculkan kodenya —
+              // jadi kalimat yang terpotong tidak bisa dibaca di mana pun.
+              <span
+                className="truncate text-2xs text-muted-foreground"
+                title={codeLabel ? `${codeLabel} (${issueCode})` : issueCode}
+              >
                 {codeLabel ?? <span className="font-mono">{issueCode}</span>}
               </span>
             )}

@@ -131,7 +131,7 @@ export default function UsersPage() {
     },
     {
       id: 'kycStatus',
-      size: 112,
+      size: 128,
       header: 'KYC',
       cell: ({ row }) => {
         const cfg = getKycStatusConfig(row.original.kycStatus)

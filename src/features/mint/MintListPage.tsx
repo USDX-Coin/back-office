@@ -163,15 +163,18 @@ export default function MintListPage() {
       accessorKey: 'safeType',
       size: 88,
       header: 'Dompet',
+      // TANPA `uppercase`: nilainya sekarang kata Indonesia, dan "Staf" yang
+      // dipaksa kapital terbaca "STAF" — seperti salah ketik dari enum
+      // `STAFF`, bukan sebagai kata.
       cell: ({ getValue }) => (
-        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="font-mono text-2xs tracking-[0.04em] text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
         </span>
       ),
     },
     {
       accessorKey: 'status',
-      size: 152,
+      size: 184,
       header: 'Status',
       cell: ({ getValue }) => {
         const s = getValue() as RequestListItem['status']
@@ -225,7 +228,7 @@ export default function MintListPage() {
     },
     {
       id: 'actions',
-      size: 76,
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button
