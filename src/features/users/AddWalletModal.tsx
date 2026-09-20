@@ -75,10 +75,12 @@ export default function AddWalletModal({
     }
     try {
       await add.mutateAsync({ chain, address: address.trim() })
-      toast.success('Wallet added')
+      toast.success('Wallet ditambahkan')
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't add the wallet. Please try again.")
+      toast.error(
+        err instanceof Error ? err.message : 'Wallet gagal ditambahkan. Coba lagi.'
+      )
     }
   }
 
@@ -95,10 +97,10 @@ export default function AddWalletModal({
         onPointerDownOutside={(e) => add.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Add wallet</DialogTitle>
+          <DialogTitle>Tambah wallet</DialogTitle>
           <DialogDescription>
-            Attach a new wallet address to this user. {currentWalletCount} /{' '}
-            {USER_LIMITS.MAX_WALLETS} used.
+            Pasang alamat wallet baru untuk nasabah ini. Terpakai{' '}
+            {currentWalletCount} dari {USER_LIMITS.MAX_WALLETS}.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
@@ -109,7 +111,7 @@ export default function AddWalletModal({
             </div>
           )}
           <div>
-            <Label htmlFor="chain">Chain</Label>
+            <Label htmlFor="chain">Jaringan</Label>
             <Select
               value={chain}
               onValueChange={(val) => {
@@ -118,7 +120,7 @@ export default function AddWalletModal({
               }}
             >
               <SelectTrigger id="chain" className="mt-1.5">
-                <SelectValue placeholder="Choose chain" />
+                <SelectValue placeholder="Pilih jaringan" />
               </SelectTrigger>
               <SelectContent>
                 {CHAIN_OPTIONS.map((c) => (
@@ -132,7 +134,7 @@ export default function AddWalletModal({
           </div>
 
           <div>
-            <Label htmlFor="address">Wallet address</Label>
+            <Label htmlFor="address">Alamat wallet</Label>
             <Input
               id="address"
               value={address}
@@ -154,10 +156,10 @@ export default function AddWalletModal({
               onClick={() => onOpenChange(false)}
               disabled={add.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button type="submit" disabled={add.isPending || Boolean(limitError)}>
-              {add.isPending ? 'Submitting…' : 'Add wallet'}
+              {add.isPending ? 'Menyimpan…' : 'Tambah wallet'}
             </Button>
           </DialogFooter>
         </form>

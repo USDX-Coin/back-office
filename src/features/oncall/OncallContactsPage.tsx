@@ -111,11 +111,12 @@ export default function OncallContactsPage() {
           role="note"
           className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
         >
-          <p className="font-medium text-foreground">Restricted</p>
+          <p className="font-medium text-foreground">Akses dibatasi</p>
           <p className="mt-1">
-            Your role does not have permission to view the on-call directory. It holds
-            personal phone numbers and decides who is called when money is at risk, so it
-            is limited to admins. Contact an admin if a change is needed.
+            Peran ini tidak diizinkan membuka daftar kontak darurat. Daftarnya memuat
+            nomor telepon pribadi dan menentukan siapa yang ditelepon saat uang
+            bermasalah, jadi hanya peran ADMIN yang boleh melihatnya. Hubungi ADMIN
+            kalau ada yang perlu diubah.
           </p>
         </div>
       </div>
@@ -125,13 +126,13 @@ export default function OncallContactsPage() {
   const columns: ColumnDef<OncallContact>[] = [
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: 'Nama',
       enableSorting: false,
       cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
       accessorKey: 'role',
-      header: 'Role',
+      header: 'Jabatan',
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-muted-foreground">{row.original.role}</span>
@@ -139,7 +140,7 @@ export default function OncallContactsPage() {
     },
     {
       accessorKey: 'channel',
-      header: 'Channel',
+      header: 'Kanal',
       enableSorting: false,
       cell: ({ row }) => (
         <Badge variant="secondary">{formatChannel(row.original.channel)}</Badge>
@@ -147,7 +148,7 @@ export default function OncallContactsPage() {
     },
     {
       accessorKey: 'contactValue',
-      header: 'Contact',
+      header: 'Kontak',
       enableSorting: false,
       cell: ({ row }) => (
         <span className="font-mono text-xs">{row.original.contactValue}</span>
@@ -155,7 +156,7 @@ export default function OncallContactsPage() {
     },
     {
       accessorKey: 'categories',
-      header: 'Handles',
+      header: 'Menangani',
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
@@ -177,7 +178,7 @@ export default function OncallContactsPage() {
             variant="ghost"
             size="icon"
             onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.name}`}
+            aria-label={`Ubah ${row.original.name}`}
             className="h-7 w-7"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -186,7 +187,7 @@ export default function OncallContactsPage() {
             variant="ghost"
             size="icon"
             onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.name}`}
+            aria-label={`Hapus ${row.original.name}`}
             className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -207,7 +208,7 @@ export default function OncallContactsPage() {
         actions={
           <Button onClick={openAdd} size="sm" className="h-7 text-xs">
             <Plus className="mr-1 h-3.5 w-3.5" />
-            Add Contact
+            Tambah Kontak
           </Button>
         }
       />
@@ -218,11 +219,11 @@ export default function OncallContactsPage() {
           className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
         >
           {contacts.length === 0
-            ? 'No on-call contact is registered at all. '
-            : 'No on-call contact covers '}
+            ? 'Belum ada satu pun kontak darurat yang terdaftar. '
+            : 'Belum ada kontak darurat yang menangani '}
           {contacts.length === 0
-            ? 'Every money alert will be delivered with an explicit “no on-call registered” warning instead of a name.'
-            : `${uncovered.map(formatCategory).join(', ')}. Alerts in those categories are still delivered, but they will carry a “no on-call registered” warning instead of a name.`}
+            ? 'Semua peringatan soal uang tetap terkirim, tapi membawa catatan “belum ada kontak darurat terdaftar”, bukan nama siapa pun.'
+            : `${uncovered.map(formatCategory).join(', ')}. Peringatan di kategori itu tetap terkirim, tapi membawa catatan “belum ada kontak darurat terdaftar”, bukan nama siapa pun.`}
         </p>
       )}
 
@@ -240,12 +241,12 @@ export default function OncallContactsPage() {
             icon={
               <PhoneCall className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />
             }
-            title="No on-call contact registered"
-            description="Money alerts are already being delivered — they just cannot say who should pick them up. Add the first contact."
+            title="Belum ada kontak darurat"
+            description="Peringatan soal uang sudah terkirim — cuma belum bisa menyebut siapa yang harus mengangkatnya. Tambahkan kontak pertama."
             cta={
               <Button onClick={openAdd} className="mt-2">
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Contact
+                Tambah Kontak
               </Button>
             }
           />

@@ -57,12 +57,12 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
         setConfirmOpen(false)
         setCooldown(COOLDOWN_SECONDS)
         if (res.activationEmailSent) {
-          toast.success('Activation email sent')
+          toast.success('Email aktivasi terkirim')
         } else {
           // users.yaml § ResendActivationResult: token rotated but the
           // single-attempt SMTP send failed — job USDX-149 handles retries.
           toast.warning(
-            'Activation link rotated, but the email failed to send — try again shortly'
+            'Tautan aktivasi sudah diganti, tapi emailnya gagal terkirim — coba lagi sebentar lagi'
           )
         }
       },
@@ -70,17 +70,17 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
         setConfirmOpen(false)
         if (err instanceof ApiError && err.status === 409) {
           // Defensive: someone verified between page load and click.
-          toast.error('User has already verified their email')
+          toast.error('Nasabah ini sudah memverifikasi emailnya')
           qc.invalidateQueries({ queryKey: ['users'] })
           qc.invalidateQueries({ queryKey: ['users', 'detail', user.id] })
           return
         }
         if (err instanceof ApiError && err.status === 429) {
-          toast.error('Please wait — resend is limited to once per 60 seconds')
+          toast.error('Tunggu dulu — kirim ulang dibatasi satu kali per 60 detik')
           setCooldown(COOLDOWN_SECONDS)
           return
         }
-        toast.error(err instanceof Error ? err.message : 'Resend failed')
+        toast.error(err instanceof Error ? err.message : 'Kirim ulang gagal')
       },
     })
   }
@@ -88,7 +88,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
   return (
     <div className="border-t pt-3">
       <p className="mb-2 text-2xs uppercase tracking-wide text-muted-foreground">
-        Activation
+        Aktivasi
       </p>
       <div className="space-y-2">
         <span
@@ -104,19 +104,19 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
 
         {status === 'ACTIVATED' && user.emailVerifiedAt && (
           <p className="text-xs text-muted-foreground">
-            Email verified · {formatDate(user.emailVerifiedAt)}
+            Email terverifikasi · {formatDate(user.emailVerifiedAt)}
           </p>
         )}
         {status === 'PENDING' && (
           <p className="text-xs text-muted-foreground">
-            Email not verified yet — the activation link is valid for 7 days.
+            Email belum diverifikasi — tautan aktivasi berlaku 7 hari.
           </p>
         )}
         {status === 'FAILED' && user.activationEmailFailedAt && (
           <p className="flex items-start gap-1.5 text-xs text-destructive">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Activation email failed to send ({formatDate(user.activationEmailFailedAt)}).
-            Resend it manually.
+            Email aktivasi gagal terkirim ({formatDate(user.activationEmailFailedAt)}).
+            Kirim ulang secara manual.
           </p>
         )}
 
@@ -130,8 +130,8 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
           >
             <MailPlus className="h-3.5 w-3.5" />
             {cooldown > 0
-              ? `Resend available in ${cooldown}s`
-              : 'Resend Activation Link'}
+              ? `Bisa dikirim ulang dalam ${cooldown} dtk`
+              : 'Kirim ulang tautan aktivasi'}
           </Button>
         )}
       </div>
@@ -148,10 +148,10 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
           onPointerDownOutside={(e) => resend.isPending && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Resend activation link?</DialogTitle>
+            <DialogTitle>Kirim ulang tautan aktivasi?</DialogTitle>
             <DialogDescription>
-              A new activation email will be sent to <strong>{user.email}</strong>.
-              The previous link stops working and the new one is valid for 7 days.
+              Email aktivasi baru dikirim ke <strong>{user.email}</strong>. Tautan
+              yang lama langsung berhenti berfungsi, dan tautan baru berlaku 7 hari.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -160,10 +160,10 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
               onClick={() => setConfirmOpen(false)}
               disabled={resend.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleResend} disabled={resend.isPending}>
-              {resend.isPending ? 'Sending…' : 'Resend'}
+              {resend.isPending ? 'Mengirim…' : 'Kirim ulang'}
             </Button>
           </DialogFooter>
         </DialogContent>

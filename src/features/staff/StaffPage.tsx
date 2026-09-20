@@ -26,13 +26,6 @@ const PAGE_SIZE = 10
 // client-side. Phase 1 staff is bounded (handful per org); revisit if it grows.
 const FETCH_LIMIT = 100
 
-function formatRole(role: string): string {
-  return role
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 function formatDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
@@ -119,7 +112,7 @@ export default function StaffPage() {
   const columns: ColumnDef<Staff>[] = [
     {
       accessorKey: 'name',
-      header: 'Name',
+      header: 'Nama',
       enableSorting: true,
       cell: ({ row }) => (
         <span className="font-medium">{row.original.name}</span>
@@ -135,9 +128,10 @@ export default function StaffPage() {
     },
     {
       accessorKey: 'role',
-      header: 'Role',
+      header: 'Peran',
       enableSorting: true,
-      cell: ({ row }) => formatRole(row.original.role),
+      // Nilai enum ditulis apa adanya — lihat catatan di `filterDefs.ts`.
+      cell: ({ row }) => row.original.role,
     },
     {
       accessorKey: 'isActive',
@@ -146,15 +140,15 @@ export default function StaffPage() {
       cell: ({ row }) =>
         row.original.isActive ? (
           <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">
-            Active
+            Aktif
           </Badge>
         ) : (
-          <Badge variant="secondary">Inactive</Badge>
+          <Badge variant="secondary">Nonaktif</Badge>
         ),
     },
     {
       accessorKey: 'createdAt',
-      header: 'Created',
+      header: 'Dibuat',
       enableSorting: true,
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
@@ -176,7 +170,7 @@ export default function StaffPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => openEdit(row.original)}
-                    aria-label={`Edit ${row.original.name}`}
+                    aria-label={`Ubah ${row.original.name}`}
                     className="h-7 w-7"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -187,15 +181,15 @@ export default function StaffPage() {
                     onClick={() => openDeactivate(row.original)}
                     aria-label={
                       isSelf
-                        ? 'Cannot deactivate your own account'
-                        : `Deactivate ${row.original.name}`
+                        ? 'Akun sendiri tidak bisa dinonaktifkan'
+                        : `Nonaktifkan ${row.original.name}`
                     }
                     disabled={isSelf || !row.original.isActive}
                     title={
                       isSelf
-                        ? 'You cannot deactivate your own account'
+                        ? 'Akun sendiri tidak bisa dinonaktifkan'
                         : !row.original.isActive
-                          ? 'Already inactive'
+                          ? 'Sudah nonaktif'
                           : undefined
                     }
                     className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground"
@@ -219,17 +213,17 @@ export default function StaffPage() {
           strokeWidth={1.5}
         />
       }
-      title="No staff yet"
+      title="Belum ada pengguna internal"
       description={
         canManage
-          ? 'Add your first back-office operator to get started.'
-          : 'No staff to show.'
+          ? 'Tambahkan operator back-office pertama untuk mulai.'
+          : 'Belum ada yang bisa ditampilkan.'
       }
       cta={
         canManage ? (
           <Button onClick={openAdd} className="mt-2">
             <Plus className="mr-1.5 h-4 w-4" />
-            Add Staff
+            Tambah Pengguna
           </Button>
         ) : undefined
       }
@@ -251,7 +245,7 @@ export default function StaffPage() {
           canManage ? (
             <Button onClick={openAdd} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Add Staff
+              Tambah Pengguna
             </Button>
           ) : undefined
         }
@@ -271,7 +265,7 @@ export default function StaffPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search by name or email',
+              placeholder: 'Cari nama atau email',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             sort={{

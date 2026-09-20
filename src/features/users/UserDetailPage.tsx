@@ -19,8 +19,8 @@ import RemoveWalletDialog from './RemoveWalletDialog'
 import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
-  INDIVIDUAL: 'Individual',
-  LEGAL_ENTITY: 'Legal Entity',
+  INDIVIDUAL: 'Perorangan',
+  LEGAL_ENTITY: 'Badan Usaha',
 }
 
 function shortAddress(address: string): string {
@@ -43,14 +43,14 @@ export default function UserDetailPage() {
   // flow for deleted users in Phase 1.
   useEffect(() => {
     if (isError && error instanceof ApiError && error.status === 404) {
-      toast.error('User not found or has been deleted')
+      toast.error('Nasabah tidak ditemukan atau sudah dihapus')
       navigate('/users', { replace: true })
     }
   }, [isError, error, navigate])
 
   if (isLoading) {
     return (
-      <div className="text-xs text-muted-foreground">Loading user…</div>
+      <div className="text-xs text-muted-foreground">Memuat data nasabah…</div>
     )
   }
 
@@ -64,10 +64,10 @@ export default function UserDetailPage() {
           className="mb-4 h-7 text-xs"
         >
           <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-          Back to users
+          Kembali ke daftar nasabah
         </Button>
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-          {error instanceof Error ? error.message : 'User not found'}
+          {error instanceof Error ? error.message : 'Nasabah tidak ditemukan'}
         </div>
       </div>
     )
@@ -84,7 +84,7 @@ export default function UserDetailPage() {
         className="mb-4 h-7 text-xs"
       >
         <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-        Back to users
+        Kembali ke daftar nasabah
       </Button>
 
       <PageHeader
@@ -111,26 +111,26 @@ export default function UserDetailPage() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <SummaryStat
-          label="Total minted"
+          label="Total mint"
           value={`${data.analytics.totalMinted} USDX`}
-          hint="executed mints"
+          hint="mint yang sudah dieksekusi"
         />
         <SummaryStat
-          label="Total burned"
+          label="Total burn"
           value={`${data.analytics.totalBurned} USDX`}
-          hint="executed burns"
+          hint="burn yang sudah dieksekusi"
         />
         <SummaryStat
-          label="Transactions"
+          label="Transaksi"
           value={data.analytics.totalTransactions.toLocaleString()}
-          hint="all-time"
+          hint="sejak awal"
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1 rounded-md shadow-none dark:border-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Profile</CardTitle>
+            <CardTitle className="text-sm">Profil</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             <div className="flex items-center gap-2.5">
@@ -145,7 +145,7 @@ export default function UserDetailPage() {
             {/* USDX-47 S6: surface entityType, kycStatus, suspended in detail. */}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 border-t pt-3">
               <span className="text-2xs uppercase tracking-wide text-muted-foreground">
-                Entity
+                Jenis
               </span>
               <span>{ENTITY_LABEL[data.entityType] ?? data.entityType}</span>
 
@@ -169,10 +169,10 @@ export default function UserDetailPage() {
               <span>
                 {data.suspended ? (
                   <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
-                    Suspended
+                    Dibekukan
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Active</span>
+                  <span className="text-muted-foreground">Aktif</span>
                 )}
               </span>
             </div>
@@ -182,7 +182,7 @@ export default function UserDetailPage() {
 
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
-                <p className="mb-1 text-2xs uppercase tracking-wide">Notes</p>
+                <p className="mb-1 text-2xs uppercase tracking-wide">Catatan</p>
                 <p className="whitespace-pre-wrap">{data.notes}</p>
               </div>
             )}
@@ -191,7 +191,7 @@ export default function UserDetailPage() {
 
         <Card className="lg:col-span-2 rounded-md shadow-none dark:border-0">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-sm">Wallets</CardTitle>
+            <CardTitle className="text-sm">Wallet</CardTitle>
             {canManage && (
               <Button
                 size="sm"
@@ -200,7 +200,7 @@ export default function UserDetailPage() {
                 className="h-7 text-xs"
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                Add Wallet
+                Tambah Wallet
               </Button>
             )}
           </CardHeader>
@@ -208,10 +208,10 @@ export default function UserDetailPage() {
             {data.wallets.length === 0 ? (
               <div className="rounded-md border border-dashed py-8 text-center text-xs text-muted-foreground">
                 <WalletIcon className="mx-auto mb-2 h-8 w-8 opacity-40" strokeWidth={1.5} />
-                No wallets yet.
+                Belum ada wallet.
               </div>
             ) : (
-              <ul className="divide-y" aria-label="Wallets">
+              <ul className="divide-y" aria-label="Daftar wallet">
                 {data.wallets.map((w) => (
                   <li
                     key={w.id}
@@ -231,7 +231,7 @@ export default function UserDetailPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setWalletToRemove(w)}
-                        aria-label={`Remove wallet ${w.address}`}
+                        aria-label={`Hapus wallet ${w.address}`}
                         className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -247,15 +247,15 @@ export default function UserDetailPage() {
 
       <Card className="mt-4 rounded-md shadow-none dark:border-0">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Recent requests</CardTitle>
+          <CardTitle className="text-sm">Permintaan OTC terbaru</CardTitle>
         </CardHeader>
         <CardContent>
           {data.recentRequests.length === 0 ? (
             <p className="py-6 text-center text-xs text-muted-foreground">
-              No recent requests.
+              Belum ada permintaan OTC.
             </p>
           ) : (
-            <ul className="divide-y" aria-label="Recent requests">
+            <ul className="divide-y" aria-label="Permintaan OTC terbaru">
               {data.recentRequests.map((r) => {
                 const status = getRequestStatusConfig(r.status)
                 return (

@@ -123,12 +123,14 @@ describe('UserDetailPage — tautan ke transaksi nasabah (P0-3)', () => {
       ).not.toBeInTheDocument()
     })
 
-    test('kartu "Recent requests" tetap ada — tautannya menambah, bukan mengganti', async () => {
+    test('kartu "Permintaan OTC terbaru" tetap ada — tautannya menambah, bukan mengganti', async () => {
       // Kartu itu hanya memuat request OTC. Order KONSUMEN nasabah ini memang
       // tidak pernah tampil di halaman ini; itulah yang ditutup tautan di atas.
       server.use(userDetail())
       setup()
-      expect(await screen.findByRole('heading', { name: /recent requests/i })).toBeInTheDocument()
+      expect(
+        await screen.findByRole('heading', { name: /permintaan otc terbaru/i }),
+      ).toBeInTheDocument()
     })
   })
 })

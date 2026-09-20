@@ -25,10 +25,12 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
     if (!user) return
     try {
       await del.mutateAsync(user.id)
-      toast.success(`Removed ${user.name}`)
+      toast.success(`${user.name} dihapus`)
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't remove the user. Please try again.")
+      toast.error(
+        err instanceof Error ? err.message : 'Nasabah gagal dihapus. Coba lagi.'
+      )
     }
   }
 
@@ -45,13 +47,13 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
         onPointerDownOutside={(e) => del.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Delete user?</DialogTitle>
+          <DialogTitle>Hapus nasabah ini?</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <DialogDescription>
             {user
-              ? `Delete user ${user.name}? This cannot be undone.`
-              : 'No user selected.'}
+              ? `Akun ${user.name} dihapus dari back-office. Setelah ini ${user.name} tidak bisa masuk, mint, maupun redeem, dan tidak ada tombol di back-office untuk mengembalikannya.`
+              : 'Belum ada nasabah yang dipilih.'}
           </DialogDescription>
         </DialogBody>
         <DialogFooter>
@@ -61,7 +63,7 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
             onClick={() => onOpenChange(false)}
             disabled={del.isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -69,7 +71,7 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
             disabled={del.isPending}
             className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
-            {del.isPending ? 'Deleting…' : 'Delete'}
+            {del.isPending ? 'Menghapus…' : 'Hapus nasabah'}
           </Button>
         </DialogFooter>
       </DialogContent>

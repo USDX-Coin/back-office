@@ -2384,7 +2384,7 @@ export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
 
 /** Label yang menerangkan kategori — nama enum saja tak cukup untuk memilih dengan benar. */
 export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
-  PAYOUT: 'Payout gagal, antrean buntu, plafon habis, rem darurat',
+  PAYOUT: 'Pencairan gagal, antrean buntu, plafon habis, rem darurat',
   RECONCILIATION: 'Saldo tak terjelaskan, selisih rekonsiliasi bank',
   MINT: 'Pembayaran masuk tak dikredit, callback tak tercocokkan',
   REDEEM: 'Burn nasabah ditolak scanner, selisih jumlah burn',

@@ -34,7 +34,7 @@ function loginAsStaffRole(email: string) {
 }
 
 async function openAddForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: /add contact/i }))
+  await user.click(await screen.findByRole('button', { name: /tambah kontak/i }))
   return within(await screen.findByRole('dialog'))
 }
 
@@ -45,7 +45,7 @@ describe('OncallContactsPage @integration', () => {
 
       expect(await screen.findByText('Budi Santoso')).toBeInTheDocument()
       expect(screen.getByText(/ops lead/i)).toBeInTheDocument()
-      expect(screen.getAllByText(/payout/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/pencairan/i).length).toBeGreaterThan(0)
     })
 
     test('should add a contact and show it in the list', async () => {
@@ -54,11 +54,11 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Rina Kartika')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Treasury')
-      await user.type(dialog.getByLabelText(/contact value/i), 'rina@usdx.io')
-      await user.click(dialog.getByRole('checkbox', { name: /reconciliation/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Rina Kartika')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Treasury')
+      await user.type(dialog.getByLabelText(/^kontak$/i), 'rina@usdx.io')
+      await user.click(dialog.getByRole('checkbox', { name: /rekonsiliasi/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
       expect(await screen.findByText('Rina Kartika')).toBeInTheDocument()
     })
@@ -68,12 +68,12 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /edit budi santoso/i }))
+      await user.click(screen.getByRole('button', { name: /ubah budi santoso/i }))
       const dialog = within(await screen.findByRole('dialog'))
-      const roleInput = dialog.getByLabelText(/^role$/i)
+      const roleInput = dialog.getByLabelText(/^jabatan$/i)
       await user.clear(roleInput)
       await user.type(roleInput, 'Head of Ops')
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
       expect(await screen.findByText(/head of ops/i)).toBeInTheDocument()
     })
@@ -83,9 +83,9 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /delete budi santoso/i }))
+      await user.click(screen.getByRole('button', { name: /hapus budi santoso/i }))
       const dialog = within(await screen.findByRole('dialog'))
-      await user.click(dialog.getByRole('button', { name: /^delete$/i }))
+      await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
 
       await waitFor(() => {
         expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
@@ -100,9 +100,9 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await dialog.findByText(/name is required/i)).toBeInTheDocument()
+      expect(await dialog.findByText(/nama wajib diisi/i)).toBeInTheDocument()
       // Tidak ada baris baru yang masuk daftar.
       expect(screen.queryByText('Rina Kartika')).not.toBeInTheDocument()
     })
@@ -113,12 +113,14 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Rina Kartika')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Treasury')
-      await user.type(dialog.getByLabelText(/contact value/i), 'rina@usdx.io')
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Rina Kartika')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Treasury')
+      await user.type(dialog.getByLabelText(/^kontak$/i), 'rina@usdx.io')
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await dialog.findByText(/at least one incident category/i)).toBeInTheDocument()
+      expect(
+        await dialog.findByText(/minimal satu kategori insiden/i),
+      ).toBeInTheDocument()
     })
 
     test('should surface the backend 409 for a duplicate channel + contact value', async () => {
@@ -128,13 +130,15 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Duplikat')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Ops')
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Duplikat')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Ops')
       // Nilai yang sama persis dengan kontak PHONE yang sudah ada di mock.
-      await user.type(dialog.getByLabelText(/contact value/i), '+6281234567890')
-      await user.click(dialog.getByRole('checkbox', { name: /payout/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^kontak$/i), '+6281234567890')
+      await user.click(dialog.getByRole('checkbox', { name: /pencairan/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
+      // Pesannya datang dari handler MSW (`src/mocks/handlers.ts`), di luar
+      // lingkup terjemahan ini — teksnya masih bahasa Inggris dengan sengaja.
       await waitFor(() =>
         expect(errSpy).toHaveBeenCalledWith(
           'A contact with this channel and value is already registered.',
@@ -154,11 +158,13 @@ describe('OncallContactsPage @integration', () => {
         renderWithProviders(<OncallContactsPage />)
 
         expect(
-          await screen.findByText(/your role does not have permission/i),
+          await screen.findByText(/tidak diizinkan membuka daftar kontak darurat/i),
         ).toBeInTheDocument()
         expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
         expect(screen.queryByText('+6281234567890')).not.toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /add contact/i })).not.toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /tambah kontak/i }),
+        ).not.toBeInTheDocument()
       },
     )
   })
@@ -173,19 +179,19 @@ describe('OncallContactsPage @integration', () => {
       // bukan tabel kosong yang tak berkata apa-apa. Ini cermin perilaku
       // backend: nol kontak = alarm tetap terkirim, dengan peringatan.
       for (;;) {
-        const buttons = screen.queryAllByRole('button', { name: /^delete /i })
+        const buttons = screen.queryAllByRole('button', { name: /^hapus /i })
         if (buttons.length === 0) break
         await user.click(buttons[0]!)
         const dialog = within(await screen.findByRole('dialog'))
-        await user.click(dialog.getByRole('button', { name: /^delete$/i }))
+        await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
         await waitFor(() => {
           expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
         })
       }
 
       const banner = await screen.findByRole('alert')
-      expect(banner).toHaveTextContent(/no on-call contact is registered at all/i)
-      expect(banner).toHaveTextContent(/no on-call registered/i)
+      expect(banner).toHaveTextContent(/belum ada satu pun kontak darurat yang terdaftar/i)
+      expect(banner).toHaveTextContent(/belum ada kontak darurat terdaftar/i)
     })
 
     test('should keep the modal open and preserve values when the backend rejects', async () => {
@@ -195,15 +201,15 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Duplikat')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Ops')
-      await user.type(dialog.getByLabelText(/contact value/i), '+6281234567890')
-      await user.click(dialog.getByRole('checkbox', { name: /payout/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Duplikat')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Ops')
+      await user.type(dialog.getByLabelText(/^kontak$/i), '+6281234567890')
+      await user.click(dialog.getByRole('checkbox', { name: /pencairan/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
       await waitFor(() => expect(errSpy).toHaveBeenCalled())
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(dialog.getByLabelText(/^name$/i)).toHaveValue('Duplikat')
+      expect(dialog.getByLabelText(/^nama$/i)).toHaveValue('Duplikat')
       errSpy.mockRestore()
     })
 
@@ -214,16 +220,16 @@ describe('OncallContactsPage @integration', () => {
 
       const dialog = await openAddForm(user)
       for (const category of [
-        'Payout',
-        'Reconciliation',
+        'Pencairan',
+        'Rekonsiliasi',
         'Mint',
         'Redeem',
-        'Fraud',
-        'Security',
-        'Infra',
+        'Penipuan',
+        'Keamanan',
+        'Infrastruktur',
         // USDX-632 — zona kunci custodial (alert WALLET_* dari backend/wallet-service)
         'Custodial',
-        'Other',
+        'Lainnya',
       ]) {
         expect(
           dialog.getByRole('checkbox', { name: new RegExp(`^${category}$`, 'i') }),
