@@ -32,7 +32,7 @@ export default function ProfileDropdown() {
           {user.name}
         </span>
         <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">Open profile menu</span>
+        <span className="sr-only">Buka menu profil</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 bg-card shadow-sm">
         <DropdownMenuLabel className="px-3 py-2">
@@ -45,14 +45,14 @@ export default function ProfileDropdown() {
           className="cursor-pointer focus:bg-muted/60"
         >
           <UserRound className="mr-2 h-4 w-4" />
-          View Profile
+          Lihat Profil
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={handleLogout}
           className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
         >
           <LogOut className="mr-2 h-4 w-4" />
-          Logout
+          Keluar
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

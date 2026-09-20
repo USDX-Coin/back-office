@@ -58,7 +58,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
           ) : (
             <ArrowUpDown className="h-3.5 w-3.5" />
           )}
-          <span>Sort</span>
+          <span>Urutkan</span>
           {active && (
             <span className="text-muted-foreground">
               <span className="mx-1">·</span>
@@ -71,14 +71,14 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
         <div className="space-y-3">
           <div>
             <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
-              Sort by
+              Urutkan menurut
             </p>
             <Select value={sortBy || NONE} onValueChange={setField}>
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="None" />
+                <SelectValue placeholder="Tanpa urutan" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
+                <SelectItem value={NONE}>Tanpa urutan</SelectItem>
                 {columns.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.label}
@@ -89,7 +89,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
           </div>
           <div>
             <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
-              Order
+              Arah
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               <Button
@@ -101,7 +101,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
                 className={cn('h-9 gap-1.5')}
               >
                 <ArrowUp className="h-3.5 w-3.5" />
-                Ascending
+                Naik
               </Button>
               <Button
                 type="button"
@@ -112,7 +112,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
                 className={cn('h-9 gap-1.5')}
               >
                 <ArrowDown className="h-3.5 w-3.5" />
-                Descending
+                Turun
               </Button>
             </div>
           </div>
@@ -122,7 +122,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
               onClick={() => onChange('', '')}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear sort
+              Hapus urutan
             </button>
           )}
         </div>

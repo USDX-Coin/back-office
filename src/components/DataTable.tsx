@@ -220,7 +220,7 @@ export default function DataTable<T>({
             <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder="Cari…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
@@ -233,10 +233,10 @@ export default function DataTable<T>({
                 onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
               >
                 <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="Semua status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">Semua status</SelectItem>
                   {statusOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
@@ -252,21 +252,21 @@ export default function DataTable<T>({
                 value={startDate}
                 onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
                 className="w-[150px]"
-                aria-label="Start date"
+                aria-label="Tanggal mulai"
               />
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
                 className="w-[150px]"
-                aria-label="End date"
+                aria-label="Tanggal akhir"
               />
             </div>
 
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="mr-1 h-4 w-4" />
-                Clear
+                Hapus filter
               </Button>
             )}
           </div>
@@ -274,7 +274,7 @@ export default function DataTable<T>({
           {onExportCsv && (
             <Button variant="outline" size="sm" onClick={onExportCsv}>
               <Download className="mr-1 h-4 w-4" />
-              Export CSV
+              Unduh CSV
             </Button>
           )}
         </div>
@@ -402,7 +402,7 @@ export default function DataTable<T>({
       <div className="flex items-center justify-between">
         <p className="font-mono text-2xs text-muted-foreground tabular-nums">
           {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
-          {Math.min(page * defaultPageSize, rowCount)} of {rowCount}
+          {Math.min(page * defaultPageSize, rowCount)} dari {rowCount}
         </p>
         <div className="flex items-center gap-1">
           <Button
@@ -411,7 +411,7 @@ export default function DataTable<T>({
             className="h-7 w-7"
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
-            aria-label="First page"
+            aria-label="Halaman pertama"
           >
             <ChevronsLeft className="h-3.5 w-3.5" />
           </Button>
@@ -421,7 +421,7 @@ export default function DataTable<T>({
             className="h-7 w-7"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            aria-label="Previous page"
+            aria-label="Halaman sebelumnya"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -434,7 +434,7 @@ export default function DataTable<T>({
             className="h-7 w-7"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            aria-label="Next page"
+            aria-label="Halaman berikutnya"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
@@ -444,7 +444,7 @@ export default function DataTable<T>({
             className="h-7 w-7"
             onClick={() => table.setPageIndex(totalPages - 1)}
             disabled={!table.getCanNextPage()}
-            aria-label="Last page"
+            aria-label="Halaman terakhir"
           >
             <ChevronsRight className="h-3.5 w-3.5" />
           </Button>

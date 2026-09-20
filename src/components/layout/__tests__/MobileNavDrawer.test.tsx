@@ -57,7 +57,7 @@ describe('MobileNavDrawer @ USDX-27', () => {
 
     test('renders the logout action', () => {
       renderOpen()
-      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /keluar/i })).toBeInTheDocument()
     })
   })
 
@@ -98,8 +98,8 @@ describe('MobileNavDrawer @ USDX-27', () => {
         renderOpen()
         const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
         const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
-        expect(await within(payoutFailures).findByLabelText('6 pending')).toBeInTheDocument()
-        expect(await within(redeemApprovals).findByLabelText('3 pending')).toBeInTheDocument()
+        expect(await within(payoutFailures).findByLabelText('6 menunggu diproses')).toBeInTheDocument()
+        expect(await within(redeemApprovals).findByLabelText('3 menunggu diproses')).toBeInTheDocument()
       })
     })
 
@@ -129,7 +129,7 @@ describe('MobileNavDrawer @ USDX-27', () => {
         )
         renderOpen()
         const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
-        expect(await within(redeemApprovals).findByLabelText('2 pending')).toBeInTheDocument()
+        expect(await within(redeemApprovals).findByLabelText('2 menunggu diproses')).toBeInTheDocument()
         const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
         expect(within(payoutFailures).queryByLabelText(/pending/)).not.toBeInTheDocument()
       })

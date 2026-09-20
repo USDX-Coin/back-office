@@ -76,9 +76,9 @@ export default function AmountWithCurrencyInput({
         ? `≈ ${formatIdrAmount(amountNum * rateNum)}`
         : `≈ ${formatUsdxAmount(amountNum / rateNum)}`
   } else if (rateLoading) {
-    preview = 'Loading rate…'
+    preview = 'Kurs sedang dimuat…'
   } else if (rateError) {
-    preview = 'Rate unavailable — backend will compute conversion at submit.'
+    preview = 'Kurs belum terbaca — konversinya dihitung server saat request dikirim.'
   }
 
   function handleCurrencyChange(next: string) {
@@ -123,7 +123,7 @@ export default function AmountWithCurrencyInput({
           <SelectTrigger
             id={currencyId}
             aria-invalid={Boolean(currencyError)}
-            aria-label="Currency"
+            aria-label="Mata uang"
             className="h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus:outline-none focus:ring-0"
           >
             <span>{currency}</span>

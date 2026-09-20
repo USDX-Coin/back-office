@@ -222,7 +222,7 @@ describe('validateKybRejectReason', () => {
       // a rejection with no stated reason.
       const result = validateKybRejectReason('     ')
       expect(result.valid).toBe(false)
-      if (!result.valid) expect(result.error).toMatch(/required/i)
+      if (!result.valid) expect(result.error).toMatch(/wajib diisi/i)
     })
 
     test('should reject a reason over the maximum length', () => {

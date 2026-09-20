@@ -48,7 +48,7 @@ export default function DateRangeFields({
   value,
   onChange,
   idPrefix,
-  labels = { start: 'Start date', end: 'End date' },
+  labels = { start: 'Tanggal mulai', end: 'Tanggal akhir' },
   disabled = false,
   showMessage = true,
   maxDays,
