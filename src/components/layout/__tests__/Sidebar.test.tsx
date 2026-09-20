@@ -27,9 +27,12 @@ describe('Sidebar @ USDX-50', () => {
       expect(screen.getByText(/^meja otc$/i)).toBeInTheDocument()
       expect(screen.getByText(/^keuangan$/i)).toBeInTheDocument()
       // "Nasabah" dan "Pengaturan" masing-masing dipakai sebagai judul section
-      // SEKALIGUS sebagai nama satu entri di dalamnya — dicek lewat jumlahnya.
-      expect(screen.getAllByText(/^nasabah$/i).length).toBeGreaterThanOrEqual(2)
-      expect(screen.getAllByText(/^pengaturan$/i).length).toBeGreaterThanOrEqual(2)
+      // SEKALIGUS sebagai nama satu entri di dalamnya — jadi TEPAT DUA.
+      //
+      // `toBeGreaterThanOrEqual(2)` yang dulu di sini juga hijau untuk 10: menu
+      // yang dirender dua kali (pola `Navbar.test.tsx`) lolos tanpa suara.
+      expect(screen.getAllByText(/^nasabah$/i)).toHaveLength(2)
+      expect(screen.getAllByText(/^pengaturan$/i)).toHaveLength(2)
       // "Troubleshooting" sengaja hilang: memperbaiki request yang nyangkut
       // adalah pekerjaan, bukan kategori teknis tersendiri.
       expect(screen.queryByText(/troubleshooting/i)).not.toBeInTheDocument()

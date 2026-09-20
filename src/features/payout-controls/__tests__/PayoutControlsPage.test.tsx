@@ -204,7 +204,14 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       await screen.findByTestId('keadaan-rem')
       expect(screen.getAllByText('Bawaan server').length).toBeGreaterThanOrEqual(3)
       expect(screen.getByText(/Belum pernah ada baris kontrol/)).toBeInTheDocument()
-      expect(screen.queryByText(/1970-01-01/)).not.toBeInTheDocument()
+      // Operator TIDAK MEMBACA tanggal 1970 di kartunya. Nilai mentah
+      // `updatedAt` milik server tetap ada — terlipat di "Detail teknis", yang
+      // sejak memakai `hidden="until-found"` memang tinggal di DOM supaya Ctrl+F
+      // menemukannya. Jadi yang dikunci dua hal sekaligus: tidak terlihat, dan
+      // tidak dibuang.
+      const epoch = screen.getByText(/1970-01-01/)
+      expect(epoch).not.toBeVisible()
+      expect(epoch.closest('[data-testid="detail-teknis"]')).not.toBeNull()
     })
 
     test('mengosongkan isian berarti "kembali ke bawaan server", dan dikirim sebagai null', async () => {

@@ -229,7 +229,11 @@ describe('RequestDetailModal — on-chain links', () => {
       open()
       await screen.findByText('Detail teknis')
       // P1-5 — "Amount (wei)" dulu berdiri sebagai label field di layar utama.
-      expect(screen.queryByText('Nominal satuan terkecil (wei)')).not.toBeInTheDocument()
+      //
+      // TERTUTUP = TIDAK TERLIHAT, bukan tidak ada di DOM. `DetailTeknis` memakai
+      // `hidden="until-found"` supaya Ctrl+F tetap menemukan hash/id yang
+      // terlipat; yang dijaga di sini keadaan yang dialami operator.
+      expect(screen.getByText('Nominal satuan terkecil (wei)')).not.toBeVisible()
       expect(screen.queryByText(/amount \(wei\)/i)).not.toBeInTheDocument()
     })
   })

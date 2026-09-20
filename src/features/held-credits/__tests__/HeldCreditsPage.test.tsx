@@ -153,8 +153,11 @@ describe('HeldCreditDetailModal @ USDX-342', () => {
       const user = userEvent.setup()
       openDetail(HELD_CREDIT_MOCK_IDS.latePayment)
       await screen.findByText('Rina Susanti')
-      // Tertutup secara default — dan isinya tetap ada begitu dibuka.
-      expect(screen.queryByTestId('notif-raw')).not.toBeInTheDocument()
+      // TERTUTUP = TIDAK TERLIHAT, bukan tidak ada di DOM. Sejak `DetailTeknis`
+      // memakai `hidden="until-found"` isinya sengaja TETAP di DOM supaya Ctrl+F
+      // menemukannya — jadi yang dijaga di sini keadaan yang benar-benar dialami
+      // operator: ia tidak melihatnya sampai membukanya.
+      expect(screen.getByTestId('notif-raw')).not.toBeVisible()
       await user.click(screen.getByText('Detail teknis'))
       expect(await screen.findByTestId('notif-raw')).toHaveTextContent('884190')
       expect(screen.getByText('bni-4f2c1a90-2')).toBeInTheDocument()

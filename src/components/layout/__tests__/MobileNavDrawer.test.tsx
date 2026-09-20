@@ -33,8 +33,10 @@ describe('MobileNavDrawer @ USDX-27', () => {
       expect(screen.getByText(/^pekerjaan hari ini$/i)).toBeInTheDocument()
       expect(screen.getByText(/^meja otc$/i)).toBeInTheDocument()
       expect(screen.getByText(/^keuangan$/i)).toBeInTheDocument()
-      expect(screen.getAllByText(/^nasabah$/i).length).toBeGreaterThanOrEqual(2)
-      expect(screen.getAllByText(/^pengaturan$/i).length).toBeGreaterThanOrEqual(2)
+      // TEPAT DUA: judul section + satu entri bernama sama. Batas bawah `>= 2`
+      // yang dulu di sini juga hijau untuk laci yang merender menunya dua kali.
+      expect(screen.getAllByText(/^nasabah$/i)).toHaveLength(2)
+      expect(screen.getAllByText(/^pengaturan$/i)).toHaveLength(2)
       expect(screen.queryByText(/troubleshooting/i)).not.toBeInTheDocument()
     })
 
