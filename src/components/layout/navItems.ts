@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   FlaskConical,
   FileBarChart,
+  RadioTower,
   Banknote as BanknoteIcon,
   BanknoteX,
   ScrollText,
@@ -28,6 +29,7 @@ import {
   canAccessTreasury,
   canManageSettings,
   canManageStaff,
+  canReadDurianpayApiCalls,
 } from '@/lib/auth'
 import { canReadActivityLog } from '@/features/activity-log/access'
 import type { Staff } from '@/lib/types'
@@ -277,6 +279,29 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Jejak Audit',
         icon: History,
         visibleWhen: canReadActivityLog,
+      },
+      // Log Panggilan DurianPay — tetangga langsung Jejak Audit, dan itu
+      // disengaja: keduanya layar BACA JEJAK, bukan antrean kerja. Tidak ada
+      // satu pun keputusan di dalamnya (backend hanya menyediakan dua GET).
+      //
+      // Layar ini lahir sebelum menu dirombak, waktu masih ada section
+      // "Troubleshooting" bersama Manual Sync. Section itu dibubarkan karena
+      // "troubleshooting" bukan kelompok yang berarti bagi operator — Manual
+      // Sync naik ke Pekerjaan Hari Ini karena ia memang pekerjaan, sementara
+      // layar ini tidak. Yang tersisa mencari rumah, dan rumahnya di sini.
+      //
+      // Terbuka untuk SEMUA peran, sama dengan `@Roles(...)` di controllernya:
+      // yang menjaga jalur uang sehari-hari justru STAFF, dan sejak log stdout
+      // produksi tidak terbaca siapa pun, ini satu-satunya tempat "kenapa
+      // pembayaran ini tidak masuk" bisa dijawab.
+      {
+        to: '/durianpay-api-calls',
+        label: 'Log DurianPay',
+        icon: RadioTower,
+        // Terbuka untuk keempat peran, tapi tetap lewat predikatnya: ia
+        // fail-closed saat `staff` masih null (sesi belum termuat), dan itu
+        // pembedaan yang hilang kalau entrinya dibiarkan tanpa gerbang.
+        visibleWhen: canReadDurianpayApiCalls,
       },
     ],
   },

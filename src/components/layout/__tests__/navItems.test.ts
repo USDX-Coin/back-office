@@ -65,7 +65,7 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
       // punya pintu — Mint Bermasalah, Persetujuan Orang Kedua, Plafon
       // Pencairan, Jejak Audit. Tiga yang pertama terbuka untuk semua peran,
       // Jejak Audit ADMIN saja (lihat gerbangnya di bawah).
-      expect(allLabels(ADMIN)).toHaveLength(22)
+      expect(allLabels(ADMIN)).toHaveLength(23)
       expect(sectionsFor(ADMIN)).toHaveLength(5)
     })
 
@@ -95,6 +95,7 @@ describe('NAV_SECTIONS — struktur menu baru', () => {
         '/plafon-pencairan',
         '/staff',
         '/jejak-audit',
+        '/durianpay-api-calls',
       ])
     })
 
@@ -255,7 +256,7 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
   describe('negative', () => {
     test('STAFF melihat 16 entri, dan tidak satu pun yang di-gate', () => {
       const labels = allLabels(STAFF)
-      expect(labels).toHaveLength(16)
+      expect(labels).toHaveLength(17)
       for (const hidden of [
         'Antrean Tanda Tangan',
         'Laporan',
@@ -278,7 +279,7 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
 
     test('DEVELOPER: semua kecuali Pengguna Internal', () => {
       const labels = allLabels(DEVELOPER)
-      expect(labels).toHaveLength(20)
+      expect(labels).toHaveLength(21)
       expect(labels).not.toContain('Pengguna Internal')
       // Jejak Audit juga tidak: `GET /api/v1/activity-logs` ADMIN saja.
       expect(labels).not.toContain('Jejak Audit')
@@ -309,6 +310,63 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
       ]) {
         expect(labels).not.toContain(hidden)
       }
+    })
+  })
+})
+
+// Log Panggilan DurianPay — terbuka untuk keempat peran, sama dengan `@Roles`
+// di controllernya: yang menjaga jalur uang sehari-hari justru STAFF, dan sejak
+// log stdout produksi tidak terbaca siapa pun, ini satu-satunya layar yang bisa
+// menjawab "kenapa pembayaran ini tidak masuk".
+//
+// Rumahnya PINDAH saat menu dirombak. Layar ini lahir waktu masih ada section
+// "Troubleshooting" bersama Manual Sync; section itu dibubarkan karena
+// "troubleshooting" bukan kelompok yang berarti bagi operator. Manual Sync naik
+// ke Pekerjaan Hari Ini karena ia memang pekerjaan — layar ini tidak, jadi ia
+// duduk di Pengaturan sebagai tetangga Jejak Audit: dua-duanya layar BACA JEJAK
+// tanpa satu pun keputusan di dalamnya.
+
+function pengaturanItems(staffId: string | null): string[] {
+  const staff = staffId === null ? null : (findStaffById(staffId) ?? null)
+  const section = visibleNavSections(staff).find((s) => s.label === 'Pengaturan')
+  return section ? section.items.map((i) => i.label) : []
+}
+
+describe('visibleNavSections — Log DurianPay', () => {
+  describe('positive', () => {
+    test('keempat peran melihat entrinya', () => {
+      for (const id of ['stf_1', 'stf_2', 'stf_3', 'stf_4']) {
+        expect(pengaturanItems(id)).toContain('Log DurianPay')
+      }
+    })
+
+    // Dipisah supaya kalau entri ini disempitkan lagi ke MANAGER ke atas, yang
+    // merah adalah test yang menyebut alasannya.
+    test('STAFF melihatnya juga — mereka yang menjaga jalur uang', () => {
+      expect(pengaturanItems('stf_4')).toContain('Log DurianPay')
+    })
+
+    test('duduk bersebelahan dengan Jejak Audit — dua layar baca jejak', () => {
+      const items = pengaturanItems('stf_1')
+      expect(items.indexOf('Log DurianPay')).toBe(items.indexOf('Jejak Audit') + 1)
+    })
+  })
+
+  describe('negative', () => {
+    test('sesi yang belum termuat tidak melihatnya (fail-closed)', () => {
+      expect(pengaturanItems(null)).not.toContain('Log DurianPay')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('entrinya menunjuk /durianpay-api-calls dan tidak membawa badge antrean', () => {
+      // Ini bukan antrean kerja: tidak ada satu pun keputusan di layarnya, jadi
+      // tidak ada angka yang berarti "sekian menunggu kamu".
+      const item = visibleNavSections(findStaffById('stf_2') ?? null)
+        .flatMap((s) => s.items)
+        .find((i) => i.label === 'Log DurianPay')
+      expect(item?.to).toBe('/durianpay-api-calls')
+      expect(item?.badgeKey).toBeUndefined()
     })
   })
 })

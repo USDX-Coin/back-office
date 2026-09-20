@@ -51,13 +51,15 @@ import type {
   RedeemApprovalDetail,
   RedeemApprovalListItem,
   RedeemApprovalOutcome,
+  DurianpayApiCallDetail,
+  DurianpayApiCallListItem,
   PayoutFailureDetail,
   PayoutFailureListItem,
   PayoutIssueKind,
   PayoutResolution,
   ResolvePayoutFailureBody,
 } from '@/lib/types'
-import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole, canReadDurianpayApiCallsRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -99,6 +101,7 @@ import {
   createInitialPayoutControls,
   createInitialPayoutControlChanges,
   createInitialRedeemApprovalControls,
+  createMockDurianpayApiCalls,
   createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
 } from './data'
@@ -178,6 +181,12 @@ let approvalStore: Map<string, ApprovalRequest> = createMockApprovals()
 let heldCreditStore: Map<string, HeldCreditDetail> = createMockHeldCredits()
 let payoutControlsState: PayoutControls = createInitialPayoutControls()
 let payoutControlChanges: PayoutControlChange[] = createInitialPayoutControlChanges()
+// Log Panggilan DurianPay. DILAYANI MSW karena backendnya (branch
+// `wisnubarata111/be-catat-log-panggilan-durianpay`) BELUM merge sama sekali —
+// kedua pathnya sengaja ABSEN dari `INTEGRATION_PATHS`. Tabel aslinya
+// append-only: tidak ada satu pun jalur yang meng-update sebuah panggilan yang
+// sudah selesai, jadi tiruan ini pun tidak punya satu pun penulis.
+let durianpayApiCallStore: Map<string, DurianpayApiCallDetail> = createMockDurianpayApiCalls()
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -218,6 +227,7 @@ export function resetMockData() {
   redeemApprovalControls = createInitialRedeemApprovalControls()
   payoutFailureStore = createMockPayoutFailures()
   payoutsEnabled = true
+  durianpayApiCallStore = createMockDurianpayApiCalls()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -908,6 +918,49 @@ export function configurePayoutsEnabledForTests(enabled: boolean) {
 /** Test helper: sisipkan atau ganti satu order bermasalah. Dikembalikan oleh resetMockData(). */
 export function upsertPayoutFailureForTests(detail: PayoutFailureDetail) {
   payoutFailureStore.set(detail.id, detail)
+}
+
+// ─── Log Panggilan DurianPay (/api/v1/durianpay-api-calls) ──────────────────
+// Bentuk galatnya meniru filter exception Nest apa adanya, sama dengan blok di
+// atas. Gerbang peran DITEGAKKAN di sini walau layarnya juga menyembunyikan
+// menunya: tiruan yang melepas STAFF membuat test "menu tidak tampil" hijau
+// tanpa membuktikan apa pun tentang permintaan yang tetap bisa dikirim dari
+// konsol peramban.
+
+function durianpayCallError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+const DURIANPAY_OUTCOMES = ['SUCCESS', 'REJECTED', 'UNAVAILABLE']
+const DURIANPAY_FLAVORS = ['SNAP', 'LEGACY']
+/** `ParseUUIDPipe` menolak apa pun yang bukan UUID dengan 400, sebelum service dipanggil. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Baris list SENGAJA tanpa badan pesan — satu halaman berisi 100 badan mengirim megabyte. */
+function toDurianpayApiCallListItem(detail: DurianpayApiCallDetail): DurianpayApiCallListItem {
+  return {
+    id: detail.id,
+    requestedAt: detail.requestedAt,
+    direction: detail.direction,
+    apiFlavor: detail.apiFlavor,
+    httpMethod: detail.httpMethod,
+    path: detail.path,
+    httpStatus: detail.httpStatus,
+    responseCode: detail.responseCode,
+    outcome: detail.outcome,
+    referenceNo: detail.referenceNo,
+    traceId: detail.traceId,
+    durationMs: detail.durationMs,
+    errorSummary: detail.errorSummary,
+  }
+}
+
+/** Test helper: sisipkan atau ganti satu panggilan. Dikembalikan oleh resetMockData(). */
+export function upsertDurianpayApiCallForTests(detail: DurianpayApiCallDetail) {
+  durianpayApiCallStore.set(detail.id, detail)
 }
 
 function bniError(status: number, code: string, message: string, details?: unknown) {
@@ -3109,6 +3162,91 @@ export const handlers = [
       metadata: null,
       data: { id, action, status, newPartnerReferenceNo, resolvedAt: now },
     })
+  }),
+
+  // ─── Log Panggilan DurianPay (backend `durianpay-api-calls/`) ───
+  // MSW-served karena backendnya BELUM merge; begitu merge, kedua path masuk
+  // `INTEGRATION_PATHS` dan handler ini TETAP di sini untuk Vitest (preseden
+  // USDX-154). Saringannya sama persis dengan `ListDurianpayApiCallsDto` — tidak
+  // ada pencarian teks di badan pesan, karena servernya memang tidak punya.
+  http.get('/api/v1/durianpay-api-calls', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadDurianpayApiCallsRole(staff.role)) {
+      return durianpayCallError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const takeRaw = Number(url.searchParams.get('take') || '20')
+    if (!Number.isInteger(takeRaw) || takeRaw < 1 || takeRaw > 100) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'take must not be greater than 100')
+    }
+    const outcome = url.searchParams.get('outcome')
+    if (outcome && !DURIANPAY_OUTCOMES.includes(outcome)) {
+      return durianpayCallError(
+        400,
+        'BAD_REQUEST',
+        'outcome must be one of the following values: SUCCESS, REJECTED, UNAVAILABLE'
+      )
+    }
+    const apiFlavor = url.searchParams.get('apiFlavor')
+    if (apiFlavor && !DURIANPAY_FLAVORS.includes(apiFlavor)) {
+      return durianpayCallError(
+        400,
+        'BAD_REQUEST',
+        'apiFlavor must be one of the following values: SNAP, LEGACY'
+      )
+    }
+    const httpStatusRaw = url.searchParams.get('httpStatus')
+    const httpStatus = httpStatusRaw === null ? null : Number(httpStatusRaw)
+    if (
+      httpStatus !== null &&
+      (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599)
+    ) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'httpStatus must not be less than 100')
+    }
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const pathPrefix = url.searchParams.get('path')
+    const referenceNo = url.searchParams.get('referenceNo')
+    const responseCode = url.searchParams.get('responseCode')
+
+    const rows = [...durianpayApiCallStore.values()]
+      .filter((row) => !from || Date.parse(row.requestedAt) >= Date.parse(from))
+      .filter((row) => !to || Date.parse(row.requestedAt) <= Date.parse(to))
+      .filter((row) => !outcome || row.outcome === outcome)
+      .filter((row) => !apiFlavor || row.apiFlavor === apiFlavor)
+      // AWALAN, bukan `includes` — `LIKE 'prefix%'` di repository backend.
+      .filter((row) => !pathPrefix || row.path.startsWith(pathPrefix))
+      .filter((row) => !referenceNo || row.referenceNo === referenceNo)
+      .filter((row) => httpStatus === null || row.httpStatus === httpStatus)
+      .filter((row) => !responseCode || row.responseCode === responseCode)
+      // TERBARU dulu; `id` jadi tie-break, persis `orderBy` repository backend.
+      .sort(
+        (a, b) =>
+          Date.parse(b.requestedAt) - Date.parse(a.requestedAt) || b.id.localeCompare(a.id)
+      )
+    const start = (page - 1) * takeRaw
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: takeRaw, total: rows.length },
+      data: rows.slice(start, start + takeRaw).map(toDurianpayApiCallListItem),
+    })
+  }),
+
+  http.get('/api/v1/durianpay-api-calls/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadDurianpayApiCallsRole(staff.role)) {
+      return durianpayCallError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const id = String(params.id)
+    // `ParseUUIDPipe` menolak bentuk yang bukan UUID SEBELUM service dipanggil,
+    // jadi id ngawur dijawab 400 — bukan 404 yang berarti "pernah ada".
+    if (!UUID_SHAPE.test(id)) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'Validation failed (uuid is expected)')
+    }
+    const detail = durianpayApiCallStore.get(id)
+    if (!detail) return durianpayCallError(404, 'NOT_FOUND', 'DURIANPAY_API_CALL_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
   }),
 
   // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───

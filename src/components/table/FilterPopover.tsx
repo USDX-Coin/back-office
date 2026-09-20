@@ -55,10 +55,11 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
   function clearDraft() {
     const cleared: Record<string, string> = {}
     for (const def of defs) {
-      if (def.kind === 'select') cleared[def.key] = ''
-      else {
+      if (def.kind === 'dateRange') {
         cleared[def.startKey] = ''
         cleared[def.endKey] = ''
+      } else {
+        cleared[def.key] = ''
       }
     }
     setDraft(cleared)
@@ -127,6 +128,32 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                )
+              }
+              if (def.kind === 'text') {
+                const v = draft[def.key] ?? ''
+                const hintId = `filter-hint-${def.key}`
+                return (
+                  <div key={def.key}>
+                    <Label htmlFor={`filter-text-${def.key}`} className="text-xs font-medium">
+                      {def.label}
+                    </Label>
+                    <Input
+                      id={`filter-text-${def.key}`}
+                      value={v}
+                      inputMode={def.inputMode}
+                      maxLength={def.maxLength}
+                      placeholder={def.placeholder}
+                      aria-describedby={def.hint ? hintId : undefined}
+                      onChange={(e) => setKey(def.key, e.target.value)}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    {def.hint && (
+                      <p id={hintId} className="mt-1 text-2xs text-muted-foreground">
+                        {def.hint}
+                      </p>
+                    )}
                   </div>
                 )
               }

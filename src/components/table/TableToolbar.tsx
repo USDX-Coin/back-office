@@ -154,6 +154,14 @@ function ActiveFilterChips({
         label: `${def.label}: ${opt?.label ?? v}`,
         onRemove: () => onChange({ ...values, [def.key]: '' }),
       })
+    } else if (def.kind === 'text') {
+      const v = values[def.key]
+      if (!v) continue
+      chips.push({
+        key: def.key,
+        label: `${def.label}: ${v}`,
+        onRemove: () => onChange({ ...values, [def.key]: '' }),
+      })
     } else {
       const start = values[def.startKey]
       const end = values[def.endKey]
@@ -194,9 +202,9 @@ function ActiveFilterChips({
 function countActiveFilters(defs: FilterDef[], values: Record<string, string>): number {
   let n = 0
   for (const def of defs) {
-    if (def.kind === 'select') {
-      if (values[def.key]) n++
-    } else if (values[def.startKey] || values[def.endKey]) {
+    if (def.kind === 'dateRange') {
+      if (values[def.startKey] || values[def.endKey]) n++
+    } else if (values[def.key]) {
       n++
     }
   }
@@ -206,10 +214,11 @@ function countActiveFilters(defs: FilterDef[], values: Record<string, string>): 
 function emptyFilterValues(defs: FilterDef[]): Record<string, string> {
   const out: Record<string, string> = {}
   for (const def of defs) {
-    if (def.kind === 'select') out[def.key] = ''
-    else {
+    if (def.kind === 'dateRange') {
       out[def.startKey] = ''
       out[def.endKey] = ''
+    } else {
+      out[def.key] = ''
     }
   }
   return out
