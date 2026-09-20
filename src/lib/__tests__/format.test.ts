@@ -4,14 +4,16 @@ import {
   formatBankAmount,
   formatBniPostDate,
   formatDate,
+  formatDecimalId,
+  formatIdrRate,
+  formatIsoDayDmy,
+  formatRate,
+  formatRelativeTime,
+  formatShortDate,
+  formatSpreadPct,
+  formatWibClock,
   formatWibDateTime,
   formatWibDayMinute,
-  formatIsoDayDmy,
-  formatWibClock,
-  formatShortDate,
-  formatRelativeTime,
-  formatRate,
-  formatSpreadPct,
   shortHash,
   shortRequestId,
 } from '@/lib/format'
@@ -374,6 +376,71 @@ describe('formatIsoDayDmy', () => {
     test('never goes through Date: the WIB day survives a browser in any zone', () => {
       // 1 Jan would become 31 Dec in a UTC-negative zone if it were parsed.
       expect(formatIsoDayDmy('2026-01-01')).toBe('01/01/2026')
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EJAAN ANGKA INDONESIA — satu konvensi per layar, bukan dua.
+//
+// Beranda dulu mencetak `12,450,000.00 USDX` (gaya Inggris) tepat di sebelah
+// `Rp16.250` (gaya Indonesia). Untuk pembaca Indonesia `12,450,000.00` bisa
+// terbaca "dua belas koma empat" — enam kali lipat salah, di layar pertama yang
+// dibuka operator tiap pagi.
+//
+// Yang diubah PENYAJIANNYA saja: masuk string, keluar string, nol aritmetika.
+// Nilai di atas 2^53 harus tetap keluar utuh — itu sebabnya fungsi ini tidak
+// boleh lewat `Number`.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('formatDecimalId', () => {
+  describe('positive', () => {
+    test('titik untuk ribuan, koma untuk desimal', () => {
+      expect(formatDecimalId('12450000.00')).toBe('12.450.000,00')
+      expect(formatDecimalId('1234.5')).toBe('1.234,50')
+      expect(formatDecimalId('999.999')).toBe('999,99')
+    })
+
+    test('fractionDigits 0 membuang desimalnya', () => {
+      expect(formatDecimalId('16250.00', 0)).toBe('16.250')
+      expect(formatDecimalId('16250.99', 0)).toBe('16.250')
+    })
+
+    test('tanda minus dipertahankan', () => {
+      expect(formatDecimalId('-1500000.25')).toBe('-1.500.000,25')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('tidak pernah lewat Number — nilai di atas 2^53 keluar utuh', () => {
+      // `Number("12450000000000000000.55")` sudah kehilangan digitnya sebelum
+      // sempat diformat. String masuk, string keluar.
+      expect(formatDecimalId('12450000000000000000.55')).toBe(
+        '12.450.000.000.000.000.000,55',
+      )
+    })
+
+    test('tanpa bagian desimal tetap diberi dua angka di belakang koma', () => {
+      expect(formatDecimalId('7')).toBe('7,00')
+      expect(formatDecimalId('0')).toBe('0,00')
+    })
+
+    test('JANGAN pernah memakai koma sebagai pemisah ribuan', () => {
+      // Pagar langsung terhadap cacatnya: apa pun bentuk keluarannya, koma
+      // hanya boleh muncul SEKALI, sebagai pemisah desimal.
+      const hasil = formatDecimalId('12450000.00')
+      expect(hasil.split(',')).toHaveLength(2)
+      expect(hasil).not.toMatch(/\d,\d{3}/)
+    })
+  })
+})
+
+describe('formatIdrRate', () => {
+  describe('positive', () => {
+    test('kurs jadi rupiah bulat dengan spasi setelah Rp', () => {
+      // Spasi setelah `Rp` menyamakannya dengan `formatIdrAmount` /
+      // `formatIdrExact`, ejaan yang dipakai SELURUH layar uang lain.
+      expect(formatIdrRate('16250.00')).toBe('Rp 16.250')
+      expect(formatIdrRate('1000000')).toBe('Rp 1.000.000')
     })
   })
 })

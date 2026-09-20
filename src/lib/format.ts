@@ -33,6 +33,50 @@ export function formatIdrAmount(idr: number): string {
   return `Rp ${IDR_FORMATTER.format(idr)}`
 }
 
+// ─── Ejaan angka Indonesia untuk nilai yang datang sebagai STRING ───────────
+//
+// Kenapa string, bukan `Number`: nilai uang dan pasokan token di repo ini
+// SELALU string desimal di atas kolom `numeric`. `totalSupply` bisa melewati
+// 2^53, dan `Number("12450000000000000000.50")` sudah kehilangan satuan
+// terkecilnya sebelum sempat diformat. Fungsi di bawah memotong string dan
+// menyisipkan pemisah — tidak ada aritmetika sama sekali, jadi tidak ada digit
+// yang bisa hilang. Ini PENYAJIAN, bukan perhitungan.
+//
+// Ejaannya Indonesia: TITIK untuk ribuan, KOMA untuk desimal. Angka gaya
+// Inggris di layar berbahasa Indonesia bukan sekadar tidak rapi —
+// `12,450,000.00` bisa dibaca "dua belas koma empat", yaitu enam kali lipat
+// salah pada layar yang pertama dibuka operator tiap pagi.
+
+/** Kelompokkan digit ribuan dengan titik. String masuk, string keluar. */
+function kelompokkanRibuan(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+/**
+ * `"12450000.5"` → `"12.450.000,50"`. `fractionDigits: 0` membuang desimalnya
+ * (`"16250.00"` → `"16.250"`). Nilai negatif mempertahankan tandanya.
+ */
+export function formatDecimalId(value: string, fractionDigits = 2): string {
+  const negative = value.startsWith('-')
+  const abs = negative ? value.slice(1) : value
+  const [whole = '0', fraction = ''] = abs.split('.')
+  const sign = negative ? '-' : ''
+  const grouped = kelompokkanRibuan(whole)
+  if (fractionDigits <= 0) return `${sign}${grouped}`
+  const trimmed = (fraction + '0'.repeat(fractionDigits)).slice(0, fractionDigits)
+  return `${sign}${grouped},${trimmed}`
+}
+
+/**
+ * Kurs sebagai rupiah bulat: `"16250.00"` → `"Rp 16.250"`.
+ *
+ * Spasi setelah `Rp` mengikuti `formatIdrAmount` / `formatIdrExact`, yaitu
+ * ejaan yang dipakai SELURUH layar uang lain di back office ini.
+ */
+export function formatIdrRate(value: string): string {
+  return `Rp ${formatDecimalId(value, 0)}`
+}
+
 // Generic middle-truncation for a hex string (address / tx hash):
 // `0x1234…abcd`. Returns the value unchanged when it is already short enough.
 // USDX-27: used by <TruncatedHash> for the responsive (mobile vs desktop)

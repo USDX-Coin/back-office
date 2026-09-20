@@ -5,6 +5,7 @@
 // don't lose precision on > 2^53 values.
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatDecimalId, formatIdrRate } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import type { DashboardStats } from '@/lib/types'
@@ -24,27 +25,6 @@ const REQUEST_STATUS_DOT: Record<keyof DashboardStats['requestsByStatus'], strin
   APPROVED: 'bg-primary',
   EXECUTED: 'bg-success',
   REJECTED: 'bg-destructive',
-}
-
-function formatDecimal(value: string, fractionDigits = 2): string {
-  const negative = value.startsWith('-')
-  const abs = negative ? value.slice(1) : value
-  const [whole = '0', fraction = ''] = abs.split('.')
-  const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  const trimmedFraction = (fraction + '0'.repeat(fractionDigits)).slice(0, fractionDigits)
-  const sign = negative ? '-' : ''
-  return fractionDigits > 0
-    ? `${sign}${groupedWhole}.${trimmedFraction}`
-    : `${sign}${groupedWhole}`
-}
-
-function formatRate(value: string): string {
-  // Indonesian rupiah convention: thousands grouped with a dot, no decimals.
-  const negative = value.startsWith('-')
-  const abs = negative ? value.slice(1) : value
-  const [whole = '0'] = abs.split('.')
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return `${negative ? '-' : ''}${grouped}`
 }
 
 interface StatCardProps {
@@ -108,7 +88,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
       <div className={cn('mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3')}>
         <StatCard
           label="Pasokan beredar"
-          value={data ? formatDecimal(data.totalSupply) : '—'}
+          value={data ? formatDecimalId(data.totalSupply) : '—'}
           unit="USDX"
           description="Jumlah token di blockchain"
           loading={isLoading}
@@ -116,7 +96,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
         />
         <StatCard
           label="Total pernah dicetak"
-          value={data ? formatDecimal(data.totalMinted) : '—'}
+          value={data ? formatDecimalId(data.totalMinted) : '—'}
           unit="USDX"
           description="Sejak awal"
           loading={isLoading}
@@ -124,7 +104,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
         />
         <StatCard
           label="Total pernah dibakar"
-          value={data ? formatDecimal(data.totalBurned) : '—'}
+          value={data ? formatDecimalId(data.totalBurned) : '—'}
           unit="USDX"
           description="Sejak awal"
           loading={isLoading}
@@ -166,7 +146,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
                       {REQUEST_STATUS_LABELS[key]}
                     </span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {count.toLocaleString()}
+                      {count.toLocaleString('id-ID')}
                     </span>
                   </li>
                 ))}
@@ -192,7 +172,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
                 <div data-testid="safe-balance-staff">
                   <p className="text-[11px] text-muted-foreground">Dompet Staf</p>
                   <p className="mt-1 font-mono text-[14px] font-semibold tabular-nums">
-                    {formatDecimal(data.safeBalances.staff)}
+                    {formatDecimalId(data.safeBalances.staff)}
                     <span className="ml-1 text-[11.5px] font-normal text-muted-foreground">
                       USDX
                     </span>
@@ -201,7 +181,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
                 <div data-testid="safe-balance-manager">
                   <p className="text-[11px] text-muted-foreground">Dompet Manager</p>
                   <p className="mt-1 font-mono text-[14px] font-semibold tabular-nums">
-                    {formatDecimal(data.safeBalances.manager)}
+                    {formatDecimalId(data.safeBalances.manager)}
                     <span className="ml-1 text-[11.5px] font-normal text-muted-foreground">
                       USDX
                     </span>
@@ -227,7 +207,7 @@ export default function Phase1Stats({ data, isLoading }: Phase1StatsProps) {
             ) : (
               <>
                 <p className="font-mono text-[22px] font-semibold tabular-nums">
-                  Rp{formatRate(data.currentRate)}
+                  {formatIdrRate(data.currentRate)}
                 </p>
                 <p className="mt-2 text-[11.5px] text-muted-foreground">
                   per 1 USDX (USD/IDR)

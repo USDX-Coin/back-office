@@ -312,3 +312,100 @@ describe('P1-3 — papan antrean di Beranda', () => {
     })
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATU KONVENSI ANGKA DI BERANDA.
+//
+// Layar ini dulu mencetak `12,450,000.00 USDX` (ribuan koma, desimal titik)
+// tepat di sebelah `Rp16.250` (ribuan titik). Untuk pembaca Indonesia
+// `12,450,000.00` bisa terbaca "dua belas koma empat" — enam kali lipat salah,
+// di layar pertama yang dibuka operator tiap pagi.
+//
+// Pagar ini membaca SELURUH teks panel statistik dan menolak satu pun angka
+// bergaya Inggris. Sengaja atas teks yang dirender, bukan atas fungsi format:
+// cacatnya lahir dari dua helper yang masing-masing benar sendiri-sendiri dan
+// salah ketika bersebelahan.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Beranda — ejaan angka Indonesia', () => {
+  describe('positive', () => {
+    test('nilai USDX dan kurs sama-sama memakai titik untuk ribuan', async () => {
+      server.use(
+        http.get('/api/v1/dashboard/stats', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              totalSupply: '12450000.00',
+              totalMinted: '30000000.00',
+              totalBurned: '17550000.00',
+              safeBalances: { staff: '1250000.00', manager: '2500000.00' },
+              currentRate: '16250.00',
+              pendingRequests: 3,
+              requestsByStatus: {
+                PENDING_APPROVAL: 3,
+                APPROVED: 1,
+                EXECUTED: 2,
+                REJECTED: 0,
+              },
+            } satisfies DashboardStats,
+          }),
+        ),
+      )
+      renderWithProviders(<DashboardPage />, { authenticated: true })
+
+      const panel = await screen.findByTestId('dashboard-phase1-stats', undefined, {
+        timeout: 3000,
+      })
+      await waitFor(() =>
+        expect(within(panel).getByTestId('stat-total-supply').textContent).toContain(
+          '12.450.000,00',
+        ),
+      )
+      expect(within(panel).getByTestId('stat-current-rate').textContent).toContain(
+        'Rp 16.250',
+      )
+      expect(within(panel).getByTestId('safe-balance-staff').textContent).toContain(
+        '1.250.000,00',
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('tidak ada satu pun angka bergaya Inggris di panel statistik', async () => {
+      server.use(
+        http.get('/api/v1/dashboard/stats', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              totalSupply: '12450000.00',
+              totalMinted: '30000000.00',
+              totalBurned: '17550000.00',
+              safeBalances: { staff: '1250000.00', manager: '2500000.00' },
+              currentRate: '16250.00',
+              pendingRequests: 3,
+              requestsByStatus: {
+                PENDING_APPROVAL: 3,
+                APPROVED: 1,
+                EXECUTED: 2,
+                REJECTED: 0,
+              },
+            } satisfies DashboardStats,
+          }),
+        ),
+      )
+      renderWithProviders(<DashboardPage />, { authenticated: true })
+      const panel = await screen.findByTestId('dashboard-phase1-stats', undefined, {
+        timeout: 3000,
+      })
+      await waitFor(() =>
+        expect(within(panel).getByTestId('stat-total-supply').textContent).toContain(
+          '12.450.000,00',
+        ),
+      )
+      // `1,234` (koma sebagai pemisah ribuan) dan `.00` sebagai desimal.
+      expect(panel.textContent ?? '').not.toMatch(/\d,\d{3}/)
+      expect(panel.textContent ?? '').not.toMatch(/\d\.\d{2}(\D|$)/)
+    })
+  })
+})

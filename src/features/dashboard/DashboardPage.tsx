@@ -1,6 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/PageHeader'
+import { formatIdrRate } from '@/lib/format'
 import TableErrorState from '@/components/TableErrorState'
 import Phase1Stats from './Phase1Stats'
 import QueueBoard from './QueueBoard'
@@ -27,7 +28,7 @@ export default function DashboardPage() {
         italicAccent="ringkasan"
         subtitle={
           stats
-            ? `${stats.pendingRequests} request OTC menunggu persetujuan · kurs Rp${stats.currentRate}/USDX`
+            ? `${stats.pendingRequests} request OTC menunggu persetujuan · kurs ${formatIdrRate(stats.currentRate)}/USDX`
             : showError
               ? 'Statistik tidak dapat dimuat'
               : 'Memuat…'
