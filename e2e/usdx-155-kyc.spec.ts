@@ -67,10 +67,10 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(
         dialog.getByTestId('kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
       ).toBeVisible()
-      await expect(dialog.getByText('Business')).toBeVisible()
+      await expect(dialog.getByText('Usaha')).toBeVisible()
       await expect(dialog.getByText('Rp 500 juta – 1 miliar')).toBeVisible()
-      await expect(dialog.getByText('Remittance')).toBeVisible()
-      await expect(dialog.getByText('Not a PEP')).toBeVisible()
+      await expect(dialog.getByText('Pengiriman uang')).toBeVisible()
+      await expect(dialog.getByText('Bukan PEP')).toBeVisible()
       // USDX-587 — the nine answers the customer gives and the reviewer could
       // not see until this ticket. Without them Approve is a stamp, not the
       // "hasil analisis" Pasal 63 ayat (2) huruf c requires to be on file.

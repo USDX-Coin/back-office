@@ -1388,8 +1388,8 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
       expect(within(established).getByText('2018-04-12')).toBeInTheDocument()
       expect(within(established).getByText('Jakarta Selatan')).toBeInTheDocument()
       // Angka 8 & 9.
-      expect(within(entity).getByText('Business')).toBeInTheDocument()
-      expect(within(entity).getByText('Investment')).toBeInTheDocument()
+      expect(within(entity).getByText('Usaha')).toBeInTheDocument()
+      expect(within(entity).getByText('Investasi')).toBeInTheDocument()
     })
 
     test('states the CONSEQUENCE of the business scale, not the boolean', async () => {

@@ -159,14 +159,14 @@ async function fillEntity(
   await user.type(screen.getByLabelText(/npwp badan usaha/i), '012345678901234')
   await user.type(screen.getByLabelText(/tanggal pendirian/i), '2018-04-12')
   await user.type(screen.getByLabelText(/bidang usaha/i), 'Jasa pengiriman uang')
-  await user.type(screen.getByLabelText(/alamat terdaftar/i), 'Jl. Sudirman No. 10')
+  await user.type(screen.getByLabelText(/alamat kedudukan/i), 'Jl. Sudirman No. 10')
   await user.type(screen.getByLabelText(/alamat operasional/i), 'Jl. Thamrin No. 5')
   await user.type(screen.getByLabelText(/^telepon$/i), '+622140001234')
   // Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605. Keempatnya `required`
   // di kontraknya dan tidak pernah dikirim form ini sebelum tiket itu.
   await user.type(screen.getByLabelText(/tempat pendirian/i), 'Jakarta Selatan')
-  await selectByTypeahead(user, 'kyb-source-of-funds', 'Business', 'Business')
-  await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investment', 'Investment')
+  await selectByTypeahead(user, 'kyb-source-of-funds', 'Usaha', 'Usaha')
+  await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investasi', 'Investasi')
   if (microSmall) {
     await selectByTypeahead(
       user,
@@ -215,7 +215,7 @@ async function fillUbo(
   await selectByTypeahead(user, `ubo-occupation-${index}`, 'Wiraswasta', 'Wiraswasta')
   await selectByTypeahead(user, `ubo-gender-${index}`, 'Laki', 'Laki-laki')
   await selectByTypeahead(user, `ubo-marital-${index}`, 'Kawin', 'Kawin')
-  await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Business', 'Business')
+  await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Usaha', 'Usaha')
   await selectByClick(user, `ubo-annual-income-${index}`, /^Rp 500 juta – 1 miliar$/)
   await selectByClick(user, `ubo-net-worth-${index}`, /^Rp 500 juta – 2 miliar$/)
   await selectByClick(user, `ubo-legal-relationship-${index}`, /^Surat kuasa$/)

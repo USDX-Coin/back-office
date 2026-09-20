@@ -544,16 +544,18 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       expect(
         field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
       ).toBeInTheDocument()
-      expect(within(dialog).getByText('Business')).toBeInTheDocument()
+      expect(within(dialog).getByText('Usaha')).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
-      expect(within(dialog).getByText('Remittance')).toBeInTheDocument()
+      expect(within(dialog).getByText('Pengiriman uang')).toBeInTheDocument()
       // Field labels, so a reviewer can find them.
       expect(within(dialog).getByText('Pekerjaan')).toBeInTheDocument()
       expect(within(dialog).getByText('Sumber dana')).toBeInTheDocument()
       expect(within(dialog).getByText('Penghasilan per tahun')).toBeInTheDocument()
       expect(within(dialog).getByText('Tujuan transaksi')).toBeInTheDocument()
       expect(within(dialog).getByText('NPWP')).toBeInTheDocument()
-      expect(within(dialog).getByText('Status PEP')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/^Status PEP \(orang yang populer secara politis\)$/),
+      ).toBeInTheDocument()
       expect(within(dialog).getByText('Hubungan dengan PEP')).toBeInTheDocument()
     })
 
@@ -585,16 +587,17 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail())
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      expect(
-        await within(dialog).findByText(/politically exposed person/i),
-      ).toBeInTheDocument()
+      // Lencananya berbunyi "PEP" saja; kepanjangannya ada di LABEL field,
+      // yang selalu tampil termasuk untuk berkas non-PEP.
+      expect(await within(dialog).findByTestId('kyc-pep-status')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-pep-status').getByText('PEP')).toBeInTheDocument()
     })
 
-    test('a non-PEP customer reads "Not a PEP", not a blank', async () => {
+    test('a non-PEP customer reads "Bukan PEP", not a blank', async () => {
       stubDetail(cddDetail({ pepStatus: false, pepRelation: null }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      expect(await within(dialog).findByText('Not a PEP')).toBeInTheDocument()
+      expect(await within(dialog).findByText('Bukan PEP')).toBeInTheDocument()
     })
   })
 
@@ -628,9 +631,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
         field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
       ).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
-      expect(
-        within(dialog).getByText(/politically exposed person/i),
-      ).toBeInTheDocument()
+      expect(field(dialog, 'kyc-pep-status').getByText('PEP')).toBeInTheDocument()
     })
   })
 

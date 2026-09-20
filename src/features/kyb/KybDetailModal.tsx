@@ -1128,7 +1128,7 @@ export default function KybDetailModal({
                       <Field label="Telepon">
                         <EntityValue value={detail.phone} />
                       </Field>
-                      <Field label="Alamat terdaftar">
+                      <Field label="Alamat kedudukan">
                         <EntityValue value={detail.registeredAddress} />
                       </Field>
                       <Field label="Alamat operasional">

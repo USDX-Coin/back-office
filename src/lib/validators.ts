@@ -1276,9 +1276,9 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
   }
 
   if (!input.registeredAddress.trim()) {
-    errors.registeredAddress = 'Alamat terdaftar wajib diisi'
+    errors.registeredAddress = 'Alamat kedudukan wajib diisi'
   } else if (input.registeredAddress.length > MAX_KYB_ADDRESS_LEN) {
-    errors.registeredAddress = `Alamat terdaftar maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
+    errors.registeredAddress = `Alamat kedudukan maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
   }
 
   if (!input.operationalAddress.trim()) {

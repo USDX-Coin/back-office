@@ -691,7 +691,14 @@ export default function KycDetailModal({
                         staff={user}
                         testId="kyc-npwp"
                       />
-                      <Field label="Status PEP" testId="kyc-pep-status">
+                      {/* Kepanjangan PEP disebut di LABEL, bukan di nilainya:
+                          label selalu tampil, sedangkan nilai "PEP" hanya muncul
+                          pada berkas yang memang PEP — dan petugas yang baru
+                          justru bertemu berkas non-PEP lebih dulu. */}
+                      <Field
+                        label="Status PEP (orang yang populer secara politis)"
+                        testId="kyc-pep-status"
+                      >
                         {detail.pepStatus === null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : detail.pepStatus ? (
@@ -699,10 +706,10 @@ export default function KycDetailModal({
                           // supposed to do, so it must not read like any other row.
                           <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
                             <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                            Politically exposed person
+                            PEP
                           </span>
                         ) : (
-                          'Not a PEP'
+                          'Bukan PEP'
                         )}
                       </Field>
                       {/* PEP relation names a real person and their office — PII,

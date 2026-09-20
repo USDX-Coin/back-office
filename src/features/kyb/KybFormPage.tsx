@@ -491,7 +491,7 @@ export default function KybFormPage() {
               <FieldError message={errors.isMicroOrSmall} />
             </div>
             <div className="sm:col-span-2">
-              <Label htmlFor="kyb-registered-address">Alamat terdaftar</Label>
+              <Label htmlFor="kyb-registered-address">Alamat kedudukan</Label>
               <Textarea
                 id="kyb-registered-address"
                 className="mt-1.5"

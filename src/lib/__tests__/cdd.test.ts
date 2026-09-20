@@ -28,8 +28,8 @@ describe('labelFor', () => {
   describe('positive', () => {
     test('should resolve a known value to its label', () => {
       expect(labelFor('KARYAWAN_SWASTA', OCCUPATION_LABELS)).toBe('Karyawan Swasta')
-      expect(labelFor('SALARY', SOURCE_OF_FUNDS_LABELS)).toBe('Salary')
-      expect(labelFor('REMITTANCE', TRANSACTION_PURPOSE_LABELS)).toBe('Remittance')
+      expect(labelFor('SALARY', SOURCE_OF_FUNDS_LABELS)).toBe('Gaji')
+      expect(labelFor('REMITTANCE', TRANSACTION_PURPOSE_LABELS)).toBe('Pengiriman uang')
     })
 
     test('should spell income ranges out in rupiah', () => {
