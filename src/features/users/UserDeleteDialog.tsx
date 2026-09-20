@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { labelNasabah } from './labelNasabah'
 import { useDeleteUser } from './hooks'
 import type { PhaseOneUser } from '@/lib/types'
 
@@ -25,7 +26,7 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
     if (!user) return
     try {
       await del.mutateAsync(user.id)
-      toast.success(`${user.name} dihapus`)
+      toast.success(`${labelNasabah(user)} dihapus`)
       onOpenChange(false)
     } catch (err) {
       toast.error(
@@ -52,7 +53,7 @@ export default function UserDeleteDialog({ open, onOpenChange, user }: UserDelet
         <DialogBody>
           <DialogDescription>
             {user
-              ? `Akun ${user.name} dihapus dari back-office. Setelah ini ${user.name} tidak bisa masuk, mint, maupun redeem, dan tidak ada tombol di back-office untuk mengembalikannya.`
+              ? `Akun ${labelNasabah(user)} dihapus dari back-office. Setelah ini ${labelNasabah(user)} tidak bisa masuk, mint, maupun redeem, dan tidak ada tombol di back-office untuk mengembalikannya.`
               : 'Belum ada nasabah yang dipilih.'}
           </DialogDescription>
         </DialogBody>
