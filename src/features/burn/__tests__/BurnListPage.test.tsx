@@ -103,8 +103,8 @@ describe('BurnListPage @ USDX-52', () => {
       setup()
       await screen.findByText('Has Links')
       await screen.findByText('No Links')
-      expect(screen.getByRole('columnheader', { name: /on-chain tx/i })).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /safe tx/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /bukti blockchain/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /antrean tanda tangan/i })).toBeInTheDocument()
       await waitFor(() => {
         expect(
           document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)
@@ -124,7 +124,7 @@ describe('BurnListPage @ USDX-52', () => {
     test('AC #2 — "Add Burn OTC" button visible top-right for ADMIN operator', async () => {
       server.use(http.get('/api/v1/requests', () => ok([])))
       setup() // default staff is Demo Operator (ADMIN)
-      const buttons = await screen.findAllByRole('button', { name: /add burn otc/i })
+      const buttons = await screen.findAllByRole('button', { name: /tambah burn otc/i })
       expect(buttons.length).toBeGreaterThan(0)
     })
 
@@ -132,7 +132,7 @@ describe('BurnListPage @ USDX-52', () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/requests', () => ok([])))
       setup()
-      const button = (await screen.findAllByRole('button', { name: /add burn otc/i }))[0]!
+      const button = (await screen.findAllByRole('button', { name: /tambah burn otc/i }))[0]!
       await user.click(button)
       await screen.findByTestId('burn-form-landing')
     })
@@ -153,8 +153,8 @@ describe('BurnListPage @ USDX-52', () => {
       // Open it → pick Status → Apply → URL param wires through.
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /pending approval/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(await screen.findByRole('option', { name: /menunggu persetujuan/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING_APPROVAL'))).toBe(true)
@@ -173,7 +173,7 @@ describe('BurnListPage @ USDX-52', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.type(screen.getByLabelText(/^search$/i), 'alice')
+      await user.type(screen.getByLabelText(/^cari$/i), 'alice')
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=alice'))).toBe(true)
@@ -268,16 +268,16 @@ describe('BurnListPage @ USDX-52', () => {
       setup({ staffId: 'stf_3' })
       await screen.findByText('Alice Anderson')
       expect(
-        screen.queryByRole('button', { name: /add burn otc/i })
+        screen.queryByRole('button', { name: /tambah burn otc/i })
       ).not.toBeInTheDocument()
     })
 
     test('empty state CTA is hidden for DEVELOPER (no rows + no submit privilege)', async () => {
       server.use(http.get('/api/v1/requests', () => ok([])))
       setup({ staffId: 'stf_3' })
-      await screen.findByText(/no burn requests yet/i)
+      await screen.findByText(/belum ada request burn otc/i)
       expect(
-        screen.queryByRole('button', { name: /add burn otc/i })
+        screen.queryByRole('button', { name: /tambah burn otc/i })
       ).not.toBeInTheDocument()
     })
   })
@@ -314,7 +314,7 @@ describe('BurnListPage @ USDX-52', () => {
       )
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
-      await user.type(screen.getByLabelText(/^search$/i), '019e1aa8')
+      await user.type(screen.getByLabelText(/^cari$/i), '019e1aa8')
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=019e1aa8'))).toBe(true)
       )

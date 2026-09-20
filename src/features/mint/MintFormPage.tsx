@@ -166,7 +166,7 @@ export default function MintFormPage() {
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
-      toast.success('Mint request submitted')
+      toast.success('Request mint OTC terkirim — menunggu persetujuan.')
       setForm(EMPTY)
       setErrors({})
       navigate('/mint')
@@ -185,7 +185,7 @@ export default function MintFormPage() {
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Submission failed'
+            : 'Request gagal dikirim. Periksa koneksi lalu coba lagi.'
       setApiError(message)
       toast.error(message)
     }
@@ -208,7 +208,7 @@ export default function MintFormPage() {
                 Request mint OTC baru
               </CardTitle>
             </CardHeader>
-            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Mint request form">
+            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Form request mint OTC">
               <CardContent className="space-y-5">
                 {queueBlock && (
                   <SafeQueueOccupiedBanner
@@ -226,12 +226,12 @@ export default function MintFormPage() {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="mintUserPicker">User</Label>
+                  <Label htmlFor="mintUserPicker">Nasabah</Label>
                   <UserPicker
                     id="mintUserPicker"
                     value={form.user}
                     onSelect={handleUserSelect}
-                    placeholder="Search by name or email…"
+                    placeholder="Cari nama atau email nasabah…"
                     ariaInvalid={Boolean(errors.userId)}
                     ariaDescribedBy={errors.userId ? 'mintUserPicker-error' : undefined}
                   />
@@ -239,13 +239,13 @@ export default function MintFormPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="mintChain">Chain</Label>
+                  <Label htmlFor="mintChain">Jaringan</Label>
                   <Select
                     value={form.chain}
                     onValueChange={handleChainChange}
                   >
                     <SelectTrigger id="mintChain" aria-invalid={Boolean(errors.chain)}>
-                      <SelectValue placeholder="Select chain" />
+                      <SelectValue placeholder="Pilih jaringan" />
                     </SelectTrigger>
                     <SelectContent>
                       {CHAINS.map((c) => (
@@ -259,7 +259,7 @@ export default function MintFormPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="mintWallet">User wallet address</Label>
+                  <Label htmlFor="mintWallet">Alamat wallet nasabah</Label>
                   <WalletPicker
                     id="mintWallet"
                     wallets={walletsForChain}
@@ -275,7 +275,7 @@ export default function MintFormPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="mintAmount">Amount</Label>
+                  <Label htmlFor="mintAmount">Nominal</Label>
                   <AmountWithCurrencyInput
                     amountId="mintAmount"
                     currencyId="mintCurrency"
@@ -291,14 +291,14 @@ export default function MintFormPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="mintNotes">Notes</Label>
+                  <Label htmlFor="mintNotes">Catatan</Label>
                   <Textarea
                     id="mintNotes"
                     value={form.notes}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, notes: e.target.value }))
                     }
-                    placeholder="Sender bank account, internal reference, etc."
+                    placeholder="Rekening pengirim, nomor referensi internal, dan sejenisnya…"
                     className="min-h-[80px]"
                   />
                 </div>
@@ -311,7 +311,7 @@ export default function MintFormPage() {
                   aria-busy={create.isPending}
                   className="w-full"
                 >
-                  {create.isPending ? 'Submitting…' : 'Submit mint request'}
+                  {create.isPending ? 'Mengirim…' : 'Kirim request mint OTC'}
                 </Button>
               </CardFooter>
             </form>

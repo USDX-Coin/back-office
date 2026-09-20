@@ -93,14 +93,14 @@ describe('ManualSyncPage @ USDX-87', () => {
     test('shows empty state when API returns []', async () => {
       mockList([])
       setup()
-      expect(await screen.findByText(/no pending requests/i)).toBeInTheDocument()
+      expect(await screen.findByText(/tidak ada status yang nyangkut/i)).toBeInTheDocument()
     })
 
     test('shows error state with Try again on fetch failure', async () => {
       server.use(http.get('/api/v1/manual-sync', () => HttpResponse.error()))
       setup()
-      expect(await screen.findByText(/Couldn't load this data/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(await screen.findByText(/Data ini gagal dimuat/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
     })
   })
 
@@ -118,9 +118,9 @@ describe('ManualSyncPage @ USDX-87', () => {
       await waitFor(() => expect(lastUrl).not.toBeNull())
 
       await user.click(screen.getByRole('button', { name: /filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: /type/i }))
-      await user.click(await screen.findByRole('option', { name: /^burn$/i }))
-      await user.click(screen.getByRole('button', { name: /apply/i }))
+      await user.click(await screen.findByRole('combobox', { name: /jenis/i }))
+      await user.click(await screen.findByRole('option', { name: /^burn otc$/i }))
+      await user.click(screen.getByRole('button', { name: /terapkan/i }))
 
       await waitFor(() => expect(new URL(lastUrl!).searchParams.get('type')).toBe('burn'))
     })
@@ -132,7 +132,7 @@ describe('ManualSyncPage @ USDX-87', () => {
       await screen.findByText(/Alice Anderson/i)
       await screen.findByText(/Bob Burner/i)
 
-      await user.type(screen.getByPlaceholderText(/search request id/i), 'bob')
+      await user.type(screen.getByPlaceholderText(/cari id request/i), 'bob')
       // Debounce 300ms inside TableToolbar.
       await waitFor(
         () => expect(screen.queryByText(/Alice Anderson/i)).not.toBeInTheDocument(),
@@ -164,9 +164,9 @@ describe('ManualSyncPage @ USDX-87', () => {
       const user = userEvent.setup()
       mockList([BASE_ITEM])
       setup()
-      await user.click(await screen.findByRole('button', { name: /^view$/i }))
+      await user.click(await screen.findByRole('button', { name: /^perbaiki$/i }))
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/update transaction hash/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/ubah tx hash/i)).toBeInTheDocument()
       // Header carries the short ID (USDX-84 truncation).
       expect(within(dialog).getByText('019e1aa8…f0001')).toBeInTheDocument()
     })
@@ -201,7 +201,7 @@ describe('ManualSyncPage @ USDX-87', () => {
       expect(await screen.findByText(/Carol Consumer/i)).toBeInTheDocument()
       // Badge label is "Mint Order" (CSS-uppercased on screen); the DOM text
       // node stays mixed-case so this matches the consumer-row badge.
-      expect(screen.getByText('Mint Order')).toBeInTheDocument()
+      expect(screen.getByText('Mint nasabah')).toBeInTheDocument()
     })
 
     test('type=mint_order filter is forwarded to the BE', async () => {
@@ -217,9 +217,9 @@ describe('ManualSyncPage @ USDX-87', () => {
       await waitFor(() => expect(lastUrl).not.toBeNull())
 
       await user.click(screen.getByRole('button', { name: /filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: /type/i }))
-      await user.click(await screen.findByRole('option', { name: /^mint order$/i }))
-      await user.click(screen.getByRole('button', { name: /apply/i }))
+      await user.click(await screen.findByRole('combobox', { name: /jenis/i }))
+      await user.click(await screen.findByRole('option', { name: /^mint nasabah$/i }))
+      await user.click(screen.getByRole('button', { name: /terapkan/i }))
 
       await waitFor(() =>
         expect(new URL(lastUrl!).searchParams.get('type')).toBe('mint_order')

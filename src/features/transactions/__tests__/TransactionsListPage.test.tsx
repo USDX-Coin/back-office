@@ -235,7 +235,7 @@ describe('TransactionsListPage @ USDX-206', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
       await user.click(await screen.findByRole('option', { name: /^selesai$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=COMPLETED'))).toBe(true),
@@ -257,7 +257,7 @@ describe('TransactionsListPage @ USDX-206', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Pembayaran' }))
       await user.click(await screen.findByRole('option', { name: /sudah dibayar/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('paymentStatus=PAID'))).toBe(true),
@@ -408,7 +408,7 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() => expect(captured.some((s) => s.includes('type=REDEEM'))).toBe(true))
     })
@@ -503,7 +503,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
       await user.click(await screen.findByRole('option', { name: /pencairan diproses/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(
@@ -535,7 +535,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^mint$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() => {
         const last = captured[captured.length - 1]
@@ -561,7 +561,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
         ),
       )
       setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
-      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
     })
   })
 })
@@ -636,12 +636,12 @@ function partnerCellFor(rowText: string): HTMLElement {
  * DataTable renders SKELETON rows while the query is in flight, and those rows
  * have empty cells. Asserting on cell contents before the data lands would pass
  * or fail on timing rather than on behaviour, so wait for the footer to report a
- * non-zero row count first ("1–12 of 12" — it reads "0–0 of 0" while loading).
+ * non-zero row count first ("1–12 dari 12" — it reads "0–0 dari 0" while loading).
  */
 async function waitForRowsLoaded() {
   await waitFor(() => {
-    const footer = screen.getByText(/of \d+$/)
-    expect(footer.textContent).not.toMatch(/of 0$/)
+    const footer = screen.getByText(/dari \d+$/)
+    expect(footer.textContent).not.toMatch(/dari 0$/)
   })
 }
 
@@ -808,7 +808,7 @@ describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Pemilik order' }))
       await user.click(await screen.findByRole('option', { name: /order partner/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('ownerType=PARTNER'))).toBe(true),
@@ -890,7 +890,7 @@ describe('TransactionsListPage @ USDX-547 — Owner filter', () => {
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
       await user.click(await screen.findByRole('option', { name: /^redeem$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() => {
         const last = captured[captured.length - 1]

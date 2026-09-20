@@ -43,7 +43,7 @@ const CHAIN_DOT: Record<RequestChain, string> = {
 }
 
 const SAFE_LABEL: Record<SafeType, string> = {
-  STAFF: 'Staff',
+  STAFF: 'Staf',
   MANAGER: 'Manager',
 }
 
@@ -91,8 +91,8 @@ export default function MintListPage() {
   const columns: ColumnDef<RequestListItem>[] = [
     {
       accessorKey: 'createdAt',
-      size: 120,
-      header: 'Date',
+      size: 112,
+      header: 'Tanggal',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
@@ -108,7 +108,7 @@ export default function MintListPage() {
     {
       id: 'user',
       size: 176,
-      header: 'User',
+      header: 'Nasabah',
       cell: ({ row }) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.original.userName} size="sm" />
@@ -124,7 +124,7 @@ export default function MintListPage() {
     {
       accessorKey: 'amount',
       size: 148,
-      header: 'Amount',
+      header: 'Nominal',
       cell: ({ row }) => {
         const input = row.original.inputCurrency
         return (
@@ -148,7 +148,7 @@ export default function MintListPage() {
     {
       accessorKey: 'chain',
       size: 92,
-      header: 'Chain',
+      header: 'Jaringan',
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
         return (
@@ -161,8 +161,8 @@ export default function MintListPage() {
     },
     {
       accessorKey: 'safeType',
-      size: 84,
-      header: 'Safe',
+      size: 88,
+      header: 'Dompet',
       cell: ({ getValue }) => (
         <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
@@ -191,8 +191,8 @@ export default function MintListPage() {
     },
     {
       id: 'createdByName',
-      size: 104,
-      header: 'Created by',
+      size: 120,
+      header: 'Diajukan oleh',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {row.original.createdByName || '—'}
@@ -202,24 +202,24 @@ export default function MintListPage() {
     {
       id: 'onchainTx',
       size: 160,
-      header: 'On-chain tx',
+      header: 'Bukti blockchain',
       cell: ({ row }) => (
         <TxHashLink
           hash={row.original.onChainTxHash}
           href={resolveOnChainLinks(row.original, chains).explorerHref}
-          label="View transaction on block explorer"
+          label="Lihat transaksi di block explorer"
         />
       ),
     },
     {
       id: 'safeTx',
-      size: 144,
-      header: 'Safe tx',
+      size: 168,
+      header: 'Antrean tanda tangan',
       cell: ({ row }) => (
         <TxHashLink
           hash={row.original.safeTxHash}
           href={resolveOnChainLinks(row.original, chains).safeHref}
-          label="View transaction in Safe"
+          label="Lihat transaksi di Safe"
         />
       ),
     },
@@ -235,10 +235,10 @@ export default function MintListPage() {
             navigate(`/mint/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`View mint request for ${row.original.userName}`}
+          aria-label={`Buka request mint OTC milik ${row.original.userName}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          View
+          Lihat
         </button>
       ),
     },
@@ -256,13 +256,13 @@ export default function MintListPage() {
     <TableEmptyState
       mode="no-data"
       icon={<Coins className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No mint requests yet"
-      description="Submit a new mint OTC to populate this list."
+      title="Belum ada request mint OTC"
+      description="Ajukan mint OTC baru untuk mengisi daftar ini."
       cta={
         canCreate ? (
           <Button onClick={() => navigate('/mint/new')} className="gap-2">
             <Plus className="h-4 w-4" />
-            Add Mint OTC
+            Tambah Mint OTC
           </Button>
         ) : null
       }
@@ -283,7 +283,7 @@ export default function MintListPage() {
           canCreate ? (
             <Button onClick={() => navigate('/mint/new')} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Add Mint OTC
+              Tambah Mint OTC
             </Button>
           ) : undefined
         }
@@ -303,7 +303,7 @@ export default function MintListPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search user, address, tx…',
+              placeholder: 'Cari nasabah, alamat wallet, tx hash…',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             sort={{
@@ -341,7 +341,7 @@ export default function MintListPage() {
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/mint/${r.id}`)}
         rowAriaLabel={(r) =>
-          `Open mint request for ${r.userName}, ${r.amount} USDX`
+          `Buka request mint OTC milik ${r.userName}, ${r.amount} USDX`
         }
       />
 

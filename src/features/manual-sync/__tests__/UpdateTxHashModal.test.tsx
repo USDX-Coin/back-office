@@ -111,20 +111,20 @@ describe('UpdateTxHashModal @ USDX-87', () => {
       const user = userEvent.setup()
       setupModal(MINT_ITEM)
 
-      const input = await screen.findByLabelText('Transaction hash')
+      const input = await screen.findByLabelText('Tx hash')
       await user.type(input, 'notahash')
       await user.tab() // trigger blur
-      const verifyBtn = screen.getByRole('button', { name: /^verify$/i })
+      const verifyBtn = screen.getByRole('button', { name: /^periksa$/i })
       expect(verifyBtn).toBeDisabled()
-      expect(screen.getByText(/0x \+ 64 hex/i)).toBeInTheDocument()
+      expect(screen.getByText(/0x diikuti 64 karakter hex/i)).toBeInTheDocument()
     })
 
     test('valid format enables Verify', async () => {
       const user = userEvent.setup()
       setupModal(MINT_ITEM)
-      const input = await screen.findByLabelText('Transaction hash')
+      const input = await screen.findByLabelText('Tx hash')
       await user.type(input, VALID_TX)
-      expect(screen.getByRole('button', { name: /^verify$/i })).toBeEnabled()
+      expect(screen.getByRole('button', { name: /^periksa$/i })).toBeEnabled()
     })
   })
 
@@ -137,8 +137,8 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         )
       )
       setupModal(MINT_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
 
       await screen.findByTestId('comparison-block')
       expect(screen.getByTestId('comparison-row-safeAddress')).toBeInTheDocument()
@@ -156,8 +156,8 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         )
       )
       setupModal(BURN_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
 
       await screen.findByTestId('comparison-block')
       expect(screen.queryByTestId('comparison-row-destination')).not.toBeInTheDocument()
@@ -177,11 +177,11 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         )
       )
       setupModal(MINT_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), MISMATCH_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), MISMATCH_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
 
-      expect(await screen.findByText(/some data doesn't match/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^confirm$/i })).toBeDisabled()
+      expect(await screen.findByText(/ada data yang tidak cocok/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^ya, tandai sudah dieksekusi$/i })).toBeDisabled()
     })
   })
 
@@ -203,10 +203,10 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         })
       )
       const { onOpenChange } = setupModal(MINT_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
       await screen.findByTestId('comparison-block')
-      const confirmBtn = screen.getByRole('button', { name: /^confirm$/i })
+      const confirmBtn = screen.getByRole('button', { name: /^ya, tandai sudah dieksekusi$/i })
       await waitFor(() => expect(confirmBtn).toBeEnabled())
       await user.click(confirmBtn)
 
@@ -240,10 +240,10 @@ describe('UpdateTxHashModal @ USDX-87', () => {
     }
 
     async function confirmThrough(user: ReturnType<typeof userEvent.setup>) {
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
       await screen.findByTestId('comparison-block')
-      const confirmBtn = screen.getByRole('button', { name: /^confirm$/i })
+      const confirmBtn = screen.getByRole('button', { name: /^ya, tandai sudah dieksekusi$/i })
       await waitFor(() => expect(confirmBtn).toBeEnabled())
       await user.click(confirmBtn)
     }
@@ -369,8 +369,8 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         )
       )
       setupModal(MINT_ORDER_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
 
       await screen.findByTestId('comparison-block')
       expect(screen.getByTestId('comparison-row-safeAddress')).toBeInTheDocument()
@@ -403,10 +403,10 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         })
       )
       const { onOpenChange } = setupModal(MINT_ORDER_ITEM)
-      await user.type(screen.getByLabelText('Transaction hash'), VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.type(screen.getByLabelText('Tx hash'), VALID_TX)
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
       await screen.findByTestId('comparison-block')
-      const confirmBtn = screen.getByRole('button', { name: /^confirm$/i })
+      const confirmBtn = screen.getByRole('button', { name: /^ya, tandai sudah dieksekusi$/i })
       await waitFor(() => expect(confirmBtn).toBeEnabled())
       await user.click(confirmBtn)
 
@@ -426,7 +426,7 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         })
       )
       const { onOpenChange } = setupModal(MINT_ITEM)
-      await user.click(screen.getByRole('button', { name: /^cancel$/i }))
+      await user.click(screen.getByRole('button', { name: /^batal$/i }))
 
       expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(executeCalled).toBe(false)
@@ -442,14 +442,14 @@ describe('UpdateTxHashModal @ USDX-87', () => {
         )
       )
       setupModal(MINT_ITEM)
-      const input = await screen.findByLabelText('Transaction hash')
+      const input = await screen.findByLabelText('Tx hash')
       await user.type(input, VALID_TX)
-      await user.click(screen.getByRole('button', { name: /^verify$/i }))
+      await user.click(screen.getByRole('button', { name: /^periksa$/i }))
       await screen.findByTestId('comparison-block')
 
       await user.type(input, '0') // any edit invalidates
       expect(screen.queryByTestId('comparison-block')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^confirm$/i })).toBeDisabled()
+      expect(screen.getByRole('button', { name: /^ya, tandai sudah dieksekusi$/i })).toBeDisabled()
     })
   })
 })
