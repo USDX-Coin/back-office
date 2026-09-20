@@ -123,7 +123,7 @@ export default function MintListPage() {
     },
     {
       accessorKey: 'amount',
-      size: 148,
+      size: 164,
       header: 'Nominal',
       cell: ({ row }) => {
         const input = row.original.inputCurrency

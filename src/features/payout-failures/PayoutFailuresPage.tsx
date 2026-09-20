@@ -75,6 +75,10 @@ export default function PayoutFailuresPage() {
   const columns: ColumnDef<PayoutFailureListItem>[] = [
     {
       id: 'issueAt',
+      // Cap waktu bank ditulis penuh dengan zona ("2026-09-12 08:00:00 WIB").
+      // Dengan lebar bagi-rata kolomnya kurang ~11px dan detiknya terpotong,
+      // padahal justru detik itu yang dicocokkan ops dengan mutasi bank.
+      size: 184,
       header: 'Masuk antrean',
       cell: ({ row }) => (
         <span className="font-mono text-2xs tabular-nums text-muted-foreground">

@@ -122,7 +122,7 @@ export default function BurnListPage() {
     },
     {
       accessorKey: 'amount',
-      size: 148,
+      size: 164,
       header: 'Nominal',
       cell: ({ row }) => {
         const input = row.original.inputCurrency

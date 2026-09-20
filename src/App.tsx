@@ -252,7 +252,7 @@ export const appRoutes: RouteObject[] = [
                 element: (
                   <Suspense
                     fallback={
-                      <div className="p-8 text-sm text-muted-foreground">Loading…</div>
+                      <div className="p-8 text-sm text-muted-foreground">Memuat…</div>
                     }
                   >
                     <Outlet />
