@@ -46,10 +46,10 @@ function ReadOnlyNotice() {
       role="note"
       className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
     >
-      <p className="font-medium text-foreground">Read-only</p>
+      <p className="font-medium text-foreground">Hanya bisa melihat</p>
       <p className="mt-1">
-        Your role does not have permission to update the fee config. Contact an
-        admin if a change is needed.
+        Peranmu tidak berwenang mengubah biaya. Hubungi Admin kalau biaya memang
+        perlu diubah.
       </p>
     </div>
   )

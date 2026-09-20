@@ -191,7 +191,7 @@ function SubjectPanel({
         <Field label="Nama akun">{detail.userName ?? <Dim />}</Field>
         <Field label="Negara">{detail.country}</Field>
         <Field label="Berdiri">{detail.establishmentDate}</Field>
-        <Field label="Alamat terdaftar">{detail.registeredAddress ?? <Dim />}</Field>
+        <Field label="Alamat kedudukan">{detail.registeredAddress ?? <Dim />}</Field>
         <Field label="Alamat operasional">{detail.operationalAddress ?? <Dim />}</Field>
         <Field label="Sektor usaha">{detail.businessSector}</Field>
       </div>

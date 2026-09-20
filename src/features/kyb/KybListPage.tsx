@@ -79,7 +79,7 @@ export default function KybListPage() {
       // exactly that reason, and the NIB column that used to sit beside it was
       // reading a field the response has never contained.
       accessorKey: 'userName',
-      header: 'Entity',
+      header: 'Badan usaha',
       cell: ({ getValue }) => {
         const name = getValue() as string | null
         return name ? (
@@ -91,7 +91,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'userEmail',
-      header: 'Account email',
+      header: 'Email akun',
       cell: ({ getValue }) => (
         <span className="truncate text-xs text-muted-foreground">
           {getValue() as string}
@@ -100,7 +100,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'entityForm',
-      header: 'Legal form',
+      header: 'Bentuk badan',
       cell: ({ getValue }) => (
         <span className="text-xs text-muted-foreground">
           {labelFor(getValue() as KybEntityForm, KYB_ENTITY_FORM_LABELS) ?? '—'}
@@ -127,7 +127,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'submittedAt',
-      header: 'Submitted At',
+      header: 'Diajukan',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return (
@@ -139,7 +139,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'submissionCount',
-      header: 'Submissions',
+      header: 'Pengajuan',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums">
           {getValue() as number}
@@ -157,10 +157,10 @@ export default function KybListPage() {
             navigate(`/kyb/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`Review KYB record for ${rowLabel(row.original)}`}
+          aria-label={`Periksa berkas KYB ${rowLabel(row.original)}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          Review
+          Periksa
         </button>
       ),
     },
@@ -174,8 +174,8 @@ export default function KybListPage() {
     <TableEmptyState
       mode="no-data"
       icon={<Building2 className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No KYB records yet"
-      description="Business-entity due diligence is entered here by an operator — there is no self-service KYB submission."
+      title="Belum ada berkas KYB"
+      description="Penelaahan badan usaha diketik operator di sini — tidak ada pengajuan KYB mandiri dari nasabah."
     />
   )
 
@@ -194,7 +194,7 @@ export default function KybListPage() {
               className="h-7 text-xs"
             >
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Add KYB record
+              Tambah berkas KYB
             </Button>
           ) : undefined
         }
@@ -217,7 +217,7 @@ export default function KybListPage() {
               // Deliberately not "search entity name": the server matches
               // `users.name` and `users.email` only. `kyb.entity_name` is
               // ciphertext, so promising to search it would promise nothing.
-              placeholder: 'Search account name or email…',
+              placeholder: 'Cari nama atau email akun…',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             filter={{
@@ -236,7 +236,7 @@ export default function KybListPage() {
         hasFilters={hasFilters}
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/kyb/${r.id}`)}
-        rowAriaLabel={(r) => `Open KYB record for ${rowLabel(r)}`}
+        rowAriaLabel={(r) => `Buka berkas KYB ${rowLabel(r)}`}
       />
 
       <KybDetailModal

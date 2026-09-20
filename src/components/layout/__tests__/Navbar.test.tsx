@@ -94,20 +94,20 @@ describe('Navbar', () => {
 
     test('should render a hamburger that opens the mobile nav drawer (USDX-27)', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      const hamburger = screen.getByRole('button', { name: /open navigation menu/i })
+      const hamburger = screen.getByRole('button', { name: /buka menu navigasi/i })
       expect(hamburger).toBeInTheDocument()
       // Drawer is closed → no nav links yet.
       expect(screen.queryByRole('link', { name: /^mint otc$/i })).not.toBeInTheDocument()
       fireEvent.click(hamburger)
       expect(screen.getByRole('link', { name: /^mint otc$/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /keluar/i })).toBeInTheDocument()
     })
   })
 
   describe('profile dropdown', () => {
     test('should render profile dropdown trigger when authenticated', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/dashboard'], authenticated: true })
-      expect(screen.getByText(/open profile menu/i)).toBeInTheDocument()
+      expect(screen.getByText(/buka menu profil/i)).toBeInTheDocument()
     })
   })
 })

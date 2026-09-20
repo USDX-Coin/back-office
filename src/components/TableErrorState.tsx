@@ -3,15 +3,15 @@ import { AlertTriangle } from 'lucide-react'
 export interface TableErrorStateProps {
   title?: string
   description?: string
-  /** When provided, renders a "Try again" action (typically `query.refetch`). */
+  /** Kalau diisi, tombol "Coba lagi" muncul (biasanya `query.refetch`). */
   onRetry?: () => void
 }
 
 // USDX-27: a failed list/query previously fell through to TableEmptyState
 // "no data" — which is misleading. This is the consistent error surface.
 export default function TableErrorState({
-  title = "Couldn't load this data",
-  description = 'The request failed. Check your connection and try again.',
+  title = 'Data ini gagal dimuat',
+  description = 'Permintaan ke server gagal. Periksa koneksi lalu coba lagi.',
   onRetry,
 }: TableErrorStateProps) {
   return (
@@ -29,7 +29,7 @@ export default function TableErrorState({
           onClick={onRetry}
           className="text-sm font-medium text-primary hover:underline"
         >
-          Try again
+          Coba lagi
         </button>
       ) : null}
     </div>

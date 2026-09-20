@@ -22,9 +22,9 @@ test.describe('USDX-26 user CRUD @e2e', () => {
   test.describe('positive', () => {
     test('should render the Name / Email / Entity / KYC / Status columns', async ({ page }) => {
       const head = page.locator('thead')
-      await expect(head.getByText('Name')).toBeVisible()
+      await expect(head.getByText('Nama')).toBeVisible()
       await expect(head.getByText('Email')).toBeVisible()
-      await expect(head.getByText('Entity')).toBeVisible()
+      await expect(head.getByText('Jenis')).toBeVisible()
       await expect(head.getByText('KYC')).toBeVisible()
       await expect(head.getByText('Status')).toBeVisible()
       await expect(page.getByText('Robert Deon')).toBeVisible()
@@ -32,43 +32,43 @@ test.describe('USDX-26 user CRUD @e2e', () => {
 
     test('should create a user (no password anywhere) and list the user', async ({ page }) => {
       const name = `E2E Probe ${Math.random().toString(36).slice(2, 6)}`
-      await page.getByRole('button', { name: /add user/i }).first().click()
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
       // USDX-156 AC: no password field in the DOM; the modal explains the
       // activation email instead.
-      await expect(page.getByLabel(/password/i)).toHaveCount(0)
-      await expect(page.getByText(/activation email/i)).toBeVisible()
-      await page.getByLabel(/^name$/i).fill(name)
+      await expect(page.getByLabel(/kata sandi/i)).toHaveCount(0)
+      await expect(page.getByText(/email aktivasi/i)).toBeVisible()
+      await page.getByLabel(/^nama$/i).fill(name)
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
-      await page.getByRole('button', { name: /create user/i }).click()
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
 
-      await expect(page.getByText(/user created\. activation email sent\./i)).toBeVisible({ timeout: 10000 })
-      await expect(page.getByRole('heading', { name: /temporary password/i })).toHaveCount(0)
+      await expect(page.getByText(/nasabah dibuat\. email aktivasi terkirim\./i)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByRole('heading', { name: /kata sandi sementara/i })).toHaveCount(0)
       await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible({ timeout: 10000 })
     })
 
     test('should save a KYC-status edit and show a confirmation toast', async ({ page }) => {
-      await page.getByRole('button', { name: /^edit /i }).first().click()
-      await expect(page.getByRole('dialog', { name: /edit user/i })).toBeVisible()
+      await page.getByRole('button', { name: /^ubah /i }).first().click()
+      await expect(page.getByRole('dialog', { name: /ubah data nasabah/i })).toBeVisible()
       // Radix Select trigger isn't reliably label-associated — target it by id.
       await page.locator('#kycStatus').click()
-      await page.getByRole('option', { name: /^verified$/i }).click()
-      await page.getByRole('button', { name: /save changes/i }).click()
-      await expect(page.getByText(/user updated/i)).toBeVisible({ timeout: 10000 })
+      await page.getByRole('option', { name: /^terverifikasi$/i }).click()
+      await page.getByRole('button', { name: /simpan perubahan/i }).click()
+      await expect(page.getByText(/data nasabah diperbarui/i)).toBeVisible({ timeout: 10000 })
     })
 
     test('should delete a user after confirmation and remove the row', async ({ page }) => {
       // create a disposable user first so the test is non-destructive
       const name = `Delete Probe ${Math.random().toString(36).slice(2, 6)}`
-      await page.getByRole('button', { name: /add user/i }).first().click()
-      await page.getByLabel(/^name$/i).fill(name)
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
+      await page.getByLabel(/^nama$/i).fill(name)
       await page.getByLabel(/^email$/i).fill(uniqueEmail('delete-probe'))
-      await page.getByRole('button', { name: /create user/i }).click()
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
       const row = page.getByRole('row', { name: new RegExp(name) })
       await expect(row).toBeVisible({ timeout: 10000 })
 
-      await row.getByRole('button', { name: /^delete /i }).click()
-      await page.getByRole('button', { name: /^delete$/i }).click()
-      await expect(page.getByText(/removed/i)).toBeVisible({ timeout: 10000 })
+      await row.getByRole('button', { name: /^hapus /i }).click()
+      await page.getByRole('button', { name: /^hapus nasabah$/i }).click()
+      await expect(page.getByText(/dihapus/i)).toBeVisible({ timeout: 10000 })
       await expect(page.getByRole('row', { name: new RegExp(name) })).toHaveCount(0)
     })
   })
@@ -77,28 +77,28 @@ test.describe('USDX-26 user CRUD @e2e', () => {
     test('should show a client-side validation error and send no request for a name over 255 chars', async ({ page }) => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/users')) posted = true })
-      await page.getByRole('button', { name: /add user/i }).first().click()
-      await page.getByLabel(/^name$/i).fill('a'.repeat(260))
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
+      await page.getByLabel(/^nama$/i).fill('a'.repeat(260))
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
-      await page.getByRole('button', { name: /create user/i }).click()
-      await expect(page.getByText(/under 255 characters/i)).toBeVisible()
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
+      await expect(page.getByText(/maksimal 255 karakter/i)).toBeVisible()
       expect(posted).toBe(false)
     })
 
     test('should show a client-side validation error for notes over 2000 chars', async ({ page }) => {
-      await page.getByRole('button', { name: /add user/i }).first().click()
-      await page.getByLabel(/^name$/i).fill('Notes Probe')
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
+      await page.getByLabel(/^nama$/i).fill('Notes Probe')
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
-      await page.getByLabel(/notes/i).fill('x'.repeat(2100))
-      await page.getByRole('button', { name: /create user/i }).click()
-      await expect(page.getByText(/under 2000 characters/i)).toBeVisible()
+      await page.getByLabel(/catatan/i).fill('x'.repeat(2100))
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
+      await expect(page.getByText(/maksimal 2000 karakter/i)).toBeVisible()
     })
 
     test('should surface a backend 409 in the modal for a duplicate email', async ({ page }) => {
-      await page.getByRole('button', { name: /add user/i }).first().click()
-      await page.getByLabel(/^name$/i).fill('Dup Email Probe')
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
+      await page.getByLabel(/^nama$/i).fill('Dup Email Probe')
       await page.getByLabel(/^email$/i).fill('robert.deon@example.com') // already in the seeded directory
-      await page.getByRole('button', { name: /create user/i }).click()
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
       await expect(page.getByText(/already exists/i)).toBeVisible({ timeout: 10000 })
       // modal stays open (still on /users with the dialog present)
       await expect(page.getByRole('dialog')).toBeVisible()
@@ -110,23 +110,23 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       // USDX-27: filters now live behind a "Filter" popover (TableToolbar).
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'KYC' }).click()
-      await page.getByRole('option', { name: /^verified$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('option', { name: /^terverifikasi$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
       await expect(page).toHaveURL(/kycStatus=VERIFIED/)
     })
 
     test('should reflect an entity-type filter in the URL', async ({ page }) => {
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Entity' }).click()
-      await page.getByRole('option', { name: /^individual$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('combobox', { name: 'Jenis' }).click()
+      await page.getByRole('option', { name: /^perorangan$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
       await expect(page).toHaveURL(/entityType=INDIVIDUAL/)
     })
 
     test('should add no user when the create modal is cancelled', async ({ page }) => {
       const before = await page.getByRole('row').count()
-      await page.getByRole('button', { name: /add user/i }).first().click()
-      await page.getByLabel(/^name$/i).fill('Cancelled Probe')
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
+      await page.getByLabel(/^nama$/i).fill('Cancelled Probe')
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
       await page.keyboard.press('Escape')
       await expect(page.getByRole('dialog')).toHaveCount(0)

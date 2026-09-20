@@ -57,7 +57,10 @@ export function shortRequestId(id: string): string {
 }
 
 export function formatDate(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+  // `id-ID`, bukan `en-US`: tanggalnya terbaca "25 Mar 2026", bukan
+  // "Mar 25, 2026". Urutan hari-bulan-tahun itu yang dibaca operator di
+  // dokumen, mutasi bank, dan KTP.
+  return new Intl.DateTimeFormat('id-ID', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -67,15 +70,15 @@ export function formatDate(dateString: string): string {
 }
 
 export function formatShortDate(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('id-ID', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   }).format(new Date(dateString))
 }
 
-const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const SHORT_MONTH_DAY = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' })
+const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
 
 // Format a decimal rate string ("16250.00") as "16,250.00 IDR/USD".
 // Falls back to the raw string when input cannot be parsed, so we never
@@ -104,11 +107,11 @@ export function formatSpreadPct(pct: string): string {
 export function formatRelativeTime(dateString: string, now: Date = new Date()): string {
   const then = new Date(dateString)
   const deltaMs = now.getTime() - then.getTime()
-  if (deltaMs < 0) return 'just now'
+  if (deltaMs < 0) return 'baru saja'
 
   const minutes = Math.floor(deltaMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return 'baru saja'
+  if (minutes < 60) return `${minutes} mnt lalu`
 
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const startOfThen = new Date(then.getFullYear(), then.getMonth(), then.getDate())
@@ -117,10 +120,10 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
   // Same calendar day → hour-granular
   if (dayDelta === 0) {
     const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
+    return `${hours} jam lalu`
   }
-  if (dayDelta === 1) return 'yesterday'
-  if (dayDelta < 7) return `${dayDelta}d ago`
+  if (dayDelta === 1) return 'kemarin'
+  if (dayDelta < 7) return `${dayDelta} hr lalu`
 
   if (now.getFullYear() === then.getFullYear()) {
     return SHORT_MONTH_DAY.format(then)

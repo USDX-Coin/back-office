@@ -64,13 +64,13 @@ export function resolveOwnerCheck(
 // UI-facing owner status. Splits the data-only 'unknown' into a *transient*
 // "checking" (an owner source is still loading) vs a *terminal* "unavailable"
 // (every source settled and none yields owners). This is what stops the Sign
-// gate from showing "Verifying Safe ownership…" forever with no error/retry.
+// gate from showing "Memeriksa status owner Safe…" forever with no error/retry.
 export type OwnerVerification = 'owner' | 'not-owner' | 'checking' | 'unavailable'
 
 /**
  * Fold the data-only `OwnerCheck` with whether an owner source is still loading.
  * - resolved (owner/not-owner) passes through untouched.
- * - 'unknown' + a source still loading → 'checking' (OK to show "Verifying…").
+ * - 'unknown' + a source still loading → 'checking' (OK to show "Memeriksa…").
  * - 'unknown' + all sources settled     → 'unavailable' (show error + retry).
  *
  * `sourcesLoading` should reflect only the *initial* load of the fallback owner

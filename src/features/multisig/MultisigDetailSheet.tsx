@@ -207,7 +207,7 @@ function SignerRow({ signer }: { signer: SafeTxSigner }) {
         )}
       </div>
       <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-        {signer.signed && signer.signedAt ? formatDate(signer.signedAt) : 'Not signed'}
+        {signer.signed && signer.signedAt ? formatDate(signer.signedAt) : 'Belum tanda tangan'}
       </span>
     </li>
   )
@@ -305,27 +305,30 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
 
   // ── Sign enablement ──
   const signBlockedReason = (() => {
-    if (!wallet.isConnected) return 'Connect a wallet to sign'
-    if (!wallet.chainOk) return 'Switch to Polygon to sign'
-    if (ownerVerification === 'checking') return 'Verifying Safe ownership…'
-    if (ownerVerification === 'unavailable') return "Couldn't verify Safe ownership — retry below"
-    if (ownerVerification === 'not-owner') return 'Connected wallet is not an owner of this Safe'
-    if (alreadySigned) return 'You have already signed this transaction'
-    if (!hashOk) return 'SafeTx hash mismatch — signing disabled'
-    if (unknownActivity && !ackUnknown) return 'Acknowledge the undecoded-calldata warning to sign'
+    if (!wallet.isConnected) return 'Hubungkan wallet dulu untuk menandatangani'
+    if (!wallet.chainOk) return 'Pindah ke Polygon dulu untuk menandatangani'
+    if (ownerVerification === 'checking') return 'Memeriksa status owner Safe…'
+    if (ownerVerification === 'unavailable')
+      return 'Status owner Safe tidak bisa diperiksa — coba lagi lewat tombol di bawah'
+    if (ownerVerification === 'not-owner') return 'Wallet yang terhubung bukan owner Safe ini'
+    if (alreadySigned) return 'Transaksi ini sudah kamu tanda tangani'
+    if (!hashOk) return 'Hash SafeTx tidak cocok — tanda tangan dimatikan'
+    if (unknownActivity && !ackUnknown)
+      return 'Centang dulu peringatan calldata tidak terbaca supaya bisa menandatangani'
     return null
   })()
   const canSign = showSign && signBlockedReason === null
 
   // ── Execute enablement (simulate gate) ──
   const executeBlockedReason = (() => {
-    if (!wallet.isConnected) return 'Connect a wallet to execute'
-    if (!wallet.chainOk) return 'Switch to Polygon to execute'
-    if (!detail?.execPayload) return 'No exec payload yet'
-    if (simulate.status === 'loading') return 'Simulating…'
-    if (simulate.status === 'revert') return 'Simulation failed — execution would revert'
-    if (simulate.status === 'error') return "Simulation unavailable — couldn't reach the RPC, retry"
-    if (simulate.status !== 'ok') return 'Waiting for simulation'
+    if (!wallet.isConnected) return 'Hubungkan wallet dulu untuk mengeksekusi'
+    if (!wallet.chainOk) return 'Pindah ke Polygon dulu untuk mengeksekusi'
+    if (!detail?.execPayload) return 'Exec payload belum tersedia'
+    if (simulate.status === 'loading') return 'Sedang disimulasikan…'
+    if (simulate.status === 'revert') return 'Simulasi gagal — eksekusinya akan ditolak kontrak'
+    if (simulate.status === 'error')
+      return 'Simulasi tidak bisa dijalankan — RPC tidak terjangkau, coba lagi'
+    if (simulate.status !== 'ok') return 'Menunggu hasil simulasi'
     return null
   })()
   const canExecute = showExecute && executeBlockedReason === null
@@ -335,16 +338,16 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
     try {
       const signature = await signAsync(detail, wallet.address)
       await confirmMutation.mutateAsync({ signerAddress: wallet.address, signature })
-      toast.success('Signature submitted')
+      toast.success('Tanda tangan terkirim')
     } catch (err) {
       const msg =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Signature rejected in wallet'
+              ? 'Tanda tangan ditolak di wallet'
               : err.message
-            : 'Failed to sign'
+            : 'Gagal menandatangani'
       toast.error(msg)
     }
   }
@@ -354,16 +357,16 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
     try {
       const execTxHash = await executeAsync(detail)
       await executeMutation.mutateAsync({ execTxHash })
-      toast.success('Execution broadcast — confirming on-chain')
+      toast.success('Eksekusi dikirim ke jaringan — menunggu konfirmasi on-chain')
     } catch (err) {
       const msg =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Transaction rejected in wallet'
+              ? 'Transaksi ditolak di wallet'
               : err.message
-            : 'Failed to execute'
+            : 'Gagal mengeksekusi'
       toast.error(msg)
     }
   }
@@ -372,14 +375,14 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
     if (!detail) return
     try {
       await cancelMutation.mutateAsync({ reason: cancelReason || undefined })
-      toast.success('Transaction cancelled')
+      toast.success('Transaksi dibatalkan')
       setCancelOpen(false)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to cancel')
+      toast.error(err instanceof ApiError ? err.message : 'Gagal membatalkan transaksi')
     }
   }
 
-  const headerTitle = detail?.activityLabel || listItem?.activityLabel || 'Safe transaction'
+  const headerTitle = detail?.activityLabel || listItem?.activityLabel || 'Transaksi Safe'
   const busy = isSigning || isExecuting || confirmMutation.isPending || executeMutation.isPending
 
   // modal={false}: a modal Radix Dialog locks body pointer-events + traps focus,
@@ -410,8 +413,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
         <SheetHeader>
           <SheetTitle>{headerTitle}</SheetTitle>
           <SheetDescription>
-            Decoded Safe transaction — verify the operation against intent, then sign (EIP-712) or
-            execute.
+            Isi transaksi Safe yang sudah dibaca — cocokkan operasinya dengan permintaan aslinya,
+            lalu tanda tangani (EIP-712) atau eksekusi.
           </SheetDescription>
         </SheetHeader>
 
@@ -423,7 +426,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
           </div>
         ) : query.isError ? (
           <p className="p-4 text-center text-sm text-destructive">
-            {query.error instanceof Error ? query.error.message : 'Failed to load transaction.'}
+            {query.error instanceof Error ? query.error.message : 'Transaksi ini gagal dimuat.'}
           </p>
         ) : (
           <div className="space-y-6 p-4">
@@ -432,7 +435,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge cfg={getSafeTxStatusConfig(detail.status)} />
                 <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  {detail.safeType} safe · {detail.chain} · nonce {detail.nonce}
+                  Safe {detail.safeType} · {detail.chain} · nonce {detail.nonce}
                 </span>
               </div>
               <span className="font-mono text-2xs tabular-nums text-muted-foreground">
@@ -443,15 +446,16 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Guards */}
             {!hashOk && (
               <Banner tone="error" icon={<ShieldAlert className="h-4 w-4" />}>
-                <strong>SafeTx hash mismatch.</strong> The decoded transaction does not match the
-                backend <code className="font-mono">safeTxHash</code>. Signing is disabled — do not
-                trust this transaction.
+                <strong>Hash SafeTx tidak cocok.</strong> Transaksi yang dibaca di layar ini tidak
+                sama dengan <code className="font-mono">safeTxHash</code> dari server. Tanda tangan
+                dimatikan — jangan percayai transaksi ini.
               </Banner>
             )}
             {unknownActivity && (
               <Banner tone="warning" icon={<AlertTriangle className="h-4 w-4" />}>
-                <strong>Undecoded calldata.</strong> The backend could not decode this operation
-                (activity = UNKNOWN). Do not sign blind — verify the raw calldata + target below.
+                <strong>Calldata tidak terbaca.</strong> Server tidak bisa membaca isi operasi ini
+                (activity = UNKNOWN). Jangan tanda tangan buta — periksa sendiri calldata mentah dan
+                alamat tujuannya di bawah.
                 {showSign && hashOk && (
                   <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
                     <input
@@ -460,15 +464,15 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       onChange={(e) => setAckUnknown(e.target.checked)}
                       className="h-3.5 w-3.5 accent-primary"
                     />
-                    I have independently verified this calldata and accept the risk.
+                    Saya sudah memeriksa sendiri calldata ini dan menerima risikonya.
                   </label>
                 )}
               </Banner>
             )}
             {detail.lastExecError && (
               <Banner tone="error" icon={<AlertTriangle className="h-4 w-4" />}>
-                <strong>Last execution failed.</strong> {detail.lastExecError} — fix the condition
-                and retry, or cancel.
+                <strong>Eksekusi terakhir gagal.</strong> {detail.lastExecError} — perbaiki dulu
+                penyebabnya lalu coba lagi, atau batalkan transaksinya.
               </Banner>
             )}
 
@@ -476,43 +480,43 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             <div className="rounded-md border border-outline-variant/15 bg-surface-container-low/40 p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  <Wallet className="h-3.5 w-3.5" /> Signer wallet
+                  <Wallet className="h-3.5 w-3.5" /> Wallet penanda tangan
                 </span>
                 {wallet.isConnected ? (
                   <span className="font-mono text-2xs">
                     {truncateMiddle(wallet.address ?? '', 6, 4)}{' '}
                     {ownerVerification === 'owner' ? (
-                      <span className="text-success">· owner</span>
+                      <span className="text-success">· owner Safe</span>
                     ) : ownerVerification === 'not-owner' ? (
-                      <span className="text-warning">· not an owner</span>
+                      <span className="text-warning">· bukan owner Safe</span>
                     ) : ownerVerification === 'checking' ? (
-                      <span className="text-muted-foreground">· verifying owner…</span>
+                      <span className="text-muted-foreground">· memeriksa status owner…</span>
                     ) : (
-                      <span className="text-warning">· ownership unknown</span>
+                      <span className="text-warning">· status owner belum diketahui</span>
                     )}
                   </span>
                 ) : (
-                  <span className="text-2xs text-muted-foreground">Not connected</span>
+                  <span className="text-2xs text-muted-foreground">Belum terhubung</span>
                 )}
               </div>
               {wallet.isConnected && !wallet.chainOk && (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-2xs text-warning">Wrong network — Polygon required.</span>
+                  <span className="text-2xs text-warning">Jaringan salah — harus Polygon.</span>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={wallet.switchToPolygon}
                     disabled={wallet.isSwitching}
                   >
-                    {wallet.isSwitching ? 'Switching…' : 'Switch to Polygon'}
+                    {wallet.isSwitching ? 'Memindahkan…' : 'Pindah ke Polygon'}
                   </Button>
                 </div>
               )}
               {wallet.isConnected && ownerVerification === 'unavailable' && (
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-2xs text-warning">
-                    Couldn't verify Safe ownership — the owner list is unavailable. Contact an admin
-                    if it persists.
+                    Status owner Safe tidak bisa diperiksa — daftar owner-nya tidak terbaca. Hubungi
+                    admin kalau terus begini.
                   </span>
                   <Button
                     size="sm"
@@ -523,31 +527,31 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     }}
                     disabled={ownerRefetching}
                   >
-                    {ownerRefetching ? 'Retrying…' : 'Retry'}
+                    {ownerRefetching ? 'Mencoba lagi…' : 'Coba lagi'}
                   </Button>
                 </div>
               )}
             </div>
 
             {/* Decoded transaction — anti blind-sign */}
-            <Section title="Decoded transaction">
-              <Field label="Activity">
+            <Section title="Isi transaksi">
+              <Field label="Aktivitas">
                 {detail.activityLabel || getActivityLabel(detail.activity)}
               </Field>
-              <Field label="Operation">{detail.operation === 1 ? 'DELEGATECALL' : 'CALL'}</Field>
-              <Field label="Target (to)">
+              <Field label="Operasi">{detail.operation === 1 ? 'DELEGATECALL' : 'CALL'}</Field>
+              <Field label="Alamat tujuan (to)">
                 {detail.to ? (
                   <HashLink
                     value={detail.to}
-                    label="Target address"
-                    linkLabel="View on explorer"
+                    label="Alamat tujuan"
+                    linkLabel="Lihat di block explorer"
                     href={explorerAddr(detail.to)}
                   />
                 ) : (
                   <Dim />
                 )}
               </Field>
-              <Field label="Value">
+              <Field label="Nominal">
                 <span className="font-mono tabular-nums">{detail.value ?? '0'}</span>
               </Field>
             </Section>
@@ -555,7 +559,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {Object.keys(detail.decodedArgs ?? {}).length > 0 && (
               <div>
                 <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-                  Decoded arguments
+                  Argumen yang terbaca
                 </p>
                 <dl className="space-y-1.5 rounded-md bg-surface-container-low/40 p-3">
                   {Object.entries(detail.decodedArgs).map(([k, v]) => (
@@ -568,22 +572,22 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               </div>
             )}
 
-            <Field label="Raw calldata (data)">
+            <Field label="Calldata mentah (data)">
               {detail.data && detail.data !== '0x' ? (
                 <CopyableMono value={detail.data} label="Calldata" />
               ) : (
-                <span className="font-mono text-xs text-muted-foreground">0x (empty)</span>
+                <span className="font-mono text-xs text-muted-foreground">0x (kosong)</span>
               )}
             </Field>
 
             {/* Cross-check vs intent (linked order/request) */}
             {(detail.linkedOrderId || detail.linkedRequestId) && (
-              <Section title="Linked intent (cross-check)">
+              <Section title="Permintaan asalnya (pencocokan)">
                 {detail.linkedRequestId && (
-                  <Field label="Linked request">
+                  <Field label="Permintaan terkait">
                     <span className="inline-flex items-center gap-1.5">
                       <Link2 className="h-3 w-3 text-muted-foreground" />
-                      <CopyableMono value={detail.linkedRequestId} label="Request ID" />
+                      <CopyableMono value={detail.linkedRequestId} label="ID permintaan" />
                     </span>
                   </Field>
                 )}
@@ -608,8 +612,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 )}
                 <div className="sm:col-span-2">
                   <p className="text-2xs text-muted-foreground">
-                    Verify the decoded arguments above match this linked operation before signing
-                    (blind-sign guard).
+                    Cocokkan dulu argumen di atas dengan permintaan ini sebelum menandatangani —
+                    pagar tanda tangan buta.
                   </p>
                 </div>
               </Section>
@@ -619,7 +623,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-                  Signers
+                  Penanda tangan
                 </p>
                 <SignatureProgressBar progress={detail.signatureProgress} />
               </div>
@@ -630,17 +634,17 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-muted-foreground">No signer data.</p>
+                <p className="text-xs text-muted-foreground">Tidak ada data penanda tangan.</p>
               )}
             </div>
 
             {/* On-chain references */}
-            <Section title="On-chain references">
-              <Field label="Safe address">
+            <Section title="Rujukan on-chain">
+              <Field label="Alamat Safe">
                 <HashLink
                   value={detail.safeAddress}
-                  label="Safe address"
-                  linkLabel="View on explorer"
+                  label="Alamat Safe"
+                  linkLabel="Lihat di block explorer"
                   href={explorerAddr(detail.safeAddress)}
                 />
               </Field>
@@ -649,7 +653,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   <HashLink
                     value={detail.safeTxHash}
                     label="Safe tx hash"
-                    linkLabel="View in Safe"
+                    linkLabel="Lihat di Safe"
                     href={safeTxUrl({
                       chain: chainCfg,
                       safeType: detail.safeType,
@@ -665,14 +669,14 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   <HashLink
                     value={detail.execTxHash}
                     label="Exec tx hash"
-                    linkLabel="View on explorer"
+                    linkLabel="Lihat di block explorer"
                     href={explorerTx(detail.execTxHash)}
                   />
                 ) : (
                   <Dim />
                 )}
               </Field>
-              <Field label="Executed by">
+              <Field label="Dieksekusi oleh">
                 {detail.executedByStaffName ? (
                   <span>{detail.executedByStaffName}</span>
                 ) : (
@@ -701,21 +705,21 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   )
                 }
               >
-                {simulate.status === 'loading' && 'Simulating execTransaction…'}
+                {simulate.status === 'loading' && 'Menyimulasikan execTransaction…'}
                 {simulate.status === 'ok' &&
-                  'Simulation passed — the inner call succeeds. Safe to execute.'}
+                  'Simulasi lolos — panggilan di dalamnya berhasil. Aman dieksekusi.'}
                 {simulate.status === 'revert' && (
                   <span>
-                    <strong>Would revert:</strong> {simulate.reason} — Execute is disabled (prevents
-                    a stuck GS013).
+                    <strong>Akan ditolak kontrak:</strong> {simulate.reason} — Eksekusi dimatikan
+                    supaya transaksinya tidak nyangkut di GS013.
                   </span>
                 )}
                 {simulate.status === 'error' && (
                   <span className="flex items-center justify-between gap-2">
                     <span>
-                      <strong>Simulation unavailable:</strong> {simulate.reason} — couldn't reach the
-                      RPC, so Execute is held (this is not a revert). Retry, or check the Polygon RPC /
-                      CSP allowlist.
+                      <strong>Simulasi tidak bisa dijalankan:</strong> {simulate.reason} — RPC tidak
+                      terjangkau, jadi Eksekusi ditahan. Ini BUKAN berarti transaksinya akan ditolak
+                      kontrak. Coba lagi, atau periksa RPC Polygon / daftar izin CSP.
                     </span>
                     <Button
                       size="sm"
@@ -723,11 +727,11 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       onClick={() => simulate.refetch()}
                       disabled={simulate.isRefetching}
                     >
-                      {simulate.isRefetching ? 'Retrying…' : 'Retry'}
+                      {simulate.isRefetching ? 'Mencoba lagi…' : 'Coba lagi'}
                     </Button>
                   </span>
                 )}
-                {simulate.status === 'idle' && 'Simulation pending.'}
+                {simulate.status === 'idle' && 'Simulasi belum dijalankan.'}
               </Banner>
             )}
 
@@ -735,7 +739,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             <div className="flex flex-col gap-2 border-t border-outline-variant/15 pt-4">
               {!wallet.isConnected && (showSign || showExecute) && (
                 <Button onClick={wallet.connect} className="w-full">
-                  Connect wallet
+                  Hubungkan Wallet
                 </Button>
               )}
 
@@ -750,7 +754,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     {isSigning || confirmMutation.isPending ? (
                       <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                     ) : null}
-                    Sign (EIP-712)
+                    Tanda tangani (EIP-712)
                   </Button>
                 )}
                 {showExecute && (
@@ -763,7 +767,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     {isExecuting || executeMutation.isPending ? (
                       <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                     ) : null}
-                    Execute
+                    Eksekusi
                   </Button>
                 )}
                 {showCancel && !cancelOpen && (
@@ -773,7 +777,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     disabled={busy}
                     className="text-destructive hover:text-destructive"
                   >
-                    Cancel
+                    Batalkan
                   </Button>
                 )}
               </div>
@@ -787,13 +791,14 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               {showCancel && cancelOpen && (
                 <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
                   <p className="text-xs font-medium text-destructive">
-                    Cancel this transaction? It will be discarded off-chain (no gas) and the linked
-                    request marked rejected.
+                    Batalkan transaksi ini? Transaksinya dibuang off-chain (tanpa biaya gas) dan
+                    permintaan yang terkait ditandai ditolak. Kalau ternyata masih dibutuhkan,
+                    permintaannya harus diajukan ulang dari awal.
                   </p>
                   <Textarea
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="Reason (optional)"
+                    placeholder="Alasan (opsional)"
                     className="text-sm"
                     rows={2}
                   />
@@ -807,7 +812,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       {cancelMutation.isPending ? (
                         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                       ) : null}
-                      Confirm cancel
+                      Ya, batalkan transaksinya
                     </Button>
                     <Button
                       variant="ghost"
@@ -815,7 +820,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       onClick={() => setCancelOpen(false)}
                       disabled={cancelMutation.isPending}
                     >
-                      Back
+                      Kembali
                     </Button>
                   </div>
                 </div>

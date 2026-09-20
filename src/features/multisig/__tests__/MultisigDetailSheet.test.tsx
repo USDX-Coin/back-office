@@ -123,7 +123,7 @@ function renderSheet() {
   return render(<MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={null} />)
 }
 
-const signBtn = () => screen.getByRole('button', { name: /Sign \(EIP-712\)/ })
+const signBtn = () => screen.getByRole('button', { name: /Tanda tangani \(EIP-712\)/ })
 
 describe('MultisigDetailSheet owner verification', () => {
   beforeEach(() => {
@@ -147,7 +147,7 @@ describe('MultisigDetailSheet owner verification', () => {
     test('wallet in detail.signers → owner, Sign enabled (primary source)', () => {
       setDetail({ signers: [signer(OWNER), signer(OTHER)] })
       renderSheet()
-      expect(screen.getByText('· owner')).toBeInTheDocument()
+      expect(screen.getByText('· owner Safe')).toBeInTheDocument()
       expect(signBtn()).toBeEnabled()
     })
 
@@ -155,7 +155,7 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] })
       setSafes([safeMeta([OWNER, OTHER])])
       renderSheet()
-      expect(screen.getByText('· owner')).toBeInTheDocument()
+      expect(screen.getByText('· owner Safe')).toBeInTheDocument()
       expect(signBtn()).toBeEnabled()
     })
   })
@@ -164,10 +164,10 @@ describe('MultisigDetailSheet owner verification', () => {
     test('signers present but wallet absent → not-owner, Sign disabled', () => {
       setDetail({ signers: [signer(OTHER)] })
       renderSheet()
-      expect(screen.getByText('· not an owner')).toBeInTheDocument()
+      expect(screen.getByText('· bukan owner Safe')).toBeInTheDocument()
       const btn = signBtn()
       expect(btn).toBeDisabled()
-      expect(btn).toHaveAttribute('title', expect.stringContaining('not an owner'))
+      expect(btn).toHaveAttribute('title', expect.stringContaining('bukan owner Safe'))
     })
   })
 
@@ -176,20 +176,20 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] })
       setSafes(undefined, { isLoading: true, isFetching: true })
       renderSheet()
-      expect(screen.getByText(/verifying owner/)).toBeInTheDocument()
+      expect(screen.getByText(/memeriksa status owner/)).toBeInTheDocument()
       const btn = signBtn()
       expect(btn).toBeDisabled()
-      expect(btn).toHaveAttribute('title', expect.stringContaining('Verifying Safe ownership'))
+      expect(btn).toHaveAttribute('title', expect.stringContaining('Memeriksa status owner Safe'))
     })
 
     test('empty signers + safes settled empty → unavailable, Retry refetches both', () => {
       setDetail({ signers: [] })
       setSafes([])
       renderSheet()
-      expect(screen.getByText(/owner list is unavailable/)).toBeInTheDocument()
+      expect(screen.getByText(/daftar owner-nya tidak terbaca/)).toBeInTheDocument()
       expect(signBtn()).toBeDisabled()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Coba lagi' }))
       expect(refetchDetail).toHaveBeenCalledTimes(1)
       expect(refetchSafes).toHaveBeenCalledTimes(1)
     })
@@ -200,9 +200,9 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] }, { isFetching: true })
       setSafes([], { isFetching: true })
       renderSheet()
-      expect(screen.getByText('· ownership unknown')).toBeInTheDocument()
-      expect(screen.queryByText(/verifying owner/)).not.toBeInTheDocument()
-      expect(screen.getByText(/owner list is unavailable/)).toBeInTheDocument()
+      expect(screen.getByText('· status owner belum diketahui')).toBeInTheDocument()
+      expect(screen.queryByText(/memeriksa status owner/)).not.toBeInTheDocument()
+      expect(screen.getByText(/daftar owner-nya tidak terbaca/)).toBeInTheDocument()
     })
   })
 })
@@ -233,7 +233,7 @@ describe('MultisigDetailSheet execute simulate gate', () => {
     setSafes([safeMeta([OWNER, OTHER])])
   }
 
-  const execBtn = () => screen.getByRole('button', { name: 'Execute' })
+  const execBtn = () => screen.getByRole('button', { name: 'Eksekusi' })
 
   beforeEach(() => {
     refetchDetail = vi.fn()
@@ -254,21 +254,21 @@ describe('MultisigDetailSheet execute simulate gate', () => {
     test('simulate ok → Execute enabled', () => {
       state.simulate = { status: 'ok', refetch: vi.fn(), isRefetching: false }
       renderSheet()
-      expect(screen.getByText(/Simulation passed/)).toBeInTheDocument()
+      expect(screen.getByText(/Simulasi lolos/)).toBeInTheDocument()
       expect(execBtn()).toBeEnabled()
     })
   })
 
   describe('negative', () => {
-    test('simulate revert → Execute disabled, shows "Would revert"', () => {
+    test('simulate revert → Execute disabled, shows "Akan ditolak kontrak"', () => {
       state.simulate = {
         status: 'revert',
-        reason: 'The USDX contract is paused — unpause before this can execute.',
+        reason: 'Kontrak USDX sedang dihentikan sementara (EnforcedPause) — jalankan kembali dulu sebelum transaksi ini bisa dieksekusi.',
         refetch: vi.fn(),
         isRefetching: false,
       }
       renderSheet()
-      expect(screen.getByText(/Would revert/)).toBeInTheDocument()
+      expect(screen.getByText(/Akan ditolak kontrak/)).toBeInTheDocument()
       expect(execBtn()).toBeDisabled()
     })
   })
@@ -283,11 +283,11 @@ describe('MultisigDetailSheet execute simulate gate', () => {
         isRefetching: false,
       }
       renderSheet()
-      expect(screen.getByText(/Simulation unavailable/)).toBeInTheDocument()
-      expect(screen.queryByText(/Would revert/)).not.toBeInTheDocument()
+      expect(screen.getByText(/Simulasi tidak bisa dijalankan/)).toBeInTheDocument()
+      expect(screen.queryByText(/Akan ditolak kontrak/)).not.toBeInTheDocument()
       expect(execBtn()).toBeDisabled()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Coba lagi' }))
       expect(simRefetch).toHaveBeenCalledTimes(1)
     })
   })
@@ -351,7 +351,7 @@ describe('MultisigDetailSheet — tautan ke order asalnya (P0-2)', () => {
       // boleh diam-diam membuang peringatannya.
       setDetail({ linkedOrderId: ORDER_ID })
       renderWithRouter()
-      expect(screen.getByText(/blind-sign guard/i)).toBeInTheDocument()
+      expect(screen.getByText(/pagar tanda tangan buta/i)).toBeInTheDocument()
     })
   })
 })

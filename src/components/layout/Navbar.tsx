@@ -57,7 +57,7 @@ function buildBreadcrumb(pathname: string): string[] {
   const mapped = BREADCRUMB_MAP[pathname]
   if (mapped) return [...mapped]
   const segs = pathname.split('/').filter(Boolean)
-  if (segs.length === 0) return ['USDX', 'Home']
+  if (segs.length === 0) return ['USDX', 'Beranda']
   return segs.length === 1 ? ['USDX', segs[0]!] : segs
 }
 
@@ -80,14 +80,14 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setNavOpen(true)}
-            aria-label="Open navigation menu"
+            aria-label="Buka menu navigasi"
             className="relative grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             <Menu className="h-5 w-5" strokeWidth={1.75} />
             {pendingTotal > 0 && (
               <span
                 className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
-                aria-label={`${pendingTotal} pending`}
+                aria-label={`${pendingTotal} menunggu diproses`}
               />
             )}
           </button>
@@ -99,7 +99,7 @@ export default function Navbar() {
 
         <nav
           className="hidden lg:flex items-center gap-1.5 text-xs"
-          aria-label="Breadcrumb"
+          aria-label="Lokasi halaman"
         >
           {segments.map((seg, i) => (
             <span key={`${seg}-${i}`} className="flex items-center gap-1.5">

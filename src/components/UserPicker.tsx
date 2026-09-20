@@ -29,7 +29,7 @@ export default function UserPicker({
   id,
   value,
   onSelect,
-  placeholder = 'Search by name or email…',
+  placeholder = 'Cari nama atau email nasabah…',
   className,
   disabled,
   ariaInvalid,
@@ -91,7 +91,7 @@ export default function UserPicker({
             type="button"
             onClick={handleClear}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            aria-label="Clear selection"
+            aria-label="Batalkan pilihan"
           >
             <X className="h-4 w-4" />
           </button>
@@ -123,7 +123,7 @@ export default function UserPicker({
       {open && debouncedQuery.length > 0 && (
         <div
           role="listbox"
-          aria-label="Matching users"
+          aria-label="Nasabah yang cocok"
           className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm"
         >
           {isFetching && (
@@ -140,10 +140,10 @@ export default function UserPicker({
             </div>
           )}
           {!isFetching && isError && (
-            <div className="p-4 text-sm text-destructive">Could not load users.</div>
+            <div className="p-4 text-sm text-destructive">Daftar nasabah gagal dimuat.</div>
           )}
           {!isFetching && !isError && data && data.length === 0 && (
-            <div className="p-4 text-sm text-muted-foreground">No users found.</div>
+            <div className="p-4 text-sm text-muted-foreground">Nasabah tidak ditemukan.</div>
           )}
           {!isFetching && !isError && data && data.length > 0 && (
             <ul className="max-h-72 overflow-auto py-1">

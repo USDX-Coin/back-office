@@ -86,7 +86,7 @@ export default function LegalEntityPicker({
               setQuery('')
             }}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            aria-label="Clear selection"
+            aria-label="Hapus pilihan"
           >
             <X className="h-4 w-4" />
           </button>
@@ -107,7 +107,7 @@ export default function LegalEntityPicker({
           setOpen(true)
         }}
         onFocus={() => query.length > 0 && setOpen(true)}
-        placeholder="Search legal-entity account by name or email…"
+        placeholder="Cari akun badan usaha lewat nama atau email…"
         className="pl-10"
         aria-autocomplete="list"
         aria-expanded={open}
@@ -118,7 +118,7 @@ export default function LegalEntityPicker({
       {open && debouncedQuery.length > 0 && (
         <div
           role="listbox"
-          aria-label="Matching legal-entity accounts"
+          aria-label="Akun badan usaha yang cocok"
           className={cn(
             'absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm',
           )}
@@ -132,7 +132,7 @@ export default function LegalEntityPicker({
           )}
           {!listQuery.isFetching && listQuery.isError && (
             <div className="p-4 text-sm text-destructive">
-              Could not load legal-entity accounts.
+              Daftar akun badan usaha gagal dimuat.
             </div>
           )}
           {!listQuery.isFetching && !listQuery.isError && rows.length === 0 && (
@@ -140,8 +140,8 @@ export default function LegalEntityPicker({
             // Users (`POST /api/v1/users` already accepts LEGAL_ENTITY today), so
             // this is a next step, not a dead end.
             <div className="p-4 text-sm text-muted-foreground">
-              No legal-entity account found. Create it under Users first, then come
-              back.
+              Tidak ada akun badan usaha yang cocok. Buat dulu akunnya di menu
+              Nasabah, lalu kembali ke sini.
             </div>
           )}
           {!listQuery.isFetching && !listQuery.isError && rows.length > 0 && (

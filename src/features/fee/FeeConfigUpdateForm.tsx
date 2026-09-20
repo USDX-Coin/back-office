@@ -15,6 +15,24 @@ import { ApiError } from '@/lib/apiFetch'
 import type { FeeConfig } from '@/lib/types'
 import { useUpdateFeeConfig } from './hooks'
 
+/**
+ * Galat server yang BUKAN 422 → kalimat Indonesia DAN kodenya dalam kurung.
+ *
+ * Yang 422 tidak lewat sini: pesannya menyebut field yang ditolak server dan
+ * ditampilkan apa adanya di sebelah field itu (lihat `handleSubmit`).
+ * Kodenya tidak dibuang — ia yang dikutip operator saat melapor, pola
+ * `unknownStatusLabel()` di `src/lib/status.ts`.
+ */
+function feeConfigErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 403) {
+      return `Peranmu tidak berwenang mengubah biaya. (${err.code})`
+    }
+    return `Biaya gagal diubah — tidak ada yang berubah. Coba lagi. (${err.code})`
+  }
+  return 'Biaya gagal diubah. Periksa koneksi lalu coba lagi.'
+}
+
 interface Props {
   current: FeeConfig | undefined
 }
@@ -110,7 +128,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
         minMintIdr: form.minMintIdr.trim(),
         minRedeemIdr: form.minRedeemIdr.trim(),
       })
-      toast.success('Fee config updated')
+      toast.success('Biaya berhasil diubah')
       setOverrides({})
       setErrors({})
     } catch (err) {
@@ -121,13 +139,17 @@ export default function FeeConfigUpdateForm({ current }: Props) {
       // when it names none. Anything else (network, 403, 500) is not about a
       // field, so it keeps the toast it always had.
       if (err instanceof ApiError && err.status === 422) {
+        // Pesan server dibawa APA ADANYA — ia menyebut field yang ditolak, dan
+        // menerjemahkannya berarti menebak field mana yang dimaksud. Yang
+        // ditambahkan cuma bingkai berbahasa Indonesia + kodenya dalam kurung,
+        // karena kode itulah yang dikutip operator saat melapor.
+        const detail = `Ditolak server: ${err.message} (${err.code})`
         const field = feeConfigErrorField(err.message)
-        if (field) setErrors({ [field]: err.message })
-        else setFormError(err.message)
+        if (field) setErrors({ [field]: detail })
+        else setFormError(detail)
         return
       }
-      const message =
-        err instanceof Error ? err.message : "Couldn't update the fee config. Please try again."
+      const message = feeConfigErrorMessage(err)
       setFormError(message)
       toast.error(message)
     }
@@ -137,13 +159,13 @@ export default function FeeConfigUpdateForm({ current }: Props) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Update fee config
+          Ubah biaya
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="fee-config-form">
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="mintFeePct">Mint fee</Label>
+            <Label htmlFor="mintFeePct">Biaya mint</Label>
             <div className="relative">
               <Input
                 id="mintFeePct"
@@ -167,7 +189,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="pgFeeVaFlat">PG fee VA (flat)</Label>
+              <Label htmlFor="pgFeeVaFlat">Biaya VA (flat)</Label>
               <div className="relative">
                 <Input
                   id="pgFeeVaFlat"
@@ -188,7 +210,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="pgFeeQrisPct">PG fee QRIS</Label>
+              <Label htmlFor="pgFeeQrisPct">Biaya QRIS</Label>
               <div className="relative">
                 <Input
                   id="pgFeeQrisPct"
@@ -216,7 +238,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="redeemFeePct">Redeem fee</Label>
+                <Label htmlFor="redeemFeePct">Biaya redeem</Label>
                 <div className="relative">
                   <Input
                     id="redeemFeePct"
@@ -237,7 +259,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="disbursementFeeFlat">Disbursement fee (flat)</Label>
+                <Label htmlFor="disbursementFeeFlat">Biaya pencairan (flat)</Label>
                 <div className="relative">
                   <Input
                     id="disbursementFeeFlat"
@@ -264,7 +286,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               akan sering digeser saat uji bayar produksi. */}
           <div className="space-y-4 border-t border-border pt-5">
             <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-              Mint limit
+              Batas mint
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="minMintIdr">Minimum Mint (Rp)</Label>
@@ -298,7 +320,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               rekeningnya. */}
           <div className="space-y-4 border-t border-border pt-5">
             <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-              Redeem limit
+              Batas redeem
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="minRedeemIdr">Minimum Redeem (Rp)</Label>
@@ -326,6 +348,14 @@ export default function FeeConfigUpdateForm({ current }: Props) {
           </div>
         </CardContent>
         <CardFooter className="flex-col items-stretch gap-3">
+          {/* Biaya menentukan harga yang dibayar SETIAP nasabah, jadi kalimat di
+              atas tombol menyebut akibatnya — bukan "Anda yakin?". Form ini
+              memang tanpa dialog konfirmasi (snapshot penuh, bisa disimpan
+              balik), tapi akibatnya tetap harus terbaca sebelum ditekan. */}
+          <p className="text-xs text-muted-foreground">
+            Biaya baru langsung dipakai untuk setiap order mint dan redeem
+            berikutnya. Order yang sudah terbentuk tetap memakai biaya lamanya.
+          </p>
           {formError ? (
             <p role="alert" className="text-sm text-destructive">
               {formError}
@@ -338,7 +368,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
             aria-busy={update.isPending}
             className="w-full"
           >
-            {update.isPending ? 'Updating…' : 'Update fee config'}
+            {update.isPending ? 'Menyimpan…' : 'Simpan biaya baru'}
           </Button>
         </CardFooter>
       </form>

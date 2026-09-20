@@ -51,14 +51,9 @@ const EMPTY: FormState = {
   isActive: true,
 }
 
+// Nama peran TIDAK diterjemahkan dan tidak dipercantik: `ADMIN` di layar ini
+// adalah kata yang sama dengan `ADMIN` di gerbang akses dan di dokumen tim.
 const ROLE_OPTIONS: StaffRole[] = ['STAFF', 'MANAGER', 'DEVELOPER', 'ADMIN']
-
-function formatRole(role: string): string {
-  return role
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 export default function StaffModal({
   open,
@@ -129,7 +124,7 @@ export default function StaffModal({
           password: form.password,
           role: form.role as StaffRole,
         })
-        toast.success('Staff created')
+        toast.success('Pengguna internal dibuat')
       } else if (staff) {
         await update.mutateAsync({
           id: staff.id,
@@ -139,11 +134,15 @@ export default function StaffModal({
             isActive: form.isActive,
           },
         })
-        toast.success('Staff updated')
+        toast.success('Pengguna internal diperbarui')
       }
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save the staff member. Please try again.")
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Pengguna internal gagal disimpan. Coba lagi.'
+      )
     }
   }
 
@@ -161,24 +160,26 @@ export default function StaffModal({
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === 'add' ? 'Add new staff' : 'Edit staff'}
+            {mode === 'add'
+              ? 'Tambah pengguna internal'
+              : 'Ubah pengguna internal'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'Create a back-office operator. They will sign in with the email and password you set here.'
-              : 'Update name, role, or active status. Email and password are not editable here.'}
+              ? 'Buat operator back-office. Dia masuk memakai email dan kata sandi yang disetel di sini.'
+              : 'Ubah nama, peran, atau status aktif. Email dan kata sandi tidak bisa diubah di sini.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogBody className="space-y-4">
           <div>
-            <Label htmlFor="staff-name">Name</Label>
+            <Label htmlFor="staff-name">Nama</Label>
             <Input
               id="staff-name"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
-              placeholder="Jane Doe"
+              placeholder="Budi Santoso"
               className="mt-1.5"
             />
             <FieldError message={errors.name} />
@@ -191,7 +192,7 @@ export default function StaffModal({
               type="email"
               value={form.email}
               onChange={(e) => setField('email', e.target.value)}
-              placeholder="jane@usdx.io"
+              placeholder="budi@usdx.io"
               className="mt-1.5"
               disabled={mode === 'edit'}
               readOnly={mode === 'edit'}
@@ -201,36 +202,36 @@ export default function StaffModal({
 
           {mode === 'add' && (
             <div>
-              <Label htmlFor="staff-password">Password</Label>
+              <Label htmlFor="staff-password">Kata sandi</Label>
               <Input
                 id="staff-password"
                 type="password"
                 value={form.password}
                 onChange={(e) => setField('password', e.target.value)}
-                placeholder="At least 8 characters"
+                placeholder="Minimal 8 karakter"
                 className="mt-1.5"
                 autoComplete="new-password"
               />
               <FieldError message={errors.password} />
               <p className="mt-1 text-2xs text-muted-foreground">
-                Minimum 8 characters.
+                Minimal 8 karakter.
               </p>
             </div>
           )}
 
           <div>
-            <Label htmlFor="staff-role">Role</Label>
+            <Label htmlFor="staff-role">Peran</Label>
             <Select
               value={form.role || undefined}
               onValueChange={(val) => setField('role', val as StaffRole)}
             >
               <SelectTrigger id="staff-role" className="mt-1.5">
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder="Pilih peran" />
               </SelectTrigger>
               <SelectContent>
                 {ROLE_OPTIONS.map((r) => (
                   <SelectItem key={r} value={r}>
-                    {formatRole(r)}
+                    {r}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -245,10 +246,10 @@ export default function StaffModal({
                   htmlFor="staff-active"
                   className="text-sm font-medium"
                 >
-                  Active
+                  Aktif
                 </Label>
                 <p className="text-2xs text-muted-foreground">
-                  Inactive staff cannot sign in.
+                  Pengguna nonaktif tidak bisa masuk ke back-office.
                 </p>
               </div>
               <Switch
@@ -267,14 +268,14 @@ export default function StaffModal({
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button type="submit" disabled={isPending}>
               {isPending
-                ? 'Submitting…'
+                ? 'Menyimpan…'
                 : mode === 'add'
-                  ? 'Create staff'
-                  : 'Save changes'}
+                  ? 'Buat pengguna'
+                  : 'Simpan perubahan'}
             </Button>
           </DialogFooter>
         </form>

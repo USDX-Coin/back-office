@@ -65,7 +65,7 @@ function setup() {
 }
 
 async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
-  const search = screen.getByLabelText(/^user$/i)
+  const search = screen.getByLabelText(/^nasabah$/i)
   await user.type(search, 'rob')
   const option = await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
   await user.click(option)
@@ -75,7 +75,7 @@ describe('BurnFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
     test('renders combobox-style picker (selection-required)', () => {
       setup()
-      const search = screen.getByLabelText(/^user$/i)
+      const search = screen.getByLabelText(/^nasabah$/i)
       expect(search).toHaveAttribute('aria-autocomplete', 'list')
     })
 
@@ -83,7 +83,7 @@ describe('BurnFormPage @ USDX-46', () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
       setup()
-      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      await user.type(screen.getByLabelText(/^nasabah$/i), 'rob')
       const option = await screen.findByRole('option', {
         name: new RegExp(VERIFIED_USER_NAME, 'i'),
       })
@@ -94,9 +94,9 @@ describe('BurnFormPage @ USDX-46', () => {
   describe('AC5 — burn-only fields retained', () => {
     test('renders deposit tx hash + bank name + bank account', () => {
       setup()
-      expect(screen.getByLabelText(/deposit tx hash/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/bank name/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/bank account/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/tx hash setoran/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/nama bank/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/nomor rekening/i)).toBeInTheDocument()
     })
   })
 
@@ -152,11 +152,11 @@ describe('BurnFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '500')
-      await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
-      await user.type(screen.getByLabelText(/bank name/i), 'BCA')
-      await user.type(screen.getByLabelText(/bank account/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '500')
+      await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
+      await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
+      await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
+      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
 
       await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
@@ -176,8 +176,8 @@ describe('BurnFormPage @ USDX-46', () => {
     test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
       setup()
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
-      expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
+      expect(await screen.findByText(/nasabah wajib dipilih/i)).toBeInTheDocument()
     })
   })
 
@@ -193,11 +193,11 @@ describe('BurnFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '750')
-      await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
-      await user.type(screen.getByLabelText(/bank name/i), 'BCA')
-      await user.type(screen.getByLabelText(/bank account/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '750')
+      await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
+      await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
+      await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
+      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
     }
 
     test('renders banner with short blocking ID + Manual Sync link on 409', { timeout: 15000 }, async () => {
@@ -258,9 +258,9 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
       await screen.findByTestId('safe-queue-occupied-banner')
 
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('750')
-      expect(screen.getByLabelText(/deposit tx hash/i)).toHaveValue(VALID_TX)
-      expect(screen.getByLabelText(/bank name/i)).toHaveValue('BCA')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('750')
+      expect(screen.getByLabelText(/tx hash setoran/i)).toHaveValue(VALID_TX)
+      expect(screen.getByLabelText(/nama bank/i)).toHaveValue('BCA')
       expect(screen.queryByTestId('burn-list-page')).not.toBeInTheDocument()
     })
 

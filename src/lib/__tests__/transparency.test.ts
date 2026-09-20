@@ -249,7 +249,7 @@ describe('activeAttestations', () => {
 describe('getPeriodParts', () => {
   describe('positive', () => {
     test('splits a valid period into month and year', () => {
-      expect(getPeriodParts('2026-07')).toEqual({ month: 'July', year: '2026' })
+      expect(getPeriodParts('2026-07')).toEqual({ month: 'Juli', year: '2026' })
     })
   })
 
@@ -266,7 +266,7 @@ describe('getPeriodParts', () => {
 
 describe('formatPeriod', () => {
   test('renders a valid period in full', () => {
-    expect(formatPeriod('2026-07')).toBe('July 2026')
+    expect(formatPeriod('2026-07')).toBe('Juli 2026')
   })
   test('falls back to the raw value when it is not a period', () => {
     expect(formatPeriod('whenever')).toBe('whenever')

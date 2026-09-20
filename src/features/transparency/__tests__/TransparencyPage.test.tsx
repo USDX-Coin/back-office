@@ -68,7 +68,7 @@ function wibTodayInput(): string {
 }
 
 function setDate(value: string) {
-  fireEvent.change(screen.getByLabelText(/^event date$/i), { target: { value } })
+  fireEvent.change(screen.getByLabelText(/^tanggal kejadian$/i), { target: { value } })
 }
 
 async function fillEntryForm(
@@ -81,8 +81,8 @@ async function fillEntryForm(
   }: Partial<{ type: string; amount: string; reason: string; occurredAt: string }> = {}
 ) {
   if (type) await user.click(screen.getByRole('radio', { name: new RegExp(type) }))
-  if (amount) await user.type(screen.getByLabelText(/^amount$/i), amount)
-  if (reason) await user.type(screen.getByLabelText(/^reason$/i), reason)
+  if (amount) await user.type(screen.getByLabelText(/^nominal$/i), amount)
+  if (reason) await user.type(screen.getByLabelText(/^alasan$/i), reason)
   if (occurredAt) setDate(occurredAt)
 }
 
@@ -111,6 +111,15 @@ function renamedNonPdfFile(name = 'evil.pdf') {
   // `type: ''` is what a browser reports for many drag-and-dropped files, and
   // it is the branch the extension fallback exists to tolerate.
   return new File(['MZ\x90\x00 not a pdf at all'], name, { type: '' })
+}
+
+/**
+ * Pesan galat seperti yang DILIHAT operator: kalimat dari server apa adanya
+ * plus KODE-nya dalam kurung. Kode itulah yang dikutip operator saat melapor ke
+ * tim teknis — pola `unknownStatusLabel()` di `src/lib/status.ts`.
+ */
+function shownError(message: string, code: string): string {
+  return `${message} (${code})`
 }
 
 /** Every idempotency key the client mints is a UUID. */
@@ -177,11 +186,11 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent(
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent(
           '987,654.32'
         )
       })
-      expect(screen.getByLabelText(/reserve balance/i)).not.toHaveTextContent('25.00')
+      expect(screen.getByLabelText(/^saldo cadangan$/i)).not.toHaveTextContent('25.00')
     })
 
     test('a paginated ledger still shows the whole-ledger balance, not the page total', async () => {
@@ -199,11 +208,11 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent(
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent(
           '2,500,000.00'
         )
       })
-      expect(screen.getByText(/showing 1–1 of 120 entries/i)).toBeInTheDocument()
+      expect(screen.getByText(/menampilkan 1–1 dari 120 entri/i)).toBeInTheDocument()
     })
 
     // Contract § 3: an empty ledger returns `{ "0.00", "USD" }` and the staff
@@ -224,8 +233,8 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      expect(await screen.findByText(/no ledger entries yet/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('0.00')
+      expect(await screen.findByText(/belum ada entri buku besar/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('0.00')
     })
   })
 
@@ -254,7 +263,7 @@ describe('TransparencyPage @integration', () => {
 
       // Every cell must render a real value — the previous round shipped
       // "undefined undefined" here because the field names were invented.
-      const table = await screen.findByRole('table', { name: /reserve ledger entries/i })
+      const table = await screen.findByRole('table', { name: /entri buku besar cadangan/i })
       expect(within(table).getByText('30 Jul 2026')).toBeInTheDocument()
       expect(within(table).getByText('ADJUSTMENT')).toBeInTheDocument()
       expect(within(table).getByText('-1,250.75 USD')).toBeInTheDocument()
@@ -286,7 +295,7 @@ describe('TransparencyPage @integration', () => {
 
       expect(await screen.findByText('Entri halaman 1 ledger')).toBeInTheDocument()
       await user.click(
-        screen.getByRole('button', { name: /next page of ledger entries/i })
+        screen.getByRole('button', { name: /halaman berikutnya buku besar/i })
       )
 
       expect(await screen.findByText('Entri halaman 2 ledger')).toBeInTheDocument()
@@ -295,7 +304,7 @@ describe('TransparencyPage @integration', () => {
 
     test('the ledger offers no edit or delete affordance — it is append-only', async () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       expect(screen.queryByRole('button', { name: /^edit/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /^delete/i })).not.toBeInTheDocument()
@@ -307,39 +316,39 @@ describe('TransparencyPage @integration', () => {
     test('blocks a zero amount (LEDGER_AMOUNT_ZERO)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '0' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      expect(await screen.findByText(/amount cannot be zero/i)).toBeInTheDocument()
+      expect(await screen.findByText(/nominal tidak boleh nol/i)).toBeInTheDocument()
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     test('blocks an amount with more than 2 decimals (LEDGER_AMOUNT_INVALID)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100.123' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       expect(
-        await screen.findByText(/at most 2 decimal places/i)
+        await screen.findByText(/maksimal 2 angka di belakang koma/i)
       ).toBeInTheDocument()
     })
 
     test('ALLOWS a negative amount — that is how a correction is recorded', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       // It reaches the confirmation instead of being rejected.
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByLabelText(/amount to record/i)).toHaveTextContent(
+      expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
         '-1,250.75 USD'
       )
     })
@@ -347,41 +356,41 @@ describe('TransparencyPage @integration', () => {
     test('blocks a reason under 10 characters (LEDGER_REASON_TOO_SHORT)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { reason: 'setoran' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       // Assert on the alert, not on any text match: the field's own hint text
       // also mentions the 10-character minimum.
       const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent(/at least 10 characters/i)
+      expect(alert).toHaveTextContent(/alasan minimal 10 karakter/i)
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     test('blocks an event date in the future (LEDGER_DATE_IN_FUTURE)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       const tomorrow = new Date(Date.now() + 7 * 60 * 60 * 1000 + 86_400_000)
         .toISOString()
         .slice(0, 10)
       await fillEntryForm(user, { occurredAt: tomorrow })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       expect(
-        await screen.findByText(/event date cannot be in the future/i)
+        await screen.findByText(/tanggal kejadian tidak boleh di masa depan/i)
       ).toBeInTheDocument()
     })
 
     test("accepts today's WIB date, which is what an operator files at 01:00 WIB", async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { occurredAt: wibTodayInput() })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       expect(await screen.findByRole('dialog')).toBeInTheDocument()
     })
@@ -389,17 +398,17 @@ describe('TransparencyPage @integration', () => {
     test('requires an entry type (LEDGER_TYPE_NOT_ALLOWED)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { type: '' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      expect(await screen.findByText(/entry type is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/jenis entri wajib dipilih/i)).toBeInTheDocument()
     })
 
     test('offers only SEED and ADJUSTMENT — the reserved automatic types are not selectable', async () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       expect(screen.getAllByRole('radio')).toHaveLength(2)
       expect(screen.getByRole('radio', { name: /SEED/ })).toBeInTheDocument()
@@ -411,7 +420,7 @@ describe('TransparencyPage @integration', () => {
 
     test('the currency field is fixed to USD (LEDGER_CURRENCY_UNSUPPORTED)', async () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      const currency = await screen.findByLabelText(/^currency$/i)
+      const currency = await screen.findByLabelText(/^mata uang$/i)
       expect(currency).toHaveValue('USD')
       expect(currency).toHaveAttribute('readonly')
     })
@@ -428,10 +437,10 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       await screen.findByRole('dialog')
       // The load-bearing assertion: opening the dialog must not be a write.
@@ -452,23 +461,23 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '2500.50' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/usdx\.co\.id/i)).toBeInTheDocument()
-      expect(within(dialog).getByLabelText(/amount to record/i)).toHaveTextContent(
+      expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
         '2,500.50 USD'
       )
       // 50000.00 + 2500.50, computed exactly — this is the number the public
       // will see the moment Confirm is pressed.
       expect(
-        within(dialog).getByLabelText(/new reserve balance/i)
+        within(dialog).getByLabelText(/saldo cadangan baru/i)
       ).toHaveTextContent('52,500.50 USD')
       expect(
-        within(dialog).getByText(/only fix is to record another entry/i)
+        within(dialog).getByText(/satu-satunya perbaikan adalah mencatat entri baru/i)
       ).toBeInTheDocument()
     })
 
@@ -486,14 +495,14 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       const dialog = await screen.findByRole('dialog')
       expect(
-        within(dialog).getByLabelText(/new reserve balance/i)
+        within(dialog).getByLabelText(/saldo cadangan baru/i)
       ).toHaveTextContent('99,416.66 USD')
     })
 
@@ -507,12 +516,12 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+      await user.click(within(dialog).getByRole('button', { name: /batal/i }))
 
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -533,7 +542,7 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, {
         type: 'SEED',
@@ -541,9 +550,9 @@ describe('TransparencyPage @integration', () => {
         reason: 'Setoran giro USD untuk cadangan awal',
         occurredAt: '2026-07-23',
       })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
       // Field-for-field against KONTRAK-API-TRANSPARANSI.md § 3 POST /ledger.
@@ -575,17 +584,17 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // Both actions are disabled, so a double-click cannot file the entry twice.
-      const confirm = await within(dialog).findByRole('button', { name: /recording/i })
+      const confirm = await within(dialog).findByRole('button', { name: /mencatat/i })
       expect(confirm).toBeDisabled()
-      expect(within(dialog).getByRole('button', { name: /cancel/i })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: /batal/i })).toBeDisabled()
 
       release?.()
       await waitFor(() => {
@@ -596,23 +605,23 @@ describe('TransparencyPage @integration', () => {
     test('a successful entry clears the form and refreshes the balance', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       // Seeded ledger balance: 50000.00 + 2500.50 - 1250.75 = 51249.75
       await waitFor(() => {
-        expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('51,249.75')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51,249.75')
       })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '1000.25' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('52,250.00')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('52,250.00')
       })
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
-      expect(screen.getByLabelText(/^reason$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^alasan$/i)).toHaveValue('')
     })
   })
 
@@ -641,15 +650,15 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await within(dialog).findByText(/upstream request timed out/i)
-      const retry = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      const retry = within(dialog).getByRole('button', { name: /ya, catat entri/i })
       await waitFor(() => expect(retry).toBeEnabled())
       await user.click(retry)
 
@@ -665,7 +674,7 @@ describe('TransparencyPage @integration', () => {
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
     })
 
     test('a 200 replay is treated as success, exactly like a 201', async () => {
@@ -681,19 +690,19 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
       // No error surface anywhere — not on a field, not in the dialog.
-      expect(screen.queryByText(/couldn't record the entry/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/entri gagal dicatat/i)).not.toBeInTheDocument()
     })
 
     test('the minted key satisfies the backend’s 16–200 character bound', async () => {
@@ -710,12 +719,12 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => expect(keys).toHaveLength(1))
       // Below 16 the backend answers LEDGER_IDEMPOTENCY_KEY_INVALID — and the
@@ -746,13 +755,13 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
       const readsBefore = ledgerReads
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The operator typed nothing wrong — this is the client's own bug — so
       // pinning it on Amount or Reason would send them to fix a correct field.
@@ -762,7 +771,7 @@ describe('TransparencyPage @integration', () => {
       // A 422 is a definite "nothing was written", so no balance re-read: that
       // is reserved for failures where the outcome is genuinely unknown.
       expect(
-        screen.queryByText(/balance re-read after the error/i)
+        screen.queryByText(/saldo dibaca ulang setelah galat/i)
       ).not.toBeInTheDocument()
       expect(ledgerReads).toBe(readsBefore)
     })
@@ -781,14 +790,14 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       for (const amount of ['1000.00', '2000.00']) {
         await fillEntryForm(user, { amount })
-        await user.click(screen.getByRole('button', { name: /review and record/i }))
+        await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
         const dialog = await screen.findByRole('dialog')
         await user.click(
-          within(dialog).getByRole('button', { name: /yes, record entry/i })
+          within(dialog).getByRole('button', { name: /ya, catat entri/i })
         )
         await waitFor(() => {
           expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -825,25 +834,25 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The operator is shown the balance AS IT NOW STANDS, not the stale one
       // the dialog opened with, so pressing retry is an informed decision.
       expect(
-        await within(dialog).findByText(/balance re-read after the error/i)
+        await within(dialog).findByText(/saldo dibaca ulang setelah galat/i)
       ).toBeInTheDocument()
       await waitFor(() => {
         expect(
-          within(dialog).getByLabelText(/rechecked reserve balance/i)
+          within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
         ).toHaveTextContent('150,667.41')
       })
       expect(
-        within(dialog).getByText(/close this dialog instead of trying again/i)
+        within(dialog).getByText(/tutup dialog ini, jangan coba lagi/i)
       ).toBeInTheDocument()
       expect(ledgerReads).toBeGreaterThan(1)
     })
@@ -856,15 +865,17 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
-      await screen.findByText('reason must be at least 10 characters')
-      expect(screen.queryByText(/balance re-read after the error/i)).not.toBeInTheDocument()
+      await screen.findByText(
+        shownError('reason must be at least 10 characters', 'LEDGER_REASON_TOO_SHORT')
+      )
+      expect(screen.queryByText(/saldo dibaca ulang setelah galat/i)).not.toBeInTheDocument()
     })
 
     test('recording is BLOCKED while the current balance is unknown', async () => {
@@ -883,19 +894,19 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       // A CORRECTION is the entry most likely to be filed here, and a correction
       // without its running balance is exactly the case that puts the published
       // reserve underwater. So it is refused, not merely annotated.
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
 
       expect(
-        within(dialog).getByText(/current reserve balance could not be loaded/i)
+        within(dialog).getByText(/saldo cadangan saat ini gagal dimuat/i)
       ).toBeInTheDocument()
-      const confirm = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      const confirm = within(dialog).getByRole('button', { name: /ya, catat entri/i })
       expect(confirm).toBeDisabled()
       await user.click(confirm)
       expect(postCalls).toBe(0)
@@ -912,6 +923,10 @@ describe('TransparencyPage @integration', () => {
   describe('AC: a 409 key conflict is an actionable failure, never a success', () => {
     const CONFLICT_MESSAGE =
       'This idempotencyKey is already used by an entry with DIFFERENT content.'
+    const CONFLICT_SHOWN = shownError(
+      CONFLICT_MESSAGE,
+      'LEDGER_IDEMPOTENCY_KEY_CONFLICT'
+    )
 
     function conflictHandlers(options: { balanceAfter?: string } = {}) {
       let ledgerReads = 0
@@ -953,26 +968,26 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The server's own wording, in the DIALOG: no single input is at fault —
       // the amount the operator just corrected may well be the right one.
-      expect(await within(dialog).findByText(CONFLICT_MESSAGE)).toBeInTheDocument()
+      expect(await within(dialog).findByText(CONFLICT_SHOWN)).toBeInTheDocument()
       expect(
-        within(dialog).getByText(/its key belongs to a different entry/i)
+        within(dialog).getByText(/kuncinya sudah dipakai entri lain/i)
       ).toBeInTheDocument()
       // Not success: the dialog stays, the form is untouched, nothing is reset.
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('100000.00')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('100000.00')
       // And no message was pinned to a field the operator filled in correctly.
       expect(
-        within(screen.getByLabelText(/^amount$/i).closest('div')!).queryByText(
-          CONFLICT_MESSAGE
+        within(screen.getByLabelText(/^nominal$/i).closest('div')!).queryByText(
+          CONFLICT_SHOWN
         )
       ).not.toBeInTheDocument()
     })
@@ -989,13 +1004,13 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
       const readsBefore = counters.reads
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The balance the OTHER entry produced is what decides the operator's next
       // move, so it is fetched fresh and put on screen before anything else is
@@ -1003,19 +1018,19 @@ describe('TransparencyPage @integration', () => {
       // labelled as the other entry's doing, never as this attempt's.
       expect(
         await within(dialog).findByText(
-          /balance after the other entry that holds this key/i
+          /saldo setelah entri lain yang memakai kunci ini/i
         )
       ).toBeInTheDocument()
       await waitFor(() => {
         expect(
-          within(dialog).getByLabelText(/rechecked reserve balance/i)
+          within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
         ).toHaveTextContent('1,050,000.00')
       })
       expect(counters.reads).toBeGreaterThan(readsBefore)
 
       // Pressing confirm again would re-send the SAME key and could only earn
       // the same 409 — a dead end, so it is locked.
-      const confirm = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      const confirm = within(dialog).getByRole('button', { name: /ya, catat entri/i })
       expect(confirm).toBeDisabled()
       await user.click(confirm)
       expect(posts).toBe(1)
@@ -1038,45 +1053,45 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       // The contract's own scenario: 1,000,000.00 was mistyped and DID land,
       // the operator corrects it to 100,000.00, and the same key comes back 409.
       await fillEntryForm(user, { amount: '100000.00' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
-      await within(dialog).findByText(CONFLICT_MESSAGE)
+      await within(dialog).findByText(CONFLICT_SHOWN)
       await waitFor(() => {
         expect(
-          within(dialog).getByLabelText(/rechecked reserve balance/i)
+          within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
         ).toHaveTextContent('1,050,000.00')
       })
 
       // Not one sentence may say, or hint, that this entry made it in.
       expect(
-        within(dialog).queryByText(/recorded despite the error/i)
+        within(dialog).queryByText(/entrinya tercatat meski galat muncul/i)
       ).not.toBeInTheDocument()
       expect(
-        within(dialog).queryByText(/close this dialog instead of trying again/i)
+        within(dialog).queryByText(/tutup dialog ini, jangan coba lagi/i)
       ).not.toBeInTheDocument()
       // And the figure on screen is owned by the OTHER entry, out loud, so the
       // raised balance cannot be mistaken for proof that this one was filed.
       expect(
-        within(dialog).queryByText(/balance re-read after the error/i)
+        within(dialog).queryByText(/saldo dibaca ulang setelah galat/i)
       ).not.toBeInTheDocument()
       expect(
         within(dialog).getByText(
-          /balance after the other entry that holds this key/i
+          /saldo setelah entri lain yang memakai kunci ini/i
         )
       ).toBeInTheDocument()
       expect(
-        within(dialog).getByText(/does not include the entry above/i)
+        within(dialog).getByText(/tidak memuat entri di atas/i)
       ).toBeInTheDocument()
       // The standing verdict is unchanged and still the loud one.
       expect(
-        within(dialog).getByText(/this entry was not recorded/i)
+        within(dialog).getByText(/entri ini tidak tercatat/i)
       ).toBeInTheDocument()
     })
 
@@ -1098,21 +1113,21 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
-      await within(dialog).findByText(CONFLICT_MESSAGE)
+      await within(dialog).findByText(CONFLICT_SHOWN)
       // The append-only consequence is stated where the decision is made: this
       // does not replace the entry that owns the old key, it is added beside it.
       expect(
-        within(dialog).getByText(/does not replace or correct it/i)
+        within(dialog).getByText(/bukan menggantikan dan bukan mengoreksinya/i)
       ).toBeInTheDocument()
       await user.click(
-        within(dialog).getByRole('button', { name: /record as a new entry/i })
+        within(dialog).getByRole('button', { name: /catat sebagai entri baru/i })
       )
 
       await waitFor(() => expect(bodies).toHaveLength(2))
@@ -1128,7 +1143,7 @@ describe('TransparencyPage @integration', () => {
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
     })
 
     test('a timeout AFTER the new key re-sends that same new key, not a third one', async () => {
@@ -1153,20 +1168,20 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
-      await within(dialog).findByText(CONFLICT_MESSAGE)
+      await within(dialog).findByText(CONFLICT_SHOWN)
       await user.click(
-        within(dialog).getByRole('button', { name: /record as a new entry/i })
+        within(dialog).getByRole('button', { name: /catat sebagai entri baru/i })
       )
 
       await within(dialog).findByText(/upstream request timed out/i)
-      const retry = within(dialog).getByRole('button', { name: /yes, record entry/i })
+      const retry = within(dialog).getByRole('button', { name: /ya, catat entri/i })
       await waitFor(() => expect(retry).toBeEnabled())
       await user.click(retry)
 
@@ -1192,16 +1207,18 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The server's own wording, not a paraphrase, back on the form.
       expect(
-        await screen.findByText('reason must be at least 10 characters')
+        await screen.findByText(
+          shownError('reason must be at least 10 characters', 'LEDGER_REASON_TOO_SHORT')
+        )
       ).toBeInTheDocument()
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -1216,15 +1233,17 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
-        await screen.findByText('occurredAt cannot be in the future')
+        await screen.findByText(
+          shownError('occurredAt cannot be in the future', 'LEDGER_DATE_IN_FUTURE')
+        )
       ).toBeInTheDocument()
     })
 
@@ -1236,19 +1255,19 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
         await within(dialog).findByText(/reserve service unavailable/i)
       ).toBeInTheDocument()
       expect(screen.getByRole('dialog')).toBeInTheDocument()
       // Nobody should have to retype a reserve figure after a transient failure.
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('100667.41')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('100667.41')
     })
 
     test('a 403 for a non-admin write is surfaced, not swallowed', async () => {
@@ -1259,12 +1278,12 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
         await within(dialog).findByText(/only admin can write transparency data/i)
@@ -1293,15 +1312,17 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
-        await within(dialog).findByText('amount must be a string')
+        await within(dialog).findByText(
+          shownError('amount must be a string', 'BAD_REQUEST')
+        )
       ).toBeInTheDocument()
     })
 
@@ -1313,15 +1334,17 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /review and record/i })
+      await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       await fillEntryForm(user)
-      await user.click(screen.getByRole('button', { name: /review and record/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, record entry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
-        await screen.findByText('occurredAt must be a real date')
+        await screen.findByText(
+          shownError('occurredAt must be a real date', 'LEDGER_DATE_INVALID')
+        )
       ).toBeInTheDocument()
     })
 
@@ -1334,11 +1357,11 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       expect(
-        await screen.findByText(/couldn't load the reserve ledger/i)
+        await screen.findByText(/buku besar cadangan gagal dimuat/i)
       ).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
       // A failed load must not be rendered as a zero reserve.
-      expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('—')
+      expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('—')
     })
 
     test('a failed attestation load shows its own retry state', async () => {
@@ -1350,7 +1373,7 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       expect(
-        await screen.findByText(/couldn't load attestation reports/i)
+        await screen.findByText(/laporan atestasi gagal dimuat/i)
       ).toBeInTheDocument()
     })
   })
@@ -1392,7 +1415,7 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       expect(
-        await screen.findByText(/no active attestation reports/i)
+        await screen.findByText(/belum ada laporan atestasi aktif/i)
       ).toBeInTheDocument()
       expect(screen.queryByText(/laporan yang sudah ditarik/i)).not.toBeInTheDocument()
     })
@@ -1463,13 +1486,13 @@ describe('TransparencyPage @integration', () => {
 
       renderWithProviders(<TransparencyPage />, { authenticated: true })
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan-juli.pdf', 4096)] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       await waitFor(() => expect(calls).toEqual(['upload-url', 'put', 'register']))
       // Step 1 MUST carry `period` AND `sizeBytes`. The backend derives
@@ -1508,19 +1531,19 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/downloaded by anyone/i)).toBeInTheDocument()
-      expect(within(dialog).getByText('July')).toBeInTheDocument()
+      expect(within(dialog).getByText(/diunduh siapa pun/i)).toBeInTheDocument()
+      expect(within(dialog).getByText('Juli')).toBeInTheDocument()
       expect(within(dialog).getByText('2026')).toBeInTheDocument()
       expect(ticketCalls).toBe(0)
 
-      await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+      await user.click(within(dialog).getByRole('button', { name: /batal/i }))
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
@@ -1551,13 +1574,13 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
         await within(dialog).findByText(/period is required and must be a YYYY-MM value/i)
@@ -1594,17 +1617,17 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       // A .pdf whose browser-reported MIME is empty. If the client derived the
       // header from the FILE instead of the TICKET it would send the wrong
       // value here and storage would reject it.
       const blankTypeFile = new File(['%PDF-1.7 laporan'], 'laporan.pdf', { type: '' })
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [blankTypeFile] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       // Succeeds precisely because the header came from the ticket.
       await waitFor(() => expect(registerCalls).toBe(1))
@@ -1636,16 +1659,16 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
-        await within(dialog).findByText(/upload link expired/i)
+        await within(dialog).findByText(/tautan unggah kedaluwarsa/i)
       ).toBeInTheDocument()
       expect(putCalls).toBe(0)
       expect(registerCalls).toBe(0)
@@ -1674,16 +1697,16 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
-        await within(dialog).findByText(/upload to storage failed \(403\)/i)
+        await within(dialog).findByText(/unggah ke penyimpanan gagal \(403\)/i)
       ).toBeInTheDocument()
       // A report row whose file never landed would be a broken public download.
       expect(registerCalls).toBe(0)
@@ -1714,13 +1737,13 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-06')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juni 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juni 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
         await within(dialog).findByText(/an active report already exists for 2026-06/i)
@@ -1744,15 +1767,15 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Juli')
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       // fireEvent (not user.upload) so the input's `accept` filter does not
       // silently drop the file — we want to prove OUR validation rejects it.
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [new File(['x'], 'laporan.png', { type: 'image/png' })] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
-      expect(await screen.findByText(/only pdf files can be uploaded/i)).toBeInTheDocument()
+      expect(await screen.findByText(/hanya berkas PDF yang bisa diunggah/i)).toBeInTheDocument()
       expect(ticketCalls).toBe(0)
     })
 
@@ -1761,14 +1784,14 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), 'Juli 2026')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Juli')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
       expect(
-        await screen.findByText(/period must use the YYYY-MM format/i)
+        await screen.findByText(/periode harus memakai format YYYY-MM/i)
       ).toBeInTheDocument()
     })
 
@@ -1781,13 +1804,13 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan-juli.pdf', 2048)] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
         await screen.findByRole('link', { name: /laporan atestasi juli 2026/i })
@@ -1801,14 +1824,14 @@ describe('TransparencyPage @integration', () => {
         renderWithProviders(<TransparencyPage />, { authenticated: true })
 
         await user.type(await screen.findByLabelText(/period/i), '2026-07')
-        await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-        fireEvent.change(screen.getByLabelText(/report file/i), {
+        await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+        fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
           target: { files: [pdfFile('laporan-juli.pdf', 2048)] },
         })
-        await user.click(screen.getByRole('button', { name: /review and upload/i }))
+        await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
         const dialog = await screen.findByRole('dialog')
         await user.click(
-          within(dialog).getByRole('button', { name: /yes, publish publicly/i })
+          within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i })
         )
 
         await waitFor(() => expect(inits).toHaveLength(1))
@@ -1856,17 +1879,19 @@ describe('TransparencyPage @integration', () => {
         const view = renderWithProviders(<TransparencyPage />, { authenticated: true })
 
         await user.type(await screen.findByLabelText(/period/i), '2026-07')
-        await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-        fireEvent.change(screen.getByLabelText(/report file/i), {
+        await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+        fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
           target: { files: [pdfFile('laporan.pdf', 512)] },
         })
-        await user.click(screen.getByRole('button', { name: /review and upload/i }))
+        await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
         const dialog = await screen.findByRole('dialog')
         await user.click(
-          within(dialog).getByRole('button', { name: /yes, publish publicly/i })
+          within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i })
         )
 
-        expect(await within(dialog).findByText(message)).toBeInTheDocument()
+        expect(
+          await within(dialog).findByText(shownError(message, code))
+        ).toBeInTheDocument()
         view.unmount()
         server.resetHandlers()
       }
@@ -1882,13 +1907,13 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Atestasi Juli 2026')
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan.pdf', 512)] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, publish publicly/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       // Infrastructure failures fail closed and stay infrastructure failures.
       // Translating "the bucket is down" into a 422 would tell the operator to
@@ -1896,7 +1921,7 @@ describe('TransparencyPage @integration', () => {
       expect(
         await within(dialog).findByText(/object storage is unavailable/i)
       ).toBeInTheDocument()
-      expect(within(dialog).queryByText(/not a PDF/i)).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/bukan PDF/i)).not.toBeInTheDocument()
     })
 
     test('a renamed non-PDF is rejected on its BYTES, not on its name', async () => {
@@ -1916,16 +1941,16 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Juli')
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       // `{ name: 'evil.pdf', type: '' }` passes every name/MIME check: the
       // empty-type fallback exists for drag-and-dropped files and accepts the
       // extension as proof. The header bytes are the only claim it cannot fake.
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [renamedNonPdfFile()] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
-      expect(await screen.findByText(/not a PDF/i)).toBeInTheDocument()
+      expect(await screen.findByText(/bukan PDF/i)).toBeInTheDocument()
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(ticketCalls).toBe(0)
     })
@@ -1935,19 +1960,19 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
-      await user.type(screen.getByLabelText(/title/i), 'Laporan Juli')
+      await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       const tooBig = new File(['%PDF-1.7'], 'besar.pdf', { type: 'application/pdf' })
       Object.defineProperty(tooBig, 'size', { value: 5 * 1024 * 1024 + 1 })
-      fireEvent.change(screen.getByLabelText(/report file/i), {
+      fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [tooBig] },
       })
-      await user.click(screen.getByRole('button', { name: /review and upload/i }))
+      await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
       // 5 MiB, not 10 MB. The backend signs the URL for at most this many bytes
       // and rejects more with ATTESTATION_FILE_TOO_LARGE; a looser promise here
       // only moves the rejection to after the operator waited for the upload.
-      expect(await screen.findByText(/at most 5 MiB/i)).toBeInTheDocument()
-      expect(screen.getByText(/PDF only, up to 5 MiB/i)).toBeInTheDocument()
+      expect(await screen.findByText(/ukuran berkas maksimal 5 MiB/i)).toBeInTheDocument()
+      expect(screen.getByText(/hanya PDF, maksimal 5 MiB/i)).toBeInTheDocument()
     })
 
     test('the list asks for an explicit page and take — not the backend default of 20', async () => {
@@ -2002,20 +2027,20 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      expect(await screen.findByText(/page 1 of 2/i)).toBeInTheDocument()
+      expect(await screen.findByText(/halaman 1 dari 2/i)).toBeInTheDocument()
       expect(screen.queryByText('Laporan nomor 51')).not.toBeInTheDocument()
 
       await user.click(
-        screen.getByRole('button', { name: /next page of attestation reports/i })
+        screen.getByRole('button', { name: /halaman berikutnya laporan atestasi/i })
       )
       const link = await screen.findByRole('link', { name: 'Laporan nomor 51' })
       expect(link).toBeInTheDocument()
 
       await user.click(
-        screen.getByRole('button', { name: /revoke report Laporan nomor 51/i })
+        screen.getByRole('button', { name: /cabut laporan Laporan nomor 51/i })
       )
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /^revoke report$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^cabut laporan$/i }))
 
       await waitFor(() => expect(revoked).toBe('att-51'))
       expect(requestedPages.some((p) => p.startsWith('2/'))).toBe(true)
@@ -2025,16 +2050,16 @@ describe('TransparencyPage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      const revokeButtons = await screen.findAllByRole('button', { name: /^revoke report/i })
+      const revokeButtons = await screen.findAllByRole('button', { name: /^cabut laporan/i })
       // Only the two ACTIVE reports are revocable — the revoked one is not listed.
       expect(revokeButtons).toHaveLength(2)
       await user.click(revokeButtons[0]!)
 
       const dialog = await screen.findByRole('dialog')
       expect(
-        within(dialog).getByText(/revoke this attestation report\?/i)
+        within(dialog).getByText(/cabut laporan atestasi ini\?/i)
       ).toBeInTheDocument()
-      await user.click(within(dialog).getByRole('button', { name: /^revoke report$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^cabut laporan$/i }))
 
       await waitFor(() => {
         expect(
@@ -2052,10 +2077,10 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      const revokeButtons = await screen.findAllByRole('button', { name: /^revoke report/i })
+      const revokeButtons = await screen.findAllByRole('button', { name: /^cabut laporan/i })
       await user.click(revokeButtons[0]!)
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /^revoke report$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^cabut laporan$/i }))
 
       expect(await within(dialog).findByText(/revoke failed upstream/i)).toBeInTheDocument()
       // Text query (not getByRole): Radix marks everything outside the open
@@ -2071,21 +2096,21 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />)
 
       expect(
-        await screen.findByText(/your role does not have permission to record/i)
+        await screen.findByText(/tidak bisa mencatat entri cadangan/i)
       ).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /review and record/i })
+        screen.queryByRole('button', { name: /periksa lalu catat/i })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /review and upload/i })
+        screen.queryByRole('button', { name: /periksa lalu unggah/i })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /^revoke report/i })
+        screen.queryByRole('button', { name: /^cabut laporan/i })
       ).not.toBeInTheDocument()
 
       // Reading stays available — that is the point of the DEVELOPER role here.
       await waitFor(() => {
-        expect(screen.getByLabelText(/reserve balance/i)).toHaveTextContent('51,249.75')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51,249.75')
       })
     })
   })

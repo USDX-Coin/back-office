@@ -120,7 +120,7 @@ const field = (scope: HTMLElement, testId: string) =>
 function expectMasked(scope: HTMLElement, testId: string) {
   const f = field(scope, testId)
   expect(f.getByText('***')).toBeInTheDocument()
-  expect(f.getByText(/not shown to your role/i)).toBeInTheDocument()
+  expect(f.getByText(/tidak ditampilkan untuk peran ini/i)).toBeInTheDocument()
 }
 
 describe('KycDetailModal @ USDX-155', () => {
@@ -148,16 +148,18 @@ describe('KycDetailModal @ USDX-155', () => {
       stubDetail(makeDetail())
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      const ktp = await within(dialog).findByAltText('KTP photo')
+      const ktp = await within(dialog).findByAltText('Foto KTP')
       expect(ktp).toHaveAttribute(
         'src',
         'https://t3.storageapi.dev/usdx-kyc/ktp.jpg?sig=abc'
       )
-      expect(within(dialog).getByAltText('Selfie with KTP')).toHaveAttribute(
+      expect(within(dialog).getByAltText('Selfie dengan KTP')).toHaveAttribute(
         'src',
         'https://t3.storageapi.dev/usdx-kyc/selfie.jpg?sig=def'
       )
-      expect(within(dialog).getByText(/photo links expire in/i)).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/tautan foto kedaluwarsa dalam/i),
+      ).toBeInTheDocument()
     })
 
     test('AC — audit trail collapsible loads reviews lazily and shows SUBMITTED row', async () => {
@@ -198,11 +200,11 @@ describe('KycDetailModal @ USDX-155', () => {
       // Lazy: nothing fetched until the collapsible opens.
       expect(reviewsCalls).toBe(0)
 
-      await user.click(within(dialog).getByRole('button', { name: /audit trail/i }))
-      await within(dialog).findByText('Submitted')
+      await user.click(within(dialog).getByRole('button', { name: /jejak audit/i }))
+      await within(dialog).findByText('Diajukan')
       expect(reviewsCalls).toBe(1)
-      expect(within(dialog).getByText('Viewed')).toBeInTheDocument()
-      expect(within(dialog).getByText('User (consumer app)')).toBeInTheDocument()
+      expect(within(dialog).getByText('Dilihat')).toBeInTheDocument()
+      expect(within(dialog).getByText('Nasabah (aplikasi)')).toBeInTheDocument()
       expect(within(dialog).getByText('Marcus Thorne')).toBeInTheDocument()
     })
 
@@ -222,12 +224,14 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const confirm = await screen.findByText(/approve this kyc submission\?/i)
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const confirm = await screen.findByText(/setujui berkas kyc ini\?/i)
       expect(confirm).toBeInTheDocument()
       // Confirm dialog is a sibling dialog — find its Approve button.
       const confirmDialog = confirm.closest('[role="dialog"]') as HTMLElement
-      await user.click(within(confirmDialog).getByRole('button', { name: /^approve$/i }))
+      await user.click(
+        within(confirmDialog).getByRole('button', { name: /^ya, setujui$/i }),
+      )
 
       await waitFor(() => expect(approveCalls).toBe(1))
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -247,14 +251,16 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
-      const textarea = await screen.findByLabelText('Rejection reason')
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
+      const textarea = await screen.findByLabelText('Alasan penolakan')
       await user.type(textarea, 'Foto KTP buram')
       // Char counter live-updates.
       expect(screen.getByText('14/500')).toBeInTheDocument()
 
       const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(
+        within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }),
+      )
 
       await waitFor(() => expect(body).toEqual({ reason: 'Foto KTP buram' }))
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -269,8 +275,8 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      expect(within(dialog).getAllByText(/photo link expired/i).length).toBe(2)
-      const refresh = within(dialog).getByRole('button', { name: /refresh photos/i })
+      expect(within(dialog).getAllByText(/tautan foto kedaluwarsa$/i).length).toBe(2)
+      const refresh = within(dialog).getByRole('button', { name: /muat ulang foto/i })
       expect(getCalls()).toBe(1)
       await user.click(refresh)
       await waitFor(() => expect(getCalls()).toBe(2))
@@ -281,9 +287,9 @@ describe('KycDetailModal @ USDX-155', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
-      expect(within(dialog).getAllByText(/photo no longer available/i).length).toBe(2)
+      expect(within(dialog).getAllByText(/foto sudah dihapus permanen/i).length).toBe(2)
       expect(
-        within(dialog).queryByRole('button', { name: /refresh photos/i })
+        within(dialog).queryByRole('button', { name: /muat ulang foto/i })
       ).not.toBeInTheDocument()
     })
 
@@ -299,12 +305,12 @@ describe('KycDetailModal @ USDX-155', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/foto ktp buram, mohon submit ulang/i)
-      expect(within(dialog).getByText(/reviewed by linda chen/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/diperiksa oleh linda chen/i)).toBeInTheDocument()
       expect(
-        within(dialog).queryByRole('button', { name: /^approve$/i })
+        within(dialog).queryByRole('button', { name: /^setujui$/i })
       ).not.toBeInTheDocument()
       expect(
-        within(dialog).queryByRole('button', { name: /^reject$/i })
+        within(dialog).queryByRole('button', { name: /^tolak$/i })
       ).not.toBeInTheDocument()
     })
   })
@@ -324,12 +330,14 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
-      const textarea = await screen.findByLabelText('Rejection reason')
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
+      const textarea = await screen.findByLabelText('Alasan penolakan')
       const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(
+        within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }),
+      )
 
-      await screen.findByText(/rejection reason is required/i)
+      await screen.findByText(/alasan penolakan wajib diisi/i)
       expect(rejectCalls).toBe(0)
     })
 
@@ -350,17 +358,19 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
-      const textarea = await screen.findByLabelText('Rejection reason')
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
+      const textarea = await screen.findByLabelText('Alasan penolakan')
       const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
       await user.type(textarea, 'x')
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(
+        within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }),
+      )
 
       // Dicari di dalam `role="alert"`: kalimat pengantar dialog juga menyebut
       // "at least 10 characters", jadi pencarian dokumen-lebar akan hijau
       // sekalipun pesan validasinya tidak pernah muncul.
       const alert = await within(rejectDialog).findByRole('alert')
-      expect(alert).toHaveTextContent(/at least 10 characters/i)
+      expect(alert).toHaveTextContent(/minimal 10 karakter/i)
       expect(rejectCalls).toBe(0)
       // Teks yang sudah diketik tidak hilang — itu sebabnya gerbangnya di klien.
       expect(textarea).toHaveValue('x')
@@ -380,14 +390,16 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
-      const textarea = await screen.findByLabelText('Rejection reason')
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
+      const textarea = await screen.findByLabelText('Alasan penolakan')
       const rejectDialog = textarea.closest('[role="dialog"]') as HTMLElement
       await user.type(textarea, '          ')
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(
+        within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }),
+      )
 
       const alert = await within(rejectDialog).findByRole('alert')
-      expect(alert).toHaveTextContent(/rejection reason is required/i)
+      expect(alert).toHaveTextContent(/alasan penolakan wajib diisi/i)
       expect(rejectCalls).toBe(0)
     })
 
@@ -398,8 +410,8 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeDisabled()
-      expect(within(dialog).getByRole('button', { name: /^reject$/i })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: /^setujui$/i })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: /^tolak$/i })).toBeDisabled()
     })
 
     test('AC — concurrent review: approve hits 409 INVALID_STATUS → detail force-refreshed', async () => {
@@ -422,10 +434,12 @@ describe('KycDetailModal @ USDX-155', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const confirm = await screen.findByText(/approve this kyc submission\?/i)
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const confirm = await screen.findByText(/setujui berkas kyc ini\?/i)
       const confirmDialog = confirm.closest('[role="dialog"]') as HTMLElement
-      await user.click(within(confirmDialog).getByRole('button', { name: /^approve$/i }))
+      await user.click(
+        within(confirmDialog).getByRole('button', { name: /^ya, setujui$/i }),
+      )
 
       // Force refresh: a second GET fires; the modal stays open (no close call).
       await waitFor(() => expect(getCalls()).toBe(2))
@@ -452,7 +466,7 @@ describe('KycDetailModal @ USDX-155', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/kyc record not found/i)
-      await user.click(within(dialog).getByRole('button', { name: /retry/i }))
+      await user.click(within(dialog).getByRole('button', { name: /coba lagi/i }))
       await waitFor(() => expect(calls).toBe(2))
     })
   })
@@ -474,10 +488,10 @@ describe('KycDetailModal @ USDX-155', () => {
       )
       const dialog = await screen.findByRole('dialog')
       // Wait for the PII grid to land (detail GET completed → VIEWED inserted).
-      await within(dialog).findByText(/user email/i)
+      await within(dialog).findByText(/email akun/i)
 
-      await user.click(within(dialog).getByRole('button', { name: /audit trail/i }))
-      await within(dialog).findByText('Viewed')
+      await user.click(within(dialog).getByRole('button', { name: /jejak audit/i }))
+      await within(dialog).findByText('Dilihat')
       // Actor is the DEVELOPER staff (Marcus Aurelius — stf_3).
       expect(within(dialog).getAllByText('Marcus Aurelius').length).toBeGreaterThan(0)
     })
@@ -522,7 +536,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail())
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       // Label Permendagri, bukan kode enum: `PEGAWAI_NEGERI_SIPIL` di layar
       // memaksa petugas menerjemahkan sendiri sebelum bisa mencocokkannya
@@ -530,17 +544,19 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       expect(
         field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
       ).toBeInTheDocument()
-      expect(within(dialog).getByText('Business')).toBeInTheDocument()
+      expect(within(dialog).getByText('Usaha')).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
-      expect(within(dialog).getByText('Remittance')).toBeInTheDocument()
+      expect(within(dialog).getByText('Pengiriman uang')).toBeInTheDocument()
       // Field labels, so a reviewer can find them.
-      expect(within(dialog).getByText('Occupation')).toBeInTheDocument()
-      expect(within(dialog).getByText('Source of funds')).toBeInTheDocument()
-      expect(within(dialog).getByText('Annual income')).toBeInTheDocument()
-      expect(within(dialog).getByText('Transaction purpose')).toBeInTheDocument()
+      expect(within(dialog).getByText('Pekerjaan')).toBeInTheDocument()
+      expect(within(dialog).getByText('Sumber dana')).toBeInTheDocument()
+      expect(within(dialog).getByText('Penghasilan per tahun')).toBeInTheDocument()
+      expect(within(dialog).getByText('Tujuan transaksi')).toBeInTheDocument()
       expect(within(dialog).getByText('NPWP')).toBeInTheDocument()
-      expect(within(dialog).getByText('PEP status')).toBeInTheDocument()
-      expect(within(dialog).getByText('PEP relation')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/^Status PEP \(orang yang populer secara politis\)$/),
+      ).toBeInTheDocument()
+      expect(within(dialog).getByText('Hubungan dengan PEP')).toBeInTheDocument()
     })
 
     test.each([
@@ -557,7 +573,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
         stubDetail(cddDetail())
         renderModal(staffId === undefined ? {} : { staffId })
         const dialog = await screen.findByRole('dialog')
-        await within(dialog).findByText(/customer due diligence/i)
+        await within(dialog).findByText(/uji tuntas nasabah/i)
 
         expect(within(dialog).getByText(NPWP)).toBeInTheDocument()
         expect(within(dialog).getByText(PEP_RELATION)).toBeInTheDocument()
@@ -571,16 +587,17 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail())
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      expect(
-        await within(dialog).findByText(/politically exposed person/i),
-      ).toBeInTheDocument()
+      // Lencananya berbunyi "PEP" saja; kepanjangannya ada di LABEL field,
+      // yang selalu tampil termasuk untuk berkas non-PEP.
+      expect(await within(dialog).findByTestId('kyc-pep-status')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-pep-status').getByText('PEP')).toBeInTheDocument()
     })
 
-    test('a non-PEP customer reads "Not a PEP", not a blank', async () => {
+    test('a non-PEP customer reads "Bukan PEP", not a blank', async () => {
       stubDetail(cddDetail({ pepStatus: false, pepRelation: null }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      expect(await within(dialog).findByText('Not a PEP')).toBeInTheDocument()
+      expect(await within(dialog).findByText('Bukan PEP')).toBeInTheDocument()
     })
   })
 
@@ -589,7 +606,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail())
       renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       // The values themselves must not be on screen…
       expect(within(dialog).queryByText(NPWP)).not.toBeInTheDocument()
@@ -608,15 +625,13 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail())
       renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
         field(dialog, 'kyc-occupation').getByText('Pegawai Negeri Sipil (PNS)'),
       ).toBeInTheDocument()
       expect(within(dialog).getByText('Rp 500 juta – 1 miliar')).toBeInTheDocument()
-      expect(
-        within(dialog).getByText(/politically exposed person/i),
-      ).toBeInTheDocument()
+      expect(field(dialog, 'kyc-pep-status').getByText('PEP')).toBeInTheDocument()
     })
   })
 
@@ -643,7 +658,9 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       const dialog = await screen.findByRole('dialog')
       const cdd = within(dialog).getByTestId('kyc-cdd')
 
-      expect(within(cdd).getByText(/predates the CDD fields/i)).toBeInTheDocument()
+      expect(
+        within(cdd).getByText(/usianya lebih tua daripada/i),
+      ).toBeInTheDocument()
       // Nothing is masked — there is nothing to withhold. Scoped to the CDD
       // block: the identity grid above carries its own PII, which this record
       // still has and which says nothing about the CDD answers.
@@ -670,10 +687,10 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
-        within(dialog).queryByText(/predates the CDD fields/i),
+        within(dialog).queryByText(/usianya lebih tua daripada/i),
       ).not.toBeInTheDocument()
     })
 
@@ -683,7 +700,7 @@ describe('KycDetailModal @ USDX-545 — CDD fields', () => {
       stubDetail(cddDetail({ npwp: null, pepRelation: null }))
       renderModal({ staffId: 'stf_2' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       // Scoped to the two fields this record emptied — the same MANAGER is still
       // being shown `***` for the PII this customer DID provide, and an
@@ -788,7 +805,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
         stubDetail(fullDetail())
         renderModal({ staffId })
         const dialog = await screen.findByRole('dialog')
-        await within(dialog).findByText(/customer due diligence/i)
+        await within(dialog).findByText(/uji tuntas nasabah/i)
 
         expect(field(dialog, 'kyc-alias-name').getByText(ALIAS)).toBeInTheDocument()
         expect(
@@ -802,7 +819,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
         ).toBeInTheDocument()
         expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
         expect(
-          within(dialog).queryByText(/not shown to your role/i),
+          within(dialog).queryByText(/tidak ditampilkan untuk peran ini/i),
         ).not.toBeInTheDocument()
       },
     )
@@ -813,7 +830,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail({ occupation: 'ANGGOTA_DPRD_PROVINSI', pepStatus: true }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       const occupation = field(dialog, 'kyc-occupation')
       expect(occupation.getByText('Anggota DPRD Provinsi')).toBeInTheDocument()
@@ -856,7 +873,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail())
       renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       for (const value of [ALIAS, MOTHERS_MAIDEN, EMPLOYER_ADDRESS, EMPLOYER_PHONE]) {
         expect(within(dialog).queryByText(value)).not.toBeInTheDocument()
@@ -874,7 +891,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail())
       renderModal({ staffId: 'stf_3' })
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(field(dialog, 'kyc-nationality').getByText('ID')).toBeInTheDocument()
       expect(field(dialog, 'kyc-gender').getByText('Perempuan')).toBeInTheDocument()
@@ -893,7 +910,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail({ occupation: 'BUPATI', pepStatus: true, pepRelation: PEP_RELATION }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
         within(dialog).queryByTestId('kyc-finding-pep-occupation'),
@@ -910,7 +927,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
         within(dialog).queryByTestId('kyc-finding-pep-source-of-wealth'),
@@ -921,7 +938,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail({ occupation: 'KARYAWAN_SWASTA', pepStatus: false }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
         within(dialog).queryByTestId('kyc-finding-pep-occupation'),
@@ -938,7 +955,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       stubDetail(fullDetail({ occupation: 'BUPATI', pepStatus: null, pepRelation: null }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       expect(
         within(dialog).queryByTestId('kyc-finding-pep-occupation'),
@@ -979,7 +996,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/customer due diligence/i)
+      await within(dialog).findByText(/uji tuntas nasabah/i)
 
       for (const id of [
         'kyc-nationality',
@@ -1058,7 +1075,7 @@ describe('KycDetailModal @ USDX-610 — status screening', () => {
       // Inti keputusan 2 Sep: yang diperbaiki adalah kebisuannya, bukan
       // gerbangnya. Tombol yang mati akan membuat petugas mencari jalan memutar.
       expect(
-        within(dialog).getByRole('button', { name: /^approve$/i }),
+        within(dialog).getByRole('button', { name: /^setujui$/i }),
       ).toBeEnabled()
     })
   })

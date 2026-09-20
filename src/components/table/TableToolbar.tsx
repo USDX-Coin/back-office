@@ -125,9 +125,9 @@ function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300 }: Sea
       <Input
         value={draft}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder={placeholder ?? 'Search…'}
+        placeholder={placeholder ?? 'Cari…'}
         className="h-9 bg-card pl-8"
-        aria-label="Search"
+        aria-label="Cari"
       />
     </div>
   )
@@ -180,7 +180,7 @@ function ActiveFilterChips({
           <button
             type="button"
             onClick={chip.onRemove}
-            aria-label={`Remove ${chip.label}`}
+            aria-label={`Hapus filter ${chip.label}`}
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />

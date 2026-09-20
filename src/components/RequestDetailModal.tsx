@@ -199,7 +199,7 @@ export default function RequestDetailModal({
           <p className="py-2 text-center text-sm text-destructive">
             {query.error instanceof Error
               ? query.error.message
-              : 'Failed to load request detail.'}
+              : 'Detail request gagal dimuat.'}
           </p>
         ) : (
           <div className="space-y-5">

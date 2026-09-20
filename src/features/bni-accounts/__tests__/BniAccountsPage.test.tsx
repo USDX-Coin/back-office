@@ -550,7 +550,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('25 baris'))
 
       // Go to page 3 (5 rows there).
-      await user.click(screen.getByRole('button', { name: /last page/i }))
+      await user.click(screen.getByRole('button', { name: /halaman terakhir/i }))
       await waitFor(() =>
         expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
       )
@@ -938,7 +938,13 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await pickAccount(user, /treasury np/i)
       setRange(TODAY, TODAY)
       await user.click(pullButton())
-      expect(await screen.findByText('Bank tidak dapat dihubungi, coba lagi')).toBeInTheDocument()
+      // Kalimatnya + kode galat servernya dalam kurung — kode itu yang dikutip
+      // operator saat melapor.
+      expect(
+        await screen.findByText(
+          'Bank tidak dapat dihubungi, coba lagi (BNI_SERVICE_UNAVAILABLE)'
+        )
+      ).toBeInTheDocument()
 
       const refreshButton = screen.getByTestId('bni-statement-refresh')
       expect(refreshButton).toBeEnabled()

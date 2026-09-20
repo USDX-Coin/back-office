@@ -64,12 +64,12 @@ function setup() {
 }
 
 async function selectChainPolygon(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('combobox', { name: /chain/i }))
+  await user.click(screen.getByRole('combobox', { name: /jaringan/i }))
   await user.click(await screen.findByRole('option', { name: /polygon/i }))
 }
 
 async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
-  const search = screen.getByLabelText(/^user$/i)
+  const search = screen.getByLabelText(/^nasabah$/i)
   await user.type(search, 'rob')
   const option = await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
   await user.click(option)
@@ -79,7 +79,7 @@ describe('MintFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
     test('renders combobox-style picker, no plain text input for user', () => {
       setup()
-      const search = screen.getByLabelText(/^user$/i)
+      const search = screen.getByLabelText(/^nasabah$/i)
       expect(search).toHaveAttribute('aria-autocomplete', 'list')
     })
 
@@ -93,7 +93,7 @@ describe('MintFormPage @ USDX-46', () => {
         })
       )
       setup()
-      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      await user.type(screen.getByLabelText(/^nasabah$/i), 'rob')
       await waitFor(() => expect(capturedUrl).not.toBeNull())
       const url = new URL(capturedUrl!)
       expect(url.searchParams.get('search')).toBe('rob')
@@ -120,7 +120,7 @@ describe('MintFormPage @ USDX-46', () => {
         )
       )
       setup()
-      await user.type(screen.getByLabelText(/^user$/i), 'r')
+      await user.type(screen.getByLabelText(/^nasabah$/i), 'r')
       await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
       expect(screen.queryByText(/Suspended User/i)).not.toBeInTheDocument()
     })
@@ -129,7 +129,7 @@ describe('MintFormPage @ USDX-46', () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
       setup()
-      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      await user.type(screen.getByLabelText(/^nasabah$/i), 'rob')
       const option = await screen.findByRole('option', {
         name: new RegExp(VERIFIED_USER_NAME, 'i'),
       })
@@ -142,31 +142,31 @@ describe('MintFormPage @ USDX-46', () => {
       setup()
       await pickEligibleUser(user)
       expect(await screen.findByTestId('user-picker-selected')).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: /clear selection/i }))
+      await user.click(screen.getByRole('button', { name: /batalkan pilihan/i }))
       await waitFor(() =>
         expect(screen.queryByTestId('user-picker-selected')).not.toBeInTheDocument()
       )
-      expect(screen.getByLabelText(/^user$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nasabah$/i)).toHaveValue('')
     })
   })
 
   describe('AC2 — currency selector', () => {
     test('AC2.1 — defaults to USD', () => {
       setup()
-      expect(screen.getByLabelText(/^currency$/i)).toHaveTextContent(/USD/i)
+      expect(screen.getByLabelText(/^mata uang$/i)).toHaveTextContent(/USD/i)
     })
 
     test('AC2.7 — switching currency resets the amount field', async () => {
       const user = userEvent.setup()
       setup()
-      await user.type(screen.getByLabelText(/^amount$/i), '1000')
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('1000')
+      await user.type(screen.getByLabelText(/^nominal$/i), '1000')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('1000')
       // Open the currency Select and pick IDR
-      await user.click(screen.getByLabelText(/^currency$/i))
+      await user.click(screen.getByLabelText(/^mata uang$/i))
       // USDX-27: option label is now "IDR (auto-convert)" — match on the
       // currency code prefix, not the full label.
       await user.click(await screen.findByRole('option', { name: /^IDR\b/i }))
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
     })
   })
 
@@ -174,7 +174,7 @@ describe('MintFormPage @ USDX-46', () => {
     test('AC3.1 — wallet picker disabled until user + chain are picked', () => {
       setup()
       // Empty initial state — text input present but disabled
-      const walletInput = screen.getByPlaceholderText(/select chain first/i)
+      const walletInput = screen.getByPlaceholderText(/pilih jaringan dulu/i)
       expect(walletInput).toBeDisabled()
     })
 
@@ -189,7 +189,7 @@ describe('MintFormPage @ USDX-46', () => {
       // Look up by id (htmlFor=mintWallet) since label association under
       // Radix Select can be flaky with getByLabelText.
       const walletTrigger = document.getElementById('mintWallet')!
-      expect(walletTrigger).toHaveTextContent(/select wallet/i)
+      expect(walletTrigger).toHaveTextContent(/pilih wallet/i)
     })
 
     test('AC3.6 — Other → text input appears for manual address entry', async () => {
@@ -200,8 +200,8 @@ describe('MintFormPage @ USDX-46', () => {
       await selectChainPolygon(user)
       // Open wallet select
       await user.click(document.getElementById('mintWallet')!)
-      await user.click(await screen.findByRole('option', { name: /other/i }))
-      expect(screen.getByLabelText(/custom wallet address/i)).toBeInTheDocument()
+      await user.click(await screen.findByRole('option', { name: /lainnya/i }))
+      expect(screen.getByLabelText(/alamat wallet manual/i)).toBeInTheDocument()
     })
   })
 
@@ -254,8 +254,8 @@ describe('MintFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '100')
-      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '100')
+      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
 
       await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
@@ -273,8 +273,8 @@ describe('MintFormPage @ USDX-46', () => {
     test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
       setup()
-      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
-      expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
+      expect(await screen.findByText(/nasabah wajib dipilih/i)).toBeInTheDocument()
     })
   })
 
@@ -296,8 +296,8 @@ describe('MintFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '250')
-      await user.click(screen.getByRole('button', { name: /submit mint request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '250')
+      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
     }
 
     test('renders banner with short blocking ID + Manual Sync link on 409', async () => {
@@ -357,7 +357,7 @@ describe('MintFormPage @ USDX-46', () => {
       await screen.findByTestId('safe-queue-occupied-banner')
 
       // Inputs that should survive the 409.
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('250')
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('250')
       expect(await screen.findByTestId('user-picker-selected')).toBeInTheDocument()
       // Should NOT have navigated to /mint.
       expect(screen.queryByTestId('mint-list-page')).not.toBeInTheDocument()

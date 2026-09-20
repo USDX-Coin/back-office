@@ -23,7 +23,7 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Reserve balance
+          Saldo cadangan
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -32,7 +32,7 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
         ) : balance ? (
           <>
             <p
-              aria-label="Reserve balance"
+              aria-label="Saldo cadangan"
               className="font-mono text-xl font-semibold leading-none tracking-tight text-foreground"
             >
               {formatAmountDecimal(balance.amount)}{' '}
@@ -41,21 +41,21 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
               </span>
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Sum of every entry in the ledger, calculated by the server. This is
-              the figure published on usdx.co.id.
+              Jumlah seluruh entri di buku besar, dihitung oleh server. Angka
+              inilah yang tayang di usdx.co.id.
             </p>
           </>
         ) : (
           <>
             <p
-              aria-label="Reserve balance"
+              aria-label="Saldo cadangan"
               className="font-mono text-xl font-semibold leading-none tracking-tight text-muted-foreground"
             >
               —
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              No reserve balance yet. The public page shows nothing until the
-              first entry is recorded.
+              Belum ada saldo cadangan. Halaman publik belum menampilkan angka
+              apa pun sampai entri pertama dicatat.
             </p>
           </>
         )}

@@ -19,6 +19,27 @@ import { useAuth } from '@/lib/auth'
 import { validateLoginForm } from '@/lib/validators'
 import { cn } from '@/lib/utils'
 
+/**
+ * Pesan galat autentikasi.
+ *
+ * `auth.tsx` mengubah `ApiError` jadi `Error` biasa, jadi yang sampai ke sini
+ * hanya PESAN dari server — kodenya sudah hilang sebelum halaman ini melihatnya.
+ * Pesan itu tetap DIBAWA SERTA di dalam kurung: kalimat Indonesianya yang
+ * dibaca operator, teks servernya yang dikutip saat melapor ke tim teknis.
+ */
+function loginErrorMessage(err: unknown): string {
+  // `fetch` melempar TypeError kalau permintaannya tidak pernah sampai ke
+  // server (jaringan mati, DNS, CORS). Itu bukan salah email/kata sandi, dan
+  // menyuruh operator memeriksa kata sandinya mengirimnya ke arah yang salah.
+  if (err instanceof TypeError) {
+    return 'Server tidak bisa dihubungi. Periksa koneksi lalu coba lagi.'
+  }
+  const detail = err instanceof Error ? err.message.trim() : ''
+  return detail
+    ? `Gagal masuk. Periksa email dan kata sandi lalu coba lagi. (${detail})`
+    : 'Gagal masuk. Coba lagi sebentar lagi.'
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
@@ -46,7 +67,7 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Couldn't sign in. Please try again.")
+      setSubmitError(loginErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -63,15 +84,15 @@ export default function LoginPage() {
             <img src="/image/Logo.svg" alt="USDX" className="h-10 w-10" />
             <div className="text-center">
               <p className="text-lg font-semibold tracking-tight">USDX Back Office</p>
-              <p className="text-xs text-muted-foreground">Operator console</p>
+              <p className="text-xs text-muted-foreground">Konsol operator</p>
             </div>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Sign in</CardTitle>
+              <CardTitle>Masuk</CardTitle>
               <CardDescription>
-                Use your operator credentials to continue.
+                Masuk dengan akun operator untuk melanjutkan.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -100,13 +121,13 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Kata sandi</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      placeholder="Enter your password"
+                      placeholder="Masukkan kata sandi"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className={cn('pr-10', fieldErrors.password && 'border-destructive focus-visible:ring-destructive/30')}
@@ -115,7 +136,9 @@ export default function LoginPage() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={
+                        showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'
+                      }
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -127,9 +150,9 @@ export default function LoginPage() {
                   <Checkbox
                     checked={remember}
                     onCheckedChange={(checked) => setRemember(checked === true)}
-                    aria-label="Remember this device for 30 days"
+                    aria-label="Ingat perangkat ini selama 30 hari"
                   />
-                  <span>Remember this device for 30 days</span>
+                  <span>Ingat perangkat ini selama 30 hari</span>
                 </label>
               </form>
             </CardContent>
@@ -141,16 +164,16 @@ export default function LoginPage() {
                 aria-busy={loading}
                 className="w-full"
               >
-                {loading ? 'Signing in…' : 'Sign in'}
+                {loading ? 'Sedang masuk…' : 'Masuk'}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                Authorized personnel only.
+                Khusus petugas berwenang.
               </p>
             </CardFooter>
           </Card>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            © {new Date().getFullYear()} USDX · All rights reserved
+            © {new Date().getFullYear()} USDX · Hak cipta dilindungi
           </p>
         </div>
       </main>

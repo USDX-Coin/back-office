@@ -93,7 +93,7 @@ export const PII_MASK = '***'
  * DEVELOPER saja. Kalimat yang menyebut role tertentu akan salah lagi pada
  * perubahan berikutnya; kalimat ini menyebut PEMBACANYA, yang selalu benar.
  */
-export const PII_WITHHELD_LABEL = 'not shown to your role'
+export const PII_WITHHELD_LABEL = 'tidak ditampilkan untuk peran ini'
 
 /**
  * Penanda yang dipasang backend di `userEmail` ketika sebuah order tidak punya

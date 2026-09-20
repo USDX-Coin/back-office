@@ -36,7 +36,7 @@ describe('RatePage @integration', () => {
 
       // RateInfo skeleton resolves to the seeded DYNAMIC config
       await waitFor(() => {
-        expect(screen.getByLabelText(/base rate/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
       })
       expect(screen.getByText('DYNAMIC')).toBeInTheDocument()
       expect(screen.getByText('0.5%')).toBeInTheDocument()
@@ -47,10 +47,10 @@ describe('RatePage @integration', () => {
     test('should render the update form for super_admin (mapped to ADMIN)', async () => {
       renderWithProviders(<RatePage />, { authenticated: true })
       expect(
-        await screen.findByRole('button', { name: /review and update/i })
+        await screen.findByRole('button', { name: /tinjau dan ubah/i })
       ).toBeInTheDocument()
       // Read-only notice must NOT be present
-      expect(screen.queryByText(/your role does not have permission/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/tidak berwenang mengubah kurs/i)).not.toBeInTheDocument()
     })
   })
 
@@ -60,10 +60,10 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />)
 
       expect(
-        await screen.findByText(/your role does not have permission/i)
+        await screen.findByText(/tidak berwenang mengubah kurs/i)
       ).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /review and update/i })
+        screen.queryByRole('button', { name: /tinjau dan ubah/i })
       ).not.toBeInTheDocument()
     })
 
@@ -72,7 +72,7 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/base rate/i)).toBeInTheDocument()
+        expect(screen.getByLabelText(/kurs dasar/i)).toBeInTheDocument()
       })
     })
   })
@@ -81,11 +81,11 @@ describe('RatePage @integration', () => {
     test('should disable the manual rate input when mode is DYNAMIC', async () => {
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /review and update/i })
+      await screen.findByRole('button', { name: /tinjau dan ubah/i })
 
       // Wait for the form to seed from the resolved current config.
       await waitFor(() => {
-        const rateInput = screen.getByLabelText(/manual rate/i) as HTMLInputElement
+        const rateInput = screen.getByLabelText(/kurs manual/i) as HTMLInputElement
         expect(rateInput).toBeDisabled()
       })
     })
@@ -96,15 +96,15 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /review and update/i })
+      await screen.findByRole('button', { name: /tinjau dan ubah/i })
 
       // Switch the mode select to MANUAL
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
 
-      await user.click(screen.getByRole('button', { name: /review and update/i }))
+      await user.click(screen.getByRole('button', { name: /tinjau dan ubah/i }))
 
-      expect(await screen.findByText(/manual rate is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/kurs manual wajib diisi/i)).toBeInTheDocument()
     })
   })
 
@@ -113,22 +113,22 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /review and update/i })
+      await screen.findByRole('button', { name: /tinjau dan ubah/i })
 
       // Choose MANUAL and a realistic rate
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
-      const rateInput = screen.getByLabelText(/manual rate/i) as HTMLInputElement
+      const rateInput = screen.getByLabelText(/kurs manual/i) as HTMLInputElement
       await user.type(rateInput, '16500')
 
-      await user.click(screen.getByRole('button', { name: /review and update/i }))
+      await user.click(screen.getByRole('button', { name: /tinjau dan ubah/i }))
 
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/confirm rate update/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/ubah kurs yang berlaku\?/i)).toBeInTheDocument()
       // Diff renders the new manual rate (formatted)
       expect(within(dialog).getByText(/16,500\.00 IDR\/USD/)).toBeInTheDocument()
       // Cancel button keeps the form alive without submitting
-      await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+      await user.click(within(dialog).getByRole('button', { name: /batal/i }))
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
@@ -140,15 +140,15 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /review and update/i })
+      await screen.findByRole('button', { name: /tinjau dan ubah/i })
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
-      await user.type(screen.getByLabelText(/manual rate/i), '1000')
+      await user.type(screen.getByLabelText(/kurs manual/i), '1000')
 
-      expect(await screen.findByText(/looks unusual/i)).toBeInTheDocument()
+      expect(await screen.findByText(/di luar kebiasaan/i)).toBeInTheDocument()
       // The submit button is still enabled (soft warning is non-blocking)
       expect(
-        screen.getByRole('button', { name: /review and update/i })
+        screen.getByRole('button', { name: /tinjau dan ubah/i })
       ).toBeEnabled()
     })
   })
@@ -159,16 +159,16 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />, { authenticated: true })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/base rate/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
       })
 
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
-      await user.type(screen.getByLabelText(/manual rate/i), '17000')
+      await user.type(screen.getByLabelText(/kurs manual/i), '17000')
 
-      await user.click(screen.getByRole('button', { name: /review and update/i }))
+      await user.click(screen.getByRole('button', { name: /tinjau dan ubah/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /yes, update rate/i }))
+      await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
 
       // After mutation, dialog closes, GET refetches, MANUAL appears in card
       await waitFor(() => {

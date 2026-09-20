@@ -145,7 +145,7 @@ export function newIdempotencyKey(): string {
     ].join('-')
   }
   throw new Error(
-    'No cryptographic random source available to generate an idempotency key'
+    'Peramban ini tidak punya sumber acak kriptografis, jadi kode anti-dobel tidak bisa dibuat (crypto.randomUUID / crypto.getRandomValues tidak tersedia)'
   )
 }
 
@@ -203,6 +203,17 @@ export function activeAttestations(
 }
 
 /**
+ * Nama bulan Indonesia, ditulis tetap di sini alih-alih lewat
+ * `Intl.DateTimeFormat`: kolom Bulan / Tahun pada tabel dokumen publik dibaca
+ * operator sebagai label dokumen, jadi ejaannya tidak boleh ikut berubah
+ * mengikuti locale peramban atau kelengkapan ICU runtime.
+ */
+const MONTH_NAME_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
+
+/**
  * Splits a `YYYY-MM` period into month and year. Returns `null` for anything
  * that is not a valid period — the caller must not invent a fallback, because a
  * wrong month/year mislabels a published document.
@@ -214,14 +225,12 @@ export function getPeriodParts(period: string): { month: string; year: string } 
   const month = Number(match[2])
   if (month < 1 || month > 12) return null
   return {
-    month: new Intl.DateTimeFormat('en-US', { month: 'long' }).format(
-      new Date(year, month - 1, 1)
-    ),
+    month: MONTH_NAME_ID[month - 1] as string,
     year: String(year),
   }
 }
 
-/** "2026-07" → "July 2026"; returns the raw value when it is not a period. */
+/** "2026-07" → "Juli 2026"; returns the raw value when it is not a period. */
 export function formatPeriod(period: string): string {
   const parts = getPeriodParts(period)
   if (!parts) return period
@@ -230,8 +239,8 @@ export function formatPeriod(period: string): string {
 
 /** `"2026-07-23"` → `"23 Jul 2026"` without dragging the value through a Date. */
 const MONTH_ABBR = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ]
 
 export function formatOccurredAt(date: string): string {

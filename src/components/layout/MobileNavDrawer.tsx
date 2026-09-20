@@ -79,12 +79,12 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
           <div className="flex flex-col leading-tight">
             <SheetTitle className="text-sm font-semibold tracking-tight">USDX</SheetTitle>
             <SheetDescription className="text-2xs text-muted-foreground">
-              Operator console
+              Konsol operator
             </SheetDescription>
           </div>
         </SheetHeader>
 
-        <nav className="flex flex-1 flex-col overflow-y-auto px-2 pb-2 pt-1" aria-label="Main navigation">
+        <nav className="flex flex-1 flex-col overflow-y-auto px-2 pb-2 pt-1" aria-label="Navigasi utama">
           {sections.map((section) => (
             <div key={section.label} className="flex flex-col">
               <div className="px-2 pt-3 pb-1.5 text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground/80">
@@ -112,7 +112,7 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
                     {badge > 0 && (
                       <span
                         className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
-                        aria-label={`${badge} pending`}
+                        aria-label={`${badge} menunggu diproses`}
                       >
                         {badge > 99 ? '99+' : badge}
                       </span>
@@ -138,8 +138,8 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
             <button
               type="button"
               onClick={handleLogout}
-              aria-label="Logout"
-              title="Logout"
+              aria-label="Keluar"
+              title="Keluar"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
             >
               <LogOut className="h-4 w-4" />

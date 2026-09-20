@@ -22,7 +22,7 @@ import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
 import { validateBurnRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser, RequestChain } from '@/lib/types'
-import { ApiError } from '@/lib/apiFetch'
+import { pesanGalat } from '@/lib/apiFetch'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { useCreateBurn } from './hooks'
 
@@ -174,7 +174,7 @@ export default function BurnRequestForm() {
         bankAccount: form.bankAccount.trim(),
         notes: form.notes.trim() || undefined,
       })
-      toast.success('Burn request submitted')
+      toast.success('Request burn OTC terkirim — menunggu persetujuan.')
       setForm(EMPTY)
       setErrors({})
       navigate('/burn')
@@ -187,12 +187,9 @@ export default function BurnRequestForm() {
         setQueueBlock(queueInfo)
         return
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Submission failed'
+      // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
+      // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
+      const message = pesanGalat(err, 'Request gagal dikirim. Periksa koneksi lalu coba lagi.')
       setSubmitError(message)
       toast.error(message)
     }
@@ -202,18 +199,18 @@ export default function BurnRequestForm() {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          New burn request
+          Request burn OTC baru
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="burn-form">
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="burnUserPicker">User</Label>
+            <Label htmlFor="burnUserPicker">Nasabah</Label>
             <UserPicker
               id="burnUserPicker"
               value={form.user}
               onSelect={handleUserSelect}
-              placeholder="Search by name or email…"
+              placeholder="Cari nama atau email nasabah…"
               ariaInvalid={Boolean(errors.userId)}
               ariaDescribedBy={errors.userId ? 'burnUserPicker-error' : undefined}
             />
@@ -221,13 +218,13 @@ export default function BurnRequestForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnChain">Chain</Label>
+            <Label htmlFor="burnChain">Jaringan</Label>
             <Select
               value={form.chain}
               onValueChange={handleChainChange}
             >
               <SelectTrigger id="burnChain" aria-invalid={Boolean(errors.chain)}>
-                <SelectValue placeholder="Choose chain" />
+                <SelectValue placeholder="Pilih jaringan" />
               </SelectTrigger>
               <SelectContent>
                 {CHAINS.map((c) => (
@@ -241,7 +238,7 @@ export default function BurnRequestForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnWallet">User wallet address</Label>
+            <Label htmlFor="burnWallet">Alamat wallet nasabah</Label>
             <WalletPicker
               id="burnWallet"
               wallets={walletsForChain}
@@ -257,7 +254,7 @@ export default function BurnRequestForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnAmount">Amount</Label>
+            <Label htmlFor="burnAmount">Nominal</Label>
             <AmountWithCurrencyInput
               amountId="burnAmount"
               currencyId="burnCurrency"
@@ -274,14 +271,14 @@ export default function BurnRequestForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnDepositTxHash">Deposit TX hash</Label>
+            <Label htmlFor="burnDepositTxHash">Tx hash setoran USDX</Label>
             <div className="relative">
               <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="burnDepositTxHash"
                 value={form.depositTxHash}
                 onChange={(e) => set('depositTxHash', e.target.value)}
-                placeholder="0x… (64 hex chars)"
+                placeholder="0x… (64 karakter hex)"
                 className="pl-9 font-mono text-sm"
               />
             </div>
@@ -290,23 +287,23 @@ export default function BurnRequestForm() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="burnBankName">Bank name</Label>
+              <Label htmlFor="burnBankName">Nama bank</Label>
               <Input
                 id="burnBankName"
                 value={form.bankName}
                 onChange={(e) => set('bankName', e.target.value)}
-                placeholder="e.g. BCA"
+                placeholder="contoh: BCA"
               />
               <FieldError message={errors.bankName} />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="burnBankAccount">Bank account</Label>
+              <Label htmlFor="burnBankAccount">Nomor rekening</Label>
               <Input
                 id="burnBankAccount"
                 value={form.bankAccount}
                 onChange={(e) => set('bankAccount', e.target.value)}
-                placeholder="e.g. 1234567890"
+                placeholder="contoh: 1234567890"
                 className="font-mono text-sm"
               />
               <FieldError message={errors.bankAccount} />
@@ -314,12 +311,12 @@ export default function BurnRequestForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="burnNotes">Notes (optional)</Label>
+            <Label htmlFor="burnNotes">Catatan (opsional)</Label>
             <Textarea
               id="burnNotes"
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
-              placeholder="Reference, treasury ID, or any context for audit…"
+              placeholder="Nomor referensi, ID treasury, atau keterangan lain untuk audit…"
               className="min-h-[80px]"
             />
           </div>
@@ -347,7 +344,7 @@ export default function BurnRequestForm() {
             aria-busy={create.isPending}
             className="w-full"
           >
-            {create.isPending ? 'Submitting…' : 'Submit burn request'}
+            {create.isPending ? 'Mengirim…' : 'Kirim request burn OTC'}
           </Button>
         </CardFooter>
       </form>

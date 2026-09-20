@@ -114,7 +114,7 @@ export default function TransactionsListPage() {
     },
     {
       id: 'user',
-      size: 200,
+      size: 184,
       header: 'Nasabah',
       cell: ({ row }) => {
         // The backend sends the literal marker `(partner customer)` when the
@@ -163,7 +163,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'amount',
-      size: 116,
+      size: 124,
       header: 'Nominal',
       cell: ({ getValue }) => (
         <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
@@ -177,7 +177,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'totalPayIdr',
-      size: 128,
+      size: 136,
       header: 'Total bayar',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
@@ -192,7 +192,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'netPayoutIdr',
-      size: 128,
+      size: 136,
       header: 'Nominal transfer',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
@@ -226,7 +226,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'paymentStatus',
-      size: 108,
+      size: 188,
       header: 'Pembayaran',
       // Redeem rows have no payment leg (null) → dash.
       cell: ({ getValue }) => {
@@ -240,7 +240,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'safeStatus',
-      size: 104,
+      size: 192,
       header: 'Tanda tangan',
       // Redeem rows don't go through Safe (null) → dash.
       cell: ({ getValue }) => {
@@ -254,7 +254,7 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'status',
-      size: 124,
+      size: 188,
       header: 'Status',
       cell: ({ getValue }) => (
         <StatusBadge cfg={getOrderStatusConfig(getValue() as OrderListItem['status'])} />
@@ -262,7 +262,7 @@ export default function TransactionsListPage() {
     },
     {
       id: 'actions',
-      size: 76,
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button

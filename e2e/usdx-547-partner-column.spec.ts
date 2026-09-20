@@ -81,7 +81,7 @@ test.describe('USDX-547 partner column @e2e', () => {
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Pemilik order' }).click()
       await page.getByRole('option', { name: /order partner/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
 
       await expect(page).toHaveURL(/ownerType=PARTNER/)
       await expect(page.getByRole('button', { name: /750\.00 USDX/ })).toBeVisible()
@@ -148,7 +148,7 @@ test.describe('USDX-547 partner column @e2e', () => {
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Jenis' }).click()
       await page.getByRole('option', { name: /^mint$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
 
       await expect(page).toHaveURL(/ownerType=PARTNER/)
       await expect(page).toHaveURL(/type=MINT/)

@@ -62,7 +62,7 @@ export default function Sidebar() {
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold tracking-tight">USDX</span>
           <span className="text-2xs text-muted-foreground">
-            Operator console
+            Konsol operator
           </span>
         </div>
       </div>
@@ -128,7 +128,7 @@ function SidebarLink({
       {badgeCount > 0 && (
         <span
           className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
-          aria-label={`${badgeCount} pending`}
+          aria-label={`${badgeCount} menunggu diproses`}
           data-testid={`nav-badge-${to.replace(/^\//, '').replace(/\//g, '-')}`}
         >
           {badgeCount > 99 ? '99+' : badgeCount}

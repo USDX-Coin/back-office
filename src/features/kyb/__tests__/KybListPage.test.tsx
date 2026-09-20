@@ -85,7 +85,7 @@ describe('KybListPage @ USDX-546', () => {
       setup()
       expect(await screen.findByText('legal@juara.co.id')).toBeInTheDocument()
       expect(
-        screen.getByRole('button', { name: /review kyb record for legal@juara\.co\.id/i }),
+        screen.getByRole('button', { name: /periksa berkas kyb legal@juara\.co\.id/i }),
       ).toBeInTheDocument()
     })
 
@@ -95,7 +95,7 @@ describe('KybListPage @ USDX-546', () => {
       setup()
       await screen.findByText('PT Juara Remiten Indonesia')
 
-      await user.click(screen.getByRole('button', { name: /add kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /tambah berkas kyb/i }))
       expect(await screen.findByText('KYB form page')).toBeInTheDocument()
     })
 
@@ -113,8 +113,8 @@ describe('KybListPage @ USDX-546', () => {
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /^pending$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(await screen.findByRole('option', { name: /^menunggu$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING'))).toBe(true),
@@ -133,7 +133,7 @@ describe('KybListPage @ USDX-546', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.type(screen.getByPlaceholderText(/search account name/i), 'juara')
+      await user.type(screen.getByPlaceholderText(/cari nama atau email akun/i), 'juara')
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=juara'))).toBe(true),
       )
@@ -144,7 +144,7 @@ describe('KybListPage @ USDX-546', () => {
       setup(['/kyb/kyb_1'])
       const dialog = await screen.findByRole('dialog')
       expect(
-        within(dialog).getByRole('heading', { name: /^kyb record$/i }),
+        within(dialog).getByRole('heading', { name: /^berkas verifikasi badan usaha$/i }),
       ).toBeInTheDocument()
     })
   })
@@ -155,7 +155,7 @@ describe('KybListPage @ USDX-546', () => {
       setup(['/kyb'], 'stf_3') // DEVELOPER
       await screen.findByText('PT Juara Remiten Indonesia')
       expect(
-        screen.queryByRole('button', { name: /add kyb record/i }),
+        screen.queryByRole('button', { name: /tambah berkas kyb/i }),
       ).not.toBeInTheDocument()
     })
 
@@ -174,7 +174,7 @@ describe('KybListPage @ USDX-546', () => {
         ),
       )
       setup()
-      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
     })
   })
 
@@ -195,10 +195,10 @@ describe('KybListPage @ USDX-546', () => {
     test('renders the empty state when there are no records', async () => {
       server.use(http.get('/api/v1/kyb', () => okList([])))
       setup()
-      expect(await screen.findByText(/no kyb records yet/i)).toBeInTheDocument()
+      expect(await screen.findByText(/belum ada berkas kyb/i)).toBeInTheDocument()
       // The empty state states WHY nothing is here: there is no self-service KYB.
       expect(
-        screen.getByText(/entered here by an operator/i),
+        screen.getByText(/diketik operator di sini/i),
       ).toBeInTheDocument()
     })
   })
@@ -262,7 +262,7 @@ describe('useRejectKyb @ USDX-546', () => {
       renderWithProviders(<RejectHarness reason="" />, { authenticated: true })
       await user.click(screen.getByRole('button', { name: /reject directly/i }))
 
-      expect(await screen.findByText(/rejection reason is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/alasan penolakan wajib diisi/i)).toBeInTheDocument()
       expect(calls).toBe(0)
     })
     test('refuses a reason under ten characters WITHOUT issuing a request', async () => {
@@ -280,7 +280,7 @@ describe('useRejectKyb @ USDX-546', () => {
       renderWithProviders(<RejectHarness reason="palsu" />, { authenticated: true })
       await user.click(screen.getByRole('button', { name: /reject directly/i }))
 
-      expect(await screen.findByText(/at least 10 characters/i)).toBeInTheDocument()
+      expect(await screen.findByText(/minimal 10 karakter/i)).toBeInTheDocument()
       expect(calls).toBe(0)
     })
   })
@@ -298,7 +298,7 @@ describe('useRejectKyb @ USDX-546', () => {
       renderWithProviders(<RejectHarness reason="    " />, { authenticated: true })
       await user.click(screen.getByRole('button', { name: /reject directly/i }))
 
-      expect(await screen.findByText(/rejection reason is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/alasan penolakan wajib diisi/i)).toBeInTheDocument()
       expect(calls).toBe(0)
     })
   })

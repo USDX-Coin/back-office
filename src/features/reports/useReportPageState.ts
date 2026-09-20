@@ -47,10 +47,12 @@ export function useReportPageState(kind: ReportKind): ReportPageState {
     try {
       await exportCsv.mutateAsync(filter)
     } catch (err) {
+      // Galat server → kalimat Indonesia DAN kodenya dalam kurung; kode itu yang
+      // dikutip operator saat melapor (pola `unknownStatusLabel()` di `lib/status.ts`).
       const message =
         err instanceof ApiError
-          ? err.message
-          : 'Unable to export CSV. Please try again.'
+          ? `CSV gagal diunduh: ${err.message} (${err.code})`
+          : 'CSV gagal diunduh. Periksa koneksi lalu coba lagi.'
       toast.error(message)
     }
   }

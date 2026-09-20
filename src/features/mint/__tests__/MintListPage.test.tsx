@@ -106,8 +106,8 @@ describe('MintListPage @ USDX-51', () => {
       await screen.findByText('Has Links')
       await screen.findByText('No Links')
       // two dedicated columns
-      expect(screen.getByRole('columnheader', { name: /on-chain tx/i })).toBeInTheDocument()
-      expect(screen.getByRole('columnheader', { name: /safe tx/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /bukti blockchain/i })).toBeInTheDocument()
+      expect(screen.getByRole('columnheader', { name: /antrean tanda tangan/i })).toBeInTheDocument()
       await waitFor(() => {
         expect(
           document.querySelector(`a[href="https://polygonscan.com/tx/${onChainTx}"]`)
@@ -129,7 +129,7 @@ describe('MintListPage @ USDX-51', () => {
     test('AC #2 — "Add Mint OTC" button visible top-right for ADMIN operator', async () => {
       server.use(http.get('/api/v1/requests', () => ok([])))
       setup() // default staff is Demo Operator (ADMIN)
-      const buttons = await screen.findAllByRole('button', { name: /add mint otc/i })
+      const buttons = await screen.findAllByRole('button', { name: /tambah mint otc/i })
       expect(buttons.length).toBeGreaterThan(0)
     })
 
@@ -139,7 +139,7 @@ describe('MintListPage @ USDX-51', () => {
       setup()
       // Header button is rendered first; the empty-state CTA also exists.
       // Both should navigate the same way; click the first.
-      const button = (await screen.findAllByRole('button', { name: /add mint otc/i }))[0]!
+      const button = (await screen.findAllByRole('button', { name: /tambah mint otc/i }))[0]!
       await user.click(button)
       await screen.findByTestId('mint-form-landing')
     })
@@ -160,8 +160,8 @@ describe('MintListPage @ USDX-51', () => {
       // Open it → pick Status → Apply → URL param wires through.
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /pending approval/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(await screen.findByRole('option', { name: /menunggu persetujuan/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING_APPROVAL'))).toBe(true)
@@ -182,13 +182,13 @@ describe('MintListPage @ USDX-51', () => {
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       // <input type="date"> — fireEvent.change is the reliable jsdom path.
-      fireEvent.change(await screen.findByLabelText('Date range start'), {
+      fireEvent.change(await screen.findByLabelText('Rentang tanggal — tanggal mulai'), {
         target: { value: '2026-05-01' },
       })
-      fireEvent.change(screen.getByLabelText('Date range end'), {
+      fireEvent.change(screen.getByLabelText('Rentang tanggal — tanggal akhir'), {
         target: { value: '2026-05-12' },
       })
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(
@@ -213,26 +213,26 @@ describe('MintListPage @ USDX-51', () => {
 
       // Apply a range first…
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      fireEvent.change(await screen.findByLabelText('Date range start'), {
+      fireEvent.change(await screen.findByLabelText('Rentang tanggal — tanggal mulai'), {
         target: { value: '2026-05-01' },
       })
-      fireEvent.change(screen.getByLabelText('Date range end'), {
+      fireEvent.change(screen.getByLabelText('Rentang tanggal — tanggal akhir'), {
         target: { value: '2026-05-12' },
       })
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
       await waitFor(() =>
         expect(captured.some((s) => s.includes('startDate=2026-05-01'))).toBe(true)
       )
 
       // …then clear both and re-apply → params drop out of the URL.
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      fireEvent.change(await screen.findByLabelText('Date range start'), {
+      fireEvent.change(await screen.findByLabelText('Rentang tanggal — tanggal mulai'), {
         target: { value: '' },
       })
-      fireEvent.change(screen.getByLabelText('Date range end'), {
+      fireEvent.change(screen.getByLabelText('Rentang tanggal — tanggal akhir'), {
         target: { value: '' },
       })
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() => {
         const last = captured[captured.length - 1]
@@ -253,7 +253,7 @@ describe('MintListPage @ USDX-51', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.type(screen.getByLabelText(/^search$/i), 'alice')
+      await user.type(screen.getByLabelText(/^cari$/i), 'alice')
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=alice'))).toBe(true)
@@ -345,16 +345,16 @@ describe('MintListPage @ USDX-51', () => {
       setup({ staffId: 'stf_3' })
       await screen.findByText('Alice Anderson')
       expect(
-        screen.queryByRole('button', { name: /add mint otc/i })
+        screen.queryByRole('button', { name: /tambah mint otc/i })
       ).not.toBeInTheDocument()
     })
 
     test('empty state CTA is hidden for DEVELOPER (no rows + no submit privilege)', async () => {
       server.use(http.get('/api/v1/requests', () => ok([])))
       setup({ staffId: 'stf_3' })
-      await screen.findByText(/no mint requests yet/i)
+      await screen.findByText(/belum ada request mint otc/i)
       expect(
-        screen.queryByRole('button', { name: /add mint otc/i })
+        screen.queryByRole('button', { name: /tambah mint otc/i })
       ).not.toBeInTheDocument()
     })
   })
@@ -393,7 +393,7 @@ describe('MintListPage @ USDX-51', () => {
       )
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
-      await user.type(screen.getByLabelText(/^search$/i), '019e1aa8')
+      await user.type(screen.getByLabelText(/^cari$/i), '019e1aa8')
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=019e1aa8'))).toBe(true)
       )

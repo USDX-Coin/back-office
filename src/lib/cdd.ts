@@ -179,12 +179,30 @@ export function isPepCandidateOccupation(
   return occupation !== null && occupation !== undefined && PEP_CANDIDATE_OCCUPATIONS.has(occupation)
 }
 
+/**
+ * Label `SourceOfFunds`. Yang diterjemahkan HANYA sisi kanannya — kunci
+ * `SALARY`/`BUSINESS`/... adalah nilai wire dan tidak boleh bergeser.
+ *
+ * Boleh diterjemahkan karena daftar nilainya BUKAN kosakata dokumen:
+ * `sot/api/kyc.yaml § SourceOfFunds` menulis "Daftar nilainya kosakata kita
+ * sendiri; pasalnya mewajibkan datanya ada, tidak menentukan pilihannya".
+ * Bandingkan dengan `OCCUPATION_LABELS`, `GENDER_LABELS`, dan
+ * `MARITAL_STATUS_LABELS` di bawah — yang itu menyalin kata dari KTP-el dan
+ * tetap apa adanya supaya bisa dicocokkan baris demi baris dengan dokumennya.
+ */
 export const SOURCE_OF_FUNDS_LABELS: Record<KycSourceOfFunds, string> = {
-  SALARY: 'Salary',
-  BUSINESS: 'Business',
-  INVESTMENT: 'Investment',
-  INHERITANCE: 'Inheritance',
-  OTHER: 'Other',
+  SALARY: 'Gaji',
+  BUSINESS: 'Usaha',
+  INVESTMENT: 'Investasi',
+  // "Dana warisan", BUKAN "Warisan": `SOURCE_OF_WEALTH_LABELS.INHERITANCE`
+  // sudah memakai "Warisan", dan kedua kolom itu berdiri BERSEBELAHAN di kartu
+  // CDD. Pertanyaannya berbeda — dana yang dipakai bertransaksi kali ini vs
+  // asal hartanya — jadi dua sel yang berbunyi persis sama akan terbaca sebagai
+  // satu jawaban yang tercetak dua kali. Dijaga oleh test di `cdd.test.ts`
+  // ("should not reuse one label for two different questions"); dulu keduanya
+  // kebetulan berbeda hanya karena yang satu masih berbahasa Inggris.
+  INHERITANCE: 'Dana warisan',
+  OTHER: 'Lainnya',
 }
 
 // Amounts are rupiah — spelled out because "100M" is ambiguous in a form the
@@ -196,11 +214,16 @@ export const ANNUAL_INCOME_LABELS: Record<KycAnnualIncomeRange, string> = {
   OVER_1B: '> Rp 1 miliar',
 }
 
+/**
+ * Label `TransactionPurpose` — alasan yang sama dengan `SOURCE_OF_FUNDS_LABELS`:
+ * `sot/api/kyc.yaml § TransactionPurpose` menyebut daftarnya "kosakata kita
+ * sendiri". Kuncinya nilai wire, jangan disentuh.
+ */
 export const TRANSACTION_PURPOSE_LABELS: Record<KycTransactionPurpose, string> = {
-  INVESTMENT: 'Investment',
-  PAYMENT: 'Payment',
-  REMITTANCE: 'Remittance',
-  OTHER: 'Other',
+  INVESTMENT: 'Investasi',
+  PAYMENT: 'Pembayaran',
+  REMITTANCE: 'Pengiriman uang',
+  OTHER: 'Lainnya',
 }
 
 // Rentang harta kekayaan — batas rentangnya diambil dari ambang AML yang sudah
@@ -277,7 +300,7 @@ export const KYB_ENTITY_FORM_LABELS: Record<KybEntityForm, string> = {
   PERKUMPULAN: 'Perkumpulan',
   BUMN: 'BUMN',
   BUMD: 'BUMD',
-  OTHER: 'Other',
+  OTHER: 'Lainnya',
 }
 
 /**

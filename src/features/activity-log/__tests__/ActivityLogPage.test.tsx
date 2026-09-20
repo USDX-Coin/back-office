@@ -128,7 +128,11 @@ describe('ActivityLogPage @ jejak audit', () => {
         )
       )
       setup()
-      expect(await screen.findByText(/Couldn't load this data/i)).toBeInTheDocument()
+      // Judul default `TableErrorState`, yang diterjemahkan di cabang bahasa.
+      // Yang dijaga test ini bukan kata-katanya, melainkan bahwa kegagalan
+      // memuat TERLIHAT sebagai kegagalan — tabel kosong yang menenangkan di
+      // layar bukti kepatuhan membuat pemeriksa menyimpulkan tidak ada jejaknya.
+      expect(await screen.findByText(/gagal dimuat/i)).toBeInTheDocument()
       expect(screen.queryByText(/Belum ada jejak/)).not.toBeInTheDocument()
     })
   })

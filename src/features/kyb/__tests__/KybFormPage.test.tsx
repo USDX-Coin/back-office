@@ -89,7 +89,7 @@ function setup() {
 
 async function pickLegalEntity(user: ReturnType<typeof userEvent.setup>) {
   await user.type(
-    screen.getByPlaceholderText(/search legal-entity account/i),
+    screen.getByPlaceholderText(/cari akun badan usaha/i),
     'juara',
   )
   // Timeout eksplisit: `LegalEntityPicker` men-debounce 300 ms sebelum menembak
@@ -154,19 +154,19 @@ async function fillEntity(
   user: ReturnType<typeof userEvent.setup>,
   { microSmall = true }: { microSmall?: boolean } = {},
 ) {
-  await user.type(screen.getByLabelText('Entity name'), 'PT Juara Remiten Indonesia')
-  await user.type(screen.getByLabelText(/registration number/i), '8120012345678')
-  await user.type(screen.getByLabelText(/entity npwp/i), '012345678901234')
-  await user.type(screen.getByLabelText(/establishment date/i), '2018-04-12')
-  await user.type(screen.getByLabelText(/business sector/i), 'Jasa pengiriman uang')
-  await user.type(screen.getByLabelText(/registered address/i), 'Jl. Sudirman No. 10')
-  await user.type(screen.getByLabelText(/operational address/i), 'Jl. Thamrin No. 5')
-  await user.type(screen.getByLabelText(/^phone$/i), '+622140001234')
+  await user.type(screen.getByLabelText('Nama badan usaha'), 'PT Juara Remiten Indonesia')
+  await user.type(screen.getByLabelText(/nomor induk berusaha/i), '8120012345678')
+  await user.type(screen.getByLabelText(/npwp badan usaha/i), '012345678901234')
+  await user.type(screen.getByLabelText(/tanggal pendirian/i), '2018-04-12')
+  await user.type(screen.getByLabelText(/bidang usaha/i), 'Jasa pengiriman uang')
+  await user.type(screen.getByLabelText(/alamat kedudukan/i), 'Jl. Sudirman No. 10')
+  await user.type(screen.getByLabelText(/alamat operasional/i), 'Jl. Thamrin No. 5')
+  await user.type(screen.getByLabelText(/^telepon$/i), '+622140001234')
   // Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605. Keempatnya `required`
   // di kontraknya dan tidak pernah dikirim form ini sebelum tiket itu.
-  await user.type(screen.getByLabelText(/place of incorporation/i), 'Jakarta Selatan')
-  await selectByTypeahead(user, 'kyb-source-of-funds', 'Business', 'Business')
-  await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investment', 'Investment')
+  await user.type(screen.getByLabelText(/tempat pendirian/i), 'Jakarta Selatan')
+  await selectByTypeahead(user, 'kyb-source-of-funds', 'Usaha', 'Usaha')
+  await selectByTypeahead(user, 'kyb-transaction-purpose', 'Investasi', 'Investasi')
   if (microSmall) {
     await selectByTypeahead(
       user,
@@ -192,8 +192,8 @@ async function fillUboBasic(
   pct: string,
   identity: string,
 ) {
-  await user.type(screen.getByLabelText(`First name`, { selector: `#ubo-first-${index}` }), 'Andi')
-  await user.type(screen.getByLabelText(`Last name`, { selector: `#ubo-last-${index}` }), 'Wijaya')
+  await user.type(screen.getByLabelText(`Nama depan`, { selector: `#ubo-first-${index}` }), 'Andi')
+  await user.type(screen.getByLabelText(`Nama belakang`, { selector: `#ubo-last-${index}` }), 'Wijaya')
   await user.type(document.querySelector(`#ubo-pct-${index}`)!, pct)
   await user.type(document.querySelector(`#ubo-id-${index}`)!, identity)
   await user.type(document.querySelector(`#ubo-address1-${index}`)!, 'Jl. Sudirman No. 1')
@@ -215,7 +215,7 @@ async function fillUbo(
   await selectByTypeahead(user, `ubo-occupation-${index}`, 'Wiraswasta', 'Wiraswasta')
   await selectByTypeahead(user, `ubo-gender-${index}`, 'Laki', 'Laki-laki')
   await selectByTypeahead(user, `ubo-marital-${index}`, 'Kawin', 'Kawin')
-  await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Business', 'Business')
+  await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Usaha', 'Usaha')
   await selectByClick(user, `ubo-annual-income-${index}`, /^Rp 500 juta – 1 miliar$/)
   await selectByClick(user, `ubo-net-worth-${index}`, /^Rp 500 juta – 2 miliar$/)
   await selectByClick(user, `ubo-legal-relationship-${index}`, /^Surat kuasa$/)
@@ -238,7 +238,7 @@ describe('KybFormPage @ USDX-546', () => {
       stubUsersLookup(captured)
       setup()
       await user.type(
-        screen.getByPlaceholderText(/search legal-entity account/i),
+        screen.getByPlaceholderText(/cari akun badan usaha/i),
         'juara',
       )
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
@@ -264,7 +264,7 @@ describe('KybFormPage @ USDX-546', () => {
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
       const body = bodies[0]!
@@ -294,10 +294,10 @@ describe('KybFormPage @ USDX-546', () => {
       await pickLegalEntity(user)
       await fillEntity(user)
       await fillUbo(user, 0, '60', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
       await fillUbo(user, 1, '40', '3171234567890124')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       await waitFor(() => expect(posted).toBe(1))
     })
   })
@@ -314,13 +314,13 @@ describe('KybFormPage @ USDX-546', () => {
         }),
       )
       setup()
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
-        await screen.findByText(/legal-entity user is required/i),
+        await screen.findByText(/akun badan usaha wajib dipilih/i),
       ).toBeInTheDocument()
-      expect(screen.getByText(/entity name is required/i)).toBeInTheDocument()
-      expect(screen.getByText(/registration number \(nib\) is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/nama badan usaha wajib diisi/i)).toBeInTheDocument()
+      expect(screen.getByText(/nomor induk berusaha \(nib\) wajib diisi/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -342,12 +342,12 @@ describe('KybFormPage @ USDX-546', () => {
       // submitnya ditahan apa pun isi blok Pasal 33 (3). Mengisi delapan select per baris di sini
       // hanya membeli waktu jalan, bukan cakupan.
       await fillUboBasic(user, 0, '80', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
       await fillUboBasic(user, 1, '80', '3171234567890124')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
-      expect(await screen.findByText(/cannot exceed 100%/i)).toBeInTheDocument()
+      expect(await screen.findByText(/tidak boleh lebih dari 100%/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -366,9 +366,9 @@ describe('KybFormPage @ USDX-546', () => {
       await fillEntity(user)
       await fillUboBasic(user, 0, '100', 'not-a-number')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
-        await screen.findByText(/identity number must be 8-20 digits/i),
+        await screen.findByText(/nomor identitas harus 8-20 angka/i),
       ).toBeInTheDocument()
       expect(posted).toBe(0)
     })
@@ -382,7 +382,7 @@ describe('KybFormPage @ USDX-546', () => {
       expect(screen.queryByText('UBO #2')).not.toBeInTheDocument()
       // With a single row there is nothing to remove — no misleading control.
       expect(
-        screen.queryByRole('button', { name: /remove ubo 1/i }),
+        screen.queryByRole('button', { name: /hapus ubo 1/i }),
       ).not.toBeInTheDocument()
     })
 
@@ -392,14 +392,14 @@ describe('KybFormPage @ USDX-546', () => {
       const user = newUser()
       stubUsersLookup()
       setup()
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
-        (await screen.findAllByText(/first name is required/i)).length,
+        (await screen.findAllByText(/nama depan wajib diisi/i)).length,
       ).toBeGreaterThan(1)
 
-      await user.click(screen.getByRole('button', { name: /remove ubo 2/i }))
-      expect(screen.queryByText(/first name is required/i)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /hapus ubo 2/i }))
+      expect(screen.queryByText(/nama depan wajib diisi/i)).not.toBeInTheDocument()
     })
 
     test('a server error keeps the typed values on screen', async () => {
@@ -422,11 +422,11 @@ describe('KybFormPage @ USDX-546', () => {
       await pickLegalEntity(user)
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       // Still on the form, values intact — retyping a deed is not a retry.
       await waitFor(() =>
-        expect(screen.getByLabelText('Entity name')).toHaveValue(
+        expect(screen.getByLabelText('Nama badan usaha')).toHaveValue(
           'PT Juara Remiten Indonesia',
         ),
       )
@@ -464,7 +464,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       await waitFor(() => expect(bodies).toHaveLength(1))
 
       const body = bodies[0]!
@@ -532,9 +532,9 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       // yang tidak menjawab field wajib yang baru, dan yang harus memblokir submit.
       await fillUboBasic(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
-      expect(await screen.findByText(/place of birth is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/tempat lahir wajib diisi/i)).toBeInTheDocument()
       expect(posted).toBe(0)
     })
 
@@ -558,10 +558,10 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       await fillEntity(user, { microSmall: false })
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
-        await screen.findByText(/answer whether this is a micro\/small enterprise/i),
+        await screen.findByText(/termasuk usaha mikro atau kecil/i),
       ).toBeInTheDocument()
       expect(posted).toBe(0)
       // Dan daftar dokumennya pun tidak muncul: konsekuensinya belum bisa dihitung.

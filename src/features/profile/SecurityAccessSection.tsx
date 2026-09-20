@@ -11,7 +11,7 @@ import {
 export default function SecurityAccessSection() {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium">Security access</h3>
+      <h3 className="text-sm font-medium">Keamanan akun</h3>
 
       <TooltipProvider>
         <div className="flex items-center justify-between rounded-xl bg-muted/40 p-4">
@@ -20,19 +20,19 @@ export default function SecurityAccessSection() {
               <Lock className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium">Password</p>
-              <p className="text-xs text-muted-foreground">Last changed 42 days ago</p>
+              <p className="text-sm font-medium">Kata sandi</p>
+              <p className="text-xs text-muted-foreground">Terakhir diubah 42 hari lalu</p>
             </div>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <span tabIndex={0} aria-describedby="pw-disabled-reason">
                 <Button variant="outline" disabled aria-disabled="true" className="opacity-60">
-                  Change Password
+                  Ubah Kata Sandi
                 </Button>
               </span>
             </TooltipTrigger>
-            <TooltipContent id="pw-disabled-reason">Available after v1</TooltipContent>
+            <TooltipContent id="pw-disabled-reason">Tersedia setelah v1</TooltipContent>
           </Tooltip>
         </div>
 
@@ -42,8 +42,8 @@ export default function SecurityAccessSection() {
               <ShieldAlert className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium">Two-Factor Authentication</p>
-              <p className="text-xs text-muted-foreground">Not configured</p>
+              <p className="text-sm font-medium">Autentikasi Dua Faktor</p>
+              <p className="text-xs text-muted-foreground">Belum diatur</p>
             </div>
           </div>
           <Tooltip>
@@ -51,12 +51,12 @@ export default function SecurityAccessSection() {
               <span tabIndex={0} aria-describedby="twofa-disabled-reason">
                 <Switch
                   disabled
-                  aria-label="Two-Factor Authentication"
+                  aria-label="Autentikasi Dua Faktor"
                   aria-describedby="twofa-disabled-reason"
                 />
               </span>
             </TooltipTrigger>
-            <TooltipContent id="twofa-disabled-reason">Available after v1</TooltipContent>
+            <TooltipContent id="twofa-disabled-reason">Tersedia setelah v1</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>

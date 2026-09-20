@@ -87,9 +87,9 @@ interface KybDetailModalProps {
 async function copyText(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(`${label} copied`)
+    toast.success(`${label} tersalin`)
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -242,7 +242,7 @@ function UboDocLink({
           <span className="text-2xs text-primary">Terunggah — muat ulang untuk membuka</span>
         ) : urlsWithheld ? (
           <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
-            not shown to your role
+            {PII_WITHHELD_LABEL}
           </span>
         ) : (
           <span className="text-muted-foreground">Belum diunggah</span>
@@ -251,7 +251,7 @@ function UboDocLink({
         {canUpload && (
           <>
             {uploading && (
-              <span className="text-2xs text-muted-foreground">Uploading…</span>
+              <span className="text-2xs text-muted-foreground">Mengunggah…</span>
             )}
             <label
               htmlFor={inputId}
@@ -260,7 +260,7 @@ function UboDocLink({
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
-              {url !== null || uploadedNow ? 'Replace' : 'Upload'}
+              {url !== null || uploadedNow ? 'Ganti' : 'Unggah'}
             </label>
             <input
               id={inputId}
@@ -272,7 +272,7 @@ function UboDocLink({
               // mengikatkan baris itu ke inputnya — nama ini satu-satunya pembeda
               // yang dipunyai pembaca layar.
               aria-label={`${
-                url !== null || uploadedNow ? 'Replace' : 'Upload'
+                url !== null || uploadedNow ? 'Ganti' : 'Unggah'
               } ${label} UBO #${uboIndex + 1}`}
               className="sr-only"
               accept={isPhoto ? KYB_UBO_PHOTO_ACCEPT_ATTR : KYB_DOCUMENT_ACCEPT_ATTR}
@@ -398,14 +398,14 @@ function UboCard({
           />
         </Field>
         <Field label="Kewarganegaraan">{ubo.nationality ?? <Dim />}</Field>
-        <Field label="Country">{ubo.country ?? <Dim />}</Field>
+        <Field label="Negara">{ubo.country ?? <Dim />}</Field>
         <Field label="Jenis kelamin">
           {labelFor(ubo.gender, GENDER_LABELS) ?? <Dim />}
         </Field>
         <Field label="Status perkawinan">
           {labelFor(ubo.maritalStatus, MARITAL_STATUS_LABELS) ?? <Dim />}
         </Field>
-        <Field label="Address">
+        <Field label="Alamat">
           {ubo.addressLine1 ?? <Dim />}
           {ubo.addressLine2 && (
             <>
@@ -424,10 +424,10 @@ function UboCard({
           <PiiValue value={ubo.employerPhone} staff={staff} />
         </Field>
         {/* Huruf b & c — profil finansial UBO, bukan profil badan usahanya */}
-        <Field label="Source of funds">
+        <Field label="Sumber dana">
           {labelFor(ubo.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
         </Field>
-        <Field label="Annual income">
+        <Field label="Penghasilan per tahun">
           {labelFor(ubo.annualIncomeRange, ANNUAL_INCOME_LABELS) ?? <Dim />}
         </Field>
         <Field label="Harta kekayaan (net worth)">
@@ -604,19 +604,19 @@ function DocumentSlotRow({
             )}
           >
             {uploadedNow
-              ? 'Uploaded — reload to open'
+              ? 'Terunggah — muat ulang untuk membuka'
               : missing
-                ? 'Required — not uploaded'
+                ? 'Wajib — belum diunggah'
                 : urlsWithheld
-                  ? 'Not shown to your role'
-                  : 'Not uploaded'}
+                  ? PII_WITHHELD_LABEL
+                  : 'Belum diunggah'}
           </span>
         )}
 
         {canUpload && (
           <div className="ml-auto flex items-center gap-2">
             {uploading && (
-              <span className="text-2xs text-muted-foreground">Uploading…</span>
+              <span className="text-2xs text-muted-foreground">Mengunggah…</span>
             )}
             <label
               htmlFor={inputId}
@@ -625,7 +625,7 @@ function DocumentSlotRow({
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
-              {filled ? 'Replace' : 'Upload'}
+              {filled ? 'Ganti' : 'Unggah'}
             </label>
             <input
               id={inputId}
@@ -634,7 +634,7 @@ function DocumentSlotRow({
               // name has to say WHICH document, or the control is unusable by
               // anyone not looking at the row it sits in. `aria-label` rather
               // than an `sr-only` span so the slot name exists once as text.
-              aria-label={`${filled ? 'Replace' : 'Upload'} ${label}`}
+              aria-label={`${filled ? 'Ganti' : 'Unggah'} ${label}`}
               className="sr-only"
               accept={KYB_DOCUMENT_ACCEPT_ATTR}
               disabled={disabled}
@@ -761,24 +761,26 @@ export default function KybDetailModal({
       setMissingDocuments(missing)
       toast.error(
         missing.length > 0
-          ? `Cannot approve — missing: ${missing
+          ? `Belum bisa disetujui — dokumen yang kurang: ${missing
               .map((slot) => KYB_DOCUMENT_SLOTS[slot])
-              .join(', ')}`
-          : 'Cannot approve — required documents are missing.',
+              .join(', ')} (KYB_DOCUMENTS_INCOMPLETE)`
+          : 'Belum bisa disetujui — ada dokumen wajib yang belum diunggah (KYB_DOCUMENTS_INCOMPLETE).',
       )
       return
     }
     if (err instanceof ApiError && err.status === 409) {
-      toast.error('This record was already reviewed by someone else — refreshing')
+      toast.error(
+        `Berkas ini sudah diperiksa orang lain — data dimuat ulang (${err.code})`,
+      )
       setRejectOpen(false)
       detailQuery.refetch()
       return
     }
     if (err instanceof ApiError && err.status === 403) {
-      toast.error('Access denied')
+      toast.error(`Peran Anda tidak boleh memutus berkas ini (${err.code})`)
       return
     }
-    toast.error(err instanceof Error ? err.message : 'Request failed')
+    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
   }
 
   function handleApprove() {
@@ -786,7 +788,7 @@ export default function KybDetailModal({
     setMissingDocuments(null)
     approve.mutate(kybId, {
       onSuccess: () => {
-        toast.success('KYB approved')
+        toast.success('Berkas KYB disetujui')
         setConfirmApproveOpen(false)
         onOpenChange(false)
       },
@@ -833,7 +835,7 @@ export default function KybDetailModal({
       setMissingDocuments((prev) =>
         prev === null ? null : prev.filter((s) => !result.uploaded[s]),
       )
-      toast.success(`${KYB_DOCUMENT_SLOTS[slot]} uploaded`)
+      toast.success(`${KYB_DOCUMENT_SLOTS[slot]} terunggah`)
     } catch (err) {
       const message = describeKybUploadFailure(err)
       setUploadErrors((prev) => ({ ...prev, [slot]: message }))
@@ -883,7 +885,7 @@ export default function KybDetailModal({
     try {
       const result = await uploadUboDoc.mutateAsync({ kybId, uboId, slot, file })
       setUboUploadedSlots((prev) => ({ ...prev, [uboId]: result.uploaded }))
-      toast.success(`${KYB_UBO_DOCUMENT_SLOTS[slot]} uploaded`)
+      toast.success(`${KYB_UBO_DOCUMENT_SLOTS[slot]} terunggah`)
     } catch (err) {
       const message = describeKybUploadFailure(
         err,
@@ -909,7 +911,7 @@ export default function KybDetailModal({
       { id: kybId, reason: check.reason },
       {
         onSuccess: () => {
-          toast.success('KYB rejected')
+          toast.success('Berkas KYB ditolak')
           setRejectOpen(false)
           onOpenChange(false)
         },
@@ -1001,10 +1003,10 @@ export default function KybDetailModal({
           onPointerDownOutside={(e) => isMutating && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>KYB record</DialogTitle>
+            <DialogTitle>Berkas Verifikasi Badan Usaha</DialogTitle>
             <DialogDescription>
-              Business-entity due diligence, entered by an operator. There is no
-              self-service KYB submission.
+              Penelaahan badan usaha yang diketik operator. Tidak ada pengajuan KYB
+              mandiri dari nasabah.
             </DialogDescription>
           </DialogHeader>
 
@@ -1034,7 +1036,7 @@ export default function KybDetailModal({
                       onClick={() => copyText(kybId, 'KYB ID')}
                       className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
                       title={kybId}
-                      aria-label="Copy KYB ID"
+                      aria-label="Salin ID KYB"
                     >
                       <span>{shortHash(kybId, 8, 6)}</span>
                       <Copy className="h-3 w-3 opacity-50" />
@@ -1043,7 +1045,7 @@ export default function KybDetailModal({
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
                   <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-                    Submitted{' '}
+                    Diajukan{' '}
                     {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
@@ -1060,10 +1062,10 @@ export default function KybDetailModal({
                   <p className="text-sm text-destructive">
                     {detailQuery.error instanceof Error
                       ? detailQuery.error.message
-                      : 'Failed to load KYB detail.'}
+                      : 'Detail KYB gagal dimuat.'}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
-                    Retry
+                    Coba lagi
                   </Button>
                 </div>
               ) : detail ? (
@@ -1074,21 +1076,21 @@ export default function KybDetailModal({
                       value itself. `country`, `entityForm`, `establishmentDate`
                       and `businessSector` are plaintext metadata and are not
                       masked — they render directly. */}
-                  <Section title="Entity">
+                  <Section title="Badan usaha">
                     <div className="grid gap-4 sm:grid-cols-2" data-testid="kyb-entity">
-                      <Field label="Entity name">
+                      <Field label="Nama badan usaha">
                         <EntityValue value={detail.entityName} />
                       </Field>
-                      <Field label="Legal form">
+                      <Field label="Bentuk badan usaha">
                         {labelFor(detail.entityForm, KYB_ENTITY_FORM_LABELS) ?? <Dim />}
                       </Field>
-                      <Field label="Registration number (NIB)">
+                      <Field label="Nomor Induk Berusaha (NIB)">
                         <EntityValue value={detail.registrationNumber} mono />
                       </Field>
                       {/* Entity NPWP is a COMPANY tax number, but it is one of
                           the six ENCRYPTED `kyb` columns, so the backend masks it
                           alongside the rest for a role that may not read PII. */}
-                      <Field label="Entity NPWP">
+                      <Field label="NPWP badan usaha">
                         <EntityValue value={detail.taxId} mono />
                       </Field>
                       {/* Pasal 25 (1) b angka 5 berbunyi "tempat DAN tanggal
@@ -1111,28 +1113,28 @@ export default function KybDetailModal({
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Business sector">{detail.businessSector}</Field>
-                      <Field label="Country">{detail.country}</Field>
+                      <Field label="Bidang usaha">{detail.businessSector}</Field>
+                      <Field label="Negara">{detail.country}</Field>
                       {/* Pasal 25 (1) b angka 8 & 9 (USDX-584) — enum yang sama
                           dengan sisi retail, bukan kosakata korporasi sendiri. */}
-                      <Field label="Source of funds">
+                      <Field label="Sumber dana">
                         {labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
                       </Field>
-                      <Field label="Transaction purpose">
+                      <Field label="Tujuan hubungan usaha">
                         {labelFor(detail.transactionPurpose, TRANSACTION_PURPOSE_LABELS) ?? (
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Phone">
+                      <Field label="Telepon">
                         <EntityValue value={detail.phone} />
                       </Field>
-                      <Field label="Registered address">
+                      <Field label="Alamat kedudukan">
                         <EntityValue value={detail.registeredAddress} />
                       </Field>
-                      <Field label="Operational address">
+                      <Field label="Alamat operasional">
                         <EntityValue value={detail.operationalAddress} />
                       </Field>
-                      <Field label="Website">
+                      <Field label="Situs web">
                         {detail.website ? (
                           <a
                             href={detail.website}
@@ -1146,7 +1148,7 @@ export default function KybDetailModal({
                           <Dim />
                         )}
                       </Field>
-                      <Field label="Account email">
+                      <Field label="Email akun">
                         <span className="break-all">{detail.userEmail}</span>
                       </Field>
                     </div>
@@ -1207,15 +1209,15 @@ export default function KybDetailModal({
                     enabled={open}
                   />
 
-                  <Section title={`Ultimate beneficial owners (${detail.ubos.length})`}>
+                  <Section title={`Pemilik manfaat / UBO (${detail.ubos.length})`}>
                     {detail.ubos.length === 0 ? (
                       // Not a neutral empty state: without a UBO there is nothing
                       // to run due diligence ON, so this record cannot honestly
                       // be approved.
                       <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                        No UBO recorded. A KYB record without an ultimate
-                        beneficial owner has no due-diligence subject — add at
-                        least one before approving.
+                        Belum ada satu pun UBO tercatat. Berkas KYB tanpa pemilik
+                        manfaat tidak punya subjek yang ditelaah — tambahkan minimal
+                        satu sebelum menyetujui.
                       </p>
                     ) : (
                       <>
@@ -1246,8 +1248,9 @@ export default function KybDetailModal({
                               : 'text-muted-foreground',
                           )}
                         >
-                          Declared ownership total: {ownershipTotal.toFixed(2)}%
-                          {ownershipTotal > 100.0001 && ' — exceeds 100%'}
+                          Total kepemilikan yang dinyatakan:{' '}
+                          {ownershipTotal.toFixed(2)}%
+                          {ownershipTotal > 100.0001 && ' — melebihi 100%'}
                         </p>
                       </>
                     )}
@@ -1271,8 +1274,8 @@ export default function KybDetailModal({
                           // reads `null` however many documents are on file. The
                           // count is unknowable here, and saying so is the only
                           // honest header.
-                          `Documents (${applicableSlots.length} slots — count not shown to your role)`
-                        : `Documents (${uploadedCount} of ${applicableSlots.length})`
+                          `Dokumen (${applicableSlots.length} slot — jumlahnya ${PII_WITHHELD_LABEL})`
+                        : `Dokumen (${uploadedCount} dari ${applicableSlots.length})`
                     }
                   >
                     {missingDocuments !== null && (
@@ -1282,20 +1285,21 @@ export default function KybDetailModal({
                       >
                         {missingDocuments.length > 0 ? (
                           <>
-                            Approval was refused — these required documents are not
-                            on file:{' '}
+                            Persetujuan ditolak — dokumen wajib berikut belum ada:{' '}
                             <strong>
                               {missingDocuments
                                 .map((slot) => KYB_DOCUMENT_SLOTS[slot])
                                 .join(', ')}
                             </strong>
-                            . Ask the customer for them before approving again.
+                            . Minta dokumennya ke nasabah sebelum menyetujui lagi
+                            (KYB_DOCUMENTS_INCOMPLETE).
                           </>
                         ) : (
                           <>
-                            Approval was refused because required documents are not
-                            on file. The response did not say which — reload the
-                            record and try again.
+                            Persetujuan ditolak karena ada dokumen wajib yang belum
+                            ada. Server tidak menyebutkan dokumen yang mana — muat
+                            ulang berkasnya lalu coba lagi
+                            (KYB_DOCUMENTS_INCOMPLETE).
                           </>
                         )}
                       </p>
@@ -1332,16 +1336,16 @@ export default function KybDetailModal({
                         disabled={detailQuery.isFetching}
                       >
                         {detailQuery.isFetching
-                          ? 'Reloading…'
-                          : 'Reload record to open the new documents'}
+                          ? 'Memuat ulang…'
+                          : 'Muat ulang berkas untuk membuka dokumen baru'}
                       </Button>
                     )}
                     <p className="mt-2 text-2xs text-muted-foreground">
                       {urlsWithheld
-                        ? 'Your role is not given document links — an empty slot here does not mean the document is missing.'
+                        ? 'Peran Anda tidak diberi tautan dokumen — slot kosong di sini bukan berarti dokumennya tidak ada.'
                         : canUpload
-                          ? `${KYB_DOCUMENT_TYPE_LABEL}, up to ${KYB_DOCUMENT_MAX_FILE_LABEL} each — the same limits the server enforces. Akta Pendirian, NIB, NPWP Badan and KTP Pengurus must be on file before this record can be approved.`
-                          : 'Documents can only be changed while the record is awaiting review.'}
+                          ? `${KYB_DOCUMENT_TYPE_LABEL}, maksimal ${KYB_DOCUMENT_MAX_FILE_LABEL} per berkas — batas yang sama dengan yang ditegakkan server. Akta Pendirian, NIB, NPWP Badan, dan KTP Pengurus harus sudah ada sebelum berkas ini bisa disetujui.`
+                          : 'Dokumen hanya bisa diubah selama berkas masih menunggu pemeriksaan.'}
                     </p>
                   </Section>
 
@@ -1350,14 +1354,14 @@ export default function KybDetailModal({
                       {detail.rejectionReason && (
                         <p className="text-xs text-foreground">
                           <span className="font-medium text-destructive">
-                            Rejection reason:
+                            Alasan penolakan:
                           </span>{' '}
                           {detail.rejectionReason}
                         </p>
                       )}
                       {detail.reviewedAt && (
                         <p className="text-xs text-muted-foreground">
-                          Reviewed by {detail.reviewedByName ?? '—'} ·{' '}
+                          Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
                           {formatDate(detail.reviewedAt)}
                         </p>
                       )}
@@ -1378,13 +1382,13 @@ export default function KybDetailModal({
                     onClick={() => setRejectOpen(true)}
                     disabled={isMutating}
                   >
-                    Reject
+                    Tolak
                   </Button>
                   <Button
                     onClick={() => setConfirmApproveOpen(true)}
                     disabled={isMutating}
                   >
-                    Approve
+                    Setujui
                   </Button>
                 </>
               ) : (
@@ -1398,14 +1402,14 @@ export default function KybDetailModal({
                         aria-disabled="true"
                         className="border-destructive/40 text-destructive"
                       >
-                        Reject
+                        Tolak
                       </Button>
                       <Button disabled aria-disabled="true">
-                        Approve
+                        Setujui
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>View only for Developer role</TooltipContent>
+                  <TooltipContent>Peran Developer hanya bisa melihat</TooltipContent>
                 </Tooltip>
               )}
             </DialogFooter>
@@ -1426,11 +1430,11 @@ export default function KybDetailModal({
           onPointerDownOutside={(e) => approve.isPending && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Approve this KYB record?</DialogTitle>
+            <DialogTitle>Setujui berkas KYB ini?</DialogTitle>
             <DialogDescription>
-              The entity becomes <strong>VERIFIED</strong>. A partner may only be
-              activated once its KYB is on record — approving here is what unlocks
-              that.
+              Badan usaha ini langsung berstatus <strong>Terverifikasi</strong> dan
+              nasabahnya bisa mint dan redeem. Partner baru bisa diaktifkan setelah
+              KYB-nya tercatat — tombol inilah yang membukanya.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1439,10 +1443,10 @@ export default function KybDetailModal({
               onClick={() => setConfirmApproveOpen(false)}
               disabled={approve.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleApprove} disabled={approve.isPending}>
-              {approve.isPending ? 'Approving…' : 'Approve'}
+              {approve.isPending ? 'Menyetujui…' : 'Ya, setujui'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1467,10 +1471,11 @@ export default function KybDetailModal({
           onPointerDownOutside={(e) => reject.isPending && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Reject this KYB record?</DialogTitle>
+            <DialogTitle>Tolak berkas KYB ini?</DialogTitle>
             <DialogDescription>
-              The reason is recorded in the review trail and is what the entity is
-              told — write it clear and actionable.
+              Badan usaha ini tetap tidak bisa mint maupun redeem. Alasannya tercatat
+              di jejak pemeriksaan dan itulah yang disampaikan ke badan usahanya —
+              tulis jelas dan bisa ditindaklanjuti.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -1481,10 +1486,10 @@ export default function KybDetailModal({
                   setReason(e.target.value)
                   if (reasonError) setReasonError('')
                 }}
-                placeholder="e.g. Akta pendirian tidak terbaca, mohon unggah ulang hasil scan yang jelas"
+                placeholder="mis. Akta pendirian tidak terbaca, mohon unggah ulang hasil pindai yang jelas"
                 maxLength={KYB_REJECT_REASON_MAX}
                 rows={4}
-                aria-label="Rejection reason"
+                aria-label="Alasan penolakan"
                 disabled={reject.isPending}
               />
               <div className="flex items-baseline justify-between gap-2">
@@ -1508,14 +1513,14 @@ export default function KybDetailModal({
               onClick={() => setRejectOpen(false)}
               disabled={reject.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button
               variant="destructive"
               onClick={handleReject}
               disabled={reject.isPending}
             >
-              {reject.isPending ? 'Rejecting…' : 'Reject'}
+              {reject.isPending ? 'Menolak…' : 'Ya, tolak'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -31,8 +31,8 @@ import type {
 const PAGE_SIZE = 10
 
 const ENTITY_LABEL: Record<EntityType, string> = {
-  INDIVIDUAL: 'Individual',
-  LEGAL_ENTITY: 'Legal Entity',
+  INDIVIDUAL: 'Perorangan',
+  LEGAL_ENTITY: 'Badan Usaha',
 }
 
 export default function UsersPage() {
@@ -88,7 +88,7 @@ export default function UsersPage() {
     {
       id: 'name',
       size: 190,
-      header: 'Name',
+      header: 'Nama',
       cell: ({ row }) => {
         const u = row.original
         return (
@@ -99,7 +99,7 @@ export default function UsersPage() {
               navigate(`/users/${u.id}`)
             }}
             className="flex items-center gap-2.5 text-left hover:text-primary"
-            aria-label={`Open ${u.name ?? u.email}`}
+            aria-label={`Buka ${u.name ?? u.email}`}
           >
             {/* Self-signup users have no name until first KYC submit
                 (users.yaml § User.name nullable) — fall back to email. */}
@@ -122,7 +122,7 @@ export default function UsersPage() {
     {
       id: 'entityType',
       size: 104,
-      header: 'Entity',
+      header: 'Jenis',
       cell: ({ row }) => (
         <span className="text-xs">
           {ENTITY_LABEL[row.original.entityType] ?? row.original.entityType}
@@ -131,7 +131,7 @@ export default function UsersPage() {
     },
     {
       id: 'kycStatus',
-      size: 112,
+      size: 128,
       header: 'KYC',
       cell: ({ row }) => {
         const cfg = getKycStatusConfig(row.original.kycStatus)
@@ -152,7 +152,7 @@ export default function UsersPage() {
       // (warning); ACTIVATED renders muted-success so the column scans quietly.
       id: 'activation',
       size: 168,
-      header: 'Activation',
+      header: 'Aktivasi',
       cell: ({ row }) => {
         const status = deriveActivationStatus(row.original)
         const cfg = getActivationStatusConfig(status)
@@ -177,7 +177,7 @@ export default function UsersPage() {
       cell: ({ row }) =>
         row.original.suspended ? (
           <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
-            Suspended
+            Dibekukan
           </span>
         ) : null,
     },
@@ -192,7 +192,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openEdit(row.original)}
-                  aria-label={`Edit ${row.original.name ?? row.original.email}`}
+                  aria-label={`Ubah ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -201,7 +201,7 @@ export default function UsersPage() {
                   variant="ghost"
                   size="icon"
                   onClick={() => openDelete(row.original)}
-                  aria-label={`Delete ${row.original.name ?? row.original.email}`}
+                  aria-label={`Hapus ${row.original.name ?? row.original.email}`}
                   className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -222,17 +222,17 @@ export default function UsersPage() {
           strokeWidth={1.5}
         />
       }
-      title="No users yet"
+      title="Belum ada nasabah"
       description={
         canManage
-          ? 'Add your first user to get started.'
-          : 'No users to show.'
+          ? 'Tambahkan nasabah pertama untuk mulai.'
+          : 'Belum ada yang bisa ditampilkan.'
       }
       cta={
         canManage ? (
           <Button onClick={openAdd} className="mt-2">
             <Plus className="mr-1.5 h-4 w-4" />
-            Add User
+            Tambah Nasabah
           </Button>
         ) : undefined
       }
@@ -256,7 +256,7 @@ export default function UsersPage() {
           canManage ? (
             <Button onClick={openAdd} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Add User
+              Tambah Nasabah
             </Button>
           ) : undefined
         }
@@ -276,7 +276,7 @@ export default function UsersPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search by name, email, or wallet',
+              placeholder: 'Cari nama, email, atau wallet',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             filter={{

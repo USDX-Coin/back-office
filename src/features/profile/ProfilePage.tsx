@@ -5,24 +5,20 @@ import PageHeader from '@/components/PageHeader'
 import SecurityAccessSection from './SecurityAccessSection'
 import { useAuth } from '@/lib/auth'
 
-function formatRole(role: string): string {
-  return role
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 export default function ProfilePage() {
   const { user } = useAuth()
   if (!user) return null
 
   return (
     <div>
+      {/* `user.role` ditulis apa adanya (`ADMIN`, `MANAGER`, …) — nama peran
+          adalah kata yang sama dengan yang dipakai gerbang akses di kode dan
+          disebut di dokumen tim, jadi ia tidak diterjemahkan. */}
       <PageHeader
         eyebrow="Akun"
         title={user.name}
         italicAccent="profil"
-        subtitle={formatRole(user.role)}
+        subtitle={user.role}
       />
 
       <div className="grid gap-4 lg:grid-cols-12">
@@ -34,11 +30,11 @@ export default function ProfilePage() {
                 {user.name}
               </h2>
               <span className="mt-2 inline-flex rounded-sm bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary">
-                {formatRole(user.role)}
+                {user.role}
               </span>
               {!user.isActive && (
                 <span className="mt-2 inline-flex rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
-                  Inactive
+                  Nonaktif
                 </span>
               )}
             </CardContent>
@@ -47,7 +43,7 @@ export default function ProfilePage() {
           <Card className="rounded-md py-0 gap-0 shadow-none">
             <CardContent className="p-5">
               <h3 className="font-mono text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                Connect
+                Kontak
               </h3>
               <ul className="mt-3 space-y-3">
                 <li className="flex items-center gap-3">
@@ -56,7 +52,7 @@ export default function ProfilePage() {
                   </span>
                   <div>
                     <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                      Work email
+                      Email kantor
                     </p>
                     <p className="text-sm text-foreground">{user.email}</p>
                   </div>

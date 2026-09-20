@@ -33,19 +33,19 @@ export default function ColumnsPopover({ columns, visibility, onChange }: Column
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-xs">
           <Columns3 className="h-3.5 w-3.5" />
-          <span>Columns</span>
+          <span>Kolom</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">Columns</p>
+            <p className="text-sm font-semibold">Kolom</p>
             <button
               type="button"
               onClick={reset}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Reset
+              Setel ulang
             </button>
           </div>
           <ul className="space-y-2">

@@ -73,7 +73,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
           {activeCount > 0 && (
             <span
               className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
-              aria-label={`${activeCount} active filter${activeCount === 1 ? '' : 's'}`}
+              aria-label={`${activeCount} filter aktif`}
             >
               {activeCount}
             </span>
@@ -83,7 +83,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
       <PopoverContent className="w-[min(92vw,360px)]">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">Filters</p>
+            <p className="text-sm font-semibold">Filter</p>
             <button
               type="button"
               onClick={() => {
@@ -92,7 +92,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
               }}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear all
+              Hapus semua
             </button>
           </div>
 
@@ -111,10 +111,10 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                         aria-label={def.label}
                         className="mt-1 h-9 text-xs"
                       >
-                        <SelectValue placeholder={`All ${def.label.toLowerCase()}`} />
+                        <SelectValue placeholder={`Semua ${def.label.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={ALL}>All {def.label.toLowerCase()}</SelectItem>
+                        <SelectItem value={ALL}>Semua {def.label.toLowerCase()}</SelectItem>
                         {def.options.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.label}
@@ -141,14 +141,14 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                       type="date"
                       value={start}
                       onChange={(e) => setKey(def.startKey, e.target.value)}
-                      aria-label={`${def.label} start`}
+                      aria-label={`${def.label} — tanggal mulai`}
                       className="h-9 text-xs"
                     />
                     <Input
                       type="date"
                       value={end}
                       onChange={(e) => setKey(def.endKey, e.target.value)}
-                      aria-label={`${def.label} end`}
+                      aria-label={`${def.label} — tanggal akhir`}
                       className="h-9 text-xs"
                     />
                   </div>
@@ -159,10 +159,10 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
 
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button type="button" size="sm" onClick={apply}>
-              Apply
+              Terapkan
             </Button>
           </div>
         </div>

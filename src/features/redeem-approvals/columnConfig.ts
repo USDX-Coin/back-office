@@ -24,5 +24,5 @@ export const REDEEM_APPROVAL_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'burnedAt', label: 'Dibakar' },
   // Hash burn boleh disembunyikan — ia bukti yang dibuka saat ada yang
   // dipertanyakan, bukan bagian dari keputusan rutin "berapa, ke mana".
-  { key: 'burnTx', label: 'Burn on-chain' },
+  { key: 'burnTx', label: 'Bukti pembakaran' },
 ]

@@ -13,7 +13,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Current rate
+          Kurs saat ini
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -26,11 +26,11 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
           <>
             <div>
               <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                Base rate
+                Kurs dasar
               </p>
               <p
                 className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
-                aria-label="base rate"
+                aria-label="kurs dasar"
               >
                 {formatRate(data.baseRate)}
               </p>
@@ -38,22 +38,22 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Effective beli (mint)
+                  Kurs beli berlaku (mint)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="effective buy rate"
+                  aria-label="kurs beli berlaku"
                 >
                   {formatRate(data.effectiveBuyRate)}
                 </dd>
               </div>
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Effective jual (burn)
+                  Kurs jual berlaku (burn)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
-                  aria-label="effective sell rate"
+                  aria-label="kurs jual berlaku"
                 >
                   {formatRate(data.effectiveSellRate)}
                 </dd>
@@ -82,7 +82,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
               </div>
               <div>
                 <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
-                  Last updated
+                  Terakhir diubah
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"

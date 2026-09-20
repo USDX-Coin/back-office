@@ -131,20 +131,20 @@ describe('formatRelativeTime', () => {
   const now = new Date('2026-04-16T12:00:00.000Z')
 
   describe('positive', () => {
-    test('should return "just now" for sub-minute deltas', () => {
-      expect(formatRelativeTime('2026-04-16T11:59:30.000Z', now)).toBe('just now')
+    test('should return "baru saja" for sub-minute deltas', () => {
+      expect(formatRelativeTime('2026-04-16T11:59:30.000Z', now)).toBe('baru saja')
     })
-    test('should return Xm ago for minute deltas', () => {
-      expect(formatRelativeTime('2026-04-16T11:55:00.000Z', now)).toBe('5m ago')
+    test('should return X mnt lalu for minute deltas', () => {
+      expect(formatRelativeTime('2026-04-16T11:55:00.000Z', now)).toBe('5 mnt lalu')
     })
-    test('should return Xh ago for hour deltas', () => {
-      expect(formatRelativeTime('2026-04-16T10:00:00.000Z', now)).toBe('2h ago')
+    test('should return X jam lalu for hour deltas', () => {
+      expect(formatRelativeTime('2026-04-16T10:00:00.000Z', now)).toBe('2 jam lalu')
     })
-    test('should return "yesterday" for day-1 delta', () => {
-      expect(formatRelativeTime('2026-04-15T15:00:00.000Z', now)).toBe('yesterday')
+    test('should return "kemarin" for day-1 delta', () => {
+      expect(formatRelativeTime('2026-04-15T15:00:00.000Z', now)).toBe('kemarin')
     })
-    test('should return Xd ago for 2-6 day deltas', () => {
-      expect(formatRelativeTime('2026-04-13T12:00:00.000Z', now)).toBe('3d ago')
+    test('should return X hr lalu for 2-6 day deltas', () => {
+      expect(formatRelativeTime('2026-04-13T12:00:00.000Z', now)).toBe('3 hr lalu')
     })
     test('should return Mon DD for same-year older dates', () => {
       const result = formatRelativeTime('2026-02-01T12:00:00.000Z', now)
@@ -154,14 +154,14 @@ describe('formatRelativeTime', () => {
     })
     test('should include year for older-than-current-year dates', () => {
       const result = formatRelativeTime('2025-10-24T12:00:00.000Z', now)
-      expect(result).toContain('Oct')
+      expect(result).toContain('Okt')
       expect(result).toContain('2025')
     })
   })
 
   describe('edge cases', () => {
     test('should handle future timestamps gracefully', () => {
-      expect(formatRelativeTime('2026-04-17T12:00:00.000Z', now)).toBe('just now')
+      expect(formatRelativeTime('2026-04-17T12:00:00.000Z', now)).toBe('baru saja')
     })
   })
 })

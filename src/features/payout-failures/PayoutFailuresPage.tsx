@@ -75,6 +75,10 @@ export default function PayoutFailuresPage() {
   const columns: ColumnDef<PayoutFailureListItem>[] = [
     {
       id: 'issueAt',
+      // Cap waktu bank ditulis penuh dengan zona ("2026-09-12 08:00:00 WIB").
+      // Dengan lebar bagi-rata kolomnya kurang ~11px dan detiknya terpotong,
+      // padahal justru detik itu yang dicocokkan ops dengan mutasi bank.
+      size: 184,
       header: 'Masuk antrean',
       cell: ({ row }) => (
         <span className="font-mono text-2xs tabular-nums text-muted-foreground">
@@ -92,7 +96,14 @@ export default function PayoutFailuresPage() {
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={payoutIssueKindPill(kind)} className="w-fit" />
             {issueCode && (
-              <span className="text-2xs text-muted-foreground" title={issueCode}>
+              // `title` memuat kalimat UTUH plus kodenya: keterangan masalah
+              // dalam bahasa Indonesia lebih panjang dari lebar kolom dan
+              // terpotong elipsis, dan dulu hover hanya memunculkan kodenya —
+              // jadi kalimat yang terpotong tidak bisa dibaca di mana pun.
+              <span
+                className="truncate text-2xs text-muted-foreground"
+                title={codeLabel ? `${codeLabel} (${issueCode})` : issueCode}
+              >
                 {codeLabel ?? <span className="font-mono">{issueCode}</span>}
               </span>
             )}

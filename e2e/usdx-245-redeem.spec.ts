@@ -25,7 +25,7 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       await page.getByRole('button', { name: /^filter/i }).click()
       await page.getByRole('combobox', { name: 'Jenis' }).click()
       await page.getByRole('option', { name: /^redeem$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
 
       await expect(page).toHaveURL(/type=REDEEM/)
       await expect(page.getByRole('button', { name: /100\.00 USDX/ })).toBeVisible()
@@ -95,8 +95,8 @@ test.describe('USDX-245 fee config redeem fields @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
 
-      await expect(page.getByLabel(/redeem fee percent/i)).toHaveText('1%', { timeout: 15000 })
-      await expect(page.getByLabel(/disbursement fee flat/i)).toHaveText(/5\.000/)
+      await expect(page.getByLabel(/persen biaya redeem/i)).toHaveText('1%', { timeout: 15000 })
+      await expect(page.getByLabel(/biaya pencairan flat/i)).toHaveText(/5\.000/)
     })
 
     test('AC #4 — admin updates redeem fee + disbursement → new config active', async ({
@@ -112,11 +112,11 @@ test.describe('USDX-245 fee config redeem fields @e2e', () => {
       await expect(redeem).toHaveValue('1', { timeout: 15000 })
       await redeem.fill('1.5')
       await page.locator('#disbursementFeeFlat').fill('6000')
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
       // Card reflects the new active redeem config (full 5-field snapshot).
-      await expect(page.getByLabel(/redeem fee percent/i)).toHaveText('1.5%')
-      await expect(page.getByLabel(/disbursement fee flat/i)).toHaveText(/6\.000/)
+      await expect(page.getByLabel(/persen biaya redeem/i)).toHaveText('1.5%')
+      await expect(page.getByLabel(/biaya pencairan flat/i)).toHaveText(/6\.000/)
     })
   })
 })

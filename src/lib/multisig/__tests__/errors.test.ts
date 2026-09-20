@@ -20,13 +20,18 @@ describe('decodeRevertData', () => {
         args: [ADDR],
       })
       const reason = decodeRevertData(data)
-      expect(reason).toContain('blacklisted')
+      expect(reason).toContain('daftar blokir')
       expect(reason?.toLowerCase()).toContain(ADDR.toLowerCase())
+      // Kalimatnya Indonesia, TAPI nama error-nya ikut terbawa — itu yang
+      // dikutip operator saat melapor ke tim teknis.
+      expect(reason).toContain('SenderBlacklisted')
     })
 
     test('decodes a paused contract error', () => {
       const data = encodeErrorResult({ abi: USDX_REVERT_ABI, errorName: 'EnforcedPause' })
-      expect(decodeRevertData(data)).toContain('paused')
+      const reason = decodeRevertData(data)
+      expect(reason).toContain('dihentikan sementara')
+      expect(reason).toContain('EnforcedPause')
     })
 
     test('maps a Safe string code (GS013) to an explanation', () => {
@@ -39,7 +44,7 @@ describe('decodeRevertData', () => {
       })
       const reason = decodeRevertData(data)
       expect(reason).toContain('GS013')
-      expect(reason).toContain('masked')
+      expect(reason).toContain('menutupi')
     })
 
     test('decodes the idempotency-key-used error', () => {
@@ -49,7 +54,9 @@ describe('decodeRevertData', () => {
         errorName: 'IdempotencyKeyAlreadyUsed',
         args: [key],
       })
-      expect(decodeRevertData(data)).toContain('already')
+      const reason = decodeRevertData(data)
+      expect(reason).toContain('sudah pernah dipakai')
+      expect(reason).toContain('IdempotencyKeyAlreadyUsed')
     })
   })
 
@@ -132,7 +139,7 @@ describe('summarizeSimulationError', () => {
       const err = new BaseError('execution reverted', {
         cause: new RawContractError({ data }),
       })
-      expect(summarizeSimulationError(err)).toContain('blacklisted')
+      expect(summarizeSimulationError(err)).toContain('daftar blokir')
     })
   })
 
@@ -141,7 +148,7 @@ describe('summarizeSimulationError', () => {
       expect(summarizeSimulationError(new Error('network down'))).toBe('network down')
     })
     test('handles non-error throwables', () => {
-      expect(summarizeSimulationError('nope')).toContain('revert')
+      expect(summarizeSimulationError('nope')).toContain('ditolak kontrak')
     })
   })
 })

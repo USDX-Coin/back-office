@@ -136,10 +136,10 @@ export default function OncallContactModal({
     try {
       if (mode === 'add') {
         await create.mutateAsync(payload)
-        toast.success('On-call contact added')
+        toast.success('Kontak darurat ditambahkan')
       } else if (contact) {
         await update.mutateAsync({ id: contact.id, patch: payload })
-        toast.success('On-call contact updated')
+        toast.success('Kontak darurat diperbarui')
       }
       onOpenChange(false)
     } catch (err) {
@@ -148,7 +148,7 @@ export default function OncallContactModal({
       toast.error(
         err instanceof Error
           ? err.message
-          : "Couldn't save the on-call contact. Please try again.",
+          : 'Kontak darurat gagal disimpan. Coba lagi.',
       )
     }
   }
@@ -167,19 +167,19 @@ export default function OncallContactModal({
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === 'add' ? 'Add on-call contact' : 'Edit on-call contact'}
+            {mode === 'add' ? 'Tambah kontak darurat' : 'Ubah kontak darurat'}
           </DialogTitle>
           <DialogDescription>
-            Money alerts carry the contacts registered for the matching incident
-            category, so whoever receives the alert knows who to reach without
-            opening another document.
+            Peringatan soal uang membawa serta kontak yang terdaftar untuk kategori
+            insiden yang cocok, supaya penerima peringatan tahu harus menghubungi
+            siapa tanpa membuka dokumen lain.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogBody className="space-y-4">
             <div>
-              <Label htmlFor="oncall-name">Name</Label>
+              <Label htmlFor="oncall-name">Nama</Label>
               <Input
                 id="oncall-name"
                 value={form.name}
@@ -191,7 +191,7 @@ export default function OncallContactModal({
             </div>
 
             <div>
-              <Label htmlFor="oncall-role">Role</Label>
+              <Label htmlFor="oncall-role">Jabatan</Label>
               <Input
                 id="oncall-role"
                 value={form.role}
@@ -204,13 +204,13 @@ export default function OncallContactModal({
 
             <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
               <div>
-                <Label htmlFor="oncall-channel">Channel</Label>
+                <Label htmlFor="oncall-channel">Kanal</Label>
                 <Select
                   value={form.channel || undefined}
                   onValueChange={(val) => setField('channel', val as OncallChannel)}
                 >
                   <SelectTrigger id="oncall-channel" className="mt-1.5">
-                    <SelectValue placeholder="Select channel" />
+                    <SelectValue placeholder="Pilih kanal" />
                   </SelectTrigger>
                   <SelectContent>
                     {ONCALL_CHANNELS.map((c) => (
@@ -224,7 +224,7 @@ export default function OncallContactModal({
               </div>
 
               <div>
-                <Label htmlFor="oncall-value">Contact value</Label>
+                <Label htmlFor="oncall-value">Kontak</Label>
                 <Input
                   id="oncall-value"
                   value={form.contactValue}
@@ -237,10 +237,10 @@ export default function OncallContactModal({
             </div>
 
             <fieldset>
-              <legend className="text-sm font-medium">Incident categories</legend>
+              <legend className="text-sm font-medium">Kategori insiden</legend>
               <p className="mt-0.5 text-2xs text-muted-foreground">
-                Which money incidents this person answers for. A contact with no
-                category is never called.
+                Insiden uang mana yang jadi tanggung jawab orang ini. Kontak tanpa
+                satu kategori pun tidak pernah ikut dihubungi.
               </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {ONCALL_INCIDENT_CATEGORIES.map((category) => {
@@ -283,10 +283,10 @@ export default function OncallContactModal({
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button type="submit" disabled={isPending} aria-busy={isPending}>
-              {isPending ? 'Saving…' : 'Save contact'}
+              {isPending ? 'Menyimpan…' : 'Simpan kontak'}
             </Button>
           </DialogFooter>
         </form>

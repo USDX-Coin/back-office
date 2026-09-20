@@ -16,10 +16,30 @@ import {
   isManualRateUnusual,
   validateRateUpdateForm,
 } from '@/lib/validators'
+import { ApiError } from '@/lib/apiFetch'
 import type { RateInfo, RateMode } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
+
+/**
+ * Galat server → kalimat Indonesia DAN kodenya dalam kurung.
+ *
+ * Kodenya TIDAK dibuang: ia yang dikutip operator saat melapor ke tim teknis —
+ * pola yang sama dengan `unknownStatusLabel()` di `src/lib/status.ts`.
+ */
+function rateUpdateErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 403) {
+      return `Peranmu tidak berwenang mengubah kurs. (${err.code})`
+    }
+    if (err.status === 400 || err.status === 422) {
+      return `Server menolak isian kurs: ${err.message} (${err.code})`
+    }
+    return `Kurs gagal diubah — tidak ada yang berubah. Coba lagi. (${err.code})`
+  }
+  return 'Kurs gagal diubah. Periksa koneksi lalu coba lagi.'
+}
 
 interface RateUpdateFormProps {
   current: RateInfo | undefined
@@ -85,7 +105,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
 
   async function handleConfirm() {
     if (!user) {
-      toast.error('Not authenticated')
+      toast.error('Sesi tidak dikenali. Masuk ulang lalu coba lagi.')
       return
     }
     if (!form.mode) return
@@ -98,14 +118,14 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
         spreadBuyPct: form.spreadBuyPct || '0',
         spreadSellPct: form.spreadSellPct || '0',
       })
-      toast.success('Rate updated')
+      toast.success('Kurs berhasil diubah')
       setConfirmOpen(false)
       // Clear all overrides — the next refetched current rate becomes the
       // new baseline, and the form snaps back to "no edit in progress".
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update the rate. Please try again.")
+      toast.error(rateUpdateErrorMessage(err))
     }
   }
 
@@ -119,7 +139,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Update rate
+          Ubah kurs
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="rate-form">
@@ -131,11 +151,11 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
               onValueChange={(val) => set('mode', val as RateMode)}
             >
               <SelectTrigger id="rateMode">
-                <SelectValue placeholder="Choose rate mode" />
+                <SelectValue placeholder="Pilih mode kurs" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="MANUAL">MANUAL — fixed rate you set</SelectItem>
-                <SelectItem value="DYNAMIC">DYNAMIC — feed + spread</SelectItem>
+                <SelectItem value="MANUAL">MANUAL — kurs tetap yang kamu tentukan</SelectItem>
+                <SelectItem value="DYNAMIC">DYNAMIC — ikut feed + spread</SelectItem>
               </SelectContent>
             </Select>
             <FieldError message={errors.mode} />
@@ -143,7 +163,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="manualRate">
-              Manual rate{' '}
+              Kurs manual{' '}
               <span className="text-muted-foreground">(IDR per USD)</span>
             </Label>
             <div className="relative">
@@ -165,8 +185,8 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             </div>
             {dynamic && (
               <p className="text-xs text-muted-foreground">
-                DYNAMIC mode pulls the base rate from the configured third-party
-                feed. Manual rate is ignored.
+                Mode DYNAMIC menarik kurs dasar dari feed pihak ketiga. Kurs
+                manual diabaikan.
               </p>
             )}
             {showRateWarning && (
@@ -174,7 +194,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                 role="status"
                 className="text-xs text-amber-600 dark:text-amber-400"
               >
-                Rate looks unusual — please double-check before submitting.
+                Kurs ini di luar kebiasaan — periksa lagi sebelum dikirim.
               </p>
             )}
             <FieldError message={errors.manualRate} />
@@ -199,7 +219,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Markup saat user beli USDX. Effective = base × (1 + beli%).
+                Markup saat nasabah beli USDX. Kurs berlaku = kurs dasar × (1 + beli%).
               </p>
               <FieldError message={errors.spreadBuyPct} />
             </div>
@@ -222,7 +242,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Markdown saat user jual USDX. Effective = base × (1 − jual%).
+                Potongan saat nasabah jual USDX. Kurs berlaku = kurs dasar × (1 − jual%).
               </p>
               <FieldError message={errors.spreadSellPct} />
             </div>
@@ -236,7 +256,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             aria-busy={update.isPending}
             className="w-full"
           >
-            {update.isPending ? 'Updating…' : 'Review and update'}
+            {update.isPending ? 'Menyimpan…' : 'Tinjau dan ubah'}
           </Button>
         </CardFooter>
       </form>

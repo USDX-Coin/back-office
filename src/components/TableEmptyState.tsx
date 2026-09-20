@@ -12,13 +12,13 @@ export interface TableEmptyStateProps {
 
 const DEFAULTS = {
   'no-data': {
-    title: 'No data yet',
-    description: 'Nothing to show here.',
+    title: 'Belum ada data',
+    description: 'Belum ada yang bisa ditampilkan di sini.',
     Icon: Inbox,
   },
   'no-results': {
-    title: 'No results match your filters',
-    description: 'Try widening the filter set or clearing filters.',
+    title: 'Tidak ada yang cocok dengan filter',
+    description: 'Longgarkan filternya, atau hapus semua filter.',
     Icon: SearchX,
   },
 } as const
@@ -48,7 +48,7 @@ export default function TableEmptyState({
           onClick={onClearFilters}
           className="text-sm font-medium text-primary hover:underline"
         >
-          Clear filters
+          Hapus filter
         </button>
       ) : null}
       {cta}

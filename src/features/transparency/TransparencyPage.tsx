@@ -78,10 +78,10 @@ function ReadOnlyNotice() {
       role="note"
       className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
     >
-      <p className="font-medium text-foreground">Read-only</p>
+      <p className="font-medium text-foreground">Hanya bisa dilihat</p>
       <p className="mt-1">
-        Your role does not have permission to record reserve entries or manage
-        attestation reports. Contact an admin if a change is needed.
+        Peran akun ini tidak bisa mencatat entri cadangan atau mengelola laporan
+        atestasi. Hubungi Admin kalau ada yang perlu diubah.
       </p>
     </div>
   )

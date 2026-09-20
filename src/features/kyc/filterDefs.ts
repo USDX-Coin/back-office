@@ -11,24 +11,24 @@ export const KYC_FILTER_DEFS: FilterDef[] = [
     // No UNVERIFIED option: a kyc row only exists once the user submits, which
     // moves status to PENDING (week1.md § Status Flow). "All" = no param sent.
     options: [
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'VERIFIED', label: 'Verified' },
-      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'PENDING', label: 'Menunggu' },
+      { value: 'VERIFIED', label: 'Terverifikasi' },
+      { value: 'REJECTED', label: 'Ditolak' },
     ],
   },
   {
     kind: 'select',
     key: 'entityType',
-    label: 'Entity type',
+    label: 'Jenis nasabah',
     options: [
-      { value: 'INDIVIDUAL', label: 'Individual' },
+      { value: 'INDIVIDUAL', label: 'Perorangan' },
       // Week 1 is KYC INDIVIDUAL only — KYB/LEGAL_ENTITY defers to Week 2+
       // (week1.md § Out-of-scope). Rendered greyed-out per the Linear AC.
       {
         value: 'LEGAL_ENTITY',
-        label: 'Legal entity',
+        label: 'Badan usaha',
         disabled: true,
-        disabledHint: 'Week 2+',
+        disabledHint: 'Minggu 2+',
       },
     ],
   },
@@ -38,16 +38,16 @@ export const KYC_FILTER_DEFS: FilterDef[] = [
     kind: 'dateRange',
     startKey: 'startDate',
     endKey: 'endDate',
-    label: 'Submitted date',
+    label: 'Tanggal pengajuan',
   },
 ]
 
 // Column ids must match the ColumnDef ids in KycListPage.
 export const KYC_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'id', label: 'ID', required: true },
-  { key: 'userEmail', label: 'User Email', required: true },
-  { key: 'entityType', label: 'Entity Type' },
+  { key: 'userEmail', label: 'Email nasabah', required: true },
+  { key: 'entityType', label: 'Jenis nasabah' },
   { key: 'status', label: 'Status' },
-  { key: 'submittedAt', label: 'Submitted At' },
-  { key: 'submissionCount', label: 'Submissions' },
+  { key: 'submittedAt', label: 'Diajukan' },
+  { key: 'submissionCount', label: 'Pengajuan' },
 ]

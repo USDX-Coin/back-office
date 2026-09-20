@@ -42,13 +42,13 @@ export default function OncallContactDeleteDialog({
     if (!contact) return
     try {
       await remove.mutateAsync(contact.id)
-      toast.success(`${contact.name} removed from the on-call directory`)
+      toast.success(`${contact.name} dihapus dari daftar kontak darurat`)
       onOpenChange(false)
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : "Couldn't remove the contact. Please try again.",
+          : 'Kontak darurat gagal dihapus. Coba lagi.',
       )
     }
   }
@@ -66,23 +66,23 @@ export default function OncallContactDeleteDialog({
         onPointerDownOutside={(e) => remove.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Remove on-call contact?</DialogTitle>
+          <DialogTitle>Hapus kontak darurat ini?</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-3">
           <DialogDescription>
             {contact
-              ? `Remove ${contact.name} from the on-call directory? Money alerts will stop naming them.`
-              : 'No contact selected.'}
+              ? `${contact.name} dilepas dari daftar kontak darurat. Mulai saat itu peringatan soal uang berhenti menyebut namanya — termasuk peringatan yang memanggil orang untuk menarik rem darurat payout.`
+              : 'Belum ada kontak yang dipilih.'}
           </DialogDescription>
           {orphanedCategories.length > 0 && (
             <p
               role="alert"
               className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
             >
-              This is the last contact for {orphanedCategories.join(', ')}. Alerts in{' '}
-              {orphanedCategories.length > 1 ? 'those categories' : 'that category'} will
-              be sent with an explicit “no on-call registered” warning until someone else
-              is added.
+              Ini kontak terakhir untuk {orphanedCategories.join(', ')}. Peringatan di{' '}
+              {orphanedCategories.length > 1 ? 'kategori-kategori itu' : 'kategori itu'}{' '}
+              akan terkirim dengan catatan “belum ada kontak darurat terdaftar” sampai
+              ada orang lain yang didaftarkan.
             </p>
           )}
         </DialogBody>
@@ -93,7 +93,7 @@ export default function OncallContactDeleteDialog({
             onClick={() => onOpenChange(false)}
             disabled={remove.isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -101,7 +101,7 @@ export default function OncallContactDeleteDialog({
             disabled={remove.isPending}
             className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
-            {remove.isPending ? 'Removing…' : 'Delete'}
+            {remove.isPending ? 'Menghapus…' : 'Hapus kontak'}
           </Button>
         </DialogFooter>
       </DialogContent>

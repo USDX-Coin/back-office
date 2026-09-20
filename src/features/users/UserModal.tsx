@@ -200,7 +200,7 @@ export default function UserModal({
         })
         // USDX-156: no password round-trip anymore — BE queues the activation
         // email (admin-created.html, link valid 7 days) on create.
-        toast.success('User created. Activation email sent.')
+        toast.success('Nasabah dibuat. Email aktivasi terkirim.')
         onOpenChange(false)
         return
       }
@@ -217,11 +217,15 @@ export default function UserModal({
             notes: form.notes.trim() || undefined,
           },
         })
-        toast.success('User updated')
+        toast.success('Data nasabah diperbarui')
         onOpenChange(false)
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save the user. Please try again.")
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Data nasabah gagal disimpan. Coba lagi.'
+      )
     }
   }
 
@@ -241,23 +245,25 @@ export default function UserModal({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>{mode === 'add' ? 'Add new user' : 'Edit user'}</DialogTitle>
+          <DialogTitle>
+            {mode === 'add' ? 'Tambah nasabah baru' : 'Ubah data nasabah'}
+          </DialogTitle>
           <DialogDescription>
             {mode === 'add'
-              ? 'The user will receive an activation email to set their own password — the link is valid for 7 days.'
-              : 'Update user profile, KYC status, and suspension state.'}
+              ? 'Nasabah menerima email aktivasi untuk menyetel kata sandinya sendiri — tautannya berlaku 7 hari.'
+              : 'Ubah profil, status KYC, dan pembekuan akun nasabah.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogBody className="space-y-4">
           <div>
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">Nama</Label>
             <Input
               id="name"
               value={form.name}
               onChange={(e) => setField('name', e.target.value)}
-              placeholder="Jane Doe"
+              placeholder="Budi Santoso"
               maxLength={USER_LIMITS.MAX_NAME_LEN + 50}
               className="mt-1.5"
             />
@@ -272,7 +278,7 @@ export default function UserModal({
                 type="email"
                 value={form.email}
                 onChange={(e) => setField('email', e.target.value)}
-                placeholder="jane@example.com"
+                placeholder="budi@example.com"
                 className="mt-1.5"
               />
               <FieldError message={errors.email} />
@@ -281,30 +287,30 @@ export default function UserModal({
               // USDX-156: optional phone at admin-create (CreateUser.phone).
               // Edit mode has no phone — UpdateUser SoT doesn't carry it.
               <div>
-                <Label htmlFor="phone">Phone (optional)</Label>
+                <Label htmlFor="phone">Telepon (opsional)</Label>
                 <Input
                   id="phone"
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setField('phone', e.target.value)}
-                  placeholder="+62812xxxxxxx or 0812xxxxxxx"
+                  placeholder="+62812xxxxxxx atau 0812xxxxxxx"
                   className="mt-1.5"
                 />
                 <FieldError message={errors.phone} />
               </div>
             )}
             <div>
-              <Label htmlFor="entityType">Entity type</Label>
+              <Label htmlFor="entityType">Jenis nasabah</Label>
               <Select
                 value={form.entityType}
                 onValueChange={(val) => setField('entityType', val as EntityType)}
               >
                 <SelectTrigger id="entityType" className="mt-1.5">
-                  <SelectValue placeholder="Entity type" />
+                  <SelectValue placeholder="Jenis nasabah" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="INDIVIDUAL">Individual</SelectItem>
-                  <SelectItem value="LEGAL_ENTITY">Legal Entity</SelectItem>
+                  <SelectItem value="INDIVIDUAL">Perorangan</SelectItem>
+                  <SelectItem value="LEGAL_ENTITY">Badan Usaha</SelectItem>
                 </SelectContent>
               </Select>
               <FieldError message={errors.entityType} />
@@ -314,25 +320,25 @@ export default function UserModal({
           {mode === 'edit' && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <Label htmlFor="kycStatus">KYC status</Label>
+                <Label htmlFor="kycStatus">Status KYC</Label>
                 <Select
                   value={form.kycStatus}
                   onValueChange={(val) => setField('kycStatus', val as KycStatus)}
                 >
                   <SelectTrigger id="kycStatus" className="mt-1.5">
-                    <SelectValue placeholder="KYC status" />
+                    <SelectValue placeholder="Status KYC" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="UNVERIFIED">Unverified</SelectItem>
-                    <SelectItem value="PENDING">Pending</SelectItem>
-                    <SelectItem value="VERIFIED">Verified</SelectItem>
-                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                    <SelectItem value="UNVERIFIED">Belum diverifikasi</SelectItem>
+                    <SelectItem value="PENDING">Menunggu</SelectItem>
+                    <SelectItem value="VERIFIED">Terverifikasi</SelectItem>
+                    <SelectItem value="REJECTED">Ditolak</SelectItem>
                   </SelectContent>
                 </Select>
                 <FieldError message={errors.kycStatus} />
               </div>
               <div className="flex flex-col">
-                <Label htmlFor="suspended">Suspended</Label>
+                <Label htmlFor="suspended">Dibekukan</Label>
                 <div className="mt-2.5 flex items-center gap-2">
                   <Switch
                     id="suspended"
@@ -341,8 +347,8 @@ export default function UserModal({
                   />
                   <span className="text-xs text-muted-foreground">
                     {form.suspended
-                      ? 'User cannot mint or burn'
-                      : 'User can transact (subject to KYC)'}
+                      ? 'Nasabah tidak bisa mint maupun redeem'
+                      : 'Nasabah bisa bertransaksi (tergantung KYC)'}
                   </span>
                 </div>
               </div>
@@ -351,7 +357,7 @@ export default function UserModal({
 
           <div>
             <Label htmlFor="notes">
-              Notes
+              Catatan
               <span className="ml-2 text-2xs font-normal text-muted-foreground">
                 {form.notes.length} / {USER_LIMITS.MAX_NOTES_LEN}
               </span>
@@ -360,7 +366,7 @@ export default function UserModal({
               id="notes"
               value={form.notes}
               onChange={(e) => setField('notes', e.target.value)}
-              placeholder="Optional notes (visible to staff only)"
+              placeholder="Catatan opsional (hanya terlihat oleh pengguna internal)"
               className="mt-1.5 min-h-[72px]"
             />
             <FieldError message={errors.notes} />
@@ -370,7 +376,7 @@ export default function UserModal({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>
-                  Wallets
+                  Wallet
                   <span className="ml-2 text-2xs font-normal text-muted-foreground">
                     {walletCount} / {USER_LIMITS.MAX_WALLETS}
                   </span>
@@ -383,13 +389,14 @@ export default function UserModal({
                   disabled={walletLimitReached}
                 >
                   <Plus className="mr-1 h-3.5 w-3.5" />
-                  Add wallet
+                  Tambah wallet
                 </Button>
               </div>
               <FieldError message={errors.wallets} />
               {form.wallets.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No wallets yet. Optional — you can add them after creation.
+                  Belum ada wallet. Opsional — bisa ditambahkan setelah nasabahnya
+                  dibuat.
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -400,14 +407,14 @@ export default function UserModal({
                     >
                       <div>
                         <Label htmlFor={`wallet-chain-${i}`} className="sr-only">
-                          Chain
+                          Jaringan
                         </Label>
                         <Select
                           value={w.chain}
                           onValueChange={(val) => setWallet(i, { chain: val })}
                         >
                           <SelectTrigger id={`wallet-chain-${i}`}>
-                            <SelectValue placeholder="Chain" />
+                            <SelectValue placeholder="Jaringan" />
                           </SelectTrigger>
                           <SelectContent>
                             {CHAIN_OPTIONS.map((c) => (
@@ -421,7 +428,7 @@ export default function UserModal({
                       </div>
                       <div>
                         <Label htmlFor={`wallet-address-${i}`} className="sr-only">
-                          Address
+                          Alamat wallet
                         </Label>
                         <Input
                           id={`wallet-address-${i}`}
@@ -436,7 +443,7 @@ export default function UserModal({
                         variant="ghost"
                         size="icon"
                         onClick={() => removeWalletRow(i)}
-                        aria-label={`Remove wallet ${i + 1}`}
+                        aria-label={`Hapus wallet ${i + 1}`}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -455,10 +462,14 @@ export default function UserModal({
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? 'Submitting…' : mode === 'add' ? 'Create user' : 'Save changes'}
+              {isPending
+                ? 'Menyimpan…'
+                : mode === 'add'
+                  ? 'Buat nasabah'
+                  : 'Simpan perubahan'}
             </Button>
           </DialogFooter>
         </form>

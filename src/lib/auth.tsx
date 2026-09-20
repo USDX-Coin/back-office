@@ -7,7 +7,7 @@ import {
   canDecideRedeemPayoutRole,
   canResolvePayoutFailureRole,
 } from './types'
-import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
+import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch, pesanGalat } from './apiFetch'
 
 interface AuthContextType {
   user: Staff | null
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email.trim() || !password) {
-      throw new Error('Email and password are required')
+      throw new Error('Email dan kata sandi wajib diisi')
     }
     try {
       // The server sets the httpOnly session cookie on this response. It also
@@ -134,12 +134,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: { email, password },
       })
       if (!data?.staff) {
-        throw new Error('Malformed login response')
+        throw new Error('Server menjawab dengan bentuk yang tidak dikenali saat login (respons tanpa data staf)')
       }
       setUser(data.staff)
     } catch (err) {
       if (err instanceof ApiError) {
-        throw new Error(err.message)
+        // Kodenya IKUT, tidak dibuang di sini. Dulu baris ini berbunyi
+        // `new Error(err.message)`, jadi `UNAUTHORIZED` / `ACCOUNT_LOCKED`
+        // hilang sebelum sampai ke layar login dan operator yang melapor cuma
+        // bisa bilang "gagal masuk". `pesanGalat()` menempelkan kembali kodenya.
+        throw new Error(pesanGalat(err))
       }
       throw err
     }
