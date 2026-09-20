@@ -1,3 +1,7 @@
+import type { ActivityLogEntry } from '@/features/activity-log/types'
+import type { ApprovalRequest } from '@/features/approvals/types'
+import type { HeldCreditDetail } from '@/features/held-credits/types'
+import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import type {
   AmountCurrency,
   BniAccount,
@@ -2713,4 +2717,490 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
     },
   ]
   return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EMPAT LAYAR YANG HILANG — data tiruan
+//
+// Keempat endpoint di bawah nyata di backend dan belum pernah punya layar, jadi
+// tiruannya dipakai untuk menjalankan dan menguji layarnya lebih dulu. Semuanya
+// SENGAJA TIDAK masuk `INTEGRATION_PATHS` (`browser.ts`): selama api-dev belum
+// menyajikannya, browser dev harus tetap ditangani MSW.
+//
+// Id memakai UUID sungguhan, bukan `hc_1`: rute backend memasang
+// `ParseUUIDPipe` pada `:id`, dan tiruan yang menerima bentuk yang server tolak
+// menyembunyikan kesalahan sampai integrasi.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function isoMinutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString()
+}
+
+function isoHoursFromNow(hours: number): string {
+  return new Date(Date.now() + hours * 3_600_000).toISOString()
+}
+
+// ─── Jejak Audit (`GET /api/v1/activity-logs`) ──────────────────────────────
+
+export const ACTIVITY_LOG_MOCK_IDS = {
+  staffCreated: '019f3a01-0355-7c31-9b2d-000000000001',
+  kycApproved: '019f3a01-0355-7c31-9b2d-000000000002',
+  kycRejectedForbidden: '019f3a01-0355-7c31-9b2d-000000000003',
+  brakePulled: '019f3a01-0355-7c31-9b2d-000000000004',
+  selfApprovalBlocked: '019f3a01-0355-7c31-9b2d-000000000005',
+  loginFailed: '019f3a01-0355-7c31-9b2d-000000000006',
+  consumerLogout: '019f3a01-0355-7c31-9b2d-000000000007',
+  userWalletAdded: '019f3a01-0355-7c31-9b2d-000000000008',
+} as const
+
+const MOCK_CONSUMER_ID = '019f3a01-d001-7c31-9b2d-0000000000d1'
+
+/**
+ * Sembilan baris yang menutup bentuk-bentuk yang benar-benar ditulis backend:
+ * aksi ter-intercept (`POST /api/v1/...`), kode eksplisit
+ * (`AUTH_LOGIN_FAILED`, `PAYOUT_BRAKE_PULLED`), aktor staf, aktor konsumen,
+ * tanpa aktor sama sekali, SUCCESS dan FAILED, dan satu baris ber-metadata
+ * kosong.
+ */
+export function createMockActivityLog(): ActivityLogEntry[] {
+  const rows: ActivityLogEntry[] = [
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.selfApprovalBlocked,
+      actorStaffId: 'stf_2',
+      actorUserId: null,
+      action: 'APPROVAL_SELF_APPROVAL_BLOCKED',
+      resourceType: 'APPROVALS',
+      resourceId: '019f4a01-0486-7c31-9b2d-000000000002',
+      metadata: { actionType: 'PAYOUT_CONTROLS_RELEASE', amountIdr: null },
+      ipAddress: '103.28.14.77',
+      outcome: 'FAILED',
+      httpStatus: 403,
+      createdAt: isoMinutesAgo(12),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.brakePulled,
+      actorStaffId: 'stf_2',
+      actorUserId: null,
+      action: 'PAYOUT_BRAKE_PULLED',
+      resourceType: 'PAYOUT_CONTROLS',
+      resourceId: '019f5a01-0004-7c31-9b2d-000000000001',
+      metadata: { payoutsEnabled: false },
+      ipAddress: '103.28.14.77',
+      outcome: 'SUCCESS',
+      httpStatus: 200,
+      createdAt: isoMinutesAgo(38),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.kycRejectedForbidden,
+      actorStaffId: 'stf_3',
+      actorUserId: null,
+      action: 'POST /api/v1/kyc/:id/reject',
+      resourceType: 'KYC',
+      resourceId: '019f6a01-0148-7c31-9b2d-000000000011',
+      metadata: { params: { id: '019f6a01-0148-7c31-9b2d-000000000011' } },
+      ipAddress: '10.20.30.41',
+      outcome: 'FAILED',
+      httpStatus: 403,
+      createdAt: isoMinutesAgo(96),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.kycApproved,
+      actorStaffId: 'stf_4',
+      actorUserId: null,
+      action: 'POST /api/v1/kyc/:id/approve',
+      resourceType: 'KYC',
+      resourceId: '019f6a01-0148-7c31-9b2d-000000000011',
+      metadata: { params: { id: '019f6a01-0148-7c31-9b2d-000000000011' } },
+      ipAddress: '10.20.30.44',
+      outcome: 'SUCCESS',
+      httpStatus: 200,
+      createdAt: isoMinutesAgo(140),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.userWalletAdded,
+      actorStaffId: 'stf_1',
+      actorUserId: null,
+      action: 'POST /api/v1/users/:id/wallets',
+      resourceType: 'USERS',
+      resourceId: MOCK_CONSUMER_ID,
+      metadata: { params: { id: MOCK_CONSUMER_ID } },
+      ipAddress: '103.28.14.12',
+      outcome: 'SUCCESS',
+      httpStatus: 201,
+      createdAt: isoMinutesAgo(220),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.consumerLogout,
+      actorStaffId: null,
+      actorUserId: MOCK_CONSUMER_ID,
+      action: 'AUTH_LOGOUT',
+      resourceType: 'AUTH',
+      resourceId: null,
+      metadata: { audience: 'CONSUMER' },
+      ipAddress: '114.79.5.201',
+      outcome: 'SUCCESS',
+      httpStatus: 204,
+      createdAt: isoMinutesAgo(300),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.loginFailed,
+      actorStaffId: null,
+      actorUserId: null,
+      action: 'AUTH_LOGIN_FAILED',
+      resourceType: 'AUTH',
+      resourceId: null,
+      // Email disimpan TER-MASK oleh backend; tiruannya menirukan bentuk itu
+      // supaya layar tidak pernah dipertunjukkan alamat lengkap.
+      metadata: { email: 's***@usdx.io', audience: 'STAFF' },
+      ipAddress: '45.114.8.9',
+      outcome: 'FAILED',
+      httpStatus: 401,
+      createdAt: isoMinutesAgo(420),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.staffCreated,
+      actorStaffId: 'stf_1',
+      actorUserId: null,
+      action: 'POST /api/v1/staff',
+      resourceType: 'STAFF',
+      resourceId: null,
+      metadata: null,
+      ipAddress: '103.28.14.12',
+      outcome: 'SUCCESS',
+      httpStatus: 201,
+      createdAt: isoMinutesAgo(1500),
+    },
+  ]
+  return rows
+}
+
+// ─── Persetujuan Orang Kedua (`GET /api/v1/approvals`) ──────────────────────
+
+export const APPROVAL_MOCK_IDS = {
+  heldCreditPending: '019f4a01-0486-7c31-9b2d-000000000001',
+  brakeReleasePending: '019f4a01-0486-7c31-9b2d-000000000002',
+  limitsStalled: '019f4a01-0486-7c31-9b2d-000000000003',
+  rejected: '019f4a01-0486-7c31-9b2d-000000000004',
+  expired: '019f4a01-0486-7c31-9b2d-000000000005',
+} as const
+
+export const HELD_CREDIT_MOCK_IDS = {
+  noMatch: '019f7a01-0341-7c31-9b2d-000000000001',
+  latePayment: '019f7a01-0341-7c31-9b2d-000000000002',
+  durianpayMismatch: '019f7a01-0341-7c31-9b2d-000000000003',
+} as const
+
+export const HELD_CREDIT_ORDER_MOCK_IDS = {
+  late: '019f8a01-0206-7c31-9b2d-000000000001',
+  durianpay: '019f8a01-0206-7c31-9b2d-000000000002',
+  /** Order yang TIDAK dicocokkan mesin — dipakai menguji jalur `forceApproval`. */
+  manual: '019f8a01-0206-7c31-9b2d-000000000003',
+} as const
+
+/**
+ * Lima usulan yang menutup keempat keadaan terminal plus keadaan yang schema
+ * backend sebut "WAJIB terlihat ops" (APPROVED tanpa `executed_at`).
+ *
+ * Pengusulnya sengaja berbeda-beda: `stf_2` (MANAGER) mengusulkan pelepasan rem
+ * supaya sesi `stf_2` menabrak larangan menyetujui usulan sendiri, sementara
+ * usulan lainnya diajukan `stf_4` (STAFF) supaya MANAGER/ADMIN bisa
+ * memutuskannya.
+ */
+export function createMockApprovals(): Map<string, ApprovalRequest> {
+  const rows: ApprovalRequest[] = [
+    {
+      id: APPROVAL_MOCK_IDS.heldCreditPending,
+      actionType: 'HELD_CREDIT_RESOLVE',
+      payload: {
+        creditId: HELD_CREDIT_MOCK_IDS.noMatch,
+        action: 'PAID',
+        orderId: HELD_CREDIT_ORDER_MOCK_IDS.manual,
+        reason: 'Dicocokkan manual dengan rekening koran BNI 09.15, nama pengirim sama dengan pemilik order',
+      },
+      amountIdr: '24750000.00',
+      status: 'PENDING',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(55),
+      expiresAt: isoHoursFromNow(23),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.brakeReleasePending,
+      actionType: 'PAYOUT_CONTROLS_RELEASE',
+      payload: { payoutsEnabled: true },
+      amountIdr: null,
+      status: 'PENDING',
+      proposerStaffId: 'stf_2',
+      proposedAt: isoMinutesAgo(18),
+      expiresAt: isoHoursFromNow(1),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.limitsStalled,
+      actionType: 'PAYOUT_CONTROLS_LIMITS',
+      payload: {
+        maxPerTxIdr: '75000000.00',
+        maxDailyIdr: '3000000000.00',
+        maxBatchPerTick: 25,
+        reason: 'Plafon harian dinaikkan untuk antrean pencairan akhir bulan',
+      },
+      amountIdr: null,
+      status: 'APPROVED',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(600),
+      expiresAt: isoHoursFromNow(-6),
+      approverStaffId: 'stf_5',
+      decidedAt: isoMinutesAgo(540),
+      decisionReason: 'Sesuai kesepakatan rapat ops 18/09',
+      executedAt: null,
+      executionError: 'PAYOUT_LIMITS_PAYLOAD_INVALID: maxBatchPerTick bukan bilangan bulat > 0 maupun null.',
+    },
+    {
+      id: APPROVAL_MOCK_IDS.rejected,
+      actionType: 'HELD_CREDIT_RESOLVE',
+      payload: {
+        creditId: HELD_CREDIT_MOCK_IDS.durianpayMismatch,
+        action: 'FAILED',
+        orderId: null,
+        reason: 'Pengirim tidak dikenali',
+      },
+      amountIdr: '18400000.00',
+      status: 'REJECTED',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(2400),
+      expiresAt: isoHoursFromNow(-16),
+      approverStaffId: 'stf_2',
+      decidedAt: isoMinutesAgo(2300),
+      decisionReason: 'Pengirimnya nasabah lama yang baru ganti rekening — jangan ditolak, cocokkan ke ordernya',
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.expired,
+      actionType: 'PAYOUT_CONTROLS_RELEASE',
+      payload: { payoutsEnabled: true },
+      amountIdr: null,
+      status: 'EXPIRED',
+      proposerStaffId: 'stf_5',
+      proposedAt: isoMinutesAgo(4400),
+      expiresAt: isoHoursFromNow(-49),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Mint Bermasalah (`GET /api/v1/held-credits`) ───────────────────────────
+
+/**
+ * Tiga kredit, dipilih supaya ketiga jalur resolve yang berbeda bisa dijalankan
+ * tanpa menyiapkan apa pun:
+ *
+ *   noMatch            tanpa order + Rp 24,75 jt → SELALU empat mata (dua sebab
+ *                      sekaligus: di atas ambang DAN ops menamai ordernya).
+ *   latePayment        ada order + Rp 1,64 jt   → selesai seketika.
+ *   durianpayMismatch  ledger DurianPay         → tanpa jejak keputusan sendiri.
+ */
+export function createMockHeldCredits(): Map<string, HeldCreditDetail> {
+  const rows: HeldCreditDetail[] = [
+    {
+      id: HELD_CREDIT_MOCK_IDS.noMatch,
+      source: 'BNI',
+      heldReason: 'NO_MATCHING_ORDER',
+      receivedAmountIdr: '24750000.00',
+      receivedAmountRaw: '24750000.000',
+      accountFromTo: '0291884501',
+      senderName: 'BUDI HARTONO',
+      collectionAccountNo: '1770009988',
+      journalNum: '884213',
+      receivedAt: isoMinutesAgo(75),
+      order: null,
+      idempotencyKey: 'bni-4f2c1a90-1',
+      requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000001',
+      accountingFlag: 'C',
+      narrative1: 'TRF DR BUDI HARTONO',
+      narrative2: null,
+      narrative3: null,
+      balance: '918237440.00',
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-20T02:14:55+07:00',
+      processedAt: isoMinutesAgo(75),
+      raw: {
+        requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000001',
+        accountNum: '1770009988',
+        amount: '24750000.000',
+        accountingFlag: 'C',
+        journalNum: '884213',
+        accountFromTo: '0291884501',
+        narrative1: 'TRF DR BUDI HARTONO',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+    {
+      id: HELD_CREDIT_MOCK_IDS.latePayment,
+      source: 'BNI',
+      heldReason: 'LATE_PAYMENT',
+      receivedAmountIdr: '1640407.00',
+      receivedAmountRaw: '1640407.000',
+      accountFromTo: '1370012245001',
+      senderName: 'RINA SUSANTI',
+      collectionAccountNo: '1770009988',
+      journalNum: '884190',
+      receivedAt: isoMinutesAgo(260),
+      order: {
+        id: HELD_CREDIT_ORDER_MOCK_IDS.late,
+        userId: MOCK_CONSUMER_ID,
+        userEmail: 'ri***@example.com',
+        customerName: 'Rina Susanti',
+        amount: '100.000000',
+        expectedAmountIdr: '1640407.00',
+        uniqueCode: '407',
+        paymentStatus: 'HELD',
+        safeStatus: 'NONE',
+        status: 'HELD',
+        heldReason: 'LATE_PAYMENT',
+        heldAt: isoMinutesAgo(260),
+        expiresAt: isoMinutesAgo(300),
+        createdAt: isoMinutesAgo(1200),
+      },
+      idempotencyKey: 'bni-4f2c1a90-2',
+      requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000002',
+      accountingFlag: 'C',
+      narrative1: 'TRF DR RINA SUSANTI',
+      narrative2: 'USDX 407',
+      narrative3: null,
+      balance: '893487440.00',
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-19T21:30:12+07:00',
+      processedAt: isoMinutesAgo(260),
+      raw: {
+        requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000002',
+        accountNum: '1770009988',
+        amount: '1640407.000',
+        accountingFlag: 'C',
+        journalNum: '884190',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+    {
+      id: HELD_CREDIT_MOCK_IDS.durianpayMismatch,
+      source: 'DURIANPAY_SNAP',
+      heldReason: 'AMOUNT_MISMATCH',
+      receivedAmountIdr: '5000000.00',
+      receivedAmountRaw: '5000000.00',
+      accountFromTo: null,
+      senderName: null,
+      collectionAccountNo: '8808123456789012',
+      journalNum: 'pay_9f2c1a90aa03',
+      receivedAt: isoMinutesAgo(510),
+      order: {
+        id: HELD_CREDIT_ORDER_MOCK_IDS.durianpay,
+        userId: null,
+        userEmail: 'Nasabah partner',
+        customerName: 'Pintu Kripto / cust-88120',
+        amount: '320.000000',
+        expectedAmountIdr: '5250000.00',
+        uniqueCode: null,
+        paymentStatus: 'HELD',
+        safeStatus: 'NONE',
+        status: 'HELD',
+        heldReason: 'AMOUNT_MISMATCH',
+        heldAt: isoMinutesAgo(510),
+        expiresAt: isoMinutesAgo(480),
+        createdAt: isoMinutesAgo(900),
+      },
+      idempotencyKey: 'pay_9f2c1a90aa03',
+      requestUuid: 'RDM260919XYZ01',
+      accountingFlag: 'C',
+      narrative1: null,
+      narrative2: null,
+      narrative3: null,
+      balance: null,
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-19T16:45:03+07:00',
+      processedAt: isoMinutesAgo(510),
+      bankCode: 'MANDIRI',
+      failureReason: null,
+      raw: {
+        trxId: 'RDM260919XYZ01',
+        paymentRequestId: 'pay_9f2c1a90aa03',
+        paidAmount: { value: '5000000.00', currency: 'IDR' },
+        virtualAccountNo: '8808123456789012',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Plafon Pencairan (`/api/v1/payout-controls`) ───────────────────────────
+
+export function createInitialPayoutControls(): PayoutControls {
+  return {
+    payoutsEnabled: true,
+    maxPerTxIdr: '50000000.00',
+    maxDailyIdr: '2000000000.00',
+    maxBatchPerTick: 25,
+    updatedAt: isoMinutesAgo(4300),
+    updatedBy: 'stf_1',
+  }
+}
+
+export const PAYOUT_CONTROL_CHANGE_MOCK_IDS = {
+  raiseDaily: '019f9a01-0103-7c31-9b2d-000000000001',
+  tightenPerTx: '019f9a01-0103-7c31-9b2d-000000000002',
+} as const
+
+export function createInitialPayoutControlChanges(): PayoutControlChange[] {
+  return [
+    {
+      id: PAYOUT_CONTROL_CHANGE_MOCK_IDS.tightenPerTx,
+      createdAt: isoMinutesAgo(4300),
+      reason: 'Plafon per transaksi diturunkan setelah insiden payout ganda 14/09; angka disepakati rapat ops.',
+      approvalRequestId: '019f4a01-0486-7c31-9b2d-0000000000f1',
+      proposerStaffId: 'stf_4',
+      approverStaffId: 'stf_2',
+      before: { maxPerTxIdr: '100000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      after: { maxPerTxIdr: '50000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      ipAddress: '103.28.14.12',
+    },
+    {
+      id: PAYOUT_CONTROL_CHANGE_MOCK_IDS.raiseDaily,
+      createdAt: isoMinutesAgo(11000),
+      reason: 'Plafon harian dinaikkan mengikuti volume redeem kuartal ini.',
+      approvalRequestId: null,
+      proposerStaffId: 'stf_2',
+      approverStaffId: 'stf_5',
+      before: { maxPerTxIdr: '100000000.00', maxDailyIdr: '1000000000.00', maxBatchPerTick: null },
+      after: { maxPerTxIdr: '100000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      ipAddress: '10.20.30.41',
+    },
+  ]
 }

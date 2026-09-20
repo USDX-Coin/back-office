@@ -1,6 +1,23 @@
 import { http, HttpResponse } from 'msw'
 import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
+// Empat layar yang hilang — kontrak + gerbang peran hidup di folder fiturnya,
+// supaya tiruan menegakkan gerbang yang SAMA dengan yang dirender layarnya.
+// Tiruan yang lebih longgar membuat tes "tombolnya tidak dirender" hijau tanpa
+// membuktikan apa pun tentang permintaan yang tetap bisa dikirim dari konsol.
+import { canReadActivityLogRole } from '@/features/activity-log/access'
+import type { ActivityLogEntry } from '@/features/activity-log/types'
+import { canDecideApprovalRole } from '@/features/approvals/access'
+import type { ApprovalRequest } from '@/features/approvals/types'
+import { canResolveHeldCreditRole } from '@/features/held-credits/access'
+import type {
+  HeldCreditDetail,
+  HeldCreditListItem,
+  ResolveHeldCreditBody,
+  ResolvedHeldCredit,
+} from '@/features/held-credits/types'
+import { canChangePayoutLimitsRole } from '@/features/payout-controls/access'
+import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import { MIN_MINT_IDR_FLOOR, MIN_REDEEM_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
@@ -76,6 +93,11 @@ import {
   createBniStatementRows,
   BNI_MOCK_HISTORY_SINCE,
   createMockRedeemApprovals,
+  createMockActivityLog,
+  createMockApprovals,
+  createMockHeldCredits,
+  createInitialPayoutControls,
+  createInitialPayoutControlChanges,
   createInitialRedeemApprovalControls,
   createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
@@ -144,6 +166,18 @@ let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApproval
 let payoutFailureStore: Map<string, PayoutFailureDetail> = createMockPayoutFailures()
 // Cermin `payout_controls.payouts_enabled`; tabel kosong di server = HIDUP.
 let payoutsEnabled = true
+// ─── Empat layar yang hilang ───
+// Keempat kelompok ini DILAYANI MSW dan TIDAK terdaftar di `INTEGRATION_PATHS`:
+// endpoint-nya sudah jadi di backend tapi api-dev belum menyajikannya, dan
+// layarnya harus bisa dijalankan sebelum itu. Berkeadaan, bukan sekadar daftar
+// mati — menyetujui usulan di layar Persetujuan benar-benar menyelesaikan
+// kredit di layar Mint Bermasalah, karena jalan buntu di antara keduanya persis
+// yang tiket ini tutup dan tiruan yang memutusnya tidak membuktikan apa pun.
+let activityLogStore: ActivityLogEntry[] = createMockActivityLog()
+let approvalStore: Map<string, ApprovalRequest> = createMockApprovals()
+let heldCreditStore: Map<string, HeldCreditDetail> = createMockHeldCredits()
+let payoutControlsState: PayoutControls = createInitialPayoutControls()
+let payoutControlChanges: PayoutControlChange[] = createInitialPayoutControlChanges()
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -153,6 +187,12 @@ let payoutsEnabled = true
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
+  activityLogStore = createMockActivityLog()
+  approvalStore = createMockApprovals()
+  heldCreditStore = createMockHeldCredits()
+  payoutControlsState = createInitialPayoutControls()
+  payoutControlChanges = createInitialPayoutControlChanges()
+  approvalIdCounter = 900
   oncallStore = createInitialOncallContacts()
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
@@ -904,6 +944,324 @@ function bniRangeProblem(startDate: string, endDate: string): string | null {
   }
   if (dayOf(endDate) - dayOf(startDate) + 1 > 31) return 'range must be at most 31 days'
   return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMPAT LAYAR YANG HILANG — keadaan + penolong tiruan
+// ═══════════════════════════════════════════════════════════════════════════
+
+function layarError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+const APPROVAL_STATUSES: string[] = ['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED']
+const APPROVAL_ACTION_TYPES: string[] = [
+  'PAYOUT_CONTROLS_RELEASE',
+  'HELD_CREDIT_RESOLVE',
+  'PAYOUT_CONTROLS_LIMITS',
+]
+
+/** Ambang maker-checker, konstanta di kode backend (`approvals.types.ts`). */
+const MOCK_MAKER_CHECKER_THRESHOLD_IDR = 10_000_000n
+
+/** Rupiah BULAT sebagai bigint; `null` kalau bukan angka rupiah yang terbaca. */
+function mockRupiahFloor(value: string): bigint | null {
+  const match = /^(\d+)(?:\.\d+)?$/.exec(value.trim())
+  return match ? BigInt(match[1]!) : null
+}
+
+/**
+ * Nominal TERBESAR dari beberapa sisi rupiah, gagal-tertutup: `null` kalau ADA
+ * satu saja yang tak terbaca atau tak ada. Cermin `maxRupiahIdr` di backend —
+ * nominal yang tidak diketahui tidak boleh membuat aksi tampak lebih kecil
+ * daripada yang sebenarnya.
+ */
+function largestRupiah(values: (string | null)[]): string | null {
+  let best: { raw: string; value: bigint } | null = null
+  for (const raw of values) {
+    if (raw === null) return null
+    const parsed = mockRupiahFloor(raw)
+    if (parsed === null) return raw
+    if (!best || parsed > best.value) best = { raw, value: parsed }
+  }
+  return best ? best.raw : null
+}
+
+function requiresSecondPerson(stakes: (string | null)[]): boolean {
+  const largest = largestRupiah(stakes)
+  if (largest === null) return true
+  const parsed = mockRupiahFloor(largest)
+  if (parsed === null) return true
+  return parsed > MOCK_MAKER_CHECKER_THRESHOLD_IDR
+}
+
+let approvalIdCounter = 900
+function nextApprovalId(): string {
+  approvalIdCounter += 1
+  return `019f4a01-0486-7c31-9b2d-${String(approvalIdCounter).padStart(12, '0')}`
+}
+
+function createApproval(input: {
+  actionType: ApprovalRequest['actionType']
+  payload: Record<string, unknown>
+  amountIdr: string | null
+  proposerStaffId: string
+}): ApprovalRequest {
+  const now = new Date()
+  const approval: ApprovalRequest = {
+    id: nextApprovalId(),
+    actionType: input.actionType,
+    payload: input.payload,
+    amountIdr: input.amountIdr,
+    status: 'PENDING',
+    proposerStaffId: input.proposerStaffId,
+    proposedAt: now.toISOString(),
+    // Masa berlaku bawaan backend: 24 jam (`APPROVAL_EXPIRY_HOURS`).
+    expiresAt: new Date(now.getTime() + 24 * 3_600_000).toISOString(),
+    approverStaffId: null,
+    decidedAt: null,
+    decisionReason: null,
+    executedAt: null,
+    executionError: null,
+  }
+  approvalStore.set(approval.id, approval)
+  return approval
+}
+
+/**
+ * Sapuan kedaluwarsa saat antrean dibaca — KOSMETIK, persis seperti di backend:
+ * penegakannya ada di jalur putusan dengan jam yang sama, supaya sapuan yang
+ * tidak jalan tidak berarti usulan basi masih bisa disetujui.
+ */
+function sweepExpiredApprovals() {
+  const now = Date.now()
+  for (const [id, row] of approvalStore) {
+    if (row.status === 'PENDING' && Date.parse(row.expiresAt) <= now) {
+      approvalStore.set(id, { ...row, status: 'EXPIRED' })
+    }
+  }
+}
+
+/** Proyeksi detail → baris antrean; field khusus detail tidak ikut. */
+function toHeldCreditListItem(credit: HeldCreditDetail): HeldCreditListItem {
+  return {
+    id: credit.id,
+    source: credit.source,
+    heldReason: credit.heldReason,
+    receivedAmountIdr: credit.receivedAmountIdr,
+    receivedAmountRaw: credit.receivedAmountRaw,
+    accountFromTo: credit.accountFromTo,
+    senderName: credit.senderName,
+    collectionAccountNo: credit.collectionAccountNo,
+    journalNum: credit.journalNum,
+    receivedAt: credit.receivedAt,
+    order: credit.order,
+  }
+}
+
+/**
+ * Menulis putusan ke kredit. Jejak `reviews` hanya ditambahkan untuk ledger
+ * BNI — `durianpay_notifications` tidak punya tabel review sama sekali (sisa
+ * audit P0-2), dan tiruan yang mengarang jejaknya akan menyembunyikan justru
+ * lubang yang layarnya harus jelaskan.
+ */
+function applyHeldCreditResolve(
+  creditId: string,
+  action: 'PAID' | 'FAILED',
+  orderId: string | null,
+  actorStaffId: string
+): ResolvedHeldCredit | null {
+  const credit = heldCreditStore.get(creditId)
+  if (!credit || credit.resolution !== null) return null
+  const now = new Date().toISOString()
+  const actor = findStaffById(actorStaffId)
+  const targetOrderId = action === 'PAID' ? (orderId ?? credit.order?.id ?? null) : null
+  const orderStatus = action === 'PAID' ? 'PAID' : 'FAILED'
+  heldCreditStore.set(creditId, {
+    ...credit,
+    resolution: action,
+    resolvedAt: now,
+    resolvedBy: actorStaffId,
+    resolvedMintOrderId: targetOrderId,
+    reviews:
+      credit.source === 'BNI'
+        ? [
+            ...credit.reviews,
+            {
+              id: `${creditId}-review-${credit.reviews.length + 1}`,
+              action,
+              mintOrderId: targetOrderId,
+              actorStaffId,
+              actorStaffName: actor?.name ?? null,
+              reason: 'tercatat di jejak keputusan',
+              ipAddress: '127.0.0.1',
+              createdAt: now,
+            },
+          ]
+        : credit.reviews,
+  })
+  return {
+    creditId,
+    resolution: action,
+    orderId: targetOrderId,
+    orderStatus: credit.order ? orderStatus : null,
+    orderPaymentStatus: credit.order ? orderStatus : null,
+    resolvedAt: now,
+    resolvedBy: actorStaffId,
+    resolvedByName: actor?.name ?? '',
+  }
+}
+
+/**
+ * Menjalankan aksi milik usulan yang baru disetujui. Mengembalikan pesan galat
+ * kalau gagal — usulan TETAP APPROVED dan galatnya tersimpan di
+ * `executionError`, persis perilaku backend: mengembalikannya ke menunggu akan
+ * mengundang eksekusi kedua atas aksi yang mungkin sudah separuh berjalan.
+ */
+function runApprovedAction(approval: ApprovalRequest): string | null {
+  if (approval.actionType === 'HELD_CREDIT_RESOLVE') {
+    const payload = approval.payload as {
+      creditId?: unknown
+      action?: unknown
+      orderId?: unknown
+    }
+    if (typeof payload.creditId !== 'string' || (payload.action !== 'PAID' && payload.action !== 'FAILED')) {
+      return 'HELD_CREDIT_PAYLOAD_INVALID'
+    }
+    const done = applyHeldCreditResolve(
+      payload.creditId,
+      payload.action,
+      typeof payload.orderId === 'string' ? payload.orderId : null,
+      // Aktor domain = PENGUSUL, bukan penyetuju. Siapa yang MENGIZINKAN tersimpan
+      // di `approverStaffId`; dua pertanyaan berbeda, dua jawaban.
+      approval.proposerStaffId
+    )
+    return done ? null : 'CREDIT_NOT_HELD'
+  }
+  if (approval.actionType === 'PAYOUT_CONTROLS_RELEASE') {
+    payoutControlsState = {
+      ...payoutControlsState,
+      payoutsEnabled: true,
+      updatedAt: new Date().toISOString(),
+      updatedBy: approval.proposerStaffId,
+    }
+    return null
+  }
+  if (approval.actionType === 'PAYOUT_CONTROLS_LIMITS') {
+    const payload = approval.payload as Record<string, unknown>
+    const perTx = payload.maxPerTxIdr
+    const daily = payload.maxDailyIdr
+    const batch = payload.maxBatchPerTick
+    const reason = payload.reason
+    const decimalOk = (v: unknown) => v === null || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v))
+    if (
+      !decimalOk(perTx) ||
+      !decimalOk(daily) ||
+      !(batch === null || (typeof batch === 'number' && Number.isInteger(batch) && batch >= 1)) ||
+      typeof reason !== 'string'
+    ) {
+      return 'PAYOUT_LIMITS_PAYLOAD_INVALID'
+    }
+    const before = {
+      maxPerTxIdr: payoutControlsState.maxPerTxIdr,
+      maxDailyIdr: payoutControlsState.maxDailyIdr,
+      maxBatchPerTick: payoutControlsState.maxBatchPerTick,
+    }
+    const after = {
+      maxPerTxIdr: perTx as string | null,
+      maxDailyIdr: daily as string | null,
+      maxBatchPerTick: batch as number | null,
+    }
+    const now = new Date().toISOString()
+    payoutControlsState = {
+      ...payoutControlsState,
+      ...after,
+      updatedAt: now,
+      updatedBy: approval.proposerStaffId,
+    }
+    payoutControlChanges = [
+      {
+        id: `${approval.id}-change`,
+        createdAt: now,
+        reason,
+        approvalRequestId: approval.id,
+        proposerStaffId: approval.proposerStaffId,
+        approverStaffId: approval.approverStaffId,
+        before,
+        after,
+        ipAddress: '127.0.0.1',
+      },
+      ...payoutControlChanges,
+    ]
+    return null
+  }
+  return 'NO_EXECUTOR_REGISTERED'
+}
+
+/**
+ * Empat pagar, urutannya sama dengan backend: ada? → bukan pengusulnya? →
+ * belum kedaluwarsa? → belum diputus?
+ *
+ * Larangan menyetujui usulan sendiri didahulukan dari kedaluwarsa karena di
+ * backend ia dijaga `requirePending` SEBELUM klaim, dan karena percobaannya
+ * dicatat sebagai peristiwa tersendiri di jejak audit.
+ */
+function decideApproval(
+  id: string,
+  staff: Staff | null,
+  status: 'APPROVED' | 'REJECTED',
+  reason: string | null
+) {
+  const row = approvalStore.get(id)
+  if (!row) return layarError(404, 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_FOUND')
+  const approverId = staff?.id ?? null
+  if (approverId !== null && row.proposerStaffId === approverId) {
+    return layarError(
+      403,
+      'SELF_APPROVAL_FORBIDDEN',
+      'Usulan tidak boleh diputuskan oleh pengusulnya sendiri — dibutuhkan staff yang berbeda.'
+    )
+  }
+  if (row.status !== 'PENDING') {
+    return layarError(
+      409,
+      'APPROVAL_ALREADY_DECIDED',
+      'Usulan ini sudah diputuskan — memutuskan ulang tidak menggandakan eksekusi.'
+    )
+  }
+  if (Date.parse(row.expiresAt) <= Date.now()) {
+    approvalStore.set(id, { ...row, status: 'EXPIRED' })
+    return layarError(
+      409,
+      'APPROVAL_EXPIRED',
+      'Usulan sudah lewat masa berlaku dan tidak bisa diputuskan lagi.'
+    )
+  }
+
+  const now = new Date().toISOString()
+  // Penyetuju di tiruan boleh `stf_1` saat sesi tiruan tidak terbaca (browser
+  // dev pakai cookie backend asli) — bukan `null`, karena CHECK
+  // `approval_requests_decision_complete` menolak putusan tanpa penyetuju.
+  const decided: ApprovalRequest = {
+    ...row,
+    status,
+    approverStaffId: approverId ?? (row.proposerStaffId === 'stf_1' ? 'stf_2' : 'stf_1'),
+    decidedAt: now,
+    decisionReason: reason,
+  }
+  approvalStore.set(id, decided)
+  if (status === 'REJECTED') {
+    return HttpResponse.json({ status: 'success', metadata: null, data: decided })
+  }
+  const failure = runApprovedAction(decided)
+  const executed: ApprovalRequest = failure
+    ? { ...decided, executedAt: null, executionError: failure }
+    : { ...decided, executedAt: new Date().toISOString(), executionError: null }
+  approvalStore.set(id, executed)
+  return HttpResponse.json({ status: 'success', metadata: null, data: executed })
 }
 
 export const handlers = [
@@ -2768,6 +3126,328 @@ export const handlers = [
       metadata: null,
       data: { payoutFailuresOpen, redeemApprovalsOpen: openRedeemApprovals().length },
     })
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMPAT LAYAR YANG HILANG — tiruan endpoint yang sudah jadi di backend tapi
+  // belum pernah punya pintu di back office.
+  //
+  // Keempatnya SENGAJA TIDAK masuk `INTEGRATION_PATHS` (`browser.ts`): api-dev
+  // belum menyajikannya, jadi browser dev harus tetap dilayani MSW. Begitu ia
+  // menjawab 401 (bukan 404), path-nya ditambahkan di sana dan handler ini
+  // TETAP di berkas ini untuk Vitest — preseden USDX-154.
+  //
+  // GERBANG PERAN DITEGAKKAN HANYA SAAT SESI TIRUAN TERBACA. Di browser dev,
+  // sesi operator adalah cookie httpOnly backend ASLI yang tidak terlihat oleh
+  // service worker; menolak semua permintaan tanpa sesi tiruan akan membuat
+  // layarnya mustahil dibuka di dev. Tanpa gerbang sama sekali, tes "peran X
+  // ditolak 403" tidak membuktikan apa pun. Karena itu: ada sesi → tegakkan.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Direktori staf (dipakai ketiga layar untuk menerjemahkan staff_id) ───
+  // `GET /api/v1/staff` sudah nyata dan terdaftar di `INTEGRATION_PATHS`, jadi
+  // handler ini hanya melayani Vitest. Controller-nya tidak punya `@Roles`,
+  // hanya AuthGuard global — jadi tiruannya juga tidak menggerbangi peran.
+  http.get('/api/v1/staff', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || '10')))
+    const start = (page - 1) * limit
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: staffStore.length },
+      data: staffStore.slice(start, start + limit),
+    })
+  }),
+
+  // ─── Jejak Audit (`GET /api/v1/activity-logs`, ADMIN saja) ───
+  // Tidak ada POST/PATCH/DELETE di sini, dan itu bukan kelalaian: controller
+  // backend sengaja hanya punya `@Get()`, repository-nya hanya INSERT+SELECT,
+  // dan trigger `activity_log_no_mutate` menolak UPDATE/DELETE di database.
+  // Tiruan yang menerima mutasi akan membuat layar yang mencobanya lolos tes.
+  http.get('/api/v1/activity-logs', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadActivityLogRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const outcome = url.searchParams.get('outcome')
+    if (outcome && outcome !== 'SUCCESS' && outcome !== 'FAILED') {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'outcome must be one of the following values: SUCCESS, FAILED'
+      )
+    }
+    const action = url.searchParams.get('action')
+    const resourceType = url.searchParams.get('resourceType')
+    const actorStaffId = url.searchParams.get('actorStaffId')
+    const actorUserId = url.searchParams.get('actorUserId')
+    // Pencocokan PERSIS (`eq`), bukan pencarian sebagian — sama dengan
+    // `ActivityLogRepository.findMany`. Tiruan yang lebih longgar akan membuat
+    // kotak pencarian yang tidak akan pernah bekerja lolos tes.
+    const rows = activityLogStore
+      .filter((row) => !action || row.action === action)
+      .filter((row) => !resourceType || row.resourceType === resourceType)
+      .filter((row) => !outcome || row.outcome === outcome)
+      .filter((row) => !actorStaffId || row.actorStaffId === actorStaffId)
+      .filter((row) => !actorUserId || row.actorUserId === actorUserId)
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  // ─── Persetujuan Orang Kedua (`/api/v1/approvals`) ───
+  http.get('/api/v1/approvals', ({ request }) => {
+    sweepExpiredApprovals()
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const status = url.searchParams.get('status')
+    if (status && !APPROVAL_STATUSES.includes(status)) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'status must be one of the following values: PENDING, APPROVED, REJECTED, EXPIRED'
+      )
+    }
+    const actionType = url.searchParams.get('actionType')
+    if (actionType && !APPROVAL_ACTION_TYPES.includes(actionType)) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'actionType must be one of the following values: PAYOUT_CONTROLS_RELEASE, HELD_CREDIT_RESOLVE, PAYOUT_CONTROLS_LIMITS'
+      )
+    }
+    const rows = [...approvalStore.values()]
+      .filter((row) => !status || row.status === status)
+      .filter((row) => !actionType || row.actionType === actionType)
+      .sort((a, b) => b.proposedAt.localeCompare(a.proposedAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.get('/api/v1/approvals/:id', ({ params }) => {
+    sweepExpiredApprovals()
+    const row = approvalStore.get(String(params.id))
+    if (!row) return layarError(404, 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: row })
+  }),
+
+  http.post('/api/v1/approvals/:id/approve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canDecideApprovalRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      body = {}
+    }
+    const reason = typeof body.reason === 'string' ? body.reason : null
+    if (reason !== null && reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be shorter than or equal to 500 characters')
+    }
+    return decideApproval(String(params.id), staff, 'APPROVED', reason)
+  }),
+
+  http.post('/api/v1/approvals/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canDecideApprovalRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 3 || reason.length > 500) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'reason must be longer than or equal to 3 characters'
+      )
+    }
+    return decideApproval(String(params.id), staff, 'REJECTED', reason)
+  }),
+
+  // ─── Mint Bermasalah (`/api/v1/held-credits`) ───
+  http.get('/api/v1/held-credits', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    // Antrean TERBUKA = belum diputus; urut `receivedAt` ASC (terlama dulu).
+    const rows = [...heldCreditStore.values()]
+      .filter((credit) => credit.resolution === null)
+      .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toHeldCreditListItem),
+    })
+  }),
+
+  http.get('/api/v1/held-credits/:id', ({ params }) => {
+    const credit = heldCreditStore.get(String(params.id))
+    // `held-credits.errors.ts` melempar STRING telanjang
+    // (`new NotFoundException("HELD_CREDIT_NOT_FOUND")`), dan filter backend
+    // menyalin string itu ke `code` DAN `message`. Tiruan yang memakai kode
+    // generik `NOT_FOUND` akan membuat peta pesan di layar tidak pernah kena.
+    if (!credit) return layarError(404, 'HELD_CREDIT_NOT_FOUND', 'HELD_CREDIT_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: credit })
+  }),
+
+  http.post('/api/v1/held-credits/:id/resolve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolveHeldCreditRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Partial<ResolveHeldCreditBody>
+    try {
+      body = (await request.json()) as Partial<ResolveHeldCreditBody>
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const action = body.action
+    if (action !== 'PAID' && action !== 'FAILED') {
+      return layarError(400, 'BAD_REQUEST', 'action must be one of the following values: PAID, FAILED')
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 3 || reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be longer than or equal to 3 characters')
+    }
+    const credit = heldCreditStore.get(String(params.id))
+    if (!credit) return layarError(404, 'HELD_CREDIT_NOT_FOUND', 'HELD_CREDIT_NOT_FOUND')
+    if (credit.resolution !== null) return layarError(409, 'CREDIT_NOT_HELD', 'CREDIT_NOT_HELD')
+
+    const matchedOrderId = credit.order?.id ?? null
+    const namedOrderId = typeof body.orderId === 'string' ? body.orderId : null
+    if (action === 'PAID' && namedOrderId === null && matchedOrderId === null) {
+      return layarError(400, 'ORDER_ID_REQUIRED', 'ORDER_ID_REQUIRED')
+    }
+
+    // Gerbang maker-checker, ditirukan dengan aturan `ApprovalsService`:
+    // nominal TERBESAR di antara yang masuk dan nilai order yang disentuh,
+    // gagal-tertutup untuk nominal yang tak terbaca, plus `forceApproval` saat
+    // ops menamai order yang BUKAN pilihan mesin.
+    const forceApproval = action === 'PAID' && namedOrderId !== null && namedOrderId !== matchedOrderId
+    const stakes: (string | null)[] = [credit.receivedAmountIdr]
+    if (action === 'PAID' || matchedOrderId !== null) {
+      stakes.push(credit.order?.expectedAmountIdr ?? null)
+    }
+    if (forceApproval || requiresSecondPerson(stakes)) {
+      const approval = createApproval({
+        actionType: 'HELD_CREDIT_RESOLVE',
+        payload: { creditId: credit.id, action, orderId: namedOrderId, reason },
+        amountIdr: largestRupiah(stakes),
+        proposerStaffId: staff?.id ?? 'stf_1',
+      })
+      return HttpResponse.json(
+        { status: 'success', metadata: null, data: approval },
+        { status: 202 }
+      )
+    }
+
+    const resolved = applyHeldCreditResolve(credit.id, action, namedOrderId, staff?.id ?? 'stf_1')
+    if (!resolved) return layarError(409, 'CREDIT_NOT_HELD', 'CREDIT_NOT_HELD')
+    return HttpResponse.json({ status: 'success', metadata: null, data: resolved })
+  }),
+
+  // ─── Plafon Pencairan (`/api/v1/payout-controls`) ───
+  http.get('/api/v1/payout-controls', () => {
+    return HttpResponse.json({ status: 'success', metadata: null, data: payoutControlsState })
+  }),
+
+  // Riwayat didaftarkan SEBELUM tidak diperlukan — MSW mencocokkan per pola,
+  // dan `/limits/history` bukan `/:id` di modul ini — tapi urutannya tetap
+  // ditulis begini supaya pembaca tidak perlu tahu itu untuk yakin.
+  http.get('/api/v1/payout-controls/limits/history', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canChangePayoutLimitsRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const rows = [...payoutControlChanges].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.post('/api/v1/payout-controls/limits', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canChangePayoutLimitsRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    // SNAPSHOT UTUH: ketiga plafon WAJIB ada di badan, masing-masing boleh null.
+    // Field yang HILANG ditolak — kalau ia diam-diam berarti "jangan diubah",
+    // satu kelalaian mengetik tampak identik dengan keputusan sadar.
+    const decimalOrNull = (key: string): { ok: true; value: string | null } | { ok: false } => {
+      if (!(key in body)) return { ok: false }
+      const value = body[key]
+      if (value === null) return { ok: true, value: null }
+      if (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value)) return { ok: true, value }
+      return { ok: false }
+    }
+    const perTx = decimalOrNull('maxPerTxIdr')
+    if (!perTx.ok) {
+      return layarError(400, 'BAD_REQUEST', 'maxPerTxIdr is required (send null to fall back to the env default)')
+    }
+    const daily = decimalOrNull('maxDailyIdr')
+    if (!daily.ok) {
+      return layarError(400, 'BAD_REQUEST', 'maxDailyIdr is required (send null to fall back to the env default)')
+    }
+    if (!('maxBatchPerTick' in body)) {
+      return layarError(400, 'BAD_REQUEST', 'maxBatchPerTick is required (send null to fall back to the env default)')
+    }
+    const batch = body.maxBatchPerTick
+    if (!(batch === null || (typeof batch === 'number' && Number.isInteger(batch) && batch >= 1))) {
+      return layarError(400, 'BAD_REQUEST', 'maxBatchPerTick must not be less than 1')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be longer than or equal to 10 characters')
+    }
+
+    // SELALU empat mata, untuk arah perubahan APA PUN — `alwaysRequiresApproval`
+    // pada executor-nya. Karena itu jawabannya selalu 202, tidak pernah 200.
+    const approval = createApproval({
+      actionType: 'PAYOUT_CONTROLS_LIMITS',
+      payload: {
+        maxPerTxIdr: perTx.value,
+        maxDailyIdr: daily.value,
+        maxBatchPerTick: batch,
+        reason,
+      },
+      amountIdr: null,
+      proposerStaffId: staff?.id ?? 'stf_1',
+    })
+    return HttpResponse.json({ status: 'success', metadata: null, data: approval }, { status: 202 })
   }),
 
   http.post('/api/v1/mint', async ({ request }) => {
