@@ -115,6 +115,7 @@ export default function SanctionListsPage() {
   const columns: ColumnDef<SanctionListItem>[] = [
     {
       accessorKey: 'listType',
+      size: 104,
       header: 'Jenis',
       cell: ({ getValue }) => (
         <span className="font-medium">
@@ -124,6 +125,7 @@ export default function SanctionListsPage() {
     },
     {
       accessorKey: 'publishedAt',
+      size: 128,
       header: 'Terbit',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums">{getValue() as string}</span>
@@ -131,6 +133,7 @@ export default function SanctionListsPage() {
     },
     {
       accessorKey: 'source',
+      size: 192,
       header: 'Penerbit',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
@@ -147,6 +150,7 @@ export default function SanctionListsPage() {
     },
     {
       accessorKey: 'status',
+      size: 152,
       header: 'Status',
       cell: ({ getValue }) => {
         const value = getValue() as SanctionListStatus
@@ -166,6 +170,7 @@ export default function SanctionListsPage() {
     },
     {
       accessorKey: 'entryCount',
+      size: 96,
       header: 'Entri',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums">
@@ -175,6 +180,7 @@ export default function SanctionListsPage() {
     },
     {
       accessorKey: 'importedByName',
+      size: 192,
       header: 'Diimpor oleh',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
@@ -183,7 +189,10 @@ export default function SanctionListsPage() {
                 barisnya tetap mencatat siapa, akunnya saja yang sudah tiada. */}
             {row.original.importedByName ?? 'Akun petugas sudah dihapus'}
           </span>
-          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+          <span
+            className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+            title={formatShortDate(row.original.importedAt)}
+          >
             {formatShortDate(row.original.importedAt)}
           </span>
         </div>
@@ -191,6 +200,7 @@ export default function SanctionListsPage() {
     },
     {
       id: 'actions',
+      size: 104,
       header: '',
       cell: ({ row }) =>
         row.original.status === 'DRAFT' ? (

@@ -22,19 +22,36 @@ function Dash() {
 }
 
 function MonoCell({ value }: { value: string | null | undefined }) {
-  return value ? <span className="font-mono text-xs tabular-nums">{value}</span> : <Dash />
+  return value ? (
+    <span className="block truncate font-mono text-xs tabular-nums" title={value}>
+      {value}
+    </span>
+  ) : (
+    <Dash />
+  )
 }
 
 function buildStatementColumns(currency: string | null | undefined): ColumnDef<IndexedStatementRow>[] {
-  const amount = (row: BniStatementRow, key: 'amount' | 'balance') =>
-    row[key] == null ? <Dash /> : (
-      <span className="font-mono text-xs font-medium tabular-nums">
-        {formatBankAmount(row[key], currency)}
+  // Nominal bank: `title` membawa nilai UTUH. Mutasi rekening operasional bisa
+  // menyentuh miliaran, dan nominal yang terbaca separuh di layar rekonsiliasi
+  // adalah kesalahan pencocokan yang tidak meninggalkan jejak.
+  const amount = (row: BniStatementRow, key: 'amount' | 'balance') => {
+    if (row[key] == null) return <Dash />
+    const teks = formatBankAmount(row[key], currency)
+    return (
+      <span
+        className="block truncate font-mono text-xs font-medium tabular-nums"
+        title={teks}
+      >
+        {teks}
       </span>
     )
+  }
   return [
     {
       id: 'postDate',
+      // `YYYY-MM-DD HH:MM:SS` bank, utuh dengan detiknya.
+      size: 176,
       header: 'Tanggal posting',
       cell: ({ row }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -44,21 +61,26 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
     },
     {
       id: 'flag',
+      size: 96,
       header: 'Jenis',
       cell: ({ row }) => <StatusPill cfg={getBniFlagConfig(row.original.row.flag)} />,
     },
     {
       id: 'amount',
+      size: 176,
       header: 'Nominal',
       cell: ({ row }) => amount(row.original.row, 'amount'),
     },
     {
       id: 'balance',
+      size: 176,
       header: 'Saldo setelah',
       cell: ({ row }) => amount(row.original.row, 'balance'),
     },
     {
       id: 'description',
+      // Satu-satunya kolom yang memang melipat (`whitespace-pre-wrap`).
+      size: 320,
       header: 'Deskripsi',
       cell: ({ row }) => (
         <span className="block max-w-[28rem] whitespace-pre-wrap break-words text-xs">
@@ -68,11 +90,13 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
     },
     {
       id: 'journalNo',
+      size: 152,
       header: 'No. jurnal',
       cell: ({ row }) => <MonoCell value={row.original.row.journalNo} />,
     },
     {
       id: 'branchName',
+      size: 160,
       header: 'Cabang',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
@@ -82,6 +106,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
     },
     {
       id: 'source',
+      size: 112,
       header: 'Sumber',
       cell: ({ row }) => {
         const label = statementSourceLabel(row.original.row.source)

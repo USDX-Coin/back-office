@@ -90,6 +90,7 @@ export default function MultisigListPage() {
   const columns: ColumnDef<SafeTxListItem>[] = [
     {
       accessorKey: 'createdAt',
+      size: 128,
       header: 'Tanggal',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -100,14 +101,18 @@ export default function MultisigListPage() {
     {
       id: 'activity',
       header: 'Aktivitas',
+      size: 208,
       cell: ({ row }) => {
         const { activity, activityLabel } = row.original
         const unknown = isUnknownActivity(activity)
         return (
-          <div className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 text-xs font-medium">
-              {unknown && <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
-              {activityLabel || getActivityLabel(activity)}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span
+              className="flex min-w-0 items-center gap-1.5 text-xs font-medium"
+              title={activityLabel || getActivityLabel(activity)}
+            >
+              {unknown && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />}
+              <span className="truncate">{activityLabel || getActivityLabel(activity)}</span>
             </span>
             <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
               {activity}
@@ -118,6 +123,7 @@ export default function MultisigListPage() {
     },
     {
       accessorKey: 'safeType',
+      size: 104,
       header: 'Safe',
       cell: ({ row }) => (
         <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
@@ -129,15 +135,22 @@ export default function MultisigListPage() {
     },
     {
       id: 'signatureProgress',
+      size: 144,
       header: 'Tanda tangan',
       cell: ({ row }) => <SignatureProgressBar progress={row.original.signatureProgress} />,
     },
     {
       accessorKey: 'proposerAddress',
       header: 'Pengaju',
+      size: 152,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs tabular-nums">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          {/* Alamat sudah SENGAJA dipendekkan di tengah — tanpa `title` bentuk
+              panjangnya tidak ada di mana pun, dan pengaju tidak bisa dipastikan. */}
+          <span
+            className="truncate font-mono text-xs tabular-nums"
+            title={row.original.proposerAddress}
+          >
             {truncateMiddle(row.original.proposerAddress, 6, 4)}
           </span>
           <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
@@ -148,6 +161,7 @@ export default function MultisigListPage() {
     },
     {
       accessorKey: 'status',
+      size: 176,
       header: 'Status',
       cell: ({ getValue }) => (
         <StatusBadge cfg={getSafeTxStatusConfig(getValue() as SafeTxStatus)} />
@@ -155,6 +169,7 @@ export default function MultisigListPage() {
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button

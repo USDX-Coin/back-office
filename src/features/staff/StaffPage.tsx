@@ -4,6 +4,8 @@ import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
+import { formatShortDate } from '@/lib/format'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -25,12 +27,6 @@ const PAGE_SIZE = 10
 // load a generous page once and run search / role / active / sort / paginate
 // client-side. Phase 1 staff is bounded (handful per org); revisit if it grows.
 const FETCH_LIMIT = 100
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString()
-}
 
 export default function StaffPage() {
   const { user } = useAuth()
@@ -112,22 +108,25 @@ export default function StaffPage() {
   const columns: ColumnDef<Staff>[] = [
     {
       accessorKey: 'name',
+      size: 192,
       header: 'Nama',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="font-medium">{row.original.name}</span>
+        <TableCellText value={row.original.name} className="font-medium" />
       ),
     },
     {
       accessorKey: 'email',
+      size: 256,
       header: 'Email',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.email}</span>
+        <TableCellText value={row.original.email} className="text-muted-foreground" />
       ),
     },
     {
       accessorKey: 'role',
+      size: 128,
       header: 'Peran',
       enableSorting: true,
       // Nilai enum ditulis apa adanya — lihat catatan di `filterDefs.ts`.
@@ -135,6 +134,7 @@ export default function StaffPage() {
     },
     {
       accessorKey: 'isActive',
+      size: 120,
       header: 'Status',
       enableSorting: true,
       cell: ({ row }) =>
@@ -148,18 +148,25 @@ export default function StaffPage() {
     },
     {
       accessorKey: 'createdAt',
+      size: 168,
       header: 'Dibuat',
+      // Dulu `new Date(iso).toLocaleDateString()` TANPA locale — di layar
+      // berbahasa Indonesia itu mencetak `5/1/2026`, urutan bulan-hari Amerika
+      // yang terbaca "5 Januari" oleh pembacanya. `formatShortDate` memakai
+      // `id-ID` seperti seluruh tanggal lain di back office ini: `1 Mei 2026`.
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {formatDate(row.original.createdAt)}
-        </span>
+        <TableCellText
+          value={formatShortDate(row.original.createdAt)}
+          className="text-xs text-muted-foreground"
+        />
       ),
     },
     ...(canManage
       ? [
           {
             id: 'actions',
+            size: 96,
             header: '',
             enableSorting: false,
             cell: ({ row }: { row: { original: Staff } }) => {

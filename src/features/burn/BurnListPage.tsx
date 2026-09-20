@@ -122,22 +122,34 @@ export default function BurnListPage() {
     },
     {
       accessorKey: 'amount',
-      size: 164,
+      // Dua baris uang di satu sel. Pembungkus tiap barisnya `flex` — kotak
+      // BLOK — jadi kelebihannya dipotong `td` TANPA elipsis. Lebarnya dinaikkan
+      // supaya nominal wajar muat, dan `title` membawa nilai utuhnya untuk yang
+      // tidak muat.
+      size: 196,
       header: 'Nominal',
       cell: ({ row }) => {
         const input = row.original.inputCurrency
+        const usdx = `${Number(row.original.amount).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} USDX`
+        const idr = `Rp ${Number(row.original.amountIdr).toLocaleString('id-ID')}`
         return (
-          <div className="flex flex-col leading-tight">
-            <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
-              {Number(row.original.amount).toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-              <span className="text-2xs text-muted-foreground">USDX</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span
+              className="flex min-w-0 items-center gap-1.5 font-mono font-medium tabular-nums"
+              title={usdx}
+            >
+              <span className="truncate">{usdx.replace(/ USDX$/, '')}</span>
+              <span className="shrink-0 text-2xs text-muted-foreground">USDX</span>
               {input === 'USD' && <InputCurrencyBadge currency="USD" />}
             </span>
-            <span className="flex items-center gap-1.5 font-mono text-2xs text-muted-foreground tabular-nums">
-              <span>Rp {Number(row.original.amountIdr).toLocaleString('id-ID')}</span>
+            <span
+              className="flex min-w-0 items-center gap-1.5 font-mono text-2xs text-muted-foreground tabular-nums"
+              title={idr}
+            >
+              <span className="truncate">{idr}</span>
               {input === 'IDR' && <InputCurrencyBadge currency="IDR" />}
             </span>
           </div>

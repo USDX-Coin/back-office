@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Building2, Eye, Plus } from 'lucide-react'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -68,6 +69,7 @@ export default function KybListPage() {
   const columns: ColumnDef<KybListItem>[] = [
     {
       id: 'id',
+      size: 152,
       header: 'ID',
       cell: ({ row }) => <RequestIdCell id={row.original.id} />,
     },
@@ -79,11 +81,12 @@ export default function KybListPage() {
       // exactly that reason, and the NIB column that used to sit beside it was
       // reading a field the response has never contained.
       accessorKey: 'userName',
+      size: 200,
       header: 'Badan usaha',
       cell: ({ getValue }) => {
         const name = getValue() as string | null
         return name ? (
-          <span className="font-medium">{name}</span>
+          <TableCellText value={name} className="font-medium" />
         ) : (
           <span className="text-muted-foreground">—</span>
         )
@@ -91,15 +94,18 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'userEmail',
+      size: 232,
       header: 'Email akun',
       cell: ({ getValue }) => (
-        <span className="truncate text-xs text-muted-foreground">
-          {getValue() as string}
-        </span>
+        <TableCellText
+          value={getValue() as string}
+          className="text-xs text-muted-foreground"
+        />
       ),
     },
     {
       accessorKey: 'entityForm',
+      size: 152,
       header: 'Bentuk badan',
       cell: ({ getValue }) => (
         <span className="text-xs text-muted-foreground">
@@ -109,6 +115,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'status',
+      size: 144,
       header: 'Status',
       cell: ({ getValue }) => {
         const cfg = getKycStatusConfig(getValue() as KybListItem['status'])
@@ -127,6 +134,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'submittedAt',
+      size: 128,
       header: 'Diajukan',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
@@ -139,6 +147,7 @@ export default function KybListPage() {
     },
     {
       accessorKey: 'submissionCount',
+      size: 104,
       header: 'Pengajuan',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums">
@@ -148,6 +157,7 @@ export default function KybListPage() {
     },
     {
       id: 'actions',
+      size: 104,
       header: '',
       cell: ({ row }) => (
         <button

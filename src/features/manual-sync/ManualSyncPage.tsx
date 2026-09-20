@@ -178,6 +178,7 @@ export default function ManualSyncPage() {
   const columns: ColumnDef<ManualSyncItem>[] = [
     {
       id: 'id',
+      size: 152,
       header: 'ID request',
       cell: ({ row }) => {
         const isHighlight = activeHighlight === row.original.id
@@ -207,6 +208,7 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'type',
+      size: 104,
       header: 'Jenis',
       cell: ({ getValue }) => {
         const t = getValue() as ManualSyncItem['type']
@@ -225,6 +227,7 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'chain',
+      size: 120,
       header: 'Jaringan',
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
@@ -239,9 +242,12 @@ export default function ManualSyncPage() {
     {
       id: 'user',
       header: 'Nasabah',
+      size: 200,
       cell: ({ row }) => (
-        <div className="flex flex-col leading-tight">
-          <span className="font-medium">{row.original.userName}</span>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-medium" title={row.original.userName}>
+            {row.original.userName}
+          </span>
           <span className="font-mono text-2xs text-muted-foreground">
             <TruncatedHash value={row.original.userAddress} />
           </span>
@@ -250,6 +256,7 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'safeType',
+      size: 96,
       header: 'Dompet',
       cell: ({ getValue }) => (
         <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
@@ -260,18 +267,29 @@ export default function ManualSyncPage() {
     {
       accessorKey: 'amount',
       header: 'Nominal',
-      cell: ({ row }) => (
-        <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
-          {Number(row.original.amount).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          <span className="text-2xs text-muted-foreground">USDX</span>
-        </span>
-      ),
+      // Nominal request yang nyangkut. Tanpa `size` kolomnya 120px, dan
+      // pembungkusnya `flex` (kotak blok) jadi kelebihannya dipotong tanpa
+      // elipsis. Nilai utuh ikut di `title`.
+      size: 176,
+      cell: ({ row }) => {
+        const teks = `${Number(row.original.amount).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} USDX`
+        return (
+          <span
+            className="block truncate font-mono font-medium tabular-nums"
+            title={teks}
+          >
+            {teks.replace(/ USDX$/, '')}{' '}
+            <span className="text-2xs text-muted-foreground">USDX</span>
+          </span>
+        )
+      },
     },
     {
       id: 'safeTx',
+      size: 176,
       header: 'Antrean tanda tangan',
       cell: ({ row }) => {
         const cfg = findChainConfig(chains, row.original.chain)
@@ -291,6 +309,7 @@ export default function ManualSyncPage() {
     },
     {
       id: 'actions',
+      size: 104,
       header: 'Aksi',
       cell: ({ row }) => (
         <Button

@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, PhoneCall } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import PageHeader from '@/components/PageHeader'
 import SettingsTabs from '@/components/layout/SettingsTabs'
@@ -126,20 +127,25 @@ export default function OncallContactsPage() {
   const columns: ColumnDef<OncallContact>[] = [
     {
       accessorKey: 'name',
+      size: 176,
       header: 'Nama',
       enableSorting: false,
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      cell: ({ row }) => (
+        <TableCellText value={row.original.name} className="font-medium" />
+      ),
     },
     {
       accessorKey: 'role',
+      size: 176,
       header: 'Jabatan',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.role}</span>
+        <TableCellText value={row.original.role} className="text-muted-foreground" />
       ),
     },
     {
       accessorKey: 'channel',
+      size: 112,
       header: 'Kanal',
       enableSorting: false,
       cell: ({ row }) => (
@@ -148,14 +154,19 @@ export default function OncallContactsPage() {
     },
     {
       accessorKey: 'contactValue',
+      size: 224,
       header: 'Kontak',
       enableSorting: false,
+      // Nomor/alamat yang benar-benar DIHUBUNGI saat uang bermasalah. Nilai
+      // utuh wajib ada di `title`: nomor telepon yang terbaca separuh sama
+      // dengan tidak ada nomor sama sekali.
       cell: ({ row }) => (
-        <span className="font-mono text-xs">{row.original.contactValue}</span>
+        <TableCellText value={row.original.contactValue} className="font-mono text-xs" />
       ),
     },
     {
       accessorKey: 'categories',
+      size: 240,
       header: 'Menangani',
       enableSorting: false,
       cell: ({ row }) => (
@@ -170,6 +181,7 @@ export default function OncallContactsPage() {
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       enableSorting: false,
       cell: ({ row }) => (

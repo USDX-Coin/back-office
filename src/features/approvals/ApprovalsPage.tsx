@@ -4,6 +4,7 @@ import { AlertTriangle, Eye, UserCheck } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
+import { TableCellText } from '@/components/ui/table'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
@@ -96,11 +97,15 @@ export default function ApprovalsPage() {
     {
       id: 'proposedAt',
       header: 'Diusulkan',
-      size: 168,
+      // `YYYY-MM-DD HH:MM:SS WIB` utuh butuh 192px — angka yang sama dipakai
+      // Jejak Audit dan Mint Bermasalah untuk format ini. 168px memotong
+      // detiknya, bagian yang justru dipakai mengurutkan dua usulan berdekatan.
+      size: 192,
       cell: ({ row }) => (
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.proposedAt)}
-        </span>
+        <TableCellText
+          value={formatWibDateTime(row.original.proposedAt)}
+          className="font-mono text-2xs tabular-nums text-muted-foreground"
+        />
       ),
     },
     {
@@ -116,14 +121,16 @@ export default function ApprovalsPage() {
     {
       id: 'amount',
       header: 'Nominal',
-      size: 148,
+      // Nominal rupiah yang akan dilepas kalau usulan ini disetujui.
+      size: 184,
       cell: ({ row }) =>
         row.original.amountIdr === null ? (
           <span className="text-2xs text-muted-foreground">Tanpa nominal</span>
         ) : (
-          <span className="font-mono text-sm font-semibold tabular-nums">
-            {amountLabel(row.original.amountIdr)}
-          </span>
+          <TableCellText
+            value={amountLabel(row.original.amountIdr)}
+            className="font-mono text-sm font-semibold tabular-nums"
+          />
         ),
     },
     {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, Info, ScrollText, X } from 'lucide-react'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -170,10 +171,16 @@ export default function ActivityLogPage() {
     {
       id: 'ip',
       header: 'Dari mana',
-      size: 120,
+      // IPv6 penuh (`2001:0db8:85a3:0000:0000:8a2e:0370:7334`) jauh lebih lebar
+      // dari IPv4 — ini alamat yang dikutip pemeriksa, jadi nilai utuhnya wajib
+      // ada di `title` walau kolomnya tetap dipotong untuk yang ekstrem.
+      size: 168,
       cell: ({ row }) =>
         row.original.ipAddress ? (
-          <span className="font-mono text-2xs tabular-nums">{row.original.ipAddress}</span>
+          <TableCellText
+            value={row.original.ipAddress}
+            className="font-mono text-2xs tabular-nums"
+          />
         ) : (
           <span className="text-2xs text-muted-foreground">tidak tercatat</span>
         ),

@@ -7,6 +7,7 @@ import StatusPill from '@/components/StatusPill'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
+import { TableCellStack } from '@/components/ui/table'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import {
   Tooltip,
@@ -88,6 +89,7 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'issue',
+      size: 208,
       header: 'Masalah',
       cell: ({ row }) => {
         const { issueKind: kind, issueCode } = row.original
@@ -113,40 +115,66 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'amount',
+      // RUPIAH YANG AKAN DIKIRIM ULANG KE NASABAH — sel paling mahal di layar ini.
+      //
+      // Tanpa `size` kolomnya dapat angka bawaan 120px, yang setelah padding sel
+      // menyisakan 96px isi. "Rp 4.012.350,00" butuh ±126px, jadi ia terpotong —
+      // dan karena isinya kotak BLOK, `text-overflow` di `td` tidak berlaku, jadi
+      // terpotongnya TANPA TANDA: "Rp 4.012.350,0". 184px memuat bentuk terpanjang
+      // yang realistis ("Rp 999.999.999,00" ≈ 143px + 24px padding), dan nominal
+      // di atas itu pun tetap terbaca utuh lewat `title`/tooltip `TableCellStack`.
+      size: 184,
       header: 'Nominal',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-sm font-semibold tabular-nums">
-            {formatIdrExact(row.original.netPayoutIdr)}
-          </span>
-          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-            {formatUsdxExact(row.original.amountUsdx)}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            {
+              value: formatIdrExact(row.original.netPayoutIdr),
+              className: 'font-mono text-sm font-semibold tabular-nums',
+            },
+            {
+              value: formatUsdxExact(row.original.amountUsdx),
+              className: 'font-mono text-2xs tabular-nums text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'destination',
+      // Nomor rekening: nilai yang dicocokkan ops dengan keluhan nasabah, jadi
+      // ia harus terbaca UTUH. Dulu itu dijamin `break-all` (nomornya turun
+      // baris daripada terpotong); kelas itu dibuang saat sel dipaksa satu
+      // baris, dan tidak ada penggantinya — nomornya lalu terpotong diam-diam.
+      // Sekarang dua-duanya: lebar yang memuat nomor terpanjang (BNI 10 digit,
+      // bank lain sampai 16) DAN nilai utuh di `title`.
+      size: 208,
       header: 'Rekening tujuan',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="text-xs">{row.original.bankName}</span>
-          {/* PENUH, tidak dipotong: nilai yang dicocokkan ops dengan keluhan nasabah. */}
-          <span className="font-mono text-xs tabular-nums">
-            {row.original.bankAccountNumber}
-          </span>
-          <span className="truncate text-2xs text-muted-foreground">
-            {row.original.bankAccountName}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            { value: row.original.bankName, className: 'text-xs' },
+            {
+              value: row.original.bankAccountNumber,
+              className: 'font-mono text-xs tabular-nums',
+            },
+            {
+              value: row.original.bankAccountName,
+              className: 'text-2xs text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'owner',
+      size: 168,
       header: 'Pemilik order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-xs">{row.original.ownerLabel}</span>
+          <span className="truncate text-xs" title={row.original.ownerLabel}>
+            {row.original.ownerLabel}
+          </span>
           {row.original.ownerKind === 'PARTNER' && (
             // Order partner yang bermasalah dikejar ke PARTNER-nya, bukan ke nasabahnya.
             <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
@@ -158,6 +186,7 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'age',
+      size: 120,
       header: 'Umur antrean',
       cell: ({ row }) => (
         <span className="font-mono text-xs tabular-nums">
@@ -167,6 +196,7 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button

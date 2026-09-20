@@ -8,6 +8,7 @@ import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { Button } from '@/components/ui/button'
+import { TableCellStack, TableCellText } from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
@@ -84,6 +85,7 @@ export default function RedeemApprovalsPage() {
   const columns: ColumnDef<RedeemApprovalListItem>[] = [
     {
       id: 'order',
+      size: 168,
       header: 'Order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
@@ -101,32 +103,50 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'customer',
+      size: 192,
       header: 'Nasabah',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate font-medium">{row.original.customerName}</span>
-          <span className="truncate text-2xs text-muted-foreground">
-            {row.original.userEmail}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            { value: row.original.customerName, className: 'font-medium' },
+            { value: row.original.userEmail, className: 'text-2xs text-muted-foreground' },
+          ]}
+        />
       ),
     },
     {
       id: 'amount',
+      // RUPIAH YANG DISETUJUI DI BARIS INI. Tanpa `size` kolomnya dapat angka
+      // bawaan 120px → 96px isi, dan "Rp 24.750.000,00" (±134px) terpotong.
+      // Karena isinya kotak BLOK, elipsis `td` tidak berlaku, jadi terpotongnya
+      // TANPA TANDA dan operator menyetujui nominal yang salah dibaca.
+      size: 184,
       header: 'Nominal transfer',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-sm font-semibold tabular-nums">
-            {formatIdrExact(row.original.netPayoutIdr)}
-          </span>
-          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-            {formatUsdxExact(row.original.amountUsdx)}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            {
+              value: formatIdrExact(row.original.netPayoutIdr),
+              className: 'font-mono text-sm font-semibold tabular-nums',
+            },
+            {
+              value: formatUsdxExact(row.original.amountUsdx),
+              className: 'font-mono text-2xs tabular-nums text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'destination',
+      // Nomor rekening HARUS terbaca utuh — ini nilai yang dicocokkan ops dengan
+      // berkas nasabah, dan nomor yang terpotong tidak bisa dicocokkan. Dulu itu
+      // dijamin `break-all` (nomornya turun baris); kelas itu dibuang saat sel
+      // dipaksa satu baris dan tidak ada penggantinya, jadi nomornya terpotong
+      // diam-diam sementara komentar di sini masih menjanjikan sebaliknya.
+      // Sekarang dijamin dua hal: lebar yang memuat nomor terpanjang, DAN nilai
+      // utuh di `title` + tooltip untuk nomor yang tetap lebih panjang.
+      size: 216,
       header: 'Rekening tujuan',
       cell: ({ row }) => {
         const { bankName, bankCode, bankAccountNumber, bankAccountName, customerName } =
@@ -134,44 +154,62 @@ export default function RedeemApprovalsPage() {
         const mismatch =
           customerName.trim().toUpperCase() !== bankAccountName.trim().toUpperCase()
         return (
-          <div className="flex min-w-0 flex-col">
-            <span className="text-xs">
-              {bankName}
-              <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
-                {bankCode}
-              </span>
-            </span>
-            {/* Nomor PENUH, tidak dipotong: ini nilai yang dicocokkan ops dengan
-                berkas nasabah, dan nomor yang terpotong tidak bisa dicocokkan. */}
-            <span className="font-mono text-xs tabular-nums">
-              {bankAccountNumber}
-            </span>
-            <span
-              className={
-                mismatch
-                  ? 'truncate text-2xs font-medium text-amber-700 dark:text-amber-400'
-                  : 'truncate text-2xs text-muted-foreground'
-              }
-              title={mismatch ? `Nama pada order: ${customerName}` : undefined}
-            >
-              {bankAccountName}
-              {mismatch && ' — beda dari nama pada order'}
-            </span>
-          </div>
+          <TableCellStack
+            lines={[
+              {
+                value: `${bankName} ${bankCode}`,
+                className: 'text-xs',
+                children: (
+                  <>
+                    {bankName}
+                    <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
+                      {bankCode}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                value: bankAccountNumber,
+                className: 'font-mono text-xs tabular-nums',
+              },
+              {
+                value: mismatch
+                  ? `${bankAccountName} — beda dari nama pada order (nama pada order: ${customerName})`
+                  : bankAccountName,
+                className: mismatch
+                  ? 'text-2xs font-medium text-amber-700 dark:text-amber-400'
+                  : 'text-2xs text-muted-foreground',
+                children: (
+                  <>
+                    {bankAccountName}
+                    {mismatch && ' — beda dari nama pada order'}
+                  </>
+                ),
+              },
+            ]}
+          />
         )
       },
     },
     {
       id: 'burnedAt',
+      // `formatWibDateTime` mencetak "2026-09-12 08:00:00 WIB" — 23 kolom mono
+      // 11px ≈ 152px. Dengan 120px bawaan yang terpotong justru DETIKNYA, yaitu
+      // bagian yang dicocokkan ops dengan bukti on-chain. 192px adalah lebar
+      // yang sudah dipakai layar Jejak Audit dan Mint Bermasalah untuk format
+      // yang sama persis.
+      size: 192,
       header: 'Dibakar',
       cell: ({ row }) => (
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.burnedAt)}
-        </span>
+        <TableCellText
+          value={formatWibDateTime(row.original.burnedAt)}
+          className="font-mono text-2xs tabular-nums text-muted-foreground"
+        />
       ),
     },
     {
       id: 'burnTx',
+      size: 160,
       // P1-1 — dulu header ini berbunyi "Burn on-chain" di tengah tabel yang
       // seluruh kolom lainnya berbahasa Indonesia.
       header: 'Bukti pembakaran',
@@ -216,6 +254,7 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'actions',
+      size: 176,
       header: '',
       cell: ({ row }) =>
         canDecide ? (

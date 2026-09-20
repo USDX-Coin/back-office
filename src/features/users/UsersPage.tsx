@@ -4,6 +4,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
@@ -113,11 +114,12 @@ export default function UsersPage() {
       id: 'email',
       size: 216,
       header: 'Email',
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {row.original.email || '—'}
-        </span>
-      ),
+      cell: ({ row }) =>
+        row.original.email ? (
+          <TableCellText value={row.original.email} className="text-xs text-muted-foreground" />
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
     },
     {
       id: 'entityType',
@@ -185,6 +187,7 @@ export default function UsersPage() {
       ? [
           {
             id: 'actions',
+            size: 96,
             header: '',
             cell: ({ row }: { row: { original: PhaseOneUser } }) => (
               <div className="flex items-center justify-end gap-0.5">

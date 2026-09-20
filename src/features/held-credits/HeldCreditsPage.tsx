@@ -115,7 +115,12 @@ export default function HeldCreditsPage() {
         const gap = amountGapLabel(row.original)
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="font-mono text-sm font-semibold tabular-nums">
+            {/* `title` memuat nominal UTUH: kolomnya cukup untuk nominal sehari-hari,
+                tapi uang masuk yang luar biasa besar tidak boleh terbaca separuh. */}
+            <span
+              className="truncate font-mono text-sm font-semibold tabular-nums"
+              title={receivedAmountLabel(row.original)}
+            >
               {receivedAmountLabel(row.original)}
             </span>
             {gap && (
@@ -133,7 +138,9 @@ export default function HeldCreditsPage() {
     {
       id: 'payer',
       header: 'Pengirim',
-      size: 144,
+      // Nomor rekening pengirim — nilai yang dicocokkan ops dengan mutasi bank.
+      // 144px hanya memuat 120px isi; nomor 16 digit mono tidak muat.
+      size: 192,
       cell: ({ row }) => {
         const { senderName, accountFromTo } = row.original
         if (!senderName && !accountFromTo) {
@@ -141,9 +148,16 @@ export default function HeldCreditsPage() {
         }
         return (
           <div className="flex min-w-0 flex-col">
-            {senderName && <span className="truncate text-xs">{senderName}</span>}
+            {senderName && (
+              <span className="truncate text-xs" title={senderName}>
+                {senderName}
+              </span>
+            )}
             {accountFromTo && (
-              <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+              <span
+                className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+                title={accountFromTo}
+              >
                 {accountFromTo}
               </span>
             )}
@@ -154,7 +168,10 @@ export default function HeldCreditsPage() {
     {
       id: 'order',
       header: 'Order pilihan mesin',
-      size: 184,
+      // Baris keduanya berbunyi "ditagihkan Rp 4.012.350,00" — kata + nominal
+      // dalam satu baris, jadi lebarnya harus memuat keduanya. 184px memotong
+      // justru ujung nominalnya.
+      size: 216,
       cell: ({ row }) => {
         const order = row.original.order
         if (!order) {

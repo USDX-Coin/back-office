@@ -4,6 +4,7 @@ import { Eye, RadioTower } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
+import { TableCellText } from '@/components/ui/table'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
@@ -89,14 +90,20 @@ export default function DurianpayApiCallsPage() {
     {
       id: 'requestedAt',
       header: 'Waktu (WIB)',
+      // `2026-09-12 08:00:37 WIB` butuh ±152px. Tanpa `size` kolomnya dapat
+      // 120px bawaan dan yang terpotong justru akhiran WIB-nya — di kolom yang
+      // judulnya sendiri menjanjikan zona itu.
+      size: 192,
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-2xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.requestedAt)}
-        </span>
+        <TableCellText
+          value={formatWibDateTime(row.original.requestedAt)}
+          className="whitespace-nowrap font-mono text-2xs tabular-nums text-muted-foreground"
+        />
       ),
     },
     {
       id: 'call',
+      size: 288,
       header: 'Panggilan',
       cell: ({ row }) => {
         const { path, httpMethod } = row.original
@@ -116,6 +123,7 @@ export default function DurianpayApiCallsPage() {
     },
     {
       id: 'outcome',
+      size: 168,
       header: 'Hasil',
       cell: ({ row }) => {
         const { outcome, errorSummary, httpStatus } = row.original
@@ -134,6 +142,7 @@ export default function DurianpayApiCallsPage() {
     },
     {
       id: 'cause',
+      size: 240,
       header: 'Kenapa',
       cell: ({ row }) => {
         const { errorSummary } = row.original
@@ -150,6 +159,7 @@ export default function DurianpayApiCallsPage() {
     },
     {
       id: 'reference',
+      size: 176,
       header: 'Order',
       cell: ({ row }) => {
         const { referenceNo } = row.original
@@ -165,17 +175,20 @@ export default function DurianpayApiCallsPage() {
         }
         // PENUH, tidak dipotong dan tidak dipatahkan di tengah: ini nilai yang
         // dicocokkan ops dengan ordernya, dan `MNT7K2X9QP` yang jatuh jadi tiga
-        // baris tidak bisa dibaca sekilas. Referensi yang luar biasa panjang
-        // melebarkan tabel, yang memang bisa digeser mendatar.
+        // baris tidak bisa dibaca sekilas. Kolomnya karena itu diberi lebar
+        // sendiri (di bawah), dan referensi yang tetap lebih panjang terbaca
+        // utuh lewat `title` — bukan hilang diam-diam di tepi sel.
         return (
-          <span className="whitespace-nowrap font-mono text-xs tabular-nums">
-            {referenceNo}
-          </span>
+          <TableCellText
+            value={referenceNo}
+            className="whitespace-nowrap font-mono text-xs tabular-nums"
+          />
         )
       },
     },
     {
       id: 'duration',
+      size: 104,
       header: 'Lama',
       cell: ({ row }) => (
         <span className="whitespace-nowrap font-mono text-xs tabular-nums">
@@ -185,6 +198,7 @@ export default function DurianpayApiCallsPage() {
     },
     {
       id: 'flavor',
+      size: 120,
       header: 'Integrasi',
       cell: ({ row }) => (
         <span className="font-mono text-2xs text-muted-foreground">
@@ -194,6 +208,7 @@ export default function DurianpayApiCallsPage() {
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button

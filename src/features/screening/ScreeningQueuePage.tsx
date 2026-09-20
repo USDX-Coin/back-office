@@ -126,17 +126,21 @@ export default function ScreeningQueuePage() {
   const columns: ColumnDef<ScreeningResultItem>[] = [
     {
       id: 'score',
+      size: 104,
       header: 'Skor',
       cell: ({ row }) => <ScoreCell score={row.original.score} />,
     },
     {
       id: 'matchedName',
+      size: 208,
       header: 'Nama pada daftar',
       cell: ({ row }) => {
         const { matchedName, matchCount } = row.original
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{matchedName ?? '—'}</span>
+            <span className="truncate font-medium" title={matchedName ?? undefined}>
+              {matchedName ?? '—'}
+            </span>
             {matchCount !== null && matchCount > 1 && (
               // Lebih dari satu entri melewati ambang: layak ditinjau lebih
               // hati-hati, karena entri yang ditampilkan hanya salah satunya.
@@ -150,6 +154,7 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'subject',
+      size: 176,
       header: 'Subjek',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
@@ -162,11 +167,13 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'outcome',
+      size: 152,
       header: 'Hasil',
       cell: ({ row }) => <OutcomeBadge outcome={row.original.outcome} />,
     },
     {
       id: 'decision',
+      size: 176,
       header: 'Keputusan',
       cell: ({ row }) => {
         const decision = row.original.decision
@@ -189,6 +196,7 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'list',
+      size: 144,
       header: 'Daftar',
       cell: ({ row }) => {
         const { listType, listPublishedAt } = row.original
@@ -198,7 +206,10 @@ export default function ScreeningQueuePage() {
             <span className="text-xs">{SANCTION_LIST_TYPE_SHORT[listType]}</span>
             {/* Menjawab "lolos pakai daftar terbitan tanggal berapa" — pertanyaan
                 pertama seorang pemeriksa, dan alasan tiap versi disimpan. */}
-            <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+            <span
+              className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+              title={`Daftar terbit ${listPublishedAt ?? 'tidak tercatat'}`}
+            >
               terbit {listPublishedAt ?? '—'}
             </span>
           </div>
@@ -207,6 +218,7 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'trigger',
+      size: 144,
       header: 'Pemicu',
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
@@ -216,6 +228,7 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'createdAt',
+      size: 120,
       header: 'Diperiksa',
       cell: ({ row }) => (
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -225,6 +238,7 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'actions',
+      size: 104,
       header: '',
       cell: ({ row }) => (
         <button

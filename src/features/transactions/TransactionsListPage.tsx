@@ -163,28 +163,39 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'amount',
-      size: 124,
+      // 124px menyisakan 100px isi — "1.234.567,89 USDX" butuh ±130px, dan
+      // pembungkusnya `flex` (kotak blok), jadi kelebihannya dipotong TANPA
+      // elipsis. Nilai utuhnya ikut di `title` untuk nominal di atas ini.
+      size: 176,
       header: 'Nominal',
-      cell: ({ getValue }) => (
-        <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
-          {Number(getValue() as string).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          <span className="text-2xs text-muted-foreground">USDX</span>
-        </span>
-      ),
+      cell: ({ getValue }) => {
+        const teks = `${Number(getValue() as string).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} USDX`
+        return (
+          <span
+            className="block truncate font-mono font-medium tabular-nums"
+            title={teks}
+          >
+            {teks.replace(/ USDX$/, '')}{' '}
+            <span className="text-2xs text-muted-foreground">USDX</span>
+          </span>
+        )
+      },
     },
     {
       accessorKey: 'totalPayIdr',
-      size: 136,
+      // "Rp 16.250.000,00" ≈ 115px pada mono 12px; 136px hanya menyisakan 112px.
+      size: 160,
       header: 'Total bayar',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
-          <span className="font-mono text-xs tabular-nums">
-            {formatIdrAmount(Number(v))}
-          </span>
+          <TableCellText
+            value={formatIdrAmount(Number(v))}
+            className="font-mono text-xs tabular-nums"
+          />
         ) : (
           <span className="text-muted-foreground/40">—</span>
         )
@@ -192,14 +203,15 @@ export default function TransactionsListPage() {
     },
     {
       accessorKey: 'netPayoutIdr',
-      size: 136,
+      size: 160,
       header: 'Nominal transfer',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return v ? (
-          <span className="font-mono text-xs tabular-nums">
-            {formatIdrAmount(Number(v))}
-          </span>
+          <TableCellText
+            value={formatIdrAmount(Number(v))}
+            className="font-mono text-xs tabular-nums"
+          />
         ) : (
           <span className="text-muted-foreground/40">—</span>
         )

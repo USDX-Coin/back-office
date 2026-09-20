@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, ShieldCheck } from 'lucide-react'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -66,7 +67,7 @@ export default function KycListPage() {
       size: 232,
       header: 'Email nasabah',
       cell: ({ getValue }) => (
-        <span className="font-medium">{getValue() as string}</span>
+        <TableCellText value={getValue() as string} className="font-medium" />
       ),
     },
     {
