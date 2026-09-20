@@ -89,7 +89,7 @@ function setup() {
 
 async function pickLegalEntity(user: ReturnType<typeof userEvent.setup>) {
   await user.type(
-    screen.getByPlaceholderText(/search legal-entity account/i),
+    screen.getByPlaceholderText(/cari akun badan usaha/i),
     'juara',
   )
   // Timeout eksplisit: `LegalEntityPicker` men-debounce 300 ms sebelum menembak
@@ -238,7 +238,7 @@ describe('KybFormPage @ USDX-546', () => {
       stubUsersLookup(captured)
       setup()
       await user.type(
-        screen.getByPlaceholderText(/search legal-entity account/i),
+        screen.getByPlaceholderText(/cari akun badan usaha/i),
         'juara',
       )
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
@@ -264,7 +264,7 @@ describe('KybFormPage @ USDX-546', () => {
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
       const body = bodies[0]!
@@ -294,10 +294,10 @@ describe('KybFormPage @ USDX-546', () => {
       await pickLegalEntity(user)
       await fillEntity(user)
       await fillUbo(user, 0, '60', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
       await fillUbo(user, 1, '40', '3171234567890124')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       await waitFor(() => expect(posted).toBe(1))
     })
   })
@@ -314,7 +314,7 @@ describe('KybFormPage @ USDX-546', () => {
         }),
       )
       setup()
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
         await screen.findByText(/legal-entity user is required/i),
@@ -342,10 +342,10 @@ describe('KybFormPage @ USDX-546', () => {
       // submitnya ditahan apa pun isi blok Pasal 33 (3). Mengisi delapan select per baris di sini
       // hanya membeli waktu jalan, bukan cakupan.
       await fillUboBasic(user, 0, '80', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
       await fillUboBasic(user, 1, '80', '3171234567890124')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(await screen.findByText(/cannot exceed 100%/i)).toBeInTheDocument()
       expect(posted).toBe(0)
@@ -366,7 +366,7 @@ describe('KybFormPage @ USDX-546', () => {
       await fillEntity(user)
       await fillUboBasic(user, 0, '100', 'not-a-number')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
         await screen.findByText(/identity number must be 8-20 digits/i),
       ).toBeInTheDocument()
@@ -382,7 +382,7 @@ describe('KybFormPage @ USDX-546', () => {
       expect(screen.queryByText('UBO #2')).not.toBeInTheDocument()
       // With a single row there is nothing to remove — no misleading control.
       expect(
-        screen.queryByRole('button', { name: /remove ubo 1/i }),
+        screen.queryByRole('button', { name: /hapus ubo 1/i }),
       ).not.toBeInTheDocument()
     })
 
@@ -392,13 +392,13 @@ describe('KybFormPage @ USDX-546', () => {
       const user = newUser()
       stubUsersLookup()
       setup()
-      await user.click(screen.getByRole('button', { name: /add ubo/i }))
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /tambah ubo/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       expect(
         (await screen.findAllByText(/first name is required/i)).length,
       ).toBeGreaterThan(1)
 
-      await user.click(screen.getByRole('button', { name: /remove ubo 2/i }))
+      await user.click(screen.getByRole('button', { name: /hapus ubo 2/i }))
       expect(screen.queryByText(/first name is required/i)).not.toBeInTheDocument()
     })
 
@@ -422,7 +422,7 @@ describe('KybFormPage @ USDX-546', () => {
       await pickLegalEntity(user)
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       // Still on the form, values intact — retyping a deed is not a retry.
       await waitFor(() =>
@@ -464,7 +464,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       await fillEntity(user)
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
       await waitFor(() => expect(bodies).toHaveLength(1))
 
       const body = bodies[0]!
@@ -532,7 +532,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       // yang tidak menjawab field wajib yang baru, dan yang harus memblokir submit.
       await fillUboBasic(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(await screen.findByText(/place of birth is required/i)).toBeInTheDocument()
       expect(posted).toBe(0)
@@ -558,7 +558,7 @@ describe('KybFormPage — Pasal 25 (1) b & Pasal 33 (3) @ USDX-605', () => {
       await fillEntity(user, { microSmall: false })
       await fillUbo(user, 0, '100', '3171234567890123')
 
-      await user.click(screen.getByRole('button', { name: /save kyb record/i }))
+      await user.click(screen.getByRole('button', { name: /simpan berkas kyb/i }))
 
       expect(
         await screen.findByText(/answer whether this is a micro\/small enterprise/i),

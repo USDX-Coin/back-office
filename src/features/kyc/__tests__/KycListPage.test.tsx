@@ -65,7 +65,7 @@ describe('KycListPage @ USDX-154', () => {
       )
       setup()
       await screen.findByText('alice.anderson@example.com')
-      expect(screen.getByText('Individual')).toBeInTheDocument()
+      expect(screen.getByText('Perorangan')).toBeInTheDocument()
       expect(screen.getByText('Ditolak')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
     })
@@ -92,8 +92,8 @@ describe('KycListPage @ USDX-154', () => {
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /^pending$/i }))
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(await screen.findByRole('option', { name: /^menunggu$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('status=PENDING'))).toBe(true)
@@ -112,7 +112,7 @@ describe('KycListPage @ USDX-154', () => {
       setup()
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.type(screen.getByLabelText(/^search$/i), 'alice')
+      await user.type(screen.getByLabelText(/^cari$/i), 'alice')
 
       await waitFor(() =>
         expect(captured.some((s) => s.includes('search=alice'))).toBe(true)
@@ -132,13 +132,13 @@ describe('KycListPage @ USDX-154', () => {
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      fireEvent.change(await screen.findByLabelText('Submitted date start'), {
+      fireEvent.change(await screen.findByLabelText('Tanggal pengajuan — tanggal mulai'), {
         target: { value: '2026-06-01' },
       })
-      fireEvent.change(screen.getByLabelText('Submitted date end'), {
+      fireEvent.change(screen.getByLabelText('Tanggal pengajuan — tanggal akhir'), {
         target: { value: '2026-06-08' },
       })
-      await user.click(screen.getByRole('button', { name: /^apply$/i }))
+      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
 
       await waitFor(() =>
         expect(
@@ -169,9 +169,9 @@ describe('KycListPage @ USDX-154', () => {
       )
       setup()
       await screen.findByText('user0@example.com')
-      expect(screen.getByText(/1–10 of 11/)).toBeInTheDocument()
+      expect(screen.getByText(/1–10 dari 11/)).toBeInTheDocument()
 
-      const nextBtn = screen.getByRole('button', { name: /next page/i })
+      const nextBtn = screen.getByRole('button', { name: /halaman berikutnya/i })
       expect(nextBtn).toBeEnabled()
       await user.click(nextBtn)
 
@@ -241,7 +241,9 @@ describe('KycListPage @ USDX-154', () => {
       await user.click(cell)
 
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/kyc submission/i)).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/berkas verifikasi perorangan/i),
+      ).toBeInTheDocument()
       // Detail content renders inside the modal (decrypted PII from the stub).
       expect(within(dialog).getByText('alice.anderson@example.com')).toBeInTheDocument()
 
@@ -257,7 +259,9 @@ describe('KycListPage @ USDX-154', () => {
       setup([`/kyc/${fullId}`])
 
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByText(/kyc submission/i)).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(/berkas verifikasi perorangan/i),
+      ).toBeInTheDocument()
       // ID renders truncated in the header (also present in the table behind).
       expect(within(dialog).getByText('019e1aa8…c7fcd6')).toBeInTheDocument()
     })
@@ -265,7 +269,7 @@ describe('KycListPage @ USDX-154', () => {
     test('AC — empty state renders when there are no submissions', async () => {
       server.use(http.get('/api/v1/kyc', () => ok([])))
       setup()
-      await screen.findByText(/no kyc submissions yet/i)
+      await screen.findByText(/belum ada berkas kyc/i)
     })
   })
 
@@ -273,21 +277,21 @@ describe('KycListPage @ USDX-154', () => {
     test('0 results with active filters renders the no-results state (not the blank-slate)', async () => {
       server.use(http.get('/api/v1/kyc', () => ok([])))
       setup(['/kyc?status=REJECTED'])
-      await screen.findByText(/no results match your filters/i)
-      expect(screen.queryByText(/no kyc submissions yet/i)).not.toBeInTheDocument()
+      await screen.findByText(/tidak ada yang cocok dengan filter/i)
+      expect(screen.queryByText(/belum ada berkas kyc/i)).not.toBeInTheDocument()
     })
 
-    test('LEGAL_ENTITY entity-type option is disabled with a "Week 2+" hint', async () => {
+    test('LEGAL_ENTITY entity-type option is disabled with a "Minggu 2+" hint', async () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/kyc', () => ok([])))
       setup()
-      await screen.findByText(/no kyc submissions yet/i)
+      await screen.findByText(/belum ada berkas kyc/i)
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Entity type' }))
-      const legalEntity = await screen.findByRole('option', { name: /legal entity/i })
+      await user.click(await screen.findByRole('combobox', { name: 'Jenis nasabah' }))
+      const legalEntity = await screen.findByRole('option', { name: /badan usaha/i })
       expect(legalEntity).toHaveAttribute('aria-disabled', 'true')
-      expect(within(legalEntity).getByText(/week 2\+/i)).toBeInTheDocument()
+      expect(within(legalEntity).getByText(/minggu 2\+/i)).toBeInTheDocument()
     })
 
     test('no sort control renders (contract has no sort params — fixed oldest first)', async () => {

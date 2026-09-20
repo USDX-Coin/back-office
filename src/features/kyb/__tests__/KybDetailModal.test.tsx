@@ -245,11 +245,11 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(within(dialog).getByText(/Andi Wijaya/)).toBeInTheDocument()
       expect(within(dialog).getByText(/Siti Rahma/)).toBeInTheDocument()
       expect(
-        within(dialog).getByText(/declared ownership total: 100\.00%/i),
+        within(dialog).getByText(/total kepemilikan yang dinyatakan: 100\.00%/i),
       ).toBeInTheDocument()
       // Documents — slot TETAP, labelnya Indonesia. Delapan di sini karena
       // fixture-nya PT yang bukan usaha mikro/kecil (USDX-605).
-      expect(within(dialog).getByText(/documents \(1 of 8\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(1 dari 8\)/i)).toBeInTheDocument()
       for (const label of SLOT_LABELS) {
         expect(within(dialog).getByText(label)).toBeInTheDocument()
       }
@@ -257,7 +257,11 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(
         within(dialog).getByRole('link', { name: 'Akta Pendirian' }),
       ).toHaveAttribute('href', AKTA_URL)
-      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(7)
+      expect(
+        within(within(dialog).getByTestId('kyb-documents')).getAllByText(
+          /belum diunggah/i,
+        ),
+      ).toHaveLength(7)
     })
 
     test('every slot carries its own upload, named so the eight are told apart', async () => {
@@ -274,7 +278,7 @@ describe('KybDetailModal @ USDX-546', () => {
       expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(8)
       SLOT_LABELS.forEach((label) => {
         const input = within(docs).getByLabelText(
-          new RegExp(`(upload|replace) ${label}`, 'i'),
+          new RegExp(`(unggah|ganti) ${label}`, 'i'),
         )
         expect(input).toHaveAttribute('type', 'file')
         // The picker must not offer a type the server refuses: `image/heic` is
@@ -283,7 +287,7 @@ describe('KybDetailModal @ USDX-546', () => {
         expect(input.getAttribute('accept')).not.toMatch(/heic/i)
       })
       // The limits stated on screen are the server's own numbers.
-      expect(within(dialog).getByText(/up to 5 MiB each/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/maksimal 5 MiB per berkas/i)).toBeInTheDocument()
     })
 
     test('reject WITH a reason sends the reason and closes the modal', async () => {
@@ -300,15 +304,15 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
-        name: /reject this kyb record/i,
+        name: /tolak berkas kyb ini/i,
       })
       await user.type(
-        within(rejectDialog).getByLabelText(/rejection reason/i),
+        within(rejectDialog).getByLabelText(/alasan penolakan/i),
         'Akta pendirian tidak terbaca',
       )
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual({ reason: 'Akta pendirian tidak terbaca' })
@@ -329,13 +333,13 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
       const confirm = await screen.findByRole('dialog', {
-        name: /approve this kyb record/i,
+        name: /setujui berkas kyb ini/i,
       })
       // Nothing is sent until the confirmation is accepted.
       expect(approveCalls).toBe(0)
-      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(confirm).getByRole('button', { name: /^ya, setujui$/i }))
       await waitFor(() => expect(approveCalls).toBe(1))
     })
   })
@@ -355,14 +359,14 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
-        name: /reject this kyb record/i,
+        name: /tolak berkas kyb ini/i,
       })
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }))
 
       expect(
-        await within(rejectDialog).findByText(/rejection reason is required/i),
+        await within(rejectDialog).findByText(/alasan penolakan wajib diisi/i),
       ).toBeInTheDocument()
       expect(rejectCalls).toBe(0)
       // The dialog stays open so the operator can write the reason.
@@ -385,15 +389,15 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      await user.click(within(dialog).getByRole('button', { name: /^reject$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
-        name: /reject this kyb record/i,
+        name: /tolak berkas kyb ini/i,
       })
-      await user.type(within(rejectDialog).getByLabelText(/rejection reason/i), '    ')
-      await user.click(within(rejectDialog).getByRole('button', { name: /^reject$/i }))
+      await user.type(within(rejectDialog).getByLabelText(/alasan penolakan/i), '    ')
+      await user.click(within(rejectDialog).getByRole('button', { name: /^ya, tolak$/i }))
 
       expect(
-        await within(rejectDialog).findByText(/rejection reason is required/i),
+        await within(rejectDialog).findByText(/alasan penolakan wajib diisi/i),
       ).toBeInTheDocument()
       expect(rejectCalls).toBe(0)
     })
@@ -404,8 +408,8 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).getByRole('button', { name: /^reject$/i })).toBeDisabled()
-      expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: /^tolak$/i })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: /^setujui$/i })).toBeDisabled()
       // …and no upload control on any of the five slots either.
       const devDocs = within(dialog).getByTestId('kyb-documents')
       expect(within(devDocs).queryByRole('button')).not.toBeInTheDocument()
@@ -422,10 +426,10 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       const docs = await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(docs).queryByText(/not uploaded/i)).not.toBeInTheDocument()
-      expect(within(docs).getAllByText(/not shown to your role/i)).toHaveLength(8)
+      expect(within(docs).queryByText(/belum diunggah/i)).not.toBeInTheDocument()
+      expect(within(docs).getAllByText(/tidak ditampilkan untuk peran ini/i)).toHaveLength(8)
       expect(
-        within(dialog).getByText(/does not mean the document is missing/i),
+        within(dialog).getByText(/bukan berarti dokumennya tidak ada/i),
       ).toBeInTheDocument()
     })
 
@@ -438,9 +442,9 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).queryByText(/documents \(0 of 8\)/i)).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/dokumen \(0 dari 8\)/i)).not.toBeInTheDocument()
       expect(
-        within(dialog).getByText(/count not shown to your role/i),
+        within(dialog).getByText(/jumlahnya tidak ditampilkan untuk peran ini/i),
       ).toBeInTheDocument()
     })
 
@@ -459,7 +463,7 @@ describe('KybDetailModal @ USDX-546', () => {
       // mutating `EntityValue` and watching this assertion survive.)
       const entity = within(dialog).getByTestId('kyb-entity')
       // Exactly six: name, NIB, NPWP, registered + operational address, phone.
-      expect(within(entity).getAllByText(/not shown to your role/i)).toHaveLength(6)
+      expect(within(entity).getAllByText(/tidak ditampilkan untuk peran ini/i)).toHaveLength(6)
       // Plaintext metadata is NOT masked and must still be readable — it is what
       // a developer investigating a record actually needs.
       expect(within(entity).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
@@ -478,7 +482,7 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       expect(
-        within(dialog).queryByText(/not shown to your role/i),
+        within(dialog).queryByText(/tidak ditampilkan untuk peran ini/i),
       ).not.toBeInTheDocument()
       expect(within(dialog).getAllByText('—').length).toBeGreaterThanOrEqual(2)
     })
@@ -502,7 +506,7 @@ describe('KybDetailModal @ USDX-546', () => {
       for (const card of cards) {
         const identity = uboField(card, 'kyb-ubo-identity')
         expect(identity.getByText('***')).toBeInTheDocument()
-        expect(identity.getByText(/not shown to your role/i)).toBeInTheDocument()
+        expect(identity.getByText(/tidak ditampilkan untuk peran ini/i)).toBeInTheDocument()
       }
     })
 
@@ -524,7 +528,7 @@ describe('KybDetailModal @ USDX-546', () => {
         expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
         expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
         expect(
-          within(dialog).queryByText(/not shown to your role/i),
+          within(dialog).queryByText(/tidak ditampilkan untuk peran ini/i),
         ).not.toBeInTheDocument()
       },
     )
@@ -557,11 +561,11 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
       const confirm = await screen.findByRole('dialog', {
-        name: /approve this kyb record/i,
+        name: /setujui berkas kyb ini/i,
       })
-      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(confirm).getByRole('button', { name: /^ya, setujui$/i }))
 
       const banner = await within(dialog).findByTestId('kyb-documents-incomplete')
       expect(banner).toHaveTextContent(/NIB/)
@@ -589,7 +593,7 @@ describe('KybDetailModal @ USDX-546', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       expect(
-        await within(dialog).findByText(/no ubo recorded/i),
+        await within(dialog).findByText(/belum ada satu pun ubo tercatat/i),
       ).toBeInTheDocument()
     })
 
@@ -605,7 +609,7 @@ describe('KybDetailModal @ USDX-546', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       expect(
-        await within(dialog).findByText(/exceeds 100%/i),
+        await within(dialog).findByText(/melebihi 100%/i),
       ).toBeInTheDocument()
     })
 
@@ -623,10 +627,10 @@ describe('KybDetailModal @ USDX-546', () => {
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
       expect(
-        within(dialog).queryByRole('button', { name: /^approve$/i }),
+        within(dialog).queryByRole('button', { name: /^setujui$/i }),
       ).not.toBeInTheDocument()
       expect(
-        within(dialog).queryByRole('button', { name: /^reject$/i }),
+        within(dialog).queryByRole('button', { name: /^tolak$/i }),
       ).not.toBeInTheDocument()
       // The recorded reason is shown instead.
       expect(within(dialog).getByText(/akta tidak terbaca/i)).toBeInTheDocument()
@@ -641,11 +645,15 @@ describe('KybDetailModal @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('PT Juara Remiten Indonesia')
 
-      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(0 dari 8\)/i)).toBeInTheDocument()
       for (const label of SLOT_LABELS) {
         expect(within(dialog).getByText(label)).toBeInTheDocument()
       }
-      expect(within(dialog).getAllByText(/not uploaded/i)).toHaveLength(8)
+      expect(
+        within(within(dialog).getByTestId('kyb-documents')).getAllByText(
+          /belum diunggah/i,
+        ),
+      ).toHaveLength(8)
       // Nothing to open: an empty slot must not render a dead link.
       const docs = within(dialog).getByTestId('kyb-documents')
       expect(within(docs).queryAllByRole('link')).toHaveLength(0)
@@ -722,7 +730,7 @@ const pdfFile = (name = 'akta.pdf', size = 512) =>
 /** Picks a file into the slot's input the way a browser file dialog does. */
 function pickFile(dialog: HTMLElement, label: string, file: File) {
   const input = within(dialog).getByLabelText(
-    new RegExp(`(upload|replace) ${label}`, 'i'),
+    new RegExp(`(unggah|ganti) ${label}`, 'i'),
   )
   fireEvent.change(input, { target: { files: [file] } })
 }
@@ -900,19 +908,19 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
-      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(0 dari 8\)/i)).toBeInTheDocument()
 
       pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
 
       expect(
-        await within(dialog).findByText(/documents \(1 of 8\)/i),
+        await within(dialog).findByText(/dokumen \(1 dari 8\)/i),
       ).toBeInTheDocument()
       // "Uploaded" and not a link: the record on screen was read BEFORE the
       // upload, so no presigned URL exists for it yet. Rendering one would mean
       // inventing it.
-      expect(within(dialog).getByText(/uploaded — reload to open/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/terunggah — muat ulang untuk membuka/i)).toBeInTheDocument()
       expect(
-        within(dialog).getByRole('button', { name: /reload record/i }),
+        within(dialog).getByRole('button', { name: /muat ulang berkas/i }),
       ).toBeInTheDocument()
     })
 
@@ -932,9 +940,9 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       await within(dialog).findByTestId('kyb-documents')
 
       // 1. Approve with nothing on file — the server refuses and names the four.
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const firstConfirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
-      await user.click(within(firstConfirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const firstConfirm = await screen.findByRole('dialog', { name: /setujui berkas kyb/i })
+      await user.click(within(firstConfirm).getByRole('button', { name: /^ya, setujui$/i }))
       await waitFor(() => expect(be.approveResults).toHaveLength(1))
       expect(be.approveResults[0].status).toBe(409)
       expect(await screen.findByTestId('kyb-documents-incomplete')).toBeInTheDocument()
@@ -957,12 +965,12 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       pickFile(dialog, 'Struktur Kepemilikan', pdfFile('kepemilikan.pdf'))
       await waitFor(() => expect(be.paths.strukturKepemilikan).not.toBeNull())
       expect(be.paths.skKemenkumham).toBeNull()
-      expect(await within(dialog).findByText(/documents \(7 of 8\)/i)).toBeInTheDocument()
+      expect(await within(dialog).findByText(/dokumen \(7 dari 8\)/i)).toBeInTheDocument()
 
       // 3. Approve again — now it goes through.
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const secondConfirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
-      await user.click(within(secondConfirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const secondConfirm = await screen.findByRole('dialog', { name: /setujui berkas kyb/i })
+      await user.click(within(secondConfirm).getByRole('button', { name: /^ya, setujui$/i }))
 
       await waitFor(() => expect(be.approveResults).toHaveLength(2))
       expect(be.approveResults[1]).toEqual({
@@ -980,9 +988,9 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const confirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
-      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const confirm = await screen.findByRole('dialog', { name: /setujui berkas kyb/i })
+      await user.click(within(confirm).getByRole('button', { name: /^ya, setujui$/i }))
       // Tujuh sejak USDX-605 — berkasnya PT yang bukan usaha mikro/kecil.
       expect(await screen.findAllByTestId('kyb-document-missing')).toHaveLength(7)
 
@@ -1040,7 +1048,7 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       // Wording unique to the type rule: if HEIC were let through the whitelist
       // the row would show the CONTENTS message instead, and this passes only
       // because the type gate is the one that refused.
-      expect(error).toHaveTextContent(/can be uploaded as KYB documents/i)
+      expect(error).toHaveTextContent(/dokumen kyb hanya menerima berkas/i)
       expect(be.calls).toEqual([])
     })
 
@@ -1062,7 +1070,7 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       )
 
       const error = await within(dialog).findByTestId('kyb-upload-error-akte')
-      expect(error).toHaveTextContent(/contents/i)
+      expect(error).toHaveTextContent(/isi berkas ini bukan/i)
       expect(be.calls).toEqual([])
     })
 
@@ -1086,8 +1094,8 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
 
       const error = await within(dialog).findByTestId('kyb-upload-error-nib')
-      expect(error).toHaveTextContent(/file type/i)
-      expect(error).not.toHaveTextContent(/request failed/i)
+      expect(error).toHaveTextContent(/tipe berkas/i)
+      expect(error).not.toHaveTextContent(/permintaan gagal/i)
       expect(calls).toEqual(['presign'])
     })
 
@@ -1120,11 +1128,11 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
 
       const error = await within(dialog).findByTestId('kyb-upload-error-nib')
-      expect(error).toHaveTextContent(/storage/i)
+      expect(error).toHaveTextContent(/penyimpanan/i)
       // A path pointing at bytes that never landed is the failure that would let
       // a reviewer approve an entity whose document cannot be opened.
       expect(calls).toEqual(['presign', 'put'])
-      expect(within(dialog).queryByText(/uploaded — reload to open/i)).not.toBeInTheDocument()
+      expect(within(dialog).queryByText(/terunggah — muat ulang untuk membuka/i)).not.toBeInTheDocument()
     })
 
     test('an attach refusal passes the server reason through, since only it names the defect', async () => {
@@ -1182,7 +1190,7 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
 
       expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(0)
       expect(
-        within(dialog).getByText(/only be changed while the record is awaiting review/i),
+        within(dialog).getByText(/hanya bisa diubah selama berkas masih menunggu pemeriksaan/i),
       ).toBeInTheDocument()
     })
 
@@ -1247,7 +1255,7 @@ describe('KybDetailModal — document upload @ USDX-546', () => {
       pickFile(dialog, 'NIB', pdfFile('nib.pdf'))
 
       const error = await within(dialog).findByTestId('kyb-upload-error-nib')
-      expect(error).toHaveTextContent(/expired/i)
+      expect(error).toHaveTextContent(/kedaluwarsa/i)
       expect(calls).toEqual(['presign'])
     })
 
@@ -1431,7 +1439,7 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
       expect(
         within(card).queryByTestId('kyb-ubo-finding-declaration'),
       ).not.toBeInTheDocument()
-      expect(within(card).getAllByText(/not shown to your role/i).length).toBeGreaterThan(0)
+      expect(within(card).getAllByText(/tidak ditampilkan untuk peran ini/i).length).toBeGreaterThan(0)
     })
 
     test('DEVELOPER sees the new UBO PII MASKED, one field at a time', async () => {
@@ -1442,7 +1450,7 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
 
       for (const id of ['kyb-ubo-birth', 'kyb-ubo-employer-address', 'kyb-ubo-employer-phone']) {
         expect(uboField(card, id).getByText('***')).toBeInTheDocument()
-        expect(uboField(card, id).getByText(/not shown to your role/i)).toBeInTheDocument()
+        expect(uboField(card, id).getByText(/tidak ditampilkan untuk peran ini/i)).toBeInTheDocument()
       }
       expect(within(card).queryByText('Jl. Asia Afrika No. 8, Bandung')).not.toBeInTheDocument()
       // The closed-value answers are NOT identifiers and stay readable.
@@ -1477,7 +1485,7 @@ describe('KybDetailModal @ USDX-587 — Pasal 33 (3) UBO + Pasal 25 (1) b entity
         ).toBeInTheDocument()
         expect(within(card).queryByText('***')).not.toBeInTheDocument()
         expect(
-          within(card).queryByText(/not shown to your role/i),
+          within(card).queryByText(/tidak ditampilkan untuk peran ini/i),
         ).not.toBeInTheDocument()
       },
     )
@@ -1572,7 +1580,7 @@ describe('KybDetailModal — set dokumen Pasal 27 ayat (1) @ USDX-605', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(0 dari 5\)/i)).toBeInTheDocument()
       for (const label of BASE_SLOT_LABELS) {
         expect(within(dialog).getByText(label)).toBeInTheDocument()
       }
@@ -1604,9 +1612,9 @@ describe('KybDetailModal — set dokumen Pasal 27 ayat (1) @ USDX-605', () => {
       pickFile(dialog, 'KTP Pengurus', fileWithBytes('ktp.png', 'image/png', PNG_BYTES))
       await waitFor(() => expect(be.paths.ktpDireksi).not.toBeNull())
 
-      await user.click(within(dialog).getByRole('button', { name: /^approve$/i }))
-      const confirm = await screen.findByRole('dialog', { name: /approve this kyb/i })
-      await user.click(within(confirm).getByRole('button', { name: /^approve$/i }))
+      await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
+      const confirm = await screen.findByRole('dialog', { name: /setujui berkas kyb/i })
+      await user.click(within(confirm).getByRole('button', { name: /^ya, setujui$/i }))
 
       await waitFor(() => expect(be.approveResults).toHaveLength(1))
       expect(be.approveResults[0].status).toBe(200)
@@ -1629,7 +1637,7 @@ describe('KybDetailModal — set dokumen Pasal 27 ayat (1) @ USDX-605', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).getByText(/documents \(0 of 5\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(0 dari 5\)/i)).toBeInTheDocument()
       expect(within(dialog).queryByText('Struktur Kepemilikan')).not.toBeInTheDocument()
       expect(within(dialog).getByTestId('kyb-business-scale')).toHaveTextContent(
         /perseroan perorangan/i,
@@ -1647,7 +1655,7 @@ describe('KybDetailModal — set dokumen Pasal 27 ayat (1) @ USDX-605', () => {
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByTestId('kyb-documents')
 
-      expect(within(dialog).getByText(/documents \(0 of 8\)/i)).toBeInTheDocument()
+      expect(within(dialog).getByText(/dokumen \(0 dari 8\)/i)).toBeInTheDocument()
       expect(
         within(dialog).getByText('Laporan Keuangan / Deskripsi Usaha'),
       ).toBeInTheDocument()
@@ -1729,7 +1737,7 @@ describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
 
       // UBO #2 sengaja yang dipakai: satu peta datar per berkas akan menandai
       // slot UBO #1, dan itu tidak akan ketahuan kalau yang diuji UBO pertama.
-      const input = within(cards[1]!).getByLabelText(/upload pernyataan nasabah/i)
+      const input = within(cards[1]!).getByLabelText(/unggah pernyataan nasabah/i)
       fireEvent.change(input, {
         target: { files: [pdfFile('pernyataan.pdf')] },
       })
@@ -1758,7 +1766,7 @@ describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
       const dialog = await screen.findByRole('dialog')
       const cards = await within(dialog).findAllByTestId('kyb-ubo')
 
-      const input = within(cards[0]!).getByLabelText(/replace foto identitas/i)
+      const input = within(cards[0]!).getByLabelText(/ganti foto identitas/i)
       fireEvent.change(input, { target: { files: [pdfFile('ktp.pdf')] } })
 
       expect(await within(cards[0]!).findByRole('alert')).toBeInTheDocument()
@@ -1776,7 +1784,7 @@ describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
       const cards = await within(dialog).findAllByTestId('kyb-ubo')
 
       expect(
-        within(cards[0]!).queryByLabelText(/upload|replace/i),
+        within(cards[0]!).queryByLabelText(/unggah|ganti/i),
       ).not.toBeInTheDocument()
     })
 
@@ -1787,7 +1795,7 @@ describe('KybDetailModal — unggah dokumen UBO @ USDX-605', () => {
       const cards = await within(dialog).findAllByTestId('kyb-ubo')
 
       expect(
-        within(cards[0]!).queryByLabelText(/upload|replace/i),
+        within(cards[0]!).queryByLabelText(/unggah|ganti/i),
       ).not.toBeInTheDocument()
     })
   })
@@ -1847,7 +1855,7 @@ describe('KybDetailModal @ USDX-610 — status screening', () => {
       const banner = await within(dialog).findByTestId('screening-unchecked')
       expect(banner).toHaveTextContent(/DPPSPM/)
       expect(banner).toHaveTextContent(/Approve TIDAK diblokir/i)
-      expect(within(dialog).getByRole('button', { name: /^approve$/i })).toBeEnabled()
+      expect(within(dialog).getByRole('button', { name: /^setujui$/i })).toBeEnabled()
     })
   })
 

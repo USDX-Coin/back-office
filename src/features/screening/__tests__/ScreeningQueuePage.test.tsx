@@ -165,7 +165,7 @@ describe('ScreeningQueuePage @ USDX-588', () => {
         ),
       )
       setup()
-      expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
     })
   })
 

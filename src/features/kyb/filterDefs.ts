@@ -11,9 +11,9 @@ export const KYB_FILTER_DEFS: FilterDef[] = [
     // No UNVERIFIED option: a `kyb` row only exists once an operator has entered
     // it, which starts it at PENDING — the same rule as the retail `kyc` row.
     options: [
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'VERIFIED', label: 'Verified' },
-      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'PENDING', label: 'Menunggu' },
+      { value: 'VERIFIED', label: 'Terverifikasi' },
+      { value: 'REJECTED', label: 'Ditolak' },
     ],
   },
 ]
@@ -28,10 +28,10 @@ export const KYB_FILTER_DEFS: FilterDef[] = [
  */
 export const KYB_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'id', label: 'ID', required: true },
-  { key: 'userName', label: 'Entity', required: true },
-  { key: 'userEmail', label: 'Account email' },
-  { key: 'entityForm', label: 'Legal form' },
+  { key: 'userName', label: 'Badan usaha', required: true },
+  { key: 'userEmail', label: 'Email akun' },
+  { key: 'entityForm', label: 'Bentuk badan' },
   { key: 'status', label: 'Status' },
-  { key: 'submittedAt', label: 'Submitted At' },
-  { key: 'submissionCount', label: 'Submissions' },
+  { key: 'submittedAt', label: 'Diajukan' },
+  { key: 'submissionCount', label: 'Pengajuan' },
 ]

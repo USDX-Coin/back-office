@@ -61,20 +61,20 @@ import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hook
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
-  INDIVIDUAL: 'Individual',
-  LEGAL_ENTITY: 'Legal entity',
+  INDIVIDUAL: 'Perorangan',
+  LEGAL_ENTITY: 'Badan usaha',
 }
 
 const REVIEW_ACTION_CONFIG: Record<
   KycReviewAction,
   { label: string; className: string }
 > = {
-  SUBMITTED: { label: 'Submitted', className: 'bg-primary/10 text-primary' },
-  RESUBMITTED: { label: 'Resubmitted', className: 'bg-primary/10 text-primary' },
-  VIEWED: { label: 'Viewed', className: 'bg-muted text-muted-foreground' },
-  APPROVED: { label: 'Approved', className: 'bg-success/10 text-success' },
-  REJECTED: { label: 'Rejected', className: 'bg-destructive/10 text-destructive' },
-  PURGED: { label: 'Purged', className: 'bg-muted text-muted-foreground' },
+  SUBMITTED: { label: 'Diajukan', className: 'bg-primary/10 text-primary' },
+  RESUBMITTED: { label: 'Diajukan ulang', className: 'bg-primary/10 text-primary' },
+  VIEWED: { label: 'Dilihat', className: 'bg-muted text-muted-foreground' },
+  APPROVED: { label: 'Disetujui', className: 'bg-success/10 text-success' },
+  REJECTED: { label: 'Ditolak', className: 'bg-destructive/10 text-destructive' },
+  PURGED: { label: 'Dihapus', className: 'bg-muted text-muted-foreground' },
 }
 
 
@@ -91,9 +91,9 @@ interface KycDetailModalProps {
 async function copyText(value: string, label: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success(`${label} copied`)
+    toast.success(`${label} tersalin`)
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -257,7 +257,7 @@ function usePhotoExpiry(expiresAt: string | null | undefined) {
   const sec = totalSec % 60
   return {
     expired: false,
-    label: `Photo links expire in ${min}:${String(sec).padStart(2, '0')}`,
+    label: `Tautan foto kedaluwarsa dalam ${min}:${String(sec).padStart(2, '0')}`,
   }
 }
 
@@ -278,19 +278,19 @@ function PhotoFigure({
       {url === null ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-2xs">Photo no longer available (purged)</span>
+          <span className="text-2xs">Foto sudah dihapus permanen</span>
         </div>
       ) : expired ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-2xs">Photo link expired</span>
+          <span className="text-2xs">Tautan foto kedaluwarsa</span>
         </div>
       ) : (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Open ${label} full size`}
+          title={`Buka ${label} ukuran penuh`}
           className="block overflow-hidden rounded-md border border-border"
         >
           <img
@@ -309,7 +309,8 @@ function AuditTrailRow({ row }: { row: KycReviewLog }) {
     label: row.action,
     className: 'bg-muted text-muted-foreground',
   }
-  const actor = row.actorStaffName ?? (row.actorUserId ? 'User (consumer app)' : '—')
+  const actor =
+    row.actorStaffName ?? (row.actorUserId ? 'Nasabah (aplikasi)' : '—')
   return (
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5">
       <span
@@ -384,7 +385,9 @@ export default function KycDetailModal({
   function handleMutationError(err: unknown) {
     setConfirmApproveOpen(false)
     if (err instanceof ApiError && err.status === 409) {
-      toast.error('This submission was already reviewed by someone else — refreshing')
+      toast.error(
+        `Berkas ini sudah diperiksa orang lain — data dimuat ulang (${err.code})`,
+      )
       setRejectOpen(false)
       detailQuery.refetch()
       qc.invalidateQueries({ queryKey: ['kyc', 'list'] })
@@ -392,17 +395,17 @@ export default function KycDetailModal({
       return
     }
     if (err instanceof ApiError && err.status === 403) {
-      toast.error('Access denied')
+      toast.error(`Peran Anda tidak boleh memutus berkas ini (${err.code})`)
       return
     }
-    toast.error(err instanceof Error ? err.message : 'Request failed')
+    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
   }
 
   function handleApprove() {
     if (!kycId) return
     approve.mutate(kycId, {
       onSuccess: () => {
-        toast.success('KYC approved')
+        toast.success('Berkas KYC disetujui')
         setConfirmApproveOpen(false)
         onOpenChange(false)
       },
@@ -424,7 +427,7 @@ export default function KycDetailModal({
       { id: kycId, reason: check.reason },
       {
         onSuccess: () => {
-          toast.success('KYC rejected')
+          toast.success('Berkas KYC ditolak')
           setRejectOpen(false)
           onOpenChange(false)
         },
@@ -484,9 +487,9 @@ export default function KycDetailModal({
           onPointerDownOutside={(e) => isMutating && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>KYC submission</DialogTitle>
+            <DialogTitle>Berkas Verifikasi Perorangan</DialogTitle>
             <DialogDescription>
-              Identity verification submission from the consumer app.
+              Berkas identitas yang dikirim nasabah lewat aplikasi.
             </DialogDescription>
           </DialogHeader>
 
@@ -501,7 +504,7 @@ export default function KycDetailModal({
                       onClick={() => copyText(kycId, 'KYC ID')}
                       className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
                       title={kycId}
-                      aria-label="Copy KYC ID"
+                      aria-label="Salin ID KYC"
                     >
                       <span>{shortHash(kycId, 8, 6)}</span>
                       <Copy className="h-3 w-3 opacity-50" />
@@ -510,7 +513,7 @@ export default function KycDetailModal({
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
                   <span className="font-mono text-2xs tabular-nums text-muted-foreground">
-                    Submitted {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
+                    Diajukan {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
               </div>
@@ -526,10 +529,10 @@ export default function KycDetailModal({
                   <p className="text-sm text-destructive">
                     {detailQuery.error instanceof Error
                       ? detailQuery.error.message
-                      : 'Failed to load KYC detail.'}
+                      : 'Detail KYC gagal dimuat.'}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
-                    Retry
+                    Coba lagi
                   </Button>
                 </div>
               ) : detail ? (
@@ -607,10 +610,11 @@ export default function KycDetailModal({
                     </p>
                     {!hasCdd && (
                       <p className="text-xs text-muted-foreground">
-                        No CDD data on this submission — it predates the CDD fields
-                        (USDX-545 / USDX-583). Occupation, source of funds, income,
-                        net worth, purpose, source of wealth, NPWP and PEP status
-                        were never collected for this customer.
+                        Berkas ini tidak punya data CDD — usianya lebih tua daripada
+                        field CDD (USDX-545 / USDX-583). Pekerjaan, sumber dana,
+                        penghasilan, harta kekayaan, tujuan transaksi, sumber
+                        kekayaan, NPWP, dan status PEP memang tidak pernah
+                        dikumpulkan dari nasabah ini.
                       </p>
                     )}
                     {pepOccupationMismatch && (
@@ -725,7 +729,7 @@ export default function KycDetailModal({
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
-                        Documents
+                        Dokumen
                       </p>
                       {expiryLabel && (
                         <span className="font-mono text-2xs tabular-nums text-muted-foreground">
@@ -744,18 +748,18 @@ export default function KycDetailModal({
                             <RefreshCw
                               className={cn('h-3 w-3', detailQuery.isFetching && 'animate-spin')}
                             />
-                            Refresh photos
+                            Muat ulang foto
                           </Button>
                         )}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <PhotoFigure
-                        label="KTP photo"
+                        label="Foto KTP"
                         url={detail.ktpPhotoUrl}
                         expired={photosExpired}
                       />
                       <PhotoFigure
-                        label="Selfie with KTP"
+                        label="Selfie dengan KTP"
                         url={detail.selfiePhotoUrl}
                         expired={photosExpired}
                       />
@@ -768,14 +772,14 @@ export default function KycDetailModal({
                       {detail.rejectionReason && (
                         <p className="text-xs text-foreground">
                           <span className="font-medium text-destructive">
-                            Rejection reason:
+                            Alasan penolakan:
                           </span>{' '}
                           {detail.rejectionReason}
                         </p>
                       )}
                       {detail.reviewedAt && (
                         <p className="text-xs text-muted-foreground">
-                          Reviewed by {detail.reviewedByName ?? '—'} ·{' '}
+                          Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
                           {formatDate(detail.reviewedAt)}
                         </p>
                       )}
@@ -789,7 +793,7 @@ export default function KycDetailModal({
                         type="button"
                         className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
                       >
-                        Audit trail
+                        Jejak audit
                         <ChevronDown
                           className={cn(
                             'h-3.5 w-3.5 transition-transform',
@@ -807,7 +811,7 @@ export default function KycDetailModal({
                           </div>
                         ) : reviewsQuery.isError ? (
                           <p className="py-1 text-xs text-destructive">
-                            Failed to load audit trail.
+                            Jejak audit gagal dimuat.
                           </p>
                         ) : (
                           <ul className="divide-y divide-border/60">
@@ -816,7 +820,7 @@ export default function KycDetailModal({
                             ))}
                             {reviewsQuery.data?.length === 0 && (
                               <li className="py-1 text-xs text-muted-foreground">
-                                No audit entries yet.
+                                Belum ada jejak audit.
                               </li>
                             )}
                           </ul>
@@ -840,10 +844,10 @@ export default function KycDetailModal({
                     onClick={() => setRejectOpen(true)}
                     disabled={isMutating}
                   >
-                    Reject
+                    Tolak
                   </Button>
                   <Button onClick={() => setConfirmApproveOpen(true)} disabled={isMutating}>
-                    Approve
+                    Setujui
                   </Button>
                 </>
               ) : (
@@ -857,14 +861,14 @@ export default function KycDetailModal({
                         aria-disabled="true"
                         className="border-destructive/40 text-destructive"
                       >
-                        Reject
+                        Tolak
                       </Button>
                       <Button disabled aria-disabled="true">
-                        Approve
+                        Setujui
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>View only for Developer role</TooltipContent>
+                  <TooltipContent>Peran Developer hanya bisa melihat</TooltipContent>
                 </Tooltip>
               )}
             </DialogFooter>
@@ -885,10 +889,11 @@ export default function KycDetailModal({
           onPointerDownOutside={(e) => approve.isPending && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Approve this KYC submission?</DialogTitle>
+            <DialogTitle>Setujui berkas KYC ini?</DialogTitle>
             <DialogDescription>
-              The user becomes <strong>VERIFIED</strong> and can transact. An approval
-              email is sent automatically.
+              Nasabah langsung berstatus <strong>Terverifikasi</strong> dan bisa mint
+              dan redeem — uangnya mulai bergerak begitu tombol ini ditekan. Email
+              persetujuan terkirim otomatis.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -897,10 +902,10 @@ export default function KycDetailModal({
               onClick={() => setConfirmApproveOpen(false)}
               disabled={approve.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleApprove} disabled={approve.isPending}>
-              {approve.isPending ? 'Approving…' : 'Approve'}
+              {approve.isPending ? 'Menyetujui…' : 'Ya, setujui'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -925,11 +930,12 @@ export default function KycDetailModal({
           onPointerDownOutside={(e) => reject.isPending && e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Reject this KYC submission?</DialogTitle>
+            <DialogTitle>Tolak berkas KYC ini?</DialogTitle>
             <DialogDescription>
-              The reason is shown to the user in the consumer app and included in the
-              rejection email — write it clear and actionable, at least{' '}
-              {KYC_REJECT_REASON_MIN} characters.
+              Nasabah tetap tidak bisa mint maupun redeem, dan alasan ini yang ia
+              baca di aplikasi sekaligus terkirim lewat email penolakan — tulis
+              jelas dan bisa ditindaklanjuti, minimal {KYC_REJECT_REASON_MIN}{' '}
+              karakter.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -940,10 +946,10 @@ export default function KycDetailModal({
                   setReason(e.target.value)
                   if (reasonError) setReasonError('')
                 }}
-                placeholder="e.g. Foto KTP buram, mohon submit ulang dengan kualitas lebih jelas"
+                placeholder="mis. Foto KTP buram, mohon unggah ulang dengan kualitas lebih jelas"
                 maxLength={KYC_REJECT_REASON_MAX}
                 rows={4}
-                aria-label="Rejection reason"
+                aria-label="Alasan penolakan"
                 disabled={reject.isPending}
               />
               <div className="flex items-baseline justify-between gap-2">
@@ -967,10 +973,10 @@ export default function KycDetailModal({
               onClick={() => setRejectOpen(false)}
               disabled={reject.isPending}
             >
-              Cancel
+              Batal
             </Button>
             <Button variant="destructive" onClick={handleReject} disabled={reject.isPending}>
-              {reject.isPending ? 'Rejecting…' : 'Reject'}
+              {reject.isPending ? 'Menolak…' : 'Ya, tolak'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -266,13 +266,13 @@ export default function KybFormPage() {
       },
       {
         onSuccess: (detail) => {
-          toast.success('KYB record created — pending review')
+          toast.success('Berkas KYB tersimpan — menunggu pemeriksaan')
           // Straight into the review modal for the record just entered: the
           // operator's next question is "does this look right".
           navigate(`/kyb/${detail.id}`)
         },
         onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'Could not save the record'),
+          toast.error(err instanceof Error ? err.message : 'Berkas gagal disimpan'),
       },
     )
   }
@@ -292,7 +292,7 @@ export default function KybFormPage() {
             onClick={() => navigate('/kyb')}
           >
             <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-            Back
+            Kembali
           </Button>
         }
       />
@@ -300,7 +300,7 @@ export default function KybFormPage() {
       <form onSubmit={handleSubmit} className="max-w-3xl space-y-7" noValidate>
         <section className="space-y-3">
           <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-            Account
+            Akun
           </h2>
           <div>
             <Label htmlFor="kyb-user">Legal-entity account</Label>
@@ -322,7 +322,7 @@ export default function KybFormPage() {
 
         <section className="space-y-3">
           <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-            Entity
+            Badan usaha
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -550,7 +550,7 @@ export default function KybFormPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
-              Ultimate beneficial owners
+              Pemilik manfaat / UBO
             </h2>
             <Button
               type="button"
@@ -561,7 +561,7 @@ export default function KybFormPage() {
               disabled={create.isPending}
             >
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Add UBO
+              Tambah UBO
             </Button>
           </div>
           <FieldError message={errors.ubos} />
@@ -579,7 +579,7 @@ export default function KybFormPage() {
                       onClick={() => removeUbo(index)}
                       disabled={create.isPending}
                       className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      aria-label={`Remove UBO ${index + 1}`}
+                      aria-label={`Hapus UBO ${index + 1}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -881,11 +881,11 @@ export default function KybFormPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? 'Saving…' : 'Save KYB record'}
+            {create.isPending ? 'Menyimpan…' : 'Simpan berkas KYB'}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Saved as <strong>PENDING</strong> — documents are attached and the record
-            is approved or rejected on the review screen.
+            Tersimpan dengan status <strong>Menunggu</strong> — dokumennya diunggah
+            dan berkasnya disetujui atau ditolak di halaman pemeriksaan.
           </span>
         </div>
       </form>

@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils'
 import { useKycList } from './hooks'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
-  INDIVIDUAL: 'Individual',
-  LEGAL_ENTITY: 'Legal entity',
+  INDIVIDUAL: 'Perorangan',
+  LEGAL_ENTITY: 'Badan usaha',
 }
 
 // sot/api/common.yaml § Limit default — also the Linear AC: 11 items → 2 pages.
@@ -64,7 +64,7 @@ export default function KycListPage() {
     {
       accessorKey: 'userEmail',
       size: 232,
-      header: 'User Email',
+      header: 'Email nasabah',
       cell: ({ getValue }) => (
         <span className="font-medium">{getValue() as string}</span>
       ),
@@ -72,7 +72,7 @@ export default function KycListPage() {
     {
       accessorKey: 'entityType',
       size: 120,
-      header: 'Entity Type',
+      header: 'Jenis nasabah',
       cell: ({ getValue }) => (
         <span className="text-xs text-muted-foreground">
           {ENTITY_LABEL[getValue() as EntityType]}
@@ -101,7 +101,7 @@ export default function KycListPage() {
     {
       accessorKey: 'submittedAt',
       size: 136,
-      header: 'Submitted At',
+      header: 'Diajukan',
       cell: ({ getValue }) => {
         const v = getValue() as string | null
         return (
@@ -114,7 +114,7 @@ export default function KycListPage() {
     {
       accessorKey: 'submissionCount',
       size: 110,
-      header: 'Submissions',
+      header: 'Pengajuan',
       cell: ({ getValue }) => (
         <span className="font-mono text-xs tabular-nums">
           {getValue() as number}
@@ -133,10 +133,10 @@ export default function KycListPage() {
             navigate(`/kyc/${row.original.id}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`Review KYC submission for ${row.original.userEmail}`}
+          aria-label={`Periksa berkas KYC ${row.original.userEmail}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          Review
+          Periksa
         </button>
       ),
     },
@@ -152,8 +152,8 @@ export default function KycListPage() {
     <TableEmptyState
       mode="no-data"
       icon={<ShieldCheck className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No KYC submissions yet"
-      description="KYC submissions from the consumer app will appear here for review."
+      title="Belum ada berkas KYC"
+      description="Berkas KYC yang dikirim nasabah lewat aplikasi akan muncul di sini untuk diperiksa."
     />
   )
 
@@ -180,7 +180,7 @@ export default function KycListPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search user email…',
+              placeholder: 'Cari email nasabah…',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             // No sort control: sot/api/kyc.yaml § list exposes no sort params —
@@ -207,7 +207,7 @@ export default function KycListPage() {
         hasFilters={hasFilters}
         emptyState={noDataState}
         onRowClick={(r) => navigate(`/kyc/${r.id}`)}
-        rowAriaLabel={(r) => `Open KYC submission for ${r.userEmail}`}
+        rowAriaLabel={(r) => `Buka berkas KYC ${r.userEmail}`}
       />
 
       <KycDetailModal
