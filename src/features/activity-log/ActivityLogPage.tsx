@@ -1,0 +1,410 @@
+import { useState } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
+import { Eye, Info, ScrollText, X } from 'lucide-react'
+import DataTable from '@/components/DataTable'
+import PageHeader from '@/components/PageHeader'
+import StatusPill from '@/components/StatusPill'
+import TableEmptyState from '@/components/TableEmptyState'
+import { useDataTableParams } from '@/components/useDataTableParams'
+import TableToolbar from '@/components/table/TableToolbar'
+import { useColumnVisibility } from '@/components/table/useColumnVisibility'
+import {
+  formatActor,
+  shortId,
+  useStaffDirectory,
+  type StaffDirectory,
+} from '@/features/staff-directory/hooks'
+import { formatWibDateTime } from '@/lib/format'
+import ActivityLogDetailModal from './ActivityLogDetailModal'
+import { ACTIVITY_LOG_COLUMN_CONFIG, activityLogFilterDefs } from './filterDefs'
+import { useActivityLogs } from './hooks'
+import {
+  explicitActionLabel,
+  httpStatusMeaning,
+  methodVerb,
+  outcomePill,
+  parseRouteAction,
+  resourceTypeLabel,
+} from './labels'
+import type { ActivityLogEntry, ActivityOutcome } from './types'
+
+const PAGE_SIZE = 20
+
+function isOutcome(value: string): value is ActivityOutcome {
+  return value === 'SUCCESS' || value === 'FAILED'
+}
+
+/**
+ * Jejak Audit — `GET /api/v1/activity-logs` (USDX-355 / USDX-360), ADMIN saja.
+ *
+ * Tabel `activity_log` terisi OTOMATIS untuk setiap mutasi staf di `/api/v1/*`
+ * lewat interseptor global, plus event masuk/keluar yang dicatat eksplisit. Ia
+ * append-only di dua lapisan (repository tanpa UPDATE/DELETE, trigger DB
+ * `activity_log_no_mutate`). Sampai layar ini ada, satu-satunya cara
+ * membacanya adalah query langsung ke database.
+ *
+ * Empat pertanyaan yang harus dijawab tiap baris, dan itulah keempat kolom yang
+ * tidak bisa disembunyikan: SIAPA (aktor) mengubah APA (aksi + objek), DARI
+ * MANA (IP), BERHASIL ATAU TIDAK (hasil + kode HTTP). "Kapan" ada di kolom
+ * pertama dan tidak pernah kosong.
+ *
+ * ─── APA YANG TIDAK BISA DISARING, DAN KENAPA ──────────────────────────────
+ *
+ * `ListActivityLogsDto` menerima: action, resourceType, outcome, actorStaffId,
+ * actorUserId, page, take. TIDAK ADA rentang waktu dan TIDAK ADA resourceId.
+ *
+ * Isian tanggal palsu SENGAJA tidak dipasang. `createGlobalValidationPipe`
+ * memakai `whitelist: true` tanpa `forbidNonWhitelisted`, jadi `?from=…&to=…`
+ * akan DIBUANG DIAM-DIAM dan server menjawab seluruh tabel — sebuah saringan
+ * yang tampak bekerja sambil mengembalikan jawaban yang salah adalah hal
+ * terburuk yang bisa dipasang di layar bukti kepatuhan. Begitu juga saringan
+ * yang hanya berlaku pada halaman yang sedang dimuat: pemeriksa akan membaca
+ * "3 hasil" dan mengira itu seluruhnya.
+ *
+ * Keduanya dicatat sebagai kebutuhan backend, bukan ditambal di sini.
+ */
+export default function ActivityLogPage() {
+  const params = useDataTableParams()
+  const [selected, setSelected] = useState<ActivityLogEntry | null>(null)
+  const { directory, isError: directoryFailed } = useStaffDirectory()
+
+  const rawOutcome = params.searchParams.get('outcome') ?? ''
+  const filters = {
+    page: params.page,
+    take: PAGE_SIZE,
+    // Nilai URL yang bukan enum kontrak tidak dikirim: server menjawab 400 dan
+    // tautan basi tidak boleh membuat jejaknya terlihat rusak.
+    outcome: isOutcome(rawOutcome) ? rawOutcome : undefined,
+    actorStaffId: params.searchParams.get('actorStaffId') || undefined,
+    actorUserId: params.searchParams.get('actorUserId') || undefined,
+    resourceType: params.searchParams.get('resourceType') || undefined,
+    action: params.searchParams.get('action') || undefined,
+  }
+
+  const list = useActivityLogs(filters)
+  const [colVisibility, setColVisibility] = useColumnVisibility(
+    'activity-log',
+    ACTIVITY_LOG_COLUMN_CONFIG
+  )
+
+  const rows = list.data?.data ?? []
+  const total = list.data?.metadata.total ?? 0
+  const filterDefs = activityLogFilterDefs(directory.all)
+  const hasFilters = Boolean(
+    filters.outcome ||
+      filters.actorStaffId ||
+      filters.actorUserId ||
+      filters.resourceType ||
+      filters.action
+  )
+
+  const columns: ColumnDef<ActivityLogEntry>[] = [
+    {
+      id: 'createdAt',
+      header: 'Waktu',
+      // Cukup untuk `YYYY-MM-DD HH:MM:SS WIB` UTUH. Stempel waktu yang terpotong
+      // di layar bukti kepatuhan adalah nilai yang harus dibuka satu per satu
+      // untuk bisa dikutip.
+      size: 192,
+      cell: ({ row }) => (
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+          {formatWibDateTime(row.original.createdAt)}
+        </span>
+      ),
+    },
+    {
+      id: 'actor',
+      header: 'Aktor',
+      size: 140,
+      cell: ({ row }) => <ActorCell entry={row.original} directory={directory} />,
+    },
+    {
+      id: 'action',
+      header: 'Aksi',
+      size: 216,
+      cell: ({ row }) => <ActionCell action={row.original.action} />,
+    },
+    {
+      id: 'object',
+      header: 'Objek',
+      size: 160,
+      cell: ({ row }) => {
+        const { resourceType, resourceId } = row.original
+        const label = resourceTypeLabel(resourceType)
+        return (
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-xs" title={resourceType}>
+              {label ?? <span className="font-mono">{resourceType}</span>}
+            </span>
+            {resourceId && (
+              <span
+                className="truncate font-mono text-2xs text-muted-foreground"
+                title={resourceId}
+              >
+                {shortId(resourceId)}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'outcome',
+      header: 'Hasil',
+      size: 176,
+      cell: ({ row }) => {
+        const { outcome, httpStatus } = row.original
+        const meaning = httpStatusMeaning(httpStatus)
+        return (
+          <div className="flex min-w-0 flex-col gap-1">
+            <StatusPill cfg={outcomePill(outcome)} className="w-fit" />
+            {meaning && (
+              <span className="truncate text-2xs text-muted-foreground" title={meaning}>
+                {meaning}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: 'ip',
+      header: 'Dari mana',
+      size: 120,
+      cell: ({ row }) =>
+        row.original.ipAddress ? (
+          <span className="font-mono text-2xs tabular-nums">{row.original.ipAddress}</span>
+        ) : (
+          <span className="text-2xs text-muted-foreground">tidak tercatat</span>
+        ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      size: 88,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelected(row.original)
+          }}
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
+          aria-label={`Buka detail jejak ${row.original.action}`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Detail
+        </button>
+      ),
+    },
+  ]
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Pengaturan"
+        title="Jejak Audit"
+        italicAccent="append-only"
+        subtitle="Siapa mengubah apa, kapan, dari mana, dan berhasil atau tidak. Terisi otomatis untuk setiap aksi staf yang mengubah data, plus peristiwa masuk dan keluar. Tidak bisa diubah maupun dihapus — dijaga trigger database, bukan sopan santun."
+      />
+
+      <DataTable<ActivityLogEntry>
+        columns={columns}
+        data={rows}
+        rowCount={total}
+        isLoading={list.isLoading}
+        isError={list.isError}
+        onRetry={() => list.refetch()}
+        pageSize={PAGE_SIZE}
+        columnVisibility={colVisibility}
+        onColumnVisibilityChange={setColVisibility}
+        getRowId={(row) => row.id}
+        filterToolbar={
+          <div className="flex flex-col gap-2">
+            <TableToolbar
+              filter={{
+                defs: filterDefs,
+                values: {
+                  actorStaffId: filters.actorStaffId ?? '',
+                  resourceType: filters.resourceType ?? '',
+                  outcome: filters.outcome ?? '',
+                },
+                onChange: (next) =>
+                  params.updateParams({
+                    actorStaffId: next.actorStaffId || null,
+                    resourceType: next.resourceType || null,
+                    outcome: next.outcome || null,
+                    page: '1',
+                  }),
+              }}
+              columns={{
+                items: ACTIVITY_LOG_COLUMN_CONFIG,
+                visibility: colVisibility,
+                onChange: setColVisibility,
+              }}
+            />
+            <ExactFilterChips
+              action={filters.action ?? null}
+              actorUserId={filters.actorUserId ?? null}
+              onClear={(key) => params.updateParams({ [key]: null, page: '1' })}
+            />
+            <ScopeNote directoryFailed={directoryFailed} />
+          </div>
+        }
+        hasFilters={hasFilters}
+        emptyState={
+          <TableEmptyState
+            mode="no-data"
+            icon={<ScrollText className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
+            title="Belum ada jejak"
+            description="Jejak terisi sendiri begitu ada staf yang mengubah data atau masuk ke back office. Daftar yang kosong di sistem yang sedang dipakai justru patut ditanyakan ke tim teknis."
+          />
+        }
+        onRowClick={(row) => setSelected(row)}
+        rowAriaLabel={(row) => `Jejak ${row.action} ${formatWibDateTime(row.createdAt)}`}
+      />
+
+      <ActivityLogDetailModal
+        entry={selected}
+        directory={directory}
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null)
+        }}
+        onFilter={(key, value) => {
+          setSelected(null)
+          params.updateParams({ [key]: value, page: '1' })
+        }}
+      />
+    </div>
+  )
+}
+
+/**
+ * Direktori diteruskan sebagai PROP, bukan dibaca ulang lewat hook di tiap sel.
+ * Satu `useQuery` per baris berarti delapan pelanggan untuk satu kunci yang
+ * sama, dan pada klien ber-`gcTime: 0` mereka saling melepas-memasang sampai
+ * kuerinya tidak pernah sempat selesai. Layar jejak audit lalu tampak
+ * "memuat" selamanya — tanpa satu pun galat.
+ */
+function ActorCell({
+  entry,
+  directory,
+}: {
+  entry: ActivityLogEntry
+  directory: StaffDirectory
+}) {
+  if (entry.actorStaffId) {
+    return (
+      <span className="truncate text-xs" title={entry.actorStaffId}>
+        {formatActor(directory, entry.actorStaffId)}
+      </span>
+    )
+  }
+  if (entry.actorUserId) {
+    return (
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-mono text-2xs" title={entry.actorUserId}>
+          {shortId(entry.actorUserId)}
+        </span>
+        <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+          Nasabah
+        </span>
+      </div>
+    )
+  }
+  // Login yang gagal sebelum identitas diketahui tidak punya aktor sama sekali;
+  // email percobaannya ada di metadata, ter-mask.
+  return <span className="text-2xs text-muted-foreground">tanpa aktor</span>
+}
+
+function ActionCell({ action }: { action: string }) {
+  const explicit = explicitActionLabel(action)
+  if (explicit) {
+    return (
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-xs">{explicit}</span>
+        <span className="truncate font-mono text-2xs text-muted-foreground" title={action}>
+          {action}
+        </span>
+      </div>
+    )
+  }
+  const route = parseRouteAction(action)
+  if (!route) {
+    // Kode yang belum punya terjemahan dirender APA ADANYA — tidak ditebak dan
+    // tidak disembunyikan.
+    return (
+      <span className="truncate font-mono text-xs" title={action}>
+        {action}
+      </span>
+    )
+  }
+  return (
+    <div className="flex min-w-0 flex-col">
+      <span className="truncate text-xs">{methodVerb(route.method)}</span>
+      <span className="truncate font-mono text-2xs text-muted-foreground" title={action}>
+        {route.path}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Dua saringan yang tidak muat di popover karena nilainya bukan pilihan:
+ * `action` adalah teks yang harus PERSIS sama, `actorUserId` adalah UUID
+ * nasabah. Keduanya dipasang dari dalam detail (satu klik, nilai asli), dan di
+ * sini ia hanya perlu bisa dilihat dan dilepas.
+ */
+function ExactFilterChips({
+  action,
+  actorUserId,
+  onClear,
+}: {
+  action: string | null
+  actorUserId: string | null
+  onClear: (key: 'action' | 'actorUserId') => void
+}) {
+  const chips: Array<{ key: 'action' | 'actorUserId'; label: string }> = []
+  if (action) chips.push({ key: 'action', label: `Aksi persis: ${action}` })
+  if (actorUserId) chips.push({ key: 'actorUserId', label: `Aktor (nasabah): ${actorUserId}` })
+  if (chips.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 font-mono text-2xs text-foreground"
+        >
+          <span className="truncate">{chip.label}</span>
+          <button
+            type="button"
+            onClick={() => onClear(chip.key)}
+            aria-label={`Lepas saringan ${chip.label}`}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** Batas jujur layar ini, ditulis di tempat orang memakai saringannya. */
+function ScopeNote({ directoryFailed }: { directoryFailed: boolean }) {
+  return (
+    <p className="flex items-start gap-2 text-2xs leading-relaxed text-muted-foreground">
+      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        Urutan tetap terbaru dulu. Server belum menerima saringan{' '}
+        <strong className="font-medium">rentang waktu</strong> maupun{' '}
+        <strong className="font-medium">id objek</strong>, jadi keduanya sengaja tidak
+        dipasang di sini — saringan yang diabaikan server akan menampilkan seluruh tabel
+        seolah itu hasil pencariannya. Untuk menelusuri satu objek, saring kelompoknya
+        lalu buka detail tiap baris.
+        {directoryFailed && ' Nama staf gagal dimuat, jadi aktor tampil sebagai id.'}
+      </span>
+    </p>
+  )
+}
