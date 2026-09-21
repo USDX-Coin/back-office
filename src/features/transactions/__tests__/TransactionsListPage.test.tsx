@@ -131,7 +131,10 @@ const redeemDetail = (overrides: Partial<OrderDetail> = {}): OrderDetail => ({
   externalReference: null,
   userAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
   chain: 'polygon',
-  amount: '100.00',
+  // ENAM desimal, bentuk yang backend benar-benar kirim (`numeric(30,6)`).
+  // Dengan `'100.00'` pagar konvensi angka di dalam dialog tidak menguji apa pun:
+  // dua digit setelah titik tidak bisa dibedakan dari pemisah ribuan id-ID.
+  amount: '100.000000',
   baseRate: '16000.00',
   spreadBuyPct: null,
   spreadSellPct: '2.00',
@@ -437,15 +440,23 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       expect(screen.getByText(/1.*547.*320/)).toBeInTheDocument()
     })
 
-    test('AC #1 — Status options switch to RedeemStatus when type=REDEEM', async () => {
+    test('type=REDEEM TIDAK menawarkan saringan Status sama sekali', async () => {
+      // `ListOrdersDto` backend (`origin/dev`) tidak menerima `redeemStatus`, dan
+      // `whitelist: true` tanpa `forbidNonWhitelisted` membuangnya DIAM-DIAM.
+      // Saringan itu dulu memasang chip "Status: Pencairan gagal" di atas SELURUH
+      // order redeem — termasuk yang rupiahnya sudah cair. Kontrol yang membuat
+      // orang mengira daftarnya tersaring lebih buruk daripada tidak ada kontrol.
+      //
+      // Saringan Status MINT tetap ada, jadi test ini juga membuktikan yang
+      // dilepas hanya cabang redeem-nya.
       const user = userEvent.setup()
       server.use(http.get('/api/v1/orders', () => okList([redeemRow()])))
       setup(['/transactions?type=REDEEM'])
       await screen.findByText('bob@example.com')
       await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      expect(await screen.findByRole('option', { name: /menunggu pembakaran/i })).toBeInTheDocument()
-      expect(screen.getByRole('option', { name: /rupiah sudah dikirim/i })).toBeInTheDocument()
+      const popover = await screen.findByRole('dialog')
+      expect(within(popover).queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument()
+      expect(within(popover).getByRole('combobox', { name: 'Jenis' })).toBeInTheDocument()
     })
 
     test('AC #2 — redeem detail shows fee / net payout / bank + burn tx link', async () => {
@@ -462,6 +473,20 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
 
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/order redeem/i)).toBeInTheDocument()
+
+      // Pagar konvensi angka DI DALAM DIALOG.
+      //
+      // Pagar tabel tidak menjangkau ke sini: Radix mem-portal dialog ke `body`,
+      // jadi `document.querySelector('tbody')` tidak melihatnya. Dan polanya
+      // (`\d,\d{3}`) tidak akan pernah cocok dengan bentuk yang bocor di modal —
+      // `100.000000` dan `16250.0000` tidak punya satu pun koma.
+      //
+      // Pembedanya JUMLAH DIGIT setelah titik: di id-ID titik selalu pemisah
+      // ribuan, jadi selalu diikuti TEPAT tiga digit (`1.234.567`). Titik yang
+      // diikuti 4+ digit hanya bisa berarti desimal gaya Inggris.
+      const teksDialog = dialog.textContent ?? ''
+      expect(teksDialog).not.toMatch(/\d\.\d{4,}/)
+      expect(teksDialog).not.toMatch(/\d,\d{3}/)
       // Redeem-specific fields.
       expect(within(dialog).getByText(/spread jual/i)).toBeInTheDocument()
       expect(within(dialog).getByText(/^biaya transfer bank$/i)).toBeInTheDocument()
@@ -503,8 +528,10 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
 // is sent through a distinct `redeemStatus` query param, never the mint `status`.
 describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
   describe('positive', () => {
-    test('AC #1 — selecting a redeem status wires to ?type=REDEEM&redeemStatus=PROCESSING_PAYOUT', async () => {
-      const user = userEvent.setup()
+    test('nilai URL basi `?redeemStatus=` TIDAK pernah ikut dikirim ke server', async () => {
+      // Tautan lama dan bookmark masih membawa parameter itu. Meneruskannya berarti
+      // server membuangnya diam-diam lalu menjawab SELURUH order redeem, sementara
+      // layar menampilkan chip seolah tersaring.
       const captured: string[] = []
       server.use(
         http.get('/api/v1/orders', ({ request }) => {
@@ -512,29 +539,18 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
           return okList([redeemRow({ status: 'PROCESSING_PAYOUT' })])
         }),
       )
-      // Start already on REDEEM so the Status dropdown offers RedeemStatus.
-      setup(['/transactions?type=REDEEM'])
+      setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
-      await user.click(screen.getByRole('button', { name: /^filter/i }))
-      await user.click(await screen.findByRole('combobox', { name: 'Status' }))
-      await user.click(await screen.findByRole('option', { name: /pencairan diproses/i }))
-      await user.click(screen.getByRole('button', { name: /^terapkan$/i }))
-
-      await waitFor(() =>
-        expect(
-          captured.some(
-            (s) => s.includes('type=REDEEM') && s.includes('redeemStatus=PROCESSING_PAYOUT'),
-          ),
-        ).toBe(true),
-      )
-      // The RedeemStatus value must never travel through the mint `status` param.
-      expect(captured.every((s) => !/[?&]status=/.test(s))).toBe(true)
+      expect(captured.every((q) => !q.includes('redeemStatus'))).toBe(true)
+      // Dan nilainya juga tidak diselundupkan lewat param `status` milik mint.
+      expect(captured.every((q) => !/[?&]status=/.test(q))).toBe(true)
+      expect(captured.some((q) => q.includes('type=REDEEM'))).toBe(true)
     })
   })
 
   describe('AC #3 — type switch resets the stale status dimension', () => {
-    test('REDEEM → MINT drops redeemStatus from the next request', async () => {
+    test('REDEEM → MINT membersihkan `redeemStatus` dari URL, bukan cuma dari request', async () => {
       const user = userEvent.setup()
       const captured: string[] = []
       server.use(
@@ -544,9 +560,7 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
         }),
       )
       setup(['/transactions?type=REDEEM&redeemStatus=PROCESSING_PAYOUT'])
-      await waitFor(() =>
-        expect(captured.some((s) => s.includes('redeemStatus=PROCESSING_PAYOUT'))).toBe(true),
-      )
+      await waitFor(() => expect(captured.length).toBeGreaterThan(0))
 
       await user.click(screen.getByRole('button', { name: /^filter/i }))
       await user.click(await screen.findByRole('combobox', { name: 'Jenis' }))
@@ -556,8 +570,11 @@ describe('TransactionsListPage @ USDX-254 — redeem status filter', () => {
       await waitFor(() => {
         const last = captured[captured.length - 1]
         expect(last).toContain('type=MINT')
-        expect(last).not.toContain('redeemStatus')
       })
+      // Nilai basinya juga hilang dari URL — kalau ia tertinggal di sana, chip
+      // saringan akan menyala untuk sesuatu yang tidak pernah dikirim ke server.
+      expect(captured.every((q) => !q.includes('redeemStatus'))).toBe(true)
+      expect(window.location.search).not.toContain('redeemStatus')
     })
   })
 

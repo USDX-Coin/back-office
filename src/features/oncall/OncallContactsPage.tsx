@@ -247,6 +247,24 @@ export default function OncallContactsPage() {
         isError={list.isError}
         onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        // Toolbar KOSONG yang disengaja, bukan kelalaian.
+        //
+        // Tanpa `filterToolbar`, `DataTable` merender toolbar bawaannya — dan di
+        // situ ada kotak "Cari…" yang menulis `?search=` ke URL. Halaman ini tidak
+        // pernah membacanya: daftarnya dipaginasi di klien dari `contacts`, dan
+        // tidak ada satu pun tempat yang menyaring dengan `search`. Jadi operator
+        // mengetik nama, tabelnya tidak berubah, dan ia menyimpulkan orang itu
+        // tidak ada di daftar.
+        //
+        // Di layar ini kesimpulan itu mahal: daftarnya menentukan SIAPA YANG
+        // DIPANGGIL saat uang bermasalah. "Tidak ketemu" yang keliru berarti
+        // insiden dibiarkan tanpa penanggung jawab.
+        //
+        // Preseden yang diikuti: `/redeem-approvals` memasang toolbar hanya berisi
+        // kendali yang benar-benar bekerja, dengan alasan yang sama persis.
+        // Popover Kolom belum dipasang di sini karena kolomnya belum punya
+        // konfigurasi visibilitas — menambahkannya pekerjaan tersendiri.
+        filterToolbar={<></>}
         emptyState={
           <TableEmptyState
             mode="no-data"

@@ -18,12 +18,6 @@ export interface OrderListFilters {
   type?: string
   /** Mint overall status (orders.yaml `status` = MintOrderStatus). MINT only. */
   status?: string
-  /**
-   * Redeem overall status (RedeemStatus). Sent only for type=REDEEM via a
-   * distinct `redeemStatus` param so a RedeemStatus value never travels through
-   * the mint `status` param (USDX-254; param lands in orders.yaml via USDX-253).
-   */
-  redeemStatus?: string
   paymentStatus?: string
   safeStatus?: string
   userId?: string

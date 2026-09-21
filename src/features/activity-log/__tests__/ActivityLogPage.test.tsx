@@ -132,6 +132,32 @@ describe('ActivityLogPage @ jejak audit', () => {
       expect(screen.getByText(/id objek/)).toBeInTheDocument()
     })
 
+    test('rentang TERBALIK ditolak di layar, bukan dikirim lalu dijawab nol baris', async () => {
+      // `?from=2026-09-30&to=2026-09-01` dulu dikirim apa adanya. Server menjawab
+      // nol baris, dan di layar bukti kepatuhan nol baris terbaca "tidak ada
+      // jejaknya" — kesimpulan yang salah dari isian yang salah, tanpa satu pun
+      // tanda bahwa yang keliru adalah tanggalnya.
+      //
+      // Aturannya sudah ada di repo ini (`lib/dateRange.ts`, dipakai `/reports/*`
+      // dan `/bni-accounts`); yang kurang cuma memasangnya di popover saringan.
+      const user = userEvent.setup()
+      setup()
+      await screen.findByText(/Rem pencairan ditarik/)
+      await user.click(screen.getByRole('button', { name: /filter/i }))
+      const popover = await screen.findByRole('dialog')
+
+      const [mulai, akhir] = [...popover.querySelectorAll<HTMLInputElement>('input[type="date"]')]
+      await user.type(mulai!, '2026-09-30')
+      await user.type(akhir!, '2026-09-01')
+
+      expect(await within(popover).findByRole('alert')).toHaveTextContent(
+        /Tanggal mulai harus sebelum atau sama dengan tanggal akhir/
+      )
+      // Dan tombolnya MATI — pesan tanpa gerbang tetap mengizinkan permintaan
+      // yang hanya bisa menjawab nol baris.
+      expect(within(popover).getByRole('button', { name: /^terapkan$/i })).toBeDisabled()
+    })
+
     test('nilai tanggal yang bukan YYYY-MM-DD TIDAK dikirim', async () => {
       // Sama seperti perlakuan `outcome`: tautan basi tidak boleh membuat
       // jejaknya terlihat rusak. `@IsISO8601()` akan menjawab 400 untuk bentuk

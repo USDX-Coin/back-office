@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
-import { formatDate, shortHash } from '@/lib/format'
+import { formatDate, formatRate, formatUsdxListAmount, shortHash } from '@/lib/format'
 import DetailTeknis from '@/components/DetailTeknis'
 import { getRequestStatusConfig, isRequestTerminal } from '@/lib/status'
 import { findChainConfig } from '@/lib/chainLinks'
@@ -235,8 +235,17 @@ export default function RequestDetailModal({
               <Field label="Dompet nasabah">
                 <CopyableMono value={detail.userAddress} label="Alamat dompet nasabah" />
               </Field>
+              {/*
+                Ketiganya dulu dicetak MENTAH: `100.000000` USDX dan `16250.0000`
+                kurs, tepat di sebelah `Rp 1.625.000` yang sudah id-ID. Di UI
+                berbahasa Indonesia `100.000000` terbaca "seratus ribu" — dan ini
+                modal yang dibuka satu klik dari baris daftar yang sudah mengeja
+                nilai yang SAMA dengan benar.
+              */}
               <Field label="Nominal (USDX)">
-                <span className="font-mono tabular-nums">{detail.amount}</span>
+                <span className="font-mono tabular-nums">
+                  {formatUsdxListAmount(detail.amount)}
+                </span>
               </Field>
               <Field label="Nominal (Rp)">
                 <span className="font-mono tabular-nums">
@@ -244,7 +253,7 @@ export default function RequestDetailModal({
                 </span>
               </Field>
               <Field label="Kurs yang dipakai">
-                <span className="font-mono tabular-nums">{detail.rateUsed}</span>
+                <span className="font-mono tabular-nums">{formatRate(detail.rateUsed)}</span>
               </Field>
               <Field label="Dibuat oleh">
                 {resolvedCreatedByName ?? (

@@ -237,4 +237,20 @@ describe('OncallContactsPage @integration', () => {
       }
     })
   })
+
+  describe('kendali yang tidak bekerja', () => {
+    test('TIDAK merender kotak cari — daftarnya tidak pernah menyaring dengan `search`', async () => {
+      // `DataTable` merender kotak "Cari…" di toolbar BAWAANNYA, dan halaman ini
+      // tidak pernah membaca `?search=`: daftarnya dipaginasi di klien dari
+      // `contacts`. Operator mengetik nama, tabel tidak berubah, lalu ia
+      // menyimpulkan orang itu tidak ada di daftar.
+      //
+      // Di layar ini kesimpulan keliru itu mahal: daftarnya menentukan SIAPA YANG
+      // DIPANGGIL saat uang bermasalah.
+      renderWithProviders(<OncallContactsPage />, { authenticated: true })
+      await screen.findByRole('table')
+      expect(screen.queryByPlaceholderText(/cari/i)).not.toBeInTheDocument()
+    })
+  })
+
 })

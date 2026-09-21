@@ -17,13 +17,7 @@ import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { findChainConfig } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
-import {
-  formatDate,
-  formatIdrAmount,
-  formatRate,
-  formatSpreadPct,
-  shortHash,
-} from '@/lib/format'
+import { formatDate, formatIdrAmount, formatRate, formatSpreadPct, formatUsdxListAmount, shortHash } from '@/lib/format'
 import {
   getOrderStatusConfig,
   getPaymentStatusConfig,
@@ -342,8 +336,15 @@ export default function OrderDetailModal({
                 <Field label="Email nasabah">
                   <span className="break-all">{detail.userEmail}</span>
                 </Field>
+                {/*
+                  Dicetak MENTAH sebelumnya (`100.000000`), tepat di sebelah kurs
+                  yang sudah lewat `formatRate` dan nominal rupiah yang sudah
+                  id-ID. Satu nilai, dua ejaan, di satu modal.
+                */}
                 <Field label="Nominal (USDX)">
-                  <span className="font-mono tabular-nums">{detail.amount}</span>
+                  <span className="font-mono tabular-nums">
+                    {formatUsdxListAmount(detail.amount)}
+                  </span>
                 </Field>
                 <Field label={isRedeem ? 'Dompet asal pembakaran' : 'Dompet tujuan'}>
                   {detail.userAddress ? (

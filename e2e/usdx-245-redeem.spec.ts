@@ -34,7 +34,17 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       await expect(page.getByRole('button', { name: /1000\.00 USDX/ })).toHaveCount(0)
     })
 
-    test('AC #1 — Status options switch to RedeemStatus when type=REDEEM', async ({ page }) => {
+    test('AC #1 — type=REDEEM TIDAK menawarkan saringan Status', async ({ page }) => {
+      // `ListOrdersDto` backend tidak menerima `redeemStatus`, dan
+      // `createGlobalValidationPipe` memakai `whitelist: true` TANPA
+      // `forbidNonWhitelisted` — parameter tak dikenal DIBUANG DIAM-DIAM.
+      //
+      // Jadi saringannya bukan sekadar tidak bekerja: chip "Status: Pencairan
+      // gagal" terpasang di atas SELURUH order redeem, termasuk yang rupiahnya
+      // sudah cair. Kontrol yang membuat operator mengira daftarnya tersaring
+      // lebih buruk daripada tidak ada kontrol sama sekali.
+      //
+      // Dipasang kembali bersama USDX-253.
       await installMockApi(page, { orders: seedRedeemOrders() })
       await seedAuthenticatedSession(page)
       await page.goto('/transactions?type=REDEEM')
@@ -43,9 +53,31 @@ test.describe('USDX-245 user transaction redeem @e2e', () => {
       })
 
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Status' }).click()
-      await expect(page.getByRole('option', { name: /menunggu pembakaran/i })).toBeVisible()
-      await expect(page.getByRole('option', { name: /rupiah sudah dikirim/i })).toBeVisible()
+      const popover = page.getByRole('dialog')
+      await expect(popover.getByRole('combobox', { name: 'Jenis' })).toBeVisible()
+      // Saringan Status MINT tetap ada — yang dilepas hanya cabang redeem-nya.
+      await expect(popover.getByRole('combobox', { name: 'Status' })).toHaveCount(0)
+    })
+
+    test('AC #1b — `?redeemStatus=` basi tidak pernah ikut ke server', async ({ page }) => {
+      // Tautan lama dan bookmark masih membawanya. Meneruskannya berarti server
+      // membuangnya diam-diam lalu menjawab seluruh order redeem.
+      const queries: string[] = []
+      await installMockApi(page, { orders: seedRedeemOrders() })
+      page.on('request', (r) => {
+        const u = new URL(r.url())
+        if (u.pathname === '/api/v1/orders') queries.push(u.search)
+      })
+      await seedAuthenticatedSession(page)
+      await page.goto('/transactions?type=REDEEM&redeemStatus=PAYOUT_FAILED')
+      await expect(page.getByRole('button', { name: /100\.00 USDX/ })).toBeVisible({
+        timeout: 15000,
+      })
+
+      expect(queries.length).toBeGreaterThan(0)
+      expect(queries.every((q) => !q.includes('redeemStatus'))).toBe(true)
+      // Dan tidak diselundupkan lewat param `status` milik mint.
+      expect(queries.every((q) => !/[?&]status=/.test(q))).toBe(true)
     })
 
     test('AC #2 — redeem detail shows fee / net payout / bank (full) + burn tx', async ({

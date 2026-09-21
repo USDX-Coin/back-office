@@ -49,7 +49,6 @@ export default function TransactionsListPage() {
   const params = useDataTableParams()
   const type = params.searchParams.get('type') ?? ''
   const status = params.searchParams.get('status') ?? ''
-  const redeemStatus = params.searchParams.get('redeemStatus') ?? ''
   const paymentStatus = params.searchParams.get('paymentStatus') ?? ''
   const safeStatus = params.searchParams.get('safeStatus') ?? ''
   // USDX-547 — partner vs retail population. Applies to both order types.
@@ -58,17 +57,21 @@ export default function TransactionsListPage() {
   // honour it when present (e.g. arriving from a user detail page).
   const userId = params.searchParams.get('userId') ?? ''
 
-  // Redeem filters on RedeemStatus via `redeemStatus`; the mint `status` /
-  // payment / Safe params are MINT-only (orders.yaml). Never forward the
-  // wrong-dimension filters for the active type, even if a stale URL value
-  // lingers (USDX-254).
+  // Parameter `status` / `paymentStatus` / `safeStatus` MINT-only (orders.yaml);
+  // jangan pernah meneruskannya untuk redeem walau nilai URL basi masih nempel
+  // (USDX-254).
+  //
+  // `redeemStatus` TIDAK LAGI DIKIRIM sama sekali — `ListOrdersDto` backend tidak
+  // menerimanya, dan `whitelist: true` tanpa `forbidNonWhitelisted` membuangnya
+  // DIAM-DIAM. Mengirimnya berarti chip "Status: …" terpasang di atas SELURUH
+  // order redeem. Nilai URL basi `?redeemStatus=` karena itu diabaikan, bukan
+  // diteruskan. Saringannya dipasang kembali bersama USDX-253.
   const isRedeem = type === 'REDEEM'
   const list = useOrderList({
     page: params.page,
     take: PAGE_SIZE,
     type: type || undefined,
     status: isRedeem ? undefined : status || undefined,
-    redeemStatus: isRedeem ? redeemStatus || undefined : undefined,
     paymentStatus: isRedeem ? undefined : paymentStatus || undefined,
     safeStatus: isRedeem ? undefined : safeStatus || undefined,
     ownerType: ownerType || undefined,
@@ -80,15 +83,13 @@ export default function TransactionsListPage() {
     ORDER_COLUMN_CONFIG,
   )
 
-  // Status options + Payment/Safe filters depend on the selected type
-  // (USDX-245 dropdown; USDX-254 sends redeem status via `redeemStatus`).
+  // Pilihan Status + saringan Pembayaran/Tanda tangan bergantung pada jenis yang
+  // dipilih (dropdown USDX-245). Cabang redeem sedang TANPA saringan Status —
+  // lihat `buildOrderFilterDefs`.
   const orderFilterDefs = buildOrderFilterDefs(type)
-  const filterValues = { type, ownerType, status, redeemStatus, paymentStatus, safeStatus }
+  const filterValues = { type, ownerType, status, paymentStatus, safeStatus }
   const hasFilters = Boolean(
-    type ||
-      ownerType ||
-      userId ||
-      (isRedeem ? redeemStatus : status || paymentStatus || safeStatus),
+    type || ownerType || userId || (isRedeem ? false : status || paymentStatus || safeStatus),
   )
 
   const columns: ColumnDef<OrderListItem>[] = [
@@ -337,10 +338,12 @@ export default function TransactionsListPage() {
                   type: next.type || null,
                   // Owner is independent of type — never cleared by a type switch.
                   ownerType: next.ownerType || null,
-                  // Mint status only when not redeem; redeemStatus only when redeem.
+                  // Status mint hanya saat bukan redeem. `redeemStatus` selalu
+                  // DIHAPUS dari URL: saringannya sedang dilepas, dan nilai basi
+                  // yang tertinggal akan memasang chip untuk saringan yang tidak
+                  // pernah dikirim ke server.
                   status: typeChanged || nextIsRedeem ? null : next.status || null,
-                  redeemStatus:
-                    typeChanged || !nextIsRedeem ? null : next.redeemStatus || null,
+                  redeemStatus: null,
                   paymentStatus: typeChanged || nextIsRedeem ? null : next.paymentStatus || null,
                   safeStatus: typeChanged || nextIsRedeem ? null : next.safeStatus || null,
                   page: '1',

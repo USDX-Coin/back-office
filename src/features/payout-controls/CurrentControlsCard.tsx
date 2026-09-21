@@ -1,3 +1,4 @@
+import TableErrorState from '@/components/TableErrorState'
 import { AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,6 +11,9 @@ import { hasControlRow, type PayoutControls } from './types'
 interface Props {
   data: PayoutControls | undefined
   isLoading: boolean
+  /** Wajib diteruskan pemanggil: `!data` saja tidak bisa membedakan gagal dari memuat. */
+  isError: boolean
+  onRetry?: () => void
 }
 
 /**
@@ -21,7 +25,7 @@ interface Props {
  * Menarik dan melepas rem punya endpoint sendiri (`POST /pull`, `/release`) dan
  * belum punya layar — dicatat sebagai kebutuhan, tidak ditebak di sini.
  */
-export default function CurrentControlsCard({ data, isLoading }: Props) {
+export default function CurrentControlsCard({ data, isLoading, isError, onRetry }: Props) {
   const { directory } = useStaffDirectory()
 
   return (
@@ -32,7 +36,22 @@ export default function CurrentControlsCard({ data, isLoading }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        {isLoading || !data ? (
+        {isError || (!isLoading && !data) ? (
+          // Kegagalan HARUS punya permukaannya sendiri di kartu ini.
+          //
+          // Sebelumnya cabangnya `isLoading || !data`, dan `!data` juga benar saat
+          // permintaannya GAGAL — jadi kartunya terkunci skeleton selamanya: tanpa
+          // pesan, tanpa "Coba lagi", tanpa satu pun tanda bahwa yang terjadi bukan
+          // "masih memuat". Di layar ini itu berbahaya secara khusus: yang tidak
+          // terbaca adalah apakah REM PENCAIRAN sedang tertarik atau terlepas, dan
+          // skeleton yang berputar terbaca "sebentar lagi muncul", bukan "kami
+          // tidak tahu".
+          <TableErrorState
+            title="Keadaan rem dan plafon tidak terbaca"
+            description="Permintaan ke server gagal, jadi layar ini TIDAK bisa memastikan rem pencairan sedang tertarik atau terlepas. Jangan menyimpulkan dari kartu yang kosong."
+            onRetry={onRetry}
+          />
+        ) : isLoading || !data ? (
           <div className="space-y-3">
             <Skeleton className="h-9 w-48" />
             <Skeleton className="h-4 w-32" />

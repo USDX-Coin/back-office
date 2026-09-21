@@ -331,13 +331,51 @@ describe('Sidebar @ USDX-50', () => {
       // `?? 0`, jadi badge-nya tidak dirender dan menunya tetap jalan — berkurang,
       // bukan rusak. Kalau ini kelak jadi `NaN` atau `undefined` di layar, di
       // sinilah ketahuannya.
-      test('kunci yang belum ada di backend tidak merusak menunya', async () => {
+      test('hitungan yang GAGAL dirender "belum terbaca", bukan disembunyikan', async () => {
+        // Sebelumnya `?? 0`, jadi query yang gagal membuat badge-nya tidak muncul
+        // sama sekali — antrean rupiah tertahan terlihat persis seperti antrean
+        // yang bersih. Beranda (`QueueBoard`) sudah menangani query YANG SAMA
+        // dengan benar ("Belum terbaca"); sidebar yang bertentangan dengan Beranda
+        // pada satu kegagalan identik adalah layar yang tidak bisa dipercaya.
+        server.use(
+          http.get('/api/v1/queue-counts', () =>
+            HttpResponse.json(
+              { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+              { status: 500 }
+            )
+          )
+        )
+        renderWithProviders(<Sidebar />, { initialEntries: ['/dashboard'], authenticated: true })
+
+        // Keempat antrean yang angkanya datang dari queue-counts menandai dirinya.
+        for (const rute of ['payout-failures', 'redeem-approvals', 'mint-bermasalah', 'persetujuan']) {
+          expect(await screen.findByTestId(`nav-badge-${rute}-galat`)).toBeInTheDocument()
+          // Dan TIDAK mengklaim angka apa pun.
+          expect(screen.queryByTestId(`nav-badge-${rute}`)).not.toBeInTheDocument()
+        }
+        expect(
+          (await screen.findAllByLabelText('Jumlah antrean belum terbaca')).length
+        ).toBeGreaterThanOrEqual(4)
+      })
+
+      // Backend yang belum naik: kedua kunci ABSEN dari jawaban — persis keadaan
+      // `origin/dev` hari ini, yang hanya mengirim dua kunci lama.
+      //
+      // Membacanya `?? 0` akan membuat "Mint Bermasalah" dan "Persetujuan Orang
+      // Kedua" menampilkan antrean bersih SECARA PERMANEN sampai branch backend
+      // naik. Itu bukan fitur yang berkurang, itu sinyal yang berbohong — dan di
+      // Mint Bermasalah satuannya rupiah nasabah yang tertahan. Jadi kunci yang
+      // hilang diperlakukan sama dengan hitungan yang gagal: belum terbaca.
+      test('kunci yang belum ada di backend dirender "belum terbaca", bukan nol', async () => {
         server.use(queueCounts({ payoutFailuresOpen: 3, redeemApprovalsOpen: 4 }))
         renderWithProviders(<Sidebar />, {
           initialEntries: ['/dashboard'],
           authenticated: true,
         })
-        await screen.findByTestId('nav-badge-payout-failures')
+        expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('3')
+        expect(screen.getByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
+        expect(screen.getByTestId('nav-badge-mint-bermasalah-galat')).toBeInTheDocument()
+        expect(screen.getByTestId('nav-badge-persetujuan-galat')).toBeInTheDocument()
         expect(screen.queryByTestId('nav-badge-mint-bermasalah')).not.toBeInTheDocument()
         expect(screen.queryByTestId('nav-badge-persetujuan')).not.toBeInTheDocument()
         expect(screen.getByRole('link', { name: /Mint Bermasalah/ })).toBeInTheDocument()

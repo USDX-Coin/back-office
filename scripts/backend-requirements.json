@@ -32,17 +32,18 @@
       "keterangan": "Plafon pencairan. Diprobe lewat riwayatnya karena `POST /payout-controls/limits` tidak punya handler GET, dan Nest menjawab 404 untuk itu — sinyal yang tidak bisa dibedakan dari modul yang belum ada. `GET /payout-controls` sendiri SUDAH live di dev, jadi ia bukan penanda yang berguna."
     },
     {
-      "rute": "/jejak-akses-pii",
-      "path": "/api/v1/pii-access-audit",
-      "butuhBranch": "wisnubarata111/be-tutup-lubang-jejak-dan-plafon",
-      "keterangan": "Jejak akses PII yang bisa dibaca back-office."
-    },
-    {
       "rute": "/jejak-audit — saringan rentang waktu",
       "path": "/api/v1/activity-logs",
       "butuhBranch": "wisnubarata111/be-badge-antrean-dan-rentang-jejak",
       "keterangan": "Isian tanggal SUDAH dirender di layar ini, jadi server WAJIB menerima `from`/`to`. Kalau belum: ValidationPipe membuang parameter tak dikenal DIAM-DIAM dan seluruh tabel kembali sambil tampak seperti hasil pencarian tersaring — di layar bukti kepatuhan, itu membuat pemeriksa menyimpulkan tidak ada jejaknya. TIDAK BISA DIPROBE tanpa kredensial: endpointnya sudah lama ada, jadi 401 dijawab entah parameternya didukung atau tidak. Konfirmasi manual: pastikan branch backend di bawah sudah naik ke server yang dituju.",
       "probe": false
+    },
+    {
+      "rute": "/persetujuan — usulan plafon (PAYOUT_CONTROLS_LIMITS)",
+      "path": "/api/v1/payout-controls/limits/history",
+      "butuhBranch": "wisnubarata111/be-tutup-lubang-jejak-dan-plafon",
+      "probe": false,
+      "keterangan": "Layar Persetujuan Orang Kedua menawarkan actionType `PAYOUT_CONTROLS_LIMITS`, sementara `approvalActionTypeEnum` di origin/dev hanya punya `PAYOUT_CONTROLS_RELEASE` dan `HELD_CREDIT_RESOLVE`. `@IsEnum` menjawab 400, jadi antrean maker-checker jadi error state untuk opsi yang UI-nya sendiri tawarkan. TIDAK BISA DIPROBE: yang kurang nilai enum, bukan endpoint. Konfirmasi manual bahwa branch di atas sudah naik."
     }
   ],
   "opsional": [
@@ -50,7 +51,7 @@
       "rute": "badge Mint Bermasalah + Persetujuan Orang Kedua",
       "path": "/api/v1/queue-counts",
       "butuhBranch": "wisnubarata111/be-badge-antrean-dan-rentang-jejak",
-      "keterangan": "Dua field baru (heldCreditsOpen, approvalsOpen) pada endpoint yang sudah ada. TIDAK BISA DIPROBE tanpa kredensial. Tetap opsional: field yang hilang dibaca `?? 0`, jadi badge-nya tidak muncul dan kedua menu tetap jalan normal — berkurang, bukan rusak.",
+      "keterangan": "Dua field baru (heldCreditsOpen, approvalsOpen) pada endpoint yang sudah ada. TIDAK BISA DIPROBE tanpa kredensial. Tetap opsional — TAPI hanya karena sisi FE memperlakukan kunci yang HILANG sama dengan hitungan yang gagal: badge-nya menampilkan penanda 'belum terbaca', bukan nol. Tanpa perlakuan itu klasifikasi ini salah: badge nol permanen di antrean rupiah tertahan bukan fitur yang berkurang, itu sinyal yang berbohong.",
       "probe": false
     }
   ]

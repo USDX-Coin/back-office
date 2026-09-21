@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
@@ -75,10 +75,14 @@ const mintExecutedDetail = {
   userId: 'u1',
   userName: 'Alice',
   userAddress: STAFF_SAFE,
-  amount: '100.00',
+  // Bentuk yang backend BENAR-BENAR kirim: `numeric(30,6)` untuk USDX dan
+  // `numeric(20,4)` untuk kurs. Dengan `'100.00'` / `'16250'`, pagar konvensi
+  // angka di bawah tidak menguji apa pun — dua digit setelah titik tidak bisa
+  // dibedakan dari pemisah ribuan id-ID, dan bilangan bulat tidak punya titik.
+  amount: '100.000000',
   amountWei: '100000000',
   amountIdr: '1625000',
-  rateUsed: '16250',
+  rateUsed: '16250.0000',
   chain: 'polygon',
   notes: null,
   safeType: 'STAFF',
@@ -262,3 +266,36 @@ describe('RequestDetailModal — Created by (USDX-78)', () => {
     expect(label.parentElement?.textContent).toContain('Sam Operator')
   })
 })
+
+describe('RequestDetailModal — konvensi angka', () => {
+  describe('positive', () => {
+    test('nominal USDX dan kurs dieja id-ID, bukan mentah', async () => {
+      // Ketiganya dulu dicetak apa adanya: `100.000000` USDX dan `16250.0000`
+      // kurs, tepat di sebelah `Rp 1.625.000` yang sudah benar. Di UI berbahasa
+      // Indonesia `100.000000` terbaca "seratus ribu" — dan modal ini dibuka satu
+      // klik dari baris daftar yang mengeja nilai YANG SAMA dengan benar.
+      server.use(chainsOk(), detailOk(mintExecutedDetail))
+      open()
+      const dialog = await screen.findByRole('dialog')
+      expect(await within(dialog).findByText('100,00')).toBeInTheDocument()
+      expect(within(dialog).getByText(/16\.250,00 IDR\/USD/)).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('tidak ada satu pun angka bergaya Inggris tersisa di dialog', async () => {
+      // Pagar tabel tidak menjangkau ke sini: Radix mem-portal dialog ke `body`.
+      // Pembedanya JUMLAH DIGIT setelah titik — di id-ID titik selalu pemisah
+      // ribuan, jadi selalu diikuti TEPAT tiga digit. Titik yang diikuti 4+ digit
+      // hanya bisa berarti desimal gaya Inggris.
+      server.use(chainsOk(), detailOk(mintExecutedDetail))
+      open()
+      const dialog = await screen.findByRole('dialog')
+      await within(dialog).findByText('100,00')
+      const teks = dialog.textContent ?? ''
+      expect(teks).not.toMatch(/\d\.\d{4,}/)
+      expect(teks).not.toMatch(/\d,\d{3}/)
+    })
+  })
+})
+

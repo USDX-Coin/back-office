@@ -31,6 +31,33 @@ const ALL = '__all__'
 // USDX-27: a single popover that renders inputs for every filter declared by
 // the page (FilterDef[]). Local draft state — commits to URL only on Apply, so
 // rapid changes don't trigger N requests.
+/**
+ * Hari ini dalam WIB, bentuk `YYYY-MM-DD`. Dipakai sebagai `max` kedua isian —
+ * jam browser bisa di zona lain, dan rentang yang berakhir "besok" menurut UTC
+ * adalah rentang yang tidak pernah bisa memuat apa pun.
+ */
+function hariIniWib(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+/** Adakah rentang tanggal yang terbalik di antara seluruh saringan? */
+export function adaRentangTerbalik(
+  defs: FilterDef[],
+  values: Record<string, string>
+): boolean {
+  return defs.some((def) => {
+    if (def.kind !== 'dateRange') return false
+    const a = values[def.startKey] ?? ''
+    const b = values[def.endKey] ?? ''
+    return Boolean(a && b && a > b)
+  })
+}
+
 export default function FilterPopover({ defs, values, onApply, onClearAll, activeCount }: FilterPopoverProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>(values)
@@ -160,6 +187,17 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
               // dateRange
               const start = draft[def.startKey] ?? ''
               const end = draft[def.endKey] ?? ''
+              // Dua isian telanjang menerima rentang TERBALIK tanpa satu pun
+              // tanda: `?from=2026-09-30&to=2026-09-01` dikirim apa adanya, chip
+              // mencetak "30 September – 1 September", dan server menjawab nol
+              // baris. Di layar bukti kepatuhan, nol baris terbaca "tidak ada
+              // jejaknya" — kesimpulan yang salah dari isian yang salah.
+              //
+              // Aturannya sudah ada di repo ini (`lib/dateRange.ts`, dipakai
+              // `/reports/*` dan `/bni-accounts`); yang kurang cuma memasangnya.
+              // `max` juga dipasang supaya tanggal masa depan tidak bisa dipilih
+              // dari kalender sama sekali.
+              const urutanSalah = Boolean(start && end && start > end)
               return (
                 <div key={`${def.startKey}-${def.endKey}`}>
                   <Label className="text-xs font-medium">{def.label}</Label>
@@ -167,18 +205,28 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                     <Input
                       type="date"
                       value={start}
+                      max={end || hariIniWib()}
                       onChange={(e) => setKey(def.startKey, e.target.value)}
                       aria-label={`${def.label} — tanggal mulai`}
+                      aria-invalid={urutanSalah || undefined}
                       className="h-9 text-xs"
                     />
                     <Input
                       type="date"
                       value={end}
+                      min={start || undefined}
+                      max={hariIniWib()}
                       onChange={(e) => setKey(def.endKey, e.target.value)}
                       aria-label={`${def.label} — tanggal akhir`}
+                      aria-invalid={urutanSalah || undefined}
                       className="h-9 text-xs"
                     />
                   </div>
+                  {urutanSalah && (
+                    <p role="alert" className="mt-1 text-2xs text-destructive">
+                      Tanggal mulai harus sebelum atau sama dengan tanggal akhir.
+                    </p>
+                  )}
                 </div>
               )
             })}
@@ -188,7 +236,18 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
               Batal
             </Button>
-            <Button type="button" size="sm" onClick={apply}>
+            {/*
+              Tombol MATI saat rentangnya terbalik, bukan sekadar pesan di atas.
+              Pesan tanpa gerbang tetap mengizinkan permintaan yang hanya bisa
+              menjawab nol baris — dan di layar bukti kepatuhan, nol baris
+              terbaca "tidak ada jejaknya".
+            */}
+            <Button
+              type="button"
+              size="sm"
+              onClick={apply}
+              disabled={adaRentangTerbalik(defs, draft)}
+            >
               Terapkan
             </Button>
           </div>

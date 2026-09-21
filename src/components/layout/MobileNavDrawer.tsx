@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router'
+import type { QueueCounts } from '@/lib/types'
 import { LogOut } from 'lucide-react'
 import {
   Sheet,
@@ -49,15 +50,42 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
   const queueCounts = useQueueCounts()
   const sections = visibleNavSections(user)
 
-  function badgeFor(key?: BadgeKey): number {
-    if (key === 'mint') return mintPending.data ?? 0
-    if (key === 'burn') return burnPending.data ?? 0
-    if (key === 'kyc') return kycPending.data ?? 0
-    if (key === 'kyb') return kybPending.data ?? 0
-    if (key === 'redeemApprovals') return queueCounts.data?.redeemApprovalsOpen ?? 0
-    if (key === 'payoutFailures') return queueCounts.data?.payoutFailuresOpen ?? 0
-    if (key === 'heldCredits') return queueCounts.data?.heldCreditsOpen ?? 0
-    if (key === 'approvals') return queueCounts.data?.approvalsOpen ?? 0
+  // `null` = BELUM TERBACA, dan itu jawaban yang berbeda dari `0`.
+  //
+  // Sebelumnya semuanya `?? 0`, jadi hitungan yang GAGAL dirender persis seperti
+  // antrean yang bersih: badge-nya tidak muncul sama sekali. Di sidebar yang
+  // memuat "Pencairan Bermasalah" dan "Mint Bermasalah", itu berarti rupiah
+  // nasabah yang tertahan terlihat seperti tidak ada pekerjaan.
+  //
+  // Beranda sudah menangani query yang SAMA dengan benar (`QueueBoard`:
+  // "Belum terbaca"). Sidebar yang bertentangan dengan Beranda pada satu
+  // kegagalan identik adalah layar yang tidak bisa dipercaya keduanya.
+  function badgeFor(key?: BadgeKey): number | null {
+    const dariCounts = (ambil: (c: QueueCounts) => number | undefined): number | null => {
+      if (queueCounts.isError) return null
+      if (!queueCounts.data) return 0
+      // Kunci yang HILANG dari jawaban juga "belum terbaca", bukan nol.
+      //
+      // `origin/dev` hari ini hanya mengirim `payoutFailuresOpen` dan
+      // `redeemApprovalsOpen`; dua kunci lainnya baru ada di branch backend
+      // `be-badge-antrean-dan-rentang-jejak`. Membacanya `?? 0` berarti
+      // "Mint Bermasalah" dan "Persetujuan Orang Kedua" menampilkan antrean
+      // bersih secara PERMANEN sampai branch itu naik — sinyal yang berbohong,
+      // bukan fitur yang berkurang.
+      const n = ambil(queueCounts.data)
+      return typeof n === 'number' ? n : null
+    }
+    const dariQuery = (q: { data?: number; isError: boolean }): number | null =>
+      q.isError ? null : (q.data ?? 0)
+
+    if (key === 'mint') return dariQuery(mintPending)
+    if (key === 'burn') return dariQuery(burnPending)
+    if (key === 'kyc') return dariQuery(kycPending)
+    if (key === 'kyb') return dariQuery(kybPending)
+    if (key === 'redeemApprovals') return dariCounts((c) => c.redeemApprovalsOpen)
+    if (key === 'payoutFailures') return dariCounts((c) => c.payoutFailuresOpen)
+    if (key === 'heldCredits') return dariCounts((c) => c.heldCreditsOpen)
+    if (key === 'approvals') return dariCounts((c) => c.approvalsOpen)
     return 0
   }
 
@@ -111,13 +139,26 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
                   >
                     <Icon className="h-4 w-4" />
                     <span className="flex-1">{item.label}</span>
-                    {badge > 0 && (
+                    {badge === null ? (
+                      // BELUM TERBACA — bukan nol. Sama dengan Sidebar: antrean
+                      // yang hitungannya gagal tidak boleh terlihat identik
+                      // dengan antrean yang bersih.
                       <span
-                        className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
-                        aria-label={`${badge} menunggu diproses`}
+                        className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full border border-dashed border-muted-foreground/50 px-1 font-mono text-2xs font-semibold leading-none text-muted-foreground"
+                        aria-label="Jumlah antrean belum terbaca"
+                        title="Jumlah antrean belum terbaca — bukan berarti kosong"
                       >
-                        {badge > 99 ? '99+' : badge}
+                        ·
                       </span>
+                    ) : (
+                      badge > 0 && (
+                        <span
+                          className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
+                          aria-label={`${badge} menunggu diproses`}
+                        >
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      )
                     )}
                   </NavLink>
                 )

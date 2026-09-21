@@ -38,7 +38,12 @@ export default function PayoutControlsPage() {
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-5">
-          <CurrentControlsCard data={controls.data} isLoading={controls.isLoading} />
+          <CurrentControlsCard
+            data={controls.data}
+            isLoading={controls.isLoading}
+            isError={controls.isError}
+            onRetry={() => controls.refetch()}
+          />
           {!canChange && (
             <p
               data-testid="hanya-baca"

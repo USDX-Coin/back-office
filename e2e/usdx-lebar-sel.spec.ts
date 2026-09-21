@@ -106,7 +106,17 @@ function ringkas(sel: SelTerukur[]) {
   }
 }
 
-test.describe('lebar sel tabel back office @lebar', () => {
+// `@e2e` WAJIB ada, dan bukan sekadar kerapian: CI menjalankan `pnpm test:e2e`
+// (`.github/workflows/ci.yml`), yaitu `playwright test --grep @e2e`. Dengan
+// `@lebar` saja, seluruh berkas ini TIDAK PERNAH dipilih CI — 14 test yang
+// membuktikan nol nominal rupiah terpotong diam-diam hanya jalan kalau ada orang
+// mengetik `npx playwright test` tanpa argumen. Pagar yang tidak pernah
+// dijalankan bukan pagar; siapa pun bisa mengembalikan pemotongannya dan CI
+// tetap hijau.
+//
+// `@lebar` dipertahankan supaya suite ini masih bisa dijalankan sendiri saat
+// menggarap lebar kolom (`npx playwright test --grep @lebar`).
+test.describe('lebar sel tabel back office @e2e @lebar', () => {
   for (const layar of LAYAR) {
     test(`${layar.nama} — nol pemotongan diam, nol pemotongan di kolom uang/rekening/waktu`, async ({
       page,

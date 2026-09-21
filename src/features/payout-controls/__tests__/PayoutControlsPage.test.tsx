@@ -164,6 +164,33 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       expect(screen.getByRole('button', { name: 'Usulkan perubahan' })).toBeDisabled()
     })
 
+    test('GET kontrol gagal → kartunya BILANG gagal, bukan skeleton selamanya', async () => {
+      // Cabangnya dulu `isLoading || !data`, dan `!data` juga benar saat
+      // permintaannya GAGAL — jadi kartunya terkunci skeleton: tanpa pesan, tanpa
+      // "Coba lagi". Skeleton yang berputar terbaca "sebentar lagi muncul", bukan
+      // "kami tidak tahu".
+      //
+      // Di layar ini bedanya bukan kosmetik: yang tidak terbaca adalah apakah REM
+      // PENCAIRAN sedang tertarik atau terlepas. Operator yang menyimpulkan dari
+      // kartu kosong menyimpulkan tentang uang yang sedang keluar.
+      server.use(
+        http.get('/api/v1/payout-controls', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+            { status: 500 }
+          )
+        )
+      )
+      const { container } = setup()
+      expect(await screen.findByText(/Keadaan rem dan plafon tidak terbaca/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /coba lagi/i })).toBeInTheDocument()
+      // Dan skeleton-nya benar-benar HILANG — bukan pesan galat yang ditempel di
+      // atas kartu yang masih berputar.
+      expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+      // Keadaan rem TIDAK diklaim ke arah mana pun.
+      expect(screen.queryByTestId('keadaan-rem')).not.toBeInTheDocument()
+    })
+
     test('404 riwayat dijelaskan sebagai endpoint yang belum ada, bukan galat layar', async () => {
       // Sisi tulis + riwayat baru ada setelah perubahan backend yang menyertainya
       // naik. "Not Found" mentah di sini berakhir sebagai laporan bug salah alamat.

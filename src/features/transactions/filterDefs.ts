@@ -22,7 +22,9 @@ const MINT_STATUS_OPTIONS: FilterOption[] = [
 
 // sot/api/common.yaml § RedeemStatus — redeem has its own single-dimension
 // lifecycle (no payment / Safe legs).
-const REDEEM_STATUS_OPTIONS: FilterOption[] = [
+// Diekspor supaya tetap terjaga paritas enumnya walau saringannya sedang dilepas;
+// lihat alasan pelepasannya di `buildOrderFilterDefs`.
+export const REDEEM_STATUS_OPTIONS: FilterOption[] = [
   { value: 'AWAITING_BURN', label: 'Menunggu pembakaran' },
   { value: 'BURNED', label: 'Sudah dibakar' },
   { value: 'PROCESSING_PAYOUT', label: 'Pencairan diproses' },
@@ -76,10 +78,30 @@ export function buildOrderFilterDefs(type: string): FilterDef[] {
     // Owner sits next to Type because it is the same kind of question ("which
     // rows"), and it applies to mint and redeem alike — a partner can do both.
     { kind: 'select', key: 'ownerType', label: 'Pemilik order', options: OWNER_TYPE_OPTIONS },
-    isRedeem
-      ? { kind: 'select', key: 'redeemStatus', label: 'Status', options: REDEEM_STATUS_OPTIONS }
-      : { kind: 'select', key: 'status', label: 'Status', options: MINT_STATUS_OPTIONS },
   ]
+  // CABANG REDEEM SENGAJA TANPA SARINGAN STATUS.
+  //
+  // `ListOrdersDto` backend (`origin/dev`) menerima `type | status | paymentStatus |
+  // safeStatus | ownerType | userId | page | take`. TIDAK ADA `redeemStatus`. Dan
+  // `createGlobalValidationPipe` memakai `whitelist: true` TANPA
+  // `forbidNonWhitelisted`, jadi parameter tak dikenal DIBUANG DIAM-DIAM — bukan
+  // dijawab 400.
+  //
+  // Akibatnya saringan ini bukan sekadar tidak bekerja: ia BERBOHONG. Operator
+  // memilih "Pencairan gagal", chip "Status: Pencairan gagal" terpasang di atas
+  // tabel, dan yang kembali adalah SELURUH order redeem — termasuk yang rupiahnya
+  // sudah cair. Kontrol yang membuat orang mengira daftarnya tersaring lebih buruk
+  // daripada tidak ada kontrol sama sekali.
+  //
+  // Preseden yang diikuti: `held-credits/filterDefs.ts` menolak memasang popover
+  // sama sekali dengan alasan yang sama persis.
+  //
+  // Dipasang kembali saat backend menerima `redeemStatus` (USDX-253) — bersama
+  // `REDEEM_STATUS_OPTIONS` di atas, yang sengaja DIPERTAHANKAN supaya daftarnya
+  // tidak perlu disusun ulang dari nol dan tetap ikut terjaga paritas enum.
+  if (!isRedeem) {
+    defs.push({ kind: 'select', key: 'status', label: 'Status', options: MINT_STATUS_OPTIONS })
+  }
   if (!isRedeem) {
     defs.push(
       { kind: 'select', key: 'paymentStatus', label: 'Pembayaran', options: PAYMENT_STATUS_OPTIONS },
