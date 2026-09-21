@@ -3259,10 +3259,33 @@ export const handlers = [
     const payoutFailuresOpen = [...payoutFailureStore.values()].filter(
       (detail) => detail.resolution === null
     ).length
+    // Predikat PERSIS milik `GET /api/v1/held-credits` di bawah — badge dan
+    // layar tidak boleh berbeda tentang antrean yang sama.
+    const heldCreditsOpen = [...heldCreditStore.values()].filter(
+      (credit) => credit.resolution === null
+    ).length
+    // `PENDING` yang BELUM kedaluwarsa, dihitung dari jamnya langsung — dan
+    // SENGAJA TANPA memanggil `sweepExpiredApprovals()`.
+    //
+    // Sapuan itu kosmetik dan jalan saat ANTREANNYA dibaca. Kalau badge ikut
+    // menyapu, angkanya berubah karena dilihat; kalau badge menghitung
+    // `status === 'PENDING'` mentah tanpa menyapu, ia menghitung usulan yang
+    // jam DB sudah tolak dan mengecil sendiri begitu ops membuka layarnya.
+    // Keduanya angka yang tidak bisa dipercaya. Backend menghitung
+    // `PENDING AND expires_at > now()` langsung; ini cerminnya.
+    const now = Date.now()
+    const approvalsOpen = [...approvalStore.values()].filter(
+      (row) => row.status === 'PENDING' && Date.parse(row.expiresAt) > now
+    ).length
     return HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: { payoutFailuresOpen, redeemApprovalsOpen: openRedeemApprovals().length },
+      data: {
+        payoutFailuresOpen,
+        redeemApprovalsOpen: openRedeemApprovals().length,
+        heldCreditsOpen,
+        approvalsOpen,
+      },
     })
   }),
 

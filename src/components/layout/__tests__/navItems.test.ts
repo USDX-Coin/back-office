@@ -217,11 +217,17 @@ describe('visibleNavSections — gerbang peran tidak ikut dirombak', () => {
         expect(itemsIn(id, 'Pekerjaan Hari Ini')).toContain('Mint Bermasalah')
         expect(itemsIn(id, 'Pekerjaan Hari Ini')).toContain('Persetujuan Orang Kedua')
       }
-      // Tanpa badge: `GET /api/v1/queue-counts` tidak menghitung kedua antrean
-      // ini, dan menghitungnya sendiri lewat query list akan menembak endpoint
-      // uang tiap halaman dimuat.
-      expect(itemFor(STAFF, 'Mint Bermasalah')?.badgeKey).toBeUndefined()
-      expect(itemFor(STAFF, 'Persetujuan Orang Kedua')?.badgeKey).toBeUndefined()
+      // Badge-nya datang dari `GET /api/v1/queue-counts`, BUKAN dari query list
+      // `take=1`: list kedua antrean ini mendekripsi dan menulis
+      // `pii_access_audit` per baris, jadi menambalnya begitu akan mencatat
+      // akses PII tiap halaman dimuat — untuk orang yang tidak sedang membuka
+      // PII siapa pun (`conventions.md § Audit Akses PII`).
+      //
+      // Kuncinya dipatok PERSIS, bukan sekadar "terdefinisi": `badgeFor` di
+      // Sidebar dan MobileNavDrawer memetakan per kunci, dan kunci yang salah
+      // ketik diam-diam jatuh ke `return 0` — badge hilang tanpa satu pun galat.
+      expect(itemFor(STAFF, 'Mint Bermasalah')?.badgeKey).toBe('heldCredits')
+      expect(itemFor(STAFF, 'Persetujuan Orang Kedua')?.badgeKey).toBe('approvals')
     })
 
     test('Plafon Pencairan terbuka untuk SEMUA peran, di luar entri "Pengaturan"', () => {

@@ -3105,6 +3105,18 @@ export interface ResolvePayoutFailureResult {
 export interface QueueCounts {
   payoutFailuresOpen: number
   redeemApprovalsOpen: number
+  // Dua antrean kerja lainnya. Keduanya dibaca `?? 0` di sisi pemakai, jadi
+  // backend yang belum naik membuat badge-nya tidak muncul — menunya tetap
+  // jalan normal. Berkurang, bukan rusak.
+  //
+  // `heldCreditsOpen` = total `GET /api/v1/held-credits` (BNI + DurianPay SNAP).
+  // `approvalsOpen`   = usulan `PENDING` yang BELUM kedaluwarsa — bukan
+  //                     `PENDING` saja; tidak ada cron yang menyapu
+  //                     `approval_requests`, sapuannya jalan saat layarnya
+  //                     dibuka, jadi hitungan mentah akan mengecil sendiri
+  //                     begitu ops membukanya.
+  heldCreditsOpen: number
+  approvalsOpen: number
 }
 
 // ─── Log Panggilan DurianPay (backend `src/modules/durianpay-api-calls/`) ────

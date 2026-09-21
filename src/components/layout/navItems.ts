@@ -42,6 +42,8 @@ export type BadgeKey =
   | 'screening'
   | 'redeemApprovals'
   | 'payoutFailures'
+  | 'heldCredits'
+  | 'approvals'
 
 export interface NavItem {
   to: string
@@ -149,17 +151,23 @@ export const NAV_SECTIONS: NavSection[] = [
       // BERDAMPINGAN: yang satu rupiah yang belum sampai ke nasabah, yang satu
       // rupiah nasabah yang belum jadi USDX. Jangan dipindah ke section lain.
       //
-      // Tanpa badge: `GET /api/v1/queue-counts` hanya menghitung dua antrean
-      // (payoutFailuresOpen, redeemApprovalsOpen). Menghitungnya dengan query
-      // list `take=1` seperti badge mint/burn akan menembak endpoint uang tiap
-      // halaman dimuat — angka yang tidak diminta siapa pun. Dicatat sebagai
-      // kebutuhan backend, bukan ditambal di sidebar.
-      { to: '/mint-bermasalah', label: 'Mint Bermasalah', icon: HandCoins },
+      // Badge `(N)` datang dari `GET /api/v1/queue-counts` (`heldCreditsOpen`),
+      // BUKAN dari query list `take=1` seperti badge mint/burn: list antrean ini
+      // mendekripsi dan menulis `pii_access_audit` per baris, jadi menambalnya
+      // begitu akan mencatat akses PII tiap halaman dimuat — untuk orang yang
+      // tidak sedang membuka PII siapa pun (`conventions.md § Audit Akses PII`).
+      { to: '/mint-bermasalah', label: 'Mint Bermasalah', icon: HandCoins, badgeKey: 'heldCredits' },
       // USDX-486 — antrean maker-checker. Terbuka semua peran (pengusul harus
       // bisa melihat nasib usulannya); memutuskan digerbangi MANAGER/ADMIN di
       // dalam layar. Duduk di sini, bukan di Pengaturan: usulan punya masa
       // berlaku, dan yang punya masa berlaku adalah pekerjaan hari ini.
-      { to: '/persetujuan', label: 'Persetujuan Orang Kedua', icon: UserCheck },
+      //
+      // `approvalsOpen` menghitung `PENDING` yang BELUM kedaluwarsa, bukan
+      // `PENDING` saja: tidak ada cron yang menyapu `approval_requests` —
+      // sapuannya jalan saat layarnya dibuka. Badge yang menghitung `PENDING`
+      // mentah akan mengecil sendiri begitu ops membuka layarnya, dan angka yang
+      // berubah karena dilihat adalah angka yang tidak bisa dipercaya.
+      { to: '/persetujuan', label: 'Persetujuan Orang Kedua', icon: UserCheck, badgeKey: 'approvals' },
       // USDX-87 — eks "Manual Sync". "Troubleshooting" bukan kelompok yang
       // berarti buat operator; memperbaiki request yang nyangkut adalah
       // pekerjaan, jadi ia naik ke antrean harian. Semua peran (permukaan

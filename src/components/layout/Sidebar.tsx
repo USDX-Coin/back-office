@@ -50,6 +50,8 @@ export default function Sidebar() {
     if (key === 'screening') return screeningOpen.data ?? 0
     if (key === 'redeemApprovals') return queueCounts.data?.redeemApprovalsOpen ?? 0
     if (key === 'payoutFailures') return queueCounts.data?.payoutFailuresOpen ?? 0
+    if (key === 'heldCredits') return queueCounts.data?.heldCreditsOpen ?? 0
+    if (key === 'approvals') return queueCounts.data?.approvalsOpen ?? 0
     return 0
   }
 

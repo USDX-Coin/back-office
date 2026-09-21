@@ -275,7 +275,12 @@ describe('Sidebar @ USDX-50', () => {
   // mendekripsi rekening dan menulis `pii_access_audit` per baris (sot/api/queue-counts.yaml).
   // Kedua antrean terbuka untuk SEMUA peran, jadi badge-nya juga — berbeda dari Mint/Burn.
   describe('USDX-678 — badge antrean dari queue-counts', () => {
-    function queueCounts(data: { payoutFailuresOpen: number; redeemApprovalsOpen: number }) {
+    function queueCounts(data: {
+      payoutFailuresOpen: number
+      redeemApprovalsOpen: number
+      heldCreditsOpen?: number
+      approvalsOpen?: number
+    }) {
       return http.get('/api/v1/queue-counts', () =>
         HttpResponse.json({ status: 'success', metadata: null, data })
       )
@@ -301,6 +306,42 @@ describe('Sidebar @ USDX-50', () => {
         })
         expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('3')
         expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
+      })
+
+      // Dua antrean kerja lainnya. Angkanya datang dari permintaan queue-counts
+      // YANG SAMA — empat badge, satu request.
+      test('shows heldCreditsOpen and approvalsOpen on their entries', async () => {
+        server.use(
+          queueCounts({
+            payoutFailuresOpen: 1,
+            redeemApprovalsOpen: 1,
+            heldCreditsOpen: 7,
+            approvalsOpen: 2,
+          })
+        )
+        renderWithProviders(<Sidebar />, {
+          initialEntries: ['/dashboard'],
+          authenticated: true,
+        })
+        expect(await screen.findByTestId('nav-badge-mint-bermasalah')).toHaveTextContent('7')
+        expect(await screen.findByTestId('nav-badge-persetujuan')).toHaveTextContent('2')
+      })
+
+      // Backend yang belum naik: kedua kunci ABSEN dari jawaban. Keduanya dibaca
+      // `?? 0`, jadi badge-nya tidak dirender dan menunya tetap jalan — berkurang,
+      // bukan rusak. Kalau ini kelak jadi `NaN` atau `undefined` di layar, di
+      // sinilah ketahuannya.
+      test('kunci yang belum ada di backend tidak merusak menunya', async () => {
+        server.use(queueCounts({ payoutFailuresOpen: 3, redeemApprovalsOpen: 4 }))
+        renderWithProviders(<Sidebar />, {
+          initialEntries: ['/dashboard'],
+          authenticated: true,
+        })
+        await screen.findByTestId('nav-badge-payout-failures')
+        expect(screen.queryByTestId('nav-badge-mint-bermasalah')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('nav-badge-persetujuan')).not.toBeInTheDocument()
+        expect(screen.getByRole('link', { name: /Mint Bermasalah/ })).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: /Persetujuan Orang Kedua/ })).toBeInTheDocument()
       })
 
       test('reads both badges from ONE queue-counts request and never pulls the lists', async () => {
