@@ -27,7 +27,7 @@ import {
   parseRouteAction,
   resourceTypeLabel,
 } from './labels'
-import { wibDayEndIso, wibDayStartIso } from '@/lib/wibRange'
+import { periksaRentangWib, pesanRentang, wibDayEndIso, wibDayStartIso } from '@/lib/wibRange'
 import type { ActivityLogEntry, ActivityOutcome } from './types'
 
 const PAGE_SIZE = 20
@@ -79,6 +79,9 @@ export default function ActivityLogPage() {
   const { directory, isError: directoryFailed } = useStaffDirectory()
 
   const rawOutcome = params.searchParams.get('outcome') ?? ''
+  const mentahFrom = params.searchParams.get('from') ?? ''
+  const mentahTo = params.searchParams.get('to') ?? ''
+  const rentangUrl = periksaRentangWib(mentahFrom, mentahTo)
   const filters = {
     page: params.page,
     take: PAGE_SIZE,
@@ -89,12 +92,18 @@ export default function ActivityLogPage() {
     actorUserId: params.searchParams.get('actorUserId') || undefined,
     resourceType: params.searchParams.get('resourceType') || undefined,
     action: params.searchParams.get('action') || undefined,
-    // Nilai URL TIDAK dikirim mentah. Helper-nya yang menstempel `+07:00` dan
-    // yang mengembalikan `null` untuk bentuk yang bukan `YYYY-MM-DD` — tautan
-    // basi lalu tidak dikirim sama sekali alih-alih dijawab 400, sama seperti
-    // perlakuan `outcome` di atas.
-    from: wibDayStartIso(params.searchParams.get('from') ?? '') ?? undefined,
-    to: wibDayEndIso(params.searchParams.get('to') ?? '') ?? undefined,
+    // Rentang dari URL diperiksa dengan aturan yang SAMA seperti di popover —
+    // bukan cuma distempel zona.
+    //
+    // Gerbang yang hanya hidup di popover tidak pernah dilewati tautan lama,
+    // bookmark, atau hasil salin-tempel, dan justru lewat situlah orang membuka
+    // layar bukti kepatuhan. Rentang terbalik dulu terkirim apa adanya, dijawab
+    // nol baris, dan nol baris di sini terbaca "tidak ada jejaknya".
+    //
+    // Yang tidak sah TIDAK DIKIRIM sama sekali, dan layar mengatakan kenapa
+    // (`rentangBermasalah` di bawah) alih-alih menampilkan tabel kosong.
+    from: rentangUrl.sah ? (wibDayStartIso(mentahFrom) ?? undefined) : undefined,
+    to: rentangUrl.sah ? (wibDayEndIso(mentahTo) ?? undefined) : undefined,
   }
 
   const list = useActivityLogs(filters)
@@ -280,6 +289,20 @@ export default function ActivityLogPage() {
               actorUserId={filters.actorUserId ?? null}
               onClear={(key) => params.updateParams({ [key]: null, page: '1' })}
             />
+            {!rentangUrl.sah && rentangUrl.masalah && (
+              // Rentang dari URL yang tidak sah TIDAK dikirim. Kalau layar diam
+              // soal itu, yang terlihat adalah tabel biasa dengan chip tanggal —
+              // dan pembacanya menyimpulkan tidak ada jejaknya pada tanggal itu.
+              <p
+                role="alert"
+                data-testid="jejak-audit-rentang-bermasalah"
+                className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-2xs leading-relaxed text-destructive"
+              >
+                Rentang tanggal di tautan ini tidak dipakai — {pesanRentang(rentangUrl.masalah)} Yang
+                ditampilkan di bawah adalah jejak TANPA saringan tanggal, bukan hasil pencarian
+                tanggal itu.
+              </p>
+            )}
             <ScopeNote directoryFailed={directoryFailed} />
           </div>
         }

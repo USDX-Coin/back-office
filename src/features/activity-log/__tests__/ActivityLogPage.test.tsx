@@ -146,9 +146,12 @@ describe('ActivityLogPage @ jejak audit', () => {
       await user.click(screen.getByRole('button', { name: /filter/i }))
       const popover = await screen.findByRole('dialog')
 
+      // Dua tanggal LAMPAU, supaya yang diuji benar-benar URUTANNYA — tanggal
+      // masa depan ditolak lebih dulu oleh aturan yang berbeda, dan test yang
+      // memakainya akan hijau karena alasan yang salah.
       const [mulai, akhir] = [...popover.querySelectorAll<HTMLInputElement>('input[type="date"]')]
-      await user.type(mulai!, '2026-09-30')
-      await user.type(akhir!, '2026-09-01')
+      await user.type(mulai!, '2026-08-30')
+      await user.type(akhir!, '2026-08-01')
 
       expect(await within(popover).findByRole('alert')).toHaveTextContent(
         /Tanggal mulai harus sebelum atau sama dengan tanggal akhir/
@@ -157,6 +160,52 @@ describe('ActivityLogPage @ jejak audit', () => {
       // yang hanya bisa menjawab nol baris.
       expect(within(popover).getByRole('button', { name: /^terapkan$/i })).toBeDisabled()
     })
+
+    test('tanggal MASA DEPAN juga ditolak, bukan cuma urutan terbalik', async () => {
+      // Jejak audit mencatat yang SUDAH terjadi. Rentang yang berakhir di masa
+      // depan hanya bisa menjawab nol baris untuk bagian itu — dan di layar bukti
+      // kepatuhan, nol baris terbaca "tidak ada jejaknya".
+      //
+      // `max` pada `<input type="date">` cuma petunjuk kalender, bukan gerbang:
+      // nilai yang datang dari URL tidak pernah melewatinya.
+      const user = userEvent.setup()
+      setup()
+      await screen.findByText(/Rem pencairan ditarik/)
+      await user.click(screen.getByRole('button', { name: /filter/i }))
+      const popover = await screen.findByRole('dialog')
+
+      const [mulai, akhir] = [...popover.querySelectorAll<HTMLInputElement>('input[type="date"]')]
+      await user.type(mulai!, '2030-01-01')
+      await user.type(akhir!, '2030-12-31')
+
+      expect(await within(popover).findByRole('alert')).toHaveTextContent(
+        /tidak boleh melewati hari ini/i
+      )
+      expect(within(popover).getByRole('button', { name: /^terapkan$/i })).toBeDisabled()
+    })
+
+    test.each([
+      ['terbalik', '?from=2026-08-30&to=2026-08-01', /mulai harus sebelum/i],
+      ['masa depan', '?from=2030-01-01&to=2030-12-31', /melewati hari ini/i],
+      ['tanggal mustahil', '?from=2026-02-31&to=2026-02-31', /tidak ada di kalender/i],
+    ])(
+      'rentang %s dari URL: tidak dikirim, DAN layar bilang kenapa',
+      async (_nama, query, pesan) => {
+        // Gerbang yang cuma hidup di popover tidak pernah dilewati tautan lama,
+        // bookmark, atau hasil salin-tempel — dan justru lewat situlah orang
+        // membuka layar bukti kepatuhan.
+        //
+        // Diam saja tidak cukup: tabel biasa dengan chip tanggal terbaca sebagai
+        // "tidak ada jejaknya pada tanggal itu", kesimpulan yang salah dari
+        // tautan yang salah.
+        const seen = recordListQueries()
+        setup(`/jejak-audit${query}`)
+        await screen.findByText(/Rem pencairan ditarik/)
+
+        expect(seen.every((q) => !q.includes('from=') && !q.includes('to='))).toBe(true)
+        expect(await screen.findByTestId('jejak-audit-rentang-bermasalah')).toHaveTextContent(pesan)
+      }
+    )
 
     test('nilai tanggal yang bukan YYYY-MM-DD TIDAK dikirim', async () => {
       // Sama seperti perlakuan `outcome`: tautan basi tidak boleh membuat

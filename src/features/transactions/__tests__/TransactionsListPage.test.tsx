@@ -474,16 +474,27 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/order redeem/i)).toBeInTheDocument()
 
-      // Pagar konvensi angka DI DALAM DIALOG.
+      // Pagar konvensi angka DI DALAM DIALOG — POSITIF, bukan negatif.
       //
-      // Pagar tabel tidak menjangkau ke sini: Radix mem-portal dialog ke `body`,
-      // jadi `document.querySelector('tbody')` tidak melihatnya. Dan polanya
-      // (`\d,\d{3}`) tidak akan pernah cocok dengan bentuk yang bocor di modal —
-      // `100.000000` dan `16250.0000` tidak punya satu pun koma.
+      // Versi negatif sebelumnya (`not.toMatch(/\d\.\d{4,}/)`) TERBUKTI BUTA:
+      // merusak `{money(detail.netPayoutIdr)}` jadi `{detail.netPayoutIdr}`
+      // membuat dialog mencetak `1547320.00`, dan seluruh berkas ini tetap
+      // hijau. Sebabnya struktural — pola itu hanya menangkap `numeric(*,4)` ke
+      // atas, sementara SETIAP rupiah di repo ini `numeric(*,2)`. Dan `100.000`
+      // (titik + tepat tiga digit) tidak mungkin dibedakan regex mana pun dari
+      // pemisah ribuan id-ID, sambil berarti salah 1000×.
       //
-      // Pembedanya JUMLAH DIGIT setelah titik: di id-ID titik selalu pemisah
-      // ribuan, jadi selalu diikuti TEPAT tiga digit (`1.234.567`). Titik yang
-      // diikuti 4+ digit hanya bisa berarti desimal gaya Inggris.
+      // Jadi yang dipatok NILAI YANG DIRENDER, satu per satu. Lebih berisik,
+      // tapi ia tidak bisa buta.
+      expect(within(dialog).getByText('100,00')).toBeInTheDocument() // USDX, dari '100.000000'
+      // Regex, bukan string persis: `netPayoutIdr` juga muncul di dalam kalimat
+      // yang diakhiri titik, jadi simpul teksnya tidak sama persis.
+      expect(within(dialog).getAllByText(/Rp 1\.547\.320/).length).toBeGreaterThan(0) // netPayoutIdr
+      expect(within(dialog).getAllByText(/Rp 1\.568\.000/).length).toBeGreaterThan(0) // grossIdr
+      expect(within(dialog).getByText(/15\.680,00 IDR\/USD/)).toBeInTheDocument() // effectiveRate
+      expect(within(dialog).getByText('2%')).toBeInTheDocument() // spreadSellPct
+
+      // Backstop murah untuk bentuk yang PASTI Inggris, di atas assertion di atas.
       const teksDialog = dialog.textContent ?? ''
       expect(teksDialog).not.toMatch(/\d\.\d{4,}/)
       expect(teksDialog).not.toMatch(/\d,\d{3}/)

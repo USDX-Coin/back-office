@@ -16,7 +16,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatWibDateTime, shortHash } from '@/lib/format'
+import { formatRate, formatWibDateTime, shortHash } from '@/lib/format'
 import {
   allowedResolveActions,
   formatQueueAge,
@@ -241,7 +241,11 @@ export default function PayoutFailureDetailModal({
                     <span className="font-mono tabular-nums">{formatUsdxExact(detail.amountUsdx)}</span>
                   </Field>
                   <Field label="Kurs snapshot">
-                    <span className="font-mono tabular-nums">{detail.effectiveRate}</span>
+                    {/* Ketiga tetangganya di grid ini sudah diformat; yang ini
+                        tertinggal mentah (`16250.0000`). */}
+                    <span className="font-mono tabular-nums">
+                      {formatRate(detail.effectiveRate)}
+                    </span>
                   </Field>
                   <Field label="Total biaya">
                     <span className="font-mono tabular-nums">{formatIdrExact(detail.totalFeeIdr)}</span>

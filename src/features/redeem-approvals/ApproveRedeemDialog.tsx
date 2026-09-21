@@ -17,7 +17,7 @@ import FieldError from '@/components/FieldError'
 import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { shortHash } from '@/lib/format'
+import { formatRate, formatSpreadPct, shortHash } from '@/lib/format'
 import {
   APPROVE_NOTE_MAX,
   formatIdrExact,
@@ -99,9 +99,19 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
 
       <div className="grid gap-2 text-xs sm:grid-cols-2">
         <p className="text-muted-foreground">
+          {/*
+            Ketiganya dulu dicetak MENTAH (`16250.0000`, `2.00`) tepat di bawah
+            empat baris yang sudah lewat `formatIdrExact`. Satu dialog, dua
+            ejaan — dan ini dialog tempat operator MENYETUJUI PENCAIRAN.
+          */}
           Kurs terpakai{' '}
-          <span className="font-mono tabular-nums text-foreground">{detail.effectiveRate}</span>{' '}
-          <span className="text-2xs">(dasar {detail.baseRate}, spread jual {detail.spreadSellPct}%)</span>
+          <span className="font-mono tabular-nums text-foreground">
+            {formatRate(detail.effectiveRate)}
+          </span>{' '}
+          <span className="text-2xs">
+            (dasar {formatRate(detail.baseRate)}, spread jual{' '}
+            {formatSpreadPct(detail.spreadSellPct)})
+          </span>
         </p>
         <p className="text-muted-foreground">
           Burn on-chain{' '}

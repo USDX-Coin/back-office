@@ -191,6 +191,41 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       expect(screen.queryByTestId('keadaan-rem')).not.toBeInTheDocument()
     })
 
+    test('GET kontrol gagal → form usulan MATI, tidak mengarang baseline "Bawaan server"', async () => {
+      // Badan permintaannya SNAPSHOT UTUH: mengisi satu isian saat GET mati
+      // diam-diam mengusulkan reset dua plafon lain ke bawaan server. Dan tabel
+      // SEBELUM → SESUDAH mengeja `null` sebagai "Bawaan server" — klaim faktual
+      // ("tidak ada baris kontrol tersimpan") yang tidak pernah dibaca dari mana
+      // pun. Orang kedua lalu menyetujui atas baseline karangan.
+      //
+      // Satu layar tidak boleh membantah dirinya sendiri: kartu di kiri sudah
+      // bilang keadaannya tidak terbaca.
+      server.use(
+        http.get('/api/v1/payout-controls', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+            { status: 500 }
+          )
+        )
+      )
+      setup()
+      expect(await screen.findByText(/Usulan perubahan plafon dimatikan/)).toBeInTheDocument()
+      // Form-nya benar-benar hilang: tidak ada isian alasan, tidak ada tombol usul.
+      expect(screen.queryByLabelText(/^Alasan/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /usulkan perubahan/i })
+      ).not.toBeInTheDocument()
+
+      // "Bawaan server" yang TERSISA hanya boleh datang dari RIWAYAT — nilai yang
+      // benar-benar pernah tercatat, dirender dengan coretan. Yang dilarang adalah
+      // baseline KARANGAN di tabel SEBELUM → SESUDAH milik form, yang tidak pernah
+      // dibaca dari mana pun. Keduanya mengeja kata yang sama; hanya satu yang
+      // merupakan klaim tentang keadaan sekarang.
+      for (const el of screen.queryAllByText('Bawaan server')) {
+        expect(el.className).toContain('line-through')
+      }
+    })
+
     test('404 riwayat dijelaskan sebagai endpoint yang belum ada, bukan galat layar', async () => {
       // Sisi tulis + riwayat baru ada setelah perubahan backend yang menyertainya
       // naik. "Not Found" mentah di sini berakhir sebagai laporan bug salah alamat.

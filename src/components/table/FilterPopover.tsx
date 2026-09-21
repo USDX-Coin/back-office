@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  adaRentangTidakSah,
+  hariIniWib,
+  periksaRentangWib,
+  pesanRentang,
+} from '@/lib/wibRange'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,33 +37,6 @@ const ALL = '__all__'
 // USDX-27: a single popover that renders inputs for every filter declared by
 // the page (FilterDef[]). Local draft state — commits to URL only on Apply, so
 // rapid changes don't trigger N requests.
-/**
- * Hari ini dalam WIB, bentuk `YYYY-MM-DD`. Dipakai sebagai `max` kedua isian —
- * jam browser bisa di zona lain, dan rentang yang berakhir "besok" menurut UTC
- * adalah rentang yang tidak pernah bisa memuat apa pun.
- */
-function hariIniWib(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-/** Adakah rentang tanggal yang terbalik di antara seluruh saringan? */
-export function adaRentangTerbalik(
-  defs: FilterDef[],
-  values: Record<string, string>
-): boolean {
-  return defs.some((def) => {
-    if (def.kind !== 'dateRange') return false
-    const a = values[def.startKey] ?? ''
-    const b = values[def.endKey] ?? ''
-    return Boolean(a && b && a > b)
-  })
-}
-
 export default function FilterPopover({ defs, values, onApply, onClearAll, activeCount }: FilterPopoverProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>(values)
@@ -197,7 +176,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
               // `/reports/*` dan `/bni-accounts`); yang kurang cuma memasangnya.
               // `max` juga dipasang supaya tanggal masa depan tidak bisa dipilih
               // dari kalender sama sekali.
-              const urutanSalah = Boolean(start && end && start > end)
+              const vonis = periksaRentangWib(start, end)
               return (
                 <div key={`${def.startKey}-${def.endKey}`}>
                   <Label className="text-xs font-medium">{def.label}</Label>
@@ -208,7 +187,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                       max={end || hariIniWib()}
                       onChange={(e) => setKey(def.startKey, e.target.value)}
                       aria-label={`${def.label} — tanggal mulai`}
-                      aria-invalid={urutanSalah || undefined}
+                      aria-invalid={!vonis.sah || undefined}
                       className="h-9 text-xs"
                     />
                     <Input
@@ -218,13 +197,13 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                       max={hariIniWib()}
                       onChange={(e) => setKey(def.endKey, e.target.value)}
                       aria-label={`${def.label} — tanggal akhir`}
-                      aria-invalid={urutanSalah || undefined}
+                      aria-invalid={!vonis.sah || undefined}
                       className="h-9 text-xs"
                     />
                   </div>
-                  {urutanSalah && (
+                  {!vonis.sah && vonis.masalah && (
                     <p role="alert" className="mt-1 text-2xs text-destructive">
-                      Tanggal mulai harus sebelum atau sama dengan tanggal akhir.
+                      {pesanRentang(vonis.masalah)}
                     </p>
                   )}
                 </div>
@@ -246,7 +225,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
               type="button"
               size="sm"
               onClick={apply}
-              disabled={adaRentangTerbalik(defs, draft)}
+              disabled={adaRentangTidakSah(defs, draft)}
             >
               Terapkan
             </Button>

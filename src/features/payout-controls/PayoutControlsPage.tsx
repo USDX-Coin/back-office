@@ -60,7 +60,33 @@ export default function PayoutControlsPage() {
           )}
         </div>
         <div className="space-y-6 lg:col-span-7">
-          {canChange && <UpdateLimitsForm current={controls.data} />}
+          {canChange &&
+            (controls.isError || (!controls.isLoading && !controls.data) ? (
+              // JANGAN tawarkan form usulan saat keadaan sekarang tidak terbaca.
+              //
+              // Badannya snapshot UTUH: mengisi satu isian saat GET mati diam-diam
+              // MENGUSULKAN RESET dua plafon lain ke bawaan server. Dan tabel
+              // SEBELUM → SESUDAH-nya mengeja `null` sebagai "Bawaan server" —
+              // klaim faktual ("tidak ada baris kontrol tersimpan") yang tidak
+              // pernah dibaca dari mana pun. Orang kedua lalu menyetujui atas
+              // baseline karangan.
+              //
+              // Kartu di sebelah kiri sudah mengatakan keadaannya tidak terbaca;
+              // sebelumnya panel ini membantahnya dengan angka.
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3">
+                <p className="text-sm font-medium text-destructive">
+                  Usulan perubahan plafon dimatikan
+                </p>
+                <p className="mt-1 text-2xs leading-relaxed text-muted-foreground">
+                  Nilai yang berlaku sekarang tidak terbaca, jadi tidak ada baseline "sebelum" yang
+                  bisa ditunjukkan ke orang kedua — dan permintaan ini mengirim SNAPSHOT UTUH, jadi
+                  mengusulkan satu plafon berarti ikut menetapkan dua lainnya. Tarik ulang keadaan
+                  sekarang lebih dulu.
+                </p>
+              </div>
+            ) : (
+              <UpdateLimitsForm current={controls.data} />
+            ))}
           <LimitHistoryCard enabled={canChange} />
         </div>
       </div>
