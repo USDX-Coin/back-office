@@ -42,7 +42,7 @@ describe('FeeConfigPage @integration', () => {
         expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('1%')
       })
       expect(screen.getByLabelText(/biaya va flat/i)).toHaveTextContent(/4\.000/)
-      expect(screen.getByLabelText(/persen biaya qris/i)).toHaveTextContent('0.7%')
+      expect(screen.getByLabelText(/persen biaya qris/i)).toHaveTextContent('0,7%')
       // Redeem fields (W3, USDX-245).
       expect(screen.getByLabelText(/persen biaya redeem/i)).toHaveTextContent('1%')
       expect(screen.getByLabelText(/biaya pencairan flat/i)).toHaveTextContent(/5\.000/)
@@ -95,7 +95,7 @@ describe('FeeConfigPage @integration', () => {
       await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('2.5%')
+        expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('2,5%')
       })
     })
 

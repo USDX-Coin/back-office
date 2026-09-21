@@ -87,7 +87,20 @@ describe('ManualSyncPage @ USDX-87', () => {
       // Short ID format = first 8 + last 5 chars (USDX-84 convention).
       expect(await screen.findByText('019e1aa8…f0001')).toBeInTheDocument()
       expect(screen.getByText(/Alice Anderson/i)).toBeInTheDocument()
-      expect(screen.getByText(/1,000\.00/)).toBeInTheDocument()
+      expect(screen.getByText(/1\.000,00/)).toBeInTheDocument()
+
+      // Pagar konvensi angka. Assertion literal di atas hanya membuktikan SATU
+      // nilai benar hari ini; ini membaca SELURUH badan tabel, jadi kolom baru
+      // yang kelak dipasang dengan `'en-US'` ikut memerahkannya.
+      //
+      // Yang dijaga cuma koma-sebagai-pemisah-ribuan (`1,234`) — penanda
+      // konvensi Inggris yang tidak ambigu. Pola desimal-titik SENGAJA tidak
+      // dipakai di sini (berbeda dari pagar Beranda): badan tabel memuat alamat
+      // IP, hash terpotong, dan id pendek yang cocok dengan pola itu tanpa satu
+      // pun angka uang terlibat.
+      const tbody = document.querySelector('tbody')
+      expect(tbody).not.toBeNull()
+      expect(tbody!.textContent ?? '').not.toMatch(/\d,\d{3}/)
     })
 
     test('shows empty state when API returns []', async () => {

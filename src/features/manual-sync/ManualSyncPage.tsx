@@ -15,7 +15,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { findChainConfig } from '@/lib/chainLinks'
 import { safeTxUrl } from '@/lib/safeUrl'
-import { shortRequestId } from '@/lib/format'
+import { formatUsdxListAmount, shortRequestId } from '@/lib/format'
 import type { ManualSyncItem, ManualSyncType, RequestChain, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -272,10 +272,7 @@ export default function ManualSyncPage() {
       // elipsis. Nilai utuh ikut di `title`.
       size: 176,
       cell: ({ row }) => {
-        const teks = `${Number(row.original.amount).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USDX`
+        const teks = `${formatUsdxListAmount(row.original.amount)} USDX`
         return (
           <span
             className="block truncate font-mono font-medium tabular-nums"

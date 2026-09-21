@@ -146,7 +146,12 @@ describe('BniAccountsPage — balance cards (F1, AE3, AE4)', () => {
       const usd = within(screen.getByTestId('bni-balance-card-TREASURY_USD'))
       expect(usd.getByText('Saldo efektif')).toBeInTheDocument()
       expect(usd.getByText('Saldo akhir')).toBeInTheDocument()
-      expect(usd.getAllByText('$12,500.75')).toHaveLength(2)
+      // Kedua kartu dibaca BERSEBELAHAN di layar yang sama, jadi keduanya wajib
+      // satu konvensi: titik ribuan, koma desimal. Sebelum ini kartu USD mencetak
+      // `$12,500.75` di sebelah `Rp 602.749.000,00` — dan di situ `12,500.75`
+      // bisa terbaca "dua belas koma lima". Glif `$` sengaja dipertahankan
+      // (bukan `US$` bawaan `id-ID`): yang salah baca pemisahnya, bukan lambangnya.
+      expect(usd.getAllByText('$12.500,75')).toHaveLength(2)
       const idr = within(screen.getByTestId('bni-balance-card-COLLECTION'))
       expect(idr.getByText('Rp 602.749.000,00')).toBeInTheDocument()
 
@@ -780,7 +785,7 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await pullNp(user)
 
       expect(screen.getByTestId('bni-statement-gap')).toHaveTextContent(
-        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1,250.50.'
+        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1.250,50.'
       )
     })
 

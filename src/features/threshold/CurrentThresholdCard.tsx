@@ -8,17 +8,16 @@ interface Props {
   isLoading: boolean
 }
 
+// Satu konvensi angka, apa pun mata uangnya: titik ribuan, koma desimal.
+// Ambang dolar dan ambang rupiah dibaca operator yang sama, dan dulu keduanya
+// dieja dengan aturan yang berlawanan di kartu yang sama.
 function formatAmount(amount: string, mode: 'USD' | 'IDR'): string {
   const n = Number(amount)
   if (Number.isNaN(n)) return amount
   if (mode === 'IDR') {
     return `Rp ${n.toLocaleString('id-ID')}`
   }
-  return n.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  })
+  return `$${n.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
 }
 
 export default function CurrentThresholdCard({ data, isLoading }: Props) {

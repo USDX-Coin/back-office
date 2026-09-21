@@ -22,7 +22,7 @@ import {
 import { resolveOnChainLinks } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
-import { formatShortDate } from '@/lib/format'
+import { formatShortDate, formatUsdxListAmount } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
 import type { RequestChain, RequestListItem, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -130,10 +130,7 @@ export default function BurnListPage() {
       header: 'Nominal',
       cell: ({ row }) => {
         const input = row.original.inputCurrency
-        const usdx = `${Number(row.original.amount).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USDX`
+        const usdx = `${formatUsdxListAmount(row.original.amount)} USDX`
         const idr = `Rp ${Number(row.original.amountIdr).toLocaleString('id-ID')}`
         return (
           <div className="flex min-w-0 flex-col leading-tight">

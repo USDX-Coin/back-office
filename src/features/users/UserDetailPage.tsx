@@ -122,7 +122,10 @@ export default function UserDetailPage() {
         />
         <SummaryStat
           label="Transaksi"
-          value={data.analytics.totalTransactions.toLocaleString()}
+          // `toLocaleString()` TANPA argumen memakai locale MESIN pembacanya —
+          // angka yang sama tampil beda di laptop yang beda, dan tidak ada tes
+          // yang bisa memastikan mana yang benar. Disebutkan eksplisit.
+          value={data.analytics.totalTransactions.toLocaleString('id-ID')}
           hint="sejak awal"
         />
       </div>

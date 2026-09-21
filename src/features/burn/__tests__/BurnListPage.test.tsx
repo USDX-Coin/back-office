@@ -75,11 +75,29 @@ describe('BurnListPage @ USDX-52', () => {
         http.get('/api/v1/requests', ({ request }) => {
           const url = new URL(request.url)
           expect(url.searchParams.get('type')).toBe('burn')
-          return ok([baseRow({ userName: 'Alice Anderson' })])
+          // Nominal SENGAJA di atas satu juta: dengan `100.00` bawaan fixture,
+          // pagar konvensi angka di bawah tidak menguji apa pun — angka di bawah
+          // seribu tidak punya pemisah ribuan dalam konvensi mana pun.
+          return ok([baseRow({ userName: 'Alice Anderson', amount: '1234567.89' })])
         })
       )
       setup()
       await screen.findByText('Alice Anderson')
+
+      // Pagar konvensi angka. Kolom Nominal layar ini dulu mencetak
+      // `1,234,567.89 USDX` — koma ribuan, titik desimal — sementara nilai
+      // rupiah di sebelahnya memakai kebalikannya. Assertion literal hanya
+      // membuktikan satu sel; ini membaca SELURUH badan tabel, jadi kolom baru
+      // yang kelak dipasang dengan `'en-US'` ikut memerahkannya.
+      //
+      // Yang dijaga cuma koma-sebagai-pemisah-ribuan (`1,234`); pola desimal-
+      // titik sengaja tidak dipakai karena badan tabel memuat hash terpotong
+      // yang cocok dengan pola itu tanpa satu pun angka uang terlibat.
+      const tbody = document.querySelector('tbody')
+      expect(tbody).not.toBeNull()
+      // Positif DAN negatif: ejaannya benar, dan tidak ada ejaan Inggris tersisa.
+      expect(tbody!.textContent ?? '').toContain('1.234.567,89')
+      expect(tbody!.textContent ?? '').not.toMatch(/\d,\d{3}/)
     })
 
     test('USDX-71 — "On-chain tx" + "Safe tx" columns render clickable short hashes only when present', async () => {

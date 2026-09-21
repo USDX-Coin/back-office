@@ -211,7 +211,19 @@ describe('TransactionsListPage @ USDX-206', () => {
       setup()
       await screen.findByText('alice@example.com')
       // list columns: amount + status badges visible
-      expect(screen.getByText('250.00')).toBeInTheDocument()
+      expect(screen.getByText('250,00')).toBeInTheDocument()
+
+      // Pagar konvensi angka — layar INI yang paling telanjang menunjukkan
+      // masalahnya: nominal USDX dan `Rp 4.078.500,00` berdiri di satu baris.
+      // Assertion literal di atas hanya membuktikan satu sel; ini membaca
+      // SELURUH badan tabel, jadi kolom baru yang kelak dipasang dengan
+      // `'en-US'` ikut memerahkannya. Yang dijaga cuma koma-sebagai-pemisah-
+      // ribuan (`1,234`); pola desimal-titik sengaja tidak dipakai karena badan
+      // tabel memuat hash terpotong dan id yang cocok tanpa angka uang terlibat.
+      const tbody = document.querySelector('tbody')
+      expect(tbody).not.toBeNull()
+      expect(tbody!.textContent ?? '').not.toMatch(/\d,\d{3}/)
+
       // § 4 P1-1 — header kolom berbahasa Indonesia. "Safe" khususnya: operator
       // non-crypto membacanya enam kali sehari tanpa pernah diberi tahu artinya,
       // sementara yang perlu ia tahu adalah tahap tanda tangannya. Nilai enum
@@ -733,7 +745,7 @@ describe('TransactionsListPage @ USDX-547 — Partner column', () => {
       await screen.findByText('alice@example.com')
 
       // Every pre-existing cell still says what it said before USDX-547.
-      expect(screen.getByText('250.00')).toBeInTheDocument()
+      expect(screen.getByText('250,00')).toBeInTheDocument()
       expect(screen.getByText('Rp 4.078.500,00')).toBeInTheDocument()
       expect(screen.getByRole('columnheader', { name: /pembayaran/i })).toBeInTheDocument()
       expect(screen.getByRole('columnheader', { name: /tanda tangan/i })).toBeInTheDocument()

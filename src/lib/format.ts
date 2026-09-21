@@ -1,10 +1,15 @@
+// SATU KONVENSI ANGKA DI SELURUH BACK OFFICE: titik untuk ribuan, koma untuk
+// desimal. Nominalnya boleh dolar, rupiah, USDX, atau persen — pembacanya satu
+// orang yang sama, dan `1,234.00` di sebelah `Rp 1.234,00` membuatnya berhenti
+// untuk menebak mana yang ribuan.
+//
+// Glif `$` DIPERTAHANKAN (bukan `US$` yang dihasilkan `Intl` untuk `id-ID`):
+// yang salah baca selama ini pemisahnya, bukan lambang mata uangnya, dan
+// mengganti lambang hanya menambah perubahan yang tidak menjawab apa pun.
 export function formatAmount(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
+  if (!Number.isFinite(amount)) return '—'
+  const negatif = amount < 0
+  return `${negatif ? '-' : ''}$${formatDecimalId(Math.abs(amount).toFixed(2))}`
 }
 
 // USDX-46 — preview helpers for the currency-aware amount input.
@@ -13,7 +18,7 @@ export function formatAmount(amount: number): string {
 // - USDX uses 6 decimals (like USDC/USDT) — display up to 6.
 // - IDR uses 2 decimals + locale format `Rp 16.250.000,00`.
 
-const USDX_FORMATTER = new Intl.NumberFormat('en-US', {
+const USDX_FORMATTER = new Intl.NumberFormat('id-ID', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 6,
 })
@@ -77,6 +82,29 @@ export function formatIdrRate(value: string): string {
   return `Rp ${formatDecimalId(value, 0)}`
 }
 
+/**
+ * Nominal USDX sebuah BARIS DAFTAR (`requests.amount`, `orders.amount`,
+ * `manual-sync.amount`) untuk ditampilkan — dua angka di belakang koma.
+ *
+ * Ada supaya empat halaman berhenti menulis aturan yang sama masing-masing:
+ * mint, burn, transaksi nasabah, dan perbaiki-status-nyangkut sebelumnya
+ * memformat sendiri dengan `'en-US'`, jadi `1,234,567.89 USDX` berdiri di
+ * sebelah `Rp 16.250.000,00` pada satu baris yang sama.
+ *
+ * CATATAN SADAR — `Number()` di sini SUDAH ADA sebelumnya dan TIDAK diubah
+ * bersama perapian ejaan ini. Yang diminta perubahan PENYAJIAN, dan mengganti
+ * jalur numeriknya juga akan mengubah pembulatan (`Number('1.005')` dibulatkan,
+ * pemotongan string tidak) — perubahan perilaku yang tidak diminta siapa pun di
+ * layar uang. Nilai di atas 2^53 karena itu masih kehilangan presisi di sini,
+ * persis seperti sebelumnya; kalau itu hendak dibereskan, satu-satunya tempat
+ * yang perlu disentuh sekarang ini, bukan empat halaman.
+ */
+export function formatUsdxListAmount(nilai: string): string {
+  const n = Number(nilai)
+  if (!Number.isFinite(n)) return nilai
+  return n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 // Generic middle-truncation for a hex string (address / tx hash):
 // `0x1234…abcd`. Returns the value unchanged when it is already short enough.
 // USDX-27: used by <TruncatedHash> for the responsive (mobile vs desktop)
@@ -124,13 +152,13 @@ export function formatShortDate(dateString: string): string {
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' })
 const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
 
-// Format a decimal rate string ("16250.00") as "16,250.00 IDR/USD".
-// Falls back to the raw string when input cannot be parsed, so we never
-// hide unexpected backend values behind a coercion artifact.
+// String desimal kurs ("16250.00") → "16.250,00 IDR/USD".
+// Nilai yang tidak terbaca dikembalikan APA ADANYA, supaya jawaban backend yang
+// tak terduga tidak tersembunyi di balik artefak koersi.
 export function formatRate(rate: string): string {
   const n = Number(rate)
   if (!Number.isFinite(n)) return rate
-  return `${new Intl.NumberFormat('en-US', {
+  return `${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)} IDR/USD`
@@ -142,7 +170,7 @@ export function formatRate(rate: string): string {
 export function formatSpreadPct(pct: string): string {
   const n = Number(pct)
   if (!Number.isFinite(n)) return `${pct}%`
-  return `${new Intl.NumberFormat('en-US', {
+  return `${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(n)}%`
@@ -208,7 +236,7 @@ export function formatBankAmount(
   if (!Number.isFinite(n)) return '—'
   if (currency === 'IDR') return formatIdrAmount(n)
   if (currency === 'USD') return formatAmount(n)
-  const plain = new Intl.NumberFormat('en-US', {
+  const plain = new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)

@@ -10,7 +10,7 @@ import { TableCellText } from '@/components/ui/table'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { buildOrderFilterDefs, ORDER_COLUMN_CONFIG } from './filterDefs'
-import { formatIdrAmount, formatShortDate } from '@/lib/format'
+import { formatIdrAmount, formatShortDate, formatUsdxListAmount } from '@/lib/format'
 import { PARTNER_CUSTOMER_EMAIL_LABEL } from '@/lib/pii'
 import {
   getOrderStatusConfig,
@@ -169,10 +169,7 @@ export default function TransactionsListPage() {
       size: 176,
       header: 'Nominal',
       cell: ({ getValue }) => {
-        const teks = `${Number(getValue() as string).toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USDX`
+        const teks = `${formatUsdxListAmount(getValue() as string)} USDX`
         return (
           <span
             className="block truncate font-mono font-medium tabular-nums"

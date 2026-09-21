@@ -39,7 +39,7 @@ describe('RatePage @integration', () => {
         expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
       })
       expect(screen.getByText('DYNAMIC')).toBeInTheDocument()
-      expect(screen.getByText('0.5%')).toBeInTheDocument()
+      expect(screen.getByText('0,5%')).toBeInTheDocument()
     })
   })
 
@@ -126,7 +126,7 @@ describe('RatePage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/ubah kurs yang berlaku\?/i)).toBeInTheDocument()
       // Diff renders the new manual rate (formatted)
-      expect(within(dialog).getByText(/16,500\.00 IDR\/USD/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/16\.500,00 IDR\/USD/)).toBeInTheDocument()
       // Cancel button keeps the form alive without submitting
       await user.click(within(dialog).getByRole('button', { name: /batal/i }))
       await waitFor(() => {

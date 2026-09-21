@@ -66,34 +66,36 @@ describe('shortRequestId', () => {
   })
 })
 
+// Ejaan Indonesia, glif `$` dipertahankan: yang salah dibaca operator adalah
+// pemisahnya, bukan lambang mata uangnya.
 describe('formatAmount', () => {
   describe('positive', () => {
     test('should format whole numbers with currency', () => {
-      expect(formatAmount(10000)).toBe('$10,000.00')
+      expect(formatAmount(10000)).toBe('$10.000,00')
     })
 
     test('should format decimals', () => {
-      expect(formatAmount(1234.56)).toBe('$1,234.56')
+      expect(formatAmount(1234.56)).toBe('$1.234,56')
     })
 
     test('should format zero', () => {
-      expect(formatAmount(0)).toBe('$0.00')
+      expect(formatAmount(0)).toBe('$0,00')
     })
   })
 
   describe('negative', () => {
     test('should format negative amounts', () => {
-      expect(formatAmount(-500)).toBe('-$500.00')
+      expect(formatAmount(-500)).toBe('-$500,00')
     })
   })
 
   describe('edge cases', () => {
     test('should format very large numbers', () => {
-      expect(formatAmount(1000000000)).toBe('$1,000,000,000.00')
+      expect(formatAmount(1000000000)).toBe('$1.000.000.000,00')
     })
 
     test('should round to 2 decimal places', () => {
-      expect(formatAmount(99.999)).toBe('$100.00')
+      expect(formatAmount(99.999)).toBe('$100,00')
     })
   })
 })
@@ -171,10 +173,10 @@ describe('formatRelativeTime', () => {
 describe('formatRate', () => {
   describe('positive', () => {
     test('should format SoT example with 2 decimals + unit', () => {
-      expect(formatRate('16250.00')).toBe('16,250.00 IDR/USD')
+      expect(formatRate('16250.00')).toBe('16.250,00 IDR/USD')
     })
     test('should format integer string', () => {
-      expect(formatRate('16500')).toBe('16,500.00 IDR/USD')
+      expect(formatRate('16500')).toBe('16.500,00 IDR/USD')
     })
   })
 
@@ -188,13 +190,13 @@ describe('formatRate', () => {
 describe('formatSpreadPct', () => {
   describe('positive', () => {
     test('should format SoT example as literal percent', () => {
-      expect(formatSpreadPct('0.5')).toBe('0.5%')
+      expect(formatSpreadPct('0.5')).toBe('0,5%')
     })
     test('should format zero', () => {
       expect(formatSpreadPct('0')).toBe('0%')
     })
     test('should drop trailing zeros up to 2 decimals', () => {
-      expect(formatSpreadPct('1.50')).toBe('1.5%')
+      expect(formatSpreadPct('1.50')).toBe('1,5%')
     })
   })
 
@@ -253,7 +255,7 @@ describe('formatBankAmount', () => {
     })
 
     test('formats USD with the dollar format', () => {
-      expect(formatBankAmount('1250.5', 'USD')).toBe('$1,250.50')
+      expect(formatBankAmount('1250.5', 'USD')).toBe('$1.250,50')
     })
   })
 
@@ -267,11 +269,11 @@ describe('formatBankAmount', () => {
 
   describe('edge cases', () => {
     test('falls back to a plain number plus the code for an unknown currency', () => {
-      expect(formatBankAmount('10', 'SGD')).toBe('10.00 SGD')
+      expect(formatBankAmount('10', 'SGD')).toBe('10,00 SGD')
     })
 
     test('falls back to a bare number when the bank sent no currency', () => {
-      expect(formatBankAmount('10', null)).toBe('10.00')
+      expect(formatBankAmount('10', null)).toBe('10,00')
     })
   })
 })
