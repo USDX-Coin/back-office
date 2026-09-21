@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Download, Loader2, Play } from 'lucide-react'
+import { History, Loader2, Play } from 'lucide-react'
+import { toast } from 'sonner'
 import DateRangeFields from '@/components/DateRangeFields'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -14,19 +15,23 @@ import {
 } from '@/components/ui/select'
 import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { validateDateRange } from '@/lib/dateRange'
-import { formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
-import type { BniAccount, BniStatement, BniStatementType } from '@/lib/types'
+import type { BniAccount, BniStatementType } from '@/lib/types'
 import { describeBniError } from './errors'
-import { useBniStatement, type BniStatementParams } from './hooks'
+import { useBniStatement, useRefreshStatement, type BniStatementParams } from './hooks'
+import { historyNotice, refreshResultText } from './statementCopy'
 import { exportStatementCsv } from './statementCsv'
+import StatementRefreshButton, { StatementRefreshError } from './StatementRefreshButton'
+import StatementResultsHeader from './StatementResultsHeader'
 import { sortStatementRows } from './statementRows'
-import { anomalyLine, countAnomalyRows, postingRangeDiffers, STATEMENT_TYPE_LABEL } from './statementSummary'
+import { STATEMENT_TYPE_LABEL } from './statementSummary'
 import StatementTable from './StatementTable'
 
-// USDX-631 — sot/bni-integration.md § 16.4 "Panel mutasi" / "Ringkasan" /
-// "Tabel" / "CSV". The form is a DRAFT; "Tarik" snapshots it into the applied
-// params that key the query, so the result header always names what was
-// actually pulled even while the operator edits the form.
+// USDX-631 / USDX-692 — sot/bni-integration.md § 16.4 "Panel mutasi" / "Tabel"
+// / "CSV", amended by § 16.8.8 (D24): "Tarik" reads the USDX COPY of the
+// statement — zero bank contact — and "Segarkan dari bank" is the only thing
+// here that reaches the bank. The form is a DRAFT; "Tarik" snapshots it into
+// the applied params that key the query, so the result header always names
+// what was actually pulled even while the operator edits the form.
 
 const PAGE_SIZE = 10
 const MAX_DAYS = 31
@@ -51,115 +56,6 @@ function sameParams(a: BniStatementParams, b: BniStatementParams): boolean {
   )
 }
 
-function ResultsHeader({
-  applied,
-  accountLabel,
-  statement,
-  onExport,
-  exportDisabled,
-}: {
-  applied: BniStatementParams
-  accountLabel: string
-  statement: BniStatement | undefined
-  onExport: () => void
-  exportDisabled: boolean
-}) {
-  const summary = statement?.summary
-  const rows = statement?.rows ?? []
-  const rangeDiffers =
-    summary !== undefined &&
-    postingRangeDiffers(applied, summary.fromPostingDate, summary.toPostingDate)
-
-  return (
-    <div className="space-y-3 border-b border-border px-4 py-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0" data-testid="bni-statement-applied">
-          <p className="text-[13px] font-semibold">
-            {accountLabel}{' '}
-            <span className="font-mono text-[11.5px] font-normal text-muted-foreground">
-              {applied.accountNo}
-            </span>
-          </p>
-          <p className="font-mono text-[11.5px] text-muted-foreground">
-            {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
-            {statement && (
-              <>
-                {' · '}Tarikan {formatWibDateTime(statement.pulledAt)}
-                {' · '}
-                <span title="pullId (korelasi activity_log ↔ api_call_log)">pull {statement.pullId}</span>
-              </>
-            )}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onExport}
-          disabled={exportDisabled}
-          data-testid="bni-statement-export-csv"
-        >
-          <Download className="mr-1.5 h-4 w-4" />
-          Unduh CSV
-        </Button>
-      </div>
-
-      {summary && (
-        <dl
-          className="grid gap-x-6 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4"
-          aria-labelledby="bni-statement-summary-caption"
-          data-testid="bni-statement-summary"
-        >
-          {/* `<dl>` only admits dt/dd/div children — the caption is a div. */}
-          <div
-            id="bni-statement-summary-caption"
-            className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
-          >
-            Ringkasan menurut bank untuk rentang ini
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Saldo awal (menurut bank)</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.beginningBalance, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Total masuk (menurut bank)</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.totalCredit, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Total keluar (menurut bank)</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBankAmount(summary.totalDebit, summary.currency)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Rentang posting berlaku (menurut bank)</dt>
-            <dd className="font-mono tabular-nums">
-              {formatBniPostDate(summary.fromPostingDate)} – {formatBniPostDate(summary.toPostingDate)}
-              {rangeDiffers && (
-                <span className="ml-1.5 font-sans text-warning">(beda dari yang diminta)</span>
-              )}
-            </dd>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-4">
-            <dt className="sr-only">Jumlah baris dan anomali</dt>
-            <dd className="text-muted-foreground">
-              <span data-testid="bni-statement-row-count">{rows.length} baris ditampilkan</span>
-              {' · '}
-              <span data-testid="bni-statement-anomalies">
-                {anomalyLine(countAnomalyRows(rows), summary.anomalies)}
-              </span>
-            </dd>
-          </div>
-        </dl>
-      )}
-    </div>
-  )
-}
-
 interface Props {
   accounts: readonly BniAccount[]
 }
@@ -168,6 +64,11 @@ export default function StatementPanel({ accounts }: Props) {
   const [draft, setDraft] = useState<Draft>(INITIAL_DRAFT)
   const [applied, setApplied] = useState<BniStatementParams | null>(null)
   const statement = useBniStatement(applied)
+  // § 16.8.8 "aktif hanya bila rekening sudah dipilih": with a result on screen
+  // the target is the APPLIED account (the one the header names, whatever the
+  // form says now); before any pull it is the account picked in the form.
+  const refreshTarget = applied?.accountNo ?? (draft.accountNo !== NO_ACCOUNT ? draft.accountNo : null)
+  const refresh = useRefreshStatement(refreshTarget)
   const tableParams = useDataTableParams()
 
   // "Today" is read when a preset / Tarik is pressed, not at mount — an
@@ -175,7 +76,10 @@ export default function StatementPanel({ accounts }: Props) {
   const datesEmpty = draft.startDate === '' && draft.endDate === ''
   const rules = { maxDays: MAX_DAYS, maxDate: todayInJakarta() }
   const verdict = datesEmpty ? { valid: true } : validateDateRange(draft, rules)
-  const canPull = draft.accountNo !== NO_ACCOUNT && verdict.valid && !statement.isFetching
+  // Tarik and Segarkan never overlap: a pull issued mid-refresh would re-read
+  // the copy BEFORE the bank's entries are stored and then miss the refetch.
+  const canPull =
+    draft.accountNo !== NO_ACCOUNT && verdict.valid && !statement.isFetching && !refresh.isPending
 
   function applyPreset(daysBack: number) {
     const today = todayInJakarta()
@@ -194,6 +98,8 @@ export default function StatementPanel({ accounts }: Props) {
     // page the operator was on, and a stale `?page=` would render a false
     // "no rows" state (review finding, USDX-631).
     tableParams.updateParams({ page: null })
+    // A refresh failure belongs to the result it was shown on.
+    refresh.reset()
     if (applied && sameParams(applied, next)) {
       // Same parameters again = an explicit re-pull, never a cache hit.
       void statement.refetch()
@@ -202,11 +108,41 @@ export default function StatementPanel({ accounts }: Props) {
     setApplied(next)
   }
 
+  function refreshFromBank() {
+    if (!refreshTarget || refresh.isPending || statement.isFetching) return
+    refresh.mutate(undefined, {
+      onSuccess: (result) => {
+        toast.success(refreshResultText(result))
+        // Re-read the copy under the APPLIED key — never the live form. Before
+        // the first Tarik there is no result to re-read: the entries are stored
+        // and the next Tarik shows them.
+        if (applied) void statement.refetch()
+      },
+    })
+  }
+
+  const refreshError = refresh.error ? describeBniError(refresh.error) : null
+  // The results header carries its own; `idle` and `error` have no header.
+  const refreshStrip = (
+    <div className="space-y-3 border-b border-border px-4 py-3">
+      <div className="flex justify-end">
+        <StatementRefreshButton
+          onRefresh={refreshFromBank}
+          disabled={refreshTarget === null || refresh.isPending || statement.isFetching}
+          refreshing={refresh.isPending}
+        />
+      </div>
+      <StatementRefreshError error={refreshError} />
+    </div>
+  )
+
   const appliedAccount = applied
     ? accounts.find((a) => a.accountNo === applied.accountNo) ?? null
     : null
   const sorted = statement.data ? sortStatementRows(statement.data.rows) : []
   const errorView = statement.error ? describeBniError(statement.error) : null
+  const history =
+    applied && statement.data ? historyNotice(applied, statement.data.historyAvailableSince) : null
 
   return (
     <section aria-labelledby="bni-statement-heading">
@@ -219,7 +155,12 @@ export default function StatementPanel({ accounts }: Props) {
           <Label className={LABEL_CLASS}>Rekening</Label>
           <Select
             value={draft.accountNo}
-            onValueChange={(accountNo) => setDraft((d) => ({ ...d, accountNo }))}
+            onValueChange={(accountNo) => {
+              // Before the first Tarik the form's account IS the refresh target:
+              // a failure shown for the previous pick must not outlive it.
+              if (!applied) refresh.reset()
+              setDraft((d) => ({ ...d, accountNo }))
+            }}
           >
             <SelectTrigger className="h-9 bg-card" aria-label="Rekening">
               <SelectValue placeholder="Pilih rekening" />
@@ -298,26 +239,32 @@ export default function StatementPanel({ accounts }: Props) {
 
       <div className="rounded-md border border-border bg-card">
         {applied === null ? (
-          <TableEmptyState
-            mode="no-data"
-            title="Belum ada tarikan"
-            description="Pilih rekening dan rentang, lalu tekan Tarik untuk melihat mutasi."
-          />
+          <>
+            {refreshStrip}
+            <TableEmptyState
+              mode="no-data"
+              title="Belum ada tarikan"
+              description="Pilih rekening dan rentang, lalu tekan Tarik untuk melihat mutasi."
+            />
+          </>
         ) : errorView ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert">
-            <p className="text-[13px] font-medium text-destructive">{errorView.message}</p>
-            {errorView.retryable && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void statement.refetch()}
-                disabled={statement.isFetching}
-              >
-                Coba lagi
-              </Button>
-            )}
-          </div>
+          <>
+            {refreshStrip}
+            <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert">
+              <p className="text-[13px] font-medium text-destructive">{errorView.message}</p>
+              {errorView.retryable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void statement.refetch()}
+                  disabled={statement.isFetching || refresh.isPending}
+                >
+                  Coba lagi
+                </Button>
+              )}
+            </div>
+          </>
         ) : (
           <StatementTable
             rows={sorted}
@@ -326,11 +273,15 @@ export default function StatementPanel({ accounts }: Props) {
             currency={statement.data?.summary.currency}
             isLoading={statement.isPending}
             toolbar={
-              <ResultsHeader
+              <StatementResultsHeader
                 applied={applied}
                 accountLabel={statement.data?.applied.label ?? appliedAccount?.label ?? 'Rekening'}
                 statement={statement.data}
                 exportDisabled={sorted.length === 0 || statement.isFetching}
+                onRefresh={refreshFromBank}
+                refreshDisabled={refresh.isPending || statement.isFetching}
+                refreshing={refresh.isPending}
+                refreshError={refreshError}
                 onExport={() => {
                   if (!statement.data) return
                   exportStatementCsv(statement.data.applied, statement.data.rows)
@@ -338,11 +289,24 @@ export default function StatementPanel({ accounts }: Props) {
               />
             }
             emptyState={
-              <TableEmptyState
-                mode="no-data"
-                title="Tidak ada mutasi pada rentang ini"
-                description="Bank tidak mengembalikan transaksi untuk rekening, rentang, dan jenis yang diterapkan."
-              />
+              // § 16.8.8: a range the copy cannot cover is NOT "no mutations" —
+              // the operator is pointed at the portal, never told the account was quiet.
+              history?.kind === 'entire' ? (
+                <div
+                  className="flex flex-col items-center gap-3 px-4 py-12 text-center"
+                  role="status"
+                  data-testid="bni-statement-history-notice"
+                >
+                  <History className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} aria-hidden />
+                  <p className="max-w-xl text-[13px] font-medium text-foreground">{history.text}</p>
+                </div>
+              ) : (
+                <TableEmptyState
+                  mode="no-data"
+                  title="Tidak ada mutasi terekam pada rentang ini"
+                  description="Salinan USDX tidak memuat mutasi untuk rekening, rentang, dan jenis yang diterapkan."
+                />
+              )
             }
           />
         )}

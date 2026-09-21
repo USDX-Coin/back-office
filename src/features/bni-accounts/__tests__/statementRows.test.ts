@@ -1,11 +1,19 @@
 import { describe, test, expect } from 'vitest'
 import type { BniStatementRow } from '@/lib/types'
-import { pageOf, sortStatementRows, statementRowKey } from '../statementRows'
+import {
+  pageOf,
+  sortStatementRows,
+  statementRowKey,
+  statementSourceLabel,
+} from '../statementRows'
 
 // USDX-631 — sot/bni-integration.md § 16.4 "Tabel" ordering rules.
 
 function row(over: Partial<BniStatementRow>): BniStatementRow {
   return {
+    id: '019e2b10-0000-7000-8000-000000000001',
+    source: 'BANK',
+    recordedAt: '2026-09-09T07:30:05.000Z',
     postDate: '20260909120000',
     flag: 'C',
     amount: '1000.00',
@@ -42,15 +50,15 @@ describe('sortStatementRows', () => {
   })
 
   describe('edge cases', () => {
-    test('equal postDate keeps original order (stable) and index survives for the key', () => {
+    test('equal postDate keeps original order (stable); the key is the row id even when journalNo + postDate repeat', () => {
       const out = sortStatementRows([
-        row({ postDate: '20260909000000', journalNo: 'same' }),
-        row({ postDate: '20260909000000', journalNo: 'same' }),
+        row({ id: 'entry-a', postDate: '20260909000000', journalNo: 'same' }),
+        row({ id: 'entry-b', postDate: '20260909000000', journalNo: 'same' }),
       ])
       expect(out.map((r) => r.index)).toEqual([0, 1])
-      expect(statementRowKey(out[0]!)).toBe('same-20260909000000-0')
-      expect(statementRowKey(out[1]!)).toBe('same-20260909000000-1')
-      expect(statementRowKey(out[0]!)).not.toBe(statementRowKey(out[1]!))
+      // D24: the key is the copy's row id, never journalNo/postDate/position.
+      expect(statementRowKey(out[0]!)).toBe('entry-a')
+      expect(statementRowKey(out[1]!)).toBe('entry-b')
     })
 
     test('does not mutate the input', () => {
@@ -58,6 +66,31 @@ describe('sortStatementRows', () => {
       const snapshot = input.map((r) => r.postDate)
       sortStatementRows(input)
       expect(input.map((r) => r.postDate)).toEqual(snapshot)
+    })
+  })
+})
+
+describe('statementSourceLabel', () => {
+  describe('positive', () => {
+    test('BANK → "BANK", UPLOAD → "UNGGAHAN" (§ 16.8.8)', () => {
+      expect(statementSourceLabel('BANK')).toBe('BANK')
+      expect(statementSourceLabel('UPLOAD')).toBe('UNGGAHAN')
+    })
+  })
+
+  describe('negative', () => {
+    test('a missing source is an empty label, never the word "undefined"', () => {
+      expect(statementSourceLabel(undefined)).toBe('')
+      expect(statementSourceLabel(null)).toBe('')
+      expect(statementSourceLabel('')).toBe('')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('an unknown value is shown as-is — the enum is open', () => {
+      expect(statementSourceLabel('X')).toBe('X')
+      // Object.prototype keys must not resolve to a function.
+      expect(statementSourceLabel('toString')).toBe('toString')
     })
   })
 })

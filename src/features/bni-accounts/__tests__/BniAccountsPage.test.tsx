@@ -2,15 +2,16 @@ import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vite
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
+import { toast } from 'sonner'
 import { server } from '@/mocks/server'
-import { resetMockData } from '@/mocks/handlers'
+import { configureBniRefreshForTests, resetMockData } from '@/mocks/handlers'
 import {
   BNI_MOCK_ACCOUNTS,
   createBniBalances,
   createBniStatement,
   createBniStatementRows,
 } from '@/mocks/data'
-import { todayInJakarta } from '@/features/reports/dateRange'
+import { shiftIsoDate, todayInJakarta } from '@/features/reports/dateRange'
 import { UTF8_BOM } from '@/lib/csv'
 import type { BniStatementRow } from '@/lib/types'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
@@ -103,7 +104,9 @@ function pullButton() {
   return screen.getByTestId('bni-statement-pull')
 }
 
-function statementHandler(rows: BniStatementRow[]) {
+type CopyOverrides = Parameters<typeof createBniStatement>[4]
+
+function statementHandler(rows: BniStatementRow[], copy: CopyOverrides = {}) {
   return http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
     const url = new URL(request.url)
     const type = (url.searchParams.get('type') ?? 'ALL') as 'ALL' | 'CREDIT' | 'DEBIT'
@@ -120,7 +123,10 @@ function statementHandler(rows: BniStatementRow[]) {
           endDate: url.searchParams.get('endDate') ?? '',
           type,
         },
-        filtered
+        filtered,
+        {},
+        new Date(),
+        copy
       )
     )
   })
@@ -294,12 +300,15 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
       expect(screen.getByRole('combobox', { name: 'Rekening' })).toHaveTextContent('Pilih rekening')
       expect(pullButton()).toBeDisabled()
+      // § 16.8.8: "Segarkan dari bank" is active only once an account is selected.
+      expect(screen.getByTestId('bni-statement-refresh')).toBeDisabled()
 
       await pickAccount(user, /treasury np/i)
       expect(pullButton()).toBeEnabled()
+      expect(screen.getByTestId('bni-statement-refresh')).toBeEnabled()
     })
 
-    test('NP + Keluar + Tarik → request type=DEBIT, only D rows, summary shows bank figures + rowCount', async () => {
+    test('NP + Keluar + Tarik → request type=DEBIT, only D rows, summary "menurut salinan USDX" + saldo akhir + rowCount', async () => {
       const user = userEvent.setup()
       const probe = recordRequests('/api/v1/bni-accounts/')
       renderPage()
@@ -319,10 +328,37 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(within(table).getAllByText('Keluar').length).toBeGreaterThan(0)
 
       const summary = screen.getByTestId('bni-statement-summary')
-      expect(within(summary).getByText('Saldo awal (menurut bank)')).toBeInTheDocument()
+      // § 16.8.8: the figures are the USDX copy's, and say so; the bank's
+      // "rentang posting berlaku" is gone with the direct pull.
+      expect(summary).toHaveTextContent('Ringkasan menurut salinan USDX')
+      expect(summary).not.toHaveTextContent('menurut bank')
+      expect(summary).not.toHaveTextContent('Rentang posting')
+      for (const label of ['Saldo awal', 'Total masuk', 'Total keluar', 'Saldo akhir']) {
+        expect(within(summary).getByText(label)).toBeInTheDocument()
+      }
       expect(within(summary).getByText('Rp 500.000.000,00')).toBeInTheDocument()
+      // The summary is the ACCOUNT's for the range, not the filter's (§ 16.8.6):
+      // 500M + 13.75M in (8 C rows) − 6M out (4 D rows), although only D rows show.
+      expect(screen.getByTestId('bni-statement-closing-balance')).toHaveTextContent('Rp 507.750.000,00')
+      expect(within(summary).getByText('Rp 13.750.000,00')).toBeInTheDocument()
       expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('4 baris ditampilkan')
       expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent('Keluar')
+      // § 16.8.8 header hasil: parameter terapan · "direkam s/d … WIB" · pullId.
+      expect(screen.getByTestId('bni-statement-recorded-through')).toHaveTextContent(
+        /^direkam s\/d \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} WIB$/
+      )
+      expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent(/pull 019e2b00-/)
+      // § 16.8.8 (keputusan PM, PR #112): reading the copy never contacts the
+      // bank, so the STATEMENT pullId pairs with activity_log only. The balance
+      // header still reaches the bank and keeps the § 16.4 text.
+      const statementPull = within(screen.getByTestId('bni-statement-applied')).getByText(/^pull 019e2b00-/)
+      expect(statementPull).toHaveAttribute('title', 'pullId (korelasi activity_log)')
+      const balancePulls = screen
+        .getAllByTitle('pullId (korelasi activity_log ↔ api_call_log)')
+        .filter((el) => !screen.getByTestId('bni-statement-applied').contains(el))
+      expect(balancePulls).toHaveLength(1)
+      // Tarik reads the copy: it never asks the bank to refresh.
+      expect(probe.urls.some((u) => u.includes('/statement/refresh'))).toBe(false)
       probe.stop()
     })
 
@@ -348,7 +384,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
       const text = new TextDecoder().decode(bytes.slice(3))
       const lines = text.split('\n')
-      expect(lines[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang')
+      expect(lines[0]).toBe('Tanggal Posting,D/C,Nominal,Saldo,Deskripsi,No. Jurnal,Cabang,Sumber')
       expect(lines).toHaveLength(1 + 120)
       const [postDate, flag, amount] = lines[1]!.split(',')
       expect(postDate).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
@@ -373,7 +409,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       probe.stop()
     })
 
-    test('empty result → "Tidak ada mutasi pada rentang ini" and Unduh CSV disabled', async () => {
+    test('empty result → "Tidak ada mutasi terekam pada rentang ini" (never blames the bank) and Unduh CSV disabled', async () => {
       const user = userEvent.setup()
       server.use(statementHandler([]))
       renderPage()
@@ -381,7 +417,8 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await pickAccount(user, /treasury np/i)
       setRange(TODAY, TODAY)
       await user.click(pullButton())
-      expect(await screen.findByText('Tidak ada mutasi pada rentang ini')).toBeInTheDocument()
+      expect(await screen.findByText('Tidak ada mutasi terekam pada rentang ini')).toBeInTheDocument()
+      expect(screen.queryByText(/Bank tidak mengembalikan transaksi/)).not.toBeInTheDocument()
       expect(screen.getByTestId('bni-statement-export-csv')).toBeDisabled()
     })
 
@@ -523,7 +560,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('5 baris'))
       // Back on page 1 with the 5 rows visible — not an empty slice of page 3.
       expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
-      expect(screen.queryByText('Tidak ada mutasi pada rentang ini')).not.toBeInTheDocument()
+      expect(screen.queryByText('Tidak ada mutasi terekam pada rentang ini')).not.toBeInTheDocument()
     })
 
     test('changing the account in the form after a pull keeps the APPLIED account in the results header', async () => {
@@ -568,6 +605,9 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       const user = userEvent.setup()
       const good = createBniStatementRows(3, TODAY, TODAY)
       const bad: BniStatementRow = {
+        id: '019e2b10-0000-7000-8000-0000000000ba',
+        source: 'BANK',
+        recordedAt: '2026-09-09T07:30:05.000Z',
         postDate: null,
         flag: 'C',
         amount: null,
@@ -595,6 +635,369 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(within(last).getAllByText('—').length).toBeGreaterThanOrEqual(2)
       expect(last).not.toHaveTextContent('NaN')
       expect(last).not.toHaveTextContent('Invalid Date')
+    })
+
+    test('kolom Sumber: BANK / UNGGAHAN, and an unknown source ("X") is shown as-is without crashing', async () => {
+      const user = userEvent.setup()
+      const [bank, upload, unknown] = createBniStatementRows(3, TODAY, TODAY) as [
+        BniStatementRow,
+        BniStatementRow,
+        BniStatementRow,
+      ]
+      server.use(
+        statementHandler([
+          bank,
+          { ...upload, source: 'UPLOAD' },
+          { ...unknown, source: 'X' as BniStatementRow['source'] },
+        ])
+      )
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris'))
+
+      const table = within(screen.getByRole('table'))
+      expect(table.getByRole('columnheader', { name: 'Sumber' })).toBeInTheDocument()
+      const bodyRows = table.getAllByRole('row').slice(1)
+      expect(bodyRows.map((r) => within(r).getAllByRole('cell').at(-1)?.textContent)).toEqual([
+        'BANK',
+        'UNGGAHAN',
+        'X',
+      ])
+    })
+  })
+})
+
+// USDX-692 — sot/bni-integration.md § 16.8.8: the statement is read from the
+// USDX copy, so the panel states since when history exists, where the balance
+// chain proves a missing mutation, and offers "Segarkan dari bank".
+describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
+  async function pullNp(user: ReturnType<typeof userEvent.setup>, startDate = TODAY, endDate = TODAY) {
+    renderPage()
+    await waitForCards()
+    await pickAccount(user, /treasury np/i)
+    setRange(startDate, endDate)
+    await user.click(pullButton())
+    await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toBeInTheDocument())
+  }
+
+  describe('positive', () => {
+    test('historyAvailableSince in the middle of the range → banner ABOVE a table that still holds rows', async () => {
+      const user = userEvent.setup()
+      const since = shiftIsoDate(TODAY, -2)
+      server.use(
+        statementHandler(createBniStatementRows(3, since, TODAY), { historyAvailableSince: since })
+      )
+      await pullNp(user, shiftIsoDate(TODAY, -6), TODAY)
+
+      const [d, m, y] = [since.slice(8, 10), since.slice(5, 7), since.slice(0, 4)]
+      const notice = screen.getByTestId('bni-statement-history-notice')
+      expect(notice).toHaveTextContent(
+        `Riwayat tersedia sejak ${d}/${m}/${y} — untuk tanggal sebelumnya lihat portal BNIDirect`
+      )
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris')
+      const table = screen.getByRole('table')
+      expect(within(table).getAllByRole('row').length).toBe(1 + 3)
+      // Above the table, not inside it.
+      expect(notice.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    test('two gaps → two warnings with both bracketing times + the difference in the account currency, no dismiss control', async () => {
+      const user = userEvent.setup()
+      server.use(
+        statementHandler(createBniStatementRows(3, TODAY, TODAY), {
+          gaps: [
+            {
+              kind: 'BETWEEN_ENTRIES',
+              afterAt: '20260917134015',
+              afterBalance: '10014440.00',
+              beforeAt: '20260918091233',
+              beforeBalance: '10024451.00',
+              difference: '10011.00',
+            },
+            {
+              kind: 'TAIL',
+              afterAt: '20260918091233',
+              afterBalance: '10024451.00',
+              beforeAt: '202609181000',
+              beforeBalance: '10000000.00',
+              difference: null,
+            },
+          ],
+        })
+      )
+      await pullNp(user)
+
+      const gaps = screen.getAllByTestId('bni-statement-gap')
+      expect(gaps).toHaveLength(2)
+      expect(gaps[0]).toHaveTextContent(
+        'Ada mutasi yang tidak terekam antara 2026-09-17 13:40:15 dan 2026-09-18 09:12:33 — selisih +Rp 10.011,00. Cek rekening koran di portal BNIDirect.'
+      )
+      expect(gaps[1]).toHaveTextContent('antara 2026-09-18 09:12:33 dan 2026-09-18 10:00')
+      expect(gaps[1]).toHaveTextContent('nominal tidak dapat dihitung')
+      // K15: a gap cannot be dismissed or ignored.
+      for (const gap of gaps) expect(within(gap).queryByRole('button')).not.toBeInTheDocument()
+      // The table is still there, under the warnings.
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('3 baris')
+    })
+
+    test('a USD account formats the gap difference in dollars', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
+          const url = new URL(request.url)
+          return envelope(
+            createBniStatement(
+              {
+                accountNo: String(params.accountNo),
+                role: 'TREASURY_USD',
+                label: 'Treasury USD (Giro USD)',
+                startDate: url.searchParams.get('startDate') ?? '',
+                endDate: url.searchParams.get('endDate') ?? '',
+                type: 'ALL',
+              },
+              [],
+              {},
+              new Date(),
+              {
+                gaps: [
+                  {
+                    kind: 'TAIL',
+                    afterAt: null,
+                    afterBalance: null,
+                    beforeAt: '202609181000',
+                    beforeBalance: '12500.75',
+                    difference: '-1250.50',
+                  },
+                ],
+              }
+            )
+          )
+        })
+      )
+      await pullNp(user)
+
+      expect(screen.getByTestId('bni-statement-gap')).toHaveTextContent(
+        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1,250.50.'
+      )
+    })
+
+    test('STAFF: Segarkan dari bank → disabled while running, toast "2 mutasi baru terekam", statement re-read with the APPLIED params (not the live form)', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      // Slow the refresh down, then fall through to the stateful default handler.
+      server.use(
+        http.post('/api/v1/bni-accounts/:accountNo/statement/refresh', async () => {
+          await delay(80)
+        })
+      )
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      await pullNp(user)
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('12 baris'))
+      const firstStatementCall = probe.urls.find((u) => u.includes('/statement?'))!
+
+      // The operator edits the form AFTER the pull — the refresh must ignore it.
+      await pickAccount(user, /collection/i)
+      await pickType(user, 'Masuk')
+
+      const refreshButton = screen.getByTestId('bni-statement-refresh')
+      expect(refreshButton).toBeEnabled()
+      await user.click(refreshButton)
+      expect(refreshButton).toBeDisabled()
+
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+      expect(refreshButton).toBeEnabled()
+
+      expect(probe.urls.filter((u) => u.endsWith('/statement/refresh'))).toEqual([
+        `/api/v1/bni-accounts/${NP.accountNo}/statement/refresh`,
+      ])
+      expect(probe.urls.filter((u) => u.includes('/statement?'))).toEqual([
+        firstStatementCall,
+        firstStatementCall,
+      ])
+      expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent('Treasury NP')
+      probe.stop()
+    })
+
+    test('a second refresh finds nothing new → toast "Tidak ada mutasi baru"', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      await pullNp(user)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-refresh')).toBeEnabled())
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      await waitFor(() => expect(okSpy).toHaveBeenLastCalledWith('Tidak ada mutasi baru'))
+    })
+
+    test('before any Tarik: Segarkan targets the account picked in the form, stores, toasts — and reads nothing (no result to re-read)', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+
+      expect(probe.urls.filter((u) => u.endsWith('/statement/refresh'))).toEqual([
+        `/api/v1/bni-accounts/${NP.accountNo}/statement/refresh`,
+      ])
+      expect(probe.urls.some((u) => u.includes('/statement?'))).toBe(false)
+      expect(screen.getByText('Belum ada tarikan')).toBeInTheDocument()
+
+      // The stored entries are there for the first Tarik.
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+      probe.stop()
+    })
+  })
+
+  describe('negative', () => {
+    test('a range entirely before the history → ONLY the history banner, never "Tidak ada mutasi terekam"', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: TODAY }))
+      await pullNp(user, shiftIsoDate(TODAY, -5), shiftIsoDate(TODAY, -1))
+
+      expect(screen.getAllByTestId('bni-statement-history-notice')).toHaveLength(1)
+      expect(screen.getByTestId('bni-statement-history-notice')).toHaveTextContent(/Riwayat tersedia sejak/)
+      expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
+    })
+
+    test('a range inside the history with an unbroken chain shows no banner at all', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: shiftIsoDate(TODAY, -10) }))
+      await pullNp(user)
+
+      expect(screen.queryByTestId('bni-statement-history-notice')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('bni-statement-gap')).not.toBeInTheDocument()
+      expect(screen.getByText('Tidak ada mutasi terekam pada rentang ini')).toBeInTheDocument()
+    })
+
+    test("refresh during bank EOD → the bank reason verbatim, and the copy's table stays on screen", async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      configureBniRefreshForTests('BANK_EOD')
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      await pullNp(user)
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('12 baris'))
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+
+      const alert = await screen.findByTestId('bni-statement-refresh-error')
+      expect(alert).toHaveTextContent('MW - EOD - Please try again at 01:00 AM')
+      expect(okSpy).not.toHaveBeenCalled()
+      // Nothing was stored, so nothing is re-read — and nothing is taken away.
+      expect(probe.urls.filter((u) => u.includes('/statement?'))).toHaveLength(1)
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('12 baris')
+      expect(within(screen.getByRole('table')).getAllByRole('row').length).toBeGreaterThan(1)
+      probe.stop()
+    })
+
+    test('refresh 429 → "terlalu sering"; 503 → "belum aktif"; a new Tarik clears the message', async () => {
+      const user = userEvent.setup()
+      configureBniRefreshForTests('RATE_LIMITED')
+      await pullNp(user)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      expect(await screen.findByTestId('bni-statement-refresh-error')).toHaveTextContent(/terlalu sering/i)
+
+      server.use(
+        http.post('/api/v1/bni-accounts/:accountNo/statement/refresh', () =>
+          apiError(503, 'BNI_SERVICE_UNCONFIGURED')
+        )
+      )
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      await waitFor(() =>
+        expect(screen.getByTestId('bni-statement-refresh-error')).toHaveTextContent(/belum aktif/i)
+      )
+      expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('12 baris')
+
+      await user.click(pullButton())
+      await waitFor(() => expect(screen.queryByTestId('bni-statement-refresh-error')).not.toBeInTheDocument())
+    })
+
+    test('the statement read failed → Segarkan is still offered for the applied account, and a success retries the read', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      let failing = true
+      server.use(
+        http.get('/api/v1/bni-accounts/:accountNo/statement', () =>
+          failing ? apiError(502, 'BNI_SERVICE_UNAVAILABLE', 'Bank tidak dapat dihubungi, coba lagi') : undefined
+        )
+      )
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      setRange(TODAY, TODAY)
+      await user.click(pullButton())
+      expect(await screen.findByText('Bank tidak dapat dihubungi, coba lagi')).toBeInTheDocument()
+
+      const refreshButton = screen.getByTestId('bni-statement-refresh')
+      expect(refreshButton).toBeEnabled()
+      failing = false
+      await user.click(refreshButton)
+
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+    })
+  })
+
+  describe('edge cases', () => {
+    test('never recorded (both null) → header "belum pernah direkam" + a dateless banner, no "Invalid Date"', async () => {
+      const user = userEvent.setup()
+      server.use(statementHandler([], { historyAvailableSince: null, recordedThrough: null }))
+      await pullNp(user)
+
+      expect(screen.getByTestId('bni-statement-recorded-through')).toHaveTextContent('belum pernah direkam')
+      expect(screen.getByTestId('bni-statement-history-notice')).toHaveTextContent(/belum pernah direkam/)
+      expect(screen.queryByText(/Tidak ada mutasi terekam/)).not.toBeInTheDocument()
+      expect(document.body).not.toHaveTextContent(/Invalid Date|NaN/)
+    })
+
+    test('Tarik is disabled while Segarkan runs — a pull can never race the refetch that follows the refresh', async () => {
+      const user = userEvent.setup()
+      const okSpy = vi.spyOn(toast, 'success')
+      server.use(
+        http.post('/api/v1/bni-accounts/:accountNo/statement/refresh', async () => {
+          await delay(80)
+        })
+      )
+      const probe = recordRequests('/api/v1/bni-accounts/')
+      await pullNp(user)
+
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      expect(pullButton()).toBeDisabled()
+      await user.click(pullButton())
+
+      await waitFor(() => expect(okSpy).toHaveBeenCalledWith('2 mutasi baru terekam'))
+      await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('14 baris'))
+      expect(pullButton()).toBeEnabled()
+      // First Tarik + the one refetch after the refresh — the mid-refresh click sent nothing.
+      expect(probe.urls.filter((u) => u.includes('/statement?'))).toHaveLength(2)
+      probe.stop()
+    })
+
+    test('before any Tarik a refresh failure follows the picked account: changing the pick clears it', async () => {
+      const user = userEvent.setup()
+      configureBniRefreshForTests('BANK_EOD')
+      renderPage()
+      await waitForCards()
+      await pickAccount(user, /treasury np/i)
+      await user.click(screen.getByTestId('bni-statement-refresh'))
+      expect(await screen.findByTestId('bni-statement-refresh-error')).toHaveTextContent(
+        'MW - EOD - Please try again at 01:00 AM'
+      )
+
+      await pickAccount(user, /collection/i)
+      expect(screen.queryByTestId('bni-statement-refresh-error')).not.toBeInTheDocument()
     })
   })
 })

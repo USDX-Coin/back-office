@@ -5,6 +5,8 @@ import {
   formatBniPostDate,
   formatDate,
   formatWibDateTime,
+  formatWibDayMinute,
+  formatIsoDayDmy,
   formatWibClock,
   formatShortDate,
   formatRelativeTime,
@@ -326,6 +328,52 @@ describe('formatWibDateTime', () => {
 
     test('an offset-bearing stamp is normalised to WIB too', () => {
       expect(formatWibDateTime('2026-09-09T14:30:05+07:00')).toBe('2026-09-09 14:30:05 WIB')
+    })
+  })
+})
+
+describe('formatWibDayMinute', () => {
+  describe('positive', () => {
+    test('renders a UTC instant as DD/MM/YYYY HH:mm WIB', () => {
+      expect(formatWibDayMinute('2026-09-18T07:20:41.000Z')).toBe('18/09/2026 14:20 WIB')
+    })
+  })
+
+  describe('negative', () => {
+    test('null or an unparsable stamp is null — the caller owns the "never recorded" sentence', () => {
+      expect(formatWibDayMinute(null)).toBeNull()
+      expect(formatWibDayMinute(undefined)).toBeNull()
+      expect(formatWibDayMinute('not-a-date')).toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('crosses the day boundary and renders midnight as 00, never 24', () => {
+      expect(formatWibDayMinute('2026-09-18T17:00:00Z')).toBe('19/09/2026 00:00 WIB')
+    })
+  })
+})
+
+describe('formatIsoDayDmy', () => {
+  describe('positive', () => {
+    test('re-punctuates YYYY-MM-DD as DD/MM/YYYY', () => {
+      expect(formatIsoDayDmy('2026-09-18')).toBe('18/09/2026')
+    })
+  })
+
+  describe('negative', () => {
+    test('null, empty or another shape is null, never "Invalid Date"', () => {
+      expect(formatIsoDayDmy(null)).toBeNull()
+      expect(formatIsoDayDmy('')).toBeNull()
+      expect(formatIsoDayDmy('20260918')).toBeNull()
+      expect(formatIsoDayDmy('2026-09-18T00:00:00Z')).toBeNull()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('never goes through Date: the WIB day survives a browser in any zone', () => {
+      // 1 Jan would become 31 Dec in a UTC-negative zone if it were parsed.
+      expect(formatIsoDayDmy('2026-01-01')).toBe('01/01/2026')
     })
   })
 })

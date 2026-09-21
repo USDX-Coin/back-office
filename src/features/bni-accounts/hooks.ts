@@ -1,9 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiFetch'
-import type { BniAccount, BniBalances, BniStatement, BniStatementType } from '@/lib/types'
+import type {
+  BniAccount,
+  BniBalances,
+  BniStatement,
+  BniStatementRefresh,
+  BniStatementType,
+} from '@/lib/types'
 
-// USDX-631 — sot/api/bni-accounts.yaml + sot/bni-integration.md § 16.4
-// "Perilaku query". Every bank-touching query opts OUT of the app defaults:
+// USDX-631 / USDX-692 — sot/api/bni-accounts.yaml + sot/bni-integration.md
+// § 16.4 "Perilaku query". Every query of this page opts OUT of the app
+// defaults — the statement too, although since D24 it reads the USDX copy and
+// never the bank (§ 16.8.8 keeps the explicit behaviour for one consistent page):
 //   retry: false            — default `retry: 1` = each failure is TWO bank
 //                             calls + two activity_log rows.
 //   staleTime: Infinity     — nothing refetches on its own; "Tarik" is the
@@ -103,5 +111,32 @@ export function useBniStatement(params: BniStatementParams | null) {
     queryFn: () => fetchBniStatement(params as BniStatementParams),
     enabled: params !== null,
     ...BANK_QUERY_OPTIONS,
+  })
+}
+
+export function buildBniStatementRefreshPath(accountNo: string): string {
+  return `/api/v1/bni-accounts/${encodeURIComponent(accountNo)}/statement/refresh`
+}
+
+/**
+ * "Segarkan dari bank" (§ 16.8.7–16.8.8): ONE bank pull for today (WIB) whose
+ * result is STORED into the copy. No body, no dates — the bank only serves the
+ * running day (temuan T13). The answer carries no rows: on success the caller
+ * re-reads the statement query with its APPLIED params.
+ *
+ * This one does reach the bank, so it gets the 45 s browser timeout, and it is
+ * a mutation — never retried on its own (each attempt is a bank contact under
+ * the `bni-inquiry` throttle).
+ */
+export function useRefreshStatement(accountNo: string | null) {
+  return useMutation({
+    mutationFn: () => {
+      if (!accountNo) return Promise.reject(new Error('Pilih rekening lebih dulu'))
+      return apiFetch<BniStatementRefresh>(buildBniStatementRefreshPath(accountNo), {
+        method: 'POST',
+        signal: bankRequestSignal(),
+      })
+    },
+    retry: false,
   })
 }

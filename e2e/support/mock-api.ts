@@ -578,8 +578,9 @@ function seedKycReviews(records: MockKycRecord[]): Map<string, MockKycReview[]> 
 type RouteOverride = (route: Route, url: URL) => Promise<boolean | void> | boolean | void
 
 
-// ─── USDX-631 — Rekening BNI (sot/api/bni-accounts.yaml) ─────────────────────
-// Backend-normalised shapes (not raw BNIdirect envelopes). Account numbers are
+// ─── USDX-631 / USDX-692 — Rekening BNI (sot/api/bni-accounts.yaml rev 2026-09-18) ──
+// Backend-normalised shapes (not raw BNIdirect envelopes). Since D24 the
+// statement is read from the USDX copy and `statement/refresh` stores into it. Account numbers are
 // the dev/sandbox ones from sot/bni-integration.md § 16.7.
 export const BNI_ACCOUNTS = [
   { accountNo: '0115476151', role: 'COLLECTION', label: 'Collection (Giro IDR)' },
@@ -608,6 +609,9 @@ export function seedBniBalances() {
 }
 
 export interface MockBniStatementRow {
+  id: string
+  source: string
+  recordedAt: string
   postDate: string | null
   flag: 'C' | 'D'
   amount: string | null
@@ -626,6 +630,9 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
     const amount = 1_000_000 + (i % 7) * 250_000
     const day = i % 2 === 0 ? ymd(endDate) : ymd(startDate)
     rows.push({
+      id: `019e2b10-0000-7000-8000-${String(i).padStart(12, '0')}`,
+      source: 'BANK',
+      recordedAt: '2026-09-09T07:30:00.000Z',
       postDate: `${day}${String(23 - (i % 12)).padStart(2, '0')}${String((i * 7) % 60).padStart(2, '0')}00`,
       flag,
       amount: `${amount}.00`,
@@ -638,6 +645,20 @@ export function seedBniStatementRows(startDate: string, endDate: string, count =
   }
   return rows
 }
+
+/** USDX-692 — a `gaps[]` entry of the statement copy (yaml § BniStatementGap). */
+export interface MockBniStatementGap {
+  kind: 'BETWEEN_ENTRIES' | 'TAIL'
+  afterAt: string | null
+  afterBalance: string | null
+  beforeAt: string
+  beforeBalance: string
+  difference: string | null
+}
+
+/** Rows the base copy holds, and what the first "Segarkan dari bank" adds (then 0 — idempotent). */
+const BNI_BASE_ROWS = 12
+const BNI_REFRESH_NEW_ENTRIES = 2
 
 // ─── USDX-662 — Pencairan Bermasalah (sot/api/payout-failures.yaml) ──────────
 // Dua order: PAYOUT_FAILED (tiga aksi) dan BURN_REJECTED (tanpa RESENT). Satu seed per
@@ -753,6 +774,12 @@ export interface MockApiOptions {
   routes?: Record<string, RouteOverride>
   /** USDX-631 — replace the seeded BNI account list (empty array = "belum dikonfigurasi"). */
   bniAccounts?: { accountNo: string; role: string; label: string }[]
+  /** USDX-692 — state of the statement COPY (defaults: recorded minutes ago, history since 2026-09-01, no gaps). */
+  bniStatementCopy?: {
+    recordedThrough?: string | null
+    historyAvailableSince?: string | null
+    gaps?: MockBniStatementGap[]
+  }
 }
 
 export interface MockApiState {
@@ -786,6 +813,8 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
   // USDX-662: antrean Pencairan Bermasalah, mutable per test — resolve harus terbaca
   // oleh GET list/detail berikutnya karena layarnya menarik ulang keduanya.
   const payoutFailures = seedPayoutFailures()
+  // USDX-692 — entries stored by "Segarkan dari bank", per account, per install.
+  const bniRefreshedEntries = new Map<string, number>()
 
   const envelope = (route: Route, data: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ status: 'success', metadata: null, data }) })
@@ -1240,26 +1269,56 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const startDate = url.searchParams.get('startDate') ?? ''
       const endDate = url.searchParams.get('endDate') ?? ''
       const type = url.searchParams.get('type') ?? 'ALL'
-      const rows = seedBniStatementRows(startDate, endDate).filter((r) =>
+      const refreshed = bniRefreshedEntries.get(account.accountNo) ?? 0
+      const copy = opts.bniStatementCopy ?? {}
+      // K18: the copy holds nothing older than its first capture (and nothing at
+      // all when it never recorded) — such a range is valid and EMPTY.
+      const since = copy.historyAvailableSince === undefined ? '2026-09-01' : copy.historyAvailableSince
+      const recorded =
+        since === null || endDate < since
+          ? []
+          : seedBniStatementRows(startDate < since ? since : startDate, endDate, BNI_BASE_ROWS + refreshed)
+      const rows = recorded.filter((r) =>
         type === 'ALL' ? true : type === 'CREDIT' ? r.flag === 'C' : r.flag === 'D',
       )
       return envelope(route, {
         pullId: '019e2b00-0000-7000-8000-000000000202',
         pulledAt: '2026-09-09T07:32:10.000Z',
+        recordedThrough: copy.recordedThrough === undefined ? '2026-09-09T07:30:00.000Z' : copy.recordedThrough,
+        historyAvailableSince: since,
+        gaps: copy.gaps ?? [],
         applied: { ...account, startDate, endDate, type },
         summary: {
           accountName: 'PT MAF DIGITAL',
           currency: account.role === 'TREASURY_USD' ? 'USD' : 'IDR',
           beginningBalance: '500000000.00',
+          closingBalance: '504500000.00',
           totalCredit: '9000000.00',
           totalDebit: '4500000.00',
-          fromPostingDate: startDate.replace(/-/g, ''),
-          toPostingDate: endDate.replace(/-/g, ''),
           rowCount: rows.length,
           anomalyRowCount: 0,
           anomalies: [],
         },
         rows,
+      })
+    }
+
+    // `statement/refresh` (USDX-692): one bank pull for today, STORED into the
+    // copy — no rows in the answer; the page re-reads `GET …/statement`.
+    const bniRefreshMatch = path.match(/^\/api\/v1\/bni-accounts\/([^/]+)\/statement\/refresh$/)
+    if (method === 'POST' && bniRefreshMatch) {
+      const account = bniAccounts.find((a) => a.accountNo === bniRefreshMatch[1])
+      if (!account) return error(route, 'BNI_ACCOUNT_NOT_ALLOWED', 'accountNo is not a configured BNI account', 422)
+      const already = bniRefreshedEntries.get(account.accountNo) ?? 0
+      const newEntries = already === 0 ? BNI_REFRESH_NEW_ENTRIES : 0
+      bniRefreshedEntries.set(account.accountNo, already + newEntries)
+      return envelope(route, {
+        pullId: '019e2b00-0000-7000-8000-000000000303',
+        accountNo: account.accountNo,
+        outcome: 'OK',
+        capturedAt: '2026-09-09T07:40:00.000Z',
+        txCount: BNI_BASE_ROWS + already + newEntries,
+        newEntries,
       })
     }
 

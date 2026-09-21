@@ -7,10 +7,11 @@ import BalanceCards from './BalanceCards'
 import { useBniAccounts, useBniBalances } from './hooks'
 import StatementPanel from './StatementPanel'
 
-// USDX-631 — "Rekening BNI" (/bni-accounts), every backoffice role
-// (sot/bni-integration.md § 16, K5). Read-only: balances and statements LIVE
-// from BNIdirect via the backend; nothing is stored, nothing is matched to
-// orders. Account labels come from the env list (no bank call) so the page
+// USDX-631 / USDX-692 — "Rekening BNI" (/bni-accounts), every backoffice role
+// (sot/bni-integration.md § 16, K5). Read-only: balances LIVE from BNIdirect
+// via the backend; statements from the USDX copy bni-service records every 10
+// minutes (D24, § 16.8 — the bank only serves the running day). Nothing is
+// matched to orders. Account labels come from the env list (no bank call) so the page
 // still knows its three accounts when the bank is down.
 
 export default function BniAccountsPage() {
@@ -24,7 +25,7 @@ export default function BniAccountsPage() {
         eyebrow="Treasury"
         title="Rekening BNI"
         italicAccent="saldo & mutasi"
-        subtitle="Saldo dan rekening koran LIVE dari BNIdirect untuk tiga rekening MAF. Hanya membaca — tidak ada transfer, tidak disambungkan ke order."
+        subtitle="Saldo LIVE dari BNIdirect dan mutasi dari salinan USDX (direkam tiap 10 menit) untuk tiga rekening MAF. Hanya membaca — tidak ada transfer, tidak disambungkan ke order."
       />
 
       {accounts.isPending ? (

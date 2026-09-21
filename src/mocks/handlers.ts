@@ -72,7 +72,9 @@ import {
   createBniAccounts,
   createBniBalances,
   createBniStatement,
+  createBniStatementRefresh,
   createBniStatementRows,
+  BNI_MOCK_HISTORY_SINCE,
   createMockRedeemApprovals,
   createInitialRedeemApprovalControls,
   createMockPayoutFailures,
@@ -107,6 +109,16 @@ let kycReviews: Map<string, KycReviewLog[]>
 // USDX-631 — rekening BNI yang "dikonfigurasi env" (§ 16 K7). Tests that need an
 // empty configuration override `GET /api/v1/bni-accounts` via `server.use`.
 let bniAccountsStore: BniAccount[] = createBniAccounts()
+// USDX-692 — salinan mutasi (§ 16.8). "Segarkan dari bank" SIMPAN hasilnya, jadi
+// tiruannya juga berkeadaan: entri yang sudah tersegarkan ikut terbaca oleh
+// `GET …/statement` berikutnya, dan menyegarkan lagi menemukan nol entri baru
+// (idempoten lewat fingerprint). `bniRefreshScenario` memaksa jawaban gagal.
+const BNI_MOCK_BASE_ROWS = 12
+const BNI_MOCK_REFRESH_NEW_ENTRIES = 2
+export type BniRefreshScenario = 'DEFAULT' | 'BANK_EOD' | 'RATE_LIMITED'
+let bniRefreshScenario: BniRefreshScenario = 'DEFAULT'
+let bniRefreshedEntries = new Map<string, number>()
+let bniRefreshedAt = new Map<string, Date>()
 // USDX-669 — antrean Persetujuan Pencairan (`sot/api/redeem-approvals.yaml`).
 //
 // DILAYANI MSW dengan sengaja: modul backend-nya (USDX-668) dikerjakan paralel dan
@@ -158,6 +170,9 @@ export function resetMockData() {
   kycList = createMockKycList()
   ;({ details: kycDetails, reviews: kycReviews } = createMockKycDetailState(kycList))
   bniAccountsStore = createBniAccounts()
+  bniRefreshScenario = 'DEFAULT'
+  bniRefreshedEntries = new Map()
+  bniRefreshedAt = new Map()
   ;({ list: redeemApprovalQueue, details: redeemApprovalDetails } = createMockRedeemApprovals())
   redeemApprovalDecisions = new Map()
   redeemApprovalControls = createInitialRedeemApprovalControls()
@@ -206,6 +221,13 @@ export function configureMintModeForTests(next: MintModeConfig) {
 // resetMockData(). Not used by runtime code.
 export function configureBniAccountsForTests(accounts: BniAccount[]) {
   bniAccountsStore = accounts.map((a) => ({ ...a }))
+}
+
+// USDX-692 — test helper: force the next `POST …/statement/refresh` answers.
+// `BANK_EOD` = 502 BNI_BANK_REJECTED + the bank's own EOD text (temuan T15),
+// `RATE_LIMITED` = 429 (grup throttle `bni-inquiry`). Reset by resetMockData().
+export function configureBniRefreshForTests(scenario: BniRefreshScenario) {
+  bniRefreshScenario = scenario
 }
 
 // USDX-84 — test helper. The seeded `createMockRequests` factory generates
@@ -888,8 +910,9 @@ export const handlers = [
   // ─── Rekening BNI (USDX-631, sot/api/bni-accounts.yaml + § 16) ───
   //
   // Mock-served until the backend `dev` stack serves the module (USDX-630,
-  // backend PR #305): once it does, add the three paths to INTEGRATION_PATHS in
-  // browser.ts (operational step, not a merge condition — ticket § Cara Kerjakan).
+  // backend PR #305; D24 shape + `statement/refresh`: USDX-691): once it does,
+  // add the paths to INTEGRATION_PATHS in browser.ts (operational step after
+  // CR USDX-689 merges, not a merge condition — ticket § Cara Kerjakan).
   // All roles may read (§ 16 K5); no role gate here on purpose.
   //
   // NO mock auth gate either: in the dev browser the operator logs in against
@@ -913,6 +936,8 @@ export const handlers = [
     })
   }),
 
+  // D24 (§ 16.8.7): reads the USDX COPY — zero bank contact, so this route has
+  // no 502-because-of-the-bank and no `bni-inquiry` throttle.
   http.get('/api/v1/bni-accounts/:accountNo/statement', ({ request, params }) => {
     const accountNo = String(params.accountNo)
     const url = new URL(request.url)
@@ -938,24 +963,105 @@ export const handlers = [
     }
     const type = rawType as BniStatementType
 
-    // Backend re-filters by `flag` (§ 16.2) — the mock does the same so a
-    // DEBIT pull never shows a C row.
-    const rows = createBniStatementRows(12, startDate, endDate).filter((r) =>
+    // Entries stored by "Segarkan dari bank" are today's, so they only join a
+    // range that reaches today.
+    const refreshed = endDate >= wibTodayMock() ? (bniRefreshedEntries.get(accountNo) ?? 0) : 0
+    // K18: the copy holds nothing older than its first capture — a range that
+    // predates the history is valid and EMPTY, never back-filled.
+    const from = startDate < BNI_MOCK_HISTORY_SINCE ? BNI_MOCK_HISTORY_SINCE : startDate
+    const recorded =
+      endDate < BNI_MOCK_HISTORY_SINCE
+        ? []
+        : createBniStatementRows(BNI_MOCK_BASE_ROWS + refreshed, from, endDate)
+    const allRows = recorded
+      .map((row, index) => ({ row, index }))
+      .sort((a, b) =>
+        a.row.postDate === b.row.postDate
+          ? a.index - b.index
+          : (a.row.postDate ?? '') > (b.row.postDate ?? '')
+            ? -1
+            : 1
+      )
+      .map(({ row }) => row)
+    // `type` filters the ROWS by the copy's `flag`; the summary stays the
+    // account's — computed over the whole range, whatever the filter (§ 16.8.6).
+    const rows = allRows.filter((r) =>
       type === 'ALL' ? true : type === 'CREDIT' ? r.flag === 'C' : r.flag === 'D'
+    )
+    const refreshedAt = bniRefreshedAt.get(accountNo)
+    const full = createBniStatement(
+      {
+        accountNo: account.accountNo,
+        role: account.role,
+        label: account.label,
+        startDate,
+        endDate,
+        type,
+      },
+      allRows,
+      {},
+      new Date(),
+      refreshedAt ? { recordedThrough: refreshedAt.toISOString() } : {}
     )
     return HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: createBniStatement(
-        {
-          accountNo: account.accountNo,
-          role: account.role,
-          label: account.label,
-          startDate,
-          endDate,
-          type,
+      data: {
+        ...full,
+        rows,
+        summary: {
+          ...full.summary,
+          rowCount: rows.length,
+          anomalyRowCount: rows.filter((r) => (r.anomalies?.length ?? 0) > 0).length,
         },
-        rows
+      },
+    })
+  }),
+
+  // D24 (§ 16.8.7): one bank pull for TODAY (WIB), stored into the copy. No
+  // body, no dates — the bank only serves the running day (temuan T13). It
+  // returns NO rows: the FE re-reads `GET …/statement` with its applied params.
+  http.post('/api/v1/bni-accounts/:accountNo/statement/refresh', ({ params }) => {
+    const accountNo = String(params.accountNo)
+    if (!/^[0-9]{6,20}$/.test(accountNo)) {
+      return bniError(422, 'VALIDATION_ERROR', 'accountNo must be 6-20 digits')
+    }
+    if (!bniAccountsStore.some((a) => a.accountNo === accountNo)) {
+      return bniError(
+        422,
+        'BNI_ACCOUNT_NOT_ALLOWED',
+        'accountNo is not a configured BNI account'
+      )
+    }
+    if (bniRefreshScenario === 'RATE_LIMITED') {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: { code: 'RATE_LIMITED', message: 'Too many bank inquiries' },
+        },
+        { status: 429, headers: { 'Retry-After': '30' } }
+      )
+    }
+    if (bniRefreshScenario === 'BANK_EOD') {
+      // The copy is untouched: nothing new is stored, `recordedThrough` stays.
+      return bniError(502, 'BNI_BANK_REJECTED', 'Bank rejected the inquiry', {
+        bankReason: 'MW - EOD - Please try again at 01:00 AM',
+      })
+    }
+    const already = bniRefreshedEntries.get(accountNo) ?? 0
+    const newEntries = already === 0 ? BNI_MOCK_REFRESH_NEW_ENTRIES : 0
+    const at = new Date()
+    bniRefreshedEntries.set(accountNo, already + newEntries)
+    bniRefreshedAt.set(accountNo, at)
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: createBniStatementRefresh(
+        accountNo,
+        { txCount: BNI_MOCK_BASE_ROWS + already + newEntries, newEntries },
+        at
       ),
     })
   }),
