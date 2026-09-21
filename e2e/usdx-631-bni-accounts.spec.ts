@@ -25,7 +25,9 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       const cards = page.locator('[data-testid^="bni-balance-card-"]')
       await expect(cards).toHaveCount(3)
       await expect(cards.nth(0)).toHaveAttribute('data-state', 'ok')
-      await expect(page.getByTestId('bni-balance-card-TREASURY_USD')).toContainText('$12,500.75')
+      // Kartu USD dibaca BERSEBELAHAN dengan kartu rupiah di layar yang sama, jadi
+      // keduanya satu konvensi: titik ribuan, koma desimal. Glif `$` dipertahankan.
+      await expect(page.getByTestId('bni-balance-card-TREASURY_USD')).toContainText('$12.500,75')
       await expect(page.getByTestId('bni-inquired-at-bank')).toHaveText('2026-09-09 14:30')
       await expect(page.getByTestId('bni-pulled-at')).toHaveText('2026-09-09 14:31:02 WIB')
     })

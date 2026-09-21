@@ -141,6 +141,7 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 ## Commands
 
 ```bash
+pnpm cek:backend    # WAJIB sebelum merge ke dev — lihat di bawah
 pnpm dev            # Start dev server with MSW (localhost:5173)
 pnpm build          # Type check + production build
 pnpm lint           # ESLint check
@@ -150,6 +151,35 @@ pnpm test:watch     # Run unit tests in watch mode
 pnpm test:e2e       # Run Playwright E2E tests
 pnpm test:all       # Run all tests (unit + E2E)
 ```
+
+## Urutan merge: backend dulu, baru back-office
+
+Beberapa layar di repo ini memanggil endpoint yang **belum ada di server**. MSW
+menutupinya di `pnpm dev` dan di Vitest, tapi **MSW tidak jalan di build yang
+di-deploy** — jadi kalau repo ini merge duluan, menunya muncul lalu dijawab 404,
+dan itu terbaca sebagai layar rusak, bukan sebagai fitur yang belum naik.
+
+```bash
+pnpm cek:backend                      # default api-dev
+pnpm cek:backend https://api.usdx.co.id
+```
+
+Exit 0 = aman di-merge. Exit 1 = ada endpoint wajib yang belum naik, dan
+skripnya menyebut branch backend mana yang harus merge dulu. Daftarnya di
+`scripts/backend-requirements.json`.
+
+Probe-nya dikirim **tanpa auth**, dan itu disengaja: `404` berarti endpointnya
+memang tidak ada, `401`/`403` berarti ada dan cuma minta login. Jadi
+pemeriksaannya tidak butuh kredensial apa pun.
+
+Yang **tidak bisa** dibuktikan skrip ini: kebutuhan berupa *parameter* atau
+*field* baru pada endpoint yang sudah lama ada. Di situ server menjawab `401`
+entah parameternya didukung atau tidak. Butir seperti itu ditandai
+**🔎 KONFIRMASI MANUAL** alih-alih diberi lampu hijau palsu — periksa sendiri
+bahwa branch backend-nya sudah naik.
+
+Sebelumnya yang menjaga urutan ini cuma komentar di kode. Komentar tidak bisa
+gagal; perintah dengan exit code bisa.
 
 ## Architecture Principles
 

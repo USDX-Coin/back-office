@@ -112,16 +112,14 @@ export const EMPTY_DURIANPAY_FILTER_VALUES: DurianpayApiCallFilterValues = {
  * dipilih operator juga hari WIB. Bentuk yang bukan tanggal dikembalikan
  * `null` dan saringannya tidak dikirim, bukan ditebak.
  */
-const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/
-
-export function wibDayStartIso(day: string): string | null {
-  return CALENDAR_DAY.test(day) ? `${day}T00:00:00+07:00` : null
-}
-
-/** Batas atas INKLUSIF (backend memakai `lte`), jadi sampai milidetik terakhir hari itu. */
-export function wibDayEndIso(day: string): string | null {
-  return CALENDAR_DAY.test(day) ? `${day}T23:59:59.999+07:00` : null
-}
+// Aturannya pindah ke `lib/wibRange.ts` ketika Jejak Audit mendapat saringan
+// rentang waktu dengan bentuk DTO yang SAMA. Di-re-export dari sini supaya
+// pemanggil lama tidak berubah — dan supaya kedua layar tidak punya dua salinan
+// aturan yang bisa bergeser sendiri-sendiri.
+export { wibDayStartIso, wibDayEndIso } from './wibRange'
+// Re-export saja tidak membawa keduanya ke lingkup berkas ini; `toDurianpayApiCallQuery`
+// di bawah memakainya langsung.
+import { wibDayEndIso, wibDayStartIso } from './wibRange'
 
 /**
  * Teks saringan yang boleh dikirim: sudah di-trim, kosong dan yang MELEBIHI batas

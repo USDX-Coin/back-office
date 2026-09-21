@@ -31,12 +31,18 @@ export interface ActivityLogEntry {
 /**
  * Saringan yang BENAR-BENAR diterima server (`ListActivityLogsDto`).
  *
- * Tidak ada `from`/`to` dan tidak ada `resourceId` di sana, dan itu bukan
- * kelalaian kita: `createGlobalValidationPipe` memakai `whitelist: true` TANPA
- * `forbidNonWhitelisted`, jadi parameter yang tidak dikenal DIBUANG DIAM-DIAM —
- * sebuah saringan tanggal yang dikirim ke endpoint ini akan tampak bekerja dan
- * mengembalikan seluruh isi tabel. Karena itu layar ini tidak punya isian
- * tanggal sama sekali; lihat catatan di `ActivityLogPage`.
+ * `from`/`to` sekarang ADA di sana (branch backend
+ * `wisnubarata111/be-badge-antrean-dan-rentang-jejak`), dengan bentuk yang
+ * sengaja disamakan persis dengan `ListDurianpayApiCallsDto`: `@IsISO8601()`,
+ * keduanya opsional dan berdiri sendiri, dan **INKLUSIF di kedua ujung**.
+ *
+ * Yang MASIH belum diterima: `resourceId`. Dan itu tetap bukan kelalaian kita —
+ * `createGlobalValidationPipe` memakai `whitelist: true` TANPA
+ * `forbidNonWhitelisted`, jadi parameter yang tidak dikenal DIBUANG DIAM-DIAM.
+ * Saringan id objek yang dikirim ke endpoint ini akan tampak bekerja sambil
+ * mengembalikan SELURUH isi tabel — hasil yang terbaca seperti pencarian yang
+ * berhasil, di layar yang dibuka justru saat pemeriksa bertanya. Karena itu
+ * layar ini tidak punya isian id objek; lihat catatan di `ActivityLogPage`.
  */
 export interface ActivityLogFilters {
   page?: number
@@ -49,4 +55,12 @@ export interface ActivityLogFilters {
   outcome?: ActivityOutcome
   actorStaffId?: string
   actorUserId?: string
+  /**
+   * Batas bawah rentang waktu kejadian, INKLUSIF, ISO-8601 **berpenanda zona**.
+   * Tanggal telanjang (`2026-09-12`) dibaca server sebagai 07:00 WIB dan
+   * membuang tujuh jam kejadian pagi — `wibDayStartIso` yang menstempelnya.
+   */
+  from?: string
+  /** Batas atas, INKLUSIF (`lte` di server). Lihat `wibDayEndIso`. */
+  to?: string
 }

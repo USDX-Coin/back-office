@@ -27,6 +27,7 @@ import {
   parseRouteAction,
   resourceTypeLabel,
 } from './labels'
+import { wibDayEndIso, wibDayStartIso } from '@/lib/wibRange'
 import type { ActivityLogEntry, ActivityOutcome } from './types'
 
 const PAGE_SIZE = 20
@@ -52,17 +53,25 @@ function isOutcome(value: string): value is ActivityOutcome {
  * ─── APA YANG TIDAK BISA DISARING, DAN KENAPA ──────────────────────────────
  *
  * `ListActivityLogsDto` menerima: action, resourceType, outcome, actorStaffId,
- * actorUserId, page, take. TIDAK ADA rentang waktu dan TIDAK ADA resourceId.
+ * actorUserId, from, to, page, take. Yang MASIH belum ada: `resourceId`.
  *
- * Isian tanggal palsu SENGAJA tidak dipasang. `createGlobalValidationPipe`
- * memakai `whitelist: true` tanpa `forbidNonWhitelisted`, jadi `?from=…&to=…`
- * akan DIBUANG DIAM-DIAM dan server menjawab seluruh tabel — sebuah saringan
- * yang tampak bekerja sambil mengembalikan jawaban yang salah adalah hal
- * terburuk yang bisa dipasang di layar bukti kepatuhan. Begitu juga saringan
- * yang hanya berlaku pada halaman yang sedang dimuat: pemeriksa akan membaca
- * "3 hasil" dan mengira itu seluruhnya.
+ * `from`/`to` dulu juga tidak ada, dan isian tanggalnya sengaja tidak dipasang
+ * selama itu. Sekarang server menerimanya (`@IsISO8601()`, INKLUSIF di kedua
+ * ujung, bentuk yang sama persis dengan Log Panggilan DurianPay), jadi isiannya
+ * dipasang — dan nilainya distempel `+07:00` lewat `wibDayStartIso` /
+ * `wibDayEndIso` sebelum dikirim. Tanggal telanjang dibaca server sebagai
+ * 07:00 WIB, dan tujuh jam kejadian pagi hilang tanpa ada yang memberi tahu.
  *
- * Keduanya dicatat sebagai kebutuhan backend, bukan ditambal di sini.
+ * Saringan id objek TETAP tidak dipasang, dengan alasan yang tidak berubah:
+ * `createGlobalValidationPipe` memakai `whitelist: true` tanpa
+ * `forbidNonWhitelisted`, jadi parameter tak dikenal DIBUANG DIAM-DIAM dan
+ * server menjawab seluruh tabel. Saringan yang tampak bekerja sambil
+ * mengembalikan jawaban yang salah adalah hal terburuk yang bisa dipasang di
+ * layar bukti kepatuhan. Begitu juga saringan yang hanya berlaku pada halaman
+ * yang sedang dimuat: pemeriksa akan membaca "3 hasil" dan mengira itu
+ * seluruhnya.
+ *
+ * Itu dicatat sebagai kebutuhan backend, bukan ditambal di sini.
  */
 export default function ActivityLogPage() {
   const params = useDataTableParams()
@@ -80,6 +89,12 @@ export default function ActivityLogPage() {
     actorUserId: params.searchParams.get('actorUserId') || undefined,
     resourceType: params.searchParams.get('resourceType') || undefined,
     action: params.searchParams.get('action') || undefined,
+    // Nilai URL TIDAK dikirim mentah. Helper-nya yang menstempel `+07:00` dan
+    // yang mengembalikan `null` untuk bentuk yang bukan `YYYY-MM-DD` — tautan
+    // basi lalu tidak dikirim sama sekali alih-alih dijawab 400, sama seperti
+    // perlakuan `outcome` di atas.
+    from: wibDayStartIso(params.searchParams.get('from') ?? '') ?? undefined,
+    to: wibDayEndIso(params.searchParams.get('to') ?? '') ?? undefined,
   }
 
   const list = useActivityLogs(filters)
@@ -96,7 +111,9 @@ export default function ActivityLogPage() {
       filters.actorStaffId ||
       filters.actorUserId ||
       filters.resourceType ||
-      filters.action
+      filters.action ||
+      filters.from ||
+      filters.to
   )
 
   const columns: ColumnDef<ActivityLogEntry>[] = [
@@ -235,12 +252,20 @@ export default function ActivityLogPage() {
                   actorStaffId: filters.actorStaffId ?? '',
                   resourceType: filters.resourceType ?? '',
                   outcome: filters.outcome ?? '',
+                  // Nilai MENTAH dari URL, bukan `filters.from`/`filters.to`:
+                  // isian `<input type="date">` bicara dalam `YYYY-MM-DD`, dan
+                  // menyuapinya instan ber-zona (`…T00:00:00+07:00`) membuat
+                  // isiannya tampak kosong padahal saringannya aktif.
+                  from: params.searchParams.get('from') ?? '',
+                  to: params.searchParams.get('to') ?? '',
                 },
                 onChange: (next) =>
                   params.updateParams({
                     actorStaffId: next.actorStaffId || null,
                     resourceType: next.resourceType || null,
                     outcome: next.outcome || null,
+                    from: next.from || null,
+                    to: next.to || null,
                     page: '1',
                   }),
               }}
@@ -404,12 +429,12 @@ function ScopeNote({ directoryFailed }: { directoryFailed: boolean }) {
     <p className="flex items-start gap-2 text-2xs leading-relaxed text-muted-foreground">
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
-        Urutan tetap terbaru dulu. Server belum menerima saringan{' '}
-        <strong className="font-medium">rentang waktu</strong> maupun{' '}
-        <strong className="font-medium">id objek</strong>, jadi keduanya sengaja tidak
-        dipasang di sini — saringan yang diabaikan server akan menampilkan seluruh tabel
-        seolah itu hasil pencariannya. Untuk menelusuri satu objek, saring kelompoknya
-        lalu buka detail tiap baris.
+        Urutan tetap terbaru dulu. Rentang tanggal dihitung dalam <strong className="font-medium">WIB</strong>{' '}
+        dan mencakup kedua ujungnya. Server belum menerima saringan{' '}
+        <strong className="font-medium">id objek</strong>, jadi ia sengaja tidak dipasang
+        di sini — saringan yang diabaikan server akan menampilkan seluruh tabel seolah itu
+        hasil pencariannya. Untuk menelusuri satu objek, saring kelompoknya lalu buka
+        detail tiap baris.
         {directoryFailed && ' Nama staf gagal dimuat, jadi aktor tampil sebagai id.'}
       </span>
     </p>

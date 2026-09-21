@@ -115,7 +115,7 @@ test.describe('USDX-245 fee config redeem fields @e2e', () => {
       await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
       // Card reflects the new active redeem config (full 5-field snapshot).
-      await expect(page.getByLabel(/persen biaya redeem/i)).toHaveText('1.5%')
+      await expect(page.getByLabel(/persen biaya redeem/i)).toHaveText('1,5%')
       await expect(page.getByLabel(/biaya pencairan flat/i)).toHaveText(/6\.000/)
     })
   })

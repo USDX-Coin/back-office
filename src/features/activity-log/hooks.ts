@@ -29,6 +29,11 @@ export function buildActivityLogQuery(filters: ActivityLogFilters): string {
   if (filters.outcome) sp.set('outcome', filters.outcome)
   if (filters.actorStaffId) sp.set('actorStaffId', filters.actorStaffId)
   if (filters.actorUserId) sp.set('actorUserId', filters.actorUserId)
+  // Dikirim APA ADANYA — pemanggil yang menstempel `+07:00` lewat `wibDayStartIso`
+  // / `wibDayEndIso`. Menstempelnya di sini akan menyembunyikan aturan zona di
+  // pembangun query, tempat orang tidak akan mencarinya.
+  if (filters.from) sp.set('from', filters.from)
+  if (filters.to) sp.set('to', filters.to)
   return sp.toString()
 }
 

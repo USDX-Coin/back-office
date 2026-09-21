@@ -177,6 +177,13 @@ let payoutsEnabled = true
 // kredit di layar Mint Bermasalah, karena jalan buntu di antara keduanya persis
 // yang tiket ini tutup dan tiruan yang memutusnya tidak membuktikan apa pun.
 let activityLogStore: ActivityLogEntry[] = createMockActivityLog()
+
+// Cermin `@IsISO8601()` untuk saringan rentang waktu Jejak Audit + Log Panggilan
+// DurianPay: tanggal kalender, opsional diikuti waktu dan penanda zona.
+// Sengaja tidak memakai `Date.parse` sebagai penentu sah — lihat alasannya di
+// pemakainya di bawah.
+const ISO_8601_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+
 let approvalStore: Map<string, ApprovalRequest> = createMockApprovals()
 let heldCreditStore: Map<string, HeldCreditDetail> = createMockHeldCredits()
 let payoutControlsState: PayoutControls = createInitialPayoutControls()
@@ -3346,6 +3353,26 @@ export const handlers = [
     const resourceType = url.searchParams.get('resourceType')
     const actorStaffId = url.searchParams.get('actorStaffId')
     const actorUserId = url.searchParams.get('actorUserId')
+    // Rentang waktu. Bentuk non-ISO dijawab 400 — `@IsISO8601()`, sama dengan
+    // Log Panggilan DurianPay. Tiruan yang menerima apa saja akan membuat
+    // tautan basi lolos di sini lalu gagal di server sungguhan.
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    for (const [nama, nilai] of [
+      ['from', from],
+      ['to', to],
+    ] as const) {
+      // `Date.parse` SENGAJA tidak dipakai sebagai penentu sah: V8 menerima
+      // bentuk non-ISO seperti `12-09-2026` (dibacanya 9 Desember) dan
+      // mengembalikan angka, jadi tiruan yang bersandar padanya akan meloloskan
+      // tautan yang server sungguhan tolak 400 — dan tanggal yang tertukar
+      // hari/bulan adalah hasil pencarian yang salah tanpa satu pun tanda.
+      if (nilai !== null && !ISO_8601_DATE.test(nilai)) {
+        return layarError(400, 'BAD_REQUEST', `${nama} must be a valid ISO 8601 date string`)
+      }
+    }
+    const fromMs = from ? Date.parse(from) : null
+    const toMs = to ? Date.parse(to) : null
     // Pencocokan PERSIS (`eq`), bukan pencarian sebagian — sama dengan
     // `ActivityLogRepository.findMany`. Tiruan yang lebih longgar akan membuat
     // kotak pencarian yang tidak akan pernah bekerja lolos tes.
@@ -3355,6 +3382,11 @@ export const handlers = [
       .filter((row) => !outcome || row.outcome === outcome)
       .filter((row) => !actorStaffId || row.actorStaffId === actorStaffId)
       .filter((row) => !actorUserId || row.actorUserId === actorUserId)
+      // INKLUSIF di kedua ujung (`gte`/`lte` di server). Handler yang memakai
+      // batas eksklusif akan membuang kejadian pada milidetik terakhir hari itu
+      // — persis baris yang dicari orang saat ia menyaring satu hari.
+      .filter((row) => fromMs === null || Date.parse(row.createdAt) >= fromMs)
+      .filter((row) => toMs === null || Date.parse(row.createdAt) <= toMs)
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     const start = (page - 1) * take

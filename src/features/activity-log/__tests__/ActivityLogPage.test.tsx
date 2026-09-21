@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
@@ -76,19 +77,69 @@ describe('ActivityLogPage @ jejak audit', () => {
       await screen.findByText(/Rem pencairan ditarik/)
       expect(screen.queryByText(/Login gagal/)).not.toBeInTheDocument()
     })
+
+    test('rentang tanggal dikirim sebagai instan WIB, inklusif di kedua ujung', async () => {
+      // Pertanyaan pemeriksa selalu berbentuk tanggal ("apa yang terjadi 12
+      // September"). Jebakannya zona waktu: `2026-09-12` telanjang dibaca server
+      // sebagai 07:00 WIB, jadi tujuh jam kejadian pagi hilang — tanpa satu pun
+      // tanda, sambil tampak seperti pencarian yang berhasil.
+      //
+      // Batas atas `23:59:59.999` karena backend membandingkan `lte`; memakai
+      // `T00:00:00` hari berikutnya akan memasukkan satu milidetik yang bukan
+      // milik rentangnya.
+      // Sengaja TIDAK menunggu sebuah baris muncul: seed tiruan berumur relatif
+      // terhadap "sekarang", jadi tanggal tetap apa pun akan mengosongkan tabel.
+      // Yang diuji di sini BENTUK PERMINTAANNYA; bahwa handler benar-benar
+      // menyaringnya diuji di `mocks/__tests__/activityLogs.handlers.test.ts`.
+      const seen = recordListQueries()
+      setup('/jejak-audit?from=2026-09-12&to=2026-09-12')
+      await waitFor(() =>
+        expect(
+          seen.some(
+            (q) =>
+              q.includes(`from=${encodeURIComponent('2026-09-12T00:00:00+07:00')}`) &&
+              q.includes(`to=${encodeURIComponent('2026-09-12T23:59:59.999+07:00')}`)
+          )
+        ).toBe(true)
+      )
+    })
   })
 
   describe('negative', () => {
-    test('TIDAK merender isian tanggal apa pun', async () => {
-      // Pagar sungguhan, bukan kosmetik: `ListActivityLogsDto` tidak menerima
-      // rentang waktu, dan ValidationPipe membuang parameter tak dikenal DIAM-
-      // DIAM. Sebuah isian tanggal di sini akan mengembalikan SELURUH tabel
-      // sambil tampak seperti hasil pencarian.
-      const { container } = setup()
+    test('TIDAK merender isian id objek — server masih membuangnya diam-diam', async () => {
+      // Pagar sungguhan, bukan kosmetik. `ListActivityLogsDto` menerima
+      // `from`/`to` sekarang, tapi TIDAK `resourceId`, dan ValidationPipe
+      // membuang parameter tak dikenal DIAM-DIAM. Isian id objek di sini akan
+      // mengembalikan SELURUH tabel sambil tampak seperti hasil pencarian —
+      // di layar yang dibuka justru saat pemeriksa bertanya.
+      //
+      // Yang dikunci bentuk POSITIF dan NEGATIF sekaligus: rentang tanggal ADA
+      // (dua isian), id objek TIDAK ADA. Test yang cuma menghitung isian tanggal
+      // akan hijau kalau suatu saat isian id objek ikut dipasang diam-diam.
+      const user = userEvent.setup()
+      setup()
       await screen.findByText(/Rem pencairan ditarik/)
-      expect(container.querySelectorAll('input[type="date"]')).toHaveLength(0)
-      expect(screen.queryByLabelText(/start date/i)).not.toBeInTheDocument()
-      expect(screen.getByText(/rentang waktu/)).toBeInTheDocument()
+
+      // Isiannya hidup di dalam popover Filter, jadi harus dibuka dulu —
+      // memeriksanya tanpa membuka akan menghitung nol untuk dua sebab yang
+      // berbeda, dan test yang tidak bisa membedakan keduanya tidak menjaga apa pun.
+      await user.click(screen.getByRole('button', { name: /filter/i }))
+      const popover = await screen.findByRole('dialog')
+      expect(popover.querySelectorAll('input[type="date"]')).toHaveLength(2)
+      expect(within(popover).queryByLabelText(/id objek/i)).not.toBeInTheDocument()
+
+      // Dan batasnya tetap tertulis di layar, di luar popover.
+      expect(screen.getByText(/id objek/)).toBeInTheDocument()
+    })
+
+    test('nilai tanggal yang bukan YYYY-MM-DD TIDAK dikirim', async () => {
+      // Sama seperti perlakuan `outcome`: tautan basi tidak boleh membuat
+      // jejaknya terlihat rusak. `@IsISO8601()` akan menjawab 400 untuk bentuk
+      // ini, jadi yang benar adalah tidak mengirimnya sama sekali.
+      const seen = recordListQueries()
+      setup('/jejak-audit?from=12-09-2026&to=kemarin')
+      await screen.findByText(/Rem pencairan ditarik/)
+      expect(seen.every((q) => !q.includes('from=') && !q.includes('to='))).toBe(true)
     })
 
     test('nilai `outcome` yang bukan enum kontrak TIDAK dikirim', async () => {

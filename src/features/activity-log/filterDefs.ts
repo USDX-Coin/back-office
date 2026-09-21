@@ -10,6 +10,19 @@ import type { DirectoryStaff } from '@/features/staff-directory/hooks'
 // orang, bukan kunci primer. Pilihannya dibangun dari direktori staf.
 export function activityLogFilterDefs(staff: DirectoryStaff[]): FilterDef[] {
   return [
+    // Paling depan, dan bukan kebetulan: pemeriksa selalu bertanya dengan
+    // tanggal ("apa yang terjadi 12 September"). Tanpa ini satu-satunya cara
+    // sampai ke sana adalah memijak halaman satu per satu.
+    //
+    // `(WIB)` ditulis di labelnya karena nilainya distempel +07:00 sebelum
+    // dikirim — operator yang mengira ini UTC akan salah baca batasnya,
+    // dan bentuknya sengaja sama persis dengan Log Panggilan DurianPay.
+    {
+      kind: 'dateRange',
+      startKey: 'from',
+      endKey: 'to',
+      label: 'Tanggal kejadian (WIB)',
+    },
     {
       kind: 'select',
       key: 'actorStaffId',

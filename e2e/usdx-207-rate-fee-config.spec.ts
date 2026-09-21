@@ -35,8 +35,9 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(page.getByRole('dialog')).toHaveCount(0)
 
       // After save + refetch, the current-rate card reflects the new spreads.
-      await expect(page.getByText('2.5%')).toBeVisible()
-      await expect(page.getByText('1.5%')).toBeVisible()
+      // Ejaannya id-ID sejak konvensi angka diseragamkan: koma desimal, bukan titik.
+      await expect(page.getByText('2,5%')).toBeVisible()
+      await expect(page.getByText('1,5%')).toBeVisible()
     })
 
     test('AC #3 — admin updates fee config and the new mint fee is active', async ({ page }) => {
@@ -55,7 +56,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
       // Card (aria-label "mint fee percent") reflects the new active config.
-      await expect(page.getByLabel(/persen biaya mint/i)).toHaveText('2.5%')
+      await expect(page.getByLabel(/persen biaya mint/i)).toHaveText('2,5%')
     })
 
     // USDX-637 — Minimum Mint (Rp) rides in the same snapshot.
