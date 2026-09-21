@@ -233,3 +233,29 @@ describe('DurianpayApiCallsPage', () => {
     })
   })
 })
+
+describe('durianpay — rentang tanggal dari URL', () => {
+  describe('negative', () => {
+    test.each([
+      ['terbalik', '?from=2026-08-30&to=2026-08-01'],
+      ['masa depan', '?from=2030-01-01&to=2030-12-31'],
+      ['tanggal mustahil', '?from=2026-02-31&to=2026-02-31'],
+    ])('rentang %s tidak dikirim, dan layar bilang kenapa', async (_n, q) => {
+      // Gerbang yang cuma hidup di popover tidak pernah dilewati tautan lama,
+      // bookmark, atau hasil salin-tempel. Sebelum ini popover MENOLAK tanggal
+      // masa depan sementara halamannya tetap MENGIRIMNYA — layar yang membantah
+      // dirinya sendiri.
+      const seen: string[] = []
+      server.events.on('request:start', ({ request }) => {
+        const u = new URL(request.url)
+        if (u.pathname === '/api/v1/durianpay-api-calls') seen.push(u.search)
+      })
+      setup('/durianpay-api-calls' + q)
+      expect(await screen.findByTestId('durianpay-rentang-bermasalah')).toBeInTheDocument()
+      expect(seen.length).toBeGreaterThan(0)
+      expect(seen.every((x) => !/[?&](from|to|startDate|endDate)=/.test(x))).toBe(true)
+      server.events.removeAllListeners()
+    })
+  })
+})
+

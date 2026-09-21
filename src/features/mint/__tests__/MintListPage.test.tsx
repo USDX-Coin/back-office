@@ -501,3 +501,32 @@ describe('MintListPage @ USDX-51', () => {
     })
   })
 })
+
+describe('mint — rentang tanggal dari URL', () => {
+  describe('negative', () => {
+    test.each([
+      ['terbalik', '?startDate=2026-08-30&endDate=2026-08-01'],
+      ['masa depan', '?startDate=2030-01-01&endDate=2030-12-31'],
+      ['tanggal mustahil', '?startDate=2026-02-31&endDate=2026-02-31'],
+    ])('rentang %s tidak dikirim, dan layar bilang kenapa', async (_n, q) => {
+      // Gerbang yang cuma hidup di popover tidak pernah dilewati tautan lama,
+      // bookmark, atau hasil salin-tempel. Sebelum ini popover MENOLAK tanggal
+      // masa depan sementara halamannya tetap MENGIRIMNYA — layar yang membantah
+      // dirinya sendiri.
+      const seen: string[] = []
+      server.events.on('request:start', ({ request }) => {
+        const u = new URL(request.url)
+        if (u.pathname === '/api/v1/requests') seen.push(u.search)
+      })
+      renderWithProviders(<TestApp />, {
+        initialEntries: ['/mint' + q],
+        authenticated: true,
+      })
+      expect(await screen.findByTestId('mint-rentang-bermasalah')).toBeInTheDocument()
+      expect(seen.length).toBeGreaterThan(0)
+      expect(seen.every((x) => !/[?&](from|to|startDate|endDate)=/.test(x))).toBe(true)
+      server.events.removeAllListeners()
+    })
+  })
+})
+

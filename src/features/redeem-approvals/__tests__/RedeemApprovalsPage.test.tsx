@@ -111,6 +111,26 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
         screen.getAllByRole('button', { name: /Setujui pencairan RDM/i })[0]!,
       )
       const dialog = await screen.findByRole('dialog')
+
+      // Pagar konvensi angka. Ini dialog tempat operator MENYETUJUI PENCAIRAN,
+      // dan barisnya dulu berbunyi "Kurs terpakai 16250.0000 (dasar 16000.00,
+      // spread jual 2.00%)" tepat di bawah empat baris yang sudah lewat
+      // `formatIdrExact`. Satu dialog, dua ejaan — dan perbaikannya sempat
+      // tidak punya satu pun test: kedua field dikembalikan ke bentuk mentah
+      // dan seluruh suite tetap hijau.
+      //
+      // Ditaruh di test INI, bukan di test "rincian gagal dimuat": di sana blok
+      // kursnya memang sengaja tidak ada, jadi pagarnya akan hampa.
+      // POSITIF, bukan negatif. Versi negatif (`not.toMatch(/\d\.\d{4,}/)`)
+      // terbukti buta di sini: nilai tiruannya `16167.60` — dua desimal, jadi
+      // mengembalikan field ini ke bentuk mentah TIDAK memerahkan apa pun,
+      // sementara `baseRate` di sebelahnya tetap menyuplai "IDR/USD" sehingga
+      // assertion positif yang longgar pun lolos.
+      await waitFor(() =>
+        expect(within(dialog).getByText(/16\.167,60 IDR\/USD/)).toBeInTheDocument()
+      )
+      expect(dialog.textContent ?? '').not.toMatch(/\d\.\d{4,}/)
+
       await user.click(within(dialog).getByRole('button', { name: /^Setujui pencairan$/ }))
 
       // Baris hilang HANYA kalau daftarnya benar-benar ditarik ulang setelah
@@ -176,6 +196,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
         within(dialog).getByText('Nama pada order dan nama menurut bank sama.'),
       ).toBeInTheDocument()
       expect(within(dialog).queryByTestId('payout-name-mismatch')).not.toBeInTheDocument()
+
     })
 
     test('should link the burn hash straight to the block explorer from the row', async () => {

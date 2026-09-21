@@ -76,6 +76,65 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       )
     })
 
+    test('refetch yang GAGAL setelah kirim tidak menghapus kartu "menunggu orang kedua"', async () => {
+      // Regresi yang lahir dari gerbang `isError` versi pertama, dan lebih berat
+      // daripada cacat yang hendak ditutupnya.
+      //
+      // `useUpdatePayoutLimits.onSuccess` meng-invalidate `PAYOUT_CONTROLS_KEY`,
+      // jadi SETIAP usulan yang berhasil memaksa satu GET ulang. Kalau GET itu
+      // gagal, gerbang berbasis `isError` meng-unmount seluruh form — dan
+      // bersamanya hilang kartu konfirmasi beserta tautan ke usulan yang BARU
+      // SAJA TERCATAT di server.
+      //
+      // Operator lalu membaca "usulan dimatikan" untuk usulan yang sudah ada di
+      // antrean, dan tindakan paling wajar berikutnya adalah mengirim ulang —
+      // dua usulan untuk satu perubahan plafon, masing-masing menunggu orang
+      // kedua. Produksi memakai `retry: 1`, jadi satu GET gagal sudah cukup.
+      const user = userEvent.setup()
+      let getCount = 0
+      server.use(
+        http.get('/api/v1/payout-controls', () => {
+          getCount += 1
+          // GET pertama sukses (baseline tiba), GET kedua — yang dipicu oleh
+          // usulan yang BERHASIL — gagal.
+          if (getCount > 1) {
+            return HttpResponse.json(
+              { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+              { status: 500 }
+            )
+          }
+          return HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              payoutsEnabled: true,
+              maxPerTxIdr: '50000000.00',
+              maxDailyIdr: '2000000000.00',
+              maxBatchPerTick: 25,
+              updatedAt: '2026-09-20T02:00:00.000Z',
+              updatedBy: 'stf_1',
+            },
+          })
+        })
+      )
+      setup()
+      const perTx = await screen.findByLabelText(/Plafon per transaksi/)
+      await waitFor(() => expect(perTx).toHaveValue('50000000.00'))
+      await user.clear(perTx)
+      await user.type(perTx, '75000000')
+      await user.type(
+        screen.getByLabelText(/^Alasan/),
+        'Plafon dinaikkan untuk antrean pencairan akhir bulan'
+      )
+      await user.click(screen.getByRole('button', { name: 'Usulkan perubahan' }))
+
+      // Kartu konfirmasi + tautannya WAJIB tetap ada.
+      expect(await screen.findByTestId('plafon-menunggu-orang-kedua')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /buka usulannya/i })).toBeInTheDocument()
+      // Dan layar TIDAK boleh berkata usulannya dimatikan.
+      expect(screen.queryByText(/Usulan perubahan plafon dimatikan/)).not.toBeInTheDocument()
+    })
+
     test('MANAGER mengusulkan plafon baru dan diberi tautan ke usulannya', async () => {
       const user = userEvent.setup()
       const body = captureLimitsBody()

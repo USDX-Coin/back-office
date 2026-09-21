@@ -1,4 +1,6 @@
 import { useNavigate, useParams } from 'react-router'
+import PeringatanRentang from '@/components/table/PeringatanRentang'
+import { periksaRentangWib } from '@/lib/wibRange'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Coins, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -69,6 +71,7 @@ export default function MintListPage() {
   const sortBy = params.searchParams.get('sortBy') ?? ''
   const sortOrder = (params.searchParams.get('sortOrder') ?? '') as 'asc' | 'desc' | ''
 
+  const rentang = periksaRentangWib(startDate, endDate)
   const list = useMintList({
     page: params.page,
     limit: PAGE_SIZE,
@@ -76,8 +79,12 @@ export default function MintListPage() {
     chain: chain || undefined,
     safeType: safeType || undefined,
     search: search || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
+    // Rentang yang TIDAK SAH tidak dikirim — aturan yang SAMA dipakai popover
+    // untuk mematikan tombol Terapkan. Halaman yang mengirim apa yang
+    // popover-nya sendiri tolak membuat tautan lama lolos membawa tanggal masa
+    // depan atau tanggal yang tidak ada di kalender.
+    startDate: rentang.sah ? startDate || undefined : undefined,
+    endDate: rentang.sah ? endDate || undefined : undefined,
   })
   const { data: chains } = useChainConfig()
 
@@ -312,6 +319,8 @@ export default function MintListPage() {
         columnVisibility={colVisibility}
         onColumnVisibilityChange={setColVisibility}
         filterToolbar={
+          <div className="space-y-2">
+            <PeringatanRentang masalah={rentang.masalah} layar="mint" />
           <TableToolbar
             search={{
               value: search,
@@ -348,6 +357,7 @@ export default function MintListPage() {
               onChange: setColVisibility,
             }}
           />
+          </div>
         }
         hasFilters={hasFilters}
         emptyState={noDataState}

@@ -64,6 +64,14 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       await user.click(await screen.findByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ }))
       const dialog = await screen.findByRole('dialog')
       expect(await within(dialog).findByText('RDM260912A1B2C3')).toBeInTheDocument()
+
+      // Pagar konvensi angka. "Kurs snapshot" dulu dicetak MENTAH
+      // (`16250.0000`) sementara KETIGA tetangganya di grid Nominal yang sama
+      // sudah diformat. Perbaikannya sempat tidak punya satu pun test — dua
+      // field dikembalikan ke bentuk mentah dan seluruh suite tetap hijau.
+      const teks = dialog.textContent ?? ''
+      expect(teks).toMatch(/IDR\/USD/)
+      expect(teks).not.toMatch(/\d\.\d{4,}/)
     })
   })
 

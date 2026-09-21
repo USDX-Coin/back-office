@@ -492,7 +492,11 @@ describe('TransactionsListPage @ USDX-245 — redeem', () => {
       expect(within(dialog).getAllByText(/Rp 1\.547\.320/).length).toBeGreaterThan(0) // netPayoutIdr
       expect(within(dialog).getAllByText(/Rp 1\.568\.000/).length).toBeGreaterThan(0) // grossIdr
       expect(within(dialog).getByText(/15\.680,00 IDR\/USD/)).toBeInTheDocument() // effectiveRate
+      expect(within(dialog).getByText(/16\.000,00 IDR\/USD/)).toBeInTheDocument() // baseRate
       expect(within(dialog).getByText('2%')).toBeInTheDocument() // spreadSellPct
+      expect(within(dialog).getAllByText(/Rp 15\.680/).length).toBeGreaterThan(0) // redeemFeeIdr
+      expect(within(dialog).getAllByText(/Rp 5\.000/).length).toBeGreaterThan(0) // disbursementFeeIdr
+      expect(within(dialog).getAllByText(/Rp 20\.680/).length).toBeGreaterThan(0) // totalFeeIdr
 
       // Backstop murah untuk bentuk yang PASTI Inggris, di atas assertion di atas.
       const teksDialog = dialog.textContent ?? ''

@@ -119,7 +119,7 @@ export const EMPTY_DURIANPAY_FILTER_VALUES: DurianpayApiCallFilterValues = {
 export { wibDayStartIso, wibDayEndIso } from './wibRange'
 // Re-export saja tidak membawa keduanya ke lingkup berkas ini; `toDurianpayApiCallQuery`
 // di bawah memakainya langsung.
-import { wibDayEndIso, wibDayStartIso } from './wibRange'
+import { periksaRentangWib, wibDayEndIso, wibDayStartIso } from './wibRange'
 
 /**
  * Teks saringan yang boleh dikirim: sudah di-trim, kosong dan yang MELEBIHI batas
@@ -156,8 +156,17 @@ export function toDurianpayApiCallQuery(
   return {
     page,
     take,
-    from: wibDayStartIso(values.from.trim()) ?? undefined,
-    to: wibDayEndIso(values.to.trim()) ?? undefined,
+    // Rentang yang TIDAK SAH tidak dikirim sama sekali — aturan yang sama
+    // dipakai popover untuk mematikan tombol Terapkan. Tanpa ini halaman
+    // mengirim apa yang popover-nya sendiri tolak, dan tautan lama lolos
+    // membawa tanggal masa depan atau `2026-02-31` (yang dibaca server sebagai
+    // 3 Maret — chip bilang Februari, server mencari Maret).
+    ...(periksaRentangWib(values.from.trim(), values.to.trim()).sah
+      ? {
+          from: wibDayStartIso(values.from.trim()) ?? undefined,
+          to: wibDayEndIso(values.to.trim()) ?? undefined,
+        }
+      : { from: undefined, to: undefined }),
     outcome: isDurianpayOutcome(outcome) ? outcome : undefined,
     apiFlavor: isDurianpayFlavor(apiFlavor) ? apiFlavor : undefined,
     path: textFilter(values.path, DURIANPAY_PATH_FILTER_MAX),

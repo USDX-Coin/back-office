@@ -1,4 +1,6 @@
 import { useNavigate, useParams } from 'react-router'
+import PeringatanRentang from '@/components/table/PeringatanRentang'
+import { periksaRentangWib } from '@/lib/wibRange'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, ShieldCheck } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -40,14 +42,19 @@ export default function KycListPage() {
   const startDate = params.searchParams.get('startDate') ?? ''
   const endDate = params.searchParams.get('endDate') ?? ''
 
+  const rentang = periksaRentangWib(startDate, endDate)
   const list = useKycList({
     page: params.page,
     limit: PAGE_SIZE,
     status: status || undefined,
     entityType: entityType || undefined,
     search: search || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
+    // Rentang yang TIDAK SAH tidak dikirim — aturan yang SAMA dipakai popover
+    // untuk mematikan tombol Terapkan. Halaman yang mengirim apa yang
+    // popover-nya sendiri tolak membuat tautan lama lolos membawa tanggal masa
+    // depan atau tanggal yang tidak ada di kalender.
+    startDate: rentang.sah ? startDate || undefined : undefined,
+    endDate: rentang.sah ? endDate || undefined : undefined,
   })
 
   const [colVisibility, setColVisibility] = useColumnVisibility('kyc', KYC_COLUMN_CONFIG)
@@ -178,6 +185,8 @@ export default function KycListPage() {
         columnVisibility={colVisibility}
         onColumnVisibilityChange={setColVisibility}
         filterToolbar={
+          <div className="space-y-2">
+            <PeringatanRentang masalah={rentang.masalah} layar="kyc" />
           <TableToolbar
             search={{
               value: search,
@@ -204,6 +213,7 @@ export default function KycListPage() {
               onChange: setColVisibility,
             }}
           />
+          </div>
         }
         hasFilters={hasFilters}
         emptyState={noDataState}

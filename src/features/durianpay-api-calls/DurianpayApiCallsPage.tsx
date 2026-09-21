@@ -1,4 +1,6 @@
 import { useNavigate, useParams } from 'react-router'
+import PeringatanRentang from '@/components/table/PeringatanRentang'
+import { periksaRentangWib } from '@/lib/wibRange'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, RadioTower } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -72,6 +74,7 @@ export default function DurianpayApiCallsPage() {
   // Nilai URL yang tidak dikenal kontrak dibuang di sini, bukan dikirim: server
   // akan menjawab 400 dan tabelnya terlihat gagal dimuat karena sebuah tautan basi.
   const query = toDurianpayApiCallQuery(filterValues, params.page, PAGE_SIZE)
+  const rentang = periksaRentangWib(filterValues.from.trim(), filterValues.to.trim())
   const list = useDurianpayApiCalls(query)
 
   const [colVisibility, setColVisibility] = useColumnVisibility(
@@ -247,6 +250,8 @@ export default function DurianpayApiCallsPage() {
         columnVisibility={colVisibility}
         onColumnVisibilityChange={setColVisibility}
         filterToolbar={
+          <div className="space-y-2">
+            <PeringatanRentang masalah={rentang.masalah} layar="durianpay" />
           <TableToolbar
             filter={{
               defs: DURIANPAY_CALL_FILTER_DEFS,
@@ -263,6 +268,7 @@ export default function DurianpayApiCallsPage() {
               onChange: setColVisibility,
             }}
           />
+          </div>
         }
         hasFilters={hasDurianpayFilter(query)}
         emptyState={
