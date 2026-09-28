@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
+import { isFramed } from './lib/frameGuard'
 
 async function enableMocking() {
   // MSW only runs in local dev (`vite dev` → import.meta.env.DEV === true).
@@ -31,6 +32,9 @@ enableMocking()
   .then(() => {
     const rootEl = document.getElementById('root')
     if (!rootEl) return
+    // Dimuat di dalam frame halaman lain → jangan render (clickjacking).
+    // Alasan lengkapnya di src/lib/frameGuard.ts.
+    if (isFramed(window)) return
 
     createRoot(rootEl).render(
       <StrictMode>
