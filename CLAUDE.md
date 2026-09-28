@@ -244,6 +244,9 @@ Sidebar `(N)` badge counts requests with status `PENDING_APPROVAL`. Counts are q
   test can catch a missing origin (USDX-292 Polygon RPC, then the transparency
   upload host)
 - Security headers in `vite.config.ts`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
+  — `pnpm dev` / `preview` only; the deployed build sends none of them
+- Anti-clickjacking in the build itself: `main.tsx` does not render when the page is
+  loaded inside a frame (`src/lib/frameGuard.ts`, WSTG-CLNT-09)
 - Auth is mocked via localStorage — **not production-ready**
 - All `target="_blank"` links should include `rel="noopener noreferrer"`
 - No `dangerouslySetInnerHTML`, no `eval()`, no `innerHTML`
