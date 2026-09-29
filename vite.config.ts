@@ -40,13 +40,37 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      // HANYA berlaku untuk `pnpm dev`. Vite tidak menyuntikkan apa pun ke `dist`,
+      // jadi build yang di-deploy TIDAK membawa ketiga header ini — yang mengirimnya
+      // wajib nginx di image produksi.
+      //
+      // Dulu tugas itu dipegang netlify.toml. Netlify-nya dibuang di commit ini
+      // karena back-office sudah di server sendiri, dan headernya belum ada yang
+      // menggantikan: diperiksa 21 Sep 2026, `curl -sSIL https://desk.usdx.co.id/login`
+      // menjawab TANPA satu pun header keamanan. Jadi ini bukan regresi yang dibawa
+      // commit ini — ia sudah terjadi sejak host-nya pindah; yang dilakukan di sini
+      // cuma berhenti berpura-pura netlify.toml masih memasangnya.
+      //
+      // Tidak bisa ditambal dari dalam repo: back-office adalah SPA statis, dan
+      // `frame-ancestors` DIABAIKAN browser kalau datang lewat <meta http-equiv>
+      // (spesifikasinya mewajibkan header HTTP). Meta CSP di index.html karena itu
+      // tidak memuatnya sama sekali. Permintaan nginx-nya ada di deskripsi PR ini,
+      // section Post-Merge Actions.
+      //
+      // Bandingkan dengan `app` dan `checkout`: keduanya Next.js, headernya hidup di
+      // next.config.ts `async headers()` sehingga ikut ke mana pun di-host — dan sejak
+      // commit yang sama, dikunci test. Perbedaan itu yang membuat app.usdx.co.id
+      // tetap terlindungi sementara desk.usdx.co.id tidak.
       headers: {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
       },
       // Same-origin proxy so dev fetch ke /api/* tidak hit cross-origin CORS.
-      // Mirrors the Netlify _redirects rule for production deploys.
+      // HANYA untuk `pnpm dev`. Build yang di-deploy tidak punya padanan proxy ini:
+      // nginx di image produksi cuma melayani `dist` + fallback SPA ke index.html,
+      // jadi VITE_API_URL WAJIB di-set di tiap deploy (dipasang pipeline sebagai
+      // --build-arg) dan fetch pergi langsung ke backend, bukan same-origin.
       proxy: {
         '/api': {
           target: apiProxyTarget,
