@@ -94,7 +94,7 @@ export default function DetailTeknis({
         aria-expanded={open}
         aria-controls={isiId}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight
           className={cn(
@@ -103,14 +103,14 @@ export default function DetailTeknis({
           )}
           aria-hidden="true"
         />
-        <span className="text-xs font-medium text-foreground">{title}</span>
+        <span className="text-sm font-medium text-foreground">{title}</span>
         <span className="ml-auto text-2xs text-muted-foreground">
           {open ? 'Tutup' : 'Buka'}
         </span>
       </button>
       <div ref={isiRef} id={isiId} hidden>
         <div className="border-t border-border/60 px-3 pb-3.5 pt-3">
-          <p className="mb-3 text-2xs leading-relaxed text-muted-foreground">
+          <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
             {description}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">{children}</div>
