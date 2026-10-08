@@ -88,7 +88,6 @@ export default function UserDetailPage() {
       </Button>
 
       <PageHeader
-        eyebrow="Nasabah"
         title={data.name ?? data.email}
         subtitle={`Bergabung ${formatShortDate(data.createdAt)}`}
         actions={
@@ -147,12 +146,12 @@ export default function UserDetailPage() {
 
             {/* USDX-47 S6: surface entityType, kycStatus, suspended in detail. */}
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 border-t pt-3">
-              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Jenis
               </span>
               <span>{ENTITY_LABEL[data.entityType] ?? data.entityType}</span>
 
-              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 KYC
               </span>
               <span>
@@ -166,7 +165,7 @@ export default function UserDetailPage() {
                 </span>
               </span>
 
-              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Status
               </span>
               <span>
@@ -185,7 +184,7 @@ export default function UserDetailPage() {
 
             {data.notes && (
               <div className="border-t pt-3 text-muted-foreground">
-                <p className="mb-1 text-2xs uppercase tracking-wide">Catatan</p>
+                <p className="mb-1 text-xs">Catatan</p>
                 <p className="whitespace-pre-wrap">{data.notes}</p>
               </div>
             )}

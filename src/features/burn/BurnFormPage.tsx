@@ -7,9 +7,7 @@ export default function BurnFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Meja OTC"
         title="Burn OTC baru"
-        italicAccent="tarik USDX"
         subtitle="Ajukan burn OTC setelah nasabah menyetor USDX ke dompet Safe. Request masuk ke alur persetujuan dan muncul di daftar Burn OTC."
       />
 

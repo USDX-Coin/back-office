@@ -9,9 +9,7 @@ import type { ReportPageState } from './useReportPageState'
 
 interface Props {
   state: ReportPageState
-  eyebrow: string
   title: string
-  italicAccent?: string
   subtitle?: ReactNode
   statusOptions: readonly StatusOption[]
   showUserPicker: boolean
@@ -21,9 +19,7 @@ interface Props {
 
 export default function ReportPageShell({
   state,
-  eyebrow,
   title,
-  italicAccent,
   subtitle,
   statusOptions,
   showUserPicker,
@@ -38,9 +34,7 @@ export default function ReportPageShell({
           perpindahan antar laporan turun ke tab ini. Rutenya tidak berubah. */}
       <ReportTabs />
       <PageHeader
-        eyebrow={eyebrow}
         title={title}
-        italicAccent={italicAccent}
         subtitle={subtitle}
         actions={
           <Button

@@ -45,7 +45,7 @@ export default function ReportTable<T>({ columns, rows, isFetching, isError }: P
               <TableHead
                 key={col.key}
                 className={cn(
-                  'h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80',
+                  'h-9 px-4 text-xs font-medium text-muted-foreground',
                   col.align === 'right' && 'text-right'
                 )}
               >

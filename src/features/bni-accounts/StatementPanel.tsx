@@ -35,7 +35,7 @@ import StatementTable from './StatementTable'
 
 const PAGE_SIZE = 10
 const MAX_DAYS = 31
-const LABEL_CLASS = 'text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground'
+const LABEL_CLASS = 'text-xs font-medium text-muted-foreground'
 const NO_ACCOUNT = ''
 
 interface Draft {

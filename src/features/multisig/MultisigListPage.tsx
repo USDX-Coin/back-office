@@ -114,7 +114,7 @@ export default function MultisigListPage() {
               {unknown && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />}
               <span className="truncate">{activityLabel || getActivityLabel(activity)}</span>
             </span>
-            <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {activity}
             </span>
           </div>
@@ -127,7 +127,7 @@ export default function MultisigListPage() {
       header: 'Safe',
       cell: ({ row }) => (
         <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs uppercase tracking-[0.04em]">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
             {row.original.safeType}
           </span>
         </span>
@@ -153,7 +153,7 @@ export default function MultisigListPage() {
           >
             {truncateMiddle(row.original.proposerAddress, 6, 4)}
           </span>
-          <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {row.original.proposerType === 'BACKEND' ? 'backend' : 'petugas'}
           </span>
         </div>
@@ -205,9 +205,7 @@ export default function MultisigListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Keuangan"
         title="Antrean Tanda Tangan"
-        italicAccent="wallet Safe"
         subtitle="Transaksi wallet Safe yang menunggu ditandatangani lalu dieksekusi — mint, burn, dan operasi tata kelola."
         actions={
           <div className="flex items-center gap-2">

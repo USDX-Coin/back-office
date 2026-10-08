@@ -36,7 +36,7 @@ interface Props {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 break-words text-sm text-foreground">{children}</div>
@@ -199,7 +199,7 @@ export default function ActivityLogDetailModal({
               <Raw value={entry.createdAt} />
             </Field>
             <div className="min-w-0 sm:col-span-2">
-              <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+              <p className="text-xs text-muted-foreground">
                 Metadata
               </p>
               {entry.metadata && Object.keys(entry.metadata).length > 0 ? (

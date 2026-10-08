@@ -18,9 +18,7 @@ export default function RatePage() {
           route (`App.tsx`), bukan di tab. */}
       <SettingsTabs />
       <PageHeader
-        eyebrow="Pengaturan"
         title="Kurs"
-        italicAccent="USD/IDR"
         subtitle={
           canEdit
             ? 'Ubah kurs yang berlaku. Perubahan langsung dipakai oleh setiap mint dan redeem berikutnya.'

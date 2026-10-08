@@ -251,9 +251,7 @@ export default function UsersPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Nasabah"
         title="Nasabah"
-        italicAccent="daftar"
         subtitle={`${list.isLoading ? '…' : total} nasabah terdaftar`}
         actions={
           canManage ? (

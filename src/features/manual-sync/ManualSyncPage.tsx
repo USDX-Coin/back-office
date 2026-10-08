@@ -216,7 +216,7 @@ export default function ManualSyncPage() {
           <Badge
             variant="secondary"
             className={cn(
-              'rounded-sm text-2xs font-medium uppercase tracking-[0.04em]',
+              'rounded-sm text-xs font-medium',
               TYPE_BADGE_CLASS[t]
             )}
           >
@@ -259,7 +259,7 @@ export default function ManualSyncPage() {
       size: 96,
       header: 'Dompet',
       cell: ({ getValue }) => (
-        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
         </span>
       ),
@@ -337,9 +337,7 @@ export default function ManualSyncPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pekerjaan Hari Ini"
         title="Perbaiki Status Nyangkut"
-        italicAccent="request tertahan"
         subtitle="Untuk request yang sudah jalan di blockchain tapi statusnya di sistem belum ikut berubah. Tempelkan bukti transaksinya, sistem memeriksa kecocokannya, lalu statusnya diperbaiki."
       />
 

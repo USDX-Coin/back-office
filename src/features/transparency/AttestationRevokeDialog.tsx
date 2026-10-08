@@ -57,7 +57,7 @@ export default function AttestationRevokeDialog({
         <DialogBody className="space-y-3">
           {report ? (
             <div className="rounded-md border border-border px-4 py-3">
-              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {formatPeriod(report.period)}
               </p>
               <p className="mt-1 font-medium text-foreground">{report.title}</p>

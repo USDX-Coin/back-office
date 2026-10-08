@@ -66,7 +66,7 @@ function TestBundleAddress({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-xs text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 text-sm text-foreground">{children}</dd>
@@ -183,7 +183,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 token dan Safe MANA sesi uji yang sedang jalan mencetak. */}
             {isTest ? (
               <div className="border-t border-border pt-4">
-                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Bundle uji
                 </p>
                 <dl className="mt-2 space-y-2" data-testid="test-bundle-addresses">
@@ -213,7 +213,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                 boleh menuntut seseorang membuka layar penggeseran mode. */}
             {isTest ? (
               <div className="border-t border-border pt-4">
-                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Boleh mint selama mode uji
                 </p>
                 {allowedEmails.length > 0 ? (

@@ -5,7 +5,7 @@ import type { RedeemApprovalListItem } from '@/lib/types'
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -39,7 +39,7 @@ export default function PayoutDestinationSummary({
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-border px-3 py-2.5">
-        <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+        <p className="text-xs text-muted-foreground">
           Nominal yang akan ditransfer
         </p>
         <p

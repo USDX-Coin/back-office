@@ -129,7 +129,7 @@ function HashLink({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -140,7 +140,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">
         {title}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
@@ -198,7 +198,7 @@ function SignerRow({ signer }: { signer: SafeTxSigner }) {
         )}
         <span className="font-mono text-xs">{truncateMiddle(signer.address, 8, 6)}</span>
         {signer.isBackend && (
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
             backend
           </span>
         )}
@@ -434,7 +434,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge cfg={getSafeTxStatusConfig(detail.status)} />
-                <span className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   Safe {detail.safeType} · {detail.chain} · nonce {detail.nonce}
                 </span>
               </div>
@@ -479,7 +479,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Wallet / network */}
             <div className="rounded-md border border-outline-variant/15 bg-surface-container-low/40 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Wallet className="h-3.5 w-3.5" /> Wallet penanda tangan
                 </span>
                 {wallet.isConnected ? (
@@ -558,7 +558,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
 
             {Object.keys(detail.decodedArgs ?? {}).length > 0 && (
               <div>
-                <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+                <p className="mb-2 text-sm font-semibold text-muted-foreground">
                   Argumen yang terbaca
                 </p>
                 <dl className="space-y-1.5 rounded-md bg-surface-container-low/40 p-3">
@@ -622,7 +622,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
             {/* Signers */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+                <p className="text-sm font-semibold text-muted-foreground">
                   Penanda tangan
                 </p>
                 <SignatureProgressBar progress={detail.signatureProgress} />

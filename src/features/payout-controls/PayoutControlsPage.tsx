@@ -91,9 +91,7 @@ export default function PayoutControlsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pengaturan"
         title="Plafon Pencairan"
-        italicAccent="uang keluar"
         subtitle="Batas nominal satu pencairan, batas akumulasi harian, dan berapa order yang dikirim sekali putaran. Mengubahnya selalu menuntut alasan tertulis dan persetujuan staf kedua — ke arah mana pun perubahannya."
       />
 

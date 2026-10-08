@@ -61,7 +61,7 @@ export default function ScreeningSubjectPanel({
 
   return (
     <div className="space-y-2" data-testid="screening-panel">
-      <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="text-sm font-semibold text-muted-foreground">
         Screening DTTOT &amp; DPPSPM
       </p>
 
@@ -185,7 +185,7 @@ function ListCoverageRow({
   const style = latest ? SCREENING_OUTCOME_STYLES[latest.outcome] : null
   return (
     <div data-testid={`screening-list-${listType}`}>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {SANCTION_LIST_TYPE_LABELS[listType]}
       </p>
       {latest === null ? (

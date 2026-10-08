@@ -67,7 +67,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                   : 'rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5'
               }
             >
-              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Rem pencairan
               </p>
               {data.payoutsEnabled ? (
@@ -86,7 +86,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
 
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Plafon per transaksi
                 </dt>
                 <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
@@ -94,7 +94,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Plafon per hari (WIB)
                 </dt>
                 <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
@@ -102,7 +102,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Order per putaran pengiriman
                 </dt>
                 <dd className="mt-1 font-mono text-sm tabular-nums">
@@ -128,7 +128,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
 
             <DetailTeknis>
               <div className="min-w-0">
-                <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   maxPerTxIdr (mentah)
                 </p>
                 <p className="mt-1 break-all font-mono text-xs">
@@ -136,13 +136,13 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   maxDailyIdr (mentah)
                 </p>
                 <p className="mt-1 break-all font-mono text-xs">{data.maxDailyIdr ?? 'null'}</p>
               </div>
               <div className="min-w-0">
-                <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   maxBatchPerTick (mentah)
                 </p>
                 <p className="mt-1 break-all font-mono text-xs">
@@ -150,7 +150,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   updatedAt / updatedBy
                 </p>
                 <p className="mt-1 break-all font-mono text-xs">

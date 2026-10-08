@@ -25,9 +25,7 @@ export default function DailyBurnPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Laporan"
       title="Burn Harian"
-      italicAccent="rekap"
       subtitle="Volume burn OTC per hari beserta sebaran statusnya. Seluruh waktu WIB (Asia/Jakarta)."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker={false}

@@ -177,7 +177,7 @@ export default function PayoutFailuresPage() {
           </span>
           {row.original.ownerKind === 'PARTNER' && (
             // Order partner yang bermasalah dikejar ke PARTNER-nya, bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               Partner
             </span>
           )}
@@ -219,9 +219,7 @@ export default function PayoutFailuresPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Pekerjaan Hari Ini"
           title="Pencairan Bermasalah"
-          italicAccent="redeem"
           subtitle="Payout redeem yang gagal, burn yang ditolak, dan payout yang tertahan. USDX nasabah sudah terbakar dan rupiahnya belum sampai — setiap baris menunggu satu keputusan manusia."
           actions={
             canResolve ? undefined : (

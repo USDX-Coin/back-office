@@ -133,7 +133,7 @@ function HashLink({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -144,7 +144,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">
         {title}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>
@@ -294,7 +294,7 @@ export default function OrderDetailModal({
                   <Field label="Partner">
                     <div className="flex flex-col leading-tight">
                       <span className="font-medium">{detail.partner.displayName}</span>
-                      <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {detail.partner.code}
                       </span>
                     </div>
@@ -422,7 +422,7 @@ export default function OrderDetailModal({
               {/* Estimated revenue — emphasized monitoring figure (backoffice only) */}
               <div className="flex items-center justify-between rounded-md bg-primary/5 px-3 py-2.5">
                 <div>
-                  <p className="font-mono text-2xs uppercase tracking-[0.06em] text-primary">
+                  <p className="text-xs text-primary">
                     Perkiraan pendapatan
                   </p>
                   <p className="text-2xs text-muted-foreground">

@@ -42,7 +42,7 @@ interface Props extends DateRangeRules {
 }
 
 const LABEL_CLASS =
-  'text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground'
+  'text-xs font-medium text-muted-foreground'
 
 export default function DateRangeFields({
   value,

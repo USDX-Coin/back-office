@@ -70,7 +70,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
       <PopoverContent className="w-64">
         <div className="space-y-3">
           <div>
-            <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
               Urutkan menurut
             </p>
             <Select value={sortBy || NONE} onValueChange={setField}>
@@ -88,7 +88,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
             </Select>
           </div>
           <div>
-            <p className="mb-1.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
               Arah
             </p>
             <div className="grid grid-cols-2 gap-1.5">

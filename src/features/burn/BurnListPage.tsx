@@ -283,9 +283,7 @@ export default function BurnListPage() {
           `actions` slot (compact, top-right at ≥sm) instead of a separate
           full-width button below the title. */}
       <PageHeader
-        eyebrow="Meja OTC"
         title="Burn OTC"
-        italicAccent="request"
         subtitle="Pantau setiap request burn OTC sepanjang alur persetujuannya."
         actions={
           canCreate ? (

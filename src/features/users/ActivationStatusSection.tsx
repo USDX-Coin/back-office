@@ -87,7 +87,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
 
   return (
     <div className="border-t pt-3">
-      <p className="mb-2 text-2xs uppercase tracking-wide text-muted-foreground">
+      <p className="mb-2 text-xs text-muted-foreground">
         Aktivasi
       </p>
       <div className="space-y-2">

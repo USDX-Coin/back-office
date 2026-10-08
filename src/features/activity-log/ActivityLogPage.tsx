@@ -235,9 +235,7 @@ export default function ActivityLogPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pengaturan"
         title="Jejak Audit"
-        italicAccent="append-only"
         subtitle="Siapa mengubah apa, kapan, dari mana, dan berhasil atau tidak. Terisi otomatis untuk setiap aksi staf yang mengubah data, plus peristiwa masuk dan keluar. Tidak bisa diubah maupun dihapus — dijaga trigger database, bukan sopan santun."
       />
 
@@ -362,7 +360,7 @@ function ActorCell({
         <span className="truncate font-mono text-2xs" title={entry.actorUserId}>
           {shortId(entry.actorUserId)}
         </span>
-        <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
           Nasabah
         </span>
       </div>

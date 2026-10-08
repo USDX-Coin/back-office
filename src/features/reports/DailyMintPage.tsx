@@ -24,9 +24,7 @@ export default function DailyMintPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Laporan"
       title="Mint Harian"
-      italicAccent="rekap"
       subtitle="Volume mint OTC per hari beserta sebaran statusnya. Seluruh waktu WIB (Asia/Jakarta)."
       statusOptions={MINT_STATUS_OPTIONS}
       showUserPicker={false}

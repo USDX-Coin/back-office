@@ -191,9 +191,7 @@ export default function MintFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Meja OTC"
         title="Mint OTC baru"
-        italicAccent="ajukan ke Safe"
         subtitle="Ajukan request mint OTC. Request masuk berstatus Menunggu persetujuan dan otomatis diarahkan ke dompet Safe Staf atau Safe Manager mengikuti batas nominalnya."
       />
 

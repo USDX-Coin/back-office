@@ -25,7 +25,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
         ) : (
           <>
             <div>
-              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Kurs dasar
               </p>
               <p
@@ -37,7 +37,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Kurs beli berlaku (mint)
                 </dt>
                 <dd
@@ -48,7 +48,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Kurs jual berlaku (burn)
                 </dt>
                 <dd
@@ -59,7 +59,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Spread beli
                 </dt>
                 <dd className="mt-1 text-sm font-medium">
@@ -67,7 +67,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Spread jual
                 </dt>
                 <dd className="mt-1 text-sm font-medium">
@@ -75,13 +75,13 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Mode
                 </dt>
                 <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Terakhir diubah
                 </dt>
                 <dd

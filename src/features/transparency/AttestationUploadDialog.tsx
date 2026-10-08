@@ -70,7 +70,7 @@ export default function AttestationUploadDialog({
           {pending ? (
             <>
               <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-[0.06em] text-warning">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                   Bisa diunduh publik
                 </p>
@@ -125,7 +125,7 @@ export default function AttestationUploadDialog({
 function Row({ label, value, icon }: { label: string; value: string; icon?: boolean }) {
   return (
     <div className="grid grid-cols-[76px_1fr] items-baseline gap-3">
-      <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-xs text-muted-foreground">
         {label}
       </dt>
       <dd className="flex items-baseline gap-1.5 break-all font-medium text-foreground">

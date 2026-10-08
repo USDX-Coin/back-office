@@ -103,9 +103,7 @@ export default function OncallContactsPage() {
     return (
       <div>
         <PageHeader
-          eyebrow="Pengaturan"
           title="Kontak Darurat"
-          italicAccent="insiden uang"
           subtitle="Siapa yang diangkat teleponnya saat uang bermasalah."
         />
         <div
@@ -213,9 +211,7 @@ export default function OncallContactsPage() {
     <div>
       <SettingsTabs />
       <PageHeader
-        eyebrow="Pengaturan"
         title="Kontak Darurat"
-        italicAccent="insiden uang"
         subtitle="Peringatan soal uang membawa serta kontak yang terdaftar di sini untuk kategori insiden yang cocok, supaya yang menerima peringatan tahu harus menghubungi siapa."
         actions={
           <Button onClick={openAdd} size="sm" className="h-7 text-xs">

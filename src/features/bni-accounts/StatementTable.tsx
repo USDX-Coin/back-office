@@ -111,7 +111,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       cell: ({ row }) => {
         const label = statementSourceLabel(row.original.row.source)
         return label ? (
-          <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {label}
           </span>
         ) : (

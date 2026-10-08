@@ -233,7 +233,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
 
           {/* Redeem fees (W3, USDX-245) — required; part of the full snapshot. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Redeem
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -285,7 +285,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               Bukan tarif: ini nominal terkecil yang boleh di-mint, dan angkanya
               akan sering digeser saat uji bayar produksi. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Batas mint
             </p>
             <div className="space-y-1.5">
@@ -319,7 +319,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               nasabah menilai minimum dari uang yang benar-benar masuk ke
               rekeningnya. */}
           <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Batas redeem
             </p>
             <div className="space-y-1.5">

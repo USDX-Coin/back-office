@@ -18,9 +18,7 @@ export default function FeeConfigPage() {
     <div>
       <SettingsTabs />
       <PageHeader
-        eyebrow="Pengaturan"
         title="Biaya"
-        italicAccent="mint & pembayaran"
         subtitle={
           canEdit
             ? 'Atur biaya mint dan biaya acuan payment gateway. Perubahan berlaku untuk setiap order berikutnya.'

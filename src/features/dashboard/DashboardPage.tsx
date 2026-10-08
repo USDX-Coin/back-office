@@ -23,9 +23,7 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pekerjaan Hari Ini"
         title="Beranda"
-        italicAccent="ringkasan"
         subtitle={
           stats
             ? `${stats.pendingRequests} request OTC menunggu persetujuan · kurs ${formatIdrRate(stats.currentRate)}/USDX`

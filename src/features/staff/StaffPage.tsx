@@ -242,9 +242,7 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pengaturan"
         title="Pengguna Internal"
-        italicAccent="daftar"
         subtitle={`${
           list.isLoading ? '…' : totalLoaded
         } operator back-office terdaftar`}

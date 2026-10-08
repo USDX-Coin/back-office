@@ -36,7 +36,7 @@ describe('DashboardPage', () => {
     renderWithProviders(<DashboardPage />, { authenticated: true })
     // § 4 P1-3 — "Dashboard / overview" jadi "Beranda / ringkasan".
     expect(
-      screen.getByRole('heading', { name: /beranda.*ringkasan/i })
+      screen.getByRole("heading", { name: /^beranda$/i })
     ).toBeInTheDocument()
     await waitFor(
       () => expect(screen.getByTestId('dashboard-phase1-stats')).toBeInTheDocument(),

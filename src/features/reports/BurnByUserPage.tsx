@@ -23,9 +23,7 @@ export default function BurnByUserPage() {
   return (
     <ReportPageShell
       state={state}
-      eyebrow="Laporan"
       title="Burn per Nasabah"
-      italicAccent="rekap"
       subtitle="Volume burn OTC dijumlahkan per nasabah. Diurutkan dari total USDX terbesar."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker

@@ -44,7 +44,7 @@ interface Props {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -55,7 +55,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
         {title}
       </h3>
       {children}
@@ -122,7 +122,7 @@ function BodyBlock({ title, view }: { title: string; view: DurianpayBodyView }) 
       <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <p className="text-xs font-medium">{title}</p>
         {view.kind === 'raw' && (
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
             bukan JSON
           </span>
         )}
@@ -181,7 +181,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
 
         {detail.errorSummary && (
           <div className="mt-2.5 rounded-md bg-destructive/10 px-3 py-2">
-            <p className="font-mono text-2xs uppercase tracking-[0.06em] text-destructive/80">
+            <p className="text-xs text-destructive/80">
               Sebab
             </p>
             <p

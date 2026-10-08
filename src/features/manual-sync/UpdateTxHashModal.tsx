@@ -287,7 +287,7 @@ export default function UpdateTxHashModal({
               )}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead className="text-left text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+                  <thead className="text-left text-xs text-muted-foreground">
                     <tr>
                       <th className="px-2 py-1.5 font-medium">Data</th>
                       <th className="px-2 py-1.5 font-medium">Menurut request</th>

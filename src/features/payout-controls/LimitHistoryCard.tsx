@@ -116,13 +116,13 @@ function ChangeEntry({
       )}
       <DetailTeknis className="mt-3">
         <div className="min-w-0">
-          <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground">
             Id versi
           </p>
           <p className="mt-1 break-all font-mono text-xs">{change.id}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground">
             Id usulan
           </p>
           <p className="mt-1 break-all font-mono text-xs">
@@ -130,19 +130,19 @@ function ChangeEntry({
           </p>
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground">
             Sebelum (mentah)
           </p>
           <p className="mt-1 break-all font-mono text-xs">{JSON.stringify(change.before)}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground">
             Sesudah (mentah)
           </p>
           <p className="mt-1 break-all font-mono text-xs">{JSON.stringify(change.after)}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+          <p className="text-xs text-muted-foreground">
             IP pengusul
           </p>
           <p className="mt-1 break-all font-mono text-xs">{change.ipAddress ?? '—'}</p>

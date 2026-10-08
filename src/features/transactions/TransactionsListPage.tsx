@@ -108,7 +108,7 @@ export default function TransactionsListPage() {
       size: 68,
       header: 'Jenis',
       cell: ({ getValue }) => (
-        <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {getValue() as string}
         </span>
       ),
@@ -155,7 +155,7 @@ export default function TransactionsListPage() {
             <TableCellText value={partner.displayName} className="text-xs font-medium" />
             {/* `code` is what appears in transaction references and survives a
                 change of legal name, so it is worth the second line. */}
-            <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {partner.code}
             </span>
           </div>
@@ -307,9 +307,7 @@ export default function TransactionsListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Pekerjaan Hari Ini"
         title="Transaksi Nasabah"
-        italicAccent="order"
         subtitle="Pemantauan semua order mint dan redeem nasabah — pembayaran, pencairan, eksekusi, serta rincian biaya dan spread. Hanya membaca; tindakannya ada di layar yang ditautkan tiap order."
       />
 

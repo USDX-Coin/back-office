@@ -116,7 +116,7 @@ function Field({
 }) {
   return (
     <div data-testid={testId}>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -163,7 +163,7 @@ function PiiField({
         <span className="flex flex-wrap items-baseline gap-1.5">
           <span className="break-all font-mono text-xs tabular-nums">{shown}</span>
           {withheld && (
-            <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {PII_WITHHELD_LABEL}
             </span>
           )}
@@ -272,7 +272,7 @@ function PhotoFigure({
 }) {
   return (
     <figure>
-      <figcaption className="mb-1 font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <figcaption className="mb-1 text-xs text-muted-foreground">
         {label}
       </figcaption>
       {url === null ? (
@@ -315,7 +315,7 @@ function AuditTrailRow({ row }: { row: KycReviewLog }) {
     <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5">
       <span
         className={cn(
-          'inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em]',
+          'inline-flex shrink-0 rounded-sm px-1.5 py-0.5 text-xs font-medium',
           cfg.className
         )}
       >
@@ -605,7 +605,7 @@ export default function KycDetailModal({
                       the reviewer back where this ticket started — deciding
                       without looking at what was collected. */}
                   <div className="space-y-2" data-testid="kyc-cdd">
-                    <p className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+                    <p className="text-sm font-semibold text-muted-foreground">
                       Uji tuntas nasabah (CDD)
                     </p>
                     {!hasCdd && (
@@ -735,7 +735,7 @@ export default function KycDetailModal({
                   {/* Photos — presigned GET URLs, TTL 5 min */}
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+                      <p className="text-xs text-muted-foreground">
                         Dokumen
                       </p>
                       {expiryLabel && (

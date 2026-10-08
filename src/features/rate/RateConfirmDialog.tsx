@@ -112,7 +112,7 @@ function DiffRow({ label, from, to }: { label: string; from: string; to: string 
   const changed = from !== to
   return (
     <div className="grid grid-cols-[88px_1fr] items-baseline gap-3 text-sm">
-      <span className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {label}
       </span>
       <div className="flex flex-wrap items-baseline gap-2 font-mono">

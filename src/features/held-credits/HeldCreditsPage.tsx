@@ -229,9 +229,7 @@ export default function HeldCreditsPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Pekerjaan Hari Ini"
           title="Mint Bermasalah"
-          italicAccent="uang masuk"
           subtitle="Uang nasabah sudah masuk rekening dan mesin tidak bisa memastikan ia melunasi order yang mana. Setiap baris menunggu satu keputusan manusia: diterima dan dilekatkan ke ordernya, atau ditolak."
           actions={
             canResolveHeldCredit(user) ? undefined : (

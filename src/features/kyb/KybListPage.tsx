@@ -192,9 +192,7 @@ export default function KybListPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Nasabah"
         title="Verifikasi Badan Usaha"
-        italicAccent="KYB"
         subtitle="Penelaahan badan usaha — datanya diketik operator dari dokumen, lalu disetujui atau ditolak."
         actions={
           canCreate ? (

@@ -15,9 +15,7 @@ export default function ProfilePage() {
           adalah kata yang sama dengan yang dipakai gerbang akses di kode dan
           disebut di dokumen tim, jadi ia tidak diterjemahkan. */}
       <PageHeader
-        eyebrow="Akun"
         title={user.name}
-        italicAccent="profil"
         subtitle={user.role}
       />
 
@@ -42,7 +40,7 @@ export default function ProfilePage() {
 
           <Card className="rounded-md py-0 gap-0 shadow-none">
             <CardContent className="p-5">
-              <h3 className="font-mono text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              <h3 className="text-xs font-medium text-muted-foreground">
                 Kontak
               </h3>
               <ul className="mt-3 space-y-3">
@@ -51,7 +49,7 @@ export default function ProfilePage() {
                     <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                   </span>
                   <div>
-                    <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Email kantor
                     </p>
                     <p className="text-sm text-foreground">{user.email}</p>

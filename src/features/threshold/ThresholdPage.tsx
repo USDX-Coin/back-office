@@ -14,9 +14,7 @@ export default function ThresholdPage() {
     <div>
       <SettingsTabs />
       <PageHeader
-        eyebrow="Pengaturan"
         title="Batas Safe Manager"
-        italicAccent="pembagian dompet"
         subtitle="Batas nominal yang membuat request besar diarahkan ke dompet Safe Manager, bukan dompet Safe Staf."
       />
 

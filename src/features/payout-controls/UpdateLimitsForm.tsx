@@ -222,7 +222,7 @@ export default function UpdateLimitsForm({ current }: Props) {
         </div>
 
         <div data-testid="pratinjau-perubahan" className="rounded-md border border-border">
-          <p className="border-b border-border px-3 py-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+          <p className="border-b border-border px-3 py-2 text-xs font-medium text-primary">
             Sebelum → sesudah
           </p>
           <ul className="divide-y divide-border">

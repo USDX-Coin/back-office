@@ -94,7 +94,7 @@ export default function RedeemApprovalsPage() {
             // Order partner melewati gerbang yang sama — tidak ada pintu belakang.
             // Ditandai karena order partner yang bermasalah dikejar ke PARTNER-nya,
             // bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               Partner
             </span>
           )}
@@ -287,9 +287,7 @@ export default function RedeemApprovalsPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Pekerjaan Hari Ini"
           title="Persetujuan Pencairan"
-          italicAccent="redeem"
           subtitle="Pencairan yang menunggu persetujuan sebelum rupiahnya dikirim. USDX nasabah sudah terbakar, jadi setiap baris di sini adalah orang yang sedang menunggu uangnya."
           actions={
             canDecide ? undefined : (

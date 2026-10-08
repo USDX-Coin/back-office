@@ -233,9 +233,7 @@ export default function DurianpayApiCallsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Troubleshooting"
         title="Log Panggilan DurianPay"
-        italicAccent="keluar"
         subtitle="Setiap panggilan yang kita kirim ke DurianPay — berhasil maupun gagal, termasuk yang tidak pernah dijawab — beserta jawabannya. Halaman baca saja: tidak ada tombol di sini yang mengubah apa pun."
       />
 

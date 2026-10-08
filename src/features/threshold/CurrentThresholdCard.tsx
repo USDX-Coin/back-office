@@ -37,7 +37,7 @@ export default function CurrentThresholdCard({ data, isLoading }: Props) {
         ) : (
           <>
             <div>
-              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Nominal sebesar ini atau lebih masuk ke Safe Manager
               </p>
               <p
@@ -49,13 +49,13 @@ export default function CurrentThresholdCard({ data, isLoading }: Props) {
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Mode
                 </dt>
                 <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
               </div>
               <div className="col-span-2">
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Terakhir diubah
                 </dt>
                 <dd

@@ -66,7 +66,7 @@ const Dim = () => <span className="text-muted-foreground">—</span>
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-2xs uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {label}
       </p>
       <div className="mt-1 text-sm text-foreground">{children}</div>
@@ -77,7 +77,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">
         {title}
       </p>
       {children}
@@ -219,7 +219,7 @@ function SubjectPanel({
             <span className="flex flex-wrap items-baseline gap-1.5">
               <span>{shown}</span>
               {isPiiWithheld(address || null, staff) && (
-                <span className="text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {PII_WITHHELD_LABEL}
                 </span>
               )}

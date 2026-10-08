@@ -25,7 +25,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
         ) : (
           <>
             <div>
-              <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Biaya mint (% dari subtotal)
               </p>
               <p
@@ -37,7 +37,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Biaya VA (flat)
                 </dt>
                 <dd
@@ -48,7 +48,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Biaya QRIS (%)
                 </dt>
                 <dd
@@ -59,7 +59,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Biaya redeem (%)
                 </dt>
                 <dd
@@ -70,7 +70,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Biaya pencairan (flat)
                 </dt>
                 <dd
@@ -85,7 +85,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   belum membawa kolomnya dan minimum yang benar-benar nol adalah
                   dua hal berbeda, dan yang kedua tidak pernah sah. */}
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Minimum Mint (Rp)
                 </dt>
                 <dd
@@ -96,7 +96,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div>
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Minimum Redeem (Rp)
                 </dt>
                 <dd
@@ -107,7 +107,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 </dd>
               </div>
               <div className="col-span-2">
-                <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-xs text-muted-foreground">
                   Terakhir diubah
                 </dt>
                 <dd

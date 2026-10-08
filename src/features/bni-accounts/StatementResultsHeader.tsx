@@ -105,7 +105,7 @@ export default function StatementResultsHeader({
           {/* `<dl>` only admits dt/dd/div children — the caption is a div. */}
           <div
             id="bni-statement-summary-caption"
-            className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
+            className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4"
           >
             Ringkasan menurut salinan USDX untuk rentang ini
           </div>

@@ -294,9 +294,7 @@ export default function MintListPage() {
           `actions` slot (compact, top-right at ≥sm) instead of a separate
           full-width button below the title. */}
       <PageHeader
-        eyebrow="Meja OTC"
         title="Mint OTC"
-        italicAccent="request"
         subtitle="Pantau setiap request mint OTC sepanjang alur persetujuannya."
         actions={
           canCreate ? (

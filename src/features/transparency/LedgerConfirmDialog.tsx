@@ -122,7 +122,7 @@ export default function LedgerConfirmDialog({
           {entry ? (
             <>
               <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-[0.06em] text-warning">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                   Tidak bisa diubah atau dihapus
                 </p>
@@ -213,7 +213,7 @@ export default function LedgerConfirmDialog({
                     </p>
                   ) : (
                     <>
-                      <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {conflict
                           ? 'Saldo setelah entri LAIN yang memakai kunci ini'
                           : 'Saldo dibaca ulang setelah galat'}
@@ -293,7 +293,7 @@ export default function LedgerConfirmDialog({
               )}
 
               <div className="rounded-md border border-border px-4 py-3">
-                <p className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Alasan (internal — tidak tampil di publik)
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
@@ -347,7 +347,7 @@ function Row({
 }) {
   return (
     <div className="grid grid-cols-[128px_1fr] items-baseline gap-3">
-      <dt className="text-2xs uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-xs text-muted-foreground">
         {label}
       </dt>
       <dd

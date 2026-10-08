@@ -263,9 +263,7 @@ export default function ScreeningQueuePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Nasabah"
         title="Pemeriksaan Daftar Sanksi"
-        italicAccent="DTTOT & DPPSPM"
         subtitle="Temuan pencocokan nasabah dengan daftar terduga teroris dan pendanaan proliferasi. Kecocokan menahan subjek — melepasnya adalah keputusan petugas, bukan mesin."
         actions={
           canManageSanctionLists(user) ? (

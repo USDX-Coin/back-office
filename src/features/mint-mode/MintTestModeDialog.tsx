@@ -311,7 +311,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 ketiganya WAJIB — tanpa ini permintaan selalu ditolak 422 dan
                 mode uji tidak bisa dinyalakan sama sekali. */}
             <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-2xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 Bundle uji
               </p>
               {(Object.keys(TEST_BUNDLE_ADDRESS_LABELS) as TestBundleAddressField[]).map(

@@ -207,9 +207,7 @@ export default function ApprovalsPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Pekerjaan Hari Ini"
           title="Persetujuan Orang Kedua"
-          italicAccent="empat mata"
           subtitle="Aksi back office yang menggerakkan rupiah di atas Rp 10 juta tidak berjalan sendiri — ia menjadi usulan yang harus dibuka staf lain. Pengusul tidak boleh menjadi penyetujunya."
           actions={
             canDecideApproval(user) ? undefined : (

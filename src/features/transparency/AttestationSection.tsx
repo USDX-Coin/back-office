@@ -264,7 +264,7 @@ export default function AttestationSection({ canManage }: Props) {
                   {['Periode', 'Judul', 'Terbit', ''].map((header, i) => (
                     <TableHead
                       key={header || `col-${i}`}
-                      className="h-9 px-4 font-mono text-2xs font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                      className="h-9 px-4 text-xs font-medium text-muted-foreground"
                     >
                       {header}
                     </TableHead>

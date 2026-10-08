@@ -27,9 +27,7 @@ export default function TransparencyPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Keuangan"
         title="Cadangan & Atestasi"
-        italicAccent="buku besar"
         subtitle={
           canWrite
             ? 'Setiap entri yang dicatat di sini langsung mengubah angka cadangan yang tayang di usdx.co.id. Buku besarnya hanya bisa ditambah — koreksi dilakukan dengan mencatat entri baru, tidak pernah dengan menyunting atau menghapus.'

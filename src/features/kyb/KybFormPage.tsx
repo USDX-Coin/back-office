@@ -280,9 +280,7 @@ export default function KybFormPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Nasabah"
         title="Verifikasi Badan Usaha baru"
-        italicAccent="KYB"
         subtitle="Ketik data penelaahan badan usaha dari dokumennya. Akunnya harus sudah ada lebih dulu di menu Nasabah."
         actions={
           <Button
@@ -299,7 +297,7 @@ export default function KybFormPage() {
 
       <form onSubmit={handleSubmit} className="max-w-3xl space-y-7" noValidate>
         <section className="space-y-3">
-          <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+          <h2 className="text-sm font-semibold text-muted-foreground">
             Akun
           </h2>
           <div>
@@ -321,7 +319,7 @@ export default function KybFormPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+          <h2 className="text-sm font-semibold text-muted-foreground">
             Badan usaha
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -549,7 +547,7 @@ export default function KybFormPage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-mono text-2xs font-medium uppercase tracking-[0.08em] text-primary">
+            <h2 className="text-sm font-semibold text-muted-foreground">
               Pemilik manfaat / UBO
             </h2>
             <Button
@@ -570,7 +568,7 @@ export default function KybFormPage() {
             {form.ubos.map((ubo, index) => (
               <li key={index} className="rounded-md border border-border p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="font-mono text-2xs uppercase tracking-[0.04em] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     UBO #{index + 1}
                   </span>
                   {form.ubos.length > 1 && (
@@ -684,7 +682,7 @@ export default function KybFormPage() {
                       usaha kalau identitas Pemilik Manfaat tidak bisa diyakini;
                       nama dan nomor identitas saja bukan bahan untuk itu. */}
                   <div className="sm:col-span-2 mt-1 border-t border-border pt-2">
-                    <span className="font-mono text-2xs uppercase tracking-[0.08em] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       Pasal 33 (3) — identitas &amp; profil
                     </span>
                   </div>
