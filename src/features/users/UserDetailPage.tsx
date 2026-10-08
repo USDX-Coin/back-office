@@ -9,7 +9,8 @@ import SummaryStat from '@/components/SummaryStat'
 import Avatar from '@/components/Avatar'
 import { canManageUsers, useAuth } from '@/lib/auth'
 import { ApiError } from '@/lib/apiFetch'
-import { formatShortDate } from '@/lib/format'
+import { formatShortDate, formatUsdxListAmount } from '@/lib/format'
+import { OTC_KIND_LABEL } from '@/lib/otc'
 import { getKycStatusConfig, getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import { useUserDetail } from './hooks'
@@ -115,9 +116,9 @@ export default function UserDetailPage() {
           hint="mint yang sudah dieksekusi"
         />
         <SummaryStat
-          label="Total burn"
+          label="Total redeem"
           value={`${data.analytics.totalBurned} USDX`}
-          hint="burn yang sudah dieksekusi"
+          hint="redeem yang sudah dieksekusi"
         />
         <SummaryStat
           label="Transaksi"
@@ -266,8 +267,8 @@ export default function UserDetailPage() {
                     className="flex items-center justify-between gap-3 py-2.5 text-xs"
                   >
                     <div className="min-w-0">
-                      <p className="font-medium capitalize">
-                        {r.type} · {r.amount} USDX
+                      <p className="font-medium">
+                        {OTC_KIND_LABEL[r.type] ?? 'OTC'} · {formatUsdxListAmount(r.amount)} USDX
                       </p>
                       <p className="truncate font-mono text-2xs text-muted-foreground tabular-nums">
                         {r.chain} · {formatShortDate(r.createdAt)}

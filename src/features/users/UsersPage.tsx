@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
+import { Plus, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import DataTable from '@/components/DataTable'
 import { TableCellText } from '@/components/ui/table'
@@ -10,11 +9,14 @@ import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
-import UserDeleteDialog from './UserDeleteDialog'
+import CustomerPanel from './CustomerPanel'
+import SplitView from '@/components/detail-panel/SplitView'
+import { ToneChip } from '@/components/detail-panel/DetailPanel'
+import { customerSummary } from '@/lib/customerSummary'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
-import { useUsers } from './hooks'
+import { useUserDetail, useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
 import {
   deriveActivationStatus,
@@ -37,7 +39,6 @@ const ENTITY_LABEL: Record<EntityType, string> = {
 }
 
 export default function UsersPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const canManage = canManageUsers(user)
   const params = useDataTableParams()
@@ -59,7 +60,6 @@ export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
 
   function openAdd() {
     setModalMode('add')
@@ -73,9 +73,14 @@ export default function UsersPage() {
     setModalOpen(true)
   }
 
-  function openDelete(u: PhaseOneUser) {
-    setActiveUser(u)
-    setDeleteOpen(true)
+  // Panel kanan (redesain fase 1): nasabah yang dipilih ada di URL (`?pilih=`)
+  // supaya bisa dibagikan dan bertahan saat halaman dimuat ulang.
+  const selectedId = params.searchParams.get('pilih')
+  function select(u: PhaseOneUser) {
+    params.updateParams({ pilih: u.id })
+  }
+  function closePanel() {
+    params.updateParams({ pilih: null })
   }
 
   const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
@@ -93,20 +98,12 @@ export default function UsersPage() {
       cell: ({ row }) => {
         const u = row.original
         return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate(`/users/${u.id}`)
-            }}
-            className="flex items-center gap-2.5 text-left hover:text-primary"
-            aria-label={`Buka ${u.name ?? u.email}`}
-          >
+          <span className="flex items-center gap-2.5">
             {/* Self-signup users have no name until first KYC submit
                 (users.yaml § User.name nullable) — fall back to email. */}
             <Avatar name={u.name ?? u.email} size="sm" />
             <span className="font-medium">{u.name ?? '—'}</span>
-          </button>
+          </span>
         )
       },
     },
@@ -173,47 +170,17 @@ export default function UsersPage() {
       },
     },
     {
+      // Audit 8 Okt 2026: kolom ini dulu KOSONG untuk hampir semua baris (hanya
+      // "Dibekukan" yang pernah tampil). Kini satu status ringkas yang sama
+      // dengan chip di panel — `customerSummary`.
       id: 'suspended',
-      size: 110,
+      size: 180,
       header: 'Status',
-      cell: ({ row }) =>
-        row.original.suspended ? (
-          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
-            Dibekukan
-          </span>
-        ) : null,
+      cell: ({ row }) => {
+        const s = customerSummary(row.original).status
+        return <ToneChip tone={s.tone}>{s.label}</ToneChip>
+      },
     },
-    ...(canManage
-      ? [
-          {
-            id: 'actions',
-            size: 96,
-            header: '',
-            cell: ({ row }: { row: { original: PhaseOneUser } }) => (
-              <div className="flex items-center justify-end gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openEdit(row.original)}
-                  aria-label={`Ubah ${row.original.name ?? row.original.email}`}
-                  className="h-7 w-7"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openDelete(row.original)}
-                  aria-label={`Hapus ${row.original.name ?? row.original.email}`}
-                  className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ),
-          } satisfies ColumnDef<PhaseOneUser>,
-        ]
-      : []),
   ]
 
   const noDataState = (
@@ -248,10 +215,17 @@ export default function UsersPage() {
     search || kycStatusParam || entityTypeParam || activationStatusParam
   )
 
+  const rows = list.data?.data ?? []
+  const rowSelected = selectedId ? (rows.find((u) => u.id === selectedId) ?? null) : null
+  // Tautan langsung ke nasabah yang tidak ada di halaman tabel ini: tarik
+  // datanya sendiri, supaya panelnya tetap terbuka.
+  const deepLink = useUserDetail(selectedId && !rowSelected && !list.isLoading ? selectedId : undefined)
+  const selectedUser: PhaseOneUser | null = rowSelected ?? deepLink.data ?? null
+
   return (
     <div>
       <PageHeader
-        title="Nasabah"
+        title="Daftar Nasabah"
         subtitle={`${list.isLoading ? '…' : total} nasabah terdaftar`}
         actions={
           canManage ? (
@@ -263,9 +237,21 @@ export default function UsersPage() {
         }
       />
 
+      <SplitView
+        panel={
+          selectedUser ? (
+            <CustomerPanel
+              user={selectedUser}
+              canManage={canManage}
+              onClose={closePanel}
+              onEdit={openEdit}
+            />
+          ) : null
+        }
+        list={
       <DataTable
         columns={columns}
-        data={list.data?.data ?? []}
+        data={rows}
         rowCount={total}
         isLoading={list.isLoading}
         isError={list.isError}
@@ -300,17 +286,21 @@ export default function UsersPage() {
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
+        onRowClick={select}
+        rowAriaLabel={(u) => `Buka nasabah ${u.name ?? u.email}`}
+        rowClassName={(u) =>
+          u.id === selectedId
+            ? '!bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))]'
+            : undefined
+        }
+      />
+        }
       />
 
       <UserModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         mode={modalMode}
-        user={activeUser}
-      />
-      <UserDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
         user={activeUser}
       />
     </div>
