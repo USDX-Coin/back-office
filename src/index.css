@@ -1,22 +1,9 @@
 @import "tailwindcss";
 
-/* IBM Plex, DIBUNDEL — bukan dari Google Fonts.
- *
- * Sebelumnya tiga keluarga huruf ditarik dari `fonts.googleapis.com` lewat
- * <link> di index.html. Itu berarti tiap muat halaman konsol internal ini
- * menembak pihak ketiga, dan tampilan hurufnya bergantung pada jaringan yang
- * tidak kita kendalikan. Di-bundel lewat @fontsource: berkasnya ikut build,
- * disajikan dari origin sendiri, dan CSP tidak lagi perlu membuka dua host
- * Google.
- *
- * Bobot dibatasi ke yang benar-benar dipakai (400/500/600 sans, 400/500 mono,
- * 400 italic serif) supaya muatannya tidak ikut membengkak. */
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
-@import '@fontsource/ibm-plex-serif/400-italic.css';
+/* Huruf merek usdx.co.id: Crimson Pro (judul, hemat) + Inter (UI & badan),
+ * dimuat lewat <link> Google Fonts di index.html — CSP-nya membuka
+ * fonts.googleapis.com (style-src) dan fonts.gstatic.com (font-src).
+ * JetBrains Mono HANYA untuk ID, hash, dan alamat — bukan untuk label. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -76,9 +63,13 @@
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
 
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* Judul halaman & judul panel saja. Tidak pernah miring, tidak pernah di label. */
+  --font-display: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  --color-gold: hsl(var(--gold));
+  --color-gold-soft: hsl(var(--gold-soft));
+  --color-gold-foreground: hsl(var(--gold-foreground));
 
   /* ── Skala huruf: ENAM langkah, dan hanya enam ────────────────────────────
    *
@@ -145,10 +136,17 @@
   --popover: var(--n0);
   --popover-foreground: var(--n9);
 
-  /* Teal merek USDX #006780 dipertahankan — yang ditala rasa, bukan merek.
-   * Putih di atasnya 6.54:1; sebagai teks/ikon di atas kartu 6.42:1. */
-  --primary: 192 100% 25%;
-  --primary-foreground: 0 0% 100%;
+  /* Maroon merek usdx.co.id #800000. Putih di atasnya 10.95:1; sebagai
+   * teks/ikon di atas kartu 10.76:1. */
+  --primary: 0 100% 25%;
+  --primary-foreground: 32 100% 97%;
+
+  /* Emas merek #e0a93c — AKSEN, bukan teks: di atas kartu cuma 2.08:1.
+   * Untuk teks di atas isian emas lembut pakai `--gold-foreground`
+   * (#7a5410, 6.65:1 di kartu). */
+  --gold: 40 72% 56%;
+  --gold-soft: 41 81% 92%;
+  --gold-foreground: 38 77% 27%;
 
   /* Tiga tingkat isian yang BERBEDA. Inilah inti perbaikan nomor 1. */
   --secondary: var(--n3);
@@ -182,7 +180,9 @@
 
   --border: var(--n5);
   --input: var(--n6);
-  --ring: 192 100% 25%;
+  /* Cincin fokus maroon di mode terang (emas di atas kartu terang 2.08:1 —
+   * gagal ambang 3:1 indikator fokus). */
+  --ring: 0 100% 25%;
 
   color-scheme: light;
 }
@@ -210,10 +210,16 @@
   --popover: 30 6% 13%;
   --popover-foreground: var(--n9);
 
-  /* Cyan merek USDX #1eaed5, dicerahkan sedikit agar lolos sebagai teks:
-   * 7.47:1 di atas kartu, dan teks gelap di atasnya 8.12:1. */
-  --primary: 191 70% 52%;
-  --primary-foreground: 196 40% 7%;
+  /* Maroon dicerahkan jadi merah bata hangat (#e8796c) agar lolos sebagai
+   * teks: 5.97:1 di atas kartu gelap; teks gelap di atasnya 6.78:1.
+   * Maroon asli #800000 di atas kartu gelap cuma ±2:1. */
+  --primary: 6 73% 67%;
+  --primary-foreground: 8 33% 6%;
+
+  /* Emas #e8b858 — di mode gelap ia boleh jadi teks (9.24:1 di kartu). */
+  --gold: 40 76% 63%;
+  --gold-soft: 41 54% 13%;
+  --gold-foreground: 40 76% 63%;
 
   --secondary: var(--n3);
   --secondary-foreground: var(--n8);
@@ -241,7 +247,8 @@
    * secara praktis tidak terlihat. Sekarang 1.58:1. */
   --border: var(--n5);
   --input: var(--n6);
-  --ring: 191 70% 52%;
+  /* Cincin fokus emas di mode gelap — 9.24:1 di atas kartu. */
+  --ring: 40 76% 63%;
 
   color-scheme: dark;
 }
@@ -264,8 +271,8 @@ body {
 /* CSS MATI yang dibuang dari berkas ini:
  *
  * 1. `font-feature-settings: 'cv11', 'ss01', 'ss03'` di <body>. Ketiganya
- *    adalah fitur alternat milik Inter. Tidak ada satu pun di IBM Plex — dan
- *    `cv11` juga tidak ada di Inter Tight yang dipakai sebelumnya. Aturan itu
+ *    adalah fitur alternat milik Inter, ditulis saat Inter belum dimuat sama
+ *    sekali (huruf lama tidak punya fitur itu). Aturan itu
  *    tidak pernah berlaku sekali pun sejak ditulis.
  * 2. `@keyframes pulse-dot` + `@utility animate-pulse-dot`. Nol pemakai di
  *    seluruh src/.
@@ -277,6 +284,13 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   letter-spacing: -0.011em;
+}
+
+/* Satu utilitas untuk judul berhuruf display — dipakai hemat: judul halaman
+ * dan judul panel detail. Tegak, tidak pernah miring. */
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0;
 }
 
 ::selection {

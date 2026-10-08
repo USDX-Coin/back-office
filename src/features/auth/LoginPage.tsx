@@ -80,12 +80,9 @@ export default function LoginPage() {
       </div>
       <main className="flex flex-1 items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm">
-          <div className="mb-6 flex flex-col items-center gap-3">
-            <img src="/image/Logo.svg" alt="USDX" className="h-10 w-10" />
-            <div className="text-center">
-              <p className="text-lg font-semibold tracking-tight">USDX Back Office</p>
-              <p className="text-xs text-muted-foreground">Konsol operator</p>
-            </div>
+          <div className="mb-6 flex flex-col items-center gap-2">
+            <img src="/image/logo-lockup.png" alt="USDX" className="h-10 w-auto" />
+            <p className="text-xs text-muted-foreground">Back-office</p>
           </div>
 
           <Card>

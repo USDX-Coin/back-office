@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 // ConnectButton.Custom so we keep its connect / account / chain modals and all
 // wallet logic, but render an Azure-Horizon-styled trigger instead of the stock
 // RainbowKit button:
-//   - disconnected  → primary teal CTA (matches the adjacent "Ajukan" button)
+//   - disconnected  → primary maroon CTA (matches the adjacent "Ajukan" button)
 //   - wrong network → destructive button that opens the chain modal
 //   - connected     → outline chip: chain icon + green dot + address → account modal
 export default function WalletConnectButton() {

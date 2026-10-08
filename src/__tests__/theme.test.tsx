@@ -57,9 +57,15 @@ describe('shadcn-minimal theme tokens', () => {
       expect(extractToken('--warning')).not.toBeNull()
     })
 
-    test('primary is a USDX teal accent (HSL around 190°)', () => {
-      const primary = extractToken('--primary')
-      expect(primary).toMatch(/^\s*1[89]\d\s+/)
+    // Merek usdx.co.id: maroon #800000 = hsl(0 100% 25%).
+    test('primary is the USDX maroon (#800000)', () => {
+      expect(blockTokens('\\:root')['--primary']).toBe('0 100% 25%')
+    })
+
+    test('defines the brand gold accent tokens', () => {
+      expect(extractToken('--gold')).not.toBeNull()
+      expect(extractToken('--gold-soft')).not.toBeNull()
+      expect(extractToken('--gold-foreground')).not.toBeNull()
     })
   })
 
@@ -72,21 +78,35 @@ describe('shadcn-minimal theme tokens', () => {
     test('.dark block overrides --primary', () => {
       expect(rawCss).toMatch(/\.dark\s*\{[^}]*--primary\s*:/s)
     })
+
+    // Maroon asli #800000 di atas kartu gelap cuma ±2:1 — yang gelap harus
+    // versi yang dicerahkan, bukan nilai terang yang disalin.
+    test('dark primary is lightened, not the light-mode maroon copied', () => {
+      expect(blockTokens('\\.dark')['--primary']).not.toBe('0 100% 25%')
+    })
   })
 
   describe('typography', () => {
-    test('IBM Plex is declared as the body font', () => {
-      expect(extractToken('--font-sans')).toContain('IBM Plex Sans')
-      expect(extractToken('--font-mono')).toContain('IBM Plex Mono')
+    // Huruf merek usdx.co.id: Inter untuk UI, Crimson Pro untuk judul, mono
+    // hanya untuk ID/hash. IBM Plex (tiga keluarga yang dicampur) sudah pergi.
+    test('Inter is the body font, Crimson Pro the display font', () => {
+      expect(extractToken('--font-sans')).toMatch(/^'Inter'/)
+      expect(extractToken('--font-display')).toMatch(/^'Crimson Pro'/)
+      expect(extractToken('--font-mono')).toMatch(/^'JetBrains Mono'/)
+      expect(rawCss).not.toContain('IBM Plex')
     })
 
-    // Dibundel lewat @fontsource, bukan <link> ke fonts.googleapis.com — sebuah
-    // konsol internal tidak seharusnya menembak pihak ketiga tiap muat halaman.
-    test('fonts are bundled, not fetched from a third party', () => {
-      expect(rawCss).toContain('@fontsource/ibm-plex-sans')
+    test('fonts are loaded from Google Fonts with the CSP opened for exactly that', () => {
       const html = readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8')
-      expect(html).not.toContain('fonts.googleapis.com')
-      expect(html).not.toContain('fonts.gstatic.com')
+      expect(html).toContain('https://fonts.googleapis.com/css2?family=Crimson+Pro')
+      expect(html).toMatch(/style-src [^;]*https:\/\/fonts\.googleapis\.com/)
+      expect(html).toMatch(/font-src [^;]*https:\/\/fonts\.gstatic\.com/)
+    })
+
+    // Serif miring di judul adalah salah satu dari tiga gaya huruf yang
+    // dicampur (audit 8 Okt 2026). Judul display selalu tegak.
+    test('the old italic serif token is gone', () => {
+      expect(extractToken('--font-serif')).toBeNull()
     })
 
     test('Manrope is no longer referenced', () => {
@@ -150,8 +170,8 @@ describe('shadcn-minimal theme tokens', () => {
   })
 
   describe('dead CSS stays dead', () => {
-    // Fitur alternat milik Inter. Tidak ada satu pun di IBM Plex, dan `cv11`
-    // juga tidak ada di Inter Tight — aturannya tidak pernah berlaku.
+    // Aturan lama yang tidak pernah berlaku sejak ditulis; tidak dihidupkan
+    // lagi diam-diam hanya karena Inter kini benar-benar dimuat.
     test('no Inter-only font-feature-settings', () => {
       expect(cssKode).not.toContain('cv11')
       expect(cssKode).not.toContain('font-feature-settings')

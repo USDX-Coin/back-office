@@ -45,7 +45,7 @@ const SAFE_LABEL: Record<SafeType, string> = {
 }
 
 // USDX-208: Manual Sync now carries consumer `mint_order` rows alongside OTC
-// mint/burn. mint & mint_order share the teal/primary family (both mint USDX) —
+// mint/burn. mint & mint_order share the primary (maroon) family (both mint USDX) —
 // OTC mint is filled, the consumer mint_order is outlined so they're
 // distinguishable at a glance; burn stays amber.
 // "Mint nasabah" = order mint dari aplikasi nasabah; "Mint OTC"/"Burn OTC" =

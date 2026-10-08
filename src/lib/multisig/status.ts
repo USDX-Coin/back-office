@@ -21,11 +21,12 @@ const safeTxStatusMap: Record<SafeTxStatus, StatusConfig> = {
   },
   CONFIRMING: {
     // In-flight on-chain (execTransaction broadcast, awaiting confirmations) —
-    // cyan accent (Azure Horizon primary-container) to read as "in progress".
+    // gold accent to read as "in progress", distinct from the maroon
+    // READY_TO_EXECUTE badge. Token-based so it holds in dark mode too.
     label: 'Menunggu konfirmasi jaringan',
     variant: 'outline',
-    className: 'bg-[#1eaed5]/12 text-[#067d99]',
-    dotClass: 'bg-[#1eaed5]',
+    className: 'bg-gold-soft text-gold-foreground',
+    dotClass: 'bg-gold',
   },
   EXECUTED: {
     label: 'Sudah dieksekusi',

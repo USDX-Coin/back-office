@@ -33,10 +33,10 @@ const config = getDefaultConfig({
   pollingInterval: 12_000,
 })
 
-// Azure Horizon accent (#006780) so the RainbowKit modal/connect button match
-// the back-office primary instead of RainbowKit's default blue.
+// Maroon merek usdx.co.id (#800000) so the RainbowKit modal/connect button
+// match the back-office primary instead of RainbowKit's default blue.
 const theme = lightTheme({
-  accentColor: '#006780',
+  accentColor: '#800000',
   accentColorForeground: '#ffffff',
   borderRadius: 'medium',
   fontStack: 'system',
