@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRate, formatSpreadPct, formatRelativeTime } from '@/lib/format'
+import { formatRate, formatSpreadPct, formatRelativeTime, rateModeLabel } from '@/lib/format'
 import type { RateInfo } from '@/lib/types'
 
 interface CurrentRateCardProps {
@@ -49,7 +49,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Kurs jual berlaku (burn)
+                  Kurs jual berlaku (redeem)
                 </dt>
                 <dd
                   className="mt-1 font-mono text-sm font-medium"
@@ -78,7 +78,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 <dt className="text-xs text-muted-foreground">
                   Mode
                 </dt>
-                <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
+                <dd className="mt-1 text-sm font-medium">{rateModeLabel(data.mode)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">

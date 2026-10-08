@@ -17,6 +17,7 @@ import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
+  ledgerEntryTypeLabel,
 } from '@/lib/transparency'
 import type { ReserveLedgerPage } from '@/lib/types'
 
@@ -128,7 +129,7 @@ export default function LedgerHistoryTable({
                             variant="outline"
                             className="font-mono text-2xs font-medium"
                           >
-                            {entry.entryType}
+                            {ledgerEntryTypeLabel(entry.entryType)}
                           </Badge>
                         </TableCell>
                         <TableCell

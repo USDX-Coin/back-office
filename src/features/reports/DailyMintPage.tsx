@@ -25,7 +25,7 @@ export default function DailyMintPage() {
     <ReportPageShell
       state={state}
       title="Mint Harian"
-      subtitle="Volume mint OTC per hari beserta sebaran statusnya. Seluruh waktu WIB (Asia/Jakarta)."
+      subtitle="Volume mint OTC per hari beserta sebaran statusnya. Seluruh waktu dalam WIB."
       statusOptions={MINT_STATUS_OPTIONS}
       showUserPicker={false}
       isFetching={query.isFetching}

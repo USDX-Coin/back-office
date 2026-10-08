@@ -154,8 +154,8 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                 <SelectValue placeholder="Pilih mode kurs" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="MANUAL">MANUAL — kurs tetap yang kamu tentukan</SelectItem>
-                <SelectItem value="DYNAMIC">DYNAMIC — ikut feed + spread</SelectItem>
+                <SelectItem value="MANUAL">Manual — kurs tetap yang kamu tentukan</SelectItem>
+                <SelectItem value="DYNAMIC">Otomatis — ikut kurs pasar + spread</SelectItem>
               </SelectContent>
             </Select>
             <FieldError message={errors.mode} />
@@ -185,7 +185,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             </div>
             {dynamic && (
               <p className="text-xs text-muted-foreground">
-                Mode DYNAMIC menarik kurs dasar dari feed pihak ketiga. Kurs
+                Mode otomatis mengambil kurs dasar dari penyedia kurs pasar. Kurs
                 manual diabaikan.
               </p>
             )}
@@ -225,7 +225,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="spreadSellPct">Spread jual (burn/redeem)</Label>
+              <Label htmlFor="spreadSellPct">Spread jual (redeem)</Label>
               <div className="relative">
                 <Input
                   id="spreadSellPct"

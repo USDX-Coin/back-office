@@ -12,6 +12,6 @@ import type { SectionTab } from '@/components/SectionTabs'
 export const REPORT_TABS: readonly SectionTab[] = [
   { to: '/reports/mint/daily', label: 'Mint Harian' },
   { to: '/reports/mint/by-user', label: 'Mint per Nasabah' },
-  { to: '/reports/burn/daily', label: 'Burn Harian' },
-  { to: '/reports/burn/by-user', label: 'Burn per Nasabah' },
+  { to: '/reports/burn/daily', label: 'Redeem Harian' },
+  { to: '/reports/burn/by-user', label: 'Redeem per Nasabah' },
 ]

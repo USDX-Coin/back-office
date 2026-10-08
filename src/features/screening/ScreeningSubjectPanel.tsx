@@ -92,7 +92,7 @@ export default function ScreeningSubjectPanel({
             >
               Belum ada satu pun jejak pemeriksaan untuk berkas ini. POJK 8/2023
               Pasal 53 mewajibkan pencocokan terhadap DTTOT dan DPPSPM — jalankan
-              pemindaian ulang dari menu Screening sebelum memutuskan.
+              pemindaian ulang dari Nasabah › Daftar Sanksi sebelum memutuskan.
             </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -118,14 +118,10 @@ export default function ScreeningSubjectPanel({
               </strong>{' '}
               belum pernah berhasil dicek untuk berkas ini
               {summary.unavailableCount > 0 && (
-                <>
-                  {' '}
-                  — {summary.unavailableCount} pemeriksaan tercatat{' '}
-                  <code className="font-mono">LIST_UNAVAILABLE</code>
-                </>
+                <> — {summary.unavailableCount} kali daftar sanksinya belum tersedia saat diperiksa</>
               )}
-              . Approve TIDAK diblokir (fail-open disengaja), tapi berkas ini belum
-              dinyatakan bersih terhadap daftar itu. Impor dan aktifkan daftarnya,
+              . Kamu tetap bisa menyetujui, tapi berkas ini belum dinyatakan bersih
+              terhadap daftar itu — cek ulang dulu: impor dan aktifkan daftarnya,
               lalu jalankan pemindaian ulang.
             </p>
           )}
@@ -135,9 +131,9 @@ export default function ScreeningSubjectPanel({
               className="text-xs text-muted-foreground"
               data-testid="screening-unavailable-history"
             >
-              {summary.unavailableCount} pemeriksaan tercatat{' '}
-              <code className="font-mono">LIST_UNAVAILABLE</code>, tapi kedua daftar
-              wajib sudah pernah benar-benar dicek — lihat versinya di atas.
+              {summary.unavailableCount} pemeriksaan sempat gagal karena daftar sanksinya
+              belum tersedia, tapi kedua daftar wajib sudah pernah benar-benar dicek —
+              lihat versinya di atas.
             </p>
           )}
 
@@ -146,9 +142,8 @@ export default function ScreeningSubjectPanel({
               className="rounded-sm bg-destructive/10 px-2.5 py-2 text-xs leading-relaxed text-destructive"
               data-testid="screening-holding"
             >
-              {summary.holding.length} temuan masih menahan subjek ini. Approve akan
-              ditolak server (<code className="font-mono">409</code>) sampai temuannya
-              diputus di menu Screening.
+              {summary.holding.length} temuan masih menahan nasabah ini. Persetujuan akan
+              ditolak sampai temuannya diputuskan di Nasabah › Daftar Sanksi.
             </p>
           )}
 

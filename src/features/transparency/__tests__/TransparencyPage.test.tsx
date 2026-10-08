@@ -80,7 +80,8 @@ async function fillEntryForm(
     occurredAt = '2026-07-23',
   }: Partial<{ type: string; amount: string; reason: string; occurredAt: string }> = {}
 ) {
-  if (type) await user.click(screen.getByRole('radio', { name: new RegExp(type) }))
+  // Radio dicari lewat NILAI wire-nya — labelnya kini kata ("Saldo awal").
+  if (type) await user.click(screen.getAllByRole('radio').find((r) => (r as HTMLInputElement).value === type)!)
   if (amount) await user.type(screen.getByLabelText(/^nominal$/i), amount)
   if (reason) await user.type(screen.getByLabelText(/^alasan$/i), reason)
   if (occurredAt) setDate(occurredAt)
@@ -265,7 +266,7 @@ describe('TransparencyPage @integration', () => {
       // "undefined undefined" here because the field names were invented.
       const table = await screen.findByRole('table', { name: /entri buku besar cadangan/i })
       expect(within(table).getByText('30 Jul 2026')).toBeInTheDocument()
-      expect(within(table).getByText('ADJUSTMENT')).toBeInTheDocument()
+      expect(within(table).getByText('Koreksi')).toBeInTheDocument()
       expect(within(table).getByText('-1,250.75 USD')).toBeInTheDocument()
       expect(
         within(table).getByText('Koreksi pencatatan ganda pada setoran sebelumnya')
@@ -406,13 +407,15 @@ describe('TransparencyPage @integration', () => {
       expect(await screen.findByText(/jenis entri wajib dipilih/i)).toBeInTheDocument()
     })
 
-    test('offers only SEED and ADJUSTMENT — the reserved automatic types are not selectable', async () => {
+    test('offers only Saldo awal (SEED) and Koreksi (ADJUSTMENT) — the reserved automatic types are not selectable', async () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
       await screen.findByRole('button', { name: /periksa lalu catat/i })
 
       expect(screen.getAllByRole('radio')).toHaveLength(2)
-      expect(screen.getByRole('radio', { name: /SEED/ })).toBeInTheDocument()
-      expect(screen.getByRole('radio', { name: /ADJUSTMENT/ })).toBeInTheDocument()
+      // Label dibaca operator; nilai wire-nya tetap SEED / ADJUSTMENT.
+      expect(screen.getByRole('radio', { name: /Saldo awal/ })).toHaveAttribute('value', 'SEED')
+      expect(screen.getByRole('radio', { name: /Koreksi/ })).toHaveAttribute('value', 'ADJUSTMENT')
+      expect(screen.queryByText(/^SEED$|^ADJUSTMENT$/)).not.toBeInTheDocument()
       expect(screen.queryByRole('radio', { name: /MINT/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('radio', { name: /BURN/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('radio', { name: /REDEEM/ })).not.toBeInTheDocument()

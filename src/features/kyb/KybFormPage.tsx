@@ -280,8 +280,8 @@ export default function KybFormPage() {
   return (
     <div>
       <PageHeader
-        title="Verifikasi Badan Usaha baru"
-        subtitle="Ketik data penelaahan badan usaha dari dokumennya. Akunnya harus sudah ada lebih dulu di menu Nasabah."
+        title="Tambah berkas badan usaha"
+        subtitle="Ketik data penelaahan badan usaha dari dokumennya. Akunnya harus sudah ada lebih dulu di Nasabah › Daftar Nasabah."
         actions={
           <Button
             variant="outline"

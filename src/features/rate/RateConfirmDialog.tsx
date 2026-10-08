@@ -70,7 +70,7 @@ export default function RateConfirmDialog({
             to={
               next.mode === 'MANUAL' && next.manualRate
                 ? formatRate(next.manualRate)
-                : 'otomatis (feed DYNAMIC)'
+                : 'otomatis (kurs pasar)'
             }
           />
           <DiffRow

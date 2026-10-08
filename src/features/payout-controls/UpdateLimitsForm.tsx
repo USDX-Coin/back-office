@@ -167,10 +167,10 @@ export default function UpdateLimitsForm({ current }: Props) {
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Permintaannya adalah snapshot utuh ketiga plafon, jadi yang tidak kamu sentuh
-          tetap ikut terkirim apa adanya. Kosongkan sebuah isian untuk mengembalikannya ke{' '}
-          <strong className="font-medium text-foreground">bawaan server</strong> — itu
-          keputusan tersendiri, bukan "jangan diubah".
+          Ketiga plafon selalu dikirim bersama: yang tidak kamu ubah ikut terkirim
+          dengan nilai sekarang. Mengosongkan sebuah isian berarti mengembalikannya ke{' '}
+          <strong className="font-medium text-foreground">nilai bawaan</strong>, bukan
+          "biarkan seperti sekarang".
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">

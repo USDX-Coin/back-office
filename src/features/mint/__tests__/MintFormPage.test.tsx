@@ -325,9 +325,9 @@ describe('MintFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe STAFF/i)
+      expect(banner).toHaveTextContent(/Safe Staf\b/)
       expect(banner).toHaveTextContent('019e1aa8…f0001')
-      const link = screen.getByRole('link', { name: /lihat di manual sync/i })
+      const link = screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })
       expect(link).toHaveAttribute('href', `/manual-sync?highlight=${BLOCKING_ID}`)
     })
 
@@ -408,11 +408,11 @@ describe('MintFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe target/i)
+      expect(banner).toHaveTextContent(/Safe tujuan/)
       // No short ID present.
       expect(banner.textContent ?? '').not.toMatch(/019e1aa8/)
       // Link still points at Manual Sync, just without highlight param.
-      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })).toHaveAttribute(
         'href',
         '/manual-sync'
       )

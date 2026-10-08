@@ -1854,7 +1854,7 @@ describe('KybDetailModal @ USDX-610 — status screening', () => {
 
       const banner = await within(dialog).findByTestId('screening-unchecked')
       expect(banner).toHaveTextContent(/DPPSPM/)
-      expect(banner).toHaveTextContent(/Approve TIDAK diblokir/i)
+      expect(banner).toHaveTextContent(/Kamu tetap bisa menyetujui/i)
       expect(within(dialog).getByRole('button', { name: /^setujui$/i })).toBeEnabled()
     })
   })

@@ -128,8 +128,9 @@ describe('ActivityLogPage @ jejak audit', () => {
       expect(popover.querySelectorAll('input[type="date"]')).toHaveLength(2)
       expect(within(popover).queryByLabelText(/id objek/i)).not.toBeInTheDocument()
 
-      // Dan batasnya tetap tertulis di layar, di luar popover.
-      expect(screen.getByText(/id objek/)).toBeInTheDocument()
+      // Dan cara kerjanya tetap tertulis di layar, di luar popover — sebagai
+      // petunjuk untuk operator, bukan catatan tentang server.
+      expect(screen.getByText(/Untuk menelusuri satu data tertentu/)).toBeInTheDocument()
     })
 
     test('rentang TERBALIK ditolak di layar, bukan dikirim lalu dijawab nol baris', async () => {

@@ -67,7 +67,7 @@ export default function StatementResultsHeader({
                 {/* § 16.8.8: reading the copy never contacts the bank, so this
                     pullId has NO api_call_log row to trace — unlike the balance
                     header's, which keeps the § 16.4 text. */}
-                <span title="pullId (korelasi activity_log)">pull {statement.pullId}</span>
+                <span title="No. tarikan untuk penelusuran tim teknis — tercatat di log aktivitas (tidak menghubungi bank)">No. tarikan {statement.pullId}</span>
               </>
             )}
           </p>

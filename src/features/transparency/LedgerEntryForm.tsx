@@ -27,7 +27,7 @@ import {
   type ReserveBalance,
   type SelectableLedgerEntryType,
 } from '@/lib/types'
-import { newIdempotencyKey, wibToday } from '@/lib/transparency'
+import { ledgerEntryTypeLabel, newIdempotencyKey, wibToday } from '@/lib/transparency'
 import { useCreateLedgerEntry, useRefetchReserveLedger } from './hooks'
 import LedgerConfirmDialog, {
   type BalanceRecheckState,
@@ -271,8 +271,8 @@ export default function LedgerEntryForm({ balance }: Props) {
                     className="mt-0.5 accent-primary"
                   />
                   <span className="min-w-0">
-                    <span className="block font-mono text-sm font-medium">
-                      {type}
+                    <span className="block text-sm font-medium">
+                      {ledgerEntryTypeLabel(type)}
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       {ENTRY_TYPE_HINTS[type]}

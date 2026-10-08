@@ -15,7 +15,7 @@ export default function ThresholdPage() {
       <SettingsTabs />
       <PageHeader
         title="Batas Safe Manager"
-        subtitle="Batas nominal yang membuat request besar diarahkan ke dompet Safe Manager, bukan dompet Safe Staf."
+        subtitle="Permintaan OTC dengan nominal sebesar ini atau lebih ditandatangani lewat dompet Safe Manager, bukan Safe Staf."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">

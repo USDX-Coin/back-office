@@ -1,5 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import {
+  rateModeLabel,
+  bniAccountTypeLabel,
   formatAmount,
   formatBankAmount,
   formatBniPostDate,
@@ -444,5 +446,36 @@ describe('formatIdrRate', () => {
       expect(formatIdrRate('16250.00')).toBe('Rp 16.250')
       expect(formatIdrRate('1000000')).toBe('Rp 1.000.000')
     })
+  })
+})
+
+describe('bniAccountTypeLabel', () => {
+  describe('positive', () => {
+    test('should spell the bank account type code as a word', () => {
+      expect(bniAccountTypeLabel('G')).toBe('Giro')
+      expect(bniAccountTypeLabel('S')).toBe('Tabungan')
+      expect(bniAccountTypeLabel('t')).toBe('Deposito')
+    })
+  })
+  describe('negative', () => {
+    test('should return an unknown code as-is rather than guess', () => {
+      expect(bniAccountTypeLabel('X')).toBe('X')
+    })
+  })
+  describe('edge cases', () => {
+    test('should return null for a missing code', () => {
+      expect(bniAccountTypeLabel(null)).toBeNull()
+      expect(bniAccountTypeLabel('')).toBeNull()
+    })
+  })
+})
+
+describe('rateModeLabel', () => {
+  test('should spell the two rate modes as words', () => {
+    expect(rateModeLabel('MANUAL')).toBe('Manual')
+    expect(rateModeLabel('DYNAMIC')).toBe('Otomatis (kurs pasar)')
+  })
+  test('should return an unknown mode as-is', () => {
+    expect(rateModeLabel('X')).toBe('X')
   })
 })

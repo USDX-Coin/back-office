@@ -250,3 +250,20 @@ export function formatOccurredAt(date: string): string {
   if (month < 1 || month > 12) return date
   return `${Number(match[3])} ${MONTH_ABBR[month - 1]} ${match[1]}`
 }
+
+/**
+ * Nama jenis entri buku cadangan yang dibaca operator (audit copy 8 Okt 2026:
+ * "SEED / ADJUSTMENT" tampil mentah). Nilai wire-nya tidak berubah. `BURN` dan
+ * `REDEEM` sama-sama "Redeem" — satu kosakata di layar.
+ */
+const LEDGER_ENTRY_TYPE_LABEL: Record<string, string> = {
+  SEED: 'Saldo awal',
+  ADJUSTMENT: 'Koreksi',
+  MINT: 'Mint',
+  BURN: 'Redeem',
+  REDEEM: 'Redeem',
+}
+
+export function ledgerEntryTypeLabel(type: string): string {
+  return LEDGER_ENTRY_TYPE_LABEL[type] ?? type
+}

@@ -38,7 +38,7 @@ export default function StaffDeactivateDialog({
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Pengguna internal gagal dinonaktifkan. Coba lagi.'
+          : 'Staf gagal dinonaktifkan. Coba lagi.'
       )
     }
   }
@@ -58,7 +58,7 @@ export default function StaffDeactivateDialog({
         }
       >
         <DialogHeader>
-          <DialogTitle>Nonaktifkan pengguna internal ini?</DialogTitle>
+          <DialogTitle>Nonaktifkan staf ini?</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <DialogDescription>

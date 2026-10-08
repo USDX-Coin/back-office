@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import DataTable from '@/components/DataTable'
 import { TableCellText } from '@/components/ui/table'
 import { formatShortDate } from '@/lib/format'
+import { formatRole } from '@/components/layout/navItems'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
@@ -130,7 +131,7 @@ export default function StaffPage() {
       header: 'Peran',
       enableSorting: true,
       // Nilai enum ditulis apa adanya — lihat catatan di `filterDefs.ts`.
-      cell: ({ row }) => row.original.role,
+      cell: ({ row }) => formatRole(row.original.role),
     },
     {
       accessorKey: 'isActive',
@@ -220,7 +221,7 @@ export default function StaffPage() {
           strokeWidth={1.5}
         />
       }
-      title="Belum ada pengguna internal"
+      title="Belum ada staf"
       description={
         canManage
           ? 'Tambahkan operator back-office pertama untuk mulai.'
@@ -230,7 +231,7 @@ export default function StaffPage() {
         canManage ? (
           <Button onClick={openAdd} className="mt-2">
             <Plus className="mr-1.5 h-4 w-4" />
-            Tambah Pengguna
+            Tambah Staf
           </Button>
         ) : undefined
       }
@@ -242,7 +243,7 @@ export default function StaffPage() {
   return (
     <div>
       <PageHeader
-        title="Pengguna Internal"
+        title="Staf & Peran"
         subtitle={`${
           list.isLoading ? '…' : totalLoaded
         } operator back-office terdaftar`}
@@ -250,7 +251,7 @@ export default function StaffPage() {
           canManage ? (
             <Button onClick={openAdd} size="sm" className="h-7 text-xs">
               <Plus className="mr-1 h-3.5 w-3.5" />
-              Tambah Pengguna
+              Tambah Staf
             </Button>
           ) : undefined
         }

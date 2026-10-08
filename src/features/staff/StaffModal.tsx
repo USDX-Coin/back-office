@@ -124,7 +124,7 @@ export default function StaffModal({
           password: form.password,
           role: form.role as StaffRole,
         })
-        toast.success('Pengguna internal dibuat')
+        toast.success('Staf ditambahkan')
       } else if (staff) {
         await update.mutateAsync({
           id: staff.id,
@@ -134,14 +134,14 @@ export default function StaffModal({
             isActive: form.isActive,
           },
         })
-        toast.success('Pengguna internal diperbarui')
+        toast.success('Data staf diperbarui')
       }
       onOpenChange(false)
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : 'Pengguna internal gagal disimpan. Coba lagi.'
+          : 'Data staf gagal disimpan. Coba lagi.'
       )
     }
   }
@@ -161,8 +161,8 @@ export default function StaffModal({
         <DialogHeader>
           <DialogTitle>
             {mode === 'add'
-              ? 'Tambah pengguna internal'
-              : 'Ubah pengguna internal'}
+              ? 'Tambah staf'
+              : 'Ubah data staf'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'add'

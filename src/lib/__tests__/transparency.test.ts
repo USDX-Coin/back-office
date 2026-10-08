@@ -15,6 +15,7 @@ import {
   newIdempotencyKey,
   parseAmountToCents,
   wibToday,
+  ledgerEntryTypeLabel,
 } from '@/lib/transparency'
 import type { AttestationReport } from '@/lib/types'
 
@@ -385,5 +386,19 @@ describe('looksLikePdf', () => {
       } as unknown as Blob
       await expect(looksLikePdf(unreadable)).resolves.toBeNull()
     })
+  })
+})
+
+describe('ledgerEntryTypeLabel', () => {
+  test('should spell the selectable types as words', () => {
+    expect(ledgerEntryTypeLabel('SEED')).toBe('Saldo awal')
+    expect(ledgerEntryTypeLabel('ADJUSTMENT')).toBe('Koreksi')
+  })
+  test('should use the one redeem word for both BURN and REDEEM', () => {
+    expect(ledgerEntryTypeLabel('BURN')).toBe('Redeem')
+    expect(ledgerEntryTypeLabel('REDEEM')).toBe('Redeem')
+  })
+  test('should return an unknown type as-is', () => {
+    expect(ledgerEntryTypeLabel('NEW')).toBe('NEW')
   })
 })

@@ -102,7 +102,7 @@ describe('MintModePage @integration', () => {
       loginAs(MANAGER)
       renderWithProviders(<MintModePage />)
 
-      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       expect(screen.queryByLabelText(/mode uji berakhir/i)).not.toBeInTheDocument()
     })
   })
@@ -168,7 +168,7 @@ describe('MintModePage @integration', () => {
         { initialEntries: ['/settings/mint-mode'] },
       )
 
-      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       expect(screen.queryByTestId('mint-test-mode-banner')).not.toBeInTheDocument()
 
       await user.click(await screen.findByRole('button', { name: /geser ke mode uji/i }))
@@ -198,7 +198,7 @@ describe('MintModePage @integration', () => {
       seedTestMode()
       renderWithProviders(<MintModePage />)
 
-      expect(await screen.findByRole('button', { name: /kembali ke prod/i })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: /kembali ke mode normal/i })).toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /geser ke mode uji/i }),
       ).not.toBeInTheDocument()
@@ -219,12 +219,12 @@ describe('MintModePage @integration', () => {
       seedTestMode()
       renderWithProviders(<MintModePage />)
 
-      await user.click(await screen.findByRole('button', { name: /kembali ke prod/i }))
+      await user.click(await screen.findByRole('button', { name: /kembali ke mode normal/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /kembali ke prod/i }))
+      await user.click(within(dialog).getByRole('button', { name: /kembali ke mode normal/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       })
     })
   })
@@ -237,7 +237,7 @@ describe('MintModePage @integration', () => {
       seedTestMode({ expiresAt: new Date(Date.now() - 60_000).toISOString() })
       renderWithProviders(<MintModePage />)
 
-      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       expect(screen.queryByTestId('mint-test-mode-banner')).not.toBeInTheDocument()
     })
   })
@@ -277,7 +277,7 @@ describe('MintModePage @integration', () => {
       expect(within(dialog).getByText('MINT_TEST_TOKEN_ADDRESS')).toBeInTheDocument()
       // Dialog tetap terbuka dan mode tidak bergeser.
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       expect(screen.queryByTestId('mint-test-mode-banner')).not.toBeInTheDocument()
     })
 
@@ -424,12 +424,12 @@ describe('MintModePage @integration', () => {
 
       expect(await screen.findByTestId('allowed-emails-list')).toBeInTheDocument()
 
-      await user.click(screen.getByRole('button', { name: /kembali ke prod/i }))
+      await user.click(screen.getByRole('button', { name: /kembali ke mode normal/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /kembali ke prod/i }))
+      await user.click(within(dialog).getByRole('button', { name: /kembali ke mode normal/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       })
       expect(screen.queryByTestId('allowed-emails-list')).not.toBeInTheDocument()
       expect(screen.queryByTestId('allowed-emails-empty')).not.toBeInTheDocument()
@@ -617,7 +617,7 @@ describe('MintModePage @integration', () => {
       expect(details).toHaveTextContent(/bukan pemegang MINTER_ROLE/i)
       expect(details).toHaveTextContent(/bukan owner Safe uji MANAGER/i)
       // Mode tidak bergeser.
-      expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+      expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
     })
 
     test('penolakan tabrakan alamat dari mock tampil apa adanya', async () => {
@@ -652,12 +652,12 @@ describe('MintModePage @integration', () => {
 
       expect(await screen.findByTestId('test-bundle-addresses')).toBeInTheDocument()
 
-      await user.click(screen.getByRole('button', { name: /kembali ke prod/i }))
+      await user.click(screen.getByRole('button', { name: /kembali ke mode normal/i }))
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: /kembali ke prod/i }))
+      await user.click(within(dialog).getByRole('button', { name: /kembali ke mode normal/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('PROD')
+        expect(screen.getByLabelText(/mode mint aktif/i)).toHaveTextContent('Normal')
       })
       expect(screen.queryByTestId('test-bundle-addresses')).not.toBeInTheDocument()
     })
@@ -671,7 +671,7 @@ describe('MintModePage @integration', () => {
 
       expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent(/mode uji/i)
       expect(
-        screen.queryByRole('button', { name: /kembali ke prod/i }),
+        screen.queryByRole('button', { name: /kembali ke mode normal/i }),
       ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /geser ke mode uji/i }),

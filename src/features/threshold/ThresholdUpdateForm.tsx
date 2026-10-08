@@ -148,7 +148,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Request dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
+              Permintaan dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
               bukan Safe Staf.
             </p>
             <FieldError message={errors.amount} />
@@ -160,8 +160,8 @@ export default function ThresholdUpdateForm({ current }: Props) {
               yakin?". Menaikkannya berarti lebih banyak request lolos tanpa
               tanda tangan Manager. */}
           <p className="text-xs text-muted-foreground">
-            Batas baru langsung dipakai untuk setiap request mint dan burn
-            berikutnya. Menaikkannya berarti lebih banyak request besar berhenti
+            Batas baru langsung dipakai untuk setiap permintaan mint dan redeem
+            berikutnya. Menaikkannya berarti lebih banyak permintaan besar berhenti
             di Safe Staf dan tidak pernah sampai ke Safe Manager.
           </p>
           <Button

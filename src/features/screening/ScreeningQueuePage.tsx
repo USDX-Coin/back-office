@@ -51,7 +51,7 @@ function ScoreCell({ score }: { score: number | null }) {
   const text = formatScore(score)
   if (text === null) {
     return (
-      <span className="font-mono text-xs text-muted-foreground" title="Skor hanya kosong untuk LIST_UNAVAILABLE">
+      <span className="font-mono text-xs text-muted-foreground" title="Skor kosong kalau daftar sanksinya belum tersedia saat diperiksa">
         —
       </span>
     )
@@ -263,7 +263,7 @@ export default function ScreeningQueuePage() {
   return (
     <div>
       <PageHeader
-        title="Pemeriksaan Daftar Sanksi"
+        title="Daftar Sanksi"
         subtitle="Temuan pencocokan nasabah dengan daftar terduga teroris dan pendanaan proliferasi. Kecocokan menahan subjek — melepasnya adalah keputusan petugas, bukan mesin."
         actions={
           canManageSanctionLists(user) ? (

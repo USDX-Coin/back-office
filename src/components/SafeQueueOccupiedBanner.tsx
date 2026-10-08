@@ -29,7 +29,8 @@ export default function SafeQueueOccupiedBanner({
 }: SafeQueueOccupiedBannerProps) {
   // SoT policy: 1 active request per Safe. When safeType is missing we still
   // explain the situation in operator-friendly terms instead of hiding it.
-  const safeLabel = safeType ? `Safe ${safeType}` : 'Safe target'
+  const safeLabel =
+    safeType === 'MANAGER' ? 'Safe Manager' : safeType === 'STAFF' ? 'Safe Staf' : 'Safe tujuan'
   const manualSyncHref = blockingRequestId
     ? `/manual-sync?highlight=${encodeURIComponent(blockingRequestId)}`
     : '/manual-sync'
@@ -44,29 +45,29 @@ export default function SafeQueueOccupiedBanner({
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <div className="space-y-1">
         <p className="leading-snug">
-          <span className="font-semibold">{safeLabel}</span> sedang punya request
-          lain yang belum executed.
+          <span className="font-semibold">{safeLabel}</span> masih memegang
+          permintaan lain yang belum selesai.
           {blockingRequestId ? (
             <>
               {' '}
-              Selesaikan dulu request{' '}
+              Selesaikan dulu permintaan{' '}
               <code
                 className="rounded bg-warning/10 px-1 py-0.5 font-mono text-2xs"
                 title={blockingRequestId}
               >
                 {shortRequestId(blockingRequestId)}
               </code>{' '}
-              sebelum submit baru.
+              sebelum mengajukan yang baru.
             </>
           ) : (
-            ' Selesaikan dulu request yang masih pending sebelum submit baru.'
+            ' Selesaikan dulu permintaan yang masih menunggu sebelum mengajukan yang baru.'
           )}
         </p>
         <Link
           to={manualSyncHref}
           className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
         >
-          Lihat di Manual Sync
+          Lihat di Perbaiki Status Nyangkut
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>

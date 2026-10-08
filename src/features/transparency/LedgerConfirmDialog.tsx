@@ -16,6 +16,7 @@ import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
+  ledgerEntryTypeLabel,
   parseAmountToCents,
 } from '@/lib/transparency'
 import type { CreateLedgerEntryInput, ReserveBalance } from '@/lib/types'
@@ -134,7 +135,7 @@ export default function LedgerConfirmDialog({
               </div>
 
               <dl className="space-y-3 text-sm">
-                <Row label="Jenis" value={entry.entryType} />
+                <Row label="Jenis" value={ledgerEntryTypeLabel(entry.entryType)} />
                 <Row
                   label="Nominal"
                   ariaLabel="Nominal yang dicatat"

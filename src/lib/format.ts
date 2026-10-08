@@ -317,3 +317,22 @@ export function formatIsoDayDmy(day: string | null | undefined): string | null {
   const [, y, mo, d] = m
   return `${d}/${mo}/${y}`
 }
+
+const BNI_ACCOUNT_TYPE_LABEL: Record<string, string> = { G: 'Giro', S: 'Tabungan', T: 'Deposito' }
+
+/**
+ * Kode jenis rekening dari BNI (`G`/`S`/`T`) → kata yang dibaca operator.
+ * Audit 8 Okt 2026: kartu saldo menampilkan "PT … · G · IDR". Kode yang tidak
+ * dikenal dikembalikan apa adanya — ditebak artinya lebih buruk daripada mentah.
+ */
+export function bniAccountTypeLabel(code: string | null | undefined): string | null {
+  if (!code) return null
+  return BNI_ACCOUNT_TYPE_LABEL[code.trim().toUpperCase()] ?? code
+}
+
+/** Mode kurs dari server (`MANUAL` / `DYNAMIC`) → kata yang dibaca operator. */
+export function rateModeLabel(mode: string): string {
+  if (mode === 'MANUAL') return 'Manual'
+  if (mode === 'DYNAMIC') return 'Otomatis (kurs pasar)'
+  return mode
+}

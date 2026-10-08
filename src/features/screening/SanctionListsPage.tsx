@@ -223,7 +223,7 @@ export default function SanctionListsPage() {
   return (
     <div>
       <PageHeader
-        title="Daftar sanksi"
+        title="Versi daftar sanksi"
         subtitle="Versi daftar yang dipakai memeriksa nasabah. Pembaruan daftar adalah prosedur manusia — publikasi PPATK/Bappebti berbentuk berkas, bukan API — jadi tiap versi disimpan beserta tanggal terbit dan siapa yang mengimpornya."
         actions={
           <>

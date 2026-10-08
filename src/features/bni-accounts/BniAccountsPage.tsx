@@ -23,7 +23,7 @@ export default function BniAccountsPage() {
     <div>
       <PageHeader
         title="Rekening BNI"
-        subtitle="Saldo LIVE dari BNIdirect dan mutasi dari salinan USDX (direkam tiap 10 menit) untuk tiga rekening MAF. Hanya membaca — tidak ada transfer, tidak disambungkan ke order."
+        subtitle="Saldo langsung dari BNI, dan mutasi yang direkam USDX tiap 10 menit, untuk tiga rekening perusahaan. Halaman ini hanya membaca — tidak ada transfer."
       />
 
       {accounts.isPending ? (

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
-import { formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
+import { bniAccountTypeLabel as accountTypeLabel, formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
 import { getBniBalanceCardStatusConfig } from '@/lib/status'
 import type { BniAccount, BniBalances } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -92,8 +92,8 @@ function BalanceCardView({
           )}
 
         {state.kind === 'ok' && (
-          <p className="mt-3 truncate font-mono text-2xs text-muted-foreground">
-            {[state.card.accountName, state.card.accountType, state.card.currency]
+          <p className="mt-3 truncate text-xs text-muted-foreground">
+            {[state.card.accountName, accountTypeLabel(state.card.accountType), state.card.currency]
               .filter(Boolean)
               .join(' · ') || '—'}
           </p>
@@ -144,12 +144,12 @@ export default function BalanceCards({
                     (§ 16.2) — the one number ops can trace from the screen to the
                     bank contact. */}
                 {' · '}
-                <span className="font-mono" title="pullId (korelasi activity_log ↔ api_call_log)">
-                  pull {balances.pullId}
+                <span title="No. tarikan untuk penelusuran tim teknis — tercatat di log aktivitas dan log panggilan ke bank">
+                  No. tarikan <span className="font-mono">{balances.pullId}</span>
                 </span>
               </>
             ) : (
-              'Saldo LIVE dari BNIdirect — tidak diperbarui otomatis.'
+              'Saldo langsung dari BNI — tidak diperbarui otomatis.'
             )}
           </p>
         </div>

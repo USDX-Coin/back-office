@@ -38,7 +38,9 @@ describe('RatePage @integration', () => {
       await waitFor(() => {
         expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
       })
-      expect(screen.getByText('DYNAMIC')).toBeInTheDocument()
+      // Mode dibaca sebagai kata, bukan enum mentah.
+      expect(screen.getByText('Otomatis (kurs pasar)')).toBeInTheDocument()
+      expect(screen.queryByText('DYNAMIC')).not.toBeInTheDocument()
       expect(screen.getByText('0,5%')).toBeInTheDocument()
     })
   })
@@ -175,7 +177,7 @@ describe('RatePage @integration', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       })
       await waitFor(() => {
-        expect(screen.getByText('MANUAL')).toBeInTheDocument()
+        expect(screen.getByText('Manual')).toBeInTheDocument()
       })
     })
   })

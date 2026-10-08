@@ -225,9 +225,9 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe MANAGER/i)
+      expect(banner).toHaveTextContent(/Safe Manager/)
       expect(banner).toHaveTextContent('019e1aa8…f0001')
-      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })).toHaveAttribute(
         'href',
         `/manual-sync?highlight=${BLOCKING_ID}`
       )
@@ -309,8 +309,8 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe target/i)
-      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+      expect(banner).toHaveTextContent(/Safe tujuan/)
+      expect(screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })).toHaveAttribute(
         'href',
         '/manual-sync'
       )

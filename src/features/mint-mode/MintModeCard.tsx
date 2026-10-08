@@ -106,10 +106,10 @@ export default function MintModeCard({ data, isLoading }: Props) {
       // bisa disertakan.
       await setMode.mutateAsync({ mode: 'PROD' })
       setProdDialogOpen(false)
-      toast.success('Mode mint kembali ke PROD')
+      toast.success('Mint kembali ke mode normal')
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Gagal mengembalikan mode ke PROD.',
+        err instanceof Error ? err.message : 'Gagal mengembalikan mint ke mode normal.',
       )
     }
   }
@@ -138,7 +138,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                     : 'bg-success/15 text-success hover:bg-success/15'
                 }
               >
-                {isTest ? 'MODE UJI' : 'PROD'}
+                {isTest ? 'Mode uji' : 'Normal'}
               </Badge>
               <p className="text-xs text-muted-foreground">
                 {isTest
@@ -258,7 +258,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
               ) : null}
               {isTest && canRestoreProd ? (
                 <Button type="button" onClick={() => setProdDialogOpen(true)}>
-                  Kembali ke PROD
+                  Kembali ke mode normal
                 </Button>
               ) : null}
               {!isTest && !canEnableTest ? (
@@ -282,7 +282,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Kembalikan mint ke mode PROD?</DialogTitle>
+            <DialogTitle>Kembalikan mint ke mode normal?</DialogTitle>
             <DialogDescription>
               Mint kembali mencetak USDX untuk pembayaran berikutnya. Jendela uji
               yang sedang berjalan berhenti sekarang juga.
@@ -304,7 +304,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
               disabled={setMode.isPending}
               aria-busy={setMode.isPending}
             >
-              {setMode.isPending ? 'Mengembalikan…' : 'Kembali ke PROD'}
+              {setMode.isPending ? 'Mengembalikan…' : 'Kembali ke mode normal'}
             </Button>
           </DialogFooter>
         </DialogContent>

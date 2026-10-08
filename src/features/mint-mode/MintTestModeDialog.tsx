@@ -183,7 +183,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
           <DialogDescription>
             Selama jendela ini menyala, mint mencetak token UJI — bukan USDX —
             untuk uang yang benar-benar masuk, dan hanya untuk email pada daftar
-            di bawah. Mode kembali ke PROD sendiri saat waktunya habis.
+            di bawah. Mint kembali ke mode normal sendiri saat waktunya habis.
           </DialogDescription>
         </DialogHeader>
         {/* `flex min-h-0 flex-1 flex-col` bukan hiasan: form ini flex child dari

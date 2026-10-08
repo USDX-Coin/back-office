@@ -236,7 +236,7 @@ export default function ActivityLogPage() {
     <div>
       <PageHeader
         title="Jejak Audit"
-        subtitle="Siapa mengubah apa, kapan, dari mana, dan berhasil atau tidak. Terisi otomatis untuk setiap aksi staf yang mengubah data, plus peristiwa masuk dan keluar. Tidak bisa diubah maupun dihapus — dijaga trigger database, bukan sopan santun."
+        subtitle="Siapa melakukan apa, kapan, dari mana, dan berhasil atau tidak. Terisi otomatis untuk setiap aksi staf yang mengubah data, juga saat staf masuk dan keluar. Catatan ini tidak bisa diubah atau dihapus."
       />
 
       <DataTable<ActivityLogEntry>
@@ -376,10 +376,9 @@ function ActionCell({ action }: { action: string }) {
   if (explicit) {
     return (
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-xs">{explicit}</span>
-        <span className="truncate font-mono text-2xs text-muted-foreground" title={action}>
-          {action}
-        </span>
+        {/* Kode mesinnya pindah ke detail baris (audit copy 8 Okt 2026); di
+            tabel cukup kalimatnya. `title` tetap membawanya untuk yang mencari. */}
+        <span className="truncate text-xs" title={action}>{explicit}</span>
       </div>
     )
   }
@@ -451,11 +450,8 @@ function ScopeNote({ directoryFailed }: { directoryFailed: boolean }) {
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         Urutan tetap terbaru dulu. Rentang tanggal dihitung dalam <strong className="font-medium">WIB</strong>{' '}
-        dan mencakup kedua ujungnya. Server belum menerima saringan{' '}
-        <strong className="font-medium">id objek</strong>, jadi ia sengaja tidak dipasang
-        di sini — saringan yang diabaikan server akan menampilkan seluruh tabel seolah itu
-        hasil pencariannya. Untuk menelusuri satu objek, saring kelompoknya lalu buka
-        detail tiap baris.
+        dan mencakup kedua ujungnya. Untuk menelusuri satu data tertentu, saring
+        kelompoknya lalu buka detail tiap baris.
         {directoryFailed && ' Nama staf gagal dimuat, jadi aktor tampil sebagai id.'}
       </span>
     </p>

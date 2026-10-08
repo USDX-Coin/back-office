@@ -49,7 +49,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/mint-mode')
 
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD', { timeout: 15000 })
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal', { timeout: 15000 })
       await expect(page.getByTestId('mint-test-mode-banner')).toHaveCount(0)
 
       await page.getByRole('button', { name: /geser ke mode uji/i }).click()
@@ -237,9 +237,9 @@ test.describe('USDX-639 mode mint @e2e', () => {
         /tertutup untuk semua user/i,
       )
 
-      await page.getByRole('button', { name: /kembali ke prod/i }).click()
+      await page.getByRole('button', { name: /kembali ke mode normal/i }).click()
       const prodDialog = page.getByRole('dialog')
-      await prodDialog.getByRole('button', { name: /kembali ke prod/i }).click()
+      await prodDialog.getByRole('button', { name: /kembali ke mode normal/i }).click()
 
       await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD')
       await expect(page.getByTestId('allowed-emails-empty')).toHaveCount(0)
@@ -293,7 +293,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/mint-mode')
 
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD', { timeout: 15000 })
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal', { timeout: 15000 })
       await expect(page.getByRole('button', { name: /geser ke mode uji/i })).toHaveCount(0)
       await expect(
         page.getByText(/hanya manager dan admin yang bisa menggeser/i),
