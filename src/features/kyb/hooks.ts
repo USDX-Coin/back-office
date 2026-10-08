@@ -74,16 +74,21 @@ function buildQuery(filters: KybListFilters): string {
  * ordering (week1.md § Backoffice Approval Menu). No sort params for the same
  * reason: the order is a policy, not a preference.
  */
-export function useKybList(filters: KybListFilters, enabled = true) {
-  return useQuery({
-    queryKey: ['kyb', 'list', filters],
+/** Opsi query daftar KYB — dipakai juga oleh `useQueries` di halaman Verifikasi. */
+export function kybListQueryOptions(filters: KybListFilters, enabled = true) {
+  return {
+    queryKey: ['kyb', 'list', filters] as const,
     queryFn: () =>
       apiFetchRaw<PhaseOnePaginatedResponse<KybListItem>>(
         `/api/v1/kyb?${buildQuery(filters)}`,
       ),
     enabled,
     refetchOnWindowFocus: true,
-  })
+  }
+}
+
+export function useKybList(filters: KybListFilters, enabled = true) {
+  return useQuery(kybListQueryOptions(filters, enabled))
 }
 
 /** Sidebar `(N)` badge — KYB records still awaiting review. */

@@ -39,13 +39,18 @@ function fetchKycList(
 // GET /api/v1/kyc — the contract exposes no sortBy/sortOrder params: order is
 // fixed at submitted_at ascending (oldest pending first — fairness, week1.md
 // § Backoffice Approval Menu), so the page renders rows exactly as returned.
-export function useKycList(filters: KycListFilters, enabled = true) {
-  return useQuery({
-    queryKey: ['kyc', 'list', filters],
+/** Opsi query daftar KYC — dipakai juga oleh `useQueries` di halaman Verifikasi. */
+export function kycListQueryOptions(filters: KycListFilters, enabled = true) {
+  return {
+    queryKey: ['kyc', 'list', filters] as const,
     queryFn: () => fetchKycList(filters),
     enabled,
     refetchOnWindowFocus: true,
-  })
+  }
+}
+
+export function useKycList(filters: KycListFilters, enabled = true) {
+  return useQuery(kycListQueryOptions(filters, enabled))
 }
 
 // Sidebar badge count: submissions awaiting review. week1.md § Sidebar —

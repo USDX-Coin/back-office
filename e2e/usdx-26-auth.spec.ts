@@ -13,8 +13,8 @@ test.describe('USDX-26 auth @e2e', () => {
     test('should sign in with valid credentials and persist the session', async ({ page }) => {
       await installMockApi(page)
       await loginViaForm(page)
-      // § 4 P1-3 — judul halaman "Dashboard" jadi "Beranda".
-      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible()
+      // Redesain fase 1 — Beranda dihapus; halaman pertama adalah Transaksi.
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible()
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeTruthy()
       // USDX-392: the persisted profile is v5 and must NOT carry a session token
@@ -26,11 +26,11 @@ test.describe('USDX-26 auth @e2e', () => {
     test('should restore the session on reload without re-login', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
-      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await page.goto('/transactions')
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await page.reload()
-      await expect(page).toHaveURL(/\/dashboard/)
-      await expect(page.getByRole('heading', { name: /beranda/i, level: 1 })).toBeVisible()
+      await expect(page).toHaveURL(/\/transactions/)
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible()
     })
 
     test('should clear the session and return to /login on logout', async ({ page }) => {
@@ -42,7 +42,7 @@ test.describe('USDX-26 auth @e2e', () => {
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeNull()
       // going back to a protected route must bounce to /login again
-      await page.goto('/dashboard')
+      await page.goto('/transactions')
       await expect(page).toHaveURL(/\/login/)
     })
   })

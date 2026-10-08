@@ -44,22 +44,23 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('should submit the form and list the new request on /mint', async ({ page }) => {
+    test('should submit the form and list the new request on /otc under "Perlu tindakan"', async ({ page }) => {
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat mint otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '777')
-      await page.getByRole('button', { name: /kirim request mint otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
 
-      await expect(page).toHaveURL(/\/mint$/, { timeout: 15000 })
-      await expect(page.getByText(/request mint otc terkirim/i)).toBeVisible()
-      await expect(
-        page.getByRole('button', { name: new RegExp(`Buka request mint OTC milik ${USER_NAME}, 777\\.000000 USDX`, 'i') })
-      ).toBeVisible({ timeout: 10000 })
+      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
+      await expect(page.getByText(/permintaan mint otc terkirim/i)).toBeVisible()
+      const row = page.getByRole('button', { name: new RegExp(`Buka Mint OTC ${USER_NAME}, 777,00 USDX`, 'i') })
+      await expect(row).toBeVisible({ timeout: 10000 })
+      // A fresh request waits for signatures, so it sits in the action group.
+      await expect(page.locator('tbody[data-group="action"]').getByRole('button', { name: new RegExp(`777,00 USDX`) })).toBeVisible()
     })
 
     test('should convert an IDR-currency submission and show it in the list', async ({ page }) => {
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat mint otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
       await page.getByRole('combobox', { name: /jaringan/i }).click()
       await page.getByRole('option', { name: /polygon/i }).click()
@@ -69,12 +70,12 @@ test.describe('USDX-26 mint submit @e2e', () => {
       // USDX-27: option label is "IDR (auto-convert)" — anchor on code prefix.
       await page.getByRole('option', { name: /^IDR\b/i }).click()
       await page.getByLabel(/^nominal$/i).fill('16250')
-      await page.getByRole('button', { name: /kirim request mint otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
 
-      await expect(page).toHaveURL(/\/mint$/, { timeout: 15000 })
+      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
       // 16,250 IDR / 16,250 rate = 1 USDX (unique amount in the seeded list)
       await expect(
-        page.getByRole('button', { name: new RegExp(`Buka request mint OTC milik ${USER_NAME}, 1\\.000000 USDX`, 'i') })
+        page.getByRole('button', { name: new RegExp(`Buka Mint OTC ${USER_NAME}, 1,00 USDX`, 'i') })
       ).toBeVisible({ timeout: 10000 })
     })
   })
@@ -84,7 +85,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/mint')) posted = true })
       await page.goto('/mint/new')
-      await page.getByRole('button', { name: /kirim request mint otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
       await expect(page.getByText(/nasabah wajib dipilih/i)).toBeVisible()
       await expect(page).toHaveURL(/\/mint\/new/)
       expect(posted).toBe(false)
@@ -101,9 +102,9 @@ test.describe('USDX-26 mint submit @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat mint otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '5')
-      await page.getByRole('button', { name: /kirim request mint otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
       await expect(page.getByRole('alert')).toContainText(/amount must be greater than 0/i)
       await expect(page).toHaveURL(/\/mint\/new/)
     })
@@ -119,9 +120,9 @@ test.describe('USDX-26 mint submit @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/mint/new')
-      await expect(page.getByRole('heading', { name: /^mint otc baru/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat mint otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '99999')
-      await page.getByRole('button', { name: /kirim request mint otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
       await expect(page.getByRole('alert')).toContainText(/insufficient role/i)
     })
   })
@@ -149,23 +150,23 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 })
 
-test.describe('USDX-26 burn submit @e2e', () => {
+test.describe('USDX-26 redeem OTC submit @e2e', () => {
   test.beforeEach(async ({ page }) => {
     await installMockApi(page)
     await seedAuthenticatedSession(page)
   })
 
   test.describe('positive', () => {
-    test('should submit the burn form (deposit + bank) and list the new request on /burn', async ({ page }) => {
+    test('should submit the redeem form (deposit + bank) and list the new request on /otc', async ({ page }) => {
       await page.goto('/burn/new')
-      await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat redeem otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillBurnForm(page, '321')
-      await page.getByRole('button', { name: /kirim request burn otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan redeem otc/i }).click()
 
-      await expect(page).toHaveURL(/\/burn$/, { timeout: 15000 })
-      await expect(page.getByText(/request burn otc terkirim/i)).toBeVisible()
+      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
+      await expect(page.getByText(/permintaan redeem otc terkirim/i)).toBeVisible()
       await expect(
-        page.getByRole('button', { name: new RegExp(`Buka request burn OTC milik ${USER_NAME}, 321\\.000000 USDX`, 'i') })
+        page.getByRole('button', { name: new RegExp(`Buka Redeem OTC ${USER_NAME}, 321,00 USDX`, 'i') })
       ).toBeVisible({ timeout: 10000 })
     })
   })
@@ -175,7 +176,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
       let posted = false
       page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/api/v1/burn')) posted = true })
       await page.goto('/burn/new')
-      await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat redeem otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
       await page.getByRole('combobox', { name: /jaringan/i }).click()
       await page.getByRole('option', { name: /polygon/i }).click()
@@ -185,7 +186,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
       await page.getByLabel(/nama bank/i).fill('BCA')
       await page.getByLabel(/nomor rekening/i).fill('1234567890')
       // deliberately leave deposit tx hash empty
-      await page.getByRole('button', { name: /kirim request burn otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan redeem otc/i }).click()
       await expect(page.getByRole('alert')).toContainText(/tx hash setoran/i)
       await expect(page).toHaveURL(/\/burn\/new/)
       expect(posted).toBe(false)
@@ -193,7 +194,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
 
     test('should show a field validation error for an invalid deposit tx hash format', async ({ page }) => {
       await page.goto('/burn/new')
-      await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat redeem otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await pickUser(page)
       await page.getByRole('combobox', { name: /jaringan/i }).click()
       await page.getByRole('option', { name: /polygon/i }).click()
@@ -203,7 +204,7 @@ test.describe('USDX-26 burn submit @e2e', () => {
       await page.getByLabel(/tx hash setoran usdx/i).fill('not-a-hash')
       await page.getByLabel(/nama bank/i).fill('BCA')
       await page.getByLabel(/nomor rekening/i).fill('1234567890')
-      await page.getByRole('button', { name: /kirim request burn otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan redeem otc/i }).click()
       await expect(page.getByText(/64 hex|invalid.*hash|0x/i).first()).toBeVisible()
       await expect(page).toHaveURL(/\/burn\/new/)
     })
@@ -219,9 +220,9 @@ test.describe('USDX-26 burn submit @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/burn/new')
-      await expect(page.getByRole('heading', { name: /^burn/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /^buat redeem otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillBurnForm(page, '50')
-      await page.getByRole('button', { name: /kirim request burn otc/i }).click()
+      await page.getByRole('button', { name: /kirim permintaan redeem otc/i }).click()
       await expect(page.getByRole('alert')).toContainText(/something went wrong/i)
       await expect(page).toHaveURL(/\/burn\/new/)
     })

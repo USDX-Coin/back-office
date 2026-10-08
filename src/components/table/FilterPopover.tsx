@@ -87,7 +87,10 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(92vw,360px)]">
+      {/* Tinggi dibatasi ruang yang tersisa di layar: di halaman dengan banyak
+          saringan (Transaksi: lima) tombol Terapkan dulu jatuh di bawah layar
+          dan tidak bisa dicapai sama sekali. */}
+      <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-[min(92vw,360px)] overflow-y-auto">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold">Filter</p>

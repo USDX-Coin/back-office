@@ -9,7 +9,8 @@ export async function loginViaForm(page: Page, email = 'admin@usdx.io', password
   await page.getByLabel(/^email$/i).fill(email)
   await page.getByLabel(/^kata sandi$/i).fill(password)
   await page.getByRole('button', { name: /^masuk$/i }).click()
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 })
+  // Redesain fase 1: Beranda dihapus — setelah masuk, operator mendarat di Transaksi.
+  await expect(page).toHaveURL(/\/transactions/, { timeout: 15000 })
 }
 
 /**

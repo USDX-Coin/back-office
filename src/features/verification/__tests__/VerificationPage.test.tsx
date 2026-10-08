@@ -125,15 +125,18 @@ describe('VerificationPage', () => {
       expect(within(pending).getAllByText('Perlu verifikasi')).toHaveLength(2)
     })
 
-    test('should show approved files below by default', async () => {
+    test('should show every decided file below by default — approved AND rejected', async () => {
       renderPage()
       const history = await waitFor(() => {
         const el = body('history')
         expect(within(el).getByText('rina@example.com')).toBeInTheDocument()
+        expect(within(el).getByText('CV Maju')).toBeInTheDocument()
         return el
       })
-      expect(within(history).getByText('Sudah disetujui')).toBeInTheDocument()
+      expect(within(history).getByText('Sudah diputuskan')).toBeInTheDocument()
       expect(within(history).getByText('Terverifikasi')).toBeInTheDocument()
+      // Satu tarikan per (sumber × keputusan).
+      expect(calls.filter((c) => c.status === 'VERIFIED' || c.status === 'REJECTED').length).toBeGreaterThanOrEqual(4)
     })
 
     test('should open a summary panel without reading the PII detail, then open the full file', async () => {
@@ -172,17 +175,14 @@ describe('VerificationPage', () => {
   })
 
   describe('edge cases', () => {
-    test('should switch the lower group to rejected files', async () => {
+    test('should narrow the lower group to rejected files only', async () => {
       const user = userEvent.setup()
       renderPage()
-      await screen.findByText('andi@example.com')
+      await screen.findByText('rina@example.com')
       await user.selectOptions(screen.getByLabelText('Riwayat'), 'ditolak')
-      await waitFor(() => expect(within(body('history')).getByText('CV Maju')).toBeInTheDocument())
+      await waitFor(() => expect(within(body('history')).queryByText('rina@example.com')).not.toBeInTheDocument())
+      expect(within(body('history')).getByText('CV Maju')).toBeInTheDocument()
       expect(within(body('history')).getAllByText('Ditolak')).toHaveLength(2) // group title + chip
-      expect(calls.filter((c) => c.status === 'REJECTED').map((c) => c.path).sort()).toEqual([
-        '/api/v1/kyb',
-        '/api/v1/kyc',
-      ])
     })
 
     test('should open the old full-file modal on top of the same panel from a /kyb/:id link', async () => {

@@ -8,8 +8,9 @@ import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/Grou
 import SplitView from '@/components/detail-panel/SplitView'
 import KycDetailModal from '@/features/kyc/KycDetailModal'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
-import { useKycList } from '@/features/kyc/hooks'
-import { useKybList } from '@/features/kyb/hooks'
+import { useQueries } from '@tanstack/react-query'
+import { kycListQueryOptions, useKycList } from '@/features/kyc/hooks'
+import { kybListQueryOptions, useKybList } from '@/features/kyb/hooks'
 import { canReviewKyc, useAuth } from '@/lib/auth'
 import { formatShortDate } from '@/lib/format'
 import type { KybListItem, KycListItem } from '@/lib/types'
@@ -30,13 +31,14 @@ const PENDING_LIMIT = 100
 /** Ukuran halaman riwayat PER JENIS — satu halaman memuat paling banyak 2× ini. */
 const HISTORY_PAGE_SIZE = 10
 
-type HistoryStatus = 'VERIFIED' | 'REJECTED'
+type HistoryFilter = 'all' | 'VERIFIED' | 'REJECTED'
 
 /**
  * Verifikasi — KYC perorangan + KYB badan usaha dalam SATU tabel (redesain
- * fase 1). Yang menunggu diperiksa selalu di atas, terlama dulu; riwayat di
- * bawahnya dipilih per keputusan (disetujui / ditolak) karena kedua endpoint
- * hanya menerima satu `status`.
+ * fase 1). Yang menunggu diperiksa selalu di atas, terlama dulu; di bawahnya
+ * berkas yang sudah diputuskan (disetujui + ditolak, bisa disaring salah
+ * satunya). Kedua endpoint hanya menerima satu `status`, jadi tiap pasangan
+ * (sumber × keputusan) ditarik sendiri dan berhalaman serempak.
  *
  * Klik baris → panel ringkas di kanan. Foto & dokumen tetap di halaman berkas
  * lengkap lama (`/kyc/:id`, `/kyb/:id` — modal di atas halaman ini), dibuka
@@ -54,7 +56,11 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
 
   const jenis = parseVerificationKind(sp.get('jenis'))
   const search = sp.get('search') ?? ''
-  const history: HistoryStatus = sp.get('riwayat') === 'ditolak' ? 'REJECTED' : 'VERIFIED'
+  const riwayat = sp.get('riwayat')
+  const history: HistoryFilter =
+    riwayat === 'ditolak' ? 'REJECTED' : riwayat === 'disetujui' ? 'VERIFIED' : 'all'
+  const historyStatuses: Array<'VERIFIED' | 'REJECTED'> =
+    history === 'all' ? ['VERIFIED', 'REJECTED'] : [history]
   const page = Math.max(1, Number(sp.get('page') || '1') || 1)
 
   const wantKyc = jenis !== 'badan-usaha'
@@ -62,19 +68,25 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
 
   const pendingKyc = useKycList({ status: 'PENDING', limit: PENDING_LIMIT, search: search || undefined }, wantKyc)
   const pendingKyb = useKybList({ status: 'PENDING', limit: PENDING_LIMIT, search: search || undefined }, wantKyb)
-  const histKyc = useKycList(
-    { status: history, page, limit: HISTORY_PAGE_SIZE, search: search || undefined },
-    wantKyc,
-  )
-  const histKyb = useKybList(
-    { status: history, page, limit: HISTORY_PAGE_SIZE, search: search || undefined },
-    wantKyb,
-  )
+  // Riwayat = berkas yang SUDAH diputuskan. Kedua endpoint hanya menerima satu
+  // `status`, jadi tiap (sumber × keputusan) satu tarikan, berhalaman serempak.
+  const histFilters = (status: 'VERIFIED' | 'REJECTED') => ({
+    status,
+    page,
+    limit: HISTORY_PAGE_SIZE,
+    search: search || undefined,
+  })
+  const histKycQs = useQueries({
+    queries: historyStatuses.map((st) => kycListQueryOptions(histFilters(st), wantKyc)),
+  })
+  const histKybQs = useQueries({
+    queries: historyStatuses.map((st) => kybListQueryOptions(histFilters(st), wantKyb)),
+  })
 
   const kycPendingItems: KycListItem[] = wantKyc ? (pendingKyc.data?.data ?? []) : []
   const kybPendingItems: KybListItem[] = wantKyb ? (pendingKyb.data?.data ?? []) : []
-  const kycHistItems: KycListItem[] = wantKyc ? (histKyc.data?.data ?? []) : []
-  const kybHistItems: KybListItem[] = wantKyb ? (histKyb.data?.data ?? []) : []
+  const kycHistItems: KycListItem[] = wantKyc ? histKycQs.flatMap((q) => q.data?.data ?? []) : []
+  const kybHistItems: KybListItem[] = wantKyb ? histKybQs.flatMap((q) => q.data?.data ?? []) : []
 
   const pendingRows = mergeBySubmitted(
     [...kycPendingItems.map(fromKyc), ...kybPendingItems.map(fromKyb)],
@@ -88,12 +100,11 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
   const total = (q: { data?: { metadata: { total: number } } }, on: boolean) =>
     on ? (q.data?.metadata.total ?? 0) : 0
   const pendingTotal = total(pendingKyc, wantKyc) + total(pendingKyb, wantKyb)
-  const histKycTotal = total(histKyc, wantKyc)
-  const histKybTotal = total(histKyb, wantKyb)
+  const histQs = [...(wantKyc ? histKycQs : []), ...(wantKyb ? histKybQs : [])]
+  const histTotal = histQs.reduce((acc, q) => acc + (q.data?.metadata.total ?? 0), 0)
   const pageCount = Math.max(
     1,
-    Math.ceil(histKycTotal / HISTORY_PAGE_SIZE),
-    Math.ceil(histKybTotal / HISTORY_PAGE_SIZE),
+    ...histQs.map((q) => Math.ceil((q.data?.metadata.total ?? 0) / HISTORY_PAGE_SIZE)),
   )
 
   const loading = (q: { isLoading: boolean }, on: boolean) => on && q.isLoading
@@ -194,10 +205,11 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
             <select
               id="verif-riwayat"
               className={selectClass}
-              value={history === 'REJECTED' ? 'ditolak' : ''}
+              value={history === 'REJECTED' ? 'ditolak' : history === 'VERIFIED' ? 'disetujui' : ''}
               onChange={(e) => update({ riwayat: e.target.value || null, page: null })}
             >
-              <option value="">Riwayat: disetujui</option>
+              <option value="">Riwayat: semua keputusan</option>
+              <option value="disetujui">Riwayat: disetujui</option>
               <option value="ditolak">Riwayat: ditolak</option>
             </select>
           </>
@@ -229,20 +241,24 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
           },
           {
             key: 'history',
-            label: history === 'REJECTED' ? 'Ditolak' : 'Sudah disetujui',
+            label:
+              history === 'REJECTED' ? 'Ditolak' : history === 'VERIFIED' ? 'Sudah disetujui' : 'Sudah diputuskan',
             rows: historyRows,
-            total: histKycTotal + histKybTotal,
-            isLoading: loading(histKyc, wantKyc) || loading(histKyb, wantKyb),
-            isError: failed(histKyc, wantKyc) || failed(histKyb, wantKyb),
-            onRetry: () => {
-              if (wantKyc) histKyc.refetch()
-              if (wantKyb) histKyb.refetch()
-            },
+            total: histTotal,
+            isLoading: histQs.some((q) => q.isLoading),
+            isError: histQs.some((q) => q.isError),
+            onRetry: () => histQs.forEach((q) => q.refetch()),
+            note:
+              historyStatuses.length > 1 || (wantKyc && wantKyb)
+                ? 'per halaman, terbaru dulu'
+                : undefined,
             emptyText: search
               ? 'Tidak ada yang cocok. Coba email lain.'
               : history === 'REJECTED'
                 ? 'Belum ada berkas yang ditolak.'
-                : 'Belum ada berkas yang disetujui.',
+                : history === 'VERIFIED'
+                  ? 'Belum ada berkas yang disetujui.'
+                  : 'Belum ada berkas yang diputuskan.',
             pagination: { page, pageCount, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
           },
         ]}

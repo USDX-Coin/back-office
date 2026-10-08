@@ -16,10 +16,12 @@ test.describe('USDX-206 user transaction @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      // § 4 P2-1 — "User Transaction" jadi "Transaksi Nasabah".
-      await page.getByRole('link', { name: /^transaksi nasabah$/i }).click()
+      // Redesain fase 1 — menu utama pertama "Transaksi" (Beranda dihapus;
+      // /dashboard dialihkan ke sini).
       await expect(page).toHaveURL(/\/transactions/)
-      await expect(page.getByRole('heading', { name: /transaksi nasabah/i })).toBeVisible({
+      await page.locator('aside').getByRole('link', { name: /^transaksi/i }).click()
+      await expect(page).toHaveURL(/\/transactions/)
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible({
         timeout: 15000,
       })
 

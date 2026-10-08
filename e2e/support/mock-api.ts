@@ -218,10 +218,97 @@ function seedRequests(): MockRequest[] {
   })
   return [
     mk({ id: 'req_mint_executed', amount: '1000.000000', amountIdr: '16250000.00' }),
-    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
+    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', safeTxHash: HEX64('5'), onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
     mk({ id: 'req_mint_rejected', status: 'REJECTED', safeTxHash: null, onChainTxHash: null, createdAt: '2026-05-09T08:00:00.000Z' }),
     mk({ id: 'req_burn_executed', type: 'burn', status: 'IDR_TRANSFERRED', amount: '50.000000', amountIdr: '812500.00', safeType: 'MANAGER', depositTxHash: HEX64('c'), bankName: 'BCA', bankAccount: '1234567890', createdAt: '2026-05-11T11:00:00.000Z' }),
-    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
+    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', safeTxHash: HEX64('6'), onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
+  ]
+}
+
+// ── Multisig queue (USDX-275) — matched to OTC rows by safeTxHash (redesain fase 1) ──
+
+export interface MockSafeTx {
+  id: string
+  chain: string
+  safeType: 'STAFF' | 'MANAGER'
+  safeAddress: string
+  nonce: number
+  activity: string
+  activityLabel: string
+  signatureProgress: { collected: number; threshold: number }
+  proposerType: 'BACKEND' | 'STAFF'
+  proposerAddress: string
+  status: string
+  safeTxHash: string
+  execTxHash: string | null
+  createdAt: string
+  signers: { address: string; staffName: string | null; isBackend: boolean; signed: boolean; signedAt: string | null }[]
+}
+
+const SAFE_ADDRESS = '0xaA3e70397F3668D6Fd9C25e36a6FB151241EE015'
+
+function seedSafeTxs(): MockSafeTx[] {
+  return [
+    {
+      id: 'stx_mint_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 7,
+      activity: 'MINT', activityLabel: 'Mint 100 USDX', signatureProgress: { collected: 1, threshold: 2 },
+      proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
+      status: 'PENDING_SIGN', safeTxHash: HEX64('5'), execTxHash: null, createdAt: '2026-05-11T09:00:00.000Z',
+      signers: [
+        { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T09:05:00.000Z' },
+        { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: false, signedAt: null },
+      ],
+    },
+    {
+      id: 'stx_burn_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 8,
+      activity: 'BURN', activityLabel: 'Burn 10 USDX', signatureProgress: { collected: 2, threshold: 2 },
+      proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
+      status: 'READY_TO_EXECUTE', safeTxHash: HEX64('6'), execTxHash: null, createdAt: '2026-05-11T07:30:00.000Z',
+      signers: [
+        { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T07:35:00.000Z' },
+        { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: true, signedAt: '2026-05-11T07:40:00.000Z' },
+      ],
+    },
+  ]
+}
+
+function safeTxListItem(t: MockSafeTx) {
+  const { signers: _signers, ...rest } = t
+  void _signers
+  return rest
+}
+
+function safeTxDetail(t: MockSafeTx) {
+  return {
+    ...t,
+    to: '0x2702d7043693651BB8A3D2Ec1C296B20692C7426', value: '0', data: '0x', operation: 0,
+    decodedArgs: {}, linkedRequestId: null, linkedOrderId: null, execPayload: null,
+    lastExecError: null, executedByStaffName: null, executedAt: null,
+  }
+}
+
+// ── KYB queue (USDX-546) — list only; joins the KYC queue in Verifikasi ─────
+
+export interface MockKybRecord {
+  id: string
+  userId: string
+  userEmail: string
+  userName: string | null
+  entityForm: string
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED'
+  submissionCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewedByName: string | null
+}
+
+function seedKyb(): MockKybRecord[] {
+  return [
+    {
+      id: 'kyb_pending', userId: 'usr_legal_1', userEmail: 'legal@sinarniaga.co.id', userName: 'PT Sinar Niaga',
+      entityForm: 'PT', status: 'PENDING', submissionCount: 1, submittedAt: '2026-05-02T03:00:00.000Z',
+      reviewedAt: null, reviewedByName: null,
+    },
   ]
 }
 
@@ -768,6 +855,10 @@ export interface MockApiOptions {
   requests?: MockRequest[]
   /** Replace the seeded KYC records (USDX-154/155). */
   kyc?: MockKycRecord[]
+  /** Replace the seeded KYB records (USDX-546). */
+  kyb?: MockKybRecord[]
+  /** Replace the seeded Safe transactions (USDX-275). */
+  safeTxs?: MockSafeTx[]
   /** Replace the seeded consumer orders (USDX-206). */
   orders?: MockOrder[]
   /** Override a single endpoint, keyed by `"METHOD /api/v1/path"`. Return `true` if handled. */
@@ -787,6 +878,8 @@ export interface MockApiState {
   requests: MockRequest[]
   orders: MockOrder[]
   kyc: MockKycRecord[]
+  kyb: MockKybRecord[]
+  safeTxs: MockSafeTx[]
   kycReviews: Map<string, MockKycReview[]>
   /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
   resendLog: Map<string, number>
@@ -799,6 +892,8 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     requests: opts.requests ?? seedRequests(),
     orders: opts.orders ?? seedOrders(),
     kyc: kycRecords,
+    kyb: opts.kyb ?? seedKyb(),
+    safeTxs: opts.safeTxs ?? seedSafeTxs(),
     kycReviews: seedKycReviews(kycRecords),
     resendLog: new Map(),
   }
@@ -1169,6 +1264,30 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       return envelope(route, { ...k, urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })
     }
 
+    // ── Multisig queue (matched to OTC rows) ──────────────────────────────
+    if (key === 'GET /api/v1/multisig/safes') return envelope(route, [])
+    if (method === 'GET' && path === '/api/v1/multisig') {
+      const status = url.searchParams.get('status')
+      const list = state.safeTxs.filter((t) => !status || t.status === status)
+      return paginated(route, list.map(safeTxListItem), Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '20'))
+    }
+    const safeTxMatch = path.match(/^\/api\/v1\/multisig\/([^/]+)$/)
+    if (method === 'GET' && safeTxMatch) {
+      const t = state.safeTxs.find((x) => x.id === safeTxMatch[1])
+      if (!t) return error(route, 'NOT_FOUND', 'Safe transaction not found', 404)
+      return envelope(route, safeTxDetail(t))
+    }
+
+    // ── KYB queue (list only) ─────────────────────────────────────────────
+    if (method === 'GET' && path === '/api/v1/kyb') {
+      const status = url.searchParams.get('status')
+      const search = url.searchParams.get('search')?.toLowerCase()
+      let list = [...state.kyb]
+      if (status) list = list.filter((k) => k.status === status)
+      if (search) list = list.filter((k) => k.userEmail.toLowerCase().includes(search) || (k.userName ?? '').toLowerCase().includes(search))
+      return paginated(route, list, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '10'))
+    }
+
     // ── Requests list / detail ────────────────────────────────────────────
     if (method === 'GET' && path === '/api/v1/requests') {
       const type = url.searchParams.get('type')
@@ -1178,7 +1297,12 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const search = url.searchParams.get('search')?.toLowerCase()
       let list = [...state.requests]
       if (type === 'mint' || type === 'burn') list = list.filter((r) => r.type === type)
-      if (status) list = list.filter((r) => r.status === status)
+      // `status` is CSV on the backend (`ListRequestsDto`) — the OTC page pulls
+      // `PENDING_APPROVAL,APPROVED` and `EXECUTED,IDR_TRANSFERRED,REJECTED`.
+      if (status) {
+        const wanted = status.split(',').map((x) => x.trim())
+        list = list.filter((r) => wanted.includes(r.status))
+      }
       if (chain) list = list.filter((r) => r.chain === chain)
       if (safeType === 'STAFF' || safeType === 'MANAGER') list = list.filter((r) => r.safeType === safeType)
       if (search) list = list.filter((r) => r.userName.toLowerCase().includes(search) || r.userAddress.toLowerCase().includes(search))
