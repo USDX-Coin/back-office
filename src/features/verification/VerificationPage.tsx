@@ -1,0 +1,308 @@
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Plus } from 'lucide-react'
+import PageHeader from '@/components/PageHeader'
+import TableToolbar from '@/components/table/TableToolbar'
+import { Button } from '@/components/ui/button'
+import { ToneChip } from '@/components/detail-panel/DetailPanel'
+import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
+import SplitView from '@/components/detail-panel/SplitView'
+import KycDetailModal from '@/features/kyc/KycDetailModal'
+import KybDetailModal from '@/features/kyb/KybDetailModal'
+import { useKycList } from '@/features/kyc/hooks'
+import { useKybList } from '@/features/kyb/hooks'
+import { canReviewKyc, useAuth } from '@/lib/auth'
+import { formatShortDate } from '@/lib/format'
+import type { KybListItem, KycListItem } from '@/lib/types'
+import {
+  VERIFICATION_KIND_LABEL,
+  fromKyb,
+  fromKyc,
+  mergeBySubmitted,
+  parseVerificationKind,
+  verificationStatus,
+  type VerificationKind,
+  type VerificationRow,
+} from '@/lib/verification'
+import VerificationDetailPanel from './VerificationDetailPanel'
+
+/** Antrean menunggu ditarik semua sekaligus (per jenis). */
+const PENDING_LIMIT = 100
+/** Ukuran halaman riwayat PER JENIS — satu halaman memuat paling banyak 2× ini. */
+const HISTORY_PAGE_SIZE = 10
+
+type HistoryStatus = 'VERIFIED' | 'REJECTED'
+
+/**
+ * Verifikasi — KYC perorangan + KYB badan usaha dalam SATU tabel (redesain
+ * fase 1). Yang menunggu diperiksa selalu di atas, terlama dulu; riwayat di
+ * bawahnya dipilih per keputusan (disetujui / ditolak) karena kedua endpoint
+ * hanya menerima satu `status`.
+ *
+ * Klik baris → panel ringkas di kanan. Foto & dokumen tetap di halaman berkas
+ * lengkap lama (`/kyc/:id`, `/kyb/:id` — modal di atas halaman ini), dibuka
+ * dari tombol utama panel.
+ */
+export default function VerificationPage({ detail }: { detail?: VerificationKind }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const params = useParams<{ jenis?: string; id?: string }>()
+  const [sp, setSp] = useSearchParams()
+  const { user } = useAuth()
+
+  const selectedKind = detail ?? parseVerificationKind(params.jenis)
+  const selectedId = params.id ?? null
+
+  const jenis = parseVerificationKind(sp.get('jenis'))
+  const search = sp.get('search') ?? ''
+  const history: HistoryStatus = sp.get('riwayat') === 'ditolak' ? 'REJECTED' : 'VERIFIED'
+  const page = Math.max(1, Number(sp.get('page') || '1') || 1)
+
+  const wantKyc = jenis !== 'badan-usaha'
+  const wantKyb = jenis !== 'perorangan'
+
+  const pendingKyc = useKycList({ status: 'PENDING', limit: PENDING_LIMIT, search: search || undefined }, wantKyc)
+  const pendingKyb = useKybList({ status: 'PENDING', limit: PENDING_LIMIT, search: search || undefined }, wantKyb)
+  const histKyc = useKycList(
+    { status: history, page, limit: HISTORY_PAGE_SIZE, search: search || undefined },
+    wantKyc,
+  )
+  const histKyb = useKybList(
+    { status: history, page, limit: HISTORY_PAGE_SIZE, search: search || undefined },
+    wantKyb,
+  )
+
+  const kycPendingItems: KycListItem[] = wantKyc ? (pendingKyc.data?.data ?? []) : []
+  const kybPendingItems: KybListItem[] = wantKyb ? (pendingKyb.data?.data ?? []) : []
+  const kycHistItems: KycListItem[] = wantKyc ? (histKyc.data?.data ?? []) : []
+  const kybHistItems: KybListItem[] = wantKyb ? (histKyb.data?.data ?? []) : []
+
+  const pendingRows = mergeBySubmitted(
+    [...kycPendingItems.map(fromKyc), ...kybPendingItems.map(fromKyb)],
+    'asc',
+  )
+  const historyRows = mergeBySubmitted(
+    [...kycHistItems.map(fromKyc), ...kybHistItems.map(fromKyb)],
+    'desc',
+  )
+
+  const total = (q: { data?: { metadata: { total: number } } }, on: boolean) =>
+    on ? (q.data?.metadata.total ?? 0) : 0
+  const pendingTotal = total(pendingKyc, wantKyc) + total(pendingKyb, wantKyb)
+  const histKycTotal = total(histKyc, wantKyc)
+  const histKybTotal = total(histKyb, wantKyb)
+  const pageCount = Math.max(
+    1,
+    Math.ceil(histKycTotal / HISTORY_PAGE_SIZE),
+    Math.ceil(histKybTotal / HISTORY_PAGE_SIZE),
+  )
+
+  const loading = (q: { isLoading: boolean }, on: boolean) => on && q.isLoading
+  const failed = (q: { isError: boolean }, on: boolean) => on && q.isError
+
+  function update(next: Record<string, string | null>) {
+    const n = new URLSearchParams(sp)
+    for (const [k, v] of Object.entries(next)) {
+      if (v) n.set(k, v)
+      else n.delete(k)
+    }
+    setSp(n, { replace: true })
+  }
+
+  const qs = location.search
+  const select = (r: VerificationRow) => navigate(`/verifikasi/${r.kind}/${encodeURIComponent(r.id)}${qs}`)
+  const closePanel = () => navigate(`/verifikasi${qs}`)
+
+  const selectedKey = selectedKind && selectedId ? `${selectedKind}:${selectedId}` : null
+  const selectedRow = selectedKey
+    ? ([...pendingRows, ...historyRows].find((r) => r.key === selectedKey) ?? null)
+    : null
+
+  const columns: GroupedColumn<VerificationRow>[] = [
+    {
+      id: 'submittedAt',
+      header: 'Diajukan',
+      className: 'hidden w-28 md:table-cell',
+      cell: (r) => (
+        <span className="tabular-nums text-muted-foreground">
+          {r.submittedAt ? formatShortDate(r.submittedAt) : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'kind',
+      header: 'Jenis',
+      className: 'w-28',
+      cell: (r) => <span className="text-muted-foreground">{VERIFICATION_KIND_LABEL[r.kind]}</span>,
+    },
+    {
+      id: 'name',
+      header: 'Nasabah',
+      cell: (r) => (
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="font-semibold">{r.name}</span>
+          {r.name !== r.email && <span className="text-xs text-muted-foreground">{r.email}</span>}
+        </div>
+      ),
+    },
+    {
+      id: 'submissionCount',
+      header: 'Pengajuan ke-',
+      className: 'hidden w-28 lg:table-cell',
+      cell: (r) => <span className="tabular-nums">{r.submissionCount}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      className: 'w-40',
+      cell: (r) => {
+        const s = verificationStatus(r.status)
+        return <ToneChip tone={s.tone}>{s.label}</ToneChip>
+      },
+    },
+  ]
+
+  const selectClass =
+    'h-9 rounded-md border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+
+  const list = (
+    <div className="space-y-3">
+      <TableToolbar
+        search={{
+          value: search,
+          placeholder: 'Cari email, atau nama badan usaha',
+          ariaLabel: 'Cari berkas verifikasi',
+          onChange: (next) => update({ search: next.trim() || null, page: null }),
+        }}
+        extra={
+          <>
+            <label className="sr-only" htmlFor="verif-jenis">
+              Jenis
+            </label>
+            <select
+              id="verif-jenis"
+              className={selectClass}
+              value={jenis ?? ''}
+              onChange={(e) => update({ jenis: e.target.value || null, page: null })}
+            >
+              <option value="">Semua jenis</option>
+              <option value="perorangan">Perorangan</option>
+              <option value="badan-usaha">Badan usaha</option>
+            </select>
+            <label className="sr-only" htmlFor="verif-riwayat">
+              Riwayat
+            </label>
+            <select
+              id="verif-riwayat"
+              className={selectClass}
+              value={history === 'REJECTED' ? 'ditolak' : ''}
+              onChange={(e) => update({ riwayat: e.target.value || null, page: null })}
+            >
+              <option value="">Riwayat: disetujui</option>
+              <option value="ditolak">Riwayat: ditolak</option>
+            </select>
+          </>
+        }
+      />
+      <GroupedTable
+        columns={columns}
+        rowKey={(r) => r.key}
+        rowLabel={(r) => `Buka berkas ${VERIFICATION_KIND_LABEL[r.kind].toLowerCase()} ${r.name}`}
+        selectedKey={selectedKey}
+        onSelect={select}
+        groups={[
+          {
+            key: 'pending',
+            label: 'Menunggu verifikasi',
+            emphasis: true,
+            rows: pendingRows,
+            total: pendingTotal,
+            isLoading: loading(pendingKyc, wantKyc) || loading(pendingKyb, wantKyb),
+            isError: failed(pendingKyc, wantKyc) || failed(pendingKyb, wantKyb),
+            onRetry: () => {
+              if (wantKyc) pendingKyc.refetch()
+              if (wantKyb) pendingKyb.refetch()
+            },
+            note:
+              pendingTotal > pendingRows.length
+                ? `${pendingRows.length} terlama ditampilkan — cari email untuk menemukan sisanya`
+                : undefined,
+          },
+          {
+            key: 'history',
+            label: history === 'REJECTED' ? 'Ditolak' : 'Sudah disetujui',
+            rows: historyRows,
+            total: histKycTotal + histKybTotal,
+            isLoading: loading(histKyc, wantKyc) || loading(histKyb, wantKyb),
+            isError: failed(histKyc, wantKyc) || failed(histKyb, wantKyb),
+            onRetry: () => {
+              if (wantKyc) histKyc.refetch()
+              if (wantKyb) histKyb.refetch()
+            },
+            emptyText: search
+              ? 'Tidak ada yang cocok. Coba email lain.'
+              : history === 'REJECTED'
+                ? 'Belum ada berkas yang ditolak.'
+                : 'Belum ada berkas yang disetujui.',
+            pagination: { page, pageCount, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
+          },
+        ]}
+      />
+    </div>
+  )
+
+  // Modal berkas lengkap (rute lama /kyc/:id, /kyb/:id) — menutupnya kembali
+  // ke panel berkas yang sama, bukan ke daftar kosong.
+  const backToPanel = () =>
+    navigate(`/verifikasi/${detail}/${encodeURIComponent(selectedId ?? '')}${qs}`, { replace: true })
+  const rawKyc =
+    detail === 'perorangan' ? (kycPendingItems.concat(kycHistItems).find((k) => k.id === selectedId) ?? null) : null
+  const rawKyb =
+    detail === 'badan-usaha' ? (kybPendingItems.concat(kybHistItems).find((k) => k.id === selectedId) ?? null) : null
+
+  return (
+    <div>
+      <PageHeader
+        title="Verifikasi"
+        subtitle="Berkas perorangan dan badan usaha. Yang menunggu diperiksa ada di paling atas, terlama dulu."
+        actions={
+          canReviewKyc(user) ? (
+            <Button size="sm" variant="outline" onClick={() => navigate('/kyb/new')}>
+              <Plus className="mr-1 h-4 w-4" aria-hidden />
+              Tambah berkas badan usaha
+            </Button>
+          ) : undefined
+        }
+      />
+      <SplitView
+        list={list}
+        panel={
+          selectedKind && selectedId ? (
+            <VerificationDetailPanel
+              kind={selectedKind}
+              id={selectedId}
+              row={selectedRow}
+              onClose={closePanel}
+              search={qs}
+            />
+          ) : null
+        }
+      />
+      <KycDetailModal
+        kycId={detail === 'perorangan' ? selectedId : null}
+        listItem={rawKyc}
+        open={detail === 'perorangan' && Boolean(selectedId)}
+        onOpenChange={(o) => {
+          if (!o) backToPanel()
+        }}
+      />
+      <KybDetailModal
+        kybId={detail === 'badan-usaha' ? selectedId : null}
+        listItem={rawKyb}
+        open={detail === 'badan-usaha' && Boolean(selectedId)}
+        onOpenChange={(o) => {
+          if (!o) backToPanel()
+        }}
+      />
+    </div>
+  )
+}

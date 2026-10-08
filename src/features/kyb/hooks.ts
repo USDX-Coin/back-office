@@ -74,13 +74,14 @@ function buildQuery(filters: KybListFilters): string {
  * ordering (week1.md § Backoffice Approval Menu). No sort params for the same
  * reason: the order is a policy, not a preference.
  */
-export function useKybList(filters: KybListFilters) {
+export function useKybList(filters: KybListFilters, enabled = true) {
   return useQuery({
     queryKey: ['kyb', 'list', filters],
     queryFn: () =>
       apiFetchRaw<PhaseOnePaginatedResponse<KybListItem>>(
         `/api/v1/kyb?${buildQuery(filters)}`,
       ),
+    enabled,
     refetchOnWindowFocus: true,
   })
 }

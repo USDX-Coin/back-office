@@ -22,8 +22,7 @@ import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
-import KycListPage from '@/features/kyc/KycListPage'
-import KybListPage from '@/features/kyb/KybListPage'
+import VerificationPage from '@/features/verification/VerificationPage'
 import KybFormPage from '@/features/kyb/KybFormPage'
 import ScreeningQueuePage from '@/features/screening/ScreeningQueuePage'
 import SanctionListsPage from '@/features/screening/SanctionListsPage'
@@ -102,20 +101,25 @@ export const appRoutes: RouteObject[] = [
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
-          // USDX-154 + week1.md § Authorization Guard: KYC review list is
-          // reachable by every role (Admin/Manager/Staff/Developer) — no
-          // RoleGuard. Approve/reject gating happens inside the detail
-          // (USDX-155); BE enforces 403 for Developer regardless.
-          { path: '/kyc', element: <KycListPage /> },
-          { path: '/kyc/:id', element: <KycListPage /> },
-          // USDX-546 — KYB review. Same visibility rule as KYC: the queue is
-          // readable by every back-office role and the ACTIONS are gated inside
-          // (DEVELOPER is view-only; the backend enforces 403 regardless), so no
-          // RoleGuard here. `/kyb/new` exists because KYB is a MANUAL flow —
-          // nothing but an operator creates these records.
-          { path: '/kyb', element: <KybListPage /> },
+          // Redesain fase 1 — Verifikasi: antrean KYC perorangan (USDX-154) dan
+          // KYB badan usaha (USDX-546) jadi SATU tabel. Aturan visibilitasnya
+          // tidak berubah: terbuka untuk semua peran (server: STAFF / MANAGER /
+          // ADMIN / DEVELOPER), MEMUTUSKAN digerbangi di dalam berkas lengkap
+          // (DEVELOPER hanya melihat; backend menegakkan 403), jadi tanpa
+          // RoleGuard.
+          //
+          // `/verifikasi/:jenis/:id` membuka panel kanan dari URL. Berkas
+          // lengkap (foto KTP, dokumen badan usaha) tetap di rute lamanya
+          // `/kyc/:id` dan `/kyb/:id` — modal di atas halaman yang sama — supaya
+          // tautan lama tetap hidup. `/kyc` dan `/kyb` dialihkan ke Verifikasi
+          // dengan saringan Jenis terpasang. `/kyb/new` (form KYB manual) tetap.
+          { path: '/verifikasi', element: <VerificationPage /> },
+          { path: '/verifikasi/:jenis/:id', element: <VerificationPage /> },
+          { path: '/kyc', element: <Navigate to="/verifikasi?jenis=perorangan" replace /> },
+          { path: '/kyc/:id', element: <VerificationPage detail="perorangan" /> },
+          { path: '/kyb', element: <Navigate to="/verifikasi?jenis=badan-usaha" replace /> },
           { path: '/kyb/new', element: <KybFormPage /> },
-          { path: '/kyb/:id', element: <KybListPage /> },
+          { path: '/kyb/:id', element: <VerificationPage detail="badan-usaha" /> },
           // USDX-588 — antrean screening DTTOT & DPPSPM. Aturan visibilitas sama
           // dengan KYC/KYB: antreannya terbuka untuk semua role back office
           // (server: STAFF/MANAGER/ADMIN/DEVELOPER) dan MEMUTUSKAN digerbangi di

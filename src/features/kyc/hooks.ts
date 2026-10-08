@@ -39,10 +39,11 @@ function fetchKycList(
 // GET /api/v1/kyc — the contract exposes no sortBy/sortOrder params: order is
 // fixed at submitted_at ascending (oldest pending first — fairness, week1.md
 // § Backoffice Approval Menu), so the page renders rows exactly as returned.
-export function useKycList(filters: KycListFilters) {
+export function useKycList(filters: KycListFilters, enabled = true) {
   return useQuery({
     queryKey: ['kyc', 'list', filters],
     queryFn: () => fetchKycList(filters),
+    enabled,
     refetchOnWindowFocus: true,
   })
 }
