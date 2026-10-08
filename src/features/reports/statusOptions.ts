@@ -3,7 +3,7 @@ import type { StatusOption } from './ReportFiltersToolbar'
 
 // Label diambil dari peta `Record<Enum, StatusConfig>` di `src/lib/status.ts`,
 // bukan dari salinan kedua yang bisa menyimpang diam-diam dari layar lain
-// (pola yang sama dipakai `features/dashboard/Phase1Stats.tsx`).
+// (pola yang sama dulu dipakai Beranda, yang dihapus di redesain fase 1).
 //
 // `value` adalah nilai wire — JANGAN diterjemahkan.
 

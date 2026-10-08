@@ -1,11 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { apiFetch } from '@/lib/apiFetch'
 import type {
   CreateMintRequestBody,
   MintRequestDetail,
   PhaseOnePaginatedResponse,
   PhaseOneUser,
-  RequestListItem,
 } from '@/lib/types'
 
 // USDX-46: server filters by kycStatus=VERIFIED. Suspended is filtered FE-side
@@ -47,25 +46,5 @@ export function useCreateMintRequest() {
       qc.invalidateQueries({ queryKey: ['requests'] })
       qc.invalidateQueries({ queryKey: ['mint'] })
     },
-  })
-}
-
-// Sidebar badge count: PENDING_APPROVAL mint requests. SoT phase-1.md line 179
-// sets PENDING_APPROVAL as the initial DB status; SoT § Sidebar uses (N) as
-// "jumlah request dengan status PENDING_APPROVAL" — query metadata.total.
-// USDX-78: `enabled` lets the Sidebar / BottomNav skip the query for STAFF
-// (sot/phase-1.md L34 — STAFF can't access /api/v1/requests*, so firing would
-// produce noisy 403s).
-export function usePendingMintCount(opts: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: ['mint', 'pending-count'],
-    queryFn: async () => {
-      const json = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
-        '/api/v1/requests?type=mint&status=PENDING_APPROVAL&limit=1'
-      )
-      return json.metadata.total
-    },
-    enabled: opts.enabled ?? true,
-    staleTime: 30 * 1000,
   })
 }

@@ -3,6 +3,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, Receipt } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
+import LegacyQueueLinks from './LegacyQueueLinks'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
@@ -307,9 +308,11 @@ export default function TransactionsListPage() {
   return (
     <div>
       <PageHeader
-        title="Transaksi Nasabah"
-        subtitle="Pemantauan semua order mint dan redeem nasabah — pembayaran, pencairan, eksekusi, serta rincian biaya dan spread. Hanya membaca; tindakannya ada di layar yang ditautkan tiap order."
+        title="Transaksi"
+        subtitle="Semua order mint dan redeem nasabah — pembayaran, pencairan, eksekusi, serta rincian biaya dan spread. Halaman ini hanya membaca; tindakannya ada di antrean di bawah."
       />
+
+      <LegacyQueueLinks />
 
       <DataTable<OrderListItem>
         columns={columns}

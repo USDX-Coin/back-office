@@ -18,7 +18,6 @@ import {
 } from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
-import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
@@ -67,7 +66,7 @@ const queryClient = new QueryClient({
 })
 
 // Routing per Linear USDX-50 + sot/phase-1.md § Backoffice Web App.
-//   /dashboard          → Dashboard
+//   /dashboard          → redirect /transactions (Beranda dihapus, redesain fase 1)
 //   /users, /users/:id  → User management
 //   /staff              → Staff management (admin sidebar gate)
 //   /mint, /mint/:id    → Mint list + deep-link detail (admin/developer/manager)
@@ -97,7 +96,9 @@ export const appRoutes: RouteObject[] = [
       {
         element: <MainLayout />,
         children: [
-          { path: '/dashboard', element: <DashboardPage /> },
+          // Beranda dihapus (redesain fase 1) — setelah masuk, operator mendarat
+          // di Transaksi. Rute lamanya dialihkan supaya bookmark tidak mati.
+          { path: '/dashboard', element: <Navigate to="/transactions" replace /> },
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
@@ -274,7 +275,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             // USDX-81 + sot/phase-1.md § Reporting access: ADMIN/DEVELOPER/MANAGER.
-            // STAFF redirect → /dashboard via RoleGuard.
+            // STAFF redirect → /transactions via RoleGuard.
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
               { path: '/reports/mint/daily', element: <DailyMintReportPage /> },

@@ -4,74 +4,25 @@ import { ChevronRight, Menu } from 'lucide-react'
 import ProfileDropdown from './ProfileDropdown'
 import MobileNavDrawer from './MobileNavDrawer'
 import ThemeToggle from '@/components/ThemeToggle'
-import { usePendingMintCount } from '@/features/mint/hooks'
-import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
-
-// Peta breadcrumb mengikuti section sidebar (`navItems.ts`) — kalau nama menu
-// berubah, baris di sini ikut berubah, supaya operator tidak membaca dua nama
-// berbeda untuk satu halaman.
-//
-// P1-4 — dulu peta ini hanya mengenal 12 dari 39 rute. Sisanya jatuh ke
-// potongan URL mentah, jadi `/redeem-approvals` terbaca "USDX ›
-// redeem-approvals" dan `/reports/mint/daily` terbaca "reports › mint › daily".
-// Yang tidak terpetakan justru seluruh halaman uang yang paling baru.
-const BREADCRUMB_MAP: Record<string, [string, string]> = {
-  // Pekerjaan Hari Ini
-  '/dashboard': ['Pekerjaan Hari Ini', 'Beranda'],
-  '/transactions': ['Pekerjaan Hari Ini', 'Transaksi Nasabah'],
-  '/redeem-approvals': ['Pekerjaan Hari Ini', 'Persetujuan Pencairan'],
-  '/payout-failures': ['Pekerjaan Hari Ini', 'Pencairan Bermasalah'],
-  '/manual-sync': ['Pekerjaan Hari Ini', 'Perbaiki Status Nyangkut'],
-  // Nasabah
-  '/users': ['Nasabah', 'Nasabah'],
-  '/kyc': ['Nasabah', 'Verifikasi Perorangan'],
-  '/kyb': ['Nasabah', 'Verifikasi Badan Usaha'],
-  '/kyb/new': ['Nasabah', 'Verifikasi Badan Usaha baru'],
-  '/screening': ['Nasabah', 'Pemeriksaan Daftar Sanksi'],
-  '/screening/lists': ['Nasabah', 'Daftar Sanksi'],
-  // Meja OTC
-  '/mint': ['Meja OTC', 'Mint OTC'],
-  '/mint/new': ['Meja OTC', 'Mint OTC baru'],
-  '/burn': ['Meja OTC', 'Burn OTC'],
-  '/burn/new': ['Meja OTC', 'Burn OTC baru'],
-  // Keuangan
-  '/bni-accounts': ['Keuangan', 'Rekening BNI'],
-  '/multisig': ['Keuangan', 'Antrean Tanda Tangan'],
-  '/transparency': ['Keuangan', 'Cadangan & Atestasi'],
-  '/reports/mint/daily': ['Laporan', 'Mint Harian'],
-  '/reports/mint/by-user': ['Laporan', 'Mint per Nasabah'],
-  '/reports/burn/daily': ['Laporan', 'Burn Harian'],
-  '/reports/burn/by-user': ['Laporan', 'Burn per Nasabah'],
-  // Pengaturan
-  '/settings/rate': ['Pengaturan', 'Kurs'],
-  '/settings/fee': ['Pengaturan', 'Biaya'],
-  '/settings/threshold': ['Pengaturan', 'Batas Safe Manager'],
-  '/settings/oncall': ['Pengaturan', 'Kontak Darurat'],
-  '/settings/mint-mode': ['Pengaturan', 'Mode Mint'],
-  '/staff': ['Pengaturan', 'Pengguna Internal'],
-  '/profile': ['Akun', 'Profil'],
-}
-
-function buildBreadcrumb(pathname: string): string[] {
-  const mapped = BREADCRUMB_MAP[pathname]
-  if (mapped) return [...mapped]
-  const segs = pathname.split('/').filter(Boolean)
-  if (segs.length === 0) return ['USDX', 'Beranda']
-  return segs.length === 1 ? ['USDX', segs[0]!] : segs
-}
+import { breadcrumbFor, visibleNav } from './navItems'
+import { sumBadges, useNavBadges } from './useNavBadges'
+import { useAuth } from '@/lib/auth'
 
 export default function Navbar() {
   const { pathname } = useLocation()
-  const segments = buildBreadcrumb(pathname)
+  // Breadcrumb dari tabel menu, tidak pernah dari potongan URL (slug/UUID).
+  const segments = breadcrumbFor(pathname)
   const [navOpen, setNavOpen] = useState(false)
+  const { user } = useAuth()
 
-  // USDX-27: aggregate pending count → a dot on the hamburger, so the
-  // Mint/Burn approval signal stays visible even though the per-item badges
-  // now live inside the drawer.
-  const mintPending = usePendingMintCount()
-  const burnPending = usePendingBurnCount()
-  const pendingTotal = (mintPending.data ?? 0) + (burnPending.data ?? 0)
+  // USDX-27: titik di tombol hamburger = ada antrean di menu mana pun yang
+  // boleh dilihat peran ini — angka per menu tinggal di dalam laci.
+  const badgeFor = useNavBadges()
+  const visibleKeys = visibleNav(user).flatMap((e) =>
+    e.kind === 'item' ? [e.badgeKey] : e.items.map((i) => i.badgeKey),
+  )
+  const pendingTotal = sumBadges(visibleKeys.map((k) => badgeFor(k))).count
 
   return (
     <>
@@ -81,7 +32,7 @@ export default function Navbar() {
             type="button"
             onClick={() => setNavOpen(true)}
             aria-label="Buka menu navigasi"
-            className="relative grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="relative grid h-9 w-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Menu className="h-5 w-5" strokeWidth={1.75} />
             {pendingTotal > 0 && (
@@ -91,14 +42,12 @@ export default function Navbar() {
               />
             )}
           </button>
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-sm font-bold tracking-tight">
-            U
-          </div>
-          <span className="text-base font-semibold tracking-tight">USDX</span>
+          <img src="/image/logo-coin.png" alt="" className="h-7 w-7" />
+          <span className="font-display text-lg font-semibold">USDX</span>
         </div>
 
         <nav
-          className="hidden lg:flex items-center gap-1.5 text-xs"
+          className="hidden lg:flex items-center gap-1.5 text-sm"
           aria-label="Lokasi halaman"
         >
           {segments.map((seg, i) => (

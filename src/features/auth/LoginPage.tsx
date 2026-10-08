@@ -65,7 +65,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard', { replace: true })
+      navigate('/transactions', { replace: true })
     } catch (err) {
       setSubmitError(loginErrorMessage(err))
     } finally {

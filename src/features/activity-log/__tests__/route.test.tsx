@@ -38,7 +38,7 @@ describe('rute /jejak-audit yang benar-benar dikirim', () => {
         <Route element={guard?.element}>
           <Route path="/jejak-audit" element={<div>JEJAK_AUDIT_PAGE</div>} />
         </Route>
-        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/transactions" element={<div>TRANSAKSI</div>} />
       </Routes>,
       { initialEntries: ['/jejak-audit'], staffId }
     )
@@ -63,15 +63,15 @@ describe('rute /jejak-audit yang benar-benar dikirim', () => {
       ['MANAGER', 'stf_2'],
       ['DEVELOPER', 'stf_3'],
       ['STAFF', 'stf_4'],
-    ])('%s dialihkan ke /dashboard', (_role, staffId) => {
+    ])('%s dialihkan ke /transactions', (_role, staffId) => {
       renderRealGuard(staffId)
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('JEJAK_AUDIT_PAGE')).not.toBeInTheDocument()
     })
 
     test('kunjungan tanpa sesi dialihkan', () => {
       renderRealGuard()
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('JEJAK_AUDIT_PAGE')).not.toBeInTheDocument()
     })
   })

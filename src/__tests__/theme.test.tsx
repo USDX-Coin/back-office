@@ -126,15 +126,14 @@ describe('shadcn-minimal theme tokens', () => {
         expect(sizes.sort()).toEqual(['2xs', 'base', 'lg', 'sm', 'xl', 'xs'])
       })
 
-      test('no arbitrary pixel font sizes remain outside the dashboard feature', () => {
-        // `src/features/dashboard/` dipegang agent lain saat perubahan ini
-        // dibuat, jadi ia sengaja dikecualikan — bukan karena boleh berbeda.
+      test('no arbitrary pixel font sizes remain anywhere in src/', () => {
+        // Pengecualian lama untuk `features/dashboard/` gugur bersama Beranda
+        // (dihapus di redesain fase 1).
         const sisa: string[] = []
         const walk = (dir: string) => {
           for (const entry of readdirSync(dir, { withFileTypes: true })) {
             const full = path.join(dir, entry.name)
             if (entry.isDirectory()) {
-              if (full.includes(path.join('features', 'dashboard'))) continue
               walk(full)
             } else if (/\.tsx?$/.test(entry.name)) {
               const src = readFileSync(full, 'utf8')

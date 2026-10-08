@@ -16,7 +16,7 @@ export function PublicRoute() {
   const { isAuthenticated } = useAuth()
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/transactions" replace />
   }
 
   return <Outlet />
@@ -24,12 +24,13 @@ export function PublicRoute() {
 
 // Role-based gate for already-authenticated users. Nest inside ProtectedRoute
 // so this only runs once isAuthenticated is true. Non-allowed roles fall back
-// to `redirectTo` (default: /dashboard, per Linear USDX-53 AC3 "redirect / 403").
+// to `redirectTo` (default: /transactions — Beranda dihapus di redesain fase 1;
+// Linear USDX-53 AC3 "redirect / 403").
 // USDX-78 — STAFF on /mint or /burn redirects to /mint/new or /burn/new
 // (sot/phase-1.md L34) so callers pass `redirectTo="/mint/new"` etc.
 export function RoleGuard({
   allowed,
-  redirectTo = '/dashboard',
+  redirectTo = '/transactions',
 }: {
   allowed: readonly StaffRole[]
   redirectTo?: string

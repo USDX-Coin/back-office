@@ -17,7 +17,7 @@ function renderTree(initialEntry: string, staffId?: string) {
       <Route element={<RoleGuard allowed={['ADMIN']} />}>
         <Route path="/settings/threshold" element={<div>THRESHOLD_PAGE</div>} />
       </Route>
-      <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+      <Route path="/transactions" element={<div>TRANSAKSI</div>} />
     </Routes>,
     { initialEntries: [initialEntry], staffId },
   )
@@ -29,31 +29,31 @@ describe('RoleGuard @ USDX-53', () => {
       // stf_1 = Marcus Thorne (ADMIN) per createStaff seed sequence.
       renderTree('/settings/threshold', 'stf_1')
       expect(screen.getByText('THRESHOLD_PAGE')).toBeInTheDocument()
-      expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
     })
   })
 
   describe('negative', () => {
-    test('STAFF is redirected to /dashboard (Linear AC3)', () => {
+    test('STAFF is redirected to /transactions (Linear AC3)', () => {
       // stf_4 = Sarah King (STAFF) per createStaff seed sequence.
       renderTree('/settings/threshold', 'stf_4')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /dashboard', () => {
+    test('MANAGER is redirected to /transactions', () => {
       // stf_2 = Linda Chen (MANAGER).
       renderTree('/settings/threshold', 'stf_2')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('DEVELOPER is redirected to /dashboard', () => {
+    test('DEVELOPER is redirected to /transactions', () => {
       // stf_3 = Marcus Aurelius (DEVELOPER). SoT phase-1.md L23-30
       // contradicts L464/L516 on DEVELOPER access — strict page-spec wins
       // (admin only).
       renderTree('/settings/threshold', 'stf_3')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -61,7 +61,7 @@ describe('RoleGuard @ USDX-53', () => {
   describe('edge cases', () => {
     test('unauthenticated visit redirects (no user → not allowed)', () => {
       renderTree('/settings/threshold')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -82,17 +82,17 @@ describe('RoleGuard @ USDX-53', () => {
             <Route path="/mint/:id" element={<div>MINT_LIST_DEEP</div>} />
           </Route>
           <Route path="/mint/new" element={<div>MINT_FORM</div>} />
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: [initialEntry], staffId },
       )
     }
 
-    test('STAFF on /mint is redirected to /mint/new (not /dashboard)', () => {
+    test('STAFF on /mint is redirected to /mint/new (not /transactions)', () => {
       renderMintTree('/mint', 'stf_4') // STAFF
       expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
       expect(screen.queryByText('MINT_LIST')).not.toBeInTheDocument()
-      expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
     })
 
     test('STAFF on /mint/:id is also redirected to /mint/new', () => {
@@ -138,7 +138,7 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
         <Route element={guard?.element}>
           <Route path="/transparency" element={<div>TRANSPARENCY_PAGE</div>} />
         </Route>
-        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/transactions" element={<div>TRANSAKSI</div>} />
       </Routes>,
       { initialEntries: ['/transparency'], staffId },
     )
@@ -168,21 +168,21 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
     // `reason` text of every ledger entry and the name of the staff member who
     // filed it, none of which appears publicly. Without the route guard that
     // data is one typed URL away for any authenticated operator.
-    test('STAFF is redirected to /dashboard', () => {
+    test('STAFF is redirected to /transactions', () => {
       renderRealGuard('stf_4') // Sarah King, STAFF
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /dashboard', () => {
+    test('MANAGER is redirected to /transactions', () => {
       renderRealGuard('stf_2') // Linda Chen, MANAGER
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
     test('an unauthenticated visit is redirected', () => {
       renderRealGuard()
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -221,7 +221,7 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       renderWithProviders(
         <Routes>
           <Route path="/bni-accounts" element={<div>BNI_ACCOUNTS_PAGE</div>} />
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: ['/bni-accounts'], staffId: 'stf_4' }, // Sarah King, STAFF
       )
@@ -246,11 +246,11 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
           <Route element={roleGuard?.element}>
             <Route path="/multisig/*" element={<div>MULTISIG_PAGE</div>} />
           </Route>
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: ['/multisig'], staffId: 'stf_4' },
       )
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('MULTISIG_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -292,7 +292,7 @@ describe('the SHIPPED /durianpay-api-calls route guard', () => {
         <Route element={roleGuard?.element}>
           <Route path="/durianpay-api-calls" element={<div>DURIANPAY_LOG_PAGE</div>} />
         </Route>
-        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/transactions" element={<div>TRANSAKSI</div>} />
       </Routes>,
       { initialEntries: ['/durianpay-api-calls'], staffId },
     )
@@ -334,7 +334,7 @@ describe('the SHIPPED /durianpay-api-calls route guard', () => {
   describe('negative — the guard is still a guard', () => {
     test('an unauthenticated visit is redirected', () => {
       renderRealGuard()
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
       expect(screen.queryByText('DURIANPAY_LOG_PAGE')).not.toBeInTheDocument()
     })
   })
