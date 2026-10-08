@@ -9,7 +9,7 @@ export default function BurnRequestInfoPanel() {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Bagaimana burn diselesaikan
+          Bagaimana redeem OTC diselesaikan
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-xs leading-relaxed text-muted-foreground">
@@ -31,8 +31,8 @@ export default function BurnRequestInfoPanel() {
         </ol>
         <p className="border-t border-border/40 pt-3 text-2xs">
           Perjalanannya bisa dipantau di halaman
-          <span className="mx-1 font-medium text-foreground">Burn OTC</span>.
-          Burn baru muncul dengan status <em>Menunggu persetujuan</em>.
+          <span className="mx-1 font-medium text-foreground">OTC</span>.
+          Permintaan baru muncul di kelompok <em>Perlu tindakan</em>.
         </p>
       </CardContent>
     </Card>

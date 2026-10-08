@@ -166,10 +166,10 @@ export default function MintFormPage() {
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
-      toast.success('Request mint OTC terkirim — menunggu persetujuan.')
+      toast.success('Permintaan mint OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/mint')
+      navigate('/otc')
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a dedicated banner so the
       // operator sees the blocking request ID + Manual Sync shortcut. Form
@@ -182,7 +182,7 @@ export default function MintFormPage() {
       }
       // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
       // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
-      const message = pesanGalat(err, 'Request gagal dikirim. Periksa koneksi lalu coba lagi.')
+      const message = pesanGalat(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
       setApiError(message)
       toast.error(message)
     }
@@ -191,8 +191,8 @@ export default function MintFormPage() {
   return (
     <div>
       <PageHeader
-        title="Mint OTC baru"
-        subtitle="Ajukan request mint OTC. Request masuk berstatus Menunggu persetujuan dan otomatis diarahkan ke dompet Safe Staf atau Safe Manager mengikuti batas nominalnya."
+        title="Buat mint OTC"
+        subtitle="Ajukan mint OTC. Permintaannya masuk antrean tanda tangan Safe Staf atau Safe Manager, mengikuti nominalnya."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">
@@ -200,10 +200,10 @@ export default function MintFormPage() {
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
               <CardTitle className="text-base font-semibold tracking-tight">
-                Request mint OTC baru
+                Permintaan mint OTC baru
               </CardTitle>
             </CardHeader>
-            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Form request mint OTC">
+            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Form permintaan mint OTC">
               <CardContent className="space-y-5">
                 {queueBlock && (
                   <SafeQueueOccupiedBanner
@@ -306,7 +306,7 @@ export default function MintFormPage() {
                   aria-busy={create.isPending}
                   className="w-full"
                 >
-                  {create.isPending ? 'Mengirim…' : 'Kirim request mint OTC'}
+                  {create.isPending ? 'Mengirim…' : 'Kirim permintaan mint OTC'}
                 </Button>
               </CardFooter>
             </form>
@@ -328,9 +328,9 @@ export default function MintFormPage() {
                 ke antrean tanda tangan.
               </p>
               <p>
-                Request langsung muncul di daftar{' '}
-                <span className="font-medium text-foreground">Mint OTC</span>{' '}
-                dengan status <span className="font-medium text-foreground">Menunggu persetujuan</span>.
+                Permintaannya langsung muncul di halaman{' '}
+                <span className="font-medium text-foreground">OTC</span>, di kelompok{' '}
+                <span className="font-medium text-foreground">Perlu tindakan</span>, sampai tanda tangannya lengkap.
               </p>
               <p>
                 Pengajuan yang masuk ke dompet Safe Manager (≥ 1 miliar rupiah)

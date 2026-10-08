@@ -7,8 +7,8 @@ export default function BurnFormPage() {
   return (
     <div>
       <PageHeader
-        title="Burn OTC baru"
-        subtitle="Ajukan burn OTC setelah nasabah menyetor USDX ke dompet Safe. Request masuk ke alur persetujuan dan muncul di daftar Burn OTC."
+        title="Buat redeem OTC"
+        subtitle="Ajukan redeem OTC setelah nasabah menyetor USDX ke dompet Safe. Permintaannya masuk antrean tanda tangan dan muncul di halaman OTC."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">

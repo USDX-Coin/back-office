@@ -51,7 +51,7 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/mint/new" element={<MintFormPage />} />
-      <Route path="/mint" element={<div data-testid="mint-list-page">Mint list landing</div>} />
+      <Route path="/otc" element={<div data-testid="otc-page">OTC landing</div>} />
     </Routes>
   )
 }
@@ -206,7 +206,7 @@ describe('MintFormPage @ USDX-46', () => {
   })
 
   describe('AC4 — submit body shape', () => {
-    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /mint', async () => {
+    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /otc', async () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
 
@@ -255,7 +255,7 @@ describe('MintFormPage @ USDX-46', () => {
         })
       )
       await user.type(screen.getByLabelText(/^nominal$/i), '100')
-      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan mint otc/i }))
 
       await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
@@ -267,13 +267,13 @@ describe('MintFormPage @ USDX-46', () => {
       })
       // userName must NOT appear in the body anymore.
       expect(capturedBody).not.toHaveProperty('userName')
-      await screen.findByTestId('mint-list-page')
+      await screen.findByTestId('otc-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
       setup()
-      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan mint otc/i }))
       expect(await screen.findByText(/nasabah wajib dipilih/i)).toBeInTheDocument()
     })
   })
@@ -297,7 +297,7 @@ describe('MintFormPage @ USDX-46', () => {
         })
       )
       await user.type(screen.getByLabelText(/^nominal$/i), '250')
-      await user.click(screen.getByRole('button', { name: /kirim request mint otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan mint otc/i }))
     }
 
     test('renders banner with short blocking ID + Manual Sync link on 409', async () => {
@@ -360,7 +360,7 @@ describe('MintFormPage @ USDX-46', () => {
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('250')
       expect(await screen.findByTestId('user-picker-selected')).toBeInTheDocument()
       // Should NOT have navigated to /mint.
-      expect(screen.queryByTestId('mint-list-page')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('otc-page')).not.toBeInTheDocument()
     })
 
     test('400 validation error still uses the existing destructive banner, not queue banner', async () => {

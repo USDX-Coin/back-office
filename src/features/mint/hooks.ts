@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
-import { isRequestTerminal } from '@/lib/status'
 import type {
   CreateMintRequestBody,
   MintRequestDetail,
@@ -48,45 +47,6 @@ export function useCreateMintRequest() {
       qc.invalidateQueries({ queryKey: ['requests'] })
       qc.invalidateQueries({ queryKey: ['mint'] })
     },
-  })
-}
-
-export interface MintListFilters {
-  page?: number
-  limit?: number
-  status?: string
-  chain?: string
-  safeType?: string
-  search?: string
-  /** YYYY-MM-DD, Asia/Jakarta — BE filters created_at (USDX-98). */
-  startDate?: string
-  endDate?: string
-}
-
-function buildQuery(params: MintListFilters & { type: 'mint' }): string {
-  const sp = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
-  })
-  return sp.toString()
-}
-
-function fetchMintList(
-  filters: MintListFilters
-): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
-  const qs = buildQuery({ ...filters, type: 'mint' })
-  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(`/api/v1/requests?${qs}`)
-}
-
-export function useMintList(filters: MintListFilters) {
-  return useQuery({
-    queryKey: ['mint', 'list', filters],
-    queryFn: () => fetchMintList(filters),
-    // USDX-27: keep statuses fresh without a manual refresh — poll only while
-    // some row is still in a non-terminal state, then stop.
-    refetchInterval: (query) =>
-      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status)) ? 20_000 : false,
-    refetchOnWindowFocus: true,
   })
 }
 

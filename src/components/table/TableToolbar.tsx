@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Search, X } from 'lucide-react'
 import type { VisibilityState } from '@tanstack/react-table'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,8 @@ interface SearchProps {
   placeholder?: string
   /** Apply search after this many ms of no typing. Default 300. */
   debounceMs?: number
+  /** Nama untuk pembaca layar. Default "Cari". */
+  ariaLabel?: string
 }
 
 interface SortProps {
@@ -41,6 +43,8 @@ interface TableToolbarProps {
   sort?: SortProps
   filter?: FilterProps
   columns?: ColumnsProps
+  /** Kontrol tambahan sebaris dengan kotak cari (mis. pilihan Jenis). */
+  extra?: ReactNode
   className?: string
 }
 
@@ -54,6 +58,7 @@ export default function TableToolbar({
   sort,
   filter,
   columns,
+  extra,
   className,
 }: TableToolbarProps) {
   return (
@@ -63,6 +68,7 @@ export default function TableToolbar({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {search && <DebouncedSearch {...search} />}
         <div className="flex flex-wrap items-center gap-2">
+          {extra}
           {sort && (
             <SortPopover
               columns={sort.columns}
@@ -95,7 +101,7 @@ export default function TableToolbar({
   )
 }
 
-function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300 }: SearchProps) {
+function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300, ariaLabel = 'Cari' }: SearchProps) {
   const [draft, setDraft] = useState(value)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastEmitted = useRef(value)
@@ -127,7 +133,7 @@ function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300 }: Sea
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder ?? 'Cari…'}
         className="h-9 bg-card pl-8"
-        aria-label="Cari"
+        aria-label={ariaLabel}
       />
     </div>
   )

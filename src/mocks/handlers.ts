@@ -2585,7 +2585,13 @@ export const handlers = [
 
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
-    if (status) rows = rows.filter((r) => r.status === status)
+    // `status` menerima CSV, sama dengan `ListRequestsDto` di backend
+    // (`PENDING_APPROVAL,APPROVED`) — halaman OTC menarik dua kelompok status
+    // sekaligus.
+    if (status) {
+      const wanted = status.split(',').map((x) => x.trim()).filter(Boolean)
+      rows = rows.filter((r) => wanted.includes(r.status))
+    }
     if (chain) rows = rows.filter((r) => r.chain === chain)
     if (safeType === 'STAFF' || safeType === 'MANAGER') {
       rows = rows.filter((r) => r.safeType === safeType)

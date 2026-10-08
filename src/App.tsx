@@ -10,7 +10,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { DURIANPAY_API_CALLS_ROLES } from '@/lib/types'
 import { ThemeProvider } from '@/lib/theme'
-import { ProtectedRoute, PublicRoute, RoleGuard } from '@/components/layout/AuthGuard'
+import {
+  ProtectedRoute,
+  PublicRoute,
+  RedirectWithId,
+  RoleGuard,
+} from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
 import DashboardPage from '@/features/dashboard/DashboardPage'
@@ -22,9 +27,7 @@ import KybListPage from '@/features/kyb/KybListPage'
 import KybFormPage from '@/features/kyb/KybFormPage'
 import ScreeningQueuePage from '@/features/screening/ScreeningQueuePage'
 import SanctionListsPage from '@/features/screening/SanctionListsPage'
-import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
-import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsListPage from '@/features/transactions/TransactionsListPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
@@ -47,6 +50,8 @@ import ProfilePage from '@/features/profile/ProfilePage'
 // Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
 // loads only when an operator opens /multisig, not on every page (USDX-275).
 const MultisigRoute = lazy(() => import('@/features/multisig/MultisigRoute'))
+// Same reason for OTC: its detail panel signs/executes Safe transactions.
+const OtcRoute = lazy(() => import('@/features/otc/OtcRoute'))
 import DailyMintReportPage from '@/features/reports/DailyMintPage'
 import MintByUserReportPage from '@/features/reports/MintByUserPage'
 import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
@@ -178,33 +183,36 @@ export const appRoutes: RouteObject[] = [
           // berbeda di satu layar tidak bisa diwakili satu gerbang rute.
           { path: '/plafon-pencairan', element: <PayoutControlsPage /> },
           {
-            // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
-            // `/mint/:id`) is admin/developer/manager only — STAFF redirects
-            // to /mint/new.
-            element: (
-              <RoleGuard
-                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
-                redirectTo="/mint/new"
-              />
-            ),
+            // Redesain fase 1 — OTC: SATU halaman untuk mint OTC + redeem OTC
+            // (dulu dua menu Mint OTC / Burn OTC + menu Antrean Tanda Tangan).
+            // Gerbangnya tetap sot/phase-1.md L34 (USDX-78): list + detail
+            // `/api/v1/requests` dan `/api/v1/multisig` hanya ADMIN / DEVELOPER /
+            // MANAGER. STAFF diarahkan ke Transaksi, karena menu OTC memang
+            // disembunyikan untuknya.
+            //
+            // `/otc/:id` merender ulang tabel dan membuka panel kanan dari URL,
+            // jadi tautan langsung dan tombol kembali peramban tetap bekerja.
+            // Rute lama `/mint`, `/burn` (+ `/:id`) dialihkan ke sini supaya
+            // bookmark lama tidak mati.
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
-              { path: '/mint', element: <MintListPage /> },
-              { path: '/mint/:id', element: <MintListPage /> },
-            ],
-          },
-          {
-            // USDX-78 + sot/phase-1.md L34: list `/burn` (and deep-link
-            // `/burn/:id`) is admin/developer/manager only — STAFF redirects
-            // to /burn/new.
-            element: (
-              <RoleGuard
-                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
-                redirectTo="/burn/new"
-              />
-            ),
-            children: [
-              { path: '/burn', element: <BurnListPage /> },
-              { path: '/burn/:id', element: <BurnListPage /> },
+              {
+                element: (
+                  <Suspense
+                    fallback={<div className="p-8 text-sm text-muted-foreground">Memuat…</div>}
+                  >
+                    <Outlet />
+                  </Suspense>
+                ),
+                children: [
+                  { path: '/otc', element: <OtcRoute /> },
+                  { path: '/otc/:id', element: <OtcRoute /> },
+                ],
+              },
+              { path: '/mint', element: <Navigate to="/otc?jenis=mint" replace /> },
+              { path: '/mint/:id', element: <RedirectWithId to="/otc" /> },
+              { path: '/burn', element: <Navigate to="/otc?jenis=burn" replace /> },
+              { path: '/burn/:id', element: <RedirectWithId to="/otc" /> },
             ],
           },
           {

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
-import { isRequestTerminal } from '@/lib/status'
 import type {
   BurnRequest,
   CreateBurnRequest,
@@ -22,44 +21,6 @@ export function useCreateBurn() {
       qc.invalidateQueries({ queryKey: ['requests'] })
       qc.invalidateQueries({ queryKey: ['burn'] })
     },
-  })
-}
-
-export interface BurnListFilters {
-  page?: number
-  limit?: number
-  status?: string
-  chain?: string
-  safeType?: string
-  search?: string
-  /** YYYY-MM-DD, Asia/Jakarta — BE filters created_at (USDX-98). */
-  startDate?: string
-  endDate?: string
-}
-
-function buildQuery(params: BurnListFilters & { type: 'burn' }): string {
-  const sp = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
-  })
-  return sp.toString()
-}
-
-function fetchBurnList(
-  filters: BurnListFilters
-): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
-  const qs = buildQuery({ ...filters, type: 'burn' })
-  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(`/api/v1/requests?${qs}`)
-}
-
-export function useBurnList(filters: BurnListFilters) {
-  return useQuery({
-    queryKey: ['burn', 'list', filters],
-    queryFn: () => fetchBurnList(filters),
-    // USDX-27: poll only while some row is still non-terminal (see useMintList).
-    refetchInterval: (query) =>
-      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status)) ? 20_000 : false,
-    refetchOnWindowFocus: true,
   })
 }
 

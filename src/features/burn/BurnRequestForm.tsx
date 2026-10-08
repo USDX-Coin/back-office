@@ -174,10 +174,10 @@ export default function BurnRequestForm() {
         bankAccount: form.bankAccount.trim(),
         notes: form.notes.trim() || undefined,
       })
-      toast.success('Request burn OTC terkirim — menunggu persetujuan.')
+      toast.success('Permintaan redeem OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/burn')
+      navigate('/otc')
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a banner with the
       // blocking request ID + Manual Sync link. Form state is preserved so
@@ -189,7 +189,7 @@ export default function BurnRequestForm() {
       }
       // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
       // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
-      const message = pesanGalat(err, 'Request gagal dikirim. Periksa koneksi lalu coba lagi.')
+      const message = pesanGalat(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
       setSubmitError(message)
       toast.error(message)
     }
@@ -199,7 +199,7 @@ export default function BurnRequestForm() {
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
         <CardTitle className="text-base font-semibold tracking-tight">
-          Request burn OTC baru
+          Permintaan redeem OTC baru
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit} noValidate id="burn-form">
@@ -344,7 +344,7 @@ export default function BurnRequestForm() {
             aria-busy={create.isPending}
             className="w-full"
           >
-            {create.isPending ? 'Mengirim…' : 'Kirim request burn OTC'}
+            {create.isPending ? 'Mengirim…' : 'Kirim permintaan redeem OTC'}
           </Button>
         </CardFooter>
       </form>

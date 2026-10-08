@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import {
@@ -23,39 +23,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { useAuth } from '@/lib/auth'
-import { ApiError } from '@/lib/apiFetch'
 import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl, buildAddressExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { formatDate, shortHash, truncateMiddle } from '@/lib/format'
 import { type StatusConfig } from '@/lib/status'
-import {
-  getActivityLabel,
-  getSafeTxStatusConfig,
-  isSafeTxCancellable,
-  isSafeTxExecutable,
-  isSafeTxSignable,
-  isUnknownActivity,
-} from '@/lib/multisig/status'
-import { safeTxHashMatches } from '@/lib/multisig/safeTx'
-import { resolveOwnerCheck, resolveOwnerVerification } from '@/lib/multisig/owner'
+import { getActivityLabel, getSafeTxStatusConfig } from '@/lib/multisig/status'
 import type { SafeTxListItem, SafeTxSigner } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import {
-  useCancelSafeTx,
-  useConfirmSignature,
-  useExecuteSafeTx,
-  useMultisigDetail,
-  useSafes,
-} from './hooks'
-import {
-  useExecuteTransaction,
-  useMultisigWallet,
-  useSignSafeTx,
-  useSimulateExec,
-} from './walletActions'
+import { useSafeTxSigning } from './useSafeTxSigning'
 import SignatureProgressBar from './SignatureProgressBar'
 
 // ─── small presentational helpers (mirror OrderDetailModal) ──────────────────
@@ -223,34 +200,38 @@ interface Props {
 }
 
 export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem }: Props) {
-  const { user } = useAuth()
-  const query = useMultisigDetail(open ? txId : null)
   const { data: chains } = useChainConfig()
-  const safesQuery = useSafes()
-  const detail = query.data
-
-  const wallet = useMultisigWallet()
-  const { signAsync, isSigning } = useSignSafeTx()
-  const { executeAsync, isExecuting } = useExecuteTransaction()
-  const confirmMutation = useConfirmSignature(txId ?? '')
-  const executeMutation = useExecuteSafeTx(txId ?? '')
-  const cancelMutation = useCancelSafeTx(txId ?? '')
-
-  // Acknowledge checkbox for the UNKNOWN-activity blind-sign warning.
-  const [ackUnknown, setAckUnknown] = useState(false)
-  // Inline two-step cancel.
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
-  // Reset transient UI when switching transactions — render-phase "previous
-  // value" pattern (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
-  // rather than a setState-in-effect.
-  const [prevTxId, setPrevTxId] = useState(txId)
-  if (txId !== prevTxId) {
-    setPrevTxId(txId)
-    setAckUnknown(false)
-    setCancelOpen(false)
-    setCancelReason('')
-  }
+  const {
+    query,
+    detail,
+    safesQuery,
+    wallet,
+    ownerVerification,
+    ownerRefetching,
+    hashOk,
+    unknownActivity,
+    simulate,
+    showSign,
+    showExecute,
+    showCancel,
+    signBlockedReason,
+    executeBlockedReason,
+    canSign,
+    canExecute,
+    ackUnknown,
+    setAckUnknown,
+    cancelOpen,
+    setCancelOpen,
+    cancelReason,
+    setCancelReason,
+    handleSign,
+    handleExecute,
+    handleCancel,
+    busy,
+    isSigning,
+    isExecuting,
+    isCancelling,
+  } = useSafeTxSigning(txId, open)
 
   const chainCfg = findChainConfig(chains, detail?.chain ?? listItem?.chain)
   const explorerTx = (hash: string) =>
@@ -258,132 +239,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
   const explorerAddr = (addr: string) =>
     chainCfg ? buildAddressExplorerUrl(chainCfg.blockExplorerUrl, addr) : null
 
-  // Match the Safe by address first, then by safeType+chain so a checksum/format
-  // quirk in safeAddress doesn't silently drop the owners fallback.
-  const safeMeta =
-    safesQuery.data?.find(
-      (s) => s.safeAddress.toLowerCase() === (detail?.safeAddress ?? '').toLowerCase(),
-    ) ??
-    safesQuery.data?.find(
-      (s) => s.safeType === detail?.safeType && s.chain === detail?.chain,
-    )
-  // Owner-check is sourced from detail.signers (authoritative owner list, loaded
-  // with the detail) and only falls back to safeMeta.owners (from the slow
-  // live-RPC /multisig/safes) — so a slow/failed safes call can no longer
-  // mislabel a valid owner "not an owner" and disable Sign (USDX-290).
-  const ownerCheck = resolveOwnerCheck(wallet.address, detail?.signers, safeMeta?.owners)
-  // Split the data-only 'unknown' into a transient 'checking' vs a terminal
-  // 'unavailable'. Only the fallback's INITIAL load counts as checking — NOT a
-  // background poll — so the status doesn't flicker every 12s (useMultisigDetail
-  // polls non-terminal TXs; hooks.ts). The retry button uses isFetching locally.
-  const ownerVerification = resolveOwnerVerification(ownerCheck, {
-    sourcesLoading: safesQuery.isLoading,
-  })
-  const ownerRefetching = safesQuery.isFetching || query.isFetching
-  const hashOk = detail ? safeTxHashMatches(detail) : true
-  const unknownActivity = detail ? isUnknownActivity(detail.activity) : false
-
-  const mySigner = detail?.signers.find(
-    (s) => s.address.toLowerCase() === (wallet.address ?? '').toLowerCase(),
-  )
-  const alreadySigned = Boolean(mySigner?.signed)
-
-  // Simulate gate runs for signable/executable, not-yet-terminal transactions.
-  const simulate = useSimulateExec(
-    detail,
-    Boolean(detail) && (isSafeTxExecutable(detail!.status) || isSafeTxSignable(detail!.status)),
-  )
-
-  const isAdmin = user?.role === 'ADMIN'
-  const isProposer =
-    Boolean(wallet.address) &&
-    detail?.proposerAddress?.toLowerCase() === wallet.address?.toLowerCase()
-
-  const showSign = detail ? isSafeTxSignable(detail.status) : false
-  const showExecute = detail ? isSafeTxExecutable(detail.status) : false
-  const showCancel = detail ? isSafeTxCancellable(detail.status) && (isAdmin || isProposer) : false
-
-  // ── Sign enablement ──
-  const signBlockedReason = (() => {
-    if (!wallet.isConnected) return 'Hubungkan wallet dulu untuk menandatangani'
-    if (!wallet.chainOk) return 'Pindah ke Polygon dulu untuk menandatangani'
-    if (ownerVerification === 'checking') return 'Memeriksa status owner Safe…'
-    if (ownerVerification === 'unavailable')
-      return 'Status owner Safe tidak bisa diperiksa — coba lagi lewat tombol di bawah'
-    if (ownerVerification === 'not-owner') return 'Wallet yang terhubung bukan owner Safe ini'
-    if (alreadySigned) return 'Transaksi ini sudah kamu tanda tangani'
-    if (!hashOk) return 'Hash SafeTx tidak cocok — tanda tangan dimatikan'
-    if (unknownActivity && !ackUnknown)
-      return 'Centang dulu peringatan calldata tidak terbaca supaya bisa menandatangani'
-    return null
-  })()
-  const canSign = showSign && signBlockedReason === null
-
-  // ── Execute enablement (simulate gate) ──
-  const executeBlockedReason = (() => {
-    if (!wallet.isConnected) return 'Hubungkan wallet dulu untuk mengeksekusi'
-    if (!wallet.chainOk) return 'Pindah ke Polygon dulu untuk mengeksekusi'
-    if (!detail?.execPayload) return 'Exec payload belum tersedia'
-    if (simulate.status === 'loading') return 'Sedang disimulasikan…'
-    if (simulate.status === 'revert') return 'Simulasi gagal — eksekusinya akan ditolak kontrak'
-    if (simulate.status === 'error')
-      return 'Simulasi tidak bisa dijalankan — RPC tidak terjangkau, coba lagi'
-    if (simulate.status !== 'ok') return 'Menunggu hasil simulasi'
-    return null
-  })()
-  const canExecute = showExecute && executeBlockedReason === null
-
-  async function handleSign() {
-    if (!detail || !wallet.address) return
-    try {
-      const signature = await signAsync(detail, wallet.address)
-      await confirmMutation.mutateAsync({ signerAddress: wallet.address, signature })
-      toast.success('Tanda tangan terkirim')
-    } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Tanda tangan ditolak di wallet'
-              : err.message
-            : 'Gagal menandatangani'
-      toast.error(msg)
-    }
-  }
-
-  async function handleExecute() {
-    if (!detail) return
-    try {
-      const execTxHash = await executeAsync(detail)
-      await executeMutation.mutateAsync({ execTxHash })
-      toast.success('Eksekusi dikirim ke jaringan — menunggu konfirmasi on-chain')
-    } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Transaksi ditolak di wallet'
-              : err.message
-            : 'Gagal mengeksekusi'
-      toast.error(msg)
-    }
-  }
-
-  async function handleCancel() {
-    if (!detail) return
-    try {
-      await cancelMutation.mutateAsync({ reason: cancelReason || undefined })
-      toast.success('Transaksi dibatalkan')
-      setCancelOpen(false)
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Gagal membatalkan transaksi')
-    }
-  }
-
   const headerTitle = detail?.activityLabel || listItem?.activityLabel || 'Transaksi Safe'
-  const busy = isSigning || isExecuting || confirmMutation.isPending || executeMutation.isPending
 
   // modal={false}: a modal Radix Dialog locks body pointer-events + traps focus,
   // which makes the RainbowKit connect modal (a portal sibling tagged [data-rk])
@@ -751,7 +607,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     title={signBlockedReason ?? undefined}
                     className="flex-1"
                   >
-                    {isSigning || confirmMutation.isPending ? (
+                    {isSigning ? (
                       <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                     ) : null}
                     Tanda tangani (EIP-712)
@@ -764,7 +620,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     title={executeBlockedReason ?? undefined}
                     className="flex-1"
                   >
-                    {isExecuting || executeMutation.isPending ? (
+                    {isExecuting ? (
                       <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                     ) : null}
                     Eksekusi
@@ -807,9 +663,9 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       variant="destructive"
                       size="sm"
                       onClick={handleCancel}
-                      disabled={cancelMutation.isPending}
+                      disabled={isCancelling}
                     >
-                      {cancelMutation.isPending ? (
+                      {isCancelling ? (
                         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                       ) : null}
                       Ya, batalkan transaksinya
@@ -818,7 +674,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                       variant="ghost"
                       size="sm"
                       onClick={() => setCancelOpen(false)}
-                      disabled={cancelMutation.isPending}
+                      disabled={isCancelling}
                     >
                       Kembali
                     </Button>

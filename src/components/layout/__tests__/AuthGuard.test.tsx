@@ -356,3 +356,65 @@ function findRoleGuardAbove(
   }
   return null
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Redesain fase 1 — OTC. `/api/v1/requests` + `/api/v1/multisig` are
+// ADMIN / MANAGER / DEVELOPER (sot/phase-1.md L34, `@Roles` on both
+// controllers), so the page that pulls both must refuse STAFF at the ROUTE —
+// the menu is hidden for STAFF too, but a hidden menu leaves the page one URL
+// away. Old list URLs must keep working as redirects.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the SHIPPED /otc route guard', () => {
+  const roleGuard = findRoleGuardAbove('/otc', appRoutes)
+
+  function renderRealGuard(staffId?: string, entry = '/otc') {
+    return renderWithProviders(
+      <Routes>
+        <Route element={roleGuard?.element}>
+          <Route path="/otc" element={<div>OTC_PAGE</div>} />
+          <Route path="/otc/:id" element={<div>OTC_PAGE</div>} />
+        </Route>
+        <Route path="*" element={<div>ELSEWHERE</div>} />
+      </Routes>,
+      { initialEntries: [entry], staffId },
+    )
+  }
+
+  test('both /otc and its deep link are wrapped in a guard', () => {
+    expect(isGuarded('/otc', appRoutes)).toBe(true)
+    expect(isGuarded('/otc/:id', appRoutes)).toBe(true)
+  })
+
+  describe('positive', () => {
+    test.each([
+      ['ADMIN', 'stf_1'],
+      ['MANAGER', 'stf_2'],
+      ['DEVELOPER', 'stf_3'],
+    ])('%s reaches /otc', (_role, staffId) => {
+      renderRealGuard(staffId)
+      expect(screen.getByText('OTC_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('STAFF is redirected away from /otc and from a deep link', () => {
+      renderRealGuard('stf_4')
+      expect(screen.getByText('ELSEWHERE')).toBeInTheDocument()
+      expect(screen.queryByText('OTC_PAGE')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('the old /mint, /burn list URLs are kept as redirects, the forms stay', () => {
+      const flat = (routes: RouteObject[]): RouteObject[] =>
+        routes.flatMap((r) => [r, ...(r.children ? flat(r.children) : [])])
+      const all = flat(appRoutes)
+      for (const p of ['/mint', '/mint/:id', '/burn', '/burn/:id']) {
+        expect(all.some((r) => r.path === p)).toBe(true)
+      }
+      expect(all.some((r) => r.path === '/mint/new')).toBe(true)
+      expect(all.some((r) => r.path === '/burn/new')).toBe(true)
+    })
+  })
+})

@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router'
+import { Navigate, Outlet, useLocation, useParams } from 'react-router'
 import { useAuth } from '@/lib/auth'
 import type { StaffRole } from '@/lib/types'
 
@@ -41,4 +41,15 @@ export function RoleGuard({
   }
 
   return <Outlet />
+}
+
+/**
+ * Alihkan rute lama yang membawa `:id` ke rute barunya, mempertahankan id dan
+ * query string (`/mint/abc?x=1` → `/otc/abc?x=1`). Dipakai supaya bookmark dan
+ * tautan lama tidak mati saat menu dirombak (redesain fase 1).
+ */
+export function RedirectWithId({ to }: { to: string }) {
+  const { id } = useParams<{ id: string }>()
+  const { search } = useLocation()
+  return <Navigate to={`${to}/${encodeURIComponent(id ?? '')}${search}`} replace />
 }

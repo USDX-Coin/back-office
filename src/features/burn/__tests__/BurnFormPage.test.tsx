@@ -52,7 +52,7 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/burn/new" element={<BurnFormPage />} />
-      <Route path="/burn" element={<div data-testid="burn-list-page">Burn list landing</div>} />
+      <Route path="/otc" element={<div data-testid="otc-page">OTC landing</div>} />
     </Routes>
   )
 }
@@ -156,7 +156,7 @@ describe('BurnFormPage @ USDX-46', () => {
       await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
       await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
       await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
 
       await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
@@ -170,13 +170,13 @@ describe('BurnFormPage @ USDX-46', () => {
         bankAccount: '1234567890',
       })
       expect(capturedBody).not.toHaveProperty('userName')
-      await screen.findByTestId('burn-list-page')
+      await screen.findByTestId('otc-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
       setup()
-      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
       expect(await screen.findByText(/nasabah wajib dipilih/i)).toBeInTheDocument()
     })
   })
@@ -197,7 +197,7 @@ describe('BurnFormPage @ USDX-46', () => {
       await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
       await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
       await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /kirim request burn otc/i }))
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
     }
 
     test('renders banner with short blocking ID + Manual Sync link on 409', { timeout: 15000 }, async () => {
@@ -261,7 +261,7 @@ describe('BurnFormPage @ USDX-46', () => {
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('750')
       expect(screen.getByLabelText(/tx hash setoran/i)).toHaveValue(VALID_TX)
       expect(screen.getByLabelText(/nama bank/i)).toHaveValue('BCA')
-      expect(screen.queryByTestId('burn-list-page')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('otc-page')).not.toBeInTheDocument()
     })
 
     test('400 validation error keeps the existing destructive banner, not queue banner', { timeout: 15000 }, async () => {
