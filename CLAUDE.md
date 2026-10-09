@@ -4,7 +4,7 @@
 
 Internal back office SPA for managing **OTC mint** and **burn** operations on the USDX stablecoin, plus directory management for end-customers and internal staff. Mint/burn requests follow the SoT phase-1 approval lifecycle (`PENDING_APPROVAL → APPROVED → EXECUTED`, plus `IDR_TRANSFERRED` for burn, terminal `REJECTED`).
 
-**Brand:** USDX | **Design system:** Azure Horizon (teal-anchored, Manrope + Inter, no-line tables) — see `back-office-usdx/azure_horizon/DESIGN.md` for the full spec.
+**Brand:** USDX — sama dengan landing usdx.co.id sejak redesain fase 1 (Okt 2026): logo koin + lockup (`public/image/`), maroon `#800000` + emas `#e0a93c` (token terang + gelap di `src/index.css`), **Crimson Pro** untuk judul halaman/panel (`font-display`, hemat) + **Inter** untuk UI + JetBrains Mono untuk angka/hash. Tabel tetap tanpa garis antar-baris. Desain lama "Azure Horizon" (teal, Manrope) sudah PENSIUN — jangan dipakai lagi.
 
 ## Tech Stack
 
@@ -15,14 +15,35 @@ Internal back office SPA for managing **OTC mint** and **burn** operations on th
 - **TanStack Query v5** — server state management
 - **TanStack Table v8** — data table with server-side pagination/sorting/filtering
 - **MSW v2** — mock API in development (handlers in `src/mocks/`)
-- **Recharts** — Dashboard volume trend chart (lazy-imported)
+- **Recharts** — grafik laporan (lazy-imported)
 - **pnpm** — package manager
 - **Vitest** — unit tests
 - **Playwright** — E2E tests
 
-## Menu Structure (per Linear USDX-50 + sot/phase-1.md § Sidebar)
+## Menu Structure — redesain fase 1 (keputusan PM 9 Okt 2026)
 
-Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
+Sumber kebenaran menu: `src/components/layout/navItems.ts` (`NAV`, satu pohon
+untuk Sidebar desktop DAN laci menu ponsel lewat `NavTree`). Lima menu utama,
+grup bisa dilipat (pilihan buka/tutup diingat per peramban), badge antrean
+dijumlah di nama grup saat grup tertutup:
+
+| Menu | Isi | Catatan |
+|------|-----|---------|
+| **Transaksi** `/transactions` | daftar order nasabah | Badge = jumlah antrean lama (Persetujuan Pencairan + Pencairan Bermasalah + Mint Bermasalah). Antrean lama TIDAK di menu; dicapai dari strip "Perlu tindakan" (`LegacyQueueLinks`) di atas tabel dan lewat URL — fase 2 meleburnya ke tabel Transaksi |
+| **OTC** `/otc` | mint + redeem OTC satu tabel + tanda tangan multisig di panel kanan | `canAccessRequestList` (bukan STAFF). Tombol "Buat mint OTC" / "Buat redeem OTC" → `/mint/new`, `/burn/new`. `/mint`, `/burn`, `/mint/:id`, `/burn/:id` dialihkan ke `/otc`. `/multisig` tetap hidup via URL (halaman tanda tangan lengkap + Propose) |
+| **Nasabah ▸** | Daftar Nasabah `/users` · Verifikasi `/verifikasi` · Daftar Sanksi `/screening` | Verifikasi = KYC perorangan + KYB badan usaha satu tabel; `/kyc`, `/kyb` dialihkan, `/kyc/:id` `/kyb/:id` membuka modal berkas lengkap (PII) di atas Verifikasi |
+| **Keuangan ▸** | Rekening BNI `/bni-accounts` · Laporan `/reports/*` · Cadangan & Atestasi `/transparency` | |
+| **Pengaturan ▸** | Kurs & Biaya `/settings/rate` (tab: Kurs · Biaya · Batas Safe Manager · Kontak Darurat) · Mode Mint · Plafon Pencairan · Staf & Peran `/staff` · Persetujuan Orang Kedua `/persetujuan` · Jejak Audit · Log DurianPay | Mode Mint & Plafon Pencairan terbuka untuk SEMUA peran (rem darurat) |
+
+- **Beranda dihapus**: `/dashboard` → `/transactions`; setelah login operator mendarat di Transaksi.
+- **Gerbang peran tidak berubah**: tiap `visibleWhen` sama dengan menu lama, dan gerbang rute tetap di `App.tsx`. Menu bukan satu-satunya gerbang.
+- **Breadcrumb dari tabel menu** (`breadcrumbFor`), tidak pernah dari potongan URL — tidak ada slug/UUID di layar.
+- **Pola daftar + panel kanan** (`src/components/detail-panel/`): klik baris membuka panel di kanan tabel (≥ xl; di bawahnya panel mengambil layar dengan "‹ Kembali ke tabel"), bukan modal. Isi panel: status + "Yang perlu kamu lakukan" → data ringkas → riwayat dalam kalimat → "Detail teknis" terlipat → SATU tombol utama + menu "Lainnya" (aksi berisiko dikonfirmasi inline "Sudah benar semua?"). Dipakai OTC, Verifikasi, Daftar Nasabah (`?pilih=`).
+- **Bahasa**: kata sehari-hari, "mint" / "redeem" (bukan burn) di layar, tanpa enum mentah. Peran tampil sebagai kata (`formatRole`: Admin, Manager, Staf, Developer).
+
+Tabel rute di bawah tetap berlaku per RUTE (perilaku, gerbang, kontrak). Kolom
+"Section" dan "Menu label"-nya adalah susunan sidebar LAMA (sebelum fase 1) —
+untuk letak menu sekarang, pakai tabel di atas.
 
 | Route | Section | Menu label | Visibility | Purpose |
 |-------|---------|------------|------------|---------|
@@ -59,7 +80,7 @@ Sidebar groups three sections: **WORKSPACE**, **OTC**, **SETTINGS**.
 | `/settings/oncall` | SETTINGS | On-Call | **ADMIN only — including read** | Kontak on-call insiden uang (USDX-485, audit P1-18). CRUD nama / peran / kanal (PHONE·EMAIL·SLACK) / kategori insiden. Backend menyisipkan kontak yang cocok kategorinya ke dalam isi alarm kondisi uang; nol kontak → alarm tetap terkirim dengan peringatan eksplisit. Lebih ketat dari Settings lain karena `contactValue` bisa berupa nomor telepon (PII → ADMIN saja per `sot/conventions.md § Audit Akses PII`) dan daftarnya menentukan siapa yang boleh menarik rem darurat payout |
 | `/profile` | *(navbar dropdown)* | Profile | All roles | Operator profile |
 
-Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / Staff (ADMIN) / Rate (ADMIN+DEV) / Threshold (ADMIN+DEV) / Profile.
+Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` yang sama dengan Sidebar — tidak ada BottomNav lagi. Profil lewat `ProfileDropdown` di Navbar.
 
 ## Project Structure
 
@@ -75,10 +96,11 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 ├── src/
 │   ├── App.tsx            # Router + providers (QueryClient, AuthProvider)
 │   ├── main.tsx           # Entry point, MSW init in dev mode
-│   ├── index.css          # Azure Horizon @theme tokens
+│   ├── index.css          # @theme tokens merek usdx.co.id (maroon/emas, Crimson Pro + Inter), terang + gelap
 │   ├── components/
 │   │   ├── ui/            # shadcn/ui primitives (do not edit directly)
-│   │   ├── layout/        # Navbar, Sidebar, MainLayout (memasang banner mode uji mint), BottomNav, AuthGuard
+│   │   ├── layout/        # Navbar, Sidebar + MobileNavDrawer (keduanya NavTree), navItems.ts (NAV 5 menu + breadcrumbFor + formatRole), useNavBadges, MainLayout (memasang banner mode uji mint), AuthGuard
+│   │   ├── detail-panel/  # Pola daftar + panel kanan (fase 1): SplitView, DetailPanel (+ ToneChip, PanelSection), PanelActions (satu tombol utama + Lainnya + konfirmasi inline), GroupedTable (grup "Perlu tindakan" / riwayat)
 │   │   ├── Avatar.tsx     # Initials + fixed-palette avatar
 │   │   ├── FieldError.tsx # Inline form error primitive
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
@@ -89,18 +111,19 @@ Mobile BottomNav: Dashboard / Mint / Burn / More. The More drawer holds Users / 
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
 │   │   ├── auth/          # LoginPage
-│   │   ├── dashboard/     # DashboardPage + hooks
-│   │   ├── users/         # UsersPage + UserDetailPage + hooks
+│   │   ├── users/         # UsersPage (daftar + CustomerPanel kanan, ?pilih=) + UserDetailPage + hooks
 │   │   ├── staff/         # StaffPage + modal + hooks
-│   │   ├── mint/          # MintListPage + MintFormPage + hooks
-│   │   ├── burn/          # BurnListPage + BurnFormPage + form/info panel + hooks
+│   │   ├── otc/           # OtcPage + OtcDetailPanel + OtcRoute + hooks (/otc) — mint + redeem OTC satu tabel, status tanda tangan dari /multisig lewat safeTxHash, tanda tangan/eksekusi di panel via useSafeTxSigning
+│   │   ├── verification/  # VerificationPage + VerificationDetailPanel (/verifikasi) — KYC + KYB satu tabel, panel ringkas TANPA membaca PII
+│   │   ├── mint/          # MintFormPage + hooks (/mint/new; daftar lama dialihkan ke /otc)
+│   │   ├── burn/          # BurnFormPage + form/info panel + hooks (/burn/new; daftar lama dialihkan ke /otc)
 │   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks — read-only consumer orders: mint (USDX-206) + redeem (USDX-245)
 │   │   ├── redeem-approvals/ # RedeemApprovalsPage + RedeemApprovalControlsCard + ApproveRedeemDialog + RejectRedeemDialog + PayoutDestinationSummary + columnConfig + hooks (USDX-669, /redeem-approvals) — gerbang ops sebelum rupiah redeem keluar + ambang nominal
 │   │   ├── payout-failures/ # PayoutFailuresPage + PayoutFailureDetailModal + ResolvePayoutFailureDialog + ReplacementAccountSelect + SubmissionTrail + ResolutionTrail + filterDefs + hooks (USDX-662, /payout-failures) — antrean Pencairan Bermasalah + resolve per issueKind + pemilih rekening pengganti RESENT (USDX-678)
 │   │   ├── durianpay-api-calls/ # DurianpayApiCallsPage + DurianpayApiCallDetailModal + filterDefs + hooks (/durianpay-api-calls) — Log Panggilan DurianPay, read-only, MANAGER/ADMIN/DEVELOPER; kontraknya dibaca dari branch backend yang belum merge
 │   │   ├── queue-counts/  # useQueueCounts (USDX-678, GET /api/v1/queue-counts) — badge sidebar Pencairan Bermasalah + Persetujuan Pencairan tanpa PII
-│   │   ├── kyc/           # KycListPage + KycDetailModal (PII/photos/CDD/approve/reject/audit) + hooks (USDX-154/155/545)
-│   │   ├── kyb/           # KybListPage + KybDetailModal + KybFormPage + LegalEntityPicker + hooks (USDX-546) — manual entity due diligence; LIVE on the real backend, no MSW handlers
+│   │   ├── kyc/           # KycDetailModal (dibuka dari /kyc/:id di atas Verifikasi) (PII/photos/CDD/approve/reject/audit) + hooks (USDX-154/155/545)
+│   │   ├── kyb/           # KybDetailModal (dari /kyb/:id di atas Verifikasi) + KybFormPage + LegalEntityPicker + hooks (USDX-546) — manual entity due diligence; LIVE on the real backend, no MSW handlers
 │   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual
 │   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + PG fee VA/QRIS (USDX-207) + redeem fee % + disbursement fee flat (USDX-245) + minimum mint Rp (USDX-637) + minimum redeem Rp (USDX-682, field wajib di BE); full 7-field snapshot
 │   │   ├── mint-mode/     # MintModePage + MintModeCard + MintTestModeDialog + MintTestModeBanner + hooks (settings/mint-mode) — mode mint PROD/UJI + banner merah global (USDX-639)
@@ -233,23 +256,19 @@ Page → useMutation hook → fetch() → MSW handler / Real API
   └→ onSuccess: invalidateQueries → refetch list + dashboard
 ```
 
-### Color System (Azure Horizon)
+### Color System (merek usdx.co.id, redesain fase 1)
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `primary` | `#006780` | Dark teal anchor, headings, active states |
-| `primary-container` | `#1eaed5` | Cyan action accent, CTA gradient endpoint |
-| `surface` | `#f5fafd` | Page background |
-| `surface-container-low` | `#eff4f7` | Sidebar, grouping surfaces |
-| `surface-container-lowest` | `#ffffff` | Cards, modals, input fields |
-| `on-surface` | `#171c1f` | Body text (never pure black) |
-| `on-surface-variant` | `#3d484d` | Secondary text |
-| `outline-variant` | `#bcc8ce` | Ghost borders at 15% opacity |
-| `success` | `#10b981` | Completed badges |
-| `warning` | `#f59e0b` | Pending badges |
-| `error` | `#ba1a1a` | Failed badges, error text |
+Token di `src/index.css` (`:root` terang, `.dark` gelap). Pakai nama token
+Tailwind (`bg-primary`, `text-gold`, …), bukan hex.
 
-Primary CTA uses a 135° gradient from `primary` to `primary-container` (`bg-blue-pulse` utility).
+| Token | Terang | Pemakaian |
+|-------|--------|-----------|
+| `primary` | maroon `#800000` | tombol utama, menu aktif, tautan; di gelap diangkat ke merah muda terang dengan teks gelap di atasnya |
+| `gold` / `gold-soft` / `gold-foreground` | emas `#e0a93c` | aksen merek, isian "Yang perlu kamu lakukan" |
+| `success` / `warning` / `destructive` | — | chip status (lewat `ToneChip` / `StatusPill`) |
+| `font-display` | Crimson Pro | judul halaman (`PageHeader`), judul panel, dan wordmark USDX di Sidebar/Navbar — tidak untuk isi |
+
+Tidak ada gradien CTA lagi (`bg-blue-pulse` milik Azure Horizon sudah pensiun).
 
 ### Mint/Burn Request Lifecycle (sot/phase-1.md § Flow MINT/BURN OTC)
 
