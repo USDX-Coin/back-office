@@ -318,7 +318,7 @@ export default function ScreeningQueuePage() {
             mode="no-data"
             icon={<ShieldAlert className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
             title="Tidak ada temuan yang menahan siapa pun"
-            description="Antrean kosong berarti tidak ada kecocokan yang menunggu keputusan. Pilih “Semua jejak pemeriksaan” untuk melihat riwayat pemeriksaan yang bersih — baris NO_MATCH adalah buktinya sudah diperiksa."
+            description="Antrean kosong berarti tidak ada kecocokan yang menunggu keputusan. Pilih “Semua jejak pemeriksaan” untuk melihat riwayat pemeriksaan yang bersih — hasil “Tidak cocok” adalah bukti nasabahnya sudah diperiksa."
           />
         }
         onRowClick={(r) => navigate(`/screening/${r.id}`)}

@@ -109,8 +109,9 @@ export default function TransactionsListPage() {
       size: 68,
       header: 'Jenis',
       cell: ({ getValue }) => (
+        // Kata, bukan enum: "MINT"/"REDEEM" mentah terbaca kode (audit 8 Okt 2026).
         <span className="text-xs text-muted-foreground">
-          {getValue() as string}
+          {getValue() === 'REDEEM' ? 'Redeem' : 'Mint'}
         </span>
       ),
     },
