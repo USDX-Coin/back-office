@@ -17,12 +17,9 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
     test('sidebar → queue → detail → SETTLED_MANUAL drops the row and shows the trail', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
-
-      // Redesain fase 1: the queue left the menu; it is reached from the
-      // "Perlu tindakan" links on Transaksi, and its count sums into Transaksi.
-      await page.getByRole('navigation', { name: 'Antrean yang perlu tindakan' }).getByRole('link', { name: /pencairan bermasalah/i }).click()
-      await expect(page).toHaveURL(/\/payout-failures$/)
+      // Fase 2 (SOT PR #50): antrean ini dilebur ke Transaksi dan tidak lagi di
+      // navigasi; halamannya tetap hidup lewat URL ("Buka di antrean" di panel).
+      await page.goto('/payout-failures')
       await expect(page.getByRole('heading', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
       await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2')
 

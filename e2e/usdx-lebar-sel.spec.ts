@@ -63,11 +63,9 @@ const LAYAR: Layar[] = [
     path: '/redeem-approvals',
     wajibAda: ['uang', 'rekening', 'waktu'],
   },
-  {
-    nama: 'Transaksi Nasabah',
-    path: '/transactions',
-    wajibAda: ['uang', 'waktu'],
-  },
+  // 'Transaksi Nasabah' keluar dari daftar ini di fase 2: /transactions kini
+  // tabel berkelompok (GroupedTable) yang melipat isinya, bukan DataTable
+  // berlebar kolom tetap yang diukur pagar ini.
   { nama: 'Mint OTC', path: '/mint', wajibAda: ['uang', 'waktu'] },
   { nama: 'Burn OTC', path: '/burn', wajibAda: ['uang', 'waktu'] },
   {

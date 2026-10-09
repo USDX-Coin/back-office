@@ -1467,6 +1467,62 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       })
     }
 
+    // ── ⚠️ DRAF SOT PR #50 — Transaksi gabungan (backoffice-transactions.yaml) ──
+    // Order dari state + antrean Pencairan Bermasalah (PAYOUT_FAILURE). Resolve
+    // di antrean asal mengeluarkan barisnya dari "perlu tindakan".
+    const buildTransactions = () => {
+      const rows = new Map<string, Record<string, unknown> & { id: string; needsAction: boolean; actions: Record<string, unknown>[]; occurredAt: string; kind: string }>()
+      for (const o of state.orders) {
+        rows.set(o.id, {
+          id: o.id, kind: o.type, occurredAt: o.createdAt, orderNumber: o.externalReference, customerName: null,
+          userEmail: o.userEmail, partnerCode: o.partner?.code ?? null, senderName: null, amountUsdx: o.amount,
+          amountIdr: o.type === 'MINT' ? o.totalPayIdr : (o.netPayoutIdr ?? null), status: o.status,
+          needsAction: false, actionType: null, actionSince: null, actions: [],
+        })
+      }
+      for (const f of payoutFailures) {
+        if (f.resolution !== null) continue
+        const action = { actionType: 'PAYOUT_FAILURE', queue: 'PAYOUT_FAILURES', refId: f.id, since: f.issueAt, payoutIssueKind: f.issueKind }
+        rows.set(f.id, {
+          id: f.id, kind: 'REDEEM', occurredAt: f.issueAt, orderNumber: null, customerName: f.bankAccountName,
+          userEmail: f.ownerLabel, partnerCode: null, senderName: null, amountUsdx: f.amountUsdx, amountIdr: f.netPayoutIdr,
+          status: f.status, needsAction: true, actionType: 'PAYOUT_FAILURE', actionSince: f.issueAt, actions: [action],
+        })
+      }
+      return [...rows.values()].sort((a, b) => {
+        if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1
+        return a.needsAction
+          ? String(a.actionSince).localeCompare(String(b.actionSince))
+          : b.occurredAt.localeCompare(a.occurredAt)
+      })
+    }
+    if (key === 'GET /api/v1/transactions') {
+      let list = buildTransactions()
+      const kinds = url.searchParams.getAll('kind')
+      const needsAction = url.searchParams.get('needsAction')
+      const actionType = url.searchParams.get('actionType')
+      const q = url.searchParams.get('q')?.toLowerCase()
+      const ownerType = url.searchParams.get('ownerType')
+      if (kinds.length) list = list.filter((r) => kinds.includes(r.kind))
+      if (needsAction === 'true') list = list.filter((r) => r.needsAction)
+      if (needsAction === 'false') list = list.filter((r) => !r.needsAction)
+      if (actionType) list = list.filter((r) => r.actions.some((a) => a.actionType === actionType))
+      if (q) list = list.filter((r) => [r.orderNumber, r.customerName, r.senderName].some((v) => typeof v === 'string' && v.toLowerCase().includes(q)))
+      if (ownerType === 'PARTNER') list = list.filter((r) => r.partnerCode !== null)
+      if (ownerType === 'RETAIL') list = list.filter((r) => r.partnerCode === null && r.kind !== 'INCOMING_UNMATCHED')
+      const page = Number(url.searchParams.get('page') ?? '1')
+      const take = Number(url.searchParams.get('take') ?? '20')
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          metadata: { page, limit: take, total: list.length, needsActionTotal: list.filter((r) => r.needsAction).length },
+          data: list.slice((page - 1) * take, page * take),
+        }),
+      })
+    }
+
     // ── Hitungan antrean badge (USDX-678, sot/api/queue-counts.yaml) ──────
     // Antrean Persetujuan Pencairan tidak dimodelkan di suite ini → 0.
     if (key === 'GET /api/v1/queue-counts') {
@@ -1477,6 +1533,8 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         // Not modelled here → 0 (a missing key would read "belum terbaca").
         heldCreditsOpen: 0,
         approvalsOpen: 0,
+        // ⚠️ DRAF SOT PR #50 — badge menu Transaksi, per baris.
+        transactionsNeedsAction: buildTransactions().filter((r) => r.needsAction).length,
       })
     }
 

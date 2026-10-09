@@ -22,8 +22,9 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await page.goto('/dashboard')
 
       await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2', { timeout: 15000 })
-      await page.getByRole('navigation', { name: 'Antrean yang perlu tindakan' }).getByRole('link', { name: /persetujuan pencairan/i }).click()
-      await expect(page).toHaveURL(/\/redeem-approvals$/)
+      // Fase 2: badge = transactionsNeedsAction; halaman Transaksi sendiri tidak
+      // menarik list PII take=1.
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible()
 
       expect(apiCalls).toContain('/api/v1/queue-counts')
       expect(apiCalls.filter((c) => /^\/api\/v1\/(payout-failures|redeem-approvals)\?(.*&)?take=1(&|$)/.test(c))).toEqual([])
