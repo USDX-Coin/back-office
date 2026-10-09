@@ -64,18 +64,27 @@ function setup() {
   })
 }
 
+/** Buka combobox Nasabah lalu ketik di isian cari di dalam popover-nya. */
+async function searchUser(user: ReturnType<typeof userEvent.setup>, text: string) {
+  await user.click(screen.getByRole('combobox', { name: /^nasabah$/i }))
+  await user.type(await screen.findByPlaceholderText(/cari nama atau email nasabah/i), text)
+}
+
 async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
-  const search = screen.getByLabelText(/^nasabah$/i)
-  await user.type(search, 'rob')
+  await searchUser(user, 'rob')
   const option = await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
   await user.click(option)
 }
 
 describe('BurnFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
-    test('renders combobox-style picker (selection-required)', () => {
+    test('renders combobox-style picker (selection-required)', async () => {
+      const user = userEvent.setup()
       setup()
-      const search = screen.getByLabelText(/^nasabah$/i)
+      const trigger = screen.getByRole('combobox', { name: /^nasabah$/i })
+      expect(trigger.tagName).toBe('BUTTON')
+      await user.click(trigger)
+      const search = await screen.findByPlaceholderText(/cari nama atau email nasabah/i)
       expect(search).toHaveAttribute('aria-autocomplete', 'list')
     })
 
@@ -83,7 +92,7 @@ describe('BurnFormPage @ USDX-46', () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
       setup()
-      await user.type(screen.getByLabelText(/^nasabah$/i), 'rob')
+      await searchUser(user, 'rob')
       const option = await screen.findByRole('option', {
         name: new RegExp(VERIFIED_USER_NAME, 'i'),
       })

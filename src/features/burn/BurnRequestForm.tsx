@@ -210,7 +210,6 @@ export default function BurnRequestForm() {
               id="burnUserPicker"
               value={form.user}
               onSelect={handleUserSelect}
-              placeholder="Cari nama atau email nasabah…"
               ariaInvalid={Boolean(errors.userId)}
               ariaDescribedBy={errors.userId ? 'burnUserPicker-error' : undefined}
             />

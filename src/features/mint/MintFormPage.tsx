@@ -226,7 +226,6 @@ export default function MintFormPage() {
                     id="mintUserPicker"
                     value={form.user}
                     onSelect={handleUserSelect}
-                    placeholder="Cari nama atau email nasabah…"
                     ariaInvalid={Boolean(errors.userId)}
                     ariaDescribedBy={errors.userId ? 'mintUserPicker-error' : undefined}
                   />

@@ -1,14 +1,15 @@
 import { cn } from '@/lib/utils'
 
 const AVATAR_PALETTE = [
-  'bg-primary/15 text-primary',
+  // Netral + semantik lembut — tanpa rona maroon/merah muda (revisi PM).
   'bg-secondary text-secondary-foreground',
   'bg-muted text-foreground',
-  'bg-success/15 text-success',
-  'bg-warning/20 text-warning',
-  'bg-destructive/10 text-destructive',
+  'bg-success/10 text-success',
+  'bg-warning/10 text-warning',
   'bg-accent text-accent-foreground',
-  'bg-primary/25 text-primary',
+  'bg-gold-soft text-gold-foreground',
+  'bg-muted text-muted-foreground',
+  'bg-secondary text-foreground',
 ]
 
 const SIZE_CLASSES = {

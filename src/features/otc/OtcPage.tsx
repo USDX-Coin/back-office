@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import TableToolbar from '@/components/table/TableToolbar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
 import SplitView from '@/components/detail-panel/SplitView'
@@ -34,6 +35,9 @@ const HISTORY_PAGE_SIZE = 20
  * dan tanda tangan / eksekusi dilakukan dari panel detail kanan memakai alur
  * yang sama dengan halaman tanda tangan lengkap (`useSafeTxSigning`).
  */
+/** Nilai Radix Select untuk "tanpa saringan" — Select tidak menerima string kosong. */
+const SEMUA = 'semua'
+
 export default function OtcPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -149,21 +153,19 @@ export default function OtcPage() {
           onChange: (next) => update({ search: next.trim() || null, page: null }),
         }}
         extra={
-          <>
-            <label className="sr-only" htmlFor="otc-jenis">
-              Jenis
-            </label>
-            <select
-              id="otc-jenis"
-              value={type}
-              onChange={(e) => update({ jenis: e.target.value || null, page: null })}
-              className="h-9 rounded-md border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Semua jenis</option>
-              <option value="mint">Mint OTC</option>
-              <option value="burn">Redeem OTC</option>
-            </select>
-          </>
+          <Select
+            value={type || SEMUA}
+            onValueChange={(v) => update({ jenis: v === SEMUA ? null : v, page: null })}
+          >
+            <SelectTrigger aria-label="Jenis" className="h-9 w-full sm:w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEMUA}>Semua jenis</SelectItem>
+              <SelectItem value="mint">Mint OTC</SelectItem>
+              <SelectItem value="burn">Redeem OTC</SelectItem>
+            </SelectContent>
+          </Select>
         }
       />
       <GroupedTable

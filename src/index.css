@@ -10,8 +10,9 @@
 /* ──────────────────────────────────────────────────────────────────────────
  * USDX Back Office — tema global
  *
- * Konsol operator padat. Netral HANGAT, sepuluh langkah, dengan tiga tingkat
- * isian yang benar-benar berbeda. Terang dan gelap ditala dari skala yang sama.
+ * Konsol operator padat. Netral DINGIN yang bersih, sepuluh langkah, dengan
+ * tiga tingkat isian yang benar-benar berbeda. Fokus di mode terang; mode gelap
+ * cukup terbaca.
  *
  * Apa yang diperbaiki dan kenapa — tiga hal, ketiganya terukur, bukan selera:
  *
@@ -21,13 +22,13 @@
  *    Dengan satu tingkat isian, satu-satunya alat yang tersisa untuk memisahkan
  *    kelompok adalah GARIS. Itulah mekanisme di balik keluhan "terlalu kotak":
  *    bukan seleranya yang salah, temanya memang kehabisan alat. Di sini
- *    ketiganya berbeda (93.5% / 92.5% / 87%), jadi kelompok bisa dipisah oleh
+ *    ketiganya berbeda (96% / 94% / 92%), jadi kelompok bisa dipisah oleh
  *    permukaan dan garis boleh mundur.
  *
- * 2. HUE 220 (DINGIN) → HUE 30-40 (HANGAT).
- *    Seluruh netral lama memakai hue 220, jadi satu layar penuh punya rona
- *    kebiruan yang sama. Bedanya halus per elemen dan menentukan di satu layar:
- *    permukaan hangat terbaca sebagai kertas, bukan sebagai panel.
+ * 2. NETRAL HANGAT → NETRAL DINGIN (revisi PM 9 Okt 2026).
+ *    Fase 1 sempat memakai hue 30-40 (krem). Bersama maroon, latar, isian, dan
+ *    baris terpilih terbaca kemerahan dan form jadi "gak clear". Sekarang
+ *    kanvas abu dingin terang, kartu & isian PUTIH, maroon hanya aksen.
  *
  * 3. KONTRAS YANG DIHITUNG, BUKAN DIKIRA.
  *    Badge "Pending" lama — status yang paling sering muncul di antrean —
@@ -87,7 +88,7 @@
    *   xs  12px  teks sekunder, meta, keterangan
    *   sm  13px  isi tabel dan daftar padat
    *   base 14px teks badan, label formulir, isian
-   *   lg  16px  judul kartu dan judul bagian
+   *   lg  18px  judul dialog, panel, dan bagian besar
    *   xl  24px  judul halaman dan angka besar
    */
   --text-*: initial;
@@ -99,8 +100,8 @@
   --text-sm--line-height: 1.25rem;
   --text-base: 0.875rem;
   --text-base--line-height: 1.375rem;
-  --text-lg: 1rem;
-  --text-lg--line-height: 1.375rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
   --text-xl: 1.5rem;
   --text-xl--line-height: 1.75rem;
 
@@ -111,21 +112,25 @@
 }
 
 :root {
-  --radius: 0.375rem;
+  /* 8px — input, tombol, kartu kecil. Dialog memakai 12px sendiri. */
+  --radius: 0.5rem;
 
-  /* ── Netral hangat, sepuluh langkah ──────────────────────────────────────
-   * Rasio di komentar dihitung terhadap `--card` (#fdfdfc) kecuali disebut
-   * lain. Sumbernya kalkulator WCAG sendiri, bukan ingatan. */
-  --n0: 40 33% 99%;    /* kartu, popover                                     */
-  --n1: 38 20% 94%;    /* kanvas halaman                    kartu 1.11       */
-  --n2: 38 16% 92.5%;  /* baris belang (zebra)              kartu 1.15       */
-  --n3: 38 15% 93.5%;  /* isian kontrol (input, segmented)  kartu 1.14       */
-  --n4: 36 16% 87%;    /* sorotan / keadaan aktif           kartu 1.30       */
-  --n5: 38 14% 83%;    /* garis tenang                      kartu 1.43       */
-  --n6: 38 13% 80%;    /* garis tegas / tepi isian                           */
-  --n7: 30 6% 41%;     /* teks sekunder      kartu 5.25 · zebra 4.57         */
-  --n8: 34 6% 21%;     /* teks di atas isian sekunder       10.37            */
-  --n9: 30 8% 10%;     /* teks utama                        17.11            */
+  /* ── Netral DINGIN yang bersih (revisi PM 9 Okt 2026) ────────────────────
+   * "Form dan warnanya malah gak clear kalau agak merah gini." Netral hangat
+   * fase 1 (krem/merah muda) membuat latar, isian, dan baris terpilih terbaca
+   * kemerahan. Sekarang abu dingin netral ala Stripe/Mercury: kanvas #f6f7f9,
+   * kartu putih, garis #e5e7eb, teks #111827 / #4b5563 / #6b7280. Maroon
+   * hanya untuk aksi utama, penanda menu aktif, dan aksen kecil. */
+  --n0: 0 0% 100%;      /* kartu, popover, isian            #ffffff          */
+  --n1: 220 20% 97%;    /* kanvas halaman                   #f6f7f9          */
+  --n2: 220 14% 96%;    /* belang tabel, isian read-only    #f3f4f6          */
+  --n3: 220 13% 94%;    /* isian sekunder (tombol abu)      #eceef1          */
+  --n4: 220 13% 92%;    /* sorotan / baris terpilih         #e8eaee          */
+  --n5: 220 13% 91%;    /* garis                            #e5e7eb          */
+  --n6: 216 12% 84%;    /* tepi isian                       #d1d5db          */
+  --n7: 220 9% 46%;     /* teks keterangan  4.83:1 di putih #6b7280          */
+  --n8: 215 14% 34%;    /* teks sekunder    7.56:1          #4b5563          */
+  --n9: 221 39% 11%;    /* teks utama       17.7:1          #111827          */
 
   --background: var(--n1);
   --foreground: var(--n9);
@@ -136,21 +141,19 @@
   --popover: var(--n0);
   --popover-foreground: var(--n9);
 
-  /* Maroon merek usdx.co.id #800000. Putih di atasnya 10.95:1; sebagai
-   * teks/ikon di atas kartu 10.76:1. */
+  /* Maroon merek usdx.co.id #800000. Putih di atasnya 10.95:1. */
   --primary: 0 100% 25%;
-  --primary-foreground: 32 100% 97%;
+  --primary-foreground: 0 0% 100%;
 
-  /* Emas merek #e0a93c — AKSEN, bukan teks: di atas kartu cuma 2.08:1.
-   * Untuk teks di atas isian emas lembut pakai `--gold-foreground`
-   * (#7a5410, 6.65:1 di kartu). */
+  /* Emas merek #e0a93c — aksen hemat, bukan teks (2.08:1 di putih).
+   * `gold-soft` = kuning lembut untuk keadaan "menunggu"; teksnya
+   * `gold-foreground` (#7a5410, 6.9:1 di putih). */
   --gold: 40 72% 56%;
-  --gold-soft: 41 81% 92%;
+  --gold-soft: 43 90% 94%;
   --gold-foreground: 38 77% 27%;
 
-  /* Tiga tingkat isian yang BERBEDA. Inilah inti perbaikan nomor 1. */
   --secondary: var(--n3);
-  --secondary-foreground: var(--n8);
+  --secondary-foreground: var(--n9);
 
   --muted: var(--n2);
   --muted-foreground: var(--n7);
@@ -158,48 +161,40 @@
   --accent: var(--n4);
   --accent-foreground: var(--n9);
 
-  /* ── Status ──────────────────────────────────────────────────────────────
-   * Ditala supaya SATU token melayani tiga pemakaian yang semuanya ada di
-   * kode: teks di atas kartu, teks di atas isian lembut `bg-X/10`, dan isian
-   * pekat `bg-X` dengan `-foreground` di atasnya. Yang lama gagal di pemakaian
-   * kedua — dan justru itu yang paling sering tampil (badge status).
-   *
-   *                       kartu   bg-X/10 di kartu   bg-X/10 di baris zebra
-   *   warning     #945014  6.03        5.23                  4.58
-   *   success     #116949  6.54        5.64                  4.94
-   *   destructive #ab2521  6.80        5.77                  5.05
-   * Putih di atas isian pekat: 6.15 / 6.66 / 6.93. */
-  --destructive: 2 68% 40%;
+  /* Status semantik — selalu dengan teks, isian lembut `bg-X/10`.
+   *   destructive #b42318  6.6:1 di putih
+   *   success     #067647  6.4:1
+   *   warning     #b54708  5.6:1 */
+  --destructive: 4 76% 40%;
   --destructive-foreground: 0 0% 100%;
 
-  --success: 158 72% 24%;
+  --success: 155 90% 24%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 28 76% 33%;
+  --warning: 22 92% 37%;
   --warning-foreground: 0 0% 100%;
 
   --border: var(--n5);
   --input: var(--n6);
-  /* Cincin fokus maroon di mode terang (emas di atas kartu terang 2.08:1 —
-   * gagal ambang 3:1 indikator fokus). */
+  /* Fokus = tepi maroon + cincin lembut maroon (lihat ui/input). */
   --ring: 0 100% 25%;
 
   color-scheme: light;
 }
 
 .dark {
-  /* Gelap HANGAT, bukan abu kebiruan — sumbu hue yang sama dengan mode terang.
-   * Rasio dihitung terhadap `--card` (#1e1c1a). */
-  --n0: 30 6% 11%;     /* kartu, permukaan terangkat                         */
-  --n1: 30 6% 7%;      /* kanvas halaman                    kartu 1.10       */
-  --n2: 30 6% 15%;     /* baris belang (zebra)              kartu 1.13       */
-  --n3: 30 5% 17%;     /* isian kontrol                     kartu 1.21       */
-  --n4: 30 6% 23%;     /* sorotan / keadaan aktif           kartu 1.52       */
-  --n5: 30 6% 24%;     /* garis tenang                      kartu 1.58       */
-  --n6: 30 6% 27%;     /* garis tegas / tepi isian                           */
-  --n7: 32 8% 66%;     /* teks sekunder      kartu 7.28 · zebra 6.44         */
-  --n8: 36 12% 92%;
-  --n9: 36 12% 92%;    /* teks utama                        14.29            */
+  /* Gelap: tidak diinvestasikan (revisi PM) — cukup netral dan terbaca.
+   * Rasio dihitung terhadap `--card`. */
+  --n0: 220 9% 11%;     /* kartu                                           */
+  --n1: 220 10% 7%;     /* kanvas                                          */
+  --n2: 220 8% 15%;     /* belang                                          */
+  --n3: 220 8% 17%;     /* isian sekunder                                  */
+  --n4: 220 8% 22%;     /* sorotan                                         */
+  --n5: 220 8% 22%;     /* garis                                           */
+  --n6: 220 8% 30%;     /* tepi isian                                      */
+  --n7: 220 9% 66%;     /* teks keterangan    ±7:1                         */
+  --n8: 220 12% 88%;
+  --n9: 220 14% 93%;    /* teks utama         ±14:1                        */
 
   --background: var(--n1);
   --foreground: var(--n9);
@@ -207,18 +202,15 @@
   --card: var(--n0);
   --card-foreground: var(--n9);
 
-  --popover: 30 6% 13%;
+  --popover: 220 9% 13%;
   --popover-foreground: var(--n9);
 
-  /* Maroon dicerahkan jadi merah bata hangat (#e8796c) agar lolos sebagai
-   * teks: 5.97:1 di atas kartu gelap; teks gelap di atasnya 6.78:1.
-   * Maroon asli #800000 di atas kartu gelap cuma ±2:1. */
+  /* Maroon dicerahkan (#e8796c) agar terbaca sebagai teks di atas gelap. */
   --primary: 6 73% 67%;
-  --primary-foreground: 8 33% 6%;
+  --primary-foreground: 220 10% 7%;
 
-  /* Emas #e8b858 — di mode gelap ia boleh jadi teks (9.24:1 di kartu). */
   --gold: 40 76% 63%;
-  --gold-soft: 41 54% 13%;
+  --gold-soft: 41 40% 15%;
   --gold-foreground: 40 76% 63%;
 
   --secondary: var(--n3);
@@ -230,24 +222,17 @@
   --accent: var(--n4);
   --accent-foreground: var(--n9);
 
-  /*                       kartu   bg-X/10 di kartu   bg-X/10 di baris zebra
-   *   warning     #f3b75e  9.51        7.75                  6.78
-   *   success     #50ce9b  8.58        7.13                  6.25
-   *   destructive #ef756c  6.00        5.20                  4.57  */
   --destructive: 4 80% 68%;
-  --destructive-foreground: 30 6% 7%;
+  --destructive-foreground: 220 10% 7%;
 
   --success: 156 56% 56%;
-  --success-foreground: 30 6% 7%;
+  --success-foreground: 220 10% 7%;
 
   --warning: 36 86% 66%;
-  --warning-foreground: 30 6% 7%;
+  --warning-foreground: 220 10% 7%;
 
-  /* Yang lama `220 8% 11%` duduk di 1.05:1 terhadap kartu — garis pemisah yang
-   * secara praktis tidak terlihat. Sekarang 1.58:1. */
   --border: var(--n5);
   --input: var(--n6);
-  /* Cincin fokus emas di mode gelap — 9.24:1 di atas kartu. */
   --ring: 40 76% 63%;
 
   color-scheme: dark;
@@ -294,7 +279,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::selection {
-  background-color: hsl(var(--primary) / 0.22);
+  background-color: hsl(var(--primary) / 0.14);
   color: hsl(var(--foreground));
 }
 

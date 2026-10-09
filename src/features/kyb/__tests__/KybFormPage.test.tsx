@@ -88,8 +88,9 @@ function setup() {
 }
 
 async function pickLegalEntity(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('combobox', { name: /akun badan usaha/i }))
   await user.type(
-    screen.getByPlaceholderText(/cari akun badan usaha/i),
+    await screen.findByPlaceholderText(/cari akun badan usaha/i),
     'juara',
   )
   // Timeout eksplisit: `LegalEntityPicker` men-debounce 300 ms sebelum menembak
@@ -237,8 +238,9 @@ describe('KybFormPage @ USDX-546', () => {
       const captured: string[] = []
       stubUsersLookup(captured)
       setup()
+      await user.click(screen.getByRole('combobox', { name: /akun badan usaha/i }))
       await user.type(
-        screen.getByPlaceholderText(/cari akun badan usaha/i),
+        await screen.findByPlaceholderText(/cari akun badan usaha/i),
         'juara',
       )
       await waitFor(() => expect(captured.length).toBeGreaterThan(0))

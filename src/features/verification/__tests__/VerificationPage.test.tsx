@@ -181,7 +181,8 @@ describe('VerificationPage', () => {
       const user = userEvent.setup()
       renderPage()
       await screen.findByText('rina@example.com')
-      await user.selectOptions(screen.getByLabelText('Riwayat'), 'ditolak')
+      await user.click(screen.getByRole('combobox', { name: 'Riwayat' }))
+      await user.click(await screen.findByRole('option', { name: 'Riwayat: ditolak' }))
       await waitFor(() => expect(within(body('history')).queryByText('rina@example.com')).not.toBeInTheDocument())
       expect(within(body('history')).getByText('CV Maju')).toBeInTheDocument()
       expect(within(body('history')).getAllByText('Ditolak')).toHaveLength(2) // group title + chip

@@ -12,7 +12,8 @@ const USER_NAME = VERIFIED_USER.name // "Robert Deon"
 const USER_ADDR = VERIFIED_USER.wallets[0].address
 
 async function pickUser(page: Page) {
-  await page.getByLabel(/^nasabah$/i).fill('rob')
+  await page.getByRole('combobox', { name: /^nasabah$/i }).click()
+  await page.getByPlaceholder(/cari nama atau email nasabah/i).fill('rob')
   await page.getByRole('option', { name: new RegExp(USER_NAME, 'i') }).click()
 }
 

@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useState } from 'react'
 import Avatar from '@/components/Avatar'
+import SearchCombobox from '@/components/SearchCombobox'
 import { useEligibleUsers } from '@/features/mint/hooks'
-import { cn } from '@/lib/utils'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import type { PhaseOneUser } from '@/lib/types'
 
-// USDX-46 — searchable user picker (combobox pattern, selection-required).
-// Backed by GET /api/v1/users?search=&kycStatus=VERIFIED + FE filter on
-// `suspended === false`. Free-text typing alone never produces a valid
-// selection; the form's userId is set only by clicking a row.
+// USDX-46 — pemilih nasabah (combobox, pilihan wajib). Sejak revisi PM 9 Okt
+// 2026 memakai Combobox shadcn (Popover + Command) lewat `SearchCombobox`.
+// Sumbernya GET /api/v1/users?search=&kycStatus=VERIFIED + saring FE
+// `suspended === false`. Ketikan saja tidak pernah menghasilkan pilihan sah;
+// userId form hanya terisi saat satu baris dipilih.
 
 export interface UserPickerProps {
   id?: string
@@ -23,151 +22,62 @@ export interface UserPickerProps {
   ariaDescribedBy?: string
 }
 
-const DEBOUNCE_MS = 300
+function UserRow({ user }: { user: PhaseOneUser }) {
+  // Daftar ini hanya memuat nasabah KYC-VERIFIED; nama terisi saat KYC
+  // pertama — tetap jatuh ke email (users.yaml § User.name nullable).
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <Avatar name={user.name ?? user.email} size="md" />
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="truncate text-base font-medium text-foreground">{user.name ?? user.email}</span>
+        <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+      </span>
+    </span>
+  )
+}
 
 export default function UserPicker({
   id,
   value,
   onSelect,
-  placeholder = 'Cari nama atau email nasabah…',
+  placeholder = 'Pilih nasabah',
   className,
   disabled,
   ariaInvalid,
   ariaDescribedBy,
 }: UserPickerProps) {
   const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim()), DEBOUNCE_MS)
-    return () => clearTimeout(t)
-  }, [query])
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const enabled = open && debouncedQuery.length > 0
-  const { data, isFetching, isError } = useEligibleUsers(debouncedQuery, enabled)
-
-  function handleSelect(u: PhaseOneUser) {
-    onSelect(u)
-    setQuery('')
-    setOpen(false)
-  }
-
-  function handleClear() {
-    onSelect(null)
-    setQuery('')
-  }
-
-  if (value) {
-    return (
-      <div
-        className={cn(
-          'flex items-center gap-3 rounded-lg border border-border/30 bg-card p-3',
-          className
-        )}
-        data-testid="user-picker-selected"
-      >
-        {/* Picker lists KYC-VERIFIED users; name is auto-set at first KYC
-            submit so it is non-null in practice — fall back to email anyway
-            (users.yaml § User.name nullable). */}
-        <Avatar name={value.name ?? value.email} size="md" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{value.name ?? value.email}</p>
-          <p className="truncate text-xs text-muted-foreground">{value.email}</p>
-        </div>
-        {!disabled && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            aria-label="Batalkan pilihan"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    )
-  }
+  const debounced = useDebouncedValue(query.trim(), 300)
+  const { data, isFetching, isError } = useEligibleUsers(debounced, open && debounced.length > 0)
+  const waiting = query.trim() !== debounced || isFetching
 
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        id={id}
-        value={query}
-        disabled={disabled}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setOpen(true)
-        }}
-        onFocus={() => query.length > 0 && setOpen(true)}
-        placeholder={placeholder}
-        className="pl-10"
-        aria-autocomplete="list"
-        aria-expanded={open}
-        aria-invalid={ariaInvalid}
-        aria-describedby={ariaDescribedBy}
-        autoComplete="off"
-      />
-      {open && debouncedQuery.length > 0 && (
-        <div
-          role="listbox"
-          aria-label="Nasabah yang cocok"
-          className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm"
-        >
-          {isFetching && (
-            <div className="space-y-2 p-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <div className="flex-1 space-y-1">
-                    <Skeleton className="h-4 w-2/3" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!isFetching && isError && (
-            <div className="p-4 text-sm text-destructive">Daftar nasabah gagal dimuat.</div>
-          )}
-          {!isFetching && !isError && data && data.length === 0 && (
-            <div className="p-4 text-sm text-muted-foreground">Nasabah tidak ditemukan.</div>
-          )}
-          {!isFetching && !isError && data && data.length > 0 && (
-            <ul className="max-h-72 overflow-auto py-1">
-              {data.map((u) => (
-                <li key={u.id}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={false}
-                    onClick={() => handleSelect(u)}
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/60"
-                  >
-                    <Avatar name={u.name ?? u.email} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{u.name ?? u.email}</p>
-                      <p className="truncate text-xs text-muted-foreground">{u.email}</p>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
+    <SearchCombobox<PhaseOneUser>
+      id={id}
+      value={value}
+      onSelect={onSelect}
+      query={query}
+      onQueryChange={setQuery}
+      open={open}
+      onOpenChange={setOpen}
+      items={data ?? []}
+      isLoading={waiting}
+      isError={isError}
+      getKey={(u) => u.id}
+      renderItem={(u) => <UserRow user={u} />}
+      renderValue={(u) => <UserRow user={u} />}
+      placeholder={placeholder}
+      searchPlaceholder="Cari nama atau email nasabah…"
+      hintText="Ketik nama atau email nasabah yang sudah terverifikasi."
+      emptyText="Nasabah tidak ditemukan."
+      errorText="Daftar nasabah gagal dimuat."
+      listLabel="Nasabah yang cocok"
+      selectedTestId="user-picker-selected"
+      className={className}
+      disabled={disabled}
+      ariaInvalid={ariaInvalid}
+      ariaDescribedBy={ariaDescribedBy}
+    />
   )
 }

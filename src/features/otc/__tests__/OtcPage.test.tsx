@@ -320,7 +320,8 @@ describe('OtcPage', () => {
       const user = userEvent.setup()
       renderOtc()
       await screen.findByText('PT Sinar Niaga')
-      await user.selectOptions(screen.getByLabelText('Jenis'), 'burn')
+      await user.click(screen.getByRole('combobox', { name: 'Jenis' }))
+      await user.click(await screen.findByRole('option', { name: 'Redeem OTC' }))
       await user.type(screen.getByRole('textbox', { name: 'Cari permintaan OTC' }), 'arunika')
       await waitFor(() => {
         const last = requestUrls.filter((u) => u.searchParams.get('search') === 'arunika')

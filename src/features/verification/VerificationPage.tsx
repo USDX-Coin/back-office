@@ -2,6 +2,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import { Plus } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import TableToolbar from '@/components/table/TableToolbar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
@@ -44,6 +45,9 @@ type HistoryFilter = 'all' | 'VERIFIED' | 'REJECTED'
  * lengkap lama (`/kyc/:id`, `/kyb/:id` — modal di atas halaman ini), dibuka
  * dari tombol utama panel.
  */
+/** Nilai Radix Select untuk "tanpa saringan" — Select tidak menerima string kosong. */
+const SEMUA = 'semua'
+
 export default function VerificationPage({ detail }: { detail?: VerificationKind }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -174,10 +178,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     },
   ]
 
-  const selectClass =
-    'h-9 rounded-md border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-
-  const list = (
+    const list = (
     <div className="space-y-3">
       <TableToolbar
         search={{
@@ -188,32 +189,32 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
         }}
         extra={
           <>
-            <label className="sr-only" htmlFor="verif-jenis">
-              Jenis
-            </label>
-            <select
-              id="verif-jenis"
-              className={selectClass}
-              value={jenis ?? ''}
-              onChange={(e) => update({ jenis: e.target.value || null, page: null })}
+            <Select
+              value={jenis ?? SEMUA}
+              onValueChange={(v) => update({ jenis: v === SEMUA ? null : v, page: null })}
             >
-              <option value="">Semua jenis</option>
-              <option value="perorangan">Perorangan</option>
-              <option value="badan-usaha">Badan usaha</option>
-            </select>
-            <label className="sr-only" htmlFor="verif-riwayat">
-              Riwayat
-            </label>
-            <select
-              id="verif-riwayat"
-              className={selectClass}
-              value={history === 'REJECTED' ? 'ditolak' : history === 'VERIFIED' ? 'disetujui' : ''}
-              onChange={(e) => update({ riwayat: e.target.value || null, page: null })}
+              <SelectTrigger aria-label="Jenis" className="h-9 w-full sm:w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEMUA}>Semua jenis</SelectItem>
+                <SelectItem value="perorangan">Perorangan</SelectItem>
+                <SelectItem value="badan-usaha">Badan usaha</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={history === 'REJECTED' ? 'ditolak' : history === 'VERIFIED' ? 'disetujui' : SEMUA}
+              onValueChange={(v) => update({ riwayat: v === SEMUA ? null : v, page: null })}
             >
-              <option value="">Riwayat: semua keputusan</option>
-              <option value="disetujui">Riwayat: disetujui</option>
-              <option value="ditolak">Riwayat: ditolak</option>
-            </select>
+              <SelectTrigger aria-label="Riwayat" className="h-9 w-full sm:w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEMUA}>Riwayat: semua keputusan</SelectItem>
+                <SelectItem value="disetujui">Riwayat: disetujui</SelectItem>
+                <SelectItem value="ditolak">Riwayat: ditolak</SelectItem>
+              </SelectContent>
+            </Select>
           </>
         }
       />
