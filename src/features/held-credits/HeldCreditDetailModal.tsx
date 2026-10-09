@@ -31,6 +31,7 @@ import {
 import ResolveHeldCreditDialog from './ResolveHeldCreditDialog'
 import type { HeldCreditDetail, HeldCreditResolution } from './types'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface Props {
   creditId: string | null
@@ -39,25 +40,11 @@ interface Props {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 break-words text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 function Raw({ value }: { value: string | number | null | undefined }) {
@@ -182,7 +169,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
       )}
 
       <Section title="Uang yang masuk">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="@container divide-y divide-border border-t border-border">
           <Field label="Nominal">
             <span className="font-mono tabular-nums">{receivedAmountLabel(credit)}</span>
             {gap && <span className="mt-0.5 block text-2xs text-warning">{gap}</span>}
@@ -233,7 +220,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
 
       <Section title="Order pilihan mesin">
         {credit.order ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="@container divide-y divide-border border-t border-border">
             <Field label="Nasabah">
               <span>{credit.order.customerName}</span>
               {credit.order.userEmail && (

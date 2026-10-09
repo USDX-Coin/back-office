@@ -5,9 +5,8 @@ import { getAddress } from 'viem'
 import { Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -16,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
+import { FormField, FormFooter, FormSection } from '@/components/FormLayout'
 import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
@@ -196,16 +196,10 @@ export default function BurnRequestForm() {
   }
 
   return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
-          Permintaan redeem OTC baru
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="burn-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="burnUserPicker">Nasabah</Label>
+    <Card className="overflow-hidden rounded-lg">
+      <form onSubmit={handleSubmit} noValidate id="burn-form" aria-label="Form permintaan redeem OTC">
+        <FormSection title="Nasabah & setoran" description="Nasabah yang menyetor USDX dan bukti setorannya.">
+          <FormField label="Nasabah" htmlFor="burnUserPicker" error={errors.userId}>
             <UserPicker
               id="burnUserPicker"
               value={form.user}
@@ -213,47 +207,40 @@ export default function BurnRequestForm() {
               ariaInvalid={Boolean(errors.userId)}
               ariaDescribedBy={errors.userId ? 'burnUserPicker-error' : undefined}
             />
-            <FieldError message={errors.userId} />
+          </FormField>
+
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+            <FormField label="Jaringan" htmlFor="burnChain" error={errors.chain}>
+              <Select value={form.chain} onValueChange={handleChainChange}>
+                <SelectTrigger id="burnChain" aria-invalid={Boolean(errors.chain)}>
+                  <SelectValue placeholder="Pilih jaringan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CHAINS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Alamat wallet nasabah" htmlFor="burnWallet" error={errors.userAddress}>
+              <WalletPicker
+                id="burnWallet"
+                wallets={walletsForChain}
+                address={form.walletAddress}
+                isOtherMode={form.walletIsOther}
+                onPickExisting={handlePickExistingWallet}
+                onPickOther={handlePickOther}
+                onAddressChange={handleAddressChange}
+                chainSelected={Boolean(form.chain) && Boolean(form.user)}
+                ariaInvalid={Boolean(errors.userAddress)}
+              />
+            </FormField>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="burnChain">Jaringan</Label>
-            <Select
-              value={form.chain}
-              onValueChange={handleChainChange}
-            >
-              <SelectTrigger id="burnChain" aria-invalid={Boolean(errors.chain)}>
-                <SelectValue placeholder="Pilih jaringan" />
-              </SelectTrigger>
-              <SelectContent>
-                {CHAINS.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.chain} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="burnWallet">Alamat wallet nasabah</Label>
-            <WalletPicker
-              id="burnWallet"
-              wallets={walletsForChain}
-              address={form.walletAddress}
-              isOtherMode={form.walletIsOther}
-              onPickExisting={handlePickExistingWallet}
-              onPickOther={handlePickOther}
-              onAddressChange={handleAddressChange}
-              chainSelected={Boolean(form.chain) && Boolean(form.user)}
-              ariaInvalid={Boolean(errors.userAddress)}
-            />
-            <FieldError message={errors.userAddress} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="burnAmount">Nominal</Label>
+          <FormField label="Nominal" htmlFor="burnAmount">
             <AmountWithCurrencyInput
               amountId="burnAmount"
               currencyId="burnCurrency"
@@ -267,80 +254,90 @@ export default function BurnRequestForm() {
             />
             <FieldError message={errors.amount} />
             <FieldError message={errors.amountCurrency} />
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="burnDepositTxHash">Tx hash setoran USDX</Label>
+          <FormField
+            label="Tx hash setoran USDX"
+            htmlFor="burnDepositTxHash"
+            hint="0x diikuti 64 karakter hex."
+            error={errors.depositTxHash}
+          >
             <div className="relative">
               <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="burnDepositTxHash"
                 value={form.depositTxHash}
                 onChange={(e) => set('depositTxHash', e.target.value)}
-                placeholder="0x… (64 karakter hex)"
+                placeholder="0x…"
                 className="pl-9 font-mono text-sm"
               />
             </div>
-            <FieldError message={errors.depositTxHash} />
-          </div>
+          </FormField>
+        </FormSection>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="burnBankName">Nama bank</Label>
-              <Input
-                id="burnBankName"
-                value={form.bankName}
-                onChange={(e) => set('bankName', e.target.value)}
-                placeholder="contoh: BCA"
-              />
-              <FieldError message={errors.bankName} />
-            </div>
+        <FormSection title="Rekening tujuan" description="Rupiah hasil redeem dikirim ke rekening ini." columns={2}>
+          <FormField label="Nama bank" htmlFor="burnBankName" error={errors.bankName}>
+            <Input
+              id="burnBankName"
+              value={form.bankName}
+              onChange={(e) => set('bankName', e.target.value)}
+              placeholder="contoh: BCA"
+            />
+          </FormField>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="burnBankAccount">Nomor rekening</Label>
-              <Input
-                id="burnBankAccount"
-                value={form.bankAccount}
-                onChange={(e) => set('bankAccount', e.target.value)}
-                placeholder="contoh: 1234567890"
-                className="font-mono text-sm"
-              />
-              <FieldError message={errors.bankAccount} />
-            </div>
-          </div>
+          <FormField label="Nomor rekening" htmlFor="burnBankAccount" error={errors.bankAccount}>
+            <Input
+              id="burnBankAccount"
+              value={form.bankAccount}
+              onChange={(e) => set('bankAccount', e.target.value)}
+              placeholder="contoh: 1234567890"
+              className="font-mono text-sm"
+            />
+          </FormField>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="burnNotes">Catatan (opsional)</Label>
+          <FormField
+            label="Catatan"
+            htmlFor="burnNotes"
+            optional
+            hint="Nomor referensi, ID treasury, atau keterangan lain untuk audit."
+            className="sm:col-span-2"
+          >
             <Textarea
               id="burnNotes"
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
-              placeholder="Nomor referensi, ID treasury, atau keterangan lain untuk audit…"
               className="min-h-[80px]"
             />
-          </div>
+          </FormField>
 
-          {queueBlock && (
-            <SafeQueueOccupiedBanner
-              safeType={queueBlock.safeType}
-              blockingRequestId={queueBlock.blockingRequestId}
-            />
+          {(queueBlock || submitError != null) && (
+            <div className="space-y-3 sm:col-span-2">
+              {queueBlock && (
+                <SafeQueueOccupiedBanner
+                  safeType={queueBlock.safeType}
+                  blockingRequestId={queueBlock.blockingRequestId}
+                />
+              )}
+              {submitError != null && (
+                <ErrorNotice error={submitError} fallback="Permintaan gagal dikirim. Periksa koneksi lalu coba lagi." />
+              )}
+            </div>
           )}
-          {submitError != null && (
-            <ErrorNotice error={submitError} fallback="Permintaan gagal dikirim. Periksa koneksi lalu coba lagi." />
-          )}
-        </CardContent>
-        <CardFooter>
+        </FormSection>
+
+        <FormFooter note="Permintaan masuk antrean tanda tangan Safe dan muncul di halaman OTC.">
+          <Button type="button" variant="outline" onClick={() => navigate('/otc')}>
+            Batal
+          </Button>
           <Button
             type="submit"
             form="burn-form"
             disabled={create.isPending}
             aria-busy={create.isPending}
-            className="w-full"
           >
             {create.isPending ? 'Mengirim…' : 'Kirim permintaan redeem OTC'}
           </Button>
-        </CardFooter>
+        </FormFooter>
       </form>
     </Card>
   )

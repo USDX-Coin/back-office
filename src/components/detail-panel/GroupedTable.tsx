@@ -145,7 +145,7 @@ export default function GroupedTable<T>({
                       }}
                       className={cn(
                         'h-baris-tabel cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                        selected && '!bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))]'
+                        selected && '!bg-accent shadow-[inset_2px_0_0_hsl(var(--foreground))]'
                       )}
                     >
                       {columns.map((c) => (

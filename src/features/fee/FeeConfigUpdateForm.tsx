@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import FieldError from '@/components/FieldError'
 import {
   feeConfigErrorField,
@@ -14,6 +14,7 @@ import {
 import { ApiError } from '@/lib/apiFetch'
 import type { FeeConfig } from '@/lib/types'
 import { useUpdateFeeConfig } from './hooks'
+import { FormFooter } from '@/components/FormLayout'
 
 /**
  * Galat server yang BUKAN 422 → kalimat Indonesia DAN kodenya dalam kurung.
@@ -347,7 +348,9 @@ export default function FeeConfigUpdateForm({ current }: Props) {
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-3">
+        <FormFooter
+          note={
+            <div className="space-y-2">
           {/* Biaya menentukan harga yang dibayar SETIAP nasabah, jadi kalimat di
               atas tombol menyebut akibatnya — bukan "Anda yakin?". Form ini
               memang tanpa dialog konfirmasi (snapshot penuh, bisa disimpan
@@ -361,16 +364,18 @@ export default function FeeConfigUpdateForm({ current }: Props) {
               {formError}
             </p>
           ) : null}
+            </div>
+          }
+        >
           <Button
             type="submit"
             form="fee-config-form"
             disabled={update.isPending}
             aria-busy={update.isPending}
-            className="w-full"
           >
             {update.isPending ? 'Menyimpan…' : 'Simpan biaya baru'}
           </Button>
-        </CardFooter>
+        </FormFooter>
       </form>
     </Card>
   )

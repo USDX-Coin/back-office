@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import { useSafeTxSigning } from './useSafeTxSigning'
 import SignatureProgressBar from './SignatureProgressBar'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 // ─── small presentational helpers (mirror OrderDetailModal) ──────────────────
 
@@ -105,25 +106,11 @@ function HashLink({
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
-    </div>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 function StatusBadge({ cfg }: { cfg: StatusConfig }) {
@@ -134,7 +121,6 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
         cfg.className,
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
       {cfg.label}
     </span>
   )

@@ -27,7 +27,7 @@ export default function ProfilePage() {
               <h2 className="mt-4 text-lg font-semibold tracking-tight">
                 {user.name}
               </h2>
-              <span className="mt-2 inline-flex rounded-sm bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary">
+              <span className="mt-2 inline-flex rounded-sm bg-secondary px-2 py-0.5 text-2xs font-medium text-foreground">
                 {user.role}
               </span>
               {!user.isActive && (

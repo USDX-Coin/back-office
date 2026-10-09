@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hermetic mock of the Phase-1 API for E2E.
@@ -159,6 +160,28 @@ const DASHBOARD_STATS = {
 
 const HEX64 = (c: string) => '0x' + c.repeat(64)
 
+const SAFE_ADDRESS = '0xaA3e70397F3668D6Fd9C25e36a6FB151241EE015'
+const SAFE_TX_TO = '0x2702d7043693651BB8A3D2Ec1C296B20692C7426'
+
+/**
+ * `safeTxHash` ASLI untuk transaksi Safe tiruan: hash EIP-712 dari isi yang
+ * benar-benar dikirim di detailnya (to/value/data/operation/nonce + Safe),
+ * dihitung dengan fungsi yang sama yang dipakai layar untuk memeriksanya.
+ *
+ * Dulu nilainya `HEX64('5')` — angka karangan. Layar menghitung ulang hash
+ * dari isi transaksi sebelum mengizinkan tanda tangan (pagar anti blind-sign),
+ * jadi hash karangan SELALU gagal dicocokkan dan panel OTC menampilkan
+ * "Isi transaksi tidak cocok dengan server" di setiap e2e/screenshot. Itu
+ * kesalahan data tiruan, bukan layar — layarnya justru bekerja benar.
+ */
+function mockSafeTxHash(nonce: number): string {
+  return computeSafeTxHash({
+    safeAddress: SAFE_ADDRESS, to: SAFE_TX_TO, value: '0', data: '0x', operation: 0, nonce, execPayload: null,
+  } as unknown as Parameters<typeof computeSafeTxHash>[0])
+}
+const SAFE_TX_HASH_MINT = mockSafeTxHash(7)
+const SAFE_TX_HASH_BURN = mockSafeTxHash(8)
+
 interface MockRequest {
   id: string
   type: 'mint' | 'burn'
@@ -218,10 +241,10 @@ function seedRequests(): MockRequest[] {
   })
   return [
     mk({ id: 'req_mint_executed', amount: '1000.000000', amountIdr: '16250000.00' }),
-    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', safeTxHash: HEX64('5'), onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
+    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', safeTxHash: SAFE_TX_HASH_MINT, onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
     mk({ id: 'req_mint_rejected', status: 'REJECTED', safeTxHash: null, onChainTxHash: null, createdAt: '2026-05-09T08:00:00.000Z' }),
     mk({ id: 'req_burn_executed', type: 'burn', status: 'IDR_TRANSFERRED', amount: '50.000000', amountIdr: '812500.00', safeType: 'MANAGER', depositTxHash: HEX64('c'), bankName: 'BCA', bankAccount: '1234567890', createdAt: '2026-05-11T11:00:00.000Z' }),
-    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', safeTxHash: HEX64('6'), onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
+    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', safeTxHash: SAFE_TX_HASH_BURN, onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
   ]
 }
 
@@ -245,15 +268,13 @@ export interface MockSafeTx {
   signers: { address: string; staffName: string | null; isBackend: boolean; signed: boolean; signedAt: string | null }[]
 }
 
-const SAFE_ADDRESS = '0xaA3e70397F3668D6Fd9C25e36a6FB151241EE015'
-
 function seedSafeTxs(): MockSafeTx[] {
   return [
     {
       id: 'stx_mint_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 7,
       activity: 'MINT', activityLabel: 'Mint 100 USDX', signatureProgress: { collected: 1, threshold: 2 },
       proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
-      status: 'PENDING_SIGN', safeTxHash: HEX64('5'), execTxHash: null, createdAt: '2026-05-11T09:00:00.000Z',
+      status: 'PENDING_SIGN', safeTxHash: SAFE_TX_HASH_MINT, execTxHash: null, createdAt: '2026-05-11T09:00:00.000Z',
       signers: [
         { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T09:05:00.000Z' },
         { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: false, signedAt: null },
@@ -263,7 +284,7 @@ function seedSafeTxs(): MockSafeTx[] {
       id: 'stx_burn_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 8,
       activity: 'BURN', activityLabel: 'Burn 10 USDX', signatureProgress: { collected: 2, threshold: 2 },
       proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
-      status: 'READY_TO_EXECUTE', safeTxHash: HEX64('6'), execTxHash: null, createdAt: '2026-05-11T07:30:00.000Z',
+      status: 'READY_TO_EXECUTE', safeTxHash: SAFE_TX_HASH_BURN, execTxHash: null, createdAt: '2026-05-11T07:30:00.000Z',
       signers: [
         { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T07:35:00.000Z' },
         { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: true, signedAt: '2026-05-11T07:40:00.000Z' },
@@ -281,7 +302,7 @@ function safeTxListItem(t: MockSafeTx) {
 function safeTxDetail(t: MockSafeTx) {
   return {
     ...t,
-    to: '0x2702d7043693651BB8A3D2Ec1C296B20692C7426', value: '0', data: '0x', operation: 0,
+    to: SAFE_TX_TO, value: '0', data: '0x', operation: 0,
     decodedArgs: {}, linkedRequestId: null, linkedOrderId: null, execPayload: null,
     lastExecError: null, executedByStaffName: null, executedAt: null,
   }

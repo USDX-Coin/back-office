@@ -35,7 +35,7 @@ export default function LegacyQueueLinks() {
           >
             {item.label}
             {typeof n === 'number' && n > 0 && (
-              <span className="rounded-full bg-primary/10 px-1.5 text-xs font-semibold tabular-nums text-primary">
+              <span className="rounded-full bg-secondary px-1.5 text-xs font-semibold tabular-nums text-foreground">
                 {n > 99 ? '99+' : n}
               </span>
             )}

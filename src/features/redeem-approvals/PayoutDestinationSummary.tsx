@@ -1,16 +1,10 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
 import type { RedeemApprovalListItem } from '@/lib/types'
+import { DataField } from '@/components/DataList'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 /**
@@ -53,7 +47,7 @@ export default function PayoutDestinationSummary({
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-2">
+      <div className="@container divide-y divide-border border-t border-border">
         <Field label="Bank">
           {row.bankName}
           <span className="ml-1.5 font-mono text-2xs text-muted-foreground">

@@ -34,7 +34,6 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
         cfg.className,
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
       {cfg.label}
     </span>
   )
@@ -283,7 +282,7 @@ export default function TransactionsListPage() {
             e.stopPropagation()
             navigate(`/transactions/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka order milik ${row.original.userEmail}`}
         >
           <Eye className="h-3.5 w-3.5" />

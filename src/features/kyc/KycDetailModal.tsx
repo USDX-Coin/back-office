@@ -61,6 +61,7 @@ import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hook
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField } from '@/components/DataList'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -71,8 +72,8 @@ const REVIEW_ACTION_CONFIG: Record<
   KycReviewAction,
   { label: string; className: string }
 > = {
-  SUBMITTED: { label: 'Diajukan', className: 'bg-primary/10 text-primary' },
-  RESUBMITTED: { label: 'Diajukan ulang', className: 'bg-primary/10 text-primary' },
+  SUBMITTED: { label: 'Diajukan', className: 'bg-secondary text-foreground' },
+  RESUBMITTED: { label: 'Diajukan ulang', className: 'bg-secondary text-foreground' },
   VIEWED: { label: 'Dilihat', className: 'bg-muted text-muted-foreground' },
   APPROVED: { label: 'Disetujui', className: 'bg-success/10 text-success' },
   REJECTED: { label: 'Ditolak', className: 'bg-destructive/10 text-destructive' },
@@ -117,12 +118,9 @@ function Field({
   testId?: string
 }) {
   return (
-    <div data-testid={testId}>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
+    <DataField label={label} testId={testId}>
+      {children}
+    </DataField>
   )
 }
 
@@ -234,7 +232,6 @@ function StatusBadge({ status }: { status: KycDetail['status'] }) {
         cfg.className
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
       {cfg.label}
     </span>
   )
@@ -538,7 +535,7 @@ export default function KycDetailModal({
               ) : detail ? (
                 <>
                   {/* Decrypted PII (kyc.yaml § KycDetail) */}
-                  <div className="grid gap-4 sm:grid-cols-2" data-testid="kyc-identity">
+                  <div className="@container divide-y divide-border border-t border-border" data-testid="kyc-identity">
                     <Field label="Email akun">{detail.userEmail}</Field>
                     <Field label="Jenis nasabah">{ENTITY_LABEL[detail.entityType]}</Field>
                     <Field label="Nama lengkap">{fullName}</Field>
@@ -705,7 +702,6 @@ export default function KycDetailModal({
                           // Emphasised: a PEP hit changes what the reviewer is
                           // supposed to do, so it must not read like any other row.
                           <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
-                            <span className="h-1.5 w-1.5 rounded-full bg-warning" />
                             PEP
                           </span>
                         ) : (

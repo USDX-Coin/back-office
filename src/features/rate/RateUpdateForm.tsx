@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
 import { toastErrorMessage } from '@/lib/errorToast'
+import { FormFooter } from '@/components/FormLayout'
 
 /**
  * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
@@ -248,17 +249,16 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
             </div>
           </div>
         </CardContent>
-        <CardFooter>
+        <FormFooter note="Perubahan ditinjau dulu sebelum disimpan.">
           <Button
             type="submit"
             form="rate-form"
             disabled={update.isPending}
             aria-busy={update.isPending}
-            className="w-full"
           >
             {update.isPending ? 'Menyimpan…' : 'Tinjau dan ubah'}
           </Button>
-        </CardFooter>
+        </FormFooter>
       </form>
 
       <RateConfirmDialog

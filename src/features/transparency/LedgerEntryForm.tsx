@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -32,6 +31,7 @@ import { useCreateLedgerEntry, useRefetchReserveLedger } from './hooks'
 import LedgerConfirmDialog, {
   type BalanceRecheckState,
 } from './LedgerConfirmDialog'
+import { FormFooter } from '@/components/FormLayout'
 
 interface Props {
   /** Current whole-ledger balance, passed to the dialog to project the result. */
@@ -259,7 +259,7 @@ export default function LedgerEntryForm({ balance }: Props) {
                 <label
                   key={type}
                   htmlFor={`entryType-${type}`}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2.5 hover:bg-muted/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2.5 hover:bg-muted/40 has-[:checked]:border-foreground has-[:checked]:bg-muted/60"
                 >
                   <input
                     id={`entryType-${type}`}
@@ -361,17 +361,17 @@ export default function LedgerEntryForm({ balance }: Props) {
           </div>
         </CardContent>
 
-        <CardFooter>
+        <FormFooter note="Entri diperiksa ulang di langkah berikutnya sebelum dicatat permanen.">
           <Button
             type="submit"
             form="ledger-entry-form"
             disabled={create.isPending}
             aria-busy={create.isPending}
-            className="w-full"
           >
             {create.isPending ? 'Mencatat…' : 'Periksa lalu catat'}
           </Button>
-        </CardFooter>
+
+        </FormFooter>
       </form>
 
       <LedgerConfirmDialog

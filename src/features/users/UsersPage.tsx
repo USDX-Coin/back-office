@@ -165,7 +165,6 @@ export default function UsersPage() {
             )}
             data-testid={`activation-badge-${status.toLowerCase()}`}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
             {cfg.label}
           </span>
         )
@@ -292,7 +291,7 @@ export default function UsersPage() {
         rowAriaLabel={(u) => `Buka nasabah ${u.name ?? u.email}`}
         rowClassName={(u) =>
           u.id === selectedId
-            ? '!bg-primary/10 shadow-[inset_3px_0_0_hsl(var(--primary))]'
+            ? '!bg-accent shadow-[inset_2px_0_0_hsl(var(--foreground))]'
             : undefined
         }
       />

@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import PageHeader from '@/components/PageHeader'
 import FieldError from '@/components/FieldError'
+import OptionCombobox from '@/components/OptionCombobox'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -127,6 +128,22 @@ function EnumSelect({
   invalid: boolean
   onChange: (value: string) => void
 }) {
+  // Daftar panjang (99 nilai pekerjaan Permendagri) → combobox dengan kotak
+  // cari; menggulir 99 baris Select untuk mencari satu pekerjaan tidak layak.
+  if (Object.keys(labels).length > 15) {
+    return (
+      <OptionCombobox
+        id={id}
+        value={value}
+        options={labels}
+        onChange={onChange}
+        disabled={disabled}
+        invalid={invalid}
+        searchPlaceholder="Ketik untuk mencari…"
+        className="mt-1.5"
+      />
+    )
+  }
   return (
     // `value` diteruskan apa adanya, termasuk `''`. Memberikan `undefined` saat
     // kosong membuat Radix memperlakukan select ini sebagai UNCONTROLLED lalu

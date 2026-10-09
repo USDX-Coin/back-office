@@ -58,9 +58,9 @@ const TYPE_LABEL: Record<ManualSyncType, string> = {
 }
 
 const TYPE_BADGE_CLASS: Record<ManualSyncType, string> = {
-  mint: 'bg-primary/10 text-primary',
+  mint: 'bg-secondary text-foreground',
   burn: 'bg-warning/10 text-warning',
-  mint_order: 'border border-primary/40 bg-transparent text-primary',
+  mint_order: 'border border-border bg-transparent text-foreground',
 }
 
 // USDX-87 — visual highlight for `?highlight=<id>` deep-links from the

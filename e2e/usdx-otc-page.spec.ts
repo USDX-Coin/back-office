@@ -63,6 +63,10 @@ test.describe('OTC page @e2e', () => {
       await expect(panel.getByText('Yang perlu kamu lakukan')).toBeVisible({ timeout: 15000 })
       // Signers come from /multisig/:id, fetched after the panel opens.
       await expect(panel.getByText('Marcus Thorne', { exact: true })).toBeVisible({ timeout: 15000 })
+      // Hash Safe tiruan dihitung dari isi transaksinya (mock-api), jadi pagar
+      // anti blind-sign lolos — peringatan "tidak cocok" hanya untuk isi yang
+      // benar-benar berbeda dari hash server.
+      await expect(panel.getByText(/tidak cocok dengan server/i)).toHaveCount(0)
       // No wallet in the test browser → the one action is to connect it.
       await expect(panel.getByRole('button', { name: 'Hubungkan wallet' })).toBeVisible()
       await expect(panel.getByRole('button', { name: /lainnya/i })).toBeVisible()

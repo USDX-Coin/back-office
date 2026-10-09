@@ -77,6 +77,7 @@ import {
 } from './hooks'
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface KybDetailModalProps {
   kybId: string | null
@@ -112,24 +113,14 @@ function Field({
   testId?: string
 }) {
   return (
-    <div data-testid={testId}>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
+    <DataField label={label} testId={testId}>
+      {children}
+    </DataField>
   )
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-      {children}
-    </div>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
@@ -386,7 +377,7 @@ function UboCard({
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="@container divide-y divide-border border-t border-border">
         {/* Huruf a — identitas, sepuluh butir */}
         <Field label={`Identity (${ubo.identityType})`} testId="kyb-ubo-identity">
           <PiiValue value={ubo.identityNumber} staff={staff} />
@@ -601,7 +592,7 @@ function DocumentSlotRow({
               missing
                 ? 'bg-destructive/10 font-medium text-destructive'
                 : uploadedNow
-                  ? 'bg-primary/10 font-medium text-primary'
+                  ? 'bg-secondary font-medium text-foreground'
                   : 'bg-muted text-muted-foreground',
             )}
           >
@@ -1023,12 +1014,6 @@ export default function KybDetailModal({
                         getKycStatusConfig(status).className,
                       )}
                     >
-                      <span
-                        className={cn(
-                          'h-1.5 w-1.5 rounded-full',
-                          getKycStatusConfig(status).dotClass,
-                        )}
-                      />
                       {getKycStatusConfig(status).label}
                     </span>
                   )}
@@ -1077,7 +1062,7 @@ export default function KybDetailModal({
                       and `businessSector` are plaintext metadata and are not
                       masked — they render directly. */}
                   <Section title="Badan usaha">
-                    <div className="grid gap-4 sm:grid-cols-2" data-testid="kyb-entity">
+                    <div className="@container divide-y divide-border border-t border-border" data-testid="kyb-entity">
                       <Field label="Nama badan usaha">
                         <EntityValue value={detail.entityName} />
                       </Field>

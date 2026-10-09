@@ -32,6 +32,7 @@ import ResolutionTrail from './ResolutionTrail'
 import ResolvePayoutFailureDialog from './ResolvePayoutFailureDialog'
 import SubmissionTrail from './SubmissionTrail'
 import { usePayoutFailureDetail } from './hooks'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface Props {
   orderId: string | null
@@ -40,25 +41,11 @@ interface Props {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
@@ -199,7 +186,7 @@ export default function PayoutFailureDetailModal({
           {detail && (
             <div className="space-y-5">
               <Section title="Masalah">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Penyebab">
                     {/* Kode tak dikenal (daftar kontrak terbuka): hanya kodenya, tanpa arti karangan. */}
                     {payoutIssueCodeLabel(detail.issueCode) ?? (detail.issueCode ? null : <Dim />)}
@@ -228,7 +215,7 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <Section title="Nominal">
-                <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Nominal transfer">
                     <span
                       className="font-mono text-lg font-semibold tabular-nums"
@@ -254,7 +241,7 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <Section title="Rekening tujuan">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Bank">{detail.bankName}</Field>
                   <Field label="Nomor rekening">
                     <span className="break-all font-mono tabular-nums">{detail.bankAccountNumber}</span>
@@ -274,7 +261,7 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <Section title="Burn on-chain">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Tx burn">
                     <BurnHash detail={detail} />
                   </Field>

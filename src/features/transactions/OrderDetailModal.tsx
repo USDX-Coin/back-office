@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import { useOrderDetail } from './hooks'
 import { resolveOrderNextStep } from './nextStep'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface OrderDetailModalProps {
   orderId: string | null
@@ -132,25 +133,11 @@ function HashLink({
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
-    </div>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 function StatusBadge({ cfg }: { cfg: StatusConfig }) {
@@ -161,7 +148,6 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
         cfg.className,
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
       {cfg.label}
     </span>
   )
@@ -262,7 +248,7 @@ export default function OrderDetailModal({
 
               {nextStep && (
                 <div
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2.5"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted px-3 py-2.5"
                   data-testid="order-next-step"
                 >
                   <div className="min-w-0">
@@ -419,9 +405,9 @@ export default function OrderDetailModal({
               )}
 
               {/* Estimated revenue — emphasized monitoring figure (backoffice only) */}
-              <div className="flex items-center justify-between rounded-md bg-primary/5 px-3 py-2.5">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2.5">
                 <div>
-                  <p className="text-xs text-primary">
+                  <p className="text-sm font-medium text-foreground">
                     Perkiraan pendapatan
                   </p>
                   <p className="text-2xs text-muted-foreground">
@@ -430,7 +416,7 @@ export default function OrderDetailModal({
                       : 'pendapatan spread + biaya mint (biaya payment gateway diteruskan apa adanya)'}
                   </p>
                 </div>
-                <span className="font-mono text-base font-semibold tabular-nums text-primary">
+                <span className="font-mono text-base font-semibold tabular-nums text-foreground">
                   {formatIdrAmount(Number(detail.estimatedRevenueIdr))}
                 </span>
               </div>

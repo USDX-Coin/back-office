@@ -32,6 +32,7 @@ import type { ApprovalDecision } from './hooks'
 import type { ApprovalRequest } from './types'
 import { ApiError } from '@/lib/apiFetch'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface Props {
   approvalId: string | null
@@ -40,25 +41,11 @@ interface Props {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 break-words text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 function Raw({ value }: { value: string | number | null }) {
@@ -243,7 +230,7 @@ function ApprovalBody({
       </Section>
 
       <Section title="Keadaan usulan">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="@container divide-y divide-border border-t border-border">
           <Field label="Keadaan">
             <StatusPill cfg={statusPill(approval.status)} />
           </Field>

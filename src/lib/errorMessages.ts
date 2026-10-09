@@ -40,6 +40,7 @@ const KODE: Record<string, string> = {
   INTERNAL_SERVER_ERROR: 'Server sedang bermasalah. Coba lagi sebentar lagi; kalau berulang, laporkan ke tim teknis.',
   SERVICE_UNAVAILABLE: 'Layanan ini sedang tidak tersedia. Coba lagi sebentar lagi.',
   NOT_IMPLEMENTED: 'Fitur ini belum aktif di server.',
+  ONCALL_CONTACT_ALREADY_EXISTS: 'Kontak dengan kanal dan nilai ini sudah terdaftar. Ubah kontak yang sudah ada, atau pakai nilai lain.',
   SAFE_QUEUE_OCCUPIED: 'Antrean tanda tangan Safe sedang terisi transaksi lain. Selesaikan atau batalkan dulu yang itu.',
 }
 

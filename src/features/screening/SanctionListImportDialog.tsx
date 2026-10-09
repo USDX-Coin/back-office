@@ -387,7 +387,7 @@ export default function SanctionListImportDialog({
                 />
                 <label
                   htmlFor="sanction-file"
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-xs transition-colors hover:border-primary hover:bg-primary/5"
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-xs transition-colors hover:border-foreground/40 hover:bg-muted"
                 >
                   <Upload className="h-4 w-4 text-muted-foreground" />
                   {fileName || 'Pilih berkas CSV…'}

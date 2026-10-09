@@ -23,6 +23,7 @@ import {
   resourceTypeLabel,
 } from './labels'
 import type { ActivityLogEntry } from './types'
+import { DataField } from '@/components/DataList'
 
 interface Props {
   entry: ActivityLogEntry | null
@@ -34,14 +35,7 @@ interface Props {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 break-words text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Raw({ value }: { value: string | number | null }) {
@@ -87,7 +81,7 @@ export default function ActivityLogDetailModal({
         </DialogHeader>
 
         <DialogBody className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="@container divide-y divide-border border-t border-border">
             <Field label="Aktor">
               {entry.actorStaffId ? (
                 <span title={entry.actorStaffId}>{formatActor(directory, entry.actorStaffId)}</span>

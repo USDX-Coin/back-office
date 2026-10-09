@@ -34,6 +34,7 @@ import {
 import { formatWibDateTime } from '@/lib/format'
 import type { DurianpayApiCallDetail } from '@/lib/types'
 import { useDurianpayApiCallDetail } from './hooks'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface Props {
   callId: string | null
@@ -42,25 +43,11 @@ interface Props {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
@@ -195,7 +182,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
       </section>
 
       <Section title="Panggilan">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="@container divide-y divide-border border-t border-border">
           <Field label="Apa yang diminta">
             {/* Path yang belum dikenal dirender sebagai pathnya, tanpa arti karangan. */}
             {callLabel ?? <span className="font-mono text-xs">{detail.path}</span>}
@@ -232,7 +219,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
       </Section>
 
       <Section title="Jawaban DurianPay">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="@container divide-y divide-border border-t border-border">
           <Field label="Status HTTP">
             {detail.httpStatus === null ? (
               <span className="text-xs">
@@ -274,7 +261,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
           Tiga nilai ini yang diminta DurianPay untuk melihat panggilan yang sama dari sisi mereka.
           Tanpa ketiganya laporan kita hanya berbunyi &ldquo;sekitar jam sekian&rdquo;.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="@container divide-y divide-border border-t border-border">
           <Field label="X-EXTERNAL-ID (sisi kita)">
             {/* `null` untuk jalur Legacy — ia memang tidak punya header itu. */}
             {detail.externalId ? (

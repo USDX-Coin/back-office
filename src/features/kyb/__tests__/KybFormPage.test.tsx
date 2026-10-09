@@ -211,9 +211,12 @@ async function fillUbo(
   // Blok Pasal 33 ayat (3) — `required` di `sot/api/kyb.yaml § CreateKybUbo`.
   await user.type(document.querySelector(`#ubo-birthplace-${index}`)!, 'Bandung')
   await user.type(document.querySelector(`#ubo-dob-${index}`)!, '1985-03-17')
-  // `occupation` — 99 nilai Permendagri — sengaja lewat typeahead: ini select termahal di form,
-  // dan membukanya merender kesembilan-puluh-sembilan itemnya.
-  await selectByTypeahead(user, `ubo-occupation-${index}`, 'Wiraswasta', 'Wiraswasta')
+  // `occupation` — 99 nilai Permendagri — adalah combobox ber-kotak-cari (daftar panjang),
+  // bukan Select: buka, ketik, pilih.
+  await user.click(document.querySelector<HTMLElement>(`#ubo-occupation-${index}`)!)
+  await user.type(await screen.findByPlaceholderText('Ketik untuk mencari…'), 'Wiraswasta')
+  await user.click(await screen.findByRole('option', { name: 'Wiraswasta' }))
+  expect(document.querySelector(`#ubo-occupation-${index}`)!.textContent).toBe('Wiraswasta')
   await selectByTypeahead(user, `ubo-gender-${index}`, 'Laki', 'Laki-laki')
   await selectByTypeahead(user, `ubo-marital-${index}`, 'Kawin', 'Kawin')
   await selectByTypeahead(user, `ubo-source-of-funds-${index}`, 'Usaha', 'Usaha')

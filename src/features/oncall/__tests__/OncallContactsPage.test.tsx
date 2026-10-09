@@ -137,11 +137,12 @@ describe('OncallContactsPage @integration', () => {
       await user.click(dialog.getByRole('checkbox', { name: /pencairan/i }))
       await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      // Pesannya datang dari handler MSW (`src/mocks/handlers.ts`), di luar
-      // lingkup terjemahan ini — teksnya masih bahasa Inggris dengan sengaja.
+      // Kode server diterjemahkan lewat peta galat terpusat (`lib/errorMessages`);
+      // pesan Inggris server tidak lagi tampil sebagai kalimat utama.
       await waitFor(() =>
         expect(errSpy).toHaveBeenCalledWith(
-          'A contact with this channel and value is already registered.',
+          expect.stringMatching(/sudah terdaftar/i),
+          expect.anything(),
         ),
       )
       errSpy.mockRestore()

@@ -32,7 +32,7 @@ import {
 } from '@/lib/types'
 import { useCreateOncallContact, useUpdateOncallContact } from './hooks'
 import { formatCategory, formatChannel } from './format'
-import { errorMessage } from '@/lib/errorMessages'
+import { toastError } from '@/lib/errorToast'
 
 interface OncallContactModalProps {
   open: boolean
@@ -146,9 +146,7 @@ export default function OncallContactModal({
     } catch (err) {
       // Modal sengaja TETAP terbuka dan nilainya dipertahankan — 409 duplikat
       // adalah kesalahan yang bisa diperbaiki di tempat, bukan alasan mengetik ulang.
-      toast.error(
-        errorMessage(err, 'Kontak darurat gagal disimpan. Coba lagi.'),
-      )
+      toastError(err, 'Kontak darurat gagal disimpan. Coba lagi.')
     }
   }
 

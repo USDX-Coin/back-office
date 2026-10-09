@@ -465,7 +465,7 @@ describe('KycDetailModal @ USDX-155', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText(/kyc record not found/i)
+      await within(dialog).findByText(/tidak ditemukan/i)
       await user.click(within(dialog).getByRole('button', { name: /coba lagi/i }))
       await waitFor(() => expect(calls).toBe(2))
     })

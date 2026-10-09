@@ -99,7 +99,6 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
           )}
           data-testid={`activation-badge-${status.toLowerCase()}`}
         >
-          <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
           {cfg.label}
         </span>
 

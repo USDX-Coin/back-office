@@ -220,7 +220,7 @@ export default function DurianpayApiCallsPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail panggilan ${row.original.httpMethod} ${row.original.path}`}
         >
           <Eye className="h-3.5 w-3.5" />

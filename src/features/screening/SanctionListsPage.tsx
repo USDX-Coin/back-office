@@ -163,7 +163,6 @@ export default function SanctionListsPage() {
               style.className,
             )}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', style.dotClass)} />
             {SANCTION_LIST_STATUS_LABELS[value]}
           </span>
         )

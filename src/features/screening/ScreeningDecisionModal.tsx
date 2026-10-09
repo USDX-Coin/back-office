@@ -56,6 +56,7 @@ import {
 } from './hooks'
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface ScreeningDecisionModalProps {
   resultId: string | null
@@ -66,25 +67,11 @@ interface ScreeningDecisionModalProps {
 const Dim = () => <span className="text-muted-foreground">—</span>
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1 text-sm text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-      {children}
-    </div>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 async function copyText(value: string, label: string) {
@@ -115,7 +102,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
     )
   }
   return (
-    <div className="grid gap-3" data-testid="screening-entry">
+    <div className="@container divide-y divide-border border-t border-border" data-testid="screening-entry">
       <Field label="Nama pada daftar">
         <span className="font-medium">{entry.fullName}</span>
       </Field>
@@ -182,7 +169,7 @@ function SubjectPanel({
 }) {
   if (isKybDetail(detail)) {
     return (
-      <div className="grid gap-3" data-testid="screening-subject">
+      <div className="@container divide-y divide-border border-t border-border" data-testid="screening-subject">
         <Field label="Nama badan usaha">
           {detail.entityName ? (
             <span className="font-medium">{detail.entityName}</span>
@@ -203,7 +190,7 @@ function SubjectPanel({
   const name = [detail.firstName, detail.lastName].filter(Boolean).join(' ')
   const address = [detail.addressLine1, detail.addressLine2].filter(Boolean).join(', ')
   return (
-    <div className="grid gap-3" data-testid="screening-subject">
+    <div className="@container divide-y divide-border border-t border-border" data-testid="screening-subject">
       <Field label="Nama nasabah">
         {name ? <span className="font-medium">{name}</span> : <Dim />}
       </Field>
@@ -383,7 +370,6 @@ export default function ScreeningDecisionModal({
                           outcomeStyle.className,
                         )}
                       >
-                        <span className={cn('h-1.5 w-1.5 rounded-full', outcomeStyle.dotClass)} />
                         {SCREENING_OUTCOME_LABELS[result.outcome]}
                       </span>
                     )}
@@ -403,7 +389,7 @@ export default function ScreeningDecisionModal({
                   </span>
                 </div>
 
-                <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-4">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Skor kemiripan">
                     <span className="font-mono text-base font-semibold tabular-nums">
                       {formatScore(result.score) ?? '—'}
@@ -532,7 +518,7 @@ export default function ScreeningDecisionModal({
                     data-testid="screening-existing-decision"
                   >
                     <Section title="Keputusan yang tercatat">
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="@container divide-y divide-border border-t border-border">
                         <Field label="Keputusan">
                           {SCREENING_DECISION_LABELS[result.decision.outcome]}
                         </Field>

@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -16,6 +16,7 @@ import { ApiError } from '@/lib/apiFetch'
 import type { ThresholdConfig, ThresholdMode } from '@/lib/types'
 import { useUpdateThreshold } from './hooks'
 import { toastErrorMessage } from '@/lib/errorToast'
+import { FormFooter } from '@/components/FormLayout'
 
 interface Props {
   current: ThresholdConfig | undefined
@@ -154,7 +155,9 @@ export default function ThresholdUpdateForm({ current }: Props) {
             <FieldError message={errors.amount} />
           </div>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-3">
+        <FormFooter
+          note={
+            <div className="space-y-2">
           {/* Batas ini menentukan siapa yang wajib menandatangani request besar,
               jadi kalimat di atas tombol menyebut akibatnya — bukan "Anda
               yakin?". Menaikkannya berarti lebih banyak request lolos tanpa
@@ -164,16 +167,18 @@ export default function ThresholdUpdateForm({ current }: Props) {
             berikutnya. Menaikkannya berarti lebih banyak permintaan besar berhenti
             di Safe Staf dan tidak pernah sampai ke Safe Manager.
           </p>
+            </div>
+          }
+        >
           <Button
             type="submit"
             form="threshold-form"
             disabled={update.isPending}
             aria-busy={update.isPending}
-            className="w-full"
           >
             {update.isPending ? 'Menyimpan…' : 'Simpan batas baru'}
           </Button>
-        </CardFooter>
+        </FormFooter>
       </form>
     </Card>
   )
