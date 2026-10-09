@@ -90,7 +90,7 @@ export default function OtcPage() {
     {
       id: 'type',
       header: 'Jenis',
-      className: 'w-28',
+      className: 'hidden w-28 sm:table-cell',
       cell: (r) => <span className="text-muted-foreground">{OTC_KIND_LABEL[r.type] ?? r.type}</span>,
     },
     {
@@ -102,6 +102,11 @@ export default function OtcPage() {
           <span className="font-mono text-xs text-muted-foreground" title={r.userAddress}>
             {truncateMiddle(r.userAddress, 6, 5)}
           </span>
+          {/* Di ponsel kolom Jenis + Nominal disembunyikan supaya Status tetap
+              terlihat tanpa menggeser tabel; isinya pindah ke sini. */}
+          <span className="mt-0.5 text-xs text-muted-foreground sm:hidden">
+            {OTC_KIND_LABEL[r.type] ?? r.type} · <span className="tabular-nums">{formatUsdxListAmount(r.amount)} USDX</span>
+          </span>
         </div>
       ),
     },
@@ -109,7 +114,7 @@ export default function OtcPage() {
       id: 'amount',
       header: 'Nominal',
       align: 'right',
-      className: 'w-44',
+      className: 'hidden w-44 sm:table-cell',
       cell: (r) => (
         <div className="flex flex-col items-end leading-tight">
           <span className="font-semibold tabular-nums">{formatUsdxListAmount(r.amount)} USDX</span>
@@ -120,7 +125,7 @@ export default function OtcPage() {
     {
       id: 'status',
       header: 'Status',
-      className: 'w-48',
+      className: 'w-36 sm:w-48',
       cell: (r) => {
         const s = otcRowState(r, findSafeTxFor(r, safeIndex))
         return <ToneChip tone={s.tone}>{s.label}</ToneChip>

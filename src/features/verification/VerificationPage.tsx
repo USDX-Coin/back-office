@@ -142,7 +142,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     {
       id: 'kind',
       header: 'Jenis',
-      className: 'w-28',
+      className: 'hidden w-28 sm:table-cell',
       cell: (r) => <span className="text-muted-foreground">{VERIFICATION_KIND_LABEL[r.kind]}</span>,
     },
     {
@@ -152,6 +152,8 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
         <div className="flex min-w-0 flex-col leading-tight">
           <span className="font-semibold">{r.name}</span>
           {r.name !== r.email && <span className="text-xs text-muted-foreground">{r.email}</span>}
+          {/* Kolom Jenis disembunyikan di ponsel — isinya pindah ke sini. */}
+          <span className="mt-0.5 text-xs text-muted-foreground sm:hidden">{VERIFICATION_KIND_LABEL[r.kind]}</span>
         </div>
       ),
     },
@@ -164,7 +166,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     {
       id: 'status',
       header: 'Status',
-      className: 'w-40',
+      className: 'w-36 sm:w-40',
       cell: (r) => {
         const s = verificationStatus(r.status)
         return <ToneChip tone={s.tone}>{s.label}</ToneChip>

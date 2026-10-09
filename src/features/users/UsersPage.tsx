@@ -130,7 +130,9 @@ export default function UsersPage() {
     },
     {
       id: 'kycStatus',
-      size: 128,
+      // 152: "Belum diverifikasi" (label terpanjang) + padding sel muat utuh;
+      // 128 memotongnya jadi "Belum diverifikasi .." saat panel terbuka.
+      size: 152,
       header: 'KYC',
       cell: ({ row }) => {
         const cfg = getKycStatusConfig(row.original.kycStatus)

@@ -120,8 +120,10 @@ describe('VerificationPage', () => {
         'Buka berkas badan usaha PT Sinar Niaga',
         'Buka berkas perorangan andi@example.com',
       ])
-      expect(within(pending).getByText('Badan usaha')).toBeInTheDocument()
-      expect(within(pending).getByText('Perorangan')).toBeInTheDocument()
+      // Dua kali per baris: kolom Jenis (≥ sm) + baris kecil di bawah nama
+      // (ponsel, `sm:hidden`). jsdom tidak menerapkan CSS, jadi keduanya ada.
+      expect(within(pending).getAllByText('Badan usaha')).toHaveLength(2)
+      expect(within(pending).getAllByText('Perorangan')).toHaveLength(2)
       expect(within(pending).getAllByText('Perlu verifikasi')).toHaveLength(2)
     })
 
