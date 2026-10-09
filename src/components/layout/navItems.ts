@@ -54,10 +54,11 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 //                        Staf & Peran · Persetujuan Orang Kedua · Jejak Audit ·
 //                        Log DurianPay
 //
-// Beranda dihapus. Persetujuan Pencairan, Pencairan Bermasalah, Mint
-// Bermasalah dan Perbaiki Status Nyangkut TIDAK tampil di menu tapi rutenya
-// tetap hidup (fase 2 meleburnya ke Transaksi); angka antreannya dijumlah ke
-// menu Transaksi. Antrean Tanda Tangan juga keluar dari menu — alurnya pindah
+// Beranda dihapus. Fase 2 (⚠️ DRAF SOT PR #50): Persetujuan Pencairan,
+// Pencairan Bermasalah, Mint Bermasalah dan Perbaiki Status Nyangkut DILEBUR ke
+// tabel Transaksi (aksi dari panel kanan) dan tidak ada di navigasi mana pun —
+// strip "Perlu tindakan" sudah dihapus. Rutenya tetap hidup untuk tautan
+// langsung ("Buka di antrean" di panel). Antrean Tanda Tangan juga keluar dari menu — alurnya pindah
 // ke panel OTC — dan halamannya tetap bisa dibuka lewat URL.
 //
 // GERBANG PERAN TIDAK IKUT DIRAPIKAN: tiap `visibleWhen` di bawah adalah
