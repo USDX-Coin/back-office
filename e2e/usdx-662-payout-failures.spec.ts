@@ -19,10 +19,12 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await page.locator('aside').getByRole('link', { name: /pencairan bermasalah/i }).click()
+      // Redesain fase 1: the queue left the menu; it is reached from the
+      // "Perlu tindakan" links on Transaksi, and its count sums into Transaksi.
+      await page.getByRole('navigation', { name: 'Antrean yang perlu tindakan' }).getByRole('link', { name: /pencairan bermasalah/i }).click()
       await expect(page).toHaveURL(/\/payout-failures$/)
       await expect(page.getByRole('heading', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2')
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2')
 
       await page.getByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ }).click()
       const detail = page.getByRole('dialog', { name: /Pencairan bermasalah/ })

@@ -1452,6 +1452,10 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       return envelope(route, {
         payoutFailuresOpen: payoutFailures.filter((f) => f.resolution === null).length,
         redeemApprovalsOpen: 0,
+        // Redesain fase 1: the Transaksi menu sums these with the two above.
+        // Not modelled here → 0 (a missing key would read "belum terbaca").
+        heldCreditsOpen: 0,
+        approvalsOpen: 0,
       })
     }
 
