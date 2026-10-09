@@ -37,6 +37,7 @@ import type {
   PhaseOneUser,
 } from '@/lib/types'
 import { useCreateUser, useUpdateUser } from './hooks'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface UserModalProps {
   open: boolean
@@ -222,9 +223,7 @@ export default function UserModal({
       }
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Data nasabah gagal disimpan. Coba lagi.'
+        errorMessage(err, 'Data nasabah gagal disimpan. Coba lagi.')
       )
     }
   }

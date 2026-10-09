@@ -40,6 +40,7 @@ import {
 } from '@/lib/multisig/propose'
 import type { GovernanceOperation, SafeType } from '@/lib/types'
 import { useProposeGovernance } from './hooks'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface ProposeModalProps {
   open: boolean
@@ -140,9 +141,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
       setFormError(
         err instanceof ApiError
           ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Gagal mengajukan operasi ini.',
+          : errorMessage(err, 'Gagal mengajukan operasi ini.'),
       )
     }
   }

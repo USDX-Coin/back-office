@@ -46,10 +46,11 @@ function renderSidebar(path = '/transactions', staffId = ADMIN) {
 
 describe('Sidebar (redesain fase 1)', () => {
   describe('positive', () => {
-    test('should show the USDX coin logo, not the old "U" box', () => {
+    test('should show the original USDX lockup, not the old "U" box or a typed wordmark', () => {
       renderSidebar()
       const aside = screen.getByRole('complementary')
-      expect(aside.querySelector('img[src="/image/logo-coin.png"]')).not.toBeNull()
+      expect(aside.querySelector('img[src="/image/logo-lockup.png"]')).not.toBeNull()
+      expect(within(aside).queryByText('USDX')).not.toBeInTheDocument()
       expect(within(aside).queryByText(/^U$/)).not.toBeInTheDocument()
     })
 

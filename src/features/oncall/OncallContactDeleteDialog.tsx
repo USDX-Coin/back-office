@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import type { OncallContact } from '@/lib/types'
 import { useDeleteOncallContact } from './hooks'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface OncallContactDeleteDialogProps {
   open: boolean
@@ -46,9 +47,7 @@ export default function OncallContactDeleteDialog({
       onOpenChange(false)
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Kontak darurat gagal dihapus. Coba lagi.',
+        errorMessage(err, 'Kontak darurat gagal dihapus. Coba lagi.'),
       )
     }
   }

@@ -44,10 +44,13 @@ describe('Navbar', () => {
       expect(screen.queryByText(/^search…?$/i)).not.toBeInTheDocument()
     })
 
-    test('should show the coin logo + USDX wordmark on mobile, not the old "U" tile', () => {
+    // Revisi PM 9 Okt 2026: logo asli (lockup koin + tulisan USDX dari
+    // landing), bukan koin + teks serif buatan.
+    test('should show the original USDX lockup on mobile, not a typed wordmark', () => {
       const { container } = renderWithProviders(<Navbar />, { initialEntries: ['/transactions'], authenticated: true })
-      expect(screen.getByText('USDX')).toBeInTheDocument()
-      expect(container.querySelector('header img[src="/image/logo-coin.png"]')).not.toBeNull()
+      expect(container.querySelector('header img[src="/image/logo-lockup.png"]')).not.toBeNull()
+      expect(screen.getByRole('img', { name: 'USDX' })).toBeInTheDocument()
+      expect(screen.queryByText('USDX')).not.toBeInTheDocument()
     })
 
     test('should open the mobile nav drawer from the hamburger (USDX-27)', () => {

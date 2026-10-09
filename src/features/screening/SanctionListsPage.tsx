@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils'
 import { SANCTION_LIST_FILTER_DEFS } from './filterDefs'
 import SanctionListImportDialog from './SanctionListImportDialog'
 import { useActivateSanctionList, useRescanScreening, useSanctionLists } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 const PAGE_SIZE = 10
 
@@ -82,7 +83,7 @@ export default function SanctionListsPage() {
         return
       }
     }
-    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
+    toastError(err, 'Permintaan gagal')
   }
 
   function handleActivate(row: SanctionListItem) {

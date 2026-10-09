@@ -68,3 +68,16 @@ Angka terakhir:
   belakang kalimatnya (perilaku lama).
 - Warna utama di tema gelap adalah maroon yang diangkat ke merah muda terang
   (kontras teks aman), bukan maroon gelap — perlu dikonfirmasi PM.
+
+## Revisi visual (feedback PM 9 Okt) — WIP, belum selesai
+
+Dihentikan di tengah karena laptop PM harus dimatikan. Lanjutkan 5 poin ini:
+1. Light mode bersih & netral (latar abu dingin, kartu putih, tanpa rona merah/krem;
+   maroon hanya aksi utama + penanda menu aktif); sidebar & login pakai logo-lockup.png asli.
+2. Form dirombak gaya Stripe/Mercury (input putih, border 1px, radius 8, tinggi 40, label rapi,
+   tombol kanan bawah, field dikelompokkan).
+3. Dialog/Sheet/Popover & semua modal (termasuk antrean lama) dirombak.
+4. Semua <select> native → shadcn Select; pilihan panjang → Combobox (cmdk).
+5. Masalah diketahui: OTC "Isi transaksi tidak cocok dengan server" di mock; tabel lama geser
+   di ponsel; kode galat mentah (login, Plafon) → pemetaan pesan terpusat.
+Cek: lint/test/build/e2e hijau; screenshot light 1440 & 390 → scratchpad/redesain-f1b/.

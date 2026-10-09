@@ -16,6 +16,7 @@ import { ApiError } from '@/lib/apiFetch'
 import { useDecideApproval, validateDecisionReason, type ApprovalDecision } from './hooks'
 import { actionTypeLabel, amountLabel, approvalErrorMessage, describePayload } from './labels'
 import { APPROVAL_REASON_MAX, type ApprovalRequest } from './types'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface Props {
   approval: ApprovalRequest
@@ -79,10 +80,8 @@ export default function DecideApprovalDialog({ approval, decision, open, onOpenC
 
   const serverError =
     mutation.error instanceof ApiError
-      ? approvalErrorMessage(mutation.error.code, mutation.error.message)
-      : mutation.error
-        ? mutation.error.message
-        : null
+      ? approvalErrorMessage(mutation.error.code, errorMessage(mutation.error))
+      : mutation.error ? errorMessage(mutation.error) : null
 
   return (
     <Dialog

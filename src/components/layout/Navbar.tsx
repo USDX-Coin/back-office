@@ -26,7 +26,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background pl-2 pr-3 lg:pl-5">
+      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-card pl-2 pr-3 lg:pl-5">
         <div className="flex items-center gap-2 lg:hidden">
           <button
             type="button"
@@ -42,8 +42,7 @@ export default function Navbar() {
               />
             )}
           </button>
-          <img src="/image/logo-coin.png" alt="" className="h-7 w-7" />
-          <span className="font-display text-lg font-semibold">USDX</span>
+          <img src="/image/logo-lockup.png" alt="USDX" className="h-5 w-auto" />
         </div>
 
         <nav

@@ -101,26 +101,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Kalimat galat untuk operator: keterangan manusia DAN kode teknisnya.
- *
- * Kodenya TIDAK dibuang. `KYB_DOCUMENTS_INCOMPLETE` bukan hiasan — itu yang
- * dikutip operator saat melapor ke tim teknis, dan tanpa kode itu laporan yang
- * sampai hanya berbunyi "ada error". Polanya sama dengan `unknownStatusLabel()`
- * di `lib/status.ts`: terjemahkan kalimatnya, bawa kodenya.
- */
-export function pesanGalat(
-  err: unknown,
-  fallback = 'Permintaan ke server gagal. Periksa koneksi lalu coba lagi.',
-): string {
-  if (err instanceof ApiError) {
-    const pesan = err.message.trim() || fallback
-    return err.code && err.code !== 'UNKNOWN' ? `${pesan} (${err.code})` : pesan
-  }
-  if (err instanceof Error && err.message.trim()) return err.message
-  return fallback
-}
-
 interface SoTSuccessEnvelope<T> {
   status: 'success'
   metadata?: unknown

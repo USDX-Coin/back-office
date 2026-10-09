@@ -25,10 +25,10 @@ function renderOpen(path = '/transactions', staffId = 'stf_1', onOpenChange = vi
 
 describe('MobileNavDrawer', () => {
   describe('positive', () => {
-    test('should render the same five menus as the sidebar, with the coin logo', () => {
+    test('should render the same five menus as the sidebar, with the original lockup', () => {
       renderOpen()
       const dialog = screen.getByRole('dialog')
-      expect(dialog.querySelector('img[src="/image/logo-coin.png"]')).not.toBeNull()
+      expect(dialog.querySelector('img[src="/image/logo-lockup.png"]')).not.toBeNull()
       expect(screen.getByRole('link', { name: /^Transaksi/ })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /^OTC/ })).toBeInTheDocument()
       for (const g of ['Nasabah', 'Keuangan', 'Pengaturan']) {

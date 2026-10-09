@@ -18,6 +18,7 @@ import ActivationStatusSection from './ActivationStatusSection'
 import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
 import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
+import { errorMessage } from '@/lib/errorMessages'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -68,7 +69,7 @@ export default function UserDetailPage() {
           Kembali ke daftar nasabah
         </Button>
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-          {error instanceof Error ? error.message : 'Nasabah tidak ditemukan'}
+          {errorMessage(error, 'Nasabah tidak ditemukan')}
         </div>
       </div>
     )

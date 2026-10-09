@@ -27,6 +27,7 @@ import {
 } from '@/lib/validators'
 import type { Staff, StaffRole } from '@/lib/types'
 import { useCreateStaff, useUpdateStaff } from './hooks'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface StaffModalProps {
   open: boolean
@@ -139,9 +140,7 @@ export default function StaffModal({
       onOpenChange(false)
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Data staf gagal disimpan. Coba lagi.'
+        errorMessage(err, 'Data staf gagal disimpan. Coba lagi.')
       )
     }
   }

@@ -25,6 +25,7 @@ import {
   type HeldCreditDetail,
   type HeldCreditResolution,
 } from './types'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface Props {
   credit: HeldCreditDetail
@@ -113,10 +114,8 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
 
   const serverError =
     mutation.error instanceof ApiError
-      ? heldCreditErrorMessage(mutation.error.code, mutation.error.message)
-      : mutation.error
-        ? mutation.error.message
-        : null
+      ? heldCreditErrorMessage(mutation.error.code, errorMessage(mutation.error))
+      : mutation.error ? errorMessage(mutation.error) : null
 
   return (
     <Dialog

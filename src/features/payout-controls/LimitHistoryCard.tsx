@@ -2,6 +2,8 @@ import { Link } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import DetailTeknis from '@/components/DetailTeknis'
+import ErrorNotice from '@/components/ErrorNotice'
+import { errorMessage } from '@/lib/errorMessages'
 import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
 import { ApiError } from '@/lib/apiFetch'
 import { formatWibDateTime } from '@/lib/format'
@@ -44,15 +46,24 @@ export default function LimitHistoryCard({ enabled }: { enabled: boolean }) {
         )}
 
         {history.isError && (
-          <p role="alert" data-testid="riwayat-galat" className="text-sm text-destructive">
-            {history.error instanceof ApiError
-              ? payoutControlsErrorMessage(
-                  history.error.status,
-                  history.error.code,
-                  history.error.message
-                )
-              : 'Riwayat gagal dimuat.'}
-          </p>
+          // Kartu ini dulu menampilkan pesan server mentah ("Cannot GET …",
+          // kode Inggris) saat permintaan gagal. Sekarang kalimat manusia;
+          // kodenya di "Detail teknis".
+          <div data-testid="riwayat-galat">
+            <ErrorNotice
+              error={history.error}
+              title="Riwayat gagal dimuat."
+              message={
+                history.error instanceof ApiError
+                  ? payoutControlsErrorMessage(
+                      history.error.status,
+                      history.error.code,
+                      errorMessage(history.error)
+                    )
+                  : errorMessage(history.error)
+              }
+            />
+          </div>
         )}
 
         {!history.isLoading && !history.isError && rows.length === 0 && (

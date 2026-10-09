@@ -59,6 +59,8 @@ import type {
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
+import { toastError } from '@/lib/errorToast'
+import { errorMessage } from '@/lib/errorMessages'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -395,10 +397,10 @@ export default function KycDetailModal({
       return
     }
     if (err instanceof ApiError && err.status === 403) {
-      toast.error(`Peran Anda tidak boleh memutus berkas ini (${err.code})`)
+      toastError(err, undefined, { [err.code]: 'Peranmu tidak boleh memutus berkas ini.' })
       return
     }
-    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
+    toastError(err, 'Permintaan gagal')
   }
 
   function handleApprove() {
@@ -527,9 +529,7 @@ export default function KycDetailModal({
               ) : detailQuery.isError ? (
                 <div className="space-y-3 py-2 text-center">
                   <p className="text-sm text-destructive">
-                    {detailQuery.error instanceof Error
-                      ? detailQuery.error.message
-                      : 'Detail KYC gagal dimuat.'}
+                    {errorMessage(detailQuery.error, 'Detail KYC gagal dimuat.')}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
                     Coba lagi

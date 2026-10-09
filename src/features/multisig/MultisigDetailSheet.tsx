@@ -34,6 +34,7 @@ import type { SafeTxListItem, SafeTxSigner } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useSafeTxSigning } from './useSafeTxSigning'
 import SignatureProgressBar from './SignatureProgressBar'
+import { errorMessage } from '@/lib/errorMessages'
 
 // ─── small presentational helpers (mirror OrderDetailModal) ──────────────────
 
@@ -282,7 +283,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
           </div>
         ) : query.isError ? (
           <p className="p-4 text-center text-sm text-destructive">
-            {query.error instanceof Error ? query.error.message : 'Transaksi ini gagal dimuat.'}
+            {errorMessage(query.error, 'Transaksi ini gagal dimuat.')}
           </p>
         ) : (
           <div className="space-y-6 p-4">

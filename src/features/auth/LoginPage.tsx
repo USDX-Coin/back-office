@@ -14,30 +14,22 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import FieldError from '@/components/FieldError'
+import ErrorNotice from '@/components/ErrorNotice'
 import ThemeToggle from '@/components/ThemeToggle'
 import { useAuth } from '@/lib/auth'
 import { validateLoginForm } from '@/lib/validators'
-import { cn } from '@/lib/utils'
 
 /**
- * Pesan galat autentikasi.
- *
- * `auth.tsx` mengubah `ApiError` jadi `Error` biasa, jadi yang sampai ke sini
- * hanya PESAN dari server — kodenya sudah hilang sebelum halaman ini melihatnya.
- * Pesan itu tetap DIBAWA SERTA di dalam kurung: kalimat Indonesianya yang
- * dibaca operator, teks servernya yang dikutip saat melapor ke tim teknis.
+ * Galat login dalam kalimat manusia. `auth.tsx` melempar `ApiError` utuh;
+ * kodenya (`INVALID_CREDENTIALS`, `UNAUTHORIZED`, …) tidak lagi ditempel di
+ * kalimat, melainkan ada di "Detail teknis" di bawahnya (`ErrorNotice`).
+ * 401 di layar login hampir selalu berarti email/kata sandi salah — bukan
+ * "sesi berakhir" seperti di layar lain.
  */
-function loginErrorMessage(err: unknown): string {
-  // `fetch` melempar TypeError kalau permintaannya tidak pernah sampai ke
-  // server (jaringan mati, DNS, CORS). Itu bukan salah email/kata sandi, dan
-  // menyuruh operator memeriksa kata sandinya mengirimnya ke arah yang salah.
-  if (err instanceof TypeError) {
-    return 'Server tidak bisa dihubungi. Periksa koneksi lalu coba lagi.'
-  }
-  const detail = err instanceof Error ? err.message.trim() : ''
-  return detail
-    ? `Gagal masuk. Periksa email dan kata sandi lalu coba lagi. (${detail})`
-    : 'Gagal masuk. Coba lagi sebentar lagi.'
+const LOGIN_ERRORS: Record<string, string> = {
+  INVALID_CREDENTIALS: 'Email atau kata sandi salah. Periksa lalu coba lagi.',
+  UNAUTHORIZED: 'Email atau kata sandi salah. Periksa lalu coba lagi.',
+  TOO_MANY_ATTEMPTS: 'Terlalu banyak percobaan masuk. Tunggu sekitar 15 menit lalu coba lagi.',
 }
 
 export default function LoginPage() {
@@ -47,13 +39,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
-  const [submitError, setSubmitError] = useState('')
+  const [submitError, setSubmitError] = useState<unknown>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSubmitError('')
+    setSubmitError(null)
     setFieldErrors({})
 
     const validation = validateLoginForm(email, password)
@@ -67,7 +59,7 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/transactions', { replace: true })
     } catch (err) {
-      setSubmitError(loginErrorMessage(err))
+      setSubmitError(err ?? new Error('Gagal masuk.'))
     } finally {
       setLoading(false)
     }
@@ -80,27 +72,26 @@ export default function LoginPage() {
       </div>
       <main className="flex flex-1 items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm">
-          <div className="mb-6 flex flex-col items-center gap-2">
-            <img src="/image/logo-lockup.png" alt="USDX" className="h-10 w-auto" />
-            <p className="text-xs text-muted-foreground">Back-office</p>
+          <div className="mb-8 flex flex-col items-center gap-2">
+            <img src="/image/logo-lockup.png" alt="USDX" className="h-9 w-auto" />
+            <p className="text-sm text-muted-foreground">Back-office</p>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Masuk</CardTitle>
-              <CardDescription>
+          <Card className="rounded-xl shadow-[0_1px_3px_rgb(16_24_40/0.06)]">
+            <CardHeader className="space-y-1 p-8 pb-6">
+              <CardTitle className="text-lg">Masuk</CardTitle>
+              <CardDescription className="text-base">
                 Masuk dengan akun operator untuk melanjutkan.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate id="login-form">
-                {submitError && (
-                  <div
-                    role="alert"
-                    className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                  >
-                    {submitError}
-                  </div>
+            <CardContent className="px-8 pb-0">
+              <form onSubmit={handleSubmit} className="space-y-5" noValidate id="login-form">
+                {submitError != null && (
+                  <ErrorNotice
+                    error={submitError}
+                    overrides={LOGIN_ERRORS}
+                    fallback="Gagal masuk. Coba lagi sebentar lagi."
+                  />
                 )}
 
                 <div className="space-y-1.5">
@@ -112,7 +103,7 @@ export default function LoginPage() {
                     placeholder="admin@usdx.io"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={cn(fieldErrors.email && 'border-destructive focus-visible:ring-destructive/30')}
+                    aria-invalid={Boolean(fieldErrors.email)}
                   />
                   <FieldError message={fieldErrors.email} />
                 </div>
@@ -127,7 +118,8 @@ export default function LoginPage() {
                       placeholder="Masukkan kata sandi"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className={cn('pr-10', fieldErrors.password && 'border-destructive focus-visible:ring-destructive/30')}
+                      className="pr-10"
+                      aria-invalid={Boolean(fieldErrors.password)}
                     />
                     <button
                       type="button"
@@ -143,7 +135,7 @@ export default function LoginPage() {
                   <FieldError message={fieldErrors.password} />
                 </div>
 
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                <label className="flex cursor-pointer items-center gap-2.5 text-base text-secondary-foreground select-none">
                   <Checkbox
                     checked={remember}
                     onCheckedChange={(checked) => setRemember(checked === true)}
@@ -153,7 +145,7 @@ export default function LoginPage() {
                 </label>
               </form>
             </CardContent>
-            <CardFooter className="flex-col gap-3">
+            <CardFooter className="flex-col gap-3 p-8 pt-6">
               <Button
                 type="submit"
                 form="login-form"

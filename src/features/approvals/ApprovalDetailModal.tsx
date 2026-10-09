@@ -31,6 +31,7 @@ import {
 import type { ApprovalDecision } from './hooks'
 import type { ApprovalRequest } from './types'
 import { ApiError } from '@/lib/apiFetch'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface Props {
   approvalId: string | null
@@ -123,7 +124,7 @@ export default function ApprovalDetailModal({ approvalId, open, onOpenChange }: 
             {detail.isError && (
               <p role="alert" className="text-sm text-destructive">
                 {detail.error instanceof ApiError
-                  ? approvalErrorMessage(detail.error.code, detail.error.message)
+                  ? approvalErrorMessage(detail.error.code, errorMessage(detail.error))
                   : 'Usulan gagal dimuat.'}
               </p>
             )}

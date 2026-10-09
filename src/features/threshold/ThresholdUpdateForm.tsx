@@ -15,6 +15,7 @@ import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import type { ThresholdConfig, ThresholdMode } from '@/lib/types'
 import { useUpdateThreshold } from './hooks'
+import { toastErrorMessage } from '@/lib/errorToast'
 
 interface Props {
   current: ThresholdConfig | undefined
@@ -50,19 +51,18 @@ function validate(form: FormState): { valid: boolean; errors: Record<string, str
 }
 
 /**
- * Galat server → kalimat Indonesia DAN kodenya dalam kurung. Kodenya tidak
- * dibuang: ia yang dikutip operator saat melapor (pola `unknownStatusLabel()`
- * di `src/lib/status.ts`).
+ * Galat server → kalimat Indonesia. Kode + pesan servernya ikut sebagai
+ * "Detail teknis" di keterangan toast (`toastErrorMessage`).
  */
 function thresholdUpdateErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) {
-      return `Peranmu tidak berwenang mengubah batas ini. (${err.code})`
+      return 'Peranmu tidak berwenang mengubah batas ini.'
     }
     if (err.status === 400 || err.status === 422) {
-      return `Server menolak isian batas: ${err.message} (${err.code})`
+      return 'Server menolak isian batas. Periksa kembali angkanya.'
     }
-    return `Batas gagal diubah — tidak ada yang berubah. Coba lagi. (${err.code})`
+    return 'Batas gagal diubah — tidak ada yang berubah. Coba lagi.'
   }
   return 'Batas gagal diubah. Periksa koneksi lalu coba lagi.'
 }
@@ -100,7 +100,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(thresholdUpdateErrorMessage(err))
+      toastErrorMessage(thresholdUpdateErrorMessage(err), err)
     }
   }
 

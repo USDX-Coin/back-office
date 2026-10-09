@@ -22,7 +22,8 @@ import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
 import { validateBurnRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser, RequestChain } from '@/lib/types'
-import { pesanGalat } from '@/lib/apiFetch'
+import ErrorNotice from '@/components/ErrorNotice'
+import { toastError } from '@/lib/errorToast'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { useCreateBurn } from './hooks'
 
@@ -65,7 +66,7 @@ export default function BurnRequestForm() {
   const create = useCreateBurn()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<unknown>(null)
   // USDX-84: 409 SAFE_QUEUE_OCCUPIED renders via a dedicated banner that
   // shows the blocking request ID + Manual Sync shortcut (sot/phase-1.md
   // § Safe Propose Queue).
@@ -187,11 +188,10 @@ export default function BurnRequestForm() {
         setQueueBlock(queueInfo)
         return
       }
-      // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
-      // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
-      const message = pesanGalat(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
-      setSubmitError(message)
-      toast.error(message)
+      // Kalimat manusia di depan; kode server tetap ada di "Detail teknis"
+      // (ErrorNotice / keterangan toast) — itu yang dikutip saat melapor.
+      setSubmitError(err)
+      toastError(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
     }
   }
 
@@ -326,13 +326,8 @@ export default function BurnRequestForm() {
               blockingRequestId={queueBlock.blockingRequestId}
             />
           )}
-          {submitError && (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-            >
-              {submitError}
-            </div>
+          {submitError != null && (
+            <ErrorNotice error={submitError} fallback="Permintaan gagal dikirim. Periksa koneksi lalu coba lagi." />
           )}
         </CardContent>
         <CardFooter>

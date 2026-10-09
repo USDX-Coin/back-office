@@ -17,6 +17,7 @@ import { deriveActivationStatus, getActivationStatusConfig, getKycStatusConfig }
 import type { EntityType, PhaseOneUser } from '@/lib/types'
 import { labelNasabah } from './labelNasabah'
 import { useDeleteUser } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -106,7 +107,7 @@ export default function CustomerPanel({ user, canManage, onClose, onEdit }: Prop
       toast.success(`${name} dihapus`)
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Nasabah gagal dihapus. Coba lagi.')
+      toastError(err, 'Nasabah gagal dihapus. Coba lagi.')
     }
   }
 

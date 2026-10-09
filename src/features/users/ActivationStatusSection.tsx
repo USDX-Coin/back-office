@@ -18,6 +18,7 @@ import { deriveActivationStatus, getActivationStatusConfig } from '@/lib/status'
 import type { PhaseOneUser } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useResendActivation } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 const COOLDOWN_SECONDS = 60
 
@@ -80,7 +81,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
           setCooldown(COOLDOWN_SECONDS)
           return
         }
-        toast.error(err instanceof Error ? err.message : 'Kirim ulang gagal')
+        toastError(err, 'Kirim ulang gagal')
       },
     })
   }

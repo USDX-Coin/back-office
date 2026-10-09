@@ -75,6 +75,8 @@ import {
   useUploadKybDocument,
   useUploadKybUboDocument,
 } from './hooks'
+import { toastError } from '@/lib/errorToast'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface KybDetailModalProps {
   kybId: string | null
@@ -777,10 +779,10 @@ export default function KybDetailModal({
       return
     }
     if (err instanceof ApiError && err.status === 403) {
-      toast.error(`Peran Anda tidak boleh memutus berkas ini (${err.code})`)
+      toastError(err, undefined, { [err.code]: 'Peranmu tidak boleh memutus berkas ini.' })
       return
     }
-    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
+    toastError(err, 'Permintaan gagal')
   }
 
   function handleApprove() {
@@ -1060,9 +1062,7 @@ export default function KybDetailModal({
               ) : detailQuery.isError ? (
                 <div className="space-y-3 py-2 text-center">
                   <p className="text-sm text-destructive">
-                    {detailQuery.error instanceof Error
-                      ? detailQuery.error.message
-                      : 'Detail KYB gagal dimuat.'}
+                    {errorMessage(detailQuery.error, 'Detail KYB gagal dimuat.')}
                   </p>
                   <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
                     Coba lagi

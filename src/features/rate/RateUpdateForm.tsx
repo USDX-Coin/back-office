@@ -21,22 +21,22 @@ import type { RateInfo, RateMode } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
+import { toastErrorMessage } from '@/lib/errorToast'
 
 /**
- * Galat server → kalimat Indonesia DAN kodenya dalam kurung.
- *
- * Kodenya TIDAK dibuang: ia yang dikutip operator saat melapor ke tim teknis —
- * pola yang sama dengan `unknownStatusLabel()` di `src/lib/status.ts`.
+ * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
+ * ikut sebagai "Detail teknis" di keterangan toast (`toastErrorMessage`) —
+ * itulah yang dikutip operator saat melapor ke tim teknis.
  */
 function rateUpdateErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) {
-      return `Peranmu tidak berwenang mengubah kurs. (${err.code})`
+      return 'Peranmu tidak berwenang mengubah kurs.'
     }
     if (err.status === 400 || err.status === 422) {
-      return `Server menolak isian kurs: ${err.message} (${err.code})`
+      return 'Server menolak isian kurs. Periksa kembali angkanya.'
     }
-    return `Kurs gagal diubah — tidak ada yang berubah. Coba lagi. (${err.code})`
+    return 'Kurs gagal diubah — tidak ada yang berubah. Coba lagi.'
   }
   return 'Kurs gagal diubah. Periksa koneksi lalu coba lagi.'
 }
@@ -125,7 +125,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
       setOverrides({})
       setErrors({})
     } catch (err) {
-      toast.error(rateUpdateErrorMessage(err))
+      toastErrorMessage(rateUpdateErrorMessage(err), err)
     }
   }
 

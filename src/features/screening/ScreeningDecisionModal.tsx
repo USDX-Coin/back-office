@@ -54,6 +54,8 @@ import {
   useScreeningResult,
   useScreeningSubject,
 } from './hooks'
+import { toastError } from '@/lib/errorToast'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface ScreeningDecisionModalProps {
   resultId: string | null
@@ -299,7 +301,7 @@ export default function ScreeningDecisionModal({
         return
       }
     }
-    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
+    toastError(err, 'Permintaan gagal')
   }
 
   function handleDecide() {
@@ -363,9 +365,7 @@ export default function ScreeningDecisionModal({
             ) : resultQuery.isError ? (
               <div className="space-y-3 py-2 text-center">
                 <p className="text-sm text-destructive">
-                  {resultQuery.error instanceof Error
-                    ? resultQuery.error.message
-                    : 'Gagal memuat temuan.'}
+                  {errorMessage(resultQuery.error, 'Gagal memuat temuan.')}
                 </p>
                 <Button variant="outline" size="sm" onClick={() => resultQuery.refetch()}>
                   Coba lagi
@@ -486,9 +486,7 @@ export default function ScreeningDecisionModal({
                       ) : subjectQuery.isError ? (
                         <div className="space-y-2">
                           <p className="text-xs text-destructive">
-                            {subjectQuery.error instanceof Error
-                              ? subjectQuery.error.message
-                              : 'Gagal memuat data nasabah.'}
+                            {errorMessage(subjectQuery.error, 'Gagal memuat data nasabah.')}
                           </p>
                           <Button
                             variant="outline"

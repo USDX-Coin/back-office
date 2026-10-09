@@ -26,7 +26,8 @@ import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
-import { pesanGalat } from '@/lib/apiFetch'
+import ErrorNotice from '@/components/ErrorNotice'
+import { toastError } from '@/lib/errorToast'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser } from '@/lib/types'
@@ -63,7 +64,7 @@ export default function MintFormPage() {
   const create = useCreateMintRequest()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [apiError, setApiError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<unknown>(null)
   // USDX-84: dedicated state for 409 SAFE_QUEUE_OCCUPIED so the banner can
   // render with its structured `details` payload (safeType, blockingRequestId)
   // instead of being squashed into a flat error string.
@@ -180,11 +181,10 @@ export default function MintFormPage() {
         setQueueBlock(queueInfo)
         return
       }
-      // Kode servernya ikut dalam kurung (`pesanGalat`) — itu yang dikutip
-      // operator saat melapor. Tanpa kode, laporannya cuma "request gagal".
-      const message = pesanGalat(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
-      setApiError(message)
-      toast.error(message)
+      // Kalimat manusia di depan; kode server tetap ada di "Detail teknis"
+      // (ErrorNotice / keterangan toast) — itu yang dikutip saat melapor.
+      setApiError(err)
+      toastError(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
     }
   }
 
@@ -211,13 +211,8 @@ export default function MintFormPage() {
                     blockingRequestId={queueBlock.blockingRequestId}
                   />
                 )}
-                {apiError && (
-                  <div
-                    role="alert"
-                    className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-                  >
-                    {apiError}
-                  </div>
+                {apiError != null && (
+                  <ErrorNotice error={apiError} fallback="Permintaan gagal dikirim. Periksa koneksi lalu coba lagi." />
                 )}
 
                 <div className="space-y-1.5">

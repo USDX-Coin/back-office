@@ -40,7 +40,7 @@ export function NavBadge({ value, id }: { value: BadgeValue; id: string }) {
   if (value.count > 0) {
     return (
       <span
-        className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold tabular-nums text-primary"
+        className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-secondary px-1.5 text-xs font-semibold tabular-nums text-foreground"
         aria-label={
           value.unknown
             ? `${value.count} menunggu diproses, sebagian antrean belum terbaca`
@@ -111,9 +111,11 @@ export default function NavTree({ onNavigate, size = 'sm' }: NavTreeProps) {
         className={cn(
           rowClass,
           nested && (size === 'lg' ? 'py-2' : 'py-1.5'),
+          // Penanda aktif: teks maroon + garis tipis di kiri, latar abu
+          // NETRAL (bukan merah muda — revisi PM 9 Okt 2026).
           active
-            ? 'bg-primary/10 text-primary'
-            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            ? 'relative bg-muted text-primary before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
+            : 'text-secondary-foreground hover:bg-muted hover:text-foreground',
         )}
       >
         {Icon && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
@@ -141,7 +143,7 @@ export default function NavTree({ onNavigate, size = 'sm' }: NavTreeProps) {
               className={cn(
                 rowClass,
                 'text-left',
-                hasCurrent ? 'text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                hasCurrent ? 'text-foreground' : 'text-secondary-foreground hover:bg-muted hover:text-foreground',
               )}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />

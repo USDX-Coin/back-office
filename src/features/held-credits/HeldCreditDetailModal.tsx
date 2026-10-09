@@ -30,6 +30,7 @@ import {
 } from './labels'
 import ResolveHeldCreditDialog from './ResolveHeldCreditDialog'
 import type { HeldCreditDetail, HeldCreditResolution } from './types'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface Props {
   creditId: string | null
@@ -108,7 +109,7 @@ export default function HeldCreditDetailModal({ creditId, open, onOpenChange }: 
             {detail.isError && (
               <p role="alert" className="text-sm text-destructive">
                 {detail.error instanceof ApiError
-                  ? heldCreditErrorMessage(detail.error.code, detail.error.message)
+                  ? heldCreditErrorMessage(detail.error.code, errorMessage(detail.error))
                   : 'Kredit gagal dimuat.'}
               </p>
             )}

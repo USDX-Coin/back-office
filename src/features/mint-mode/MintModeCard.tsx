@@ -22,6 +22,7 @@ import type { MintModeConfig } from '@/lib/types'
 import { useChainConfig } from '@/features/chains/hooks'
 import MintTestModeDialog from './MintTestModeDialog'
 import { useSetMintMode } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 interface Props {
   data: MintModeConfig | undefined
@@ -108,9 +109,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
       setProdDialogOpen(false)
       toast.success('Mint kembali ke mode normal')
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Gagal mengembalikan mint ke mode normal.',
-      )
+      toastError(err, 'Gagal mengembalikan mint ke mode normal.')
     }
   }
 

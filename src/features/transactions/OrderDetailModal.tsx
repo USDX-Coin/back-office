@@ -28,6 +28,7 @@ import type { OrderListItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useOrderDetail } from './hooks'
 import { resolveOrderNextStep } from './nextStep'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface OrderDetailModalProps {
   orderId: string | null
@@ -228,9 +229,7 @@ export default function OrderDetailModal({
             </div>
           ) : query.isError ? (
             <p className="py-2 text-center text-sm text-destructive">
-              {query.error instanceof Error
-                ? query.error.message
-                : 'Detail order gagal dimuat.'}
+              {errorMessage(query.error, 'Detail order gagal dimuat.')}
             </p>
           ) : (
             <div className="space-y-6">

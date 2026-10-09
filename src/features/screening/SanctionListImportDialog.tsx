@@ -38,6 +38,7 @@ import type {
   SanctionListType,
 } from '@/lib/types'
 import { useActivateSanctionList, useImportSanctionList } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 interface SanctionListImportDialogProps {
   open: boolean
@@ -236,7 +237,7 @@ export default function SanctionListImportDialog({
         return
       }
     }
-    toast.error(err instanceof Error ? err.message : 'Impor gagal')
+    toastError(err, 'Impor gagal')
   }
 
   return (

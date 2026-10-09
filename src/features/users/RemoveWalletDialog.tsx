@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useRemoveWallet } from './hooks'
 import type { PhaseOneUserWallet } from '@/lib/types'
+import { toastError } from '@/lib/errorToast'
 
 interface RemoveWalletDialogProps {
   open: boolean
@@ -34,9 +35,7 @@ export default function RemoveWalletDialog({
       toast.success('Wallet dihapus')
       onOpenChange(false)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Wallet gagal dihapus. Coba lagi.'
-      )
+      toastError(err, 'Wallet gagal dihapus. Coba lagi.')
     }
   }
 

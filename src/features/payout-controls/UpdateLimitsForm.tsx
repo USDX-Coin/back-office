@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
+import ErrorNotice from '@/components/ErrorNotice'
+import { errorMessage } from '@/lib/errorMessages'
 import { ApiError } from '@/lib/apiFetch'
 import {
   buildLimitsBody,
@@ -112,10 +114,10 @@ export default function UpdateLimitsForm({ current }: Props) {
       ? payoutControlsErrorMessage(
           mutation.error.status,
           mutation.error.code,
-          mutation.error.message
+          errorMessage(mutation.error)
         )
       : mutation.error
-        ? mutation.error.message
+        ? errorMessage(mutation.error)
         : null
 
   if (pendingApprovalId) {
@@ -285,9 +287,7 @@ export default function UpdateLimitsForm({ current }: Props) {
         )}
 
         {serverError && (
-          <p role="alert" className="text-sm text-destructive">
-            {serverError}
-          </p>
+          <ErrorNotice error={mutation.error} message={serverError} />
         )}
 
         <Button onClick={submit} disabled={mutation.isPending || !built.valid || unchanged}>

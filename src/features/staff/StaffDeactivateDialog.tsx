@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useDeactivateStaff } from './hooks'
 import type { Staff } from '@/lib/types'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface StaffDeactivateDialogProps {
   open: boolean
@@ -36,9 +37,7 @@ export default function StaffDeactivateDialog({
       onOpenChange(false)
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Staf gagal dinonaktifkan. Coba lagi.'
+        errorMessage(err, 'Staf gagal dinonaktifkan. Coba lagi.')
       )
     }
   }

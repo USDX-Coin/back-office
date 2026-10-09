@@ -43,6 +43,7 @@ import {
   type KybUboFormInput,
 } from '@/lib/validators'
 import { useCreateKyb } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 const EMPTY_UBO: KybUboFormInput = {
   firstName: '',
@@ -272,7 +273,7 @@ export default function KybFormPage() {
           navigate(`/kyb/${detail.id}`)
         },
         onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'Berkas gagal disimpan'),
+          toastError(err, 'Berkas gagal disimpan'),
       },
     )
   }

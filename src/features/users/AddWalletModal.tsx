@@ -26,6 +26,7 @@ import {
   validateUserWalletsLimit,
 } from '@/lib/validators'
 import { useAddWallet } from './hooks'
+import { toastError } from '@/lib/errorToast'
 
 interface AddWalletModalProps {
   open: boolean
@@ -78,9 +79,7 @@ export default function AddWalletModal({
       toast.success('Wallet ditambahkan')
       onOpenChange(false)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Wallet gagal ditambahkan. Coba lagi.'
-      )
+      toastError(err, 'Wallet gagal ditambahkan. Coba lagi.')
     }
   }
 

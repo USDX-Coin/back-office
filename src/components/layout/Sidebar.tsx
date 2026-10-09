@@ -6,14 +6,14 @@ export default function Sidebar() {
   const { user } = useAuth()
 
   return (
-    <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-muted/40">
-      <div className="flex h-14 shrink-0 items-center gap-2.5 px-4">
-        {/* Logo koin resmi usdx.co.id (salinan byte-identik dari landing). */}
-        <img src="/image/logo-coin.png" alt="" className="h-8 w-8" />
-        <div className="flex flex-col leading-tight">
-          <span className="font-display text-lg font-semibold">USDX</span>
-          <span className="text-xs text-muted-foreground">Back-office</span>
-        </div>
+    <aside className="hidden lg:flex lg:h-full lg:w-56 lg:shrink-0 flex-col border-r border-border bg-card">
+      <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+        {/* Logo asli usdx.co.id — lockup koin + tulisan USDX, salinan
+            byte-identik dari landing. Bukan koin + teks serif buatan. */}
+        <img src="/image/logo-lockup.png" alt="USDX" className="h-6 w-auto" />
+        <span className="mt-0.5 rounded border border-border px-1.5 text-2xs font-medium text-muted-foreground">
+          Back-office
+        </span>
       </div>
 
       <nav
@@ -26,7 +26,7 @@ export default function Sidebar() {
       {user && (
         <div className="shrink-0 border-t border-border px-2 py-2">
           <div className="flex items-center gap-2.5 px-2 py-1.5">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-gold-soft text-xs font-semibold text-gold-foreground">
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
               {getInitials(user.name)}
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
