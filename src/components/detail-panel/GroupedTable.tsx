@@ -96,7 +96,7 @@ export default function GroupedTable<T>({
                   colSpan={colSpan}
                   className={cn(
                     'bg-card px-3.5 pb-1.5 pt-4 text-xs font-semibold',
-                    g.emphasis ? 'text-primary' : 'text-muted-foreground'
+                    g.emphasis ? 'text-foreground' : 'text-muted-foreground'
                   )}
                 >
                   {g.label}

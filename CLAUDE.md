@@ -107,7 +107,11 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── CustomerTypeahead.tsx  # Shared customer lookup (Unit 9+)
 │   │   ├── OnChainLinks.tsx  # TxHashLink cell (clickable short tx hash) + resolveOnChainLinks — On-chain tx / Safe tx columns
 │   │   ├── DateRangeFields.tsx  # Two date inputs + range rules (lib/dateRange) — reports toolbar + BNI statement panel
-│   │   ├── StatusPill.tsx # Dot + label pill for a StatusConfig (new code; five older local StatusBadge copies are cleanup debt)
+│   │   ├── StatusPill.tsx # Label badge for a StatusConfig (tanpa titik)
+│   │   ├── DataList.tsx   # DataSection/DataField — label–nilai di modal/sheet
+│   │   ├── FormLayout.tsx # FormSection/FormField/FormFooter — form gaya Stripe
+│   │   ├── OptionCombobox.tsx # Combobox cmdk untuk pilihan tetap yang panjang
+│   │   ├── ErrorNotice.tsx # Kotak galat: kalimat dari lib/errorMessages + Detail teknis
 │   │   └── DataTable.tsx  # Shared generic table with filter-toolbar slot
 │   ├── features/
 │   │   ├── auth/          # LoginPage
@@ -151,6 +155,7 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── transparency.ts # exact BigInt-cents money math + WIB day helpers + attestation revoke filter
 │   │   ├── redeemApprovals.ts # USDX-669 — uang IDR eksak (BigInt sen, ejaan id-ID), arah perubahan ambang + gerbang konfirmasi kenaikan, validasi alasan (3..500 dari kontrak), pesan galat manusia per kode lalu per status
 │   │   ├── durianpayApiCalls.ts # Log Panggilan DurianPay — path→kalimat, vonis empat keadaan (2xx yang ditolak di dalam amplop), keterangan responseCode tanpa menebak arti per kasus, tanggal WIB +07:00, pembaca badan terpotong / non-JSON
+│   │   ├── errorMessages.ts # Peta galat API → kalimat (humanizeError); errorToast.ts = toastError
 │   │   ├── payoutFailures.ts # USDX-662 — aksi sah per issueKind (enum terbuka, fail-closed), buildResolveBody (alasan ≥10, externalRef SETTLED_MANUAL), peta galat code-ATAU-message, ringkasan submission, umur antrean
 │   │   └── utils.ts       # cn() class name utility
 │   ├── mocks/             # MSW mock API

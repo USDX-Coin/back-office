@@ -10,8 +10,10 @@ export const TONE_CHIP_CLASS: Record<Tone, string> = {
 }
 
 export const TONE_TODO_CLASS: Record<Tone, { box: string; label: string }> = {
-  act: { box: 'bg-gold-soft', label: 'text-gold-foreground' },
-  bad: { box: 'bg-destructive/10', label: 'text-destructive' },
-  ok: { box: 'bg-success/10', label: 'text-success' },
-  wait: { box: 'bg-muted', label: 'text-muted-foreground' },
+  // Kotak netral (revisi PM 9 Okt: tanpa rona krem/merah di permukaan);
+  // nadanya hanya di label kecil di atas kalimat.
+  act: { box: 'border border-border bg-muted/50', label: 'text-gold-foreground' },
+  bad: { box: 'border border-destructive/25 bg-destructive/[0.04]', label: 'text-destructive' },
+  ok: { box: 'border border-border bg-muted/50', label: 'text-success' },
+  wait: { box: 'border border-border bg-muted/50', label: 'text-muted-foreground' },
 }

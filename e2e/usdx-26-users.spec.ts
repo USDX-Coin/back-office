@@ -118,7 +118,8 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await page.getByLabel(/^nama$/i).fill('Dup Email Probe')
       await page.getByLabel(/^email$/i).fill('robert.deon@example.com') // already in the seeded directory
       await page.getByRole('button', { name: /^buat nasabah$/i }).click()
-      await expect(page.getByText(/already exists/i)).toBeVisible({ timeout: 10000 })
+      // Kode server (`EMAIL_ALREADY_REGISTERED`, sama dengan backend) diterjemahkan peta galat.
+      await expect(page.getByText(/email ini sudah terdaftar/i).first()).toBeVisible({ timeout: 10000 })
       // modal stays open (still on /users with the dialog present)
       await expect(page.getByRole('dialog')).toBeVisible()
     })

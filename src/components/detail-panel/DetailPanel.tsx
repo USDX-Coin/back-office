@@ -128,7 +128,14 @@ export default function DetailPanel({
       {/* Ponsel/tablet: panel ikut menggulir bersama halaman, jadi bilah tombol
           menempel di bawah layar — tombol utamanya tidak perlu dicari dengan
           menggulir ke ujung. ≥ xl panel menggulir sendiri, bilahnya statis. */}
-      {actions && <div className="sticky bottom-0 z-10 rounded-b-md bg-card xl:static">{actions}</div>}
+      {/* `<main>` punya padding bawah (p-6 / lg:p-8); bilah yang menempel di
+          bottom-0 berhenti di atas padding itu dan isi panel terlihat di
+          celahnya. Bilah diturunkan sejauh padding-nya dan mengisinya. */}
+      {actions && (
+        <div className="sticky -bottom-6 z-10 rounded-b-md bg-card pb-6 lg:-bottom-8 lg:pb-8 xl:static xl:pb-0">
+          {actions}
+        </div>
+      )}
     </section>
   )
 }

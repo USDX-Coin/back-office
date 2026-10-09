@@ -14,7 +14,10 @@ components/
   ├── FieldError.tsx         # Inline form error primitive (role="alert")
   ├── TableEmptyState.tsx    # Table empty-state with no-data / no-results modes
   ├── DateRangeFields.tsx    # Two date inputs (+ optional maxDays / maxDate message) — reports toolbar + BNI statement panel
-  ├── StatusPill.tsx         # Dot + label pill for a StatusConfig
+  ├── StatusPill.tsx         # Label badge for a StatusConfig (tanpa titik sejak revisi PM 9 Okt)
+  ├── DataList.tsx           # DataSection/DataField — label–nilai satu baris per pasangan (modal, sheet)
+  ├── FormLayout.tsx         # FormSection/FormField/FormFooter — form gaya Stripe, tombol kanan bawah
+  ├── OptionCombobox.tsx     # Combobox cmdk untuk daftar pilihan tetap yang panjang (> 15)
   ├── DataTable.tsx          # Generic data table with filter-toolbar slot
   └── useDataTableParams.ts  # URL-state hook for tables that compose their own toolbar
 ```
@@ -29,7 +32,10 @@ components/
 - **`TableEmptyState`** — Two modes: `no-data` (default empty surface, optional CTA) and `no-results` (filtered with optional Clear-filters affordance).
 - **`DataTable`** — Generic table accepting `ColumnDef<T>[]`, data, rowCount. Features: arbitrary `filterToolbar` slot, custom `emptyState` slot, pagination, sort, URL-state via `useDataTableParams`, loading skeletons, no-line styling (baris dipisah isian, bukan garis). Default toolbar (search + statusOptions + date range) renders only when no `filterToolbar` is provided.
 - **`DateRangeFields`** — Renders a fragment of two labelled `type="date"` inputs (`<idPrefix>-start-date` / `-end-date`) so the parent grid keeps its layout. Rules live in `lib/dateRange.ts`; the component only shows the message (`showMessage={false}` keeps the reports toolbar silent).
-- **`StatusPill`** — The dot + label pill previously copied as a private `StatusBadge` in five feature files; new code imports this one.
+- **`StatusPill`** — Label badge (no dot) previously copied as a private `StatusBadge` in five feature files; new code imports this one.
+- **`DataList`** — Every label–value block in a modal/sheet uses `DataSection` + `DataField` (one pair per row, hairline dividers, container-query stacking). Do not write another local `Field`.
+- **`FormLayout`** — Page/card forms compose `FormSection` (grouped fields) + `FormField` (label, hint, error) + `FormFooter` (consequence note left, buttons right). Never a full-width submit button.
+- **`DataTable` on phones** — below 640px rows render as cards (first column = title, rest label–value) via `useMediaQuery`; jsdom has no matching media query, so unit tests keep seeing the table.
 - **`useDataTableParams`** — Lives in its own file (Fast Refresh requires component-only files). Reads page/sortBy/sortOrder/search from URL; provides `updateParams` and `clearAll`.
 
 ## DataTable Props

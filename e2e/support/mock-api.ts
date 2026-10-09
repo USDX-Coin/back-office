@@ -1135,7 +1135,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     }
     if (key === 'POST /api/v1/users') {
       const b = body()
-      if (state.users.some((u) => u.email.toLowerCase() === String(b.email ?? '').toLowerCase())) return error(route, 'CONFLICT', 'A user with this email already exists', 409)
+      if (state.users.some((u) => u.email.toLowerCase() === String(b.email ?? '').toLowerCase())) return error(route, 'EMAIL_ALREADY_REGISTERED', 'Email sudah terdaftar.', 409)
       // USDX-156: Phase 2 create — no password anywhere; user starts
       // unverified and BE queues the activation email (admin-created.html).
       const created = {

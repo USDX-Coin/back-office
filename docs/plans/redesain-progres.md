@@ -69,15 +69,57 @@ Angka terakhir:
 - Warna utama di tema gelap adalah maroon yang diangkat ke merah muda terang
   (kontras teks aman), bukan maroon gelap — perlu dikonfirmasi PM.
 
-## Revisi visual (feedback PM 9 Okt) — WIP, belum selesai
+## Revisi visual (feedback PM 9 Okt) — tahap A SELESAI
 
-Dihentikan di tengah karena laptop PM harus dimatikan. Lanjutkan 5 poin ini:
-1. Light mode bersih & netral (latar abu dingin, kartu putih, tanpa rona merah/krem;
-   maroon hanya aksi utama + penanda menu aktif); sidebar & login pakai logo-lockup.png asli.
-2. Form dirombak gaya Stripe/Mercury (input putih, border 1px, radius 8, tinggi 40, label rapi,
-   tombol kanan bawah, field dikelompokkan).
-3. Dialog/Sheet/Popover & semua modal (termasuk antrean lama) dirombak.
-4. Semua <select> native → shadcn Select; pilihan panjang → Combobox (cmdk).
-5. Masalah diketahui: OTC "Isi transaksi tidak cocok dengan server" di mock; tabel lama geser
-   di ponsel; kode galat mentah (login, Plafon) → pemetaan pesan terpusat.
-Cek: lint/test/build/e2e hijau; screenshot light 1440 & 390 → scratchpad/redesain-f1b/.
+Lima poin PM, dan apa yang dikerjakan:
+
+1. **Light mode netral.** Token abu dingin (kanvas #f6f7f9, kartu putih, garis
+   #e5e7eb) sudah dari WIP; sisa rona maroon/krem di permukaan dibuang: kotak
+   "Perkiraan pendapatan"/"Langkah berikutnya" di detail order, badge
+   `bg-primary/10`, sorotan baris terpilih (kini abu + garis kiri gelap), hover
+   tautan, kotak "Yang perlu kamu lakukan" di panel (kini netral, nada hanya di
+   labelnya), label grup "Perlu tindakan" (tidak lagi maroon). Maroon tinggal di
+   tombol utama, menu aktif, dan tautan. Sidebar + login memakai
+   `logo-lockup.png` asli.
+2. **Form gaya Stripe/Mercury** — `components/FormLayout.tsx` (`FormSection`,
+   `FormField`, `FormFooter`): field dikelompokkan per bagian, label + keterangan
+   di bawah label, galat di bawah isian, tombol di kanan bawah pada pita abu
+   (tidak lagi selebar form). Dipakai form mint OTC, redeem OTC, kurs, biaya,
+   batas Safe, entri cadangan.
+3. **Dialog/sheet** — `components/DataList.tsx` (`DataSection`, `DataField`):
+   satu pasangan label–nilai per baris, label kiri, garis tipis (container query:
+   di wadah sempit label naik ke atas). Semua salinan lokal `Field`/`Section` di
+   11 modal/sheet lama (detail order, pencairan bermasalah, mint bermasalah,
+   persetujuan, jejak audit, KYC, KYB, sanksi, log DurianPay, multisig,
+   rekening tujuan) mendelegasikan ke sini. Titik status di badge dibuang (pola
+   Stripe: badge teks tanpa titik). Peran di dialog Staf tampil sebagai kata.
+4. **Dropdown** — grep `<select` di `src/` = 0. Pilihan panjang (99 pekerjaan
+   Permendagri di form KYB) → `components/OptionCombobox.tsx` (cmdk dengan
+   kotak cari); `EnumSelect` otomatis memakainya bila opsinya > 15.
+5. **Masalah diketahui:**
+   - (a) **Akar "Isi transaksi tidak cocok dengan server"**: data tiruan e2e
+     (`e2e/support/mock-api.ts`) memberi `safeTxHash` angka karangan
+     `0x5555…`/`0x6666…`. Layar menghitung ulang hash EIP-712 SafeTx dari isi
+     detailnya (to/value/data/operation/nonce + alamat Safe, chainId 137) lewat
+     `safeTxHashMatches` sebelum mengizinkan tanda tangan — hash karangan tidak
+     mungkin cocok. Layarnya benar (pagar anti blind-sign), datanya yang salah.
+     Perbaikan: mock menghitung hash dengan `computeSafeTxHash` yang sama;
+     e2e OTC kini menegaskan peringatan itu TIDAK muncul.
+   - (b) **Tabel lama di ponsel**: `DataTable` di < 640px merender baris sebagai
+     kartu (kolom pertama judul, sisanya label–nilai) — Transaksi, Staf, Jejak
+     Audit, antrean lama, dst. tidak perlu digeser. Pilihan tampilan lewat
+     `matchMedia` (`lib/useMediaQuery.ts`), jadi Vitest tetap melihat tabel.
+   - (c) **Kode galat mentah** → peta terpusat `lib/errorMessages.ts`
+     (`humanizeError`, `ErrorNotice`, `toastError`): login, Plafon, tanda tangan
+     Safe, unduh CSV laporan, kontak darurat, nasabah (EMAIL/PHONE_ALREADY_REGISTERED,
+     WALLET_ALREADY_EXISTS mengikuti kode backend). Kode server tetap ada di
+     "Detail teknis". Yang SENGAJA tetap menampilkan pesan server apa adanya
+     (terdokumentasi di CLAUDE.md): 422 mode uji mint, 422 per-field biaya,
+     alasan bank BNI.
+   - Panel detail di ponsel: bilah tombol yang menempel kini menutup celah
+     padding `<main>` (isi panel dulu terlihat di bawah tombol).
+
+Angka tahap A (9 Okt 2026): `pnpm lint` 0 error (3 peringatan lama) ·
+`pnpm test` 118 berkas / 2368 tes hijau · `pnpm build` hijau ·
+`E2E_PORT=5197 pnpm test:e2e` 137/137 hijau. Screenshot terang 1440 + 390
+(96 berkas) → `scratchpad/redesain-f1b/`.

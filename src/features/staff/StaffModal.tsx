@@ -28,6 +28,7 @@ import {
 import type { Staff, StaffRole } from '@/lib/types'
 import { useCreateStaff, useUpdateStaff } from './hooks'
 import { errorMessage } from '@/lib/errorMessages'
+import { formatRole } from '@/components/layout/navItems'
 
 interface StaffModalProps {
   open: boolean
@@ -230,7 +231,7 @@ export default function StaffModal({
               <SelectContent>
                 {ROLE_OPTIONS.map((r) => (
                   <SelectItem key={r} value={r}>
-                    {r}
+                    {formatRole(r)}
                   </SelectItem>
                 ))}
               </SelectContent>

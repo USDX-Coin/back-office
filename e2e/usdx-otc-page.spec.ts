@@ -78,7 +78,8 @@ test.describe('OTC page @e2e', () => {
 
     test('Jenis + search write to the URL and narrow both groups', async ({ page }) => {
       await openOtc(page)
-      await page.getByLabel('Jenis').selectOption('burn')
+      await page.getByRole('combobox', { name: 'Jenis' }).click()
+      await page.getByRole('option', { name: 'Redeem OTC' }).click()
       await expect(page).toHaveURL(/[?&]jenis=burn/)
       await expect(page.getByRole('button', { name: /^Buka Mint OTC/ })).toHaveCount(0)
       await page.getByRole('textbox', { name: 'Cari permintaan OTC' }).fill('robert')
