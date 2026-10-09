@@ -128,7 +128,13 @@ export default function OtcPage() {
       className: 'w-36 sm:w-48',
       cell: (r) => {
         const s = otcRowState(r, findSafeTxFor(r, safeIndex))
-        return <ToneChip tone={s.tone}>{s.label}</ToneChip>
+        // Di ponsel status panjang ("1 dari 2 tanda tangan") boleh turun baris
+        // daripada keluar dari tepi tabel.
+        return (
+          <ToneChip tone={s.tone} className="whitespace-normal sm:whitespace-nowrap">
+            {s.label}
+          </ToneChip>
+        )
       },
     },
   ]

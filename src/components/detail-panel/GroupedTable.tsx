@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -62,7 +62,13 @@ export default function GroupedTable<T>({
   const colSpan = columns.length
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card">
-      <Table minWidth={minWidth}>
+      {/* Lebar minimum hanya ≥ sm. Di ponsel kolom sekunder disembunyikan
+          (`hidden sm:table-cell`) dan sisanya harus muat di layar — dengan
+          min-width 640px kolom Status jatuh di luar layar (screenshot 390px). */}
+      <Table
+        className="sm:min-w-(--grouped-table-min)"
+        style={{ '--grouped-table-min': `${minWidth}px` } as CSSProperties}
+      >
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {columns.map((c) => (
