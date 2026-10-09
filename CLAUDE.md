@@ -29,11 +29,11 @@ dijumlah di nama grup saat grup tertutup:
 
 | Menu | Isi | Catatan |
 |------|-----|---------|
-| **Transaksi** `/transactions` | daftar order nasabah | Badge = jumlah antrean lama (Persetujuan Pencairan + Pencairan Bermasalah + Mint Bermasalah). Antrean lama TIDAK di menu; dicapai dari strip "Perlu tindakan" (`LegacyQueueLinks`) di atas tabel dan lewat URL — fase 2 meleburnya ke tabel Transaksi |
+| **Transaksi** `/transactions` | fase 2 (⚠️ DRAF SOT PR #50): SATU daftar mint + redeem + uang masuk tanpa order (`GET /api/v1/transactions`), perlu tindakan di atas, panel kanan dengan aksi antrean asal | Badge = `queue-counts.transactionsNeedsAction` (absen ⇒ disembunyikan). Empat antrean lama (Persetujuan Pencairan, Pencairan Bermasalah, Mint Bermasalah, Perbaiki Status Nyangkut) dilebur ke sini, tidak di navigasi; rutenya hidup lewat URL ("Buka di antrean") |
 | **OTC** `/otc` | mint + redeem OTC satu tabel + tanda tangan multisig di panel kanan | `canAccessRequestList` (bukan STAFF). Tombol "Buat mint OTC" / "Buat redeem OTC" → `/mint/new`, `/burn/new`. `/mint`, `/burn`, `/mint/:id`, `/burn/:id` dialihkan ke `/otc`. `/multisig` tetap hidup via URL (halaman tanda tangan lengkap + Propose) |
 | **Nasabah ▸** | Daftar Nasabah `/users` · Verifikasi `/verifikasi` · Daftar Sanksi `/screening` | Verifikasi = KYC perorangan + KYB badan usaha satu tabel; `/kyc`, `/kyb` dialihkan, `/kyc/:id` `/kyb/:id` membuka modal berkas lengkap (PII) di atas Verifikasi |
 | **Keuangan ▸** | Rekening BNI `/bni-accounts` · Laporan `/reports/*` · Cadangan & Atestasi `/transparency` | |
-| **Pengaturan ▸** | Kurs & Biaya `/settings/rate` (tab: Kurs · Biaya · Batas Safe Manager · Kontak Darurat) · Mode Mint · Plafon Pencairan · Staf & Peran `/staff` · Persetujuan Orang Kedua `/persetujuan` · Jejak Audit · Log DurianPay | Mode Mint & Plafon Pencairan terbuka untuk SEMUA peran (rem darurat) |
+| **Pengaturan ▸** | Kurs & Biaya `/settings/rate` (tab: Kurs · Biaya · Batas Safe Manager · Kontak Darurat) · Metode Pembayaran `/settings/payment-methods` (⚠️ DRAF SOT PR #50, Admin ubah / Developer baca) · Mode Mint · Plafon Pencairan · Staf & Peran `/staff` · Persetujuan Orang Kedua `/persetujuan` · Jejak Audit · Log DurianPay | Mode Mint & Plafon Pencairan terbuka untuk SEMUA peran (rem darurat) |
 
 - **Beranda dihapus**: `/dashboard` → `/transactions`; setelah login operator mendarat di Transaksi.
 - **Gerbang peran tidak berubah**: tiap `visibleWhen` sama dengan menu lama, dan gerbang rute tetap di `App.tsx`. Menu bukan satu-satunya gerbang.
@@ -121,7 +121,8 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── verification/  # VerificationPage + VerificationDetailPanel (/verifikasi) — KYC + KYB satu tabel, panel ringkas TANPA membaca PII
 │   │   ├── mint/          # MintFormPage + hooks (/mint/new; daftar lama dialihkan ke /otc)
 │   │   ├── burn/          # BurnFormPage + form/info panel + hooks (/burn/new; daftar lama dialihkan ke /otc)
-│   │   ├── transactions/  # TransactionsListPage + OrderDetailModal (fee/spread/revenue) + hooks — read-only consumer orders: mint (USDX-206) + redeem (USDX-245)
+│   │   ├── transactions/  # TransactionsPage (Transaksi gabungan, SOT PR #50) + TransactionDetailPanel + TransactionActionDialog (dialog antrean asal) + OrderDetailModal + hooks
+│   │   ├── payment-methods/ # PaymentMethodsPage + PaymentMethodDialogs + hooks (/settings/payment-methods, SOT PR #50)
 │   │   ├── redeem-approvals/ # RedeemApprovalsPage + RedeemApprovalControlsCard + ApproveRedeemDialog + RejectRedeemDialog + PayoutDestinationSummary + columnConfig + hooks (USDX-669, /redeem-approvals) — gerbang ops sebelum rupiah redeem keluar + ambang nominal
 │   │   ├── payout-failures/ # PayoutFailuresPage + PayoutFailureDetailModal + ResolvePayoutFailureDialog + ReplacementAccountSelect + SubmissionTrail + ResolutionTrail + filterDefs + hooks (USDX-662, /payout-failures) — antrean Pencairan Bermasalah + resolve per issueKind + pemilih rekening pengganti RESENT (USDX-678)
 │   │   ├── durianpay-api-calls/ # DurianpayApiCallsPage + DurianpayApiCallDetailModal + filterDefs + hooks (/durianpay-api-calls) — Log Panggilan DurianPay, read-only, MANAGER/ADMIN/DEVELOPER; kontraknya dibaca dari branch backend yang belum merge
@@ -155,6 +156,8 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── transparency.ts # exact BigInt-cents money math + WIB day helpers + attestation revoke filter
 │   │   ├── redeemApprovals.ts # USDX-669 — uang IDR eksak (BigInt sen, ejaan id-ID), arah perubahan ambang + gerbang konfirmasi kenaikan, validasi alasan (3..500 dari kontrak), pesan galat manusia per kode lalu per status
 │   │   ├── durianpayApiCalls.ts # Log Panggilan DurianPay — path→kalimat, vonis empat keadaan (2xx yang ditolak di dalam amplop), keterangan responseCode tanpa menebak arti per kasus, tanggal WIB +07:00, pembaca badan terpotong / non-JSON
+│   │   ├── backofficeTransactions.ts # label jenis/tindakan/status Transaksi gabungan + query builder
+│   │   ├── paymentMethods.ts # label, validasi biaya/batas/alasan, isLastOffered (Metode Pembayaran)
 │   │   ├── errorMessages.ts # Peta galat API → kalimat (humanizeError); errorToast.ts = toastError
 │   │   ├── payoutFailures.ts # USDX-662 — aksi sah per issueKind (enum terbuka, fail-closed), buildResolveBody (alasan ≥10, externalRef SETTLED_MANUAL), peta galat code-ATAU-message, ringkasan submission, umur antrean
 │   │   └── utils.ts       # cn() class name utility

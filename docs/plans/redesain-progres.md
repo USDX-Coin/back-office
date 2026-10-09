@@ -1,6 +1,6 @@
 # Redesain back-office fase 1 — SELESAI
 
-Branch `wisnubarata111/back-office-redesain` (lokal, belum di-push, belum PR).
+Branch `wisnubarata111/back-office-redesain` (di-push, belum PR).
 Acuan: mockup PM `scratchpad/mockup-inbox/index.html`, audit `scratchpad/laporan-bo/`.
 
 ## Status: selesai (9 Okt 2026)
@@ -123,3 +123,64 @@ Angka tahap A (9 Okt 2026): `pnpm lint` 0 error (3 peringatan lama) ·
 `pnpm test` 118 berkas / 2368 tes hijau · `pnpm build` hijau ·
 `E2E_PORT=5197 pnpm test:e2e` 137/137 hijau. Screenshot terang 1440 + 390
 (96 berkas) → `scratchpad/redesain-f1b/`.
+
+## Fase 2 (SOT PR #50, ⚠️ DRAF) — SELESAI dengan data tiruan
+
+Kontrak: `USDX-Coin/sot#50` (`api/backoffice-transactions.yaml`,
+`api/payment-methods.yaml`, `queue-counts.yaml`, `bni-integration.md § 4.3.11`).
+Backend belum ada → semua endpoint baru dilayani MSW (`src/mocks/handlers.ts`)
+dan mock e2e (`e2e/support/mock-api.ts`), dan terdaftar di
+`scripts/backend-requirements.json` supaya `pnpm cek:backend` menahan merge.
+
+1. **Transaksi gabungan** (`features/transactions/TransactionsPage.tsx`,
+   menggantikan "User Transaction"): satu daftar MINT/REDEEM/uang masuk tanpa
+   order dari `GET /api/v1/transactions`; dua tarikan `needsAction=true|false`
+   (perlu tindakan di atas, terlama dulu; sisanya berhalaman). Tanpa nomor
+   rekening. Saringan kontrak: jenis, tindakan, pemilik, `q` (≥ 3 huruf).
+   Mint nyangkut = predikat server (2 jam sejak `paid_at`). Klik baris → panel
+   kanan (`TransactionDetailPanel`) — dibangun dari baris list saja, jadi
+   membuka panel tidak membaca PII. Tombol aksi membuka DIALOG ANTREAN ASAL yang
+   sudah ada (`TransactionActionDialog`: setujui/tolak pencairan, kirim
+   ulang/tandai manual/tutup pencairan bermasalah, terima/tolak uang masuk,
+   perbaiki status) — detail antrean baru ditarik saat tombol ditekan.
+   `PAYOUT_STUCK` = "dipantau" tanpa tombol; tindakan tak dikenal tanpa tombol.
+   "Lihat rincian order" membuka modal detail lama (fee/spread/rekening).
+   Badge menu = `queue-counts.transactionsNeedsAction` (kunci absen ⇒ badge
+   disembunyikan, sesuai kontrak).
+2. **Peleburan antrean lama**: strip "Perlu tindakan" (`LegacyQueueLinks`) dan
+   halaman daftar lama dihapus; keempat antrean tidak ada di navigasi mana pun.
+   Rutenya tetap hidup untuk tautan langsung ("Buka di antrean").
+3. **Pengaturan → Metode Pembayaran** (`/settings/payment-methods`, Admin ubah,
+   Developer baca): nyala/mati (alasan wajib; mematikan metode terakhir yang
+   ditawarkan minta centang konfirmasi — M8), ubah biaya `FLAT_IDR`/`PERCENT` +
+   batas per transaksi (Transfer BNI wajib, ≤ Rp 10 juta), ubah urutan (naik/
+   turun, simpan sekali `PUT`), jejak perubahan dari `activity-logs`
+   `resourceType=PAYMENT_METHOD` (Admin). Pengaman Transfer BNI: 409
+   `PAYMENT_METHOD_PREREQUISITE_UNMET` tampil di dialog dalam kalimat biasa;
+   mock meniru production yang belum menyatakan prasyarat D23.
+
+Angka fase 2: `pnpm lint` 0 error (3 peringatan lama) · `pnpm test` 118 berkas /
+2344 tes hijau (tes layar lama ikut terhapus bersama layarnya) · `pnpm build`
+hijau · `E2E_PORT=5197 pnpm test:e2e` 121/121 hijau (spec USDX-206/245/547 milik
+layar lama diganti `usdx-transaksi-gabungan.spec.ts`). Screenshot terang 1440 +
+390 (108 berkas) → `scratchpad/redesain-f2/`.
+
+### Pertanyaan terbuka untuk PM (SOT diam / bertentangan)
+
+1. **Menu antrean lama**: SOT week2.md bilang keempat menu antrean lama "tetap
+   ada di rilis ini; menyembunyikannya keputusan terpisah", sedangkan arahan PM
+   sesi ini "dilebur lalu dihapus dari navigasi". Dikerjakan sesuai arahan PM
+   (rute tetap hidup lewat URL). Perlu SOT disamakan.
+2. **Jejak `PAYMENT_METHOD_REORDERED`**: kontrak tidak menyebut `resource_type`
+   untuk baris urutan (hanya untuk UPDATED = `PAYMENT_METHOD`). Layar menyaring
+   `resourceType=PAYMENT_METHOD`; kalau backend memakai nilai lain, perubahan
+   urutan tidak muncul di jejak.
+3. **Form Biaya** masih menampilkan PG fee VA/QRIS: SOT bilang dikeluarkan, tapi
+   backend dev masih mewajibkannya di `POST /fee-config`. Tidak diubah sampai
+   backend payment-methods naik (menghapusnya duluan membuat simpan biaya gagal).
+4. **Detail baris uang masuk** (`INCOMING_UNMATCHED`): kontrak menunjuk
+   `GET /api/v1/held-credits/{id}`; panel memakai data list + dialog resolve
+   (yang menarik detail itu). Belum ada "rincian lengkap" terpisah untuk baris
+   ini — konfirmasi apakah perlu.
+5. **Kolom Partner**: list kontrak hanya membawa `partnerCode`, bukan nama
+   tampilan partner seperti layar lama (USDX-547). Layar menampilkan kodenya.

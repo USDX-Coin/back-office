@@ -98,7 +98,9 @@ export default function TransactionsPage() {
     {
       id: 'occurredAt',
       header: 'Tanggal',
-      className: 'hidden w-28 md:table-cell',
+      // Disembunyikan < 2xl: dengan panel kanan terbuka di 1440 kolom Status
+      // terpotong. Tanggal tetap ada di panel ("Dibuat").
+      className: 'hidden w-28 2xl:table-cell',
       cell: (r) => <span className="tabular-nums text-muted-foreground">{formatShortDate(r.occurredAt)}</span>,
     },
     {
@@ -128,7 +130,7 @@ export default function TransactionsPage() {
       // USDX-547: kolom Partner KOSONG untuk retail — bukan "—" (terbaca "gagal dimuat").
       id: 'partner',
       header: 'Partner',
-      className: 'hidden w-28 lg:table-cell',
+      className: 'hidden w-28 2xl:table-cell',
       cell: (r) => <span className="font-mono text-xs text-muted-foreground">{r.partnerCode ?? ''}</span>,
     },
     {
@@ -140,7 +142,7 @@ export default function TransactionsPage() {
         <div className="flex flex-col items-end leading-tight">
           {r.amountIdr && <span className="font-semibold tabular-nums">{formatIdrExact(r.amountIdr)}</span>}
           {r.amountUsdx && (
-            <span className="text-xs tabular-nums text-muted-foreground">{formatUsdxExact(r.amountUsdx)} USDX</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{formatUsdxExact(r.amountUsdx)}</span>
           )}
           {!r.amountIdr && !r.amountUsdx && <span className="text-muted-foreground">—</span>}
         </div>
@@ -182,7 +184,7 @@ export default function TransactionsPage() {
           onChange: (next) => update({ q: next.trim() || null, page: null }),
         }}
         extra={
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Select value={kind || SEMUA} onValueChange={(v) => update({ jenis: v === SEMUA ? null : v, page: null })}>
               <SelectTrigger aria-label="Jenis" className="h-9 w-full sm:w-[150px]">
                 <SelectValue />
@@ -236,7 +238,7 @@ export default function TransactionsPage() {
         }
         selectedKey={selectedId ?? null}
         onSelect={select}
-        minWidth={760}
+        minWidth={640}
         groups={[
           {
             key: 'action',

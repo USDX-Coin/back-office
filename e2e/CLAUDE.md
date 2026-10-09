@@ -23,6 +23,7 @@ success UX, list refresh — without the side effects.
 | 6 | Verifikasi (USDX-154/155 + fase 1): menu Nasabah ▸ Verifikasi + badge → tabel menunggu terlama dulu → panel ringkas → "Periksa berkas" → modal lengkap (PII + foto) → setujui / tolak → riwayat keputusan | `usdx-155-kyc.spec.ts` |
 | 7 | User activation (USDX-156): list filter + badges → detail resend (confirm, cooldown, 409/429) → create form phone + no password | `usdx-156-users-activation.spec.ts` |
 | 8 | Pencairan Bermasalah (USDX-662): badge di menu Transaksi + tautan "Perlu tindakan" → antrean → detail → resolve `SETTLED_MANUAL` (body request diperiksa) → jejak resolusi → baris hilang; 409 `ALREADY_RESOLVED` dijelaskan di dialog; `BURN_REJECTED` tanpa kirim ulang | `usdx-662-payout-failures.spec.ts` |
+| 10 | Transaksi gabungan (fase 2, SOT PR #50): perlu tindakan di atas + badge `transactionsNeedsAction` → panel → aksi antrean asal (resolve pencairan bermasalah) → badge turun; rincian order dari panel; tanpa nomor rekening di list; saringan Pemilik; antrean lama tetap via URL | `usdx-transaksi-gabungan.spec.ts` |
 | 9 | Badge antrean + rekening pengganti (USDX-678): badge menu Transaksi (`nav-badge-transactions`, jumlah antrean lama) dari `GET /api/v1/queue-counts` tanpa request list `take=1` → detail → Kirim ulang ke rekening tersimpan lain (body membawa `bankAccountId`) → badge turun; 409 `BANK_ACCOUNT_NOT_OWNED` di dialog; hitungan nol tanpa badge | `usdx-678-queue-counts-replacement-account.spec.ts` |
 
 Each spec has `positive` / `negative` / `edge cases` describe blocks.

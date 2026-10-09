@@ -53,7 +53,7 @@ export default function TransactionDetailPanel({
   if (row.kind !== 'INCOMING_UNMATCHED' && row.customerName && row.userEmail) facts.push(['Email', row.userEmail])
   if (row.partnerCode) facts.push(['Partner', row.partnerCode])
   if (row.orderNumber) facts.push(['No. order', <span className="font-mono text-xs">{row.orderNumber}</span>])
-  if (row.amountUsdx) facts.push(['Nominal USDX', `${formatUsdxExact(row.amountUsdx)} USDX`])
+  if (row.amountUsdx) facts.push(['Nominal USDX', formatUsdxExact(row.amountUsdx)])
   if (row.amountIdr)
     facts.push([
       row.kind === 'MINT' ? 'Total bayar' : row.kind === 'REDEEM' ? 'Diterima nasabah' : 'Uang masuk',
@@ -70,8 +70,8 @@ export default function TransactionDetailPanel({
         kind={transactionKindLabel(row.kind)}
         status={status}
         title={transactionPartyName(row)}
-        amount={row.amountIdr ? formatIdrExact(row.amountIdr) : row.amountUsdx ? `${formatUsdxExact(row.amountUsdx)} USDX` : undefined}
-        amountSub={row.amountIdr && row.amountUsdx ? `${formatUsdxExact(row.amountUsdx)} USDX` : undefined}
+        amount={row.amountIdr ? formatIdrExact(row.amountIdr) : row.amountUsdx ? formatUsdxExact(row.amountUsdx) : undefined}
+        amountSub={row.amountIdr && row.amountUsdx ? formatUsdxExact(row.amountUsdx) : undefined}
         todo={
           primaryAction
             ? {
