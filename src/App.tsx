@@ -41,6 +41,7 @@ import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
+import PaymentMethodsPage from '@/features/payment-methods/PaymentMethodsPage'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
 import DurianpayApiCallsPage from '@/features/durianpay-api-calls/DurianpayApiCallsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
@@ -253,6 +254,8 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER']} />,
             children: [
               { path: '/transparency', element: <TransparencyPage /> },
+              // ⚠️ DRAF SOT PR #50 — GET Admin + Developer (read-only), ubah Admin.
+              { path: '/settings/payment-methods', element: <PaymentMethodsPage /> },
             ],
           },
           {

@@ -127,6 +127,7 @@ export const NAV: NavEntry[] = [
         visibleWhen: canManageSettings,
         match: ['/settings/rate', '/settings/fee', '/settings/threshold', '/settings/oncall'],
       },
+      { to: '/settings/payment-methods', label: 'Metode Pembayaran', visibleWhen: canManageSettings },
       { to: '/settings/mint-mode', label: 'Mode Mint' },
       { to: '/plafon-pencairan', label: 'Plafon Pencairan' },
       { to: '/staff', label: 'Staf & Peran', visibleWhen: canManageStaff },

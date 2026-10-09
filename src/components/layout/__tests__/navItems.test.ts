@@ -63,6 +63,7 @@ describe('NAV — lima menu utama', () => {
       expect(itemsIn(ADMIN, 'Keuangan')).toEqual(['Rekening BNI', 'Laporan', 'Cadangan & Atestasi'])
       expect(itemsIn(ADMIN, 'Pengaturan')).toEqual([
         'Kurs & Biaya',
+        'Metode Pembayaran',
         'Mode Mint',
         'Plafon Pencairan',
         'Staf & Peran',
