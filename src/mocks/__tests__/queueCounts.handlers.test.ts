@@ -37,7 +37,7 @@ async function listTotal(path: string): Promise<number> {
 
 describe('GET /api/v1/queue-counts', () => {
   describe('positive', () => {
-    test('returns all four open-queue counts equal to each list metadata.total', async () => {
+    test('returns every open-queue count equal to its list total', async () => {
       const { status, body } = await counts()
       expect(status).toBe(200)
       expect(body.data).toEqual({
@@ -45,6 +45,9 @@ describe('GET /api/v1/queue-counts', () => {
         redeemApprovalsOpen: await listTotal('/api/v1/redeem-approvals'),
         heldCreditsOpen: await listTotal('/api/v1/held-credits'),
         approvalsOpen: await listTotal('/api/v1/approvals?status=PENDING'),
+        transactionsNeedsAction: (
+          (await (await fetch('/api/v1/transactions?take=1')).json()) as { metadata: { needsActionTotal: number } }
+        ).metadata.needsActionTotal,
       })
       expect(body.data.payoutFailuresOpen).toBeGreaterThan(0)
       expect(body.data.redeemApprovalsOpen).toBeGreaterThan(0)
@@ -52,13 +55,14 @@ describe('GET /api/v1/queue-counts', () => {
       expect(body.data.approvalsOpen).toBeGreaterThan(0)
     })
 
-    test('carries no PII — only the four integer counts', async () => {
+    test('carries no PII — only integer counts', async () => {
       const { body } = await counts()
       expect(Object.keys(body.data).sort()).toEqual([
         'approvalsOpen',
         'heldCreditsOpen',
         'payoutFailuresOpen',
         'redeemApprovalsOpen',
+        'transactionsNeedsAction',
       ])
       for (const n of Object.values(body.data)) expect(Number.isInteger(n)).toBe(true)
     })

@@ -51,7 +51,7 @@ describe('MobileNavDrawer', () => {
           HttpResponse.json({
             status: 'success',
             metadata: null,
-            data: { redeemApprovalsOpen: 2, payoutFailuresOpen: 1, heldCreditsOpen: 0, approvalsOpen: 0 },
+            data: { redeemApprovalsOpen: 2, payoutFailuresOpen: 1, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 3 },
           }),
         ),
       )

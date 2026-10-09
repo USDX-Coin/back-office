@@ -58,11 +58,12 @@ export function useNavBadges(): (key?: BadgeKey) => BadgeValue {
   return (key) => {
     switch (key) {
       case 'transactions':
-        return sumBadges([
-          fromCounts((c) => c.redeemApprovalsOpen),
-          fromCounts((c) => c.payoutFailuresOpen),
-          fromCounts((c) => c.heldCreditsOpen),
-        ])
+        // ⚠️ DRAF SOT PR #50: badge = `transactionsNeedsAction` (per baris, tidak
+        // dijumlah dari antrean lain). Kunci absen ⇒ badge disembunyikan (kontrak).
+        if (queueCounts.isError) return { count: 0, unknown: true }
+        return typeof queueCounts.data?.transactionsNeedsAction === 'number'
+          ? { count: queueCounts.data.transactionsNeedsAction, unknown: false }
+          : EMPTY_BADGE
       case 'otc':
         return canSeeOtc ? fromQuery(otc) : EMPTY_BADGE
       case 'verification':

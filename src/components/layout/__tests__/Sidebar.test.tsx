@@ -83,11 +83,11 @@ describe('Sidebar (redesain fase 1)', () => {
       expect(screen.getByRole('button', { name: /^Keuangan/ })).toHaveAttribute('aria-expanded', 'true')
     })
 
-    test('should sum the three hidden money queues on Transaksi from ONE queue-counts request', async () => {
+    test('should show transactionsNeedsAction on Transaksi from ONE queue-counts request (not a sum of queues)', async () => {
       const calls = recordRequests()
-      server.use(queueCounts({ redeemApprovalsOpen: 12, payoutFailuresOpen: 5, heldCreditsOpen: 3, approvalsOpen: 2 }))
+      server.use(queueCounts({ redeemApprovalsOpen: 12, payoutFailuresOpen: 5, heldCreditsOpen: 3, approvalsOpen: 2, transactionsNeedsAction: 17 }))
       renderSidebar()
-      expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('20')
+      expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('17')
       expect(calls.filter((c) => c.startsWith('/api/v1/queue-counts'))).toEqual(['/api/v1/queue-counts'])
       // Never the PII-decrypting lists for a count.
       expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
@@ -119,7 +119,7 @@ describe('Sidebar (redesain fase 1)', () => {
   describe('negative', () => {
     test('should not render OTC — nor fire its count query — for STAFF', async () => {
       const calls = recordRequests()
-      server.use(queueCounts({ redeemApprovalsOpen: 1, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0 }))
+      server.use(queueCounts({ redeemApprovalsOpen: 1, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 1 }))
       renderSidebar('/transactions', STAFF)
       await screen.findByTestId('nav-badge-transactions')
       expect(screen.queryByRole('link', { name: /^OTC/ })).not.toBeInTheDocument()
@@ -151,17 +151,17 @@ describe('Sidebar (redesain fase 1)', () => {
   })
 
   describe('edge cases', () => {
-    test('a key the backend does not send yet is "partly unread", not zero', async () => {
-      // `heldCreditsOpen` absent — persis backend lama yang hanya mengirim dua kunci.
-      server.use(queueCounts({ redeemApprovalsOpen: 4, payoutFailuresOpen: 3 }))
+    test('transactionsNeedsAction absent (backend before SOT PR #50) hides the Transaksi badge', async () => {
+      // Kontrak queue-counts.yaml: kunci opsional selama DRAF — "FE sembunyikan badge bila absen".
+      server.use(queueCounts({ redeemApprovalsOpen: 4, payoutFailuresOpen: 3, heldCreditsOpen: 1, approvalsOpen: 0 }))
       renderSidebar()
-      const badge = await screen.findByTestId('nav-badge-transactions')
-      expect(badge).toHaveTextContent('7+')
-      expect(badge).toHaveAccessibleName('7 menunggu diproses, sebagian antrean belum terbaca')
+      await new Promise((r) => setTimeout(r, 100))
+      expect(screen.queryByTestId('nav-badge-transactions')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-transactions-galat')).not.toBeInTheDocument()
     })
 
     test('caps a large count at 99+', async () => {
-      server.use(queueCounts({ redeemApprovalsOpen: 150, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0 }))
+      server.use(queueCounts({ redeemApprovalsOpen: 150, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 150 }))
       renderSidebar()
       expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('99+')
     })

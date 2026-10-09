@@ -12,9 +12,8 @@ import type { Staff, StaffRole } from '@/lib/types'
 /**
  * Kunci angka antrean di menu. Angkanya dihitung `useNavBadges`.
  *
- *   transactions — sementara (fase 1) JUMLAH tiga antrean lama yang menunya
- *                  disembunyikan: Persetujuan Pencairan + Pencairan Bermasalah +
- *                  Mint Bermasalah. Fase 2 meleburnya ke tabel Transaksi.
+ *   transactions — `queue-counts.transactionsNeedsAction` (fase 2, ⚠️ DRAF SOT
+ *                  PR #50): baris Transaksi yang perlu tindakan.
  *   otc          — permintaan OTC berstatus PENDING_APPROVAL / APPROVED
  *   verification — berkas KYC + KYB yang menunggu diperiksa
  *   screening    — temuan daftar sanksi yang masih menahan subjeknya
