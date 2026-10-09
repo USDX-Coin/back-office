@@ -65,7 +65,7 @@ export default function DetailPanel({
   return (
     <section
       aria-label={label}
-      className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-card"
+      className="flex min-h-0 flex-col rounded-md border border-border bg-card xl:overflow-hidden"
       onKeyDown={(e) => {
         // Esc menutup panel, kecuali sedang ada menu/konfirmasi terbuka yang
         // menangani Esc-nya sendiri (mereka memanggil stopPropagation).
@@ -125,7 +125,10 @@ export default function DetailPanel({
 
         {children}
       </div>
-      {actions}
+      {/* Ponsel/tablet: panel ikut menggulir bersama halaman, jadi bilah tombol
+          menempel di bawah layar — tombol utamanya tidak perlu dicari dengan
+          menggulir ke ujung. ≥ xl panel menggulir sendiri, bilahnya statis. */}
+      {actions && <div className="sticky bottom-0 z-10 rounded-b-md bg-card xl:static">{actions}</div>}
     </section>
   )
 }

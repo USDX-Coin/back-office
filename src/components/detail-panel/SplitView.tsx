@@ -22,7 +22,11 @@ export default function SplitView({ list, panel }: { list: ReactNode; panel: Rea
     >
       <div className={cn('min-w-0', open && 'hidden xl:block')}>{list}</div>
       {open && (
-        <div className="min-w-0 xl:sticky xl:top-0 xl:h-[calc(100dvh-8rem)] xl:self-start">
+        // Tinggi panel MENGIKUTI isinya, dibatasi tinggi layar dikurangi
+        // bilah atas + judul halaman (≈12rem). Dulu `h-[100dvh-8rem]` tetap:
+        // panel mulai di bawah judul halaman, jadi bilah tombolnya jatuh di
+        // luar layar sebelum halaman digulir (screenshot 1440×900).
+        <div className="min-w-0 xl:sticky xl:top-0 xl:flex xl:max-h-[calc(100dvh-12rem)] xl:flex-col xl:self-start">
           {panel}
         </div>
       )}
