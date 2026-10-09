@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
-import { ApiError } from '@/lib/apiFetch'
+import { toastErrorMessage } from '@/lib/errorToast'
 import type { ReportFilter, ReportKind } from '@/lib/types'
 import type { ReportFilterDraft } from './ReportFiltersToolbar'
 import { defaultReportDateRange } from './dateRange'
@@ -47,13 +46,8 @@ export function useReportPageState(kind: ReportKind): ReportPageState {
     try {
       await exportCsv.mutateAsync(filter)
     } catch (err) {
-      // Galat server → kalimat Indonesia DAN kodenya dalam kurung; kode itu yang
-      // dikutip operator saat melapor (pola `unknownStatusLabel()` di `lib/status.ts`).
-      const message =
-        err instanceof ApiError
-          ? `CSV gagal diunduh: ${err.message} (${err.code})`
-          : 'CSV gagal diunduh. Periksa koneksi lalu coba lagi.'
-      toast.error(message)
+      // Kalimat dari peta galat terpusat; kode server ikut sebagai "Detail teknis".
+      toastErrorMessage('CSV gagal diunduh. Coba lagi sebentar lagi.', err)
     }
   }
 

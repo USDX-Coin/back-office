@@ -42,6 +42,7 @@ import {
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import { cn } from '@/lib/utils'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
@@ -207,6 +208,21 @@ export default function DataTable<T>({
     setSearchParams(new URLSearchParams())
   }
 
+  // Ponsel (< sm): baris jadi kartu — kolom pertama sebagai judul, sisanya
+  // pasangan label–nilai — supaya tabel lama (Transaksi, Staf, Jejak Audit, …)
+  // terbaca tanpa digeser ke samping. Keadaan memuat/kosong/galat tetap
+  // memakai tabel (satu sel selebar wadah, sudah muat di ponsel).
+  const ponsel = useMediaQuery('(max-width: 639px)')
+  const kartuPonsel = ponsel && !isLoading && !isError && table.getRowModel().rows.length > 0
+  function labelKolom(columnId: string) {
+    const header = table.getFlatHeaders().find((h) => h.column.id === columnId)
+    if (!header) return null
+    const def = header.column.columnDef.header
+    if (typeof def === 'string') return def
+    if (!def) return null
+    return flexRender(def, header.getContext())
+  }
+
   const derivedHasFilters = Boolean(search || status || startDate || endDate)
   const hasFilters = hasFiltersProp ?? derivedHasFilters
 
@@ -280,6 +296,60 @@ export default function DataTable<T>({
         </div>
       )}
 
+      {kartuPonsel ? (
+        <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-card" aria-label="Daftar">
+          {table.getRowModel().rows.map((row) => {
+            const clickable = Boolean(onRowClick)
+            const [utama, ...lain] = row.getVisibleCells()
+            return (
+              <li
+                key={row.id}
+                data-hoverable=""
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                aria-label={clickable && rowAriaLabel ? rowAriaLabel(row.original) : undefined}
+                onClick={clickable ? () => onRowClick!(row.original) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onRowClick!(row.original)
+                        }
+                      }
+                    : undefined
+                }
+                className={cn(
+                  'px-4 py-3',
+                  clickable && 'cursor-pointer active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55',
+                  rowClassName?.(row.original),
+                )}
+              >
+                {utama && (
+                  <div className="min-w-0 text-sm font-medium text-foreground">
+                    {flexRender(utama.column.columnDef.cell, utama.getContext())}
+                  </div>
+                )}
+                {lain.length > 0 && (
+                  <dl className="mt-2 space-y-1.5">
+                    {lain.map((cell) => {
+                      const label = labelKolom(cell.column.id)
+                      return (
+                        <div key={cell.id} className="flex min-w-0 items-baseline justify-between gap-3 text-sm" data-col={cell.column.id}>
+                          {label ? <dt className="shrink-0 text-xs text-muted-foreground">{label}</dt> : <dt className="sr-only">—</dt>}
+                          <dd className="min-w-0 text-right [&>*]:justify-end">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
       <div className="relative overflow-hidden rounded-md bg-card">
         <Table fixedLayout={adaBaris} minWidth={lebarMinimum}>
           {adaBaris && <TableColgroup widths={lebarKolom} />}
@@ -406,6 +476,7 @@ export default function DataTable<T>({
           </TableBody>
         </Table>
       </div>
+      )}
 
       <div className="flex items-center justify-between">
         <p className="font-mono text-2xs text-muted-foreground tabular-nums">

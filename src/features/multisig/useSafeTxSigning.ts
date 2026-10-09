@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { toastError } from '@/lib/errorToast'
 import { useAuth } from '@/lib/auth'
 import { ApiError } from '@/lib/apiFetch'
 import {
@@ -142,15 +143,10 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
       await confirmMutation.mutateAsync({ signerAddress: wallet.address, signature })
       toast.success('Tanda tangan terkirim')
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Tanda tangan ditolak di wallet'
-              : err.message
-            : 'Gagal menandatangani'
-      toast.error(msg)
+      // Galat API → kalimat dari peta galat terpusat, kodenya di keterangan.
+      if (err instanceof ApiError) toastError(err, 'Gagal menandatangani')
+      else if (err instanceof Error && /reject|denied|User rejected/i.test(err.message)) toast.error('Tanda tangan ditolak di wallet')
+      else toastError(err, 'Gagal menandatangani')
     }
   }
 
@@ -161,15 +157,10 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
       await executeMutation.mutateAsync({ execTxHash })
       toast.success('Eksekusi dikirim ke jaringan — menunggu konfirmasi on-chain')
     } catch (err) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? /reject|denied|User rejected/i.test(err.message)
-              ? 'Transaksi ditolak di wallet'
-              : err.message
-            : 'Gagal mengeksekusi'
-      toast.error(msg)
+      // Galat API → kalimat dari peta galat terpusat, kodenya di keterangan.
+      if (err instanceof ApiError) toastError(err, 'Gagal mengeksekusi')
+      else if (err instanceof Error && /reject|denied|User rejected/i.test(err.message)) toast.error('Transaksi ditolak di wallet')
+      else toastError(err, 'Gagal mengeksekusi')
     }
   }
 
@@ -180,7 +171,7 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
       toast.success('Transaksi dibatalkan')
       setCancelOpen(false)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Gagal membatalkan transaksi')
+      toastError(err, 'Gagal membatalkan transaksi')
     }
   }
 
