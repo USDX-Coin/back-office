@@ -38,7 +38,7 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       // USDX-156 AC: no password field in the DOM; the modal explains the
       // activation email instead.
       await expect(page.getByLabel(/kata sandi/i)).toHaveCount(0)
-      await expect(page.getByText(/email aktivasi/i)).toBeVisible()
+      await expect(page.getByRole('dialog').getByText(/email aktivasi/i)).toBeVisible()
       await page.getByLabel(/^nama$/i).fill(name)
       await page.getByLabel(/^email$/i).fill(uniqueEmail())
       await page.getByRole('button', { name: /^buat nasabah$/i }).click()

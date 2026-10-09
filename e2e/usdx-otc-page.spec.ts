@@ -59,7 +59,7 @@ test.describe('OTC page @e2e', () => {
       await expect(page).toHaveURL(/\/otc\/req_mint_pending/)
       const panel = page.getByRole('region', { name: 'Detail permintaan OTC' })
       await expect(panel.getByText('Yang perlu kamu lakukan')).toBeVisible()
-      await expect(panel.getByText('Marcus Thorne')).toBeVisible()
+      await expect(panel.getByText('Marcus Thorne', { exact: true })).toBeVisible()
       // No wallet in the test browser → the one action is to connect it.
       await expect(panel.getByRole('button', { name: 'Hubungkan wallet' })).toBeVisible()
       await expect(panel.getByRole('button', { name: /lainnya/i })).toBeVisible()
