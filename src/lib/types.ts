@@ -3117,6 +3117,112 @@ export interface QueueCounts {
   //                     begitu ops membukanya.
   heldCreditsOpen: number
   approvalsOpen: number
+  /**
+   * ⚠️ DRAF SOT PR #50 (`queue-counts.yaml`, aditif) — badge menu Transaksi =
+   * `metadata.needsActionTotal` `GET /api/v1/transactions` tanpa filter.
+   * Dihitung per BARIS, bukan jumlah antrean lain. Opsional selama DRAF: kunci
+   * yang absen ⇒ badge disembunyikan (kontrak), bukan "belum terbaca".
+   */
+  transactionsNeedsAction?: number
+}
+
+// ─── Transaksi gabungan back-office (⚠️ DRAF SOT PR #50, `backoffice-transactions.yaml`) ───
+// `GET /api/v1/transactions`. Ketiga enum TERBUKA — FE wajib punya cabang default.
+
+export type BackofficeTransactionKind = 'MINT' | 'REDEEM' | 'INCOMING_UNMATCHED'
+/** Urutan enum = urutan prioritas. */
+export type BackofficeActionType = 'PAYOUT_FAILURE' | 'REDEEM_APPROVAL' | 'HELD_CREDIT' | 'MANUAL_SYNC'
+export type BackofficeQueue = 'PAYOUT_FAILURES' | 'REDEEM_APPROVALS' | 'HELD_CREDITS' | 'MANUAL_SYNC'
+
+export interface BackofficeTransactionAction {
+  actionType: BackofficeActionType | (string & {})
+  queue: BackofficeQueue | (string & {})
+  /** `{id}` di path antrean asal — id kredit untuk HELD_CREDITS, id order untuk lainnya. */
+  refId: string
+  since: string
+  /** Hanya HELD_CREDIT — `match_reason` kredit (mis. LATE_PAYMENT). */
+  heldReason?: string | null
+  /** Hanya PAYOUT_FAILURE — PAYOUT_STUCK read-only ("dipantau"). */
+  payoutIssueKind?: string | null
+}
+
+export interface BackofficeTransactionItem {
+  /** MINT/REDEEM: id order. INCOMING_UNMATCHED: id kredit. */
+  id: string
+  kind: BackofficeTransactionKind | (string & {})
+  occurredAt: string
+  orderNumber?: string | null
+  customerName?: string | null
+  /** Ter-mask untuk non-ADMIN; `(partner customer)` untuk order tanpa baris users. */
+  userEmail?: string | null
+  partnerCode?: string | null
+  /** Hanya INCOMING_UNMATCHED — nama pengirim dari notif bank. */
+  senderName?: string | null
+  amountUsdx?: string | null
+  /** MINT = total_pay_idr; REDEEM = net_payout_idr; uang masuk = nominal masuk. */
+  amountIdr?: string | null
+  /** MintOrderStatus / RedeemStatus / HELD. */
+  status: string
+  needsAction: boolean
+  actionType?: BackofficeActionType | (string & {}) | null
+  actionSince?: string | null
+  actions: BackofficeTransactionAction[]
+}
+
+export interface BackofficeTransactionsMetadata {
+  page: number
+  limit: number
+  total: number
+  needsActionTotal?: number
+}
+
+// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// `GET /api/v1/payment-methods` (Admin/Developer), `PATCH /api/v1/payment-methods/{id}`
+// dan `PUT /api/v1/payment-method-order` (Admin saja). Enum terbuka.
+
+export type PaymentProvider = 'MOCK' | 'BNI' | 'DURIANPAY_SNAP'
+export type PaymentFeeType = 'FLAT_IDR' | 'PERCENT'
+export type PaymentMethodUnavailableReason =
+  | 'PROVIDER_NOT_CONFIGURED'
+  | 'NOT_SUPPORTED_BY_ADAPTER'
+  | 'BNI_BUY_RATE_MISSING'
+  | 'BNI_PREREQUISITE_UNVERIFIED'
+
+export interface PaymentMethod {
+  id: string
+  /** `<CHANNEL>_<BANK>_<PROVIDER>` — kunci stabil, bukan label layar. */
+  code: string
+  channel: string
+  bank?: string | null
+  provider: PaymentProvider | (string & {})
+  enabled: boolean
+  sortOrder: number
+  feeType: PaymentFeeType | (string & {})
+  /** Desimal string: FLAT_IDR rupiah 2 desimal; PERCENT 0–100 maks 4 desimal. */
+  feeValue: string
+  /** Ditawarkan ke nasabah ⟺ `enabled && available`. */
+  available: boolean
+  unavailableReason?: PaymentMethodUnavailableReason | (string & {}) | null
+  /** null = tanpa batas. */
+  maxAmountIdr?: string | null
+  updatedBy?: string | null
+  updatedByName?: string | null
+  updatedAt: string
+}
+
+export interface UpdatePaymentMethodBody {
+  enabled?: boolean
+  sortOrder?: number
+  feeType?: PaymentFeeType
+  feeValue?: string
+  maxAmountIdr?: string | null
+  reason: string
+  expectedUpdatedAt?: string
+}
+
+export interface ReorderPaymentMethodsBody {
+  orderedIds: string[]
+  reason: string
 }
 
 // ─── Log Panggilan DurianPay (backend `src/modules/durianpay-api-calls/`) ────

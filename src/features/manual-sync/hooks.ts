@@ -117,6 +117,8 @@ export function useExecuteSync(id: string | null) {
     qc.invalidateQueries({ queryKey: ['burn'] })
     qc.invalidateQueries({ queryKey: ['requests'] })
     qc.invalidateQueries({ queryKey: ['orders'] })
+    qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
+    qc.invalidateQueries({ queryKey: ['queue-counts'] })
   }
   return useMutation({
     mutationFn: (body: ManualSyncTxHashBody) => postExecute(id as string, body),

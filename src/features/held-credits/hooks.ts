@@ -163,6 +163,7 @@ function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: strin
   qc.invalidateQueries({ queryKey: ['held-credits', 'detail', id] })
   // Order yang sama dirender layar Transaksi Nasabah.
   qc.invalidateQueries({ queryKey: ['orders'] })
+  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
   // Kredit di atas ambang melahirkan usulan — antrean persetujuan ikut berubah.
   qc.invalidateQueries({ queryKey: APPROVALS_LIST_KEY })
   // Badge sidebar — DUA angka sekaligus berubah di sini (`heldCreditsOpen` dan,

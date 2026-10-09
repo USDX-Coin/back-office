@@ -1,6 +1,7 @@
 import type { ActivityLogEntry } from '@/features/activity-log/types'
 import type { ApprovalRequest } from '@/features/approvals/types'
 import type { HeldCreditDetail } from '@/features/held-credits/types'
+import type { PaymentMethod } from '@/lib/types'
 import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import type {
   AmountCurrency,
@@ -3481,4 +3482,28 @@ export function createInitialPayoutControlChanges(): PayoutControlChange[] {
       ipAddress: '10.20.30.41',
     },
   ]
+}
+
+// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// Seed persis tabel `bni-integration.md § 4.3.11` (biaya = `pg_fee_va_flat`
+// 4000 / `pg_fee_qris_pct` 0.7 dari fee config tiruan). Tiruan ini meniru
+// PRODUCTION: DurianPay SNAP terpasang (barisnya tersedia), baris MOCK tidak
+// (`PROVIDER_NOT_CONFIGURED`), dan prasyarat D23 Transfer BNI BELUM dinyatakan
+// terpenuhi (`BNI_PREREQUISITE_UNVERIFIED`; menyalakannya → 409).
+export function createInitialPaymentMethods(): PaymentMethod[] {
+  const seedAt = '2026-10-09T03:00:00.000Z'
+  const id = (n: number) => `019e5c10-0000-7000-8000-${String(n).padStart(12, '0')}`
+  const rows: PaymentMethod[] = [
+    { id: id(2), code: 'VA_NOBU_DURIANPAY_SNAP', channel: 'VA', bank: 'NOBU', provider: 'DURIANPAY_SNAP', enabled: true, sortOrder: 10, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(1), code: 'BANK_TRANSFER_BNI_BNI', channel: 'BANK_TRANSFER', bank: 'BNI', provider: 'BNI', enabled: false, sortOrder: 20, feeType: 'FLAT_IDR', feeValue: '0.00', available: false, unavailableReason: 'BNI_PREREQUISITE_UNVERIFIED', maxAmountIdr: '10000000.00', updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(3), code: 'VA_BNI_DURIANPAY_SNAP', channel: 'VA', bank: 'BNI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 30, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(4), code: 'VA_MANDIRI_DURIANPAY_SNAP', channel: 'VA', bank: 'MANDIRI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 40, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(5), code: 'VA_BRI_DURIANPAY_SNAP', channel: 'VA', bank: 'BRI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 50, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+  ]
+  const vaBanks = ['BCA', 'BNI', 'BRI', 'CIMB', 'DANAMON', 'INA', 'MANDIRI', 'PERMATA', 'MAYBANK', 'NOBU']
+  vaBanks.forEach((bank, i) => {
+    rows.push({ id: id(10 + i), code: `VA_${bank}_MOCK`, channel: 'VA', bank, provider: 'MOCK', enabled: true, sortOrder: 100 + i * 10, feeType: 'FLAT_IDR', feeValue: '4000.00', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
+  })
+  rows.push({ id: id(30), code: 'QRIS_MOCK', channel: 'QRIS', bank: null, provider: 'MOCK', enabled: true, sortOrder: 200, feeType: 'PERCENT', feeValue: '0.7000', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
+  return rows
 }

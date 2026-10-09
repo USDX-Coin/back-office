@@ -44,6 +44,18 @@
       "butuhBranch": "wisnubarata111/be-tutup-lubang-jejak-dan-plafon",
       "probe": false,
       "keterangan": "Layar Persetujuan Orang Kedua menawarkan actionType `PAYOUT_CONTROLS_LIMITS`, sementara `approvalActionTypeEnum` di origin/dev hanya punya `PAYOUT_CONTROLS_RELEASE` dan `HELD_CREDIT_RESOLVE`. `@IsEnum` menjawab 400, jadi antrean maker-checker jadi error state untuk opsi yang UI-nya sendiri tawarkan. TIDAK BISA DIPROBE: yang kurang nilai enum, bukan endpoint. Konfirmasi manual bahwa branch di atas sudah naik."
+    },
+    {
+      "rute": "/transactions — Transaksi gabungan",
+      "path": "/api/v1/transactions",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Tabel Transaksi gabungan (⚠️ DRAF SOT PR #50, backoffice-transactions.yaml). Tanpa endpoint ini menu Transaksi kosong dengan galat."
+    },
+    {
+      "rute": "/settings/payment-methods — Metode Pembayaran",
+      "path": "/api/v1/payment-methods",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Pengaturan metode pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml). PATCH /payment-methods/{id} dan PUT /payment-method-order ikut modul yang sama."
     }
   ],
   "opsional": [
@@ -52,6 +64,13 @@
       "path": "/api/v1/queue-counts",
       "butuhBranch": "wisnubarata111/be-badge-antrean-dan-rentang-jejak",
       "keterangan": "Dua field baru (heldCreditsOpen, approvalsOpen) pada endpoint yang sudah ada. TIDAK BISA DIPROBE tanpa kredensial. Tetap opsional — TAPI hanya karena sisi FE memperlakukan kunci yang HILANG sama dengan hitungan yang gagal: badge-nya menampilkan penanda 'belum terbaca', bukan nol. Tanpa perlakuan itu klasifikasi ini salah: badge nol permanen di antrean rupiah tertahan bukan fitur yang berkurang, itu sinyal yang berbohong.",
+      "probe": false
+    },
+    {
+      "rute": "badge menu Transaksi",
+      "path": "/api/v1/queue-counts",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Kunci `transactionsNeedsAction` (aditif). Tidak bisa diprobe: endpointnya sudah ada. Bila kunci absen, badge disembunyikan (kontrak), jadi bukan pemblokir keras — konfirmasi manual.",
       "probe": false
     }
   ]

@@ -27,7 +27,7 @@ import ScreeningQueuePage from '@/features/screening/ScreeningQueuePage'
 import SanctionListsPage from '@/features/screening/SanctionListsPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
-import TransactionsListPage from '@/features/transactions/TransactionsListPage'
+import TransactionsPage from '@/features/transactions/TransactionsPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import HeldCreditsPage from '@/features/held-credits/HeldCreditsPage'
@@ -149,8 +149,8 @@ export const appRoutes: RouteObject[] = [
           // consumer-order monitoring, read-only, visible to every backoffice
           // role (no RoleGuard — like KYC). `/transactions/:id` re-renders the
           // list and opens the detail modal from URL state (deep-link safe).
-          { path: '/transactions', element: <TransactionsListPage /> },
-          { path: '/transactions/:id', element: <TransactionsListPage /> },
+          { path: '/transactions', element: <TransactionsPage /> },
+          { path: '/transactions/:id', element: <TransactionsPage /> },
           // USDX-669 — antrean Persetujuan Pencairan. TANPA RoleGuard, dan itu
           // disengaja: kontraknya (`sot/api/redeem-approvals.yaml § Akses`) membuka
           // list + detail untuk STAFF / MANAGER / ADMIN / DEVELOPER, dan MENYETUJUI

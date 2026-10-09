@@ -58,6 +58,9 @@ import type {
   PayoutIssueKind,
   PayoutResolution,
   ResolvePayoutFailureBody,
+  PaymentMethod,
+  BackofficeTransactionItem,
+  BackofficeTransactionAction,
 } from '@/lib/types'
 import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole, canReadDurianpayApiCallsRole } from '@/lib/types'
 import {
@@ -104,6 +107,7 @@ import {
   createMockDurianpayApiCalls,
   createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
+  createInitialPaymentMethods,
 } from './data'
 
 // ─── Stores ───
@@ -177,6 +181,9 @@ let payoutsEnabled = true
 // kredit di layar Mint Bermasalah, karena jalan buntu di antara keduanya persis
 // yang tiket ini tutup dan tiruan yang memutusnya tidak membuktikan apa pun.
 let activityLogStore: ActivityLogEntry[] = createMockActivityLog()
+// ⚠️ DRAF SOT PR #50 — metode pembayaran. Mutable (bukan append-only): jejaknya
+// di `activityLogStore` (PAYMENT_METHOD_UPDATED / _REORDERED), persis kontraknya.
+let paymentMethodStore: PaymentMethod[] = createInitialPaymentMethods()
 
 // Cermin `@IsISO8601()` untuk saringan rentang waktu Jejak Audit + Log Panggilan
 // DurianPay: tanggal kalender, opsional diikuti waktu dan penanda zona.
@@ -204,6 +211,7 @@ const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
   activityLogStore = createMockActivityLog()
+  paymentMethodStore = createInitialPaymentMethods()
   approvalStore = createMockApprovals()
   heldCreditStore = createMockHeldCredits()
   payoutControlsState = createInitialPayoutControls()
@@ -845,6 +853,151 @@ function redeemIdrCents(raw: string): bigint | null {
  * Ambang yang tak terbaca diperlakukan sebagai `0` — fail-closed, semua tertahan.
  * Urut `burnedAt` ASC: terlama dulu, keputusan fairness, bukan preferensi tampilan.
  */
+
+// ─── ⚠️ DRAF SOT PR #50 — pembantu Transaksi gabungan & Metode Pembayaran ───
+
+function transactionsError(message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code: 'VALIDATION_ERROR', message } },
+    { status: 422 },
+  )
+}
+
+function paymentMethodError(status: number, code: string, message: string) {
+  return HttpResponse.json({ status: 'error', metadata: null, data: null, error: { code, message } }, { status })
+}
+
+function sortedPaymentMethods(): PaymentMethod[] {
+  return [...paymentMethodStore].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code))
+}
+
+function pushPaymentMethodLog(action: string, resourceId: string | null, actorStaffId: string | null, metadata: Record<string, unknown>) {
+  activityLogStore.unshift({
+    id: `019f9b00-${Date.now().toString(16).slice(-4)}-7c31-9b2d-${String(activityLogStore.length).padStart(12, '0')}`,
+    actorStaffId,
+    actorUserId: null,
+    action,
+    // Kontrak menyebut `resource_type = "PAYMENT_METHOD"` untuk UPDATED; untuk
+    // REORDERED kontrak DIAM — tiruan memakai nilai yang sama (lihat pertanyaan
+    // terbuka di docs/plans/redesain-progres.md).
+    resourceType: 'PAYMENT_METHOD',
+    resourceId,
+    metadata,
+    ipAddress: '127.0.0.1',
+    outcome: 'SUCCESS',
+    httpStatus: 200,
+    createdAt: new Date().toISOString(),
+  })
+}
+
+/** Batas umur "nyangkut" manual sync — keputusan PM 2026-10-09. */
+const MANUAL_SYNC_STALE_AFTER_MS = 2 * 60 * 60 * 1000
+const ACTION_PRIORITY = ['PAYOUT_FAILURE', 'REDEEM_APPROVAL', 'HELD_CREDIT', 'MANUAL_SYNC']
+
+export function buildBackofficeTransactions(): { rows: BackofficeTransactionItem[]; partnerIds: Set<string> } {
+  const byId = new Map<string, BackofficeTransactionItem>()
+  const partnerIds = new Set<string>()
+  const now = Date.now()
+
+  for (const o of orderList) {
+    const d = orderDetails.get(o.id)
+    if (o.partner) partnerIds.add(o.id)
+    const actions: BackofficeTransactionAction[] = []
+    if (
+      o.type === 'MINT' &&
+      o.paymentStatus === 'PAID' &&
+      (o.safeStatus === 'PENDING_APPROVAL' || o.safeStatus === 'APPROVED') &&
+      d?.paidAt &&
+      now - Date.parse(d.paidAt) > MANUAL_SYNC_STALE_AFTER_MS
+    ) {
+      actions.push({ actionType: 'MANUAL_SYNC', queue: 'MANUAL_SYNC', refId: o.id, since: d.paidAt })
+    }
+    byId.set(o.id, {
+      id: o.id,
+      kind: o.type,
+      occurredAt: o.createdAt,
+      orderNumber: d?.externalReference ?? null,
+      customerName: null,
+      userEmail: o.userEmail,
+      partnerCode: o.partner?.code ?? null,
+      senderName: null,
+      amountUsdx: o.amount,
+      amountIdr: o.type === 'MINT' ? o.totalPayIdr : o.netPayoutIdr,
+      status: o.status,
+      needsAction: false,
+      actions,
+    })
+  }
+
+  for (const r of openRedeemApprovals()) {
+    const row = byId.get(r.id) ?? {
+      id: r.id, kind: 'REDEEM', occurredAt: r.burnedAt, orderNumber: r.orderNumber, customerName: r.customerName,
+      userEmail: r.userEmail, partnerCode: null, senderName: null, amountUsdx: r.amountUsdx, amountIdr: r.netPayoutIdr,
+      status: 'BURNED', needsAction: false, actions: [],
+    }
+    row.actions.push({ actionType: 'REDEEM_APPROVAL', queue: 'REDEEM_APPROVALS', refId: r.id, since: r.burnedAt })
+    byId.set(r.id, row)
+  }
+
+  for (const f of payoutFailureStore.values()) {
+    if (f.resolution !== null) continue
+    const row = byId.get(f.id) ?? {
+      id: f.id, kind: 'REDEEM', occurredAt: f.issueAt ?? new Date(now).toISOString(), orderNumber: null, customerName: null,
+      userEmail: f.ownerLabel, partnerCode: null, senderName: null, amountUsdx: f.amountUsdx, amountIdr: f.netPayoutIdr,
+      status: f.status, needsAction: false, actions: [],
+    }
+    if (f.ownerKind === 'PARTNER') partnerIds.add(f.id)
+    row.actions.push({
+      actionType: 'PAYOUT_FAILURE', queue: 'PAYOUT_FAILURES', refId: f.id,
+      since: f.issueAt ?? row.occurredAt, payoutIssueKind: f.issueKind,
+    })
+    byId.set(f.id, row)
+  }
+
+  for (const c of heldCreditStore.values()) {
+    if (c.resolution !== null) continue
+    const action: BackofficeTransactionAction = {
+      actionType: 'HELD_CREDIT', queue: 'HELD_CREDITS', refId: c.id, since: c.receivedAt, heldReason: c.heldReason,
+    }
+    if (c.order) {
+      const o = c.order
+      const row = byId.get(o.id) ?? {
+        id: o.id, kind: 'MINT', occurredAt: o.createdAt, orderNumber: null, customerName: o.customerName,
+        userEmail: o.userEmail, partnerCode: null, senderName: null, amountUsdx: o.amount, amountIdr: o.expectedAmountIdr,
+        status: o.status, needsAction: false, actions: [],
+      }
+      row.actions.push(action)
+      byId.set(o.id, row)
+    } else {
+      byId.set(c.id, {
+        id: c.id, kind: 'INCOMING_UNMATCHED', occurredAt: c.receivedAt, orderNumber: null, customerName: null,
+        userEmail: null, partnerCode: null, senderName: c.senderName, amountUsdx: null, amountIdr: c.receivedAmountIdr,
+        status: 'HELD', needsAction: true, actions: [action],
+      })
+    }
+  }
+
+  const rows = [...byId.values()].map((r) => {
+    const actions = [...r.actions].sort(
+      (a, b) => ACTION_PRIORITY.indexOf(a.actionType) - ACTION_PRIORITY.indexOf(b.actionType),
+    )
+    const needsAction = actions.length > 0
+    return {
+      ...r,
+      actions,
+      needsAction,
+      actionType: needsAction ? actions[0]!.actionType : null,
+      actionSince: needsAction ? actions.map((a) => a.since).sort()[0]! : null,
+    }
+  })
+  rows.sort((a, b) => {
+    if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1
+    if (a.needsAction) return a.actionSince!.localeCompare(b.actionSince!) || a.id.localeCompare(b.id)
+    return b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id)
+  })
+  return { rows, partnerIds }
+}
+
 function openRedeemApprovals(): RedeemApprovalListItem[] {
   const threshold = redeemIdrCents(redeemApprovalControls.approvalThresholdIdr) ?? 0n
   return redeemApprovalQueue
@@ -3262,6 +3415,173 @@ export const handlers = [
     return HttpResponse.json({ status: 'success', metadata: null, data: detail })
   }),
 
+
+  // ─── ⚠️ DRAF SOT PR #50 — Transaksi gabungan (`backoffice-transactions.yaml`) ───
+  // Dibangun dari antrean tiruan yang SAMA dengan layar antrean lama, jadi aksi
+  // dari panel Transaksi (approve/reject/resolve) benar-benar mengeluarkan
+  // barisnya dari bagian "perlu tindakan". Predikat per tindakan = predikat
+  // antrean asal; MANUAL_SYNC hanya setelah 2 jam sejak `paid_at`.
+  http.get('/api/v1/transactions', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Number(url.searchParams.get('take') || '20')
+    if (!Number.isInteger(take) || take < 1 || take > 100) {
+      return transactionsError('take must be 1..100')
+    }
+    const kinds = url.searchParams.getAll('kind')
+    const needsActionParam = url.searchParams.get('needsAction')
+    const actionTypeParam = url.searchParams.get('actionType')
+    const q = url.searchParams.get('q')
+    if (q !== null && (q.trim().length < 3 || q.trim().length > 100)) {
+      return transactionsError('q must be 3..100 characters')
+    }
+    const ownerType = url.searchParams.get('ownerType')
+    if (ownerType !== null && ownerType !== 'PARTNER' && ownerType !== 'RETAIL') {
+      return transactionsError('ownerType must be PARTNER or RETAIL')
+    }
+    const { rows, partnerIds } = buildBackofficeTransactions()
+    let out = rows
+    if (kinds.length) out = out.filter((r) => kinds.includes(r.kind))
+    if (needsActionParam === 'true') out = out.filter((r) => r.needsAction)
+    if (needsActionParam === 'false') out = out.filter((r) => !r.needsAction)
+    if (actionTypeParam) out = out.filter((r) => r.actions.some((a) => a.actionType === actionTypeParam))
+    if (q) {
+      const needle = q.trim().toLowerCase()
+      out = out.filter(
+        (r) =>
+          (r.orderNumber ?? '').toLowerCase().startsWith(needle) ||
+          r.id.toLowerCase() === needle ||
+          (r.customerName ?? '').toLowerCase().includes(needle) ||
+          (r.senderName ?? '').toLowerCase().includes(needle),
+      )
+    }
+    if (ownerType === 'PARTNER') out = out.filter((r) => partnerIds.has(r.id))
+    if (ownerType === 'RETAIL') out = out.filter((r) => r.kind !== 'INCOMING_UNMATCHED' && !partnerIds.has(r.id))
+    const needsActionTotal = out.filter((r) => r.needsAction).length
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: out.length, needsActionTotal },
+      data: out.slice(start, start + take),
+    })
+  }),
+
+  // ─── ⚠️ DRAF SOT PR #50 — Metode Pembayaran (`payment-methods.yaml`) ───
+  http.get('/api/v1/payment-methods', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN' && staff.role !== 'DEVELOPER') {
+      return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: sortedPaymentMethods() })
+  }),
+
+  http.patch('/api/v1/payment-methods/:id', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN') return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    const row = paymentMethodStore.find((m) => m.id === String(params.id))
+    if (!row) return paymentMethodError(404, 'NOT_FOUND', 'Payment method not found')
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    }
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
+    if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr'].some(has)) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'at least one of enabled, sortOrder, feeType+feeValue, maxAmountIdr is required')
+    }
+    if (has('feeType') !== has('feeValue')) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'feeType and feeValue must be sent together')
+    }
+    if (has('enabled') && typeof body.enabled !== 'boolean') {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'enabled must be a boolean')
+    }
+    if (has('sortOrder') && (!Number.isInteger(body.sortOrder) || (body.sortOrder as number) < 0 || (body.sortOrder as number) > 10000)) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'sortOrder must be an integer 0..10000')
+    }
+    if (has('feeType')) {
+      const ft = body.feeType
+      const fv = typeof body.feeValue === 'string' ? body.feeValue : ''
+      if (ft !== 'FLAT_IDR' && ft !== 'PERCENT') return paymentMethodError(422, 'VALIDATION_ERROR', 'feeType must be FLAT_IDR or PERCENT')
+      const ok = ft === 'FLAT_IDR' ? /^\d+(\.\d{1,2})?$/.test(fv) : /^\d+(\.\d{1,4})?$/.test(fv) && Number(fv) <= 100
+      if (!ok) return paymentMethodError(422, 'VALIDATION_ERROR', 'feeValue is invalid for feeType')
+    }
+    const isBniTransfer = row.code === 'BANK_TRANSFER_BNI_BNI'
+    if (has('maxAmountIdr')) {
+      const v = body.maxAmountIdr
+      if (v === null) {
+        if (isBniTransfer) return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr is required for BANK_TRANSFER_BNI_BNI')
+      } else if (typeof v !== 'string' || !/^\d+(\.\d{1,2})?$/.test(v) || Number(v) <= 0) {
+        return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr must be a positive amount with at most 2 decimals')
+      } else if (isBniTransfer && Number(v) > 10_000_000) {
+        return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr exceeds BNI_TRANSFER_MAX_AMOUNT_POLICY_IDR')
+      }
+    }
+    if (typeof body.expectedUpdatedAt === 'string' && body.expectedUpdatedAt !== row.updatedAt) {
+      return paymentMethodError(409, 'PAYMENT_METHOD_CHANGED', 'Metode ini baru saja diubah admin lain. Muat ulang lalu ulangi.')
+    }
+    // Pengaman D23 (keputusan PM #1): tiruan meniru production yang BELUM
+    // menyatakan `BNI_TRANSFER_PREREQ_VERIFIED`.
+    if (isBniTransfer && body.enabled === true && !row.enabled) {
+      return paymentMethodError(409, 'PAYMENT_METHOD_PREREQUISITE_UNMET', 'BNI transfer prerequisites (D23) are not verified')
+    }
+    const pick = (m: PaymentMethod) => ({ enabled: m.enabled, sortOrder: m.sortOrder, feeType: m.feeType, feeValue: m.feeValue, maxAmountIdr: m.maxAmountIdr ?? null })
+    const before = pick(row)
+    if (has('enabled')) row.enabled = body.enabled as boolean
+    if (has('sortOrder')) row.sortOrder = body.sortOrder as number
+    if (has('feeType')) {
+      row.feeType = body.feeType as PaymentMethod['feeType']
+      row.feeValue = String(body.feeValue)
+    }
+    if (has('maxAmountIdr')) row.maxAmountIdr = (body.maxAmountIdr as string | null)
+    row.updatedAt = new Date().toISOString()
+    row.updatedBy = staff?.id ?? null
+    row.updatedByName = staff?.name ?? null
+    pushPaymentMethodLog('PAYMENT_METHOD_UPDATED', row.id, staff?.id ?? null, { before, after: pick(row), reason })
+    return HttpResponse.json({ status: 'success', metadata: null, data: row })
+  }),
+
+  http.put('/api/v1/payment-method-order', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN') return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    let body: { orderedIds?: unknown; reason?: unknown }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    }
+    const ids = Array.isArray(body.orderedIds) ? body.orderedIds.map(String) : []
+    const all = new Set(paymentMethodStore.map((m) => m.id))
+    if (ids.length !== all.size || new Set(ids).size !== ids.length || ids.some((x) => !all.has(x))) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'orderedIds must contain every payment method exactly once')
+    }
+    const before = sortedPaymentMethods().map((m) => m.code)
+    const now = new Date().toISOString()
+    ids.forEach((pmId, i) => {
+      const m = paymentMethodStore.find((x) => x.id === pmId)!
+      if (m.sortOrder !== (i + 1) * 10) {
+        m.sortOrder = (i + 1) * 10
+        m.updatedAt = now
+        m.updatedBy = staff?.id ?? null
+        m.updatedByName = staff?.name ?? null
+      }
+    })
+    pushPaymentMethodLog('PAYMENT_METHOD_REORDERED', null, staff?.id ?? null, {
+      before,
+      after: sortedPaymentMethods().map((m) => m.code),
+      reason,
+    })
+    return HttpResponse.json({ status: 'success', metadata: null, data: sortedPaymentMethods() })
+  }),
+
   // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───
   // MSW-served sampai api-dev menyajikan USDX-676 (13 Sep 2026: 404). Tiap angka
   // dihitung dari predikat YANG SAMA dengan `metadata.total` list tiruannya — badge
@@ -3298,6 +3618,8 @@ export const handlers = [
         redeemApprovalsOpen: openRedeemApprovals().length,
         heldCreditsOpen,
         approvalsOpen,
+        // ⚠️ DRAF SOT PR #50 — per BARIS, dari predikat yang sama dengan list.
+        transactionsNeedsAction: buildBackofficeTransactions().rows.filter((r) => r.needsAction).length,
       },
     })
   }),
