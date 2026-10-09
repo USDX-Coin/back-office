@@ -45,7 +45,7 @@ test.describe('OTC page @e2e', () => {
       await openOtc(page)
       await expect(actionGroup(page).getByText('1 dari 2 tanda tangan')).toBeVisible({ timeout: 10000 })
       await expect(actionGroup(page).getByText('Siap dieksekusi')).toBeVisible()
-      await expect(actionGroup(page).getByText('Redeem OTC')).toBeVisible()
+      await expect(actionGroup(page).getByText('Redeem OTC', { exact: true })).toBeVisible()
       await expect(historyGroup(page).getByText('Rupiah sudah dikirim')).toBeVisible()
       await expect(historyGroup(page).getByText('Ditolak')).toBeVisible()
       expect(statuses).toEqual(expect.arrayContaining(['PENDING_APPROVAL,APPROVED', 'EXECUTED,IDR_TRANSFERRED,REJECTED']))
@@ -58,8 +58,11 @@ test.describe('OTC page @e2e', () => {
       await page.getByRole('button', { name: /^Buka Mint OTC Robert Deon, 100,00 USDX/ }).first().click()
       await expect(page).toHaveURL(/\/otc\/req_mint_pending/)
       const panel = page.getByRole('region', { name: 'Detail permintaan OTC' })
-      await expect(panel.getByText('Yang perlu kamu lakukan')).toBeVisible()
-      await expect(panel.getByText('Marcus Thorne', { exact: true })).toBeVisible()
+      // The panel waits on the lazily loaded signing hook (wallet libraries) +
+      // /multisig — in the dev server under parallel workers that can pass 5s.
+      await expect(panel.getByText('Yang perlu kamu lakukan')).toBeVisible({ timeout: 15000 })
+      // Signers come from /multisig/:id, fetched after the panel opens.
+      await expect(panel.getByText('Marcus Thorne', { exact: true })).toBeVisible({ timeout: 15000 })
       // No wallet in the test browser → the one action is to connect it.
       await expect(panel.getByRole('button', { name: 'Hubungkan wallet' })).toBeVisible()
       await expect(panel.getByRole('button', { name: /lainnya/i })).toBeVisible()
@@ -111,7 +114,7 @@ test.describe('OTC page @e2e', () => {
       await expect(page.locator('table')).toBeHidden()
       await panel.getByRole('button', { name: /kembali ke tabel/i }).click()
       await expect(page).toHaveURL(/\/otc$/)
-      await expect(page.locator('table')).toBeVisible()
+      await expect(page.locator('table')).toBeVisible({ timeout: 15000 })
     })
   })
 })

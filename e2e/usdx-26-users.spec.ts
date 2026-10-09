@@ -143,6 +143,9 @@ test.describe('USDX-26 user CRUD @e2e', () => {
     })
 
     test('should add no user when the create modal is cancelled', async ({ page }) => {
+      // Count only after the list has loaded — counting during the skeleton
+      // reads 0 and the comparison below becomes a race, not a check.
+      await expect(page.getByRole('button', { name: /^Buka nasabah/ }).first()).toBeVisible({ timeout: 10000 })
       const before = await page.getByRole('button', { name: /^Buka nasabah/ }).count()
       await page.getByRole('button', { name: /tambah nasabah/i }).first().click()
       await page.getByLabel(/^nama$/i).fill('Cancelled Probe')
