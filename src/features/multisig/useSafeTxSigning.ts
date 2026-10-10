@@ -44,9 +44,9 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
   const wallet = useMultisigWallet()
   const { signAsync, isSigning } = useSignSafeTx()
   const { executeAsync, isExecuting } = useExecuteTransaction()
-  const confirmMutation = useConfirmSignature(txId ?? '')
-  const executeMutation = useExecuteSafeTx(txId ?? '')
-  const cancelMutation = useCancelSafeTx(txId ?? '')
+  const confirmMutation = useConfirmSignature()
+  const executeMutation = useExecuteSafeTx()
+  const cancelMutation = useCancelSafeTx()
 
   // Acknowledge checkbox for the UNKNOWN-activity blind-sign warning.
   const [ackUnknown, setAckUnknown] = useState(false)
@@ -138,9 +138,12 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
 
   async function handleSign() {
     if (!detail || !wallet.address) return
+    // Dikunci SEBELUM wallet dibuka: tanda tangan ini milik `detail` ini.
+    const { id } = detail
+    const signerAddress = wallet.address
     try {
-      const signature = await signAsync(detail, wallet.address)
-      await confirmMutation.mutateAsync({ signerAddress: wallet.address, signature })
+      const signature = await signAsync(detail, signerAddress)
+      await confirmMutation.mutateAsync({ id, body: { signerAddress, signature } })
       toast.success('Tanda tangan terkirim')
     } catch (err) {
       // Galat API → kalimat dari peta galat terpusat, kodenya di keterangan.
@@ -152,9 +155,11 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
 
   async function handleExecute() {
     if (!detail) return
+    // Dikunci SEBELUM wallet dibuka: hash eksekusi ini milik `detail` ini.
+    const { id } = detail
     try {
       const execTxHash = await executeAsync(detail)
-      await executeMutation.mutateAsync({ execTxHash })
+      await executeMutation.mutateAsync({ id, body: { execTxHash } })
       toast.success('Eksekusi dikirim ke jaringan — menunggu konfirmasi on-chain')
     } catch (err) {
       // Galat API → kalimat dari peta galat terpusat, kodenya di keterangan.
@@ -166,8 +171,9 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
 
   async function handleCancel() {
     if (!detail) return
+    const { id } = detail
     try {
-      await cancelMutation.mutateAsync({ reason: cancelReason || undefined })
+      await cancelMutation.mutateAsync({ id, body: { reason: cancelReason || undefined } })
       toast.success('Transaksi dibatalkan')
       setCancelOpen(false)
     } catch (err) {
