@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import PageHeader from '@/components/PageHeader'
 import FieldError from '@/components/FieldError'
@@ -300,17 +300,6 @@ export default function KybFormPage() {
       <PageHeader
         title="Tambah berkas badan usaha"
         subtitle="Ketik data penelaahan badan usaha dari dokumennya. Akunnya harus sudah ada lebih dulu di Nasabah › Daftar Nasabah."
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => navigate('/kyb')}
-          >
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-            Kembali
-          </Button>
-        }
       />
 
       <form onSubmit={handleSubmit} className="max-w-3xl space-y-7" noValidate>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ArrowRight, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
+import { ArrowRight, Plus, Trash2, Wallet as WalletIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -60,15 +60,6 @@ export default function UserDetailPage() {
   if (isError || !data) {
     return (
       <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/users')}
-          className="mb-4 h-7 text-xs"
-        >
-          <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-          Kembali ke daftar nasabah
-        </Button>
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
           {errorMessage(error, 'Nasabah tidak ditemukan')}
         </div>
@@ -80,16 +71,8 @@ export default function UserDetailPage() {
 
   return (
     <div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/users')}
-        className="mb-4 h-7 text-xs"
-      >
-        <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-        Kembali ke daftar nasabah
-      </Button>
-
+      {/* Tombol "← Kembali ke daftar nasabah" dihapus 11 Okt 2026: breadcrumb
+          Nasabah › Daftar Nasabah › Profil nasabah sudah menautkan daftar. */}
       <PageHeader
         title={data.name ?? data.email}
         subtitle={`Bergabung ${formatShortDate(data.createdAt)}`}

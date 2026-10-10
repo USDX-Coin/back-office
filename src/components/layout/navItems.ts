@@ -174,44 +174,69 @@ export function isItemActive(item: NavItem, pathname: string): boolean {
   return [item.to, ...(item.match ?? [])].some((p) => pathMatches(pathname, p))
 }
 
+/**
+ * Satu segmen breadcrumb. `to` diisi HANYA kalau segmen itu punya halaman
+ * sendiri (entri menu). Nama grup ("Nasabah", "Keuangan", "OTC", …) bukan
+ * halaman, jadi tanpa `to`; Navbar juga tidak pernah menautkan segmen terakhir.
+ */
+export interface Crumb {
+  label: string
+  to?: string
+}
+
 // Halaman yang bukan entri menu sendiri tapi punya nama yang lebih tepat
 // daripada nama menu induknya. Dicek DULUAN (paling spesifik).
-const EXTRA_CRUMBS: Array<{ prefix: string; exact?: boolean; crumbs: string[] }> = [
-  { prefix: '/mint/new', exact: true, crumbs: ['OTC', 'Mint', 'Buat mint OTC'] },
-  { prefix: '/burn/new', exact: true, crumbs: ['OTC', 'Redeem', 'Buat redeem OTC'] },
-  { prefix: '/multisig', crumbs: ['OTC', 'Halaman tanda tangan'] },
-  { prefix: '/redeem-approvals', crumbs: ['Transaksi', 'Persetujuan Pencairan'] },
-  { prefix: '/payout-failures', crumbs: ['Transaksi', 'Pencairan Bermasalah'] },
-  { prefix: '/mint-bermasalah', crumbs: ['Transaksi', 'Mint Bermasalah'] },
-  { prefix: '/manual-sync', crumbs: ['Transaksi', 'Perbaiki Status Nyangkut'] },
-  { prefix: '/kyb/new', exact: true, crumbs: ['Nasabah', 'Verifikasi', 'Tambah berkas badan usaha'] },
-  { prefix: '/screening/lists', exact: true, crumbs: ['Nasabah', 'Daftar Sanksi', 'Versi daftar'] },
-  { prefix: '/users', crumbs: ['Nasabah', 'Daftar Nasabah'] },
-  { prefix: '/profile', crumbs: ['Akun', 'Profil'] },
+const OTC: Crumb = { label: 'OTC' }
+const NASABAH: Crumb = { label: 'Nasabah' }
+const TRANSAKSI: Crumb = { label: 'Transaksi', to: '/transactions' }
+const EXTRA_CRUMBS: Array<{ prefix: string; exact?: boolean; crumbs: Crumb[] }> = [
+  { prefix: '/mint/new', exact: true, crumbs: [OTC, { label: 'Mint', to: '/otc/mint' }, { label: 'Buat mint OTC' }] },
+  { prefix: '/burn/new', exact: true, crumbs: [OTC, { label: 'Redeem', to: '/otc/redeem' }, { label: 'Buat redeem OTC' }] },
+  { prefix: '/multisig', crumbs: [OTC, { label: 'Halaman tanda tangan', to: '/multisig' }] },
+  { prefix: '/redeem-approvals', crumbs: [TRANSAKSI, { label: 'Persetujuan Pencairan', to: '/redeem-approvals' }] },
+  { prefix: '/payout-failures', crumbs: [TRANSAKSI, { label: 'Pencairan Bermasalah', to: '/payout-failures' }] },
+  { prefix: '/mint-bermasalah', crumbs: [TRANSAKSI, { label: 'Mint Bermasalah', to: '/mint-bermasalah' }] },
+  { prefix: '/manual-sync', crumbs: [TRANSAKSI, { label: 'Perbaiki Status Nyangkut', to: '/manual-sync' }] },
+  {
+    prefix: '/kyb/new',
+    exact: true,
+    crumbs: [NASABAH, { label: 'Verifikasi', to: '/verifikasi' }, { label: 'Tambah berkas badan usaha' }],
+  },
+  {
+    prefix: '/screening/lists',
+    exact: true,
+    crumbs: [NASABAH, { label: 'Daftar Sanksi', to: '/screening' }, { label: 'Versi daftar' }],
+  },
+  { prefix: '/users', crumbs: [NASABAH, { label: 'Daftar Nasabah', to: '/users' }] },
+  { prefix: '/profile', crumbs: [{ label: 'Akun' }, { label: 'Profil', to: '/profile' }] },
 ]
 
 /**
  * Breadcrumb dari tabel menu — TIDAK PERNAH dari potongan URL. Audit 8 Okt
  * 2026: "USDX › jejak-audit" dan "users › 00000000-…" membocorkan slug dan
  * UUID ke layar. Rute tak dikenal jatuh ke "USDX" saja.
+ *
+ * Sejak 11 Okt 2026 tiap segmen yang punya halaman membawa `to` (Navbar
+ * menautkannya, kecuali segmen terakhir) — pengganti tombol "← Kembali"
+ * yang dulu berdiri dobel di atas halaman turunan.
  */
-export function breadcrumbFor(pathname: string): string[] {
+export function breadcrumbFor(pathname: string): Crumb[] {
   for (const e of EXTRA_CRUMBS) {
     if (e.exact ? pathname === e.prefix : pathMatches(pathname, e.prefix)) {
       // Halaman profil satu nasabah: tambahkan namanya secara umum, bukan id-nya.
-      if (e.prefix === '/users' && pathname !== '/users') return [...e.crumbs, 'Profil nasabah']
+      if (e.prefix === '/users' && pathname !== '/users') return [...e.crumbs, { label: 'Profil nasabah' }]
       return e.crumbs
     }
   }
   for (const entry of NAV) {
     if (entry.kind === 'item') {
-      if (isItemActive(entry, pathname)) return [entry.label]
+      if (isItemActive(entry, pathname)) return [{ label: entry.label, to: entry.to }]
       continue
     }
     const item = entry.items.find((i) => isItemActive(i, pathname))
-    if (item) return [entry.label, item.label]
+    if (item) return [{ label: entry.label }, { label: item.label, to: item.to }]
   }
-  return ['USDX']
+  return [{ label: 'USDX' }]
 }
 
 const ROLE_LABEL: Record<StaffRole, string> = {

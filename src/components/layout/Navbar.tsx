@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { ChevronRight, Menu } from 'lucide-react'
 import ProfileDropdown from './ProfileDropdown'
 import MobileNavDrawer from './MobileNavDrawer'
@@ -50,22 +50,35 @@ export default function Navbar() {
           className="hidden lg:flex items-center gap-1.5 text-sm"
           aria-label="Lokasi halaman"
         >
-          {segments.map((seg, i) => (
-            <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
-              {i > 0 && (
-                <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-              )}
-              <span
-                className={cn(
-                  i === segments.length - 1
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground'
-                )}
-              >
-                {seg}
-              </span>
-            </span>
-          ))}
+          <ol className="flex items-center gap-1.5">
+            {segments.map((seg, i) => {
+              const last = i === segments.length - 1
+              return (
+                <li key={`${seg.label}-${i}`} className="flex items-center gap-1.5">
+                  {i > 0 && (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/60" aria-hidden />
+                  )}
+                  {/* Segmen yang punya halaman = tautan; nama grup dan segmen
+                      terakhir tetap teks. Segmen terakhir = halaman ini. */}
+                  {seg.to && !last ? (
+                    <Link
+                      to={seg.to}
+                      className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {seg.label}
+                    </Link>
+                  ) : (
+                    <span
+                      aria-current={last ? 'page' : undefined}
+                      className={cn(last ? 'font-medium text-foreground' : 'text-muted-foreground')}
+                    >
+                      {seg.label}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
         </nav>
 
         {/* P0-4 — kotak cari palsu DIBUANG. Yang berdiri di sini dulu adalah

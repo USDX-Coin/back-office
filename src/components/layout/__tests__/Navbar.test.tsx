@@ -29,6 +29,31 @@ describe('Navbar', () => {
       expect(crumbs()).toBe('NasabahDaftar NasabahProfil nasabah')
     })
 
+    test('should link segments that have a page, keep groups and the last segment as text', () => {
+      renderWithProviders(<Navbar />, {
+        initialEntries: ['/users/00000000-0000-0000-0000-000000000001'],
+        authenticated: true,
+      })
+      const nav = screen.getByRole('navigation', { name: 'Lokasi halaman' })
+      const links = Array.from(nav.querySelectorAll('a'))
+      expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['Daftar Nasabah', '/users']])
+      expect(screen.getByText('Profil nasabah')).toHaveAttribute('aria-current', 'page')
+      expect(screen.getByText('Nasabah').tagName).toBe('SPAN')
+    })
+
+    test('should link the parent page of a nested transaction queue', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/payout-failures/abc'], authenticated: true })
+      const nav = screen.getByRole('navigation', { name: 'Lokasi halaman' })
+      expect(Array.from(nav.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual(['/transactions'])
+    })
+
+    test('should not link a menu page that is itself the current page', () => {
+      renderWithProviders(<Navbar />, { initialEntries: ['/otc/mint'], authenticated: true })
+      const nav = screen.getByRole('navigation', { name: 'Lokasi halaman' })
+      expect(nav.querySelectorAll('a')).toHaveLength(0)
+      expect(screen.getByText('Mint', { selector: '[aria-current="page"]' })).toBeInTheDocument()
+    })
+
     test('should fall back to "USDX", never to a raw slug', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/unknown-route'], authenticated: true })
       expect(crumbs()).toBe('USDX')

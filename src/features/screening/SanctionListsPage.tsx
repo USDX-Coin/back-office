@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ArrowLeft, FileStack, Plus, RefreshCw } from 'lucide-react'
+import { FileStack, Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
@@ -228,15 +228,6 @@ export default function SanctionListsPage() {
         subtitle="Versi daftar yang dipakai memeriksa nasabah. Pembaruan daftar adalah prosedur manusia — publikasi PPATK/Bappebti berbentuk berkas, bukan API — jadi tiap versi disimpan beserta tanggal terbit dan siapa yang mengimpornya."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => navigate('/screening')}
-            >
-              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-              Antrean temuan
-            </Button>
             <Button
               variant="outline"
               size="sm"

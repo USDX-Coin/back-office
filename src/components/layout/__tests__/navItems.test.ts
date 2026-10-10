@@ -235,13 +235,26 @@ describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
       ['/reports/burn/by-user', ['Keuangan', 'Laporan']],
       ['/redeem-approvals', ['Transaksi', 'Persetujuan Pencairan']],
     ])('%s → %j', (path, crumbs) => {
-      expect(breadcrumbFor(path)).toEqual(crumbs)
+      expect(breadcrumbFor(path).map((c) => c.label)).toEqual(crumbs)
+    })
+
+    // 11 Okt 2026: segmen yang punya halaman membawa `to`; nama grup tidak.
+    test.each([
+      ['/users/abc', [undefined, '/users', undefined]],
+      ['/mint/new', [undefined, '/otc/mint', undefined]],
+      ['/redeem-approvals', ['/transactions', '/redeem-approvals']],
+      ['/settings/fee', [undefined, '/settings/rate']],
+      ['/reports/burn/by-user', [undefined, '/reports/mint/daily']],
+      ['/screening/lists', [undefined, '/screening', undefined]],
+      ['/transactions', ['/transactions']],
+    ])('%s → tautan %j', (path, tos) => {
+      expect(breadcrumbFor(path).map((c) => c.to)).toEqual(tos)
     })
   })
 
   describe('negative', () => {
     test('profil satu nasabah tidak menampilkan UUID-nya', () => {
-      const crumbs = breadcrumbFor('/users/00000000-0000-0000-0000-000000000001')
+      const crumbs = breadcrumbFor('/users/00000000-0000-0000-0000-000000000001').map((c) => c.label)
       expect(crumbs).toEqual(['Nasabah', 'Daftar Nasabah', 'Profil nasabah'])
       expect(crumbs.join(' ')).not.toMatch(/0000/)
     })
@@ -249,7 +262,7 @@ describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
 
   describe('edge cases', () => {
     test('rute tak dikenal jatuh ke "USDX", bukan potongan URL', () => {
-      expect(breadcrumbFor('/sesuatu-yang-baru/123')).toEqual(['USDX'])
+      expect(breadcrumbFor('/sesuatu-yang-baru/123')).toEqual([{ label: 'USDX' }])
     })
   })
 })

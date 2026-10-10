@@ -90,6 +90,21 @@ test.describe('menu "Lainnya" yang memindah halaman @e2e', () => {
       await expectPageUsable(page)
     })
 
+    test('breadcrumb: "Daftar Nasabah" di profil = tautan ke daftar, grup & segmen terakhir teks', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto(`/users/${FAILED_ACTIVATION_USER.id}`)
+      const crumbs = page.getByRole('navigation', { name: 'Lokasi halaman' })
+      await expect(crumbs.getByText('Profil nasabah')).toHaveAttribute('aria-current', 'page')
+      await expect(crumbs.getByRole('link')).toHaveCount(1)
+      await expect(crumbs.getByRole('link', { name: 'Nasabah', exact: true })).toHaveCount(0)
+      // Tombol "← Kembali ke daftar nasabah" yang dobel sudah tidak ada.
+      await expect(page.getByRole('button', { name: /kembali ke daftar nasabah/i })).toHaveCount(0)
+      await crumbs.getByRole('link', { name: 'Daftar Nasabah' }).click()
+      await expect(page).toHaveURL(/\/users$/)
+    })
+
     test('menu profil di navbar → Profil: halaman tetap bisa diklik', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
