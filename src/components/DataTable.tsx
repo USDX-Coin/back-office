@@ -207,10 +207,12 @@ export default function DataTable<T>({
 
   // Ponsel (< sm): baris jadi kartu — kolom pertama sebagai judul, sisanya
   // pasangan label–nilai — supaya tabel lama (Transaksi, Staf, Jejak Audit, …)
-  // terbaca tanpa digeser ke samping. Keadaan memuat/kosong/galat tetap
-  // memakai tabel (satu sel selebar wadah, sudah muat di ponsel).
+  // terbaca tanpa digeser ke samping. Keadaan memuat tetap memakai tabel.
   const ponsel = useMediaQuery('(max-width: 639px)')
   const kartuPonsel = ponsel && !isLoading && !isError && table.getRowModel().rows.length > 0
+  // Kosong/galat di ponsel: kotak keadaan saja, tanpa kepala tabel lebar yang
+  // memaksa geser ke samping dan memotong kalimatnya (sapu bersih 11 Okt 2026).
+  const keadaanPonsel = ponsel && !isLoading && (isError || table.getRowModel().rows.length === 0)
   function labelKolom(columnId: string) {
     const header = table.getFlatHeaders().find((h) => h.column.id === columnId)
     if (!header) return null
@@ -293,7 +295,19 @@ export default function DataTable<T>({
         </div>
       )}
 
-      {kartuPonsel ? (
+      {keadaanPonsel ? (
+        <div className="overflow-hidden rounded-md bg-card">
+          {isError ? (
+            <TableErrorState onRetry={onRetry} />
+          ) : hasFilters ? (
+            <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
+          ) : emptyState ? (
+            emptyState
+          ) : (
+            <TableEmptyState mode="no-data" />
+          )}
+        </div>
+      ) : kartuPonsel ? (
         <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-card" aria-label="Daftar">
           {table.getRowModel().rows.map((row) => {
             const clickable = Boolean(onRowClick)

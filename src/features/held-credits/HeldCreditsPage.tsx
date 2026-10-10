@@ -88,7 +88,7 @@ export default function HeldCreditsPage() {
     {
       id: 'problem',
       header: 'Kenapa tertahan',
-      size: 208,
+      size: 192,
       cell: ({ row }) => {
         const { heldReason, source } = row.original
         const label = heldReasonLabel(heldReason)
@@ -173,7 +173,7 @@ export default function HeldCreditsPage() {
       // Baris keduanya berbunyi "ditagihkan Rp 4.012.350,00" — kata + nominal
       // dalam satu baris, jadi lebarnya harus memuat keduanya. 184px memotong
       // justru ujung nominalnya.
-      size: 208,
+      size: 192,
       cell: ({ row }) => {
         const order = row.original.order
         if (!order) {
