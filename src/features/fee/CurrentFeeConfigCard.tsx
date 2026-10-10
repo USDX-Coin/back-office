@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatIdrAmount, formatRelativeTime, formatSpreadPct } from '@/lib/format'
@@ -6,15 +7,18 @@ import type { FeeConfig } from '@/lib/types'
 interface Props {
   data: FeeConfig | undefined
   isLoading: boolean
+  /** Tombol aksi utama di kanan atas kartu (mis. "Ubah kurs"); kosong untuk peran baca saja. */
+  action?: ReactNode
 }
 
-export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
+export default function CurrentFeeConfigCard({ data, isLoading, action }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Biaya saat ini
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading || !data ? (

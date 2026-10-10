@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeTime } from '@/lib/format'
@@ -6,6 +7,8 @@ import type { ThresholdConfig } from '@/lib/types'
 interface Props {
   data: ThresholdConfig | undefined
   isLoading: boolean
+  /** Tombol aksi utama di kanan atas kartu (mis. "Ubah kurs"); kosong untuk peran baca saja. */
+  action?: ReactNode
 }
 
 // Satu konvensi angka, apa pun mata uangnya: titik ribuan, koma desimal.
@@ -20,13 +23,14 @@ function formatAmount(amount: string, mode: 'USD' | 'IDR'): string {
   return `$${n.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
 }
 
-export default function CurrentThresholdCard({ data, isLoading }: Props) {
+export default function CurrentThresholdCard({ data, isLoading, action }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Batas saat ini
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading || !data ? (

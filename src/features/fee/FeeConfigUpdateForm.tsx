@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import FormDialog from '@/components/FormDialog'
 import FieldError from '@/components/FieldError'
 import {
   feeConfigErrorField,
@@ -14,7 +13,6 @@ import {
 import { ApiError } from '@/lib/apiFetch'
 import type { FeeConfig } from '@/lib/types'
 import { useUpdateFeeConfig } from './hooks'
-import { FormFooter } from '@/components/FormLayout'
 
 /**
  * Galat server yang BUKAN 422 → kalimat Indonesia DAN kodenya dalam kurung.
@@ -36,6 +34,9 @@ function feeConfigErrorMessage(err: unknown): string {
 
 interface Props {
   current: FeeConfig | undefined
+  /** Dialog form dibuka dari tombol di kartu "saat ini" (audit Pengaturan 11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 interface FormState {
@@ -89,7 +90,7 @@ function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): 
   }
 }
 
-export default function FeeConfigUpdateForm({ current }: Props) {
+export default function FeeConfigUpdateForm({ current, open, onOpenChange }: Props) {
   const update = useUpdateFeeConfig()
   const [overrides, setOverrides] = useState<FormOverrides>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -132,6 +133,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
       toast.success('Biaya berhasil diubah')
       setOverrides({})
       setErrors({})
+      onOpenChange(false)
     } catch (err) {
       // A 422 is the server judging THIS form's values (fee-config is on the
       // v1→422 allowlist, sot/conventions.md § Validation Error). Its message
@@ -156,201 +158,29 @@ export default function FeeConfigUpdateForm({ current }: Props) {
     }
   }
 
+  // Batal / tutup membuang isian yang belum dikirim — dialog dibuka lagi
+  // = mulai dari nilai yang berlaku sekarang.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setOverrides({})
+      setErrors({})
+      setFormError(null)
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-section">
-          Ubah biaya
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="fee-config-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="mintFeePct">Biaya mint</Label>
-            <div className="relative">
-              <Input
-                id="mintFeePct"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.mintFeePct}
-                onChange={(e) => set('mintFeePct', e.target.value)}
-                placeholder="1.0"
-                className="tabular-nums pr-10"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                %
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              % dari subtotal IDR (nilai mint).
-            </p>
-            <FieldError message={errors.mintFeePct} />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="pgFeeVaFlat">Biaya VA (flat)</Label>
-              <div className="relative">
-                <Input
-                  id="pgFeeVaFlat"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.pgFeeVaFlat}
-                  onChange={(e) => set('pgFeeVaFlat', e.target.value)}
-                  placeholder="4000.00"
-                  className="tabular-nums pr-12"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  IDR
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">Rp flat per transaksi VA.</p>
-              <FieldError message={errors.pgFeeVaFlat} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="pgFeeQrisPct">Biaya QRIS</Label>
-              <div className="relative">
-                <Input
-                  id="pgFeeQrisPct"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.pgFeeQrisPct}
-                  onChange={(e) => set('pgFeeQrisPct', e.target.value)}
-                  placeholder="0.7"
-                  className="tabular-nums pr-10"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  %
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">% atas subtotal IDR.</p>
-              <FieldError message={errors.pgFeeQrisPct} />
-            </div>
-          </div>
-
-          {/* Redeem fees (W3, USDX-245) — required; part of the full snapshot. */}
-          <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-xs font-medium text-muted-foreground">
-              Redeem
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="redeemFeePct">Biaya redeem</Label>
-                <div className="relative">
-                  <Input
-                    id="redeemFeePct"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.redeemFeePct}
-                    onChange={(e) => set('redeemFeePct', e.target.value)}
-                    placeholder="1.0"
-                    className="tabular-nums pr-10"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    %
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">% dari gross IDR (nilai jual).</p>
-                <FieldError message={errors.redeemFeePct} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="disbursementFeeFlat">Biaya pencairan (flat)</Label>
-                <div className="relative">
-                  <Input
-                    id="disbursementFeeFlat"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.disbursementFeeFlat}
-                    onChange={(e) => set('disbursementFeeFlat', e.target.value)}
-                    placeholder="5000.00"
-                    className="tabular-nums pr-12"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    IDR
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">Rp flat per payout.</p>
-                <FieldError message={errors.disbursementFeeFlat} />
-              </div>
-            </div>
-          </div>
-
-          {/* Minimum mint (USDX-637) — bagian dari snapshot penuh yang sama.
-              Bukan tarif: ini nominal terkecil yang boleh di-mint, dan angkanya
-              akan sering digeser saat uji bayar produksi. */}
-          <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-xs font-medium text-muted-foreground">
-              Batas mint
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="minMintIdr">Minimum Mint (Rp)</Label>
-              <div className="relative">
-                <Input
-                  id="minMintIdr"
-                  type="number"
-                  step="1"
-                  min={MIN_MINT_IDR_FLOOR}
-                  value={form.minMintIdr}
-                  onChange={(e) => set('minMintIdr', e.target.value)}
-                  placeholder="20000"
-                  className="tabular-nums pr-12"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  IDR
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Nominal mint terkecil yang diterima. Minimum Rp{' '}
-                {MIN_MINT_IDR_FLOOR.toLocaleString('id-ID')}.
-              </p>
-              <FieldError message={errors.minMintIdr} />
-            </div>
-          </div>
-
-          {/* Minimum redeem (USDX-682) — kembaran Minimum Mint, di snapshot
-              penuh yang sama. Angkanya dibandingkan ke rupiah BERSIH yang
-              diterima nasabah setelah fee (`net_payout_idr`), bukan bruto:
-              nasabah menilai minimum dari uang yang benar-benar masuk ke
-              rekeningnya. */}
-          <div className="space-y-4 border-t border-border pt-5">
-            <p className="text-xs font-medium text-muted-foreground">
-              Batas redeem
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="minRedeemIdr">Minimum Redeem (Rp)</Label>
-              <div className="relative">
-                <Input
-                  id="minRedeemIdr"
-                  type="number"
-                  step="1"
-                  min={MIN_REDEEM_IDR_FLOOR}
-                  value={form.minRedeemIdr}
-                  onChange={(e) => set('minRedeemIdr', e.target.value)}
-                  placeholder="20000"
-                  className="tabular-nums pr-12"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  IDR
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Rupiah bersih terkecil yang diterima nasabah, setelah fee.
-                Minimum Rp {MIN_REDEEM_IDR_FLOOR.toLocaleString('id-ID')}.
-              </p>
-              <FieldError message={errors.minRedeemIdr} />
-            </div>
-          </div>
-        </CardContent>
-        <FormFooter
-          note={
-            <div className="space-y-2">
+    <>
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Ubah biaya"
+        formId="fee-config-form"
+        onSubmit={handleSubmit}
+        pending={update.isPending}
+        submitLabel={update.isPending ? 'Menyimpan…' : 'Simpan biaya baru'}
+        note={
+          <div className="space-y-2">
           {/* Biaya menentukan harga yang dibayar SETIAP nasabah, jadi kalimat di
               atas tombol menyebut akibatnya — bukan "Anda yakin?". Form ini
               memang tanpa dialog konfirmasi (snapshot penuh, bisa disimpan
@@ -365,18 +195,191 @@ export default function FeeConfigUpdateForm({ current }: Props) {
             </p>
           ) : null}
             </div>
-          }
-        >
-          <Button
-            type="submit"
-            form="fee-config-form"
-            disabled={update.isPending}
-            aria-busy={update.isPending}
-          >
-            {update.isPending ? 'Menyimpan…' : 'Simpan biaya baru'}
-          </Button>
-        </FormFooter>
-      </form>
-    </Card>
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="mintFeePct">Biaya mint</Label>
+          <div className="relative">
+            <Input
+              id="mintFeePct"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.mintFeePct}
+              onChange={(e) => set('mintFeePct', e.target.value)}
+              placeholder="1.0"
+              className="tabular-nums pr-10"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              %
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            % dari subtotal IDR (nilai mint).
+          </p>
+          <FieldError message={errors.mintFeePct} />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="pgFeeVaFlat">Biaya VA (flat)</Label>
+            <div className="relative">
+              <Input
+                id="pgFeeVaFlat"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.pgFeeVaFlat}
+                onChange={(e) => set('pgFeeVaFlat', e.target.value)}
+                placeholder="4000.00"
+                className="tabular-nums pr-12"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                IDR
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">Rp flat per transaksi VA.</p>
+            <FieldError message={errors.pgFeeVaFlat} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="pgFeeQrisPct">Biaya QRIS</Label>
+            <div className="relative">
+              <Input
+                id="pgFeeQrisPct"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.pgFeeQrisPct}
+                onChange={(e) => set('pgFeeQrisPct', e.target.value)}
+                placeholder="0.7"
+                className="tabular-nums pr-10"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                %
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">% atas subtotal IDR.</p>
+            <FieldError message={errors.pgFeeQrisPct} />
+          </div>
+        </div>
+
+        {/* Redeem fees (W3, USDX-245) — required; part of the full snapshot. */}
+        <div className="space-y-4 border-t border-border pt-5">
+          <p className="text-xs font-medium text-muted-foreground">
+            Redeem
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="redeemFeePct">Biaya redeem</Label>
+              <div className="relative">
+                <Input
+                  id="redeemFeePct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.redeemFeePct}
+                  onChange={(e) => set('redeemFeePct', e.target.value)}
+                  placeholder="1.0"
+                  className="tabular-nums pr-10"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">% dari gross IDR (nilai jual).</p>
+              <FieldError message={errors.redeemFeePct} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="disbursementFeeFlat">Biaya pencairan (flat)</Label>
+              <div className="relative">
+                <Input
+                  id="disbursementFeeFlat"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.disbursementFeeFlat}
+                  onChange={(e) => set('disbursementFeeFlat', e.target.value)}
+                  placeholder="5000.00"
+                  className="tabular-nums pr-12"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  IDR
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Rp flat per payout.</p>
+              <FieldError message={errors.disbursementFeeFlat} />
+            </div>
+          </div>
+        </div>
+
+        {/* Minimum mint (USDX-637) — bagian dari snapshot penuh yang sama.
+            Bukan tarif: ini nominal terkecil yang boleh di-mint, dan angkanya
+            akan sering digeser saat uji bayar produksi. */}
+        <div className="space-y-4 border-t border-border pt-5">
+          <p className="text-xs font-medium text-muted-foreground">
+            Batas mint
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="minMintIdr">Minimum Mint (Rp)</Label>
+            <div className="relative">
+              <Input
+                id="minMintIdr"
+                type="number"
+                step="1"
+                min={MIN_MINT_IDR_FLOOR}
+                value={form.minMintIdr}
+                onChange={(e) => set('minMintIdr', e.target.value)}
+                placeholder="20000"
+                className="tabular-nums pr-12"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                IDR
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Nominal mint terkecil yang diterima. Minimum Rp{' '}
+              {MIN_MINT_IDR_FLOOR.toLocaleString('id-ID')}.
+            </p>
+            <FieldError message={errors.minMintIdr} />
+          </div>
+        </div>
+
+        {/* Minimum redeem (USDX-682) — kembaran Minimum Mint, di snapshot
+            penuh yang sama. Angkanya dibandingkan ke rupiah BERSIH yang
+            diterima nasabah setelah fee (`net_payout_idr`), bukan bruto:
+            nasabah menilai minimum dari uang yang benar-benar masuk ke
+            rekeningnya. */}
+        <div className="space-y-4 border-t border-border pt-5">
+          <p className="text-xs font-medium text-muted-foreground">
+            Batas redeem
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="minRedeemIdr">Minimum Redeem (Rp)</Label>
+            <div className="relative">
+              <Input
+                id="minRedeemIdr"
+                type="number"
+                step="1"
+                min={MIN_REDEEM_IDR_FLOOR}
+                value={form.minRedeemIdr}
+                onChange={(e) => set('minRedeemIdr', e.target.value)}
+                placeholder="20000"
+                className="tabular-nums pr-12"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                IDR
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rupiah bersih terkecil yang diterima nasabah, setelah fee.
+              Minimum Rp {MIN_REDEEM_IDR_FLOOR.toLocaleString('id-ID')}.
+            </p>
+            <FieldError message={errors.minRedeemIdr} />
+          </div>
+        </div>
+      </FormDialog>
+    </>
   )
 }

@@ -29,6 +29,18 @@ function loginAsStaffRole(email: string) {
   return staff
 }
 
+/**
+ * Audit layout Pengaturan (11 Okt 2026): form ubah kurs tinggal di dialog yang
+ * dibuka dari tombol "Ubah kurs" di kartu "Kurs saat ini".
+ */
+async function openRateForm() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: /^ubah kurs$/i }))
+  return screen.findByRole('button', { name: /tinjau dan ubah/i })
+}
+
+const CONFIRM = { name: /ubah kurs yang berlaku\?/i }
+
 describe('RatePage @integration', () => {
   describe('AC: open /rate displays current rate info', () => {
     test('should show rate, mode, and spread from GET /api/v1/rate', async () => {
@@ -48,9 +60,7 @@ describe('RatePage @integration', () => {
   describe('AC: ADMIN role sees update form', () => {
     test('should render the update form for super_admin (mapped to ADMIN)', async () => {
       renderWithProviders(<RatePage />, { authenticated: true })
-      expect(
-        await screen.findByRole('button', { name: /tinjau dan ubah/i })
-      ).toBeInTheDocument()
+      expect(await openRateForm()).toBeInTheDocument()
       // Read-only notice must NOT be present
       expect(screen.queryByText(/tidak berwenang mengubah kurs/i)).not.toBeInTheDocument()
     })
@@ -64,6 +74,7 @@ describe('RatePage @integration', () => {
       expect(
         await screen.findByText(/tidak berwenang mengubah kurs/i)
       ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^ubah kurs$/i })).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /tinjau dan ubah/i })
       ).not.toBeInTheDocument()
@@ -83,7 +94,7 @@ describe('RatePage @integration', () => {
     test('should disable the manual rate input when mode is DYNAMIC', async () => {
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /tinjau dan ubah/i })
+      await openRateForm()
 
       // Wait for the form to seed from the resolved current config.
       await waitFor(() => {
@@ -98,7 +109,7 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /tinjau dan ubah/i })
+      await openRateForm()
 
       // Switch the mode select to MANUAL
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
@@ -115,7 +126,7 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /tinjau dan ubah/i })
+      await openRateForm()
 
       // Choose MANUAL and a realistic rate
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
@@ -125,15 +136,17 @@ describe('RatePage @integration', () => {
 
       await user.click(screen.getByRole('button', { name: /tinjau dan ubah/i }))
 
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM)
       expect(within(dialog).getByText(/ubah kurs yang berlaku\?/i)).toBeInTheDocument()
       // Diff renders the new manual rate (formatted)
       expect(within(dialog).getByText(/16\.500,00 IDR\/USD/)).toBeInTheDocument()
       // Cancel button keeps the form alive without submitting
       await user.click(within(dialog).getByRole('button', { name: /batal/i }))
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM)).not.toBeInTheDocument()
       })
+      // Dialog form tetap terbuka dengan isiannya.
+      expect(screen.getByLabelText(/kurs manual/i)).toHaveValue(16500)
     })
   })
 
@@ -142,7 +155,7 @@ describe('RatePage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<RatePage />, { authenticated: true })
 
-      await screen.findByRole('button', { name: /tinjau dan ubah/i })
+      await openRateForm()
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
       await user.type(screen.getByLabelText(/kurs manual/i), '1000')
@@ -163,13 +176,14 @@ describe('RatePage @integration', () => {
       await waitFor(() => {
         expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
       })
+      await openRateForm()
 
       await user.click(screen.getByRole('combobox', { name: /mode/i }))
       await user.click(screen.getByRole('option', { name: /^manual/i }))
       await user.type(screen.getByLabelText(/kurs manual/i), '17000')
 
       await user.click(screen.getByRole('button', { name: /tinjau dan ubah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM)
       await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
 
       // After mutation, dialog closes, GET refetches, MANUAL appears in card

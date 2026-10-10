@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import PageHeader from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
 import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageFeeConfig } from '@/lib/types'
@@ -13,6 +15,7 @@ export default function FeeConfigPage() {
   const { user } = useAuth()
   const fee = useFeeConfig()
   const canEdit = !!user && canManageFeeConfig(user.role)
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div>
@@ -26,14 +29,23 @@ export default function FeeConfigPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <CurrentFeeConfigCard data={fee.data} isLoading={fee.isLoading} />
-        </div>
-        <div className="lg:col-span-7">
-          {canEdit ? <FeeConfigUpdateForm current={fee.data} /> : <ReadOnlyNotice />}
-        </div>
+      {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
+          di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
+      <div className="max-w-3xl space-y-4">
+        <CurrentFeeConfigCard
+          data={fee.data}
+          isLoading={fee.isLoading}
+          action={
+            canEdit ? (
+              <Button type="button" onClick={() => setFormOpen(true)}>
+                Ubah biaya
+              </Button>
+            ) : null
+          }
+        />
+        {!canEdit && <ReadOnlyNotice />}
       </div>
+      {canEdit && <FeeConfigUpdateForm current={fee.data} open={formOpen} onOpenChange={setFormOpen} />}
     </div>
   )
 }

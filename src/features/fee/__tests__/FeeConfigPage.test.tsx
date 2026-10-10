@@ -34,6 +34,17 @@ function loginAsStaffRole(email: string) {
   return staff
 }
 
+
+/**
+ * Audit layout Pengaturan (11 Okt 2026): form ubah biaya tinggal di dialog yang
+ * dibuka dari tombol "Ubah biaya" di kartu "Biaya saat ini".
+ */
+async function openFeeForm() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: /^ubah biaya$/i }))
+  await screen.findByRole('dialog', { name: /ubah biaya/i })
+}
+
 describe('FeeConfigPage @integration', () => {
   describe('AC: open /settings/fee shows current config', () => {
     test('shows mint / PG / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
@@ -52,6 +63,7 @@ describe('FeeConfigPage @integration', () => {
   describe('AC: ADMIN sees update form', () => {
     test('renders the update form for the default ADMIN operator', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       expect(
         await screen.findByRole('button', { name: /simpan biaya baru/i }),
       ).toBeInTheDocument()
@@ -84,6 +96,7 @@ describe('FeeConfigPage @integration', () => {
     test('full flow: edit mint fee, submit, see the new value in the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
 
       const mintInput = (await screen.findByLabelText(/^biaya mint$/i)) as HTMLInputElement
       // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
@@ -102,6 +115,7 @@ describe('FeeConfigPage @integration', () => {
     test('blank mint fee blocks submit with a validation error', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const mintInput = (await screen.findByLabelText(/^biaya mint$/i)) as HTMLInputElement
       // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
       // (kolom `numeric(5,4)`), dan validator form hanya menerima dua desimal.
@@ -119,6 +133,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
   describe('AC: open the page → the field carries the active value', () => {
     test('card and input both show the active minimum mint from GET', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
         expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
       })
@@ -138,6 +153,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         }),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -158,6 +174,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
     test('full flow: raise the minimum, submit, read it back from the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -170,8 +187,11 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/15\.000/)
       })
 
-      await user.clear(input)
-      await user.type(input, '20000')
+      // Tersimpan = dialog tertutup; ubah lagi = buka dialognya lagi.
+      await openFeeForm()
+      const again = (await screen.findByLabelText(/^minimum mint \(rp\)$/i)) as HTMLInputElement
+      await user.clear(again)
+      await user.type(again, '20000')
       await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
       await waitFor(() => {
         expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
@@ -191,6 +211,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         }),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -252,6 +273,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -285,6 +307,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -333,6 +356,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
   describe('positive', () => {
     test('the field carries the active value from GET, and the card shows it too', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
         expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent(/20\.000/)
       })
@@ -348,6 +372,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const bodies = recordFeeConfigBodies()
       const statuses = recordFeeConfigStatuses()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
@@ -372,6 +397,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
     test('raising the minimum is saved and read back from the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
@@ -392,6 +418,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const user = userEvent.setup()
       const bodies = recordFeeConfigBodies()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
@@ -406,6 +433,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const user = userEvent.setup()
       const bodies = recordFeeConfigBodies()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
@@ -455,6 +483,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
       await user.clear(input)
@@ -492,6 +521,7 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
         expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent('—')
       })

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import PageHeader from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
 import SettingsTabs from '@/components/layout/SettingsTabs'
 import CurrentThresholdCard from './CurrentThresholdCard'
 import ThresholdUpdateForm from './ThresholdUpdateForm'
@@ -9,6 +11,7 @@ import { useThreshold } from './hooks'
 // reaches this component.
 export default function ThresholdPage() {
   const threshold = useThreshold()
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div>
@@ -18,14 +21,20 @@ export default function ThresholdPage() {
         subtitle="Permintaan OTC dengan nominal sebesar ini atau lebih ditandatangani lewat dompet Safe Manager, bukan Safe Staf."
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <CurrentThresholdCard data={threshold.data} isLoading={threshold.isLoading} />
-        </div>
-        <div className="lg:col-span-7">
-          <ThresholdUpdateForm current={threshold.data} />
-        </div>
+      {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
+          di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
+      <div className="max-w-3xl">
+        <CurrentThresholdCard
+          data={threshold.data}
+          isLoading={threshold.isLoading}
+          action={
+            <Button type="button" onClick={() => setFormOpen(true)}>
+              Ubah batas
+            </Button>
+          }
+        />
       </div>
+      <ThresholdUpdateForm current={threshold.data} open={formOpen} onOpenChange={setFormOpen} />
     </div>
   )
 }

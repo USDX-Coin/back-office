@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import FormDialog from '@/components/FormDialog'
 import {
   Select,
   SelectContent,
@@ -16,10 +15,12 @@ import { ApiError } from '@/lib/apiFetch'
 import type { ThresholdConfig, ThresholdMode } from '@/lib/types'
 import { useUpdateThreshold } from './hooks'
 import { toastErrorMessage } from '@/lib/errorToast'
-import { FormFooter } from '@/components/FormLayout'
 
 interface Props {
   current: ThresholdConfig | undefined
+  /** Dialog form dibuka dari tombol di kartu "saat ini" (audit Pengaturan 11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 interface FormState {
@@ -68,7 +69,7 @@ function thresholdUpdateErrorMessage(err: unknown): string {
   return 'Batas gagal diubah. Periksa koneksi lalu coba lagi.'
 }
 
-export default function ThresholdUpdateForm({ current }: Props) {
+export default function ThresholdUpdateForm({ current, open, onOpenChange }: Props) {
   const update = useUpdateThreshold()
   const [overrides, setOverrides] = useState<FormOverrides>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -100,64 +101,34 @@ export default function ThresholdUpdateForm({ current }: Props) {
       toast.success('Batas berhasil diubah')
       setOverrides({})
       setErrors({})
+      onOpenChange(false)
     } catch (err) {
       toastErrorMessage(thresholdUpdateErrorMessage(err), err)
     }
   }
 
-  return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-section">
-          Ubah batas
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="threshold-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="thresholdMode">Mode</Label>
-            <Select
-              value={form.mode}
-              onValueChange={(val) => set('mode', val as ThresholdMode)}
-            >
-              <SelectTrigger id="thresholdMode">
-                <SelectValue placeholder="Pilih mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD — bandingkan langsung dengan nominal USDX</SelectItem>
-                <SelectItem value="IDR">IDR — bandingkan dengan USDX × kurs</SelectItem>
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.mode} />
-          </div>
+  // Batal / tutup membuang isian yang belum dikirim — dialog dibuka lagi
+  // = mulai dari nilai yang berlaku sekarang.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setOverrides({})
+      setErrors({})
+    }
+    onOpenChange(next)
+  }
 
-          <div className="space-y-1.5">
-            <Label htmlFor="thresholdAmount">Nominal</Label>
-            <div className="relative">
-              <Input
-                id="thresholdAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.amount}
-                onChange={(e) => set('amount', e.target.value)}
-                placeholder={form.mode === 'IDR' ? '1000000000.00' : '70000.00'}
-                className="tabular-nums pr-16"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                {form.mode || '—'}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Permintaan dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
-              bukan Safe Staf.
-            </p>
-            <FieldError message={errors.amount} />
-          </div>
-        </CardContent>
-        <FormFooter
-          note={
-            <div className="space-y-2">
+  return (
+    <>
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Ubah batas"
+        formId="threshold-form"
+        onSubmit={handleSubmit}
+        pending={update.isPending}
+        submitLabel={update.isPending ? 'Menyimpan…' : 'Simpan batas baru'}
+        note={
+          <div className="space-y-2">
           {/* Batas ini menentukan siapa yang wajib menandatangani request besar,
               jadi kalimat di atas tombol menyebut akibatnya — bukan "Anda
               yakin?". Menaikkannya berarti lebih banyak request lolos tanpa
@@ -168,18 +139,49 @@ export default function ThresholdUpdateForm({ current }: Props) {
             di Safe Staf dan tidak pernah sampai ke Safe Manager.
           </p>
             </div>
-          }
-        >
-          <Button
-            type="submit"
-            form="threshold-form"
-            disabled={update.isPending}
-            aria-busy={update.isPending}
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="thresholdMode">Mode</Label>
+          <Select
+            value={form.mode}
+            onValueChange={(val) => set('mode', val as ThresholdMode)}
           >
-            {update.isPending ? 'Menyimpan…' : 'Simpan batas baru'}
-          </Button>
-        </FormFooter>
-      </form>
-    </Card>
+            <SelectTrigger id="thresholdMode">
+              <SelectValue placeholder="Pilih mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD — bandingkan langsung dengan nominal USDX</SelectItem>
+              <SelectItem value="IDR">IDR — bandingkan dengan USDX × kurs</SelectItem>
+            </SelectContent>
+          </Select>
+          <FieldError message={errors.mode} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="thresholdAmount">Nominal</Label>
+          <div className="relative">
+            <Input
+              id="thresholdAmount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.amount}
+              onChange={(e) => set('amount', e.target.value)}
+              placeholder={form.mode === 'IDR' ? '1000000000.00' : '70000.00'}
+              className="tabular-nums pr-16"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              {form.mode || '—'}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Permintaan dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
+            bukan Safe Staf.
+          </p>
+          <FieldError message={errors.amount} />
+        </div>
+      </FormDialog>
+    </>
   )
 }

@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import PageHeader from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
 import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageRate } from '@/lib/types'
@@ -10,6 +12,7 @@ export default function RatePage() {
   const { user } = useAuth()
   const rate = useRate()
   const canEdit = !!user && canManageRate(user.role)
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div>
@@ -26,18 +29,23 @@ export default function RatePage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <CurrentRateCard data={rate.data} isLoading={rate.isLoading} />
-        </div>
-        <div className="lg:col-span-7">
-          {canEdit ? (
-            <RateUpdateForm current={rate.data} />
-          ) : (
-            <ReadOnlyNotice />
-          )}
-        </div>
+      {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
+          di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
+      <div className="max-w-3xl space-y-4">
+        <CurrentRateCard
+          data={rate.data}
+          isLoading={rate.isLoading}
+          action={
+            canEdit ? (
+              <Button type="button" onClick={() => setFormOpen(true)}>
+                Ubah kurs
+              </Button>
+            ) : null
+          }
+        />
+        {!canEdit && <ReadOnlyNotice />}
       </div>
+      {canEdit && <RateUpdateForm current={rate.data} open={formOpen} onOpenChange={setFormOpen} />}
     </div>
   )
 }

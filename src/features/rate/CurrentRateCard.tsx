@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRate, formatSpreadPct, formatRelativeTime, rateModeLabel } from '@/lib/format'
@@ -6,15 +7,18 @@ import type { RateInfo } from '@/lib/types'
 interface CurrentRateCardProps {
   data: RateInfo | undefined
   isLoading: boolean
+  /** Tombol aksi utama di kanan atas kartu (mis. "Ubah kurs"); kosong untuk peran baca saja. */
+  action?: ReactNode
 }
 
-export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProps) {
+export default function CurrentRateCard({ data, isLoading, action }: CurrentRateCardProps) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Kurs saat ini
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading || !data ? (

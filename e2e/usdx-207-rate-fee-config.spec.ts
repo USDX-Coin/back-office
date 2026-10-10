@@ -14,6 +14,8 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/rate')
+      // Audit Pengaturan 11 Okt 2026: form ubah di dialog dari tombol kartu.
+      await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
 
       const buy = page.getByLabel(/spread beli/i)
       await expect(buy).toBeVisible({ timeout: 15000 })
@@ -44,6 +46,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       // Target inputs by id — the card reuses similar aria-labels, so a
       // label-text match would be ambiguous.
@@ -64,6 +67,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minMint = page.locator('#minMintIdr')
       await expect(minMint).toBeVisible({ timeout: 15000 })
@@ -85,6 +89,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minRedeem = page.locator('#minRedeemIdr')
       await expect(minRedeem).toBeVisible({ timeout: 15000 })
@@ -104,6 +109,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minRedeem = page.locator('#minRedeemIdr')
       await expect(minRedeem).toBeVisible({ timeout: 15000 })
@@ -125,6 +131,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       let posted = false
       page.on('request', (req) => {
@@ -148,6 +155,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       let posted = false
       page.on('request', (req) => {
@@ -190,6 +198,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
         timeout: 15000,
       })
       await expect(page.getByRole('button', { name: /simpan biaya baru/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Ubah biaya' })).toHaveCount(0)
       // The current config is still readable.
       await expect(page.getByLabel(/persen biaya mint/i)).toBeVisible()
     })
@@ -218,6 +227,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
         timeout: 15000,
       })
       await expect(page.getByRole('button', { name: /tinjau dan ubah/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Ubah kurs' })).toHaveCount(0)
     })
   })
 })
