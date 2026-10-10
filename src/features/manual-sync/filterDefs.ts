@@ -48,10 +48,12 @@ export const MANUAL_SYNC_SORT_COLUMNS: SortColumnDef[] = []
 export const MANUAL_SYNC_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'id', label: 'ID request', required: true },
   { key: 'type', label: 'Jenis', required: true },
-  { key: 'chain', label: 'Jaringan' },
+  // Ops fokus (PM Okt 2026): info on-chain disembunyikan bawaan, bisa
+  // dinyalakan lewat popover Kolom.
+  { key: 'chain', label: 'Jaringan', hiddenByDefault: true },
   { key: 'user', label: 'Nasabah', required: true },
   { key: 'safeType', label: 'Dompet' },
   { key: 'amount', label: 'Nominal', required: true },
-  { key: 'safeTx', label: 'Antrean tanda tangan' },
+  { key: 'safeTx', label: 'Antrean tanda tangan', hiddenByDefault: true },
   { key: 'actions', label: 'Aksi', required: true },
 ]

@@ -30,8 +30,8 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       // Kartu USD dibaca BERSEBELAHAN dengan kartu rupiah di layar yang sama, jadi
       // keduanya satu konvensi: titik ribuan, koma desimal. Glif `$` dipertahankan.
       await expect(page.getByTestId('bni-balance-card-TREASURY_USD')).toContainText('$12.500,75')
-      await expect(page.getByTestId('bni-inquired-at-bank')).toHaveText('2026-09-09 14:30')
-      await expect(page.getByTestId('bni-pulled-at')).toHaveText('2026-09-09 14:31:02 WIB')
+      await expect(page.getByTestId('bni-inquired-at-bank')).toHaveText('9 Sep 2026, 14:30')
+      await expect(page.getByTestId('bni-pulled-at')).toHaveText('9 Sep 2026, 14:31:02')
     })
 
     test('pick account + Keluar + Tarik → DEBIT rows, then Unduh CSV downloads a BOM-prefixed file', async ({ page }) => {

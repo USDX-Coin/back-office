@@ -107,7 +107,7 @@ function Row({ label, value, hint, testId }: { label: ReactNode; value: ReactNod
         <p className="text-sm text-foreground">{label}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
-      <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{value}</p>
+      <div className="shrink-0 text-right text-sm font-semibold tabular-nums">{value}</div>
     </div>
   )
 }

@@ -41,6 +41,10 @@ test.describe('Antrean Tanda Tangan @e2e', () => {
       await expect(signers).toContainText('Linda Chen')
       await expect(signers).toContainText('Belum')
       expect(await frontText(page)).not.toMatch(/0x[0-9a-fA-F]{6,}/)
+      // Format waktu seragam: `12 Sep 2026, 08:00:09`, WIB hanya di label.
+      const front = await frontText(page)
+      expect(front).toMatch(/Diajukan \(WIB\)\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}/)
+      expect(front).not.toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}|\d{2}\.\d{2}\.\d{2}/)
       await expect(modal.getByRole('button', { name: 'Hubungkan wallet' })).toBeInViewport()
 
       // Modal di tengah layar.
