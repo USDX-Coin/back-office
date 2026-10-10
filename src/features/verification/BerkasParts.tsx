@@ -108,7 +108,9 @@ export function BerkasActions({
   return (
     <>
       {userId && (
-        <DropdownMenu>
+        // modal={false}: lihat RecordActions — item ini memindah halaman dari
+        // dalam Dialog modal, dan menu modal meninggalkan kunci pointer-events.
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline">
               Lainnya

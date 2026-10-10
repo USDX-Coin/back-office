@@ -134,8 +134,14 @@ export default function RecordActions({ primary, more = [], hint, override }: Re
           {primary.label}
         </Button>
       )}
+      {/* modal={false}: menu ini selalu duduk di dalam Dialog yang sudah mengunci
+          halaman. DropdownMenu modal menambah kunci `pointer-events` kedua di
+          <body>; item yang memanggil navigate() melepas menu + dialog bersamaan
+          dan kunci kedua itu tertinggal — sidebar/breadcrumb tak bisa diklik,
+          konten tak bisa digulir sampai dimuat ulang (bug 11 Okt 2026, e2e
+          usdx-menu-navigasi.spec.ts). Fokus, panah, dan Esc tetap diurus Radix. */}
       {more.length > 0 && (
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline">
               Lainnya

@@ -27,7 +27,9 @@ export default function ProfileDropdown() {
   const roleLabel = formatRole(user.role)
 
   return (
-    <DropdownMenu>
+    // modal={false}: kedua item memindah halaman; menu modal bisa meninggalkan
+    // kunci pointer-events/gulir di <body> (bug 11 Okt 2026, lihat RecordActions).
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
         <Avatar name={user.name} size="sm" />
         <span className="hidden text-sm font-medium text-foreground sm:inline">
