@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { toast } from 'sonner'
 import { getAddress } from 'viem'
 import { Hash } from 'lucide-react'
@@ -63,6 +64,10 @@ const EMPTY: FormState = {
 
 export default function BurnRequestForm() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // STAFF tidak boleh membuka daftar OTC (403), jadi setelah kirim ia tetap di
+  // form yang sudah dikosongkan dan Batal kembali ke Ringkasan.
+  const listPath = canAccessRequestList(user) ? '/otc/redeem' : null
   const create = useCreateBurn()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -178,7 +183,7 @@ export default function BurnRequestForm() {
       toast.success('Permintaan redeem OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/otc/redeem')
+      if (listPath) navigate(listPath)
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a banner with the
       // blocking request ID + Manual Sync link. Form state is preserved so
@@ -326,7 +331,7 @@ export default function BurnRequestForm() {
         </FormSection>
 
         <FormFooter note="Permintaan masuk antrean tanda tangan Safe dan muncul di halaman OTC.">
-          <Button type="button" variant="outline" onClick={() => navigate('/otc/redeem')}>
+          <Button type="button" variant="outline" onClick={() => navigate(listPath ?? '/ringkasan')}>
             Batal
           </Button>
           <Button

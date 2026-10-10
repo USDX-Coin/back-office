@@ -174,8 +174,11 @@ describe('visibleNav — gerbang peran tidak ikut dirombak', () => {
   })
 
   describe('negative', () => {
-    test('STAFF tidak melihat OTC (tidak boleh membaca /api/v1/requests)', () => {
-      expect(topLabels(STAFF)).not.toContain('OTC')
+    test('STAFF tidak melihat daftar OTC (tidak boleh membaca /api/v1/requests), hanya jalan ke form', () => {
+      expect(itemsIn(STAFF, 'OTC')).toEqual(['Buat mint', 'Buat redeem'])
+      for (const id of [ADMIN, MANAGER, DEVELOPER]) {
+        expect(itemsIn(id, 'OTC')).toEqual(['Mint', 'Redeem'])
+      }
     })
 
     test('Kurs & Biaya + Cadangan & Atestasi hanya ADMIN + DEVELOPER', () => {

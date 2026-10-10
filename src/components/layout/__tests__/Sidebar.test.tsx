@@ -125,12 +125,14 @@ describe('Sidebar (redesain fase 1)', () => {
   })
 
   describe('negative', () => {
-    test('should not render OTC — nor fire its count query — for STAFF', async () => {
+    test('should not render the OTC lists — nor fire their count query — for STAFF', async () => {
       const calls = recordRequests()
       server.use(queueCounts({ redeemApprovalsOpen: 1, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 1 }))
       renderSidebar('/transactions', STAFF)
       await screen.findByTestId('nav-badge-transactions')
-      expect(screen.queryByRole('button', { name: /^OTC/ })).not.toBeInTheDocument()
+      await userEvent.setup().click(screen.getByRole('button', { name: /^OTC/ }))
+      expect(screen.getByRole('link', { name: 'Buat mint' })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^Mint$/ })).not.toBeInTheDocument()
       expect(calls.some((c) => c.startsWith('/api/v1/requests'))).toBe(false)
     })
 

@@ -52,6 +52,7 @@ function TestApp() {
     <Routes>
       <Route path="/mint/new" element={<MintFormPage />} />
       <Route path="/otc/mint" element={<div data-testid="otc-page">OTC landing</div>} />
+      <Route path="/ringkasan" element={<div data-testid="ringkasan-page">Ringkasan</div>} />
     </Routes>
   )
 }
@@ -277,6 +278,34 @@ describe('MintFormPage @ USDX-46', () => {
       // userName must NOT appear in the body anymore.
       expect(capturedBody).not.toHaveProperty('userName')
       await screen.findByTestId('otc-page')
+    })
+
+    // STAFF tidak boleh membuka daftar OTC (403): setelah kirim ia tetap di
+    // form yang sudah dikosongkan, dan Batal membawanya ke Ringkasan.
+    test('STAFF stays on the emptied form after submit and Batal goes to Ringkasan', async () => {
+      const user = userEvent.setup()
+      server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
+      let posted = false
+      server.use(
+        http.post('/api/v1/mint', () => {
+          posted = true
+          return HttpResponse.json({ status: 'success', metadata: null, data: { id: 'mint_1' } }, { status: 201 })
+        }),
+      )
+      renderWithProviders(<TestApp />, { initialEntries: ['/mint/new'], staffId: 'stf_4' })
+      await pickEligibleUser(user)
+      await selectChainPolygon(user)
+      await user.click(document.getElementById('mintWallet')!)
+      await user.click(await screen.findByRole('option', { name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '100')
+      await user.click(screen.getByRole('button', { name: /kirim permintaan mint otc/i }))
+
+      await waitFor(() => expect(posted).toBe(true))
+      await waitFor(() => expect(screen.getByLabelText(/^nominal$/i)).toHaveValue(''))
+      expect(screen.queryByTestId('otc-page')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /^batal$/i }))
+      await screen.findByTestId('ringkasan-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {

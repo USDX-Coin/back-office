@@ -60,9 +60,11 @@ describe('MobileNavDrawer', () => {
   })
 
   describe('negative', () => {
-    test('should not render OTC for STAFF', () => {
-      renderOpen('/transactions', 'stf_4')
-      expect(screen.queryByRole('button', { name: /^OTC/ })).not.toBeInTheDocument()
+    test('should give STAFF only the OTC forms, not the OTC lists', () => {
+      renderOpen('/mint/new', 'stf_4')
+      expect(screen.getByRole('link', { name: 'Buat mint' })).toHaveAttribute('href', '/mint/new')
+      expect(screen.getByRole('link', { name: 'Buat redeem' })).toHaveAttribute('href', '/burn/new')
+      expect(screen.queryByRole('link', { name: /^Mint$/ })).not.toBeInTheDocument()
     })
 
     test('should not render the removed menus', () => {

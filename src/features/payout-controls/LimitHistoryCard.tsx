@@ -183,6 +183,7 @@ export function LimitHistoryModal({
   change,
   missingId,
   loading,
+  error = null,
   directory,
   nav,
   onClose,
@@ -190,6 +191,8 @@ export function LimitHistoryModal({
   change: PayoutControlChange | null
   missingId: string
   loading: boolean
+  /** Riwayat gagal dimuat — bukan "tidak ada di daftar" (daftarnya sendiri tidak terbaca). */
+  error?: unknown
   directory: StaffDirectory
   nav: RecordModalNav
   onClose: () => void
@@ -199,12 +202,14 @@ export function LimitHistoryModal({
       <RecordModal
         open
         onClose={onClose}
-        title={loading ? 'Memuat riwayat…' : 'Perubahan tidak ada di daftar ini'}
+        title={loading ? 'Memuat riwayat…' : error ? 'Riwayat gagal dimuat' : 'Perubahan tidak ada di daftar ini'}
         nav={nav}
         testId="plafon-riwayat-modal"
       >
         {loading ? (
           <p className="text-sm text-muted-foreground">Memuat…</p>
+        ) : error ? (
+          <ErrorNotice error={error} title="Riwayat plafon belum bisa dibaca, jadi perubahan ini belum bisa ditampilkan." />
         ) : (
           <div className="space-y-2 text-sm">
             <p>

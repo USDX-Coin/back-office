@@ -323,6 +323,23 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
         /belum menyajikan endpoint plafon pencairan/
       )
     })
+    test('tautan riwayat saat riwayat gagal dimuat bilang gagal, bukan "tidak ada di daftar ini"', async () => {
+      server.use(
+        http.get('/api/v1/payout-controls/limits/history', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'NOT_FOUND', message: 'Cannot GET' } },
+            { status: 404 }
+          )
+        )
+      )
+      renderWithProviders(<PayoutControlsPage />, {
+        initialEntries: ['/plafon-pencairan/riwayat/ver_1'],
+        staffId: 'stf_2',
+      })
+      const modal = await screen.findByTestId('plafon-riwayat-modal')
+      expect(await within(modal).findByRole('heading', { name: 'Riwayat gagal dimuat' })).toBeInTheDocument()
+      expect(modal).not.toHaveTextContent(/tidak ada di daftar ini/)
+    })
   })
 
   describe('edge cases', () => {

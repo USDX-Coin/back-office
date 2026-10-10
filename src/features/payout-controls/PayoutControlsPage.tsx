@@ -186,6 +186,7 @@ export default function PayoutControlsPage() {
           change={index >= 0 ? rows[index]! : null}
           missingId={selectedId}
           loading={history.isLoading}
+          error={history.error}
           directory={directory}
           onClose={() => navigate('/plafon-pencairan')}
           nav={{

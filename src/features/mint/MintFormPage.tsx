@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { toast } from 'sonner'
 import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,10 @@ const EMPTY: FormState = {
 
 export default function MintFormPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // STAFF tidak boleh membuka daftar OTC (403), jadi setelah kirim ia tetap di
+  // form yang sudah dikosongkan dan Batal kembali ke Ringkasan.
+  const listPath = canAccessRequestList(user) ? '/otc/mint' : null
   const create = useCreateMintRequest()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -169,7 +174,7 @@ export default function MintFormPage() {
       toast.success('Permintaan mint OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/otc/mint')
+      if (listPath) navigate(listPath)
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a dedicated banner so the
       // operator sees the blocking request ID + Manual Sync shortcut. Form
@@ -292,7 +297,7 @@ export default function MintFormPage() {
               </FormSection>
 
               <FormFooter note="Permintaan masuk antrean tanda tangan Safe dan muncul di halaman OTC.">
-                <Button type="button" variant="outline" onClick={() => navigate('/otc/mint')}>
+                <Button type="button" variant="outline" onClick={() => navigate(listPath ?? '/ringkasan')}>
                   Batal
                 </Button>
                 <Button

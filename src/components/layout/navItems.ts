@@ -78,6 +78,8 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 //   - Mode Mint & Plafon Pencairan tetap SEMUA peran: rem darurat yang harus
 //     bisa dicapai STAFF tanpa mencari atasan (USDX-639).
 // ─────────────────────────────────────────────────────────────────────────────
+const isStaffRole = (user: Staff | null) => user?.role === 'STAFF'
+
 export const NAV: NavEntry[] = [
   // Ringkasan (10 Okt 2026): halaman pertama setelah masuk, semua peran.
   { kind: 'item', to: '/ringkasan', label: 'Ringkasan', icon: LayoutGrid },
@@ -109,6 +111,10 @@ export const NAV: NavEntry[] = [
         visibleWhen: canAccessRequestList,
         match: ['/otc/redeem', '/burn'],
       },
+      // STAFF tidak boleh membuka daftar OTC, tapi boleh mengajukan mint/redeem
+      // (USDX-78, sot/phase-1.md L34) — jalannya langsung ke form, seperti dulu.
+      { to: '/mint/new', label: 'Buat mint', visibleWhen: isStaffRole },
+      { to: '/burn/new', label: 'Buat redeem', visibleWhen: isStaffRole },
     ],
   },
   {

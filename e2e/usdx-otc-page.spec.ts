@@ -104,13 +104,18 @@ test.describe('OTC ▸ Mint / Redeem @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('STAFF does not see the OTC menu and gets the 403 page on /otc/mint', async ({ page }) => {
+    test('STAFF sees only the OTC forms in the menu and gets the 403 page on /otc/mint', async ({ page }) => {
       await installMockApi(page, asStaff())
       await seedAuthenticatedSession(page, { ...ADMIN_STAFF, role: 'STAFF' })
       await page.goto('/otc/mint')
       await expect(page.getByRole('heading', { name: /tidak punya akses/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await expect(page).toHaveURL(/\/otc\/mint$/)
-      await expect(page.getByRole('button', { name: /^OTC/ })).toHaveCount(0)
+      // Daftar OTC tetap terlarang, tapi jalan ke form pengajuan ada di menu.
+      const otc = page.getByRole('navigation').getByRole('button', { name: /^OTC/ }).first()
+      if ((await otc.getAttribute('aria-expanded')) !== 'true') await otc.click()
+      await expect(page.getByRole('link', { name: 'Buat mint' }).first()).toHaveAttribute('href', '/mint/new')
+      await expect(page.getByRole('link', { name: 'Buat redeem' }).first()).toHaveAttribute('href', '/burn/new')
+      await expect(page.getByRole('link', { name: /^Mint$/ })).toHaveCount(0)
     })
   })
 

@@ -92,9 +92,13 @@ export default function RecordModal({
 }: RecordModalProps) {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const navRef = useRef(nav)
+  // Saat `locked` (tanda tangan/eksekusi Safe berjalan) pindah baris dimatikan:
+  // hasil wallet dikirim ke id yang sedang tampil, jadi pindah baris di tengah
+  // proses bisa mencatat hash eksekusi ke transaksi yang salah.
+  const activeNav = locked ? null : nav
+  const navRef = useRef(activeNav)
   useEffect(() => {
-    navRef.current = nav
+    navRef.current = activeNav
   })
 
   // Didengar di `window`, bukan di konten: setelah "Berikutnya" di baris
@@ -171,8 +175,8 @@ export default function RecordModal({
                 variant="outline"
                 size="icon"
                 className="h-9 w-9"
-                disabled={!nav.onPrev}
-                onClick={nav.onPrev}
+                disabled={!activeNav?.onPrev}
+                onClick={activeNav?.onPrev}
                 aria-label="Sebelumnya"
                 title="Sebelumnya (↑)"
               >
@@ -183,8 +187,8 @@ export default function RecordModal({
                 variant="outline"
                 size="icon"
                 className="h-9 w-9"
-                disabled={!nav.onNext}
-                onClick={nav.onNext}
+                disabled={!activeNav?.onNext}
+                onClick={activeNav?.onNext}
                 aria-label="Berikutnya"
                 title="Berikutnya (↓)"
               >
