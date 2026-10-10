@@ -262,3 +262,14 @@ Screenshot terang 1440 + 390 → `scratchpad/redesain-f3/`.
 - Screenshot `m6-kyc-detail` menampilkan "Data tidak ditemukan" dan
   `m9-konfirmasi-kurs` tidak membuka dialog — artefak data tiruan skrip
   screenshot (sama seperti fase 2), bukan bug layar.
+
+## Ops fokus + format waktu (GO PM 10 Okt) — WIP, belum selesai
+
+Dihentikan di tengah karena laptop PM ditutup. Halaman galat (404/403/sesi habis) SUDAH selesai di `ef8a717`.
+Sisa:
+- A. Ops fokus ke transaksi: detail `/multisig` jadi modal tengah (nama penanda tangan, tombol tahap di footer,
+  pemeriksaan kecocokan tetap mengunci tombol); sisir modal lain — alamat/hash/calldata/nonce ke "Detail teknis"
+  (kecuali input yang harus diisi ops). Logika `useSafeTxSigning` tidak boleh berubah.
+- B. Format waktu seragam `12 Sep 2026, 08:00:09` lewat satu helper di `src/lib`; "WIB" hanya di judul kolom/label;
+  tanggal saja tetap `25 Jan 1994`; waktu relatif tetap; CSV jangan diubah bila kontrak.
+- Cek: lint/unit/build/e2e/audit high hijau, screenshot ke scratchpad/ops-fokus/, update CLAUDE.md, push.
