@@ -203,8 +203,8 @@ export default function DurianpayApiCallsPage() {
       size: 120,
       header: 'Integrasi',
       cell: ({ row }) => (
-        <span className="tabular-nums text-xs text-muted-foreground">
-          {row.original.apiFlavor}
+        <span className="text-xs text-muted-foreground" title={row.original.apiFlavor}>
+          {row.original.apiFlavor === 'LEGACY' ? 'Jalur lama' : row.original.apiFlavor}
         </span>
       ),
     },

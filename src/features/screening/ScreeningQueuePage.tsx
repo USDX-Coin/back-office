@@ -270,10 +270,9 @@ export default function ScreeningQueuePage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs"
               onClick={() => navigate('/screening/lists')}
             >
-              <ListChecks className="mr-1 h-3.5 w-3.5" />
+              <ListChecks className="mr-1.5 h-4 w-4" />
               Daftar sanksi
             </Button>
           ) : undefined

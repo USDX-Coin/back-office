@@ -77,7 +77,7 @@ export default function HeldCreditsPage() {
       header: 'Uang masuk (WIB)',
       // Cukup untuk `12 Sep 2026, 08:00:09` UTUH (detik ikut) — ini stempel
       // waktu yang dicocokkan ops dengan rekening koran bank.
-      size: 192,
+      size: 168,
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
           {formatDateTime(row.original.receivedAt)}
@@ -87,7 +87,7 @@ export default function HeldCreditsPage() {
     {
       id: 'problem',
       header: 'Kenapa tertahan',
-      size: 216,
+      size: 208,
       cell: ({ row }) => {
         const { heldReason, source } = row.original
         const label = heldReasonLabel(heldReason)
@@ -111,7 +111,7 @@ export default function HeldCreditsPage() {
     {
       id: 'amount',
       header: 'Nominal masuk',
-      size: 192,
+      size: 176,
       cell: ({ row }) => {
         const gap = amountGapLabel(row.original)
         return (
@@ -141,7 +141,7 @@ export default function HeldCreditsPage() {
       header: 'Pengirim',
       // Nomor rekening pengirim — nilai yang dicocokkan ops dengan mutasi bank.
       // 144px hanya memuat 120px isi; nomor 16 digit mono tidak muat.
-      size: 192,
+      size: 176,
       cell: ({ row }) => {
         const { senderName, accountFromTo } = row.original
         if (!senderName && !accountFromTo) {
@@ -172,7 +172,7 @@ export default function HeldCreditsPage() {
       // Baris keduanya berbunyi "ditagihkan Rp 4.012.350,00" — kata + nominal
       // dalam satu baris, jadi lebarnya harus memuat keduanya. 184px memotong
       // justru ujung nominalnya.
-      size: 216,
+      size: 208,
       cell: ({ row }) => {
         const order = row.original.order
         if (!order) {
@@ -208,7 +208,7 @@ export default function HeldCreditsPage() {
     {
       id: 'actions',
       header: '',
-      size: 88,
+      size: 80,
       cell: ({ row }) => (
         <button
           type="button"

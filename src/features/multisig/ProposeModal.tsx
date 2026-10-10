@@ -39,6 +39,7 @@ import {
   type ProposeFormValues,
 } from '@/lib/multisig/propose'
 import type { GovernanceOperation, SafeType } from '@/lib/types'
+import { safeTypeLabel } from '@/lib/multisig/present'
 import { useProposeGovernance } from './hooks'
 import { errorMessage } from '@/lib/errorMessages'
 
@@ -231,7 +232,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
             )}
 
             {kind === 'none' && (
-              <p className="rounded-md bg-surface-container-low/40 px-3 py-2 text-xs text-muted-foreground">
+              <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 Operasi ini tidak punya parameter.
               </p>
             )}
@@ -323,7 +324,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
             )}
 
             {kind === 'timelock' && (
-              <div className="space-y-3 rounded-md border border-outline-variant/20 bg-surface-container-low/30 p-3">
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
                 <p className="text-xs text-muted-foreground">
                   Tingkat lanjut — parameter mentah TimelockController (mis. upgrade UUPS). Nilainya
                   harus tepat; payload yang keliru akan ditolak kontrak saat dieksekusi.
@@ -410,7 +411,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                 <div className="space-y-1 text-foreground/90">
                   <p>
                     <span className="font-semibold">
-                      {queueOccupied.safeType ? `Safe ${queueOccupied.safeType}` : 'Safe ini'}
+                      {queueOccupied.safeType ? safeTypeLabel(queueOccupied.safeType) : 'Safe ini'}
                     </span>{' '}
                     sudah punya satu transaksi aktif di antrean (satu Safe cuma boleh punya satu
                     antrean berjalan). Eksekusi atau batalkan dulu transaksi itu sebelum mengajukan

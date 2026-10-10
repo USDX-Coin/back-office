@@ -231,7 +231,6 @@ export default function SanctionListsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs"
               disabled={rescan.isPending}
               onClick={() => {
                 setRescanPrompt(null)
@@ -239,12 +238,12 @@ export default function SanctionListsPage() {
               }}
             >
               <RefreshCw
-                className={cn('mr-1 h-3.5 w-3.5', rescan.isPending && 'animate-spin')}
+                className={cn('mr-1.5 h-4 w-4', rescan.isPending && 'animate-spin')}
               />
               {rescan.isPending ? 'Memindai…' : 'Pindai ulang'}
             </Button>
-            <Button size="sm" className="h-7 text-xs" onClick={() => setImportOpen(true)}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
+            <Button size="sm" onClick={() => setImportOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
               Impor daftar
             </Button>
           </>

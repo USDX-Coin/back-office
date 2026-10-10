@@ -212,7 +212,7 @@ export default function OncallContactsPage() {
       <SettingsTabs
         subtitle="Peringatan soal uang membawa serta kontak yang terdaftar di sini untuk kategori insiden yang cocok, supaya yang menerima peringatan tahu harus menghubungi siapa."
         actions={
-          <Button onClick={openAdd}>
+          <Button onClick={openAdd} size="sm">
             <Plus className="mr-1.5 h-4 w-4" />
             Tambah kontak
           </Button>

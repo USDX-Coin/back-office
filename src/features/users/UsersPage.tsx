@@ -235,8 +235,8 @@ export default function UsersPage() {
         subtitle={`${list.isLoading ? '…' : total} nasabah terdaftar`}
         actions={
           canManage ? (
-            <Button onClick={openAdd} size="sm" className="h-7 text-xs">
-              <Plus className="mr-1 h-3.5 w-3.5" />
+            <Button onClick={openAdd} size="sm">
+              <Plus className="mr-1.5 h-4 w-4" />
               Tambah Nasabah
             </Button>
           ) : undefined

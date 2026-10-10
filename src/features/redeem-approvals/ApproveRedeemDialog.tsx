@@ -25,7 +25,8 @@ import {
   redeemApprovalErrorMessage,
   validateApproveNote,
 } from '@/lib/redeemApprovals'
-import type { RedeemApprovalDetail, RedeemApprovalListItem } from '@/lib/types'
+import type { OrderStatus, RedeemApprovalDetail, RedeemApprovalListItem } from '@/lib/types'
+import { getOrderStatusConfig } from '@/lib/status'
 import PayoutDestinationSummary from './PayoutDestinationSummary'
 import { useApproveRedeemPayout, useRedeemApprovalDetail } from './hooks'
 
@@ -207,7 +208,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
         onSuccess: (outcome) => {
           toast.success(
             `Pencairan ${row.orderNumber} disetujui — menunggu pengiriman oleh sistem`,
-            { description: `Status order tetap ${outcome.status} sampai transfernya berangkat.` },
+            { description: `Status order tetap “${getOrderStatusConfig(outcome.status as OrderStatus).label}” sampai transfernya berangkat.` },
           )
           onOpenChange(false)
         },

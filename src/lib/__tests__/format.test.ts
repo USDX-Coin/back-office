@@ -212,11 +212,8 @@ describe('formatRelativeTime', () => {
     test('should return X hr lalu for 2-6 day deltas', () => {
       expect(formatRelativeTime('2026-04-13T12:00:00.000Z', now)).toBe('3 hr lalu')
     })
-    test('should return Mon DD for same-year older dates', () => {
-      const result = formatRelativeTime('2026-02-01T12:00:00.000Z', now)
-      expect(result).toContain('Feb')
-      expect(result).toContain('1')
-      expect(result).not.toContain('2026')
+    test('should return the full date (with year) for same-year older dates', () => {
+      expect(formatRelativeTime('2026-02-01T12:00:00.000Z', now)).toBe('1 Feb 2026')
     })
     test('should include year for older-than-current-year dates', () => {
       const result = formatRelativeTime('2025-10-24T12:00:00.000Z', now)

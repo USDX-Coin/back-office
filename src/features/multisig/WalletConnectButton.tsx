@@ -32,7 +32,7 @@ export default function WalletConnectButton() {
             {(() => {
               if (!connected) {
                 return (
-                  <Button size="sm" onClick={openConnectModal}>
+                  <Button size="sm" variant="outline" onClick={openConnectModal}>
                     <Wallet className="mr-1 h-4 w-4" />
                     Hubungkan Wallet
                   </Button>

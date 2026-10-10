@@ -136,8 +136,6 @@ export function formatShortDate(dateString: string): string {
   return formatDateOnly(dateString)
 }
 
-const SHORT_MONTH_DAY = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' })
-const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
 
 // String desimal kurs ("16250.00") → "16.250,00 IDR/USD".
 // Nilai yang tidak terbaca dikembalikan APA ADANYA, supaya jawaban backend yang
@@ -184,10 +182,9 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
   if (dayDelta === 1) return 'kemarin'
   if (dayDelta < 7) return `${dayDelta} hr lalu`
 
-  if (now.getFullYear() === then.getFullYear()) {
-    return SHORT_MONTH_DAY.format(then)
-  }
-  return SHORT_MONTH_DAY_YEAR.format(then)
+  // Lewat seminggu: tanggal lengkap `25 Jan 2026` (formatDateOnly), bukan
+  // "1 Mei" tanpa tahun — sapu bersih format waktu 11 Okt 2026.
+  return formatDateOnly(dateString)
 }
 
 // ─── Rekening BNI (USDX-631, sot/bni-integration.md § 16.4) ─────────────────

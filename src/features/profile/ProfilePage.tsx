@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
           <Card className="rounded-md py-0 gap-0 shadow-none">
             <CardContent className="p-5">
-              <h3 className="text-xs font-medium text-muted-foreground">
+              <h3 className="text-section">
                 Kontak
               </h3>
               <ul className="mt-3 space-y-3">
