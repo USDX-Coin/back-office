@@ -1,6 +1,7 @@
 import { useAuth } from '@/lib/auth'
 import NavTree from './NavTree'
 import { formatRole, getInitials } from './navItems'
+import LogoLockup from '@/components/LogoLockup'
 
 export default function Sidebar() {
   const { user } = useAuth()
@@ -10,7 +11,7 @@ export default function Sidebar() {
       <div className="flex h-14 shrink-0 items-center gap-2 px-4">
         {/* Logo asli usdx.co.id — lockup koin + tulisan USDX, salinan
             byte-identik dari landing. Bukan koin + teks serif buatan. */}
-        <img src="/image/logo-lockup.png" alt="USDX" className="h-6 w-auto" />
+        <LogoLockup className="h-6" />
         <span className="mt-0.5 rounded border border-border px-1.5 text-label font-medium text-muted-foreground">
           Back-office
         </span>

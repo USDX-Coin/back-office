@@ -140,7 +140,7 @@ export default function StaffPage() {
       enableSorting: true,
       cell: ({ row }) =>
         row.original.isActive ? (
-          <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">
+          <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-success">
             Aktif
           </Badge>
         ) : (

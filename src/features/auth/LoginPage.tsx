@@ -18,6 +18,7 @@ import ErrorNotice from '@/components/ErrorNotice'
 import ThemeToggle from '@/components/ThemeToggle'
 import { useAuth } from '@/lib/auth'
 import { validateLoginForm } from '@/lib/validators'
+import LogoLockup from '@/components/LogoLockup'
 
 /**
  * Galat login dalam kalimat manusia. `auth.tsx` melempar `ApiError` utuh;
@@ -73,7 +74,7 @@ export default function LoginPage() {
       <main className="flex flex-1 items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex flex-col items-center gap-2">
-            <img src="/image/logo-lockup.png" alt="USDX" className="h-9 w-auto" />
+            <LogoLockup className="h-9" />
             <p className="text-sm text-muted-foreground">Back-office</p>
           </div>
 

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { breadcrumbFor, visibleNav } from './navItems'
 import { sumBadges, useNavBadges } from './useNavBadges'
 import { useAuth } from '@/lib/auth'
+import LogoLockup from '@/components/LogoLockup'
 
 export default function Navbar() {
   const { pathname } = useLocation()
@@ -42,7 +43,7 @@ export default function Navbar() {
               />
             )}
           </button>
-          <img src="/image/logo-lockup.png" alt="USDX" className="h-5 w-auto" />
+          <LogoLockup className="h-5" />
         </div>
 
         <nav

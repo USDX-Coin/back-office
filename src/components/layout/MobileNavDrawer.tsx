@@ -10,6 +10,7 @@ import {
 import { useAuth } from '@/lib/auth'
 import NavTree from './NavTree'
 import { formatRole, getInitials } from './navItems'
+import LogoLockup from '@/components/LogoLockup'
 
 interface MobileNavDrawerProps {
   open: boolean
@@ -37,7 +38,7 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="flex w-72 max-w-[85vw] flex-col bg-card p-0">
         <SheetHeader className="flex h-14 shrink-0 flex-row items-center gap-2.5 space-y-0 border-b border-border px-4 text-left">
-          <img src="/image/logo-lockup.png" alt="" className="h-6 w-auto" />
+          <LogoLockup alt="" className="h-6" />
           <SheetTitle className="sr-only">USDX</SheetTitle>
           <SheetDescription className="mt-0.5 rounded border border-border px-1.5 text-label font-medium text-muted-foreground">
             Back-office

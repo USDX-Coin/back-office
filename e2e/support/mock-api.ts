@@ -1,5 +1,7 @@
 import type { Page, Route } from '@playwright/test'
 import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
+import { createInitialPaymentMethods } from '../../src/mocks/data'
+import type { PaymentMethod } from '../../src/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hermetic mock of the Phase-1 API for E2E.
@@ -904,6 +906,14 @@ export interface MockApiState {
   kycReviews: Map<string, MockKycReview[]>
   /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
   resendLog: Map<string, number>
+  /** Metode Pembayaran (SOT PR #50) — seed MSW `createInitialPaymentMethods`, mutable per test. */
+  paymentMethods: PaymentMethod[]
+  /** Body PATCH/PUT metode pembayaran yang SAMPAI ke server tiruan, berurutan. */
+  paymentMethodWrites: { method: string; path: string; body: Record<string, unknown> }[]
+  /** Baris activity_log `PAYMENT_METHOD` yang ditulis PATCH/PUT di atas (terbaru dulu). */
+  activityLogs: { id: string; action: string; resourceType: string; resourceId: string | null; metadata: Record<string, unknown>; createdAt: string }[]
+  /** Berapa kali `GET /api/v1/activity-logs` diminta (Jejak perubahan = Admin saja). */
+  activityLogRequests: number
 }
 
 export async function installMockApi(page: Page, opts: MockApiOptions = {}): Promise<MockApiState> {
@@ -917,6 +927,10 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     safeTxs: opts.safeTxs ?? seedSafeTxs(),
     kycReviews: seedKycReviews(kycRecords),
     resendLog: new Map(),
+    paymentMethods: createInitialPaymentMethods(),
+    paymentMethodWrites: [],
+    activityLogs: [],
+    activityLogRequests: 0,
   }
 
   // USDX-207: per-test mutable rate + fee config so POST is reflected by the
@@ -1604,6 +1618,78 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           resolvedAt: now,
         })
       }
+    }
+
+    // ── Metode Pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml) ──────
+    // Meniru handler MSW (`src/mocks/handlers.ts`) dengan seed yang sama:
+    // hanya Virtual Account NOBU yang ditawarkan, Transfer BNI dijaga D23 (409).
+    const sortedPm = () =>
+      [...state.paymentMethods].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code))
+    const pushPmLog = (action: string, resourceId: string | null, metadata: Record<string, unknown>) =>
+      state.activityLogs.unshift({
+        id: `log-pm-${state.activityLogs.length + 1}`,
+        action,
+        resourceType: 'PAYMENT_METHOD',
+        resourceId,
+        metadata,
+        createdAt: '2026-10-10T03:15:00.000Z',
+      })
+    if (key === 'GET /api/v1/payment-methods') return envelope(route, sortedPm())
+    const pmMatch = path.match(/^\/api\/v1\/payment-methods\/([^/]+)$/)
+    if (pmMatch && method === 'PATCH') {
+      const row = state.paymentMethods.find((m) => m.id === pmMatch[1])
+      if (!row) return error(route, 'NOT_FOUND', 'Payment method not found', 404)
+      const b = body() as Record<string, unknown>
+      state.paymentMethodWrites.push({ method, path, body: b })
+      const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
+      if (reason.length < 10) return error(route, 'VALIDATION_ERROR', 'reason must be 10..500 characters', 422)
+      if (typeof b.expectedUpdatedAt === 'string' && b.expectedUpdatedAt !== row.updatedAt) {
+        return error(route, 'PAYMENT_METHOD_CHANGED', 'PAYMENT_METHOD_CHANGED', 409)
+      }
+      if (row.code === 'BANK_TRANSFER_BNI_BNI' && b.enabled === true && !row.enabled) {
+        return error(route, 'PAYMENT_METHOD_PREREQUISITE_UNMET', 'BNI transfer prerequisites (D23) are not verified', 409)
+      }
+      const before = { enabled: row.enabled, feeType: row.feeType, feeValue: row.feeValue, maxAmountIdr: row.maxAmountIdr ?? null }
+      if (typeof b.enabled === 'boolean') row.enabled = b.enabled
+      if (typeof b.feeType === 'string' && typeof b.feeValue === 'string') {
+        row.feeType = b.feeType as PaymentMethod['feeType']
+        row.feeValue = b.feeValue
+      }
+      if ('maxAmountIdr' in b) row.maxAmountIdr = b.maxAmountIdr as string | null
+      row.updatedAt = '2026-10-10T03:15:00.000Z'
+      row.updatedBy = ADMIN_STAFF.id
+      row.updatedByName = ADMIN_STAFF.name
+      pushPmLog('PAYMENT_METHOD_UPDATED', row.id, {
+        before,
+        after: { enabled: row.enabled, feeType: row.feeType, feeValue: row.feeValue, maxAmountIdr: row.maxAmountIdr ?? null },
+        reason,
+      })
+      return envelope(route, row)
+    }
+    if (key === 'PUT /api/v1/payment-method-order') {
+      const b = body() as { orderedIds?: string[]; reason?: string }
+      state.paymentMethodWrites.push({ method, path, body: b })
+      const ids = Array.isArray(b.orderedIds) ? b.orderedIds : []
+      if (ids.length !== state.paymentMethods.length || ids.some((pmId) => !state.paymentMethods.some((m) => m.id === pmId))) {
+        return error(route, 'VALIDATION_ERROR', 'orderedIds must contain every payment method exactly once', 422)
+      }
+      const before = sortedPm().map((m) => m.code)
+      ids.forEach((pmId, i) => {
+        state.paymentMethods.find((m) => m.id === pmId)!.sortOrder = (i + 1) * 10
+      })
+      pushPmLog('PAYMENT_METHOD_REORDERED', null, { before, after: sortedPm().map((m) => m.code), reason: b.reason })
+      return envelope(route, sortedPm())
+    }
+    // Jejak Audit (ADMIN saja di server). Tiruan hanya menyajikan baris yang
+    // ditulis metode pembayaran di atas; hitungannya dipakai untuk membuktikan
+    // peran lain tidak pernah memintanya.
+    if (key === 'GET /api/v1/activity-logs') {
+      state.activityLogRequests += 1
+      const resourceType = url.searchParams.get('resourceType')
+      const rows = state.activityLogs
+        .filter((r) => !resourceType || r.resourceType === resourceType)
+        .map((r) => ({ ...r, actorStaffId: ADMIN_STAFF.id, actorUserId: null, ipAddress: '127.0.0.1', outcome: 'SUCCESS', httpStatus: 200 }))
+      return paginated(route, rows, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('take') ?? '20'))
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────

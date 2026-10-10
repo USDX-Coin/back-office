@@ -36,7 +36,7 @@ export default function ColumnsPopover({ columns, visibility, onChange }: Column
           <span>Kolom</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-56">
+      <PopoverContent align="start" collisionPadding={16} className="w-56">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold">Kolom</p>

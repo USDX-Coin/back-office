@@ -67,7 +67,7 @@ export default function SortPopover({ columns, sortBy, sortOrder, onChange }: So
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64">
+      <PopoverContent align="start" collisionPadding={16} className="w-64">
         <div className="space-y-3">
           <div>
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">

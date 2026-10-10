@@ -100,6 +100,7 @@ export default function SearchCombobox<T>({
         <PopoverContent
           align="start"
           sideOffset={6}
+          collisionPadding={16}
           className="w-[var(--radix-popover-trigger-width)] min-w-[18rem] p-0"
         >
           <Command shouldFilter={false} label={listLabel}>

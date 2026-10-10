@@ -58,7 +58,7 @@ export default function OptionCombobox({
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={6} className="w-[var(--radix-popover-trigger-width)] min-w-[18rem] p-0">
+      <PopoverContent align="start" sideOffset={6} collisionPadding={16} className="w-[var(--radix-popover-trigger-width)] min-w-[18rem] p-0">
         <Command>
           <CommandInput placeholder={searchPlaceholder} autoFocus />
           <CommandList>
