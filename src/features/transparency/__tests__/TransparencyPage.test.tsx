@@ -246,7 +246,7 @@ describe('TransparencyPage @integration', () => {
           '2.500.000,00'
         )
       })
-      expect(screen.getByText(/menampilkan 1–1 dari 120 entri/i)).toBeInTheDocument()
+      expect(screen.getByText("1–1 dari 120")).toBeInTheDocument()
     })
 
     // Contract § 3: an empty ledger returns `{ "0.00", "USD" }` and the staff
@@ -2095,7 +2095,7 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      expect(await screen.findByText(/halaman 1 dari 2/i)).toBeInTheDocument()
+      expect(await screen.findByText('1 / 2')).toBeInTheDocument()
       expect(screen.queryByText('Laporan nomor 51')).not.toBeInTheDocument()
 
       await user.click(

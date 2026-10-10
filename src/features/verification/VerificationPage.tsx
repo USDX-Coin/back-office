@@ -113,6 +113,11 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     ...histQs.map((q) => Math.ceil((q.data?.metadata.total ?? 0) / HISTORY_PAGE_SIZE)),
   )
 
+  // Nomor baris pertama halaman ini: tiap daftar maju HISTORY_PAGE_SIZE per
+  // halaman, dan daftar yang sudah habis tidak menyumbang baris lagi.
+  const histFirst =
+    histQs.reduce((acc, q) => acc + Math.min((page - 1) * HISTORY_PAGE_SIZE, q.data?.metadata.total ?? 0), 0) + 1
+
   const loading = (q: { isLoading: boolean }, on: boolean) => on && q.isLoading
   const failed = (q: { isError: boolean }, on: boolean) => on && q.isError
 
@@ -273,7 +278,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
                 : history === 'VERIFIED'
                   ? 'Belum ada berkas yang disetujui.'
                   : 'Belum ada berkas yang diputuskan.',
-            pagination: { page, pageCount, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
+            pagination: { page, pageCount, pageSize: HISTORY_PAGE_SIZE, first: histFirst, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
           },
         ]}
       />

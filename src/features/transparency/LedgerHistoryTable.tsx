@@ -6,7 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
+import TablePagination from '@/components/table/TablePagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -61,10 +61,6 @@ export default function LedgerHistoryTable({
   const total = data?.total ?? 0
   const take = data?.take ?? entries.length
   const lastPage = take > 0 ? Math.max(1, Math.ceil(total / take)) : 1
-  const firstRow = total === 0 ? 0 : (page - 1) * take + 1
-  // Counted from the rows actually returned, not from `page * take` — a short
-  // final page would otherwise claim to be showing entries it does not have.
-  const lastRow = total === 0 ? 0 : (page - 1) * take + entries.length
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
@@ -189,39 +185,17 @@ export default function LedgerHistoryTable({
       </CardContent>
 
       {!isError && total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {`Menampilkan ${firstRow}–${lastRow} dari ${total} entri`}
-          </p>
-          <div className="flex items-center gap-2">
-            {/* Named explicitly: the attestation table below has its own
-                pager, and "Berikutnya" alone is ambiguous to a screen reader
-                landing anywhere on this page. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Halaman sebelumnya buku besar"
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1 || isLoading}
-            >
-              Sebelumnya
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Halaman {page} dari {lastPage}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Halaman berikutnya buku besar"
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= lastPage || isLoading}
-            >
-              Berikutnya
-            </Button>
-          </div>
-        </div>
+        <TablePagination
+          className="border-t border-border px-4 py-3"
+          page={page}
+          pageCount={lastPage}
+          onPageChange={onPageChange}
+          total={total}
+          pageSize={take}
+          shown={entries.length}
+          disabled={isLoading}
+          label="buku besar"
+        />
       )}
     </Card>
   )

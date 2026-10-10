@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import TablePagination from '@/components/table/TablePagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
@@ -386,41 +387,19 @@ export default function AttestationSection({ canManage, list, page, onPageChange
       </CardContent>
 
       {!list.isError && total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+        <div className="border-t border-border px-4 py-3">
           {/* Deliberately NOT phrased as a row range. Revoked reports are
               filtered out client-side, so the visible count is not a slice of
               `total` and claiming "menampilkan 1–20 dari 60" would be a lie on
               any page holding a revoked row. */}
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {`${rows.length} aktif di halaman ini · ${total} laporan seluruhnya (termasuk yang sudah dicabut)`}
-          </p>
-          <div className="flex items-center gap-2">
-            {/* The page has two paginators. Both need names a screen-reader
-                user (and a test) can tell apart. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Halaman sebelumnya laporan atestasi"
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1 || list.isFetching}
-            >
-              Sebelumnya
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Halaman {page} dari {lastPage}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Halaman berikutnya laporan atestasi"
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= lastPage || list.isFetching}
-            >
-              Berikutnya
-            </Button>
-          </div>
+          <TablePagination
+            page={page}
+            pageCount={lastPage}
+            onPageChange={onPageChange}
+            disabled={list.isFetching}
+            label="laporan atestasi"
+            summary={`${rows.length} aktif di halaman ini · ${total} laporan seluruhnya (termasuk yang sudah dicabut)`}
+          />
         </div>
       )}
 

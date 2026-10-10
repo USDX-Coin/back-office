@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import TablePagination from './TablePagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import TableErrorState from '@/components/TableErrorState'
@@ -31,7 +30,8 @@ export interface RowGroup<T> {
   emptyText?: string
   /** Kalimat tambahan di bawah baris kelompok (mis. "100 terlama ditampilkan"). */
   note?: ReactNode
-  pagination?: { page: number; pageCount: number; onPage: (p: number) => void }
+  /** `pageSize` mengisi "a–b dari N" (pakai `total`); tanpa itu hanya « ‹ n / N › ». */
+  pagination?: { page: number; pageCount: number; onPage: (p: number) => void; pageSize?: number; first?: number }
   /** Tanpa baris judul kelompok — tabel satu kelompok di bawah tab (Transaksi, OTC). */
   hideLabel?: boolean
 }
@@ -165,34 +165,18 @@ export default function GroupedTable<T>({
                   )
                 })
               )}
-              {g.pagination && g.pagination.pageCount > 1 && !g.isLoading && !g.isError && (
+              {g.pagination && !g.isLoading && !g.isError && (g.pagination.pageCount > 1 || g.rows.length > 0) && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={colSpan} className="px-3.5 py-2.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={g.pagination.page <= 1}
-                        onClick={() => g.pagination!.onPage(g.pagination!.page - 1)}
-                        aria-label="Halaman sebelumnya"
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                      </Button>
-                      <span className="px-2 text-xs tabular-nums text-muted-foreground">
-                        Halaman {g.pagination.page} dari {g.pagination.pageCount}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={g.pagination.page >= g.pagination.pageCount}
-                        onClick={() => g.pagination!.onPage(g.pagination!.page + 1)}
-                        aria-label="Halaman berikutnya"
-                      >
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <TablePagination
+                      page={g.pagination.page}
+                      pageCount={g.pagination.pageCount}
+                      onPageChange={g.pagination.onPage}
+                      total={g.pagination.pageSize ? g.total ?? g.rows.length : undefined}
+                      pageSize={g.pagination.pageSize}
+                      shown={g.rows.length}
+                      first={g.pagination.first}
+                    />
                   </TableCell>
                 </TableRow>
               )}

@@ -209,7 +209,7 @@ export default function OtcPage({ type }: { type: RequestType }) {
                   ? 'Tidak ada yang cocok. Coba kata lain, misalnya nama nasabah atau ID.'
                   : `Belum ada permintaan ${copy.title.toLowerCase()}.`
                 : 'Belum ada yang selesai.',
-            pagination: { page, pageCount, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
+            pagination: { page, pageCount, pageSize: HISTORY_PAGE_SIZE, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
           },
         ]}
       />

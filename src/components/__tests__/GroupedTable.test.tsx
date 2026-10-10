@@ -65,7 +65,7 @@ describe('GroupedTable', () => {
           onSelect={() => {}}
         />
       )
-      expect(screen.getByText('Halaman 1 dari 3')).toBeInTheDocument()
+      expect(screen.getByText('1 / 3')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Halaman sebelumnya' })).toBeDisabled()
       await user.click(screen.getByRole('button', { name: 'Halaman berikutnya' }))
       expect(onPage).toHaveBeenCalledWith(2)

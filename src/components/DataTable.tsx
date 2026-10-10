@@ -9,10 +9,6 @@ import {
 } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router'
 import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -43,6 +39,7 @@ import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import { cn } from '@/lib/utils'
 import { useMediaQuery } from '@/lib/useMediaQuery'
+import TablePagination from '@/components/table/TablePagination'
 
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
@@ -478,57 +475,14 @@ export default function DataTable<T>({
       </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
-          {Math.min(page * defaultPageSize, rowCount)} dari {rowCount}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Halaman pertama"
-          >
-            <ChevronsLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Halaman sebelumnya"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <span className="px-2 text-xs tabular-nums text-muted-foreground">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            aria-label="Halaman berikutnya"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.setPageIndex(totalPages - 1)}
-            disabled={!table.getCanNextPage()}
-            aria-label="Halaman terakhir"
-          >
-            <ChevronsRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        pageCount={totalPages}
+        total={rowCount}
+        pageSize={defaultPageSize}
+        shown={data.length}
+        onPageChange={(p) => table.setPageIndex(p - 1)}
+      />
     </div>
   )
 }

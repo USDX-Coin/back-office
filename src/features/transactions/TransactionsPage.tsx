@@ -273,7 +273,7 @@ export default function TransactionsPage() {
                 : tab === 'perlu-tindakan'
                   ? 'Tidak ada transaksi yang perlu tindakan.'
                   : 'Belum ada transaksi.',
-              pagination: { page, pageCount, onPage: (p: number) => update({ page: p > 1 ? String(p) : null }) },
+              pagination: { page, pageCount, pageSize: PAGE_SIZE, onPage: (p: number) => update({ page: p > 1 ? String(p) : null }) },
             },
           ]}
         />

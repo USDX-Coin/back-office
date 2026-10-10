@@ -251,8 +251,11 @@ describe('TransactionsPage (SOT PR #50)', () => {
       await user.click(within(modal).getByRole('button', { name: 'Setujui pencairan' }))
       const dialog = await screen.findByRole('dialog', { name: /setujui pencairan/i })
       await user.click(within(dialog).getByRole('button', { name: /setujui pencairan/i }))
+      // Modal baris tetap terbuka (pindah ke baris berikutnya), jadi tabel di
+      // belakangnya `aria-hidden` dan nama aksesibelnya kosong bagi query peran.
+      // Hitung barisnya langsung dari label-nya.
       await waitFor(() =>
-        expect(screen.queryAllByRole('button', { name: /^Buka Redeem/, hidden: true }).length).toBe(before - 1),
+        expect(document.querySelectorAll('tr[role="button"][aria-label^="Buka Redeem"]').length).toBe(before - 1),
       )
     })
   })
