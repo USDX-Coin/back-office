@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useDeactivateStaff } from './hooks'
 import type { Staff } from '@/lib/types'
+import { errorMessage } from '@/lib/errorMessages'
 
 interface StaffDeactivateDialogProps {
   open: boolean
@@ -32,10 +33,12 @@ export default function StaffDeactivateDialog({
     if (!staff) return
     try {
       await deactivate.mutateAsync(staff.id)
-      toast.success(`${staff.name} deactivated`)
+      toast.success(`${staff.name} dinonaktifkan`)
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't deactivate the staff member. Please try again.")
+      toast.error(
+        errorMessage(err, 'Staf gagal dinonaktifkan. Coba lagi.')
+      )
     }
   }
 
@@ -54,13 +57,13 @@ export default function StaffDeactivateDialog({
         }
       >
         <DialogHeader>
-          <DialogTitle>Deactivate staff?</DialogTitle>
+          <DialogTitle>Nonaktifkan staf ini?</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <DialogDescription>
             {staff
-              ? `Deactivate ${staff.name}? They will no longer be able to sign in. You can reactivate them later from the Edit form.`
-              : 'No staff selected.'}
+              ? `${staff.name} tidak bisa masuk ke back-office lagi, dan pekerjaan yang selama ini dia tangani harus dialihkan ke orang lain. Barisnya tetap ada di daftar dan bisa diaktifkan lagi lewat tombol Ubah.`
+              : 'Belum ada pengguna yang dipilih.'}
           </DialogDescription>
         </DialogBody>
         <DialogFooter>
@@ -70,7 +73,7 @@ export default function StaffDeactivateDialog({
             onClick={() => onOpenChange(false)}
             disabled={deactivate.isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -78,7 +81,7 @@ export default function StaffDeactivateDialog({
             disabled={deactivate.isPending}
             className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
-            {deactivate.isPending ? 'Deactivating…' : 'Deactivate'}
+            {deactivate.isPending ? 'Menonaktifkan…' : 'Nonaktifkan'}
           </Button>
         </DialogFooter>
       </DialogContent>

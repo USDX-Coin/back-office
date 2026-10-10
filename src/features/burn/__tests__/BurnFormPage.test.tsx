@@ -52,7 +52,7 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/burn/new" element={<BurnFormPage />} />
-      <Route path="/burn" element={<div data-testid="burn-list-page">Burn list landing</div>} />
+      <Route path="/otc/redeem" element={<div data-testid="otc-page">OTC landing</div>} />
     </Routes>
   )
 }
@@ -64,18 +64,27 @@ function setup() {
   })
 }
 
+/** Buka combobox Nasabah lalu ketik di isian cari di dalam popover-nya. */
+async function searchUser(user: ReturnType<typeof userEvent.setup>, text: string) {
+  await user.click(screen.getByRole('combobox', { name: /^nasabah$/i }))
+  await user.type(await screen.findByPlaceholderText(/cari nama atau email nasabah/i), text)
+}
+
 async function pickEligibleUser(user: ReturnType<typeof userEvent.setup>) {
-  const search = screen.getByLabelText(/^user$/i)
-  await user.type(search, 'rob')
+  await searchUser(user, 'rob')
   const option = await screen.findByRole('option', { name: new RegExp(VERIFIED_USER_NAME, 'i') })
   await user.click(option)
 }
 
 describe('BurnFormPage @ USDX-46', () => {
   describe('AC1 — searchable user picker', () => {
-    test('renders combobox-style picker (selection-required)', () => {
+    test('renders combobox-style picker (selection-required)', async () => {
+      const user = userEvent.setup()
       setup()
-      const search = screen.getByLabelText(/^user$/i)
+      const trigger = screen.getByRole('combobox', { name: /^nasabah$/i })
+      expect(trigger.tagName).toBe('BUTTON')
+      await user.click(trigger)
+      const search = await screen.findByPlaceholderText(/cari nama atau email nasabah/i)
       expect(search).toHaveAttribute('aria-autocomplete', 'list')
     })
 
@@ -83,7 +92,7 @@ describe('BurnFormPage @ USDX-46', () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
       setup()
-      await user.type(screen.getByLabelText(/^user$/i), 'rob')
+      await searchUser(user, 'rob')
       const option = await screen.findByRole('option', {
         name: new RegExp(VERIFIED_USER_NAME, 'i'),
       })
@@ -94,9 +103,9 @@ describe('BurnFormPage @ USDX-46', () => {
   describe('AC5 — burn-only fields retained', () => {
     test('renders deposit tx hash + bank name + bank account', () => {
       setup()
-      expect(screen.getByLabelText(/deposit tx hash/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/bank name/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/bank account/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/tx hash setoran/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/nama bank/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/nomor rekening/i)).toBeInTheDocument()
     })
   })
 
@@ -152,11 +161,11 @@ describe('BurnFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '500')
-      await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
-      await user.type(screen.getByLabelText(/bank name/i), 'BCA')
-      await user.type(screen.getByLabelText(/bank account/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '500')
+      await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
+      await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
+      await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
 
       await waitFor(() => expect(capturedBody).not.toBeNull())
       expect(capturedBody).toMatchObject({
@@ -170,14 +179,14 @@ describe('BurnFormPage @ USDX-46', () => {
         bankAccount: '1234567890',
       })
       expect(capturedBody).not.toHaveProperty('userName')
-      await screen.findByTestId('burn-list-page')
+      await screen.findByTestId('otc-page')
     })
 
     test('AC4.1 — submit without picking a user shows validation error', async () => {
       const user = userEvent.setup()
       setup()
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
-      expect(await screen.findByText(/user is required/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
+      expect(await screen.findByText(/nasabah wajib dipilih/i)).toBeInTheDocument()
     })
   })
 
@@ -193,11 +202,11 @@ describe('BurnFormPage @ USDX-46', () => {
           name: /5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed/i,
         })
       )
-      await user.type(screen.getByLabelText(/^amount$/i), '750')
-      await user.type(screen.getByLabelText(/deposit tx hash/i), VALID_TX)
-      await user.type(screen.getByLabelText(/bank name/i), 'BCA')
-      await user.type(screen.getByLabelText(/bank account/i), '1234567890')
-      await user.click(screen.getByRole('button', { name: /submit burn request/i }))
+      await user.type(screen.getByLabelText(/^nominal$/i), '750')
+      await user.type(screen.getByLabelText(/tx hash setoran/i), VALID_TX)
+      await user.type(screen.getByLabelText(/nama bank/i), 'BCA')
+      await user.type(screen.getByLabelText(/nomor rekening/i), '1234567890')
+      await user.click(screen.getByRole('button', { name: /kirim permintaan redeem otc/i }))
     }
 
     test('renders banner with short blocking ID + Manual Sync link on 409', { timeout: 15000 }, async () => {
@@ -225,9 +234,9 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe MANAGER/i)
+      expect(banner).toHaveTextContent(/Safe Manager/)
       expect(banner).toHaveTextContent('019e1aa8…f0001')
-      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })).toHaveAttribute(
         'href',
         `/manual-sync?highlight=${BLOCKING_ID}`
       )
@@ -258,10 +267,10 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
       await screen.findByTestId('safe-queue-occupied-banner')
 
-      expect(screen.getByLabelText(/^amount$/i)).toHaveValue('750')
-      expect(screen.getByLabelText(/deposit tx hash/i)).toHaveValue(VALID_TX)
-      expect(screen.getByLabelText(/bank name/i)).toHaveValue('BCA')
-      expect(screen.queryByTestId('burn-list-page')).not.toBeInTheDocument()
+      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('750')
+      expect(screen.getByLabelText(/tx hash setoran/i)).toHaveValue(VALID_TX)
+      expect(screen.getByLabelText(/nama bank/i)).toHaveValue('BCA')
+      expect(screen.queryByTestId('otc-page')).not.toBeInTheDocument()
     })
 
     test('400 validation error keeps the existing destructive banner, not queue banner', { timeout: 15000 }, async () => {
@@ -309,8 +318,8 @@ describe('BurnFormPage @ USDX-46', () => {
       await fillAndSubmit(user)
 
       const banner = await screen.findByTestId('safe-queue-occupied-banner')
-      expect(banner).toHaveTextContent(/Safe target/i)
-      expect(screen.getByRole('link', { name: /lihat di manual sync/i })).toHaveAttribute(
+      expect(banner).toHaveTextContent(/Safe tujuan/)
+      expect(screen.getByRole('link', { name: /lihat di perbaiki status nyangkut/i })).toHaveAttribute(
         'href',
         '/manual-sync'
       )

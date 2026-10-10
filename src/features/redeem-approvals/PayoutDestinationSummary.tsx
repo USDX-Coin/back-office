@@ -1,16 +1,10 @@
 import { AlertTriangle } from 'lucide-react'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
 import type { RedeemApprovalListItem } from '@/lib/types'
+import { DataField } from '@/components/DataList'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
-        {label}
-      </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 /**
@@ -39,29 +33,29 @@ export default function PayoutDestinationSummary({
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-border px-3 py-2.5">
-        <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+        <p className="text-xs text-muted-foreground">
           Nominal yang akan ditransfer
         </p>
         <p
-          className="mt-1 font-mono text-[24px] font-semibold leading-tight tracking-tight tabular-nums"
+          className="mt-1 text-money-lg tabular-nums"
           data-testid="payout-net-idr"
         >
           {formatIdrExact(row.netPayoutIdr)}
         </p>
-        <p className="mt-1 text-[11.5px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           dari {formatUsdxExact(row.amountUsdx)} yang sudah dibakar
         </p>
       </div>
 
-      <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-2">
+      <div className="@container divide-y divide-border border-t border-border">
         <Field label="Bank">
           {row.bankName}
-          <span className="ml-1.5 font-mono text-[11.5px] text-muted-foreground">
+          <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
             {row.bankCode}
           </span>
         </Field>
         <Field label="Nomor rekening">
-          <span className="break-all font-mono text-[13px] tabular-nums">
+          <span className="break-all text-sm tabular-nums">
             {row.bankAccountNumber}
           </span>
         </Field>
@@ -72,12 +66,12 @@ export default function PayoutDestinationSummary({
       </div>
 
       {nameMatches ? (
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Nama pada order dan nama menurut bank sama.
         </p>
       ) : (
         <p
-          className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300"
+          className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"
           data-testid="payout-name-mismatch"
         >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

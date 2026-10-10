@@ -119,7 +119,7 @@ export function useAddWallet(userId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: PhaseOneCreateUserWallet) => {
-      if (!userId) throw new Error('Missing user id')
+      if (!userId) throw new Error('ID nasabah tidak ditemukan')
       return apiFetch<PhaseOneUserWallet>(
         `/api/v1/users/${userId}/wallets`,
         { method: 'POST', body: input }
@@ -135,7 +135,7 @@ export function useRemoveWallet(userId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (walletId: string) => {
-      if (!userId) throw new Error('Missing user id')
+      if (!userId) throw new Error('ID nasabah tidak ditemukan')
       return apiFetch<void>(
         `/api/v1/users/${userId}/wallets/${walletId}`,
         { method: 'DELETE' }

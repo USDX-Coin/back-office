@@ -1,21 +1,22 @@
 import { cn } from '@/lib/utils'
 
 const AVATAR_PALETTE = [
-  'bg-primary/15 text-primary',
+  // Netral + semantik lembut — tanpa rona maroon/merah muda (revisi PM).
   'bg-secondary text-secondary-foreground',
   'bg-muted text-foreground',
-  'bg-success/15 text-success',
-  'bg-warning/20 text-warning',
-  'bg-destructive/10 text-destructive',
+  'bg-success/10 text-success',
+  'bg-warning/10 text-warning',
   'bg-accent text-accent-foreground',
-  'bg-primary/25 text-primary',
+  'bg-gold-soft text-gold-foreground',
+  'bg-muted text-muted-foreground',
+  'bg-secondary text-foreground',
 ]
 
 const SIZE_CLASSES = {
-  sm: 'h-6 w-6 text-[10px]',
+  sm: 'h-6 w-6 text-xs',
   md: 'h-8 w-8 text-xs',
   lg: 'h-10 w-10 text-sm',
-  xl: 'h-16 w-16 text-lg',
+  xl: 'h-16 w-16 text-dialog-title',
 } as const
 
 export interface AvatarProps {

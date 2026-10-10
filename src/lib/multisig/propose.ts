@@ -1,6 +1,6 @@
 // Governance propose registry + validation + payload builder (USDX-280).
 //
-// Drives the "Propose" modal on /multisig: which operations exist, the params
+// Drives the "Ajukan" modal on /multisig: which operations exist, the params
 // each needs, FE validation (mirrors what the backend validates so we fail fast
 // before POST), and the typed `params` object sent to POST /api/v1/multisig/
 // propose. Per-op contract verified live against the dev backend (USDX-276).
@@ -21,11 +21,16 @@ export type ParamKind = 'address' | 'none' | 'chain' | 'role' | 'timelock'
 export interface GovernanceOpMeta {
   value: GovernanceOperation
   label: string
+  /**
+   * Kunci pengelompokan INTERNAL, bukan teks yang dibaca operator — labelnya
+   * diterjemahkan di `ProposeModal` (`GROUP_LABELS`). Kuncinya dibiarkan Inggris
+   * supaya penggantian teks tampilan tidak pernah menyentuh logika filternya.
+   */
   group: 'Blacklist' | 'Pause' | 'Chain' | 'Role' | 'Timelock'
   paramKind: ParamKind
-  /** Short, operator-facing description of the effect. */
+  /** Keterangan singkat untuk operator — apa akibatnya. */
   description: string
-  /** Destructive / irreversible-ish op → extra visual emphasis + confirm copy. */
+  /** Operasi merusak / sulit ditarik kembali → peringatan ekstra di modalnya. */
   destructive: boolean
 }
 
@@ -35,82 +40,82 @@ export interface GovernanceOpMeta {
 export const GOVERNANCE_OPS: GovernanceOpMeta[] = [
   {
     value: 'ADD_BLACKLIST',
-    label: 'Add to blacklist',
+    label: 'Tambah ke daftar blokir',
     group: 'Blacklist',
     paramKind: 'address',
-    description: 'Block an address from sending/receiving USDX.',
+    description: 'Blokir satu alamat supaya tidak bisa mengirim atau menerima USDX.',
     destructive: false,
   },
   {
     value: 'REMOVE_BLACKLIST',
-    label: 'Remove from blacklist',
+    label: 'Hapus dari daftar blokir',
     group: 'Blacklist',
     paramKind: 'address',
-    description: 'Unblock a previously blacklisted address.',
+    description: 'Buka lagi blokir alamat yang sebelumnya diblokir.',
     destructive: false,
   },
   {
     value: 'DESTROY_FUNDS',
-    label: 'Destroy blacklisted funds',
+    label: 'Musnahkan dana alamat terblokir',
     group: 'Blacklist',
     paramKind: 'address',
-    description: 'Burn the entire USDX balance of a blacklisted address. Irreversible.',
+    description: 'Burn seluruh saldo USDX milik alamat yang diblokir. Tidak bisa dibatalkan.',
     destructive: true,
   },
   {
     value: 'PAUSE',
-    label: 'Pause contract',
+    label: 'Hentikan sementara kontrak',
     group: 'Pause',
     paramKind: 'none',
-    description: 'Halt all USDX transfers, mints, and burns.',
+    description: 'Hentikan semua transfer, mint, dan burn USDX.',
     destructive: true,
   },
   {
     value: 'UNPAUSE',
-    label: 'Unpause contract',
+    label: 'Jalankan kembali kontrak',
     group: 'Pause',
     paramKind: 'none',
-    description: 'Resume transfers after a pause.',
+    description: 'Jalankan kembali transfer setelah dihentikan sementara.',
     destructive: false,
   },
   {
     value: 'SET_SUPPORTED_CHAIN',
-    label: 'Set supported chain',
+    label: 'Atur jaringan yang didukung',
     group: 'Chain',
     paramKind: 'chain',
-    description: 'Enable or disable a chain id for bridge mint/burn.',
+    description: 'Nyalakan atau matikan satu chain id untuk mint/burn lintas jaringan.',
     destructive: false,
   },
   {
     value: 'GRANT_ROLE',
-    label: 'Grant role',
+    label: 'Beri wewenang',
     group: 'Role',
     paramKind: 'role',
-    description: 'Grant an access-control role to an account.',
+    description: 'Beri satu role access-control ke sebuah akun.',
     destructive: false,
   },
   {
     value: 'REVOKE_ROLE',
-    label: 'Revoke role',
+    label: 'Cabut wewenang',
     group: 'Role',
     paramKind: 'role',
-    description: 'Revoke an access-control role from an account.',
+    description: 'Cabut satu role access-control dari sebuah akun.',
     destructive: true,
   },
   {
     value: 'TIMELOCK_SCHEDULE',
-    label: 'Timelock — schedule',
+    label: 'Timelock — jadwalkan',
     group: 'Timelock',
     paramKind: 'timelock',
-    description: 'Schedule a timelocked operation (e.g. UUPS upgrade) after a delay.',
+    description: 'Jadwalkan operasi lewat timelock (mis. upgrade UUPS) setelah jeda waktunya.',
     destructive: true,
   },
   {
     value: 'TIMELOCK_EXECUTE',
-    label: 'Timelock — execute',
+    label: 'Timelock — eksekusi',
     group: 'Timelock',
     paramKind: 'timelock',
-    description: 'Execute a previously scheduled timelocked operation after its delay.',
+    description: 'Jalankan operasi timelock yang sudah dijadwalkan, setelah jedanya lewat.',
     destructive: true,
   },
 ]
@@ -188,40 +193,45 @@ export function validateProposeForm(
 
   switch (kind) {
     case 'address': {
-      if (!v.address?.trim()) errors.address = 'Address is required'
-      else if (!isValidAddress(v.address)) errors.address = 'Must be a valid EVM address'
+      if (!v.address?.trim()) errors.address = 'Alamat wajib diisi'
+      else if (!isValidAddress(v.address)) errors.address = 'Alamat EVM tidak valid'
       break
     }
     case 'none':
       break
     case 'chain': {
-      if (!v.chainId?.trim()) errors.chainId = 'Chain id is required'
-      else if (!isNonNegativeInt(v.chainId)) errors.chainId = 'Must be a non-negative integer'
+      if (!v.chainId?.trim()) errors.chainId = 'Chain id wajib diisi'
+      else if (!isNonNegativeInt(v.chainId))
+        errors.chainId = 'Harus bilangan bulat, tidak boleh negatif'
       break
     }
     case 'role': {
-      if (!v.role?.trim()) errors.role = 'Role is required'
-      else if (!isRoleValid(v.role)) errors.role = 'Use a known role name or a bytes32 hash'
-      if (!v.account?.trim()) errors.account = 'Account is required'
-      else if (!isValidAddress(v.account)) errors.account = 'Must be a valid EVM address'
+      if (!v.role?.trim()) errors.role = 'Role wajib diisi'
+      else if (!isRoleValid(v.role)) errors.role = 'Pakai nama role yang dikenal, atau hash bytes32'
+      if (!v.account?.trim()) errors.account = 'Akun wajib diisi'
+      else if (!isValidAddress(v.account)) errors.account = 'Alamat EVM tidak valid'
       break
     }
     case 'timelock': {
-      if (!v.target?.trim()) errors.target = 'Target is required'
-      else if (!isValidAddress(v.target)) errors.target = 'Must be a valid EVM address'
+      if (!v.target?.trim()) errors.target = 'Target wajib diisi'
+      else if (!isValidAddress(v.target)) errors.target = 'Alamat EVM tidak valid'
 
-      if (v.value?.trim() && !isNonNegativeInt(v.value)) errors.value = 'Must be a non-negative integer (wei)'
+      if (v.value?.trim() && !isNonNegativeInt(v.value))
+        errors.value = 'Harus bilangan bulat, tidak boleh negatif (wei)'
 
-      if (!v.payload?.trim()) errors.payload = 'Payload (calldata) is required'
-      else if (!isHexBytes(v.payload)) errors.payload = 'Must be 0x-prefixed even-length hex'
+      if (!v.payload?.trim()) errors.payload = 'Payload (calldata) wajib diisi'
+      else if (!isHexBytes(v.payload))
+        errors.payload = 'Harus hex berawalan 0x dengan jumlah karakter genap'
 
-      if (v.predecessor?.trim() && !isBytes32(v.predecessor)) errors.predecessor = 'Must be a bytes32 hash (0x + 64 hex)'
+      if (v.predecessor?.trim() && !isBytes32(v.predecessor))
+        errors.predecessor = 'Harus hash bytes32 (0x + 64 karakter hex)'
 
-      if (!v.salt?.trim()) errors.salt = 'Salt is required'
-      else if (!isBytes32(v.salt)) errors.salt = 'Must be a bytes32 hash (0x + 64 hex)'
+      if (!v.salt?.trim()) errors.salt = 'Salt wajib diisi'
+      else if (!isBytes32(v.salt)) errors.salt = 'Harus hash bytes32 (0x + 64 karakter hex)'
 
-      if (!v.delay?.trim()) errors.delay = 'Delay (seconds) is required'
-      else if (!isNonNegativeInt(v.delay)) errors.delay = 'Must be a non-negative integer (seconds)'
+      if (!v.delay?.trim()) errors.delay = 'Jeda (detik) wajib diisi'
+      else if (!isNonNegativeInt(v.delay))
+        errors.delay = 'Harus bilangan bulat, tidak boleh negatif (detik)'
       break
     }
   }

@@ -8,6 +8,7 @@ import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { Button } from '@/components/ui/button'
+import { TableCellStack, TableCellText } from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canDecideRedeemPayout, useAuth } from '@/lib/auth'
-import { formatWibDateTime, shortHash } from '@/lib/format'
+import { formatDateTime, shortHash } from '@/lib/format'
 import {
   formatIdrExact,
   formatUsdxExact,
@@ -84,15 +85,16 @@ export default function RedeemApprovalsPage() {
   const columns: ColumnDef<RedeemApprovalListItem>[] = [
     {
       id: 'order',
+      size: 168,
       header: 'Order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[12px]">{row.original.orderNumber}</span>
+          <span className="font-mono text-xs">{row.original.orderNumber}</span>
           {row.original.ownerType === 'PARTNER' && (
             // Order partner melewati gerbang yang sama — tidak ada pintu belakang.
             // Ditandai karena order partner yang bermasalah dikejar ke PARTNER-nya,
             // bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               Partner
             </span>
           )}
@@ -101,32 +103,50 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'customer',
+      size: 192,
       header: 'Nasabah',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate font-medium">{row.original.customerName}</span>
-          <span className="truncate text-[11px] text-muted-foreground">
-            {row.original.userEmail}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            { value: row.original.customerName, className: 'font-medium' },
+            { value: row.original.userEmail, className: 'text-xs text-muted-foreground' },
+          ]}
+        />
       ),
     },
     {
       id: 'amount',
+      // RUPIAH YANG DISETUJUI DI BARIS INI. Tanpa `size` kolomnya dapat angka
+      // bawaan 120px → 96px isi, dan "Rp 24.750.000,00" (±134px) terpotong.
+      // Karena isinya kotak BLOK, elipsis `td` tidak berlaku, jadi terpotongnya
+      // TANPA TANDA dan operator menyetujui nominal yang salah dibaca.
+      size: 184,
       header: 'Nominal transfer',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[13px] font-semibold tabular-nums">
-            {formatIdrExact(row.original.netPayoutIdr)}
-          </span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-            {formatUsdxExact(row.original.amountUsdx)}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            {
+              value: formatIdrExact(row.original.netPayoutIdr),
+              className: 'text-sm font-semibold tabular-nums',
+            },
+            {
+              value: formatUsdxExact(row.original.amountUsdx),
+              className: 'text-xs tabular-nums text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'destination',
+      // Nomor rekening HARUS terbaca utuh — ini nilai yang dicocokkan ops dengan
+      // berkas nasabah, dan nomor yang terpotong tidak bisa dicocokkan. Dulu itu
+      // dijamin `break-all` (nomornya turun baris); kelas itu dibuang saat sel
+      // dipaksa satu baris dan tidak ada penggantinya, jadi nomornya terpotong
+      // diam-diam sementara komentar di sini masih menjanjikan sebaliknya.
+      // Sekarang dijamin dua hal: lebar yang memuat nomor terpanjang, DAN nilai
+      // utuh di `title` + tooltip untuk nomor yang tetap lebih panjang.
+      size: 216,
       header: 'Rekening tujuan',
       cell: ({ row }) => {
         const { bankName, bankCode, bankAccountNumber, bankAccountName, customerName } =
@@ -134,45 +154,64 @@ export default function RedeemApprovalsPage() {
         const mismatch =
           customerName.trim().toUpperCase() !== bankAccountName.trim().toUpperCase()
         return (
-          <div className="flex min-w-0 flex-col">
-            <span className="text-[12.5px]">
-              {bankName}
-              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
-                {bankCode}
-              </span>
-            </span>
-            {/* Nomor PENUH, tidak dipotong: ini nilai yang dicocokkan ops dengan
-                berkas nasabah, dan nomor yang terpotong tidak bisa dicocokkan. */}
-            <span className="break-all font-mono text-[12px] tabular-nums">
-              {bankAccountNumber}
-            </span>
-            <span
-              className={
-                mismatch
-                  ? 'truncate text-[11.5px] font-medium text-amber-700 dark:text-amber-400'
-                  : 'truncate text-[11.5px] text-muted-foreground'
-              }
-              title={mismatch ? `Nama pada order: ${customerName}` : undefined}
-            >
-              {bankAccountName}
-              {mismatch && ' — beda dari nama pada order'}
-            </span>
-          </div>
+          <TableCellStack
+            lines={[
+              {
+                value: `${bankName} ${bankCode}`,
+                className: 'text-xs',
+                children: (
+                  <>
+                    {bankName}
+                    <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
+                      {bankCode}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                value: bankAccountNumber,
+                className: 'text-xs tabular-nums',
+              },
+              {
+                value: mismatch
+                  ? `${bankAccountName} — beda dari nama pada order (nama pada order: ${customerName})`
+                  : bankAccountName,
+                className: mismatch
+                  ? 'text-label font-medium text-amber-700 dark:text-amber-400'
+                  : 'text-xs text-muted-foreground',
+                children: (
+                  <>
+                    {bankAccountName}
+                    {mismatch && ' — beda dari nama pada order'}
+                  </>
+                ),
+              },
+            ]}
+          />
         )
       },
     },
     {
       id: 'burnedAt',
-      header: 'Dibakar',
+      // `formatDateTime` mencetak "12 Sep 2026, 08:00:00" (±140px). Dengan 120px bawaan yang terpotong justru DETIKNYA, yaitu
+      // bagian yang dicocokkan ops dengan bukti on-chain. 192px adalah lebar
+      // yang sudah dipakai layar Jejak Audit dan Mint Bermasalah untuk format
+      // yang sama persis.
+      size: 192,
+      header: 'Dibakar (WIB)',
       cell: ({ row }) => (
-        <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.burnedAt)}
-        </span>
+        <TableCellText
+          value={formatDateTime(row.original.burnedAt)}
+          className="text-xs tabular-nums text-muted-foreground"
+        />
       ),
     },
     {
       id: 'burnTx',
-      header: 'Burn on-chain',
+      size: 160,
+      // P1-1 — dulu header ini berbunyi "Burn on-chain" di tengah tabel yang
+      // seluruh kolom lainnya berbahasa Indonesia.
+      header: 'Bukti pembakaran',
       cell: ({ row }) => {
         const hash = row.original.burnTxHash
         if (!hash) {
@@ -181,7 +220,7 @@ export default function RedeemApprovalsPage() {
           // belum terjadi. Em dash telanjang akan terbaca sebagai yang kedua, dan
           // ops lalu menahan pencairan atas alasan yang tidak ada.
           return (
-            <span className="text-[11.5px] text-muted-foreground">belum tercatat</span>
+            <span className="text-xs text-muted-foreground">belum tercatat</span>
           )
         }
         const href = queueBurnTxHref(hash, chains)
@@ -190,7 +229,7 @@ export default function RedeemApprovalsPage() {
           // tetap terbaca utuh lewat `title`, tanpa tautan yang bisa salah arah.
           return (
             <span
-              className="break-all font-mono text-[11.5px] text-muted-foreground"
+              className="font-mono text-xs text-muted-foreground"
               title={hash}
             >
               {shortHash(hash)}
@@ -203,7 +242,7 @@ export default function RedeemApprovalsPage() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 font-mono text-[11.5px] text-primary hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
             title={`Lihat di block explorer: ${hash}`}
           >
             {shortHash(hash)}
@@ -214,6 +253,7 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'actions',
+      size: 176,
       header: '',
       cell: ({ row }) =>
         canDecide ? (
@@ -221,7 +261,7 @@ export default function RedeemApprovalsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 border-destructive/40 text-[11.5px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="h-7 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setRejecting(row.original)}
               aria-label={`Tolak pencairan ${row.original.orderNumber}`}
             >
@@ -230,7 +270,7 @@ export default function RedeemApprovalsPage() {
             </Button>
             <Button
               size="sm"
-              className="h-7 text-[11.5px]"
+              className="h-7 text-xs"
               onClick={() => setApproving(row.original)}
               aria-label={`Setujui pencairan ${row.original.orderNumber}`}
             >
@@ -246,9 +286,7 @@ export default function RedeemApprovalsPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Consumer"
           title="Persetujuan Pencairan"
-          italicAccent="redeem"
           subtitle="Pencairan yang menunggu persetujuan sebelum rupiahnya dikirim. USDX nasabah sudah terbakar, jadi setiap baris di sini adalah orang yang sedang menunggu uangnya."
           actions={
             canDecide ? undefined : (
@@ -256,7 +294,7 @@ export default function RedeemApprovalsPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-[11.5px] font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

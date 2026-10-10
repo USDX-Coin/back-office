@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import FormDialog from '@/components/FormDialog'
 import {
   Select,
   SelectContent,
@@ -16,13 +15,36 @@ import {
   isManualRateUnusual,
   validateRateUpdateForm,
 } from '@/lib/validators'
+import { ApiError } from '@/lib/apiFetch'
 import type { RateInfo, RateMode } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
+import { toastErrorMessage } from '@/lib/errorToast'
+
+/**
+ * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
+ * ikut sebagai "Detail teknis" di keterangan toast (`toastErrorMessage`) —
+ * itulah yang dikutip operator saat melapor ke tim teknis.
+ */
+function rateUpdateErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 403) {
+      return 'Peranmu tidak berwenang mengubah kurs.'
+    }
+    if (err.status === 400 || err.status === 422) {
+      return 'Server menolak isian kurs. Periksa kembali angkanya.'
+    }
+    return 'Kurs gagal diubah — tidak ada yang berubah. Coba lagi.'
+  }
+  return 'Kurs gagal diubah. Periksa koneksi lalu coba lagi.'
+}
 
 interface RateUpdateFormProps {
   current: RateInfo | undefined
+  /** Dialog form dibuka dari tombol di kartu "saat ini" (audit Pengaturan 11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 interface FormState {
@@ -49,7 +71,7 @@ function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): F
   }
 }
 
-export default function RateUpdateForm({ current }: RateUpdateFormProps) {
+export default function RateUpdateForm({ current, open, onOpenChange }: RateUpdateFormProps) {
   const { user } = useAuth()
   const update = useUpdateRate()
   const [overrides, setOverrides] = useState<FormOverrides>({})
@@ -85,7 +107,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
 
   async function handleConfirm() {
     if (!user) {
-      toast.error('Not authenticated')
+      toast.error('Sesi tidak dikenali. Masuk ulang lalu coba lagi.')
       return
     }
     if (!form.mode) return
@@ -98,14 +120,15 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
         spreadBuyPct: form.spreadBuyPct || '0',
         spreadSellPct: form.spreadSellPct || '0',
       })
-      toast.success('Rate updated')
+      toast.success('Kurs berhasil diubah')
       setConfirmOpen(false)
       // Clear all overrides — the next refetched current rate becomes the
       // new baseline, and the form snaps back to "no edit in progress".
       setOverrides({})
       setErrors({})
+      onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update the rate. Please try again.")
+      toastErrorMessage(rateUpdateErrorMessage(err), err)
     }
   }
 
@@ -115,131 +138,132 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
     !errors.manualRate &&
     isManualRateUnusual(form.manualRate)
 
-  return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Update rate
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="rate-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="rateMode">Mode</Label>
-            <Select
-              value={form.mode}
-              onValueChange={(val) => set('mode', val as RateMode)}
-            >
-              <SelectTrigger id="rateMode">
-                <SelectValue placeholder="Choose rate mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MANUAL">MANUAL — fixed rate you set</SelectItem>
-                <SelectItem value="DYNAMIC">DYNAMIC — feed + spread</SelectItem>
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.mode} />
-          </div>
+  // Batal / tutup membuang isian yang belum dikirim — dialog dibuka lagi
+  // = mulai dari nilai yang berlaku sekarang.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setOverrides({})
+      setErrors({})
+    }
+    onOpenChange(next)
+  }
 
+  return (
+    <>
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Ubah kurs"
+        formId="rate-form"
+        onSubmit={handleSubmit}
+        pending={update.isPending}
+        submitLabel={update.isPending ? 'Menyimpan…' : 'Tinjau dan ubah'}
+        note="Perubahan ditinjau dulu sebelum disimpan."
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="rateMode">Mode</Label>
+          <Select
+            value={form.mode}
+            onValueChange={(val) => set('mode', val as RateMode)}
+          >
+            <SelectTrigger id="rateMode">
+              <SelectValue placeholder="Pilih mode kurs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MANUAL">Manual — kurs tetap yang kamu tentukan</SelectItem>
+              <SelectItem value="DYNAMIC">Otomatis — ikut kurs pasar + spread</SelectItem>
+            </SelectContent>
+          </Select>
+          <FieldError message={errors.mode} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="manualRate">
+            Kurs manual{' '}
+            <span className="text-muted-foreground">(IDR per USD)</span>
+          </Label>
+          <div className="relative">
+            <Input
+              id="manualRate"
+              type="number"
+              step="0.0001"
+              min="0"
+              value={form.manualRate}
+              onChange={(e) => set('manualRate', e.target.value)}
+              placeholder="16250.00"
+              className="tabular-nums pr-16"
+              disabled={dynamic}
+              aria-disabled={dynamic}
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              IDR
+            </span>
+          </div>
+          {dynamic && (
+            <p className="text-xs text-muted-foreground">
+              Mode otomatis mengambil kurs dasar dari penyedia kurs pasar. Kurs
+              manual diabaikan.
+            </p>
+          )}
+          {showRateWarning && (
+            <p
+              role="status"
+              className="text-xs text-amber-600 dark:text-amber-400"
+            >
+              Kurs ini di luar kebiasaan — periksa lagi sebelum dikirim.
+            </p>
+          )}
+          <FieldError message={errors.manualRate} />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="manualRate">
-              Manual rate{' '}
-              <span className="text-muted-foreground">(IDR per USD)</span>
-            </Label>
+            <Label htmlFor="spreadBuyPct">Spread beli (mint)</Label>
             <div className="relative">
               <Input
-                id="manualRate"
+                id="spreadBuyPct"
                 type="number"
-                step="0.0001"
+                step="0.01"
                 min="0"
-                value={form.manualRate}
-                onChange={(e) => set('manualRate', e.target.value)}
-                placeholder="16250.00"
-                className="pr-16 font-mono"
-                disabled={dynamic}
-                aria-disabled={dynamic}
+                value={form.spreadBuyPct}
+                onChange={(e) => set('spreadBuyPct', e.target.value)}
+                placeholder="0.5"
+                className="tabular-nums pr-10"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                IDR
+                %
               </span>
             </div>
-            {dynamic && (
-              <p className="text-xs text-muted-foreground">
-                DYNAMIC mode pulls the base rate from the configured third-party
-                feed. Manual rate is ignored.
-              </p>
-            )}
-            {showRateWarning && (
-              <p
-                role="status"
-                className="text-xs text-amber-600 dark:text-amber-400"
-              >
-                Rate looks unusual — please double-check before submitting.
-              </p>
-            )}
-            <FieldError message={errors.manualRate} />
+            <p className="text-xs text-muted-foreground">
+              Markup saat nasabah beli USDX. Kurs berlaku = kurs dasar × (1 + beli%).
+            </p>
+            <FieldError message={errors.spreadBuyPct} />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadBuyPct">Spread beli (mint)</Label>
-              <div className="relative">
-                <Input
-                  id="spreadBuyPct"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.spreadBuyPct}
-                  onChange={(e) => set('spreadBuyPct', e.target.value)}
-                  placeholder="0.5"
-                  className="pr-10 font-mono"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  %
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Markup saat user beli USDX. Effective = base × (1 + beli%).
-              </p>
-              <FieldError message={errors.spreadBuyPct} />
+          <div className="space-y-1.5">
+            <Label htmlFor="spreadSellPct">Spread jual (redeem)</Label>
+            <div className="relative">
+              <Input
+                id="spreadSellPct"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.spreadSellPct}
+                onChange={(e) => set('spreadSellPct', e.target.value)}
+                placeholder="0.4"
+                className="tabular-nums pr-10"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                %
+              </span>
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadSellPct">Spread jual (burn/redeem)</Label>
-              <div className="relative">
-                <Input
-                  id="spreadSellPct"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.spreadSellPct}
-                  onChange={(e) => set('spreadSellPct', e.target.value)}
-                  placeholder="0.4"
-                  className="pr-10 font-mono"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  %
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Markdown saat user jual USDX. Effective = base × (1 − jual%).
-              </p>
-              <FieldError message={errors.spreadSellPct} />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Potongan saat nasabah jual USDX. Kurs berlaku = kurs dasar × (1 − jual%).
+            </p>
+            <FieldError message={errors.spreadSellPct} />
           </div>
-        </CardContent>
-        <CardFooter>
-          <Button
-            type="submit"
-            form="rate-form"
-            disabled={update.isPending}
-            aria-busy={update.isPending}
-            className="w-full"
-          >
-            {update.isPending ? 'Updating…' : 'Review and update'}
-          </Button>
-        </CardFooter>
-      </form>
+        </div>
+      </FormDialog>
 
       <RateConfirmDialog
         open={confirmOpen}
@@ -254,6 +278,6 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
         onConfirm={handleConfirm}
         isPending={update.isPending}
       />
-    </Card>
+    </>
   )
 }

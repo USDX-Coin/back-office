@@ -1,4 +1,6 @@
-import PageHeader from '@/components/PageHeader'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageFeeConfig } from '@/lib/types'
 import CurrentFeeConfigCard from './CurrentFeeConfigCard'
@@ -12,28 +14,35 @@ export default function FeeConfigPage() {
   const { user } = useAuth()
   const fee = useFeeConfig()
   const canEdit = !!user && canManageFeeConfig(user.role)
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Settings"
-        title="Fee"
-        italicAccent="mint & payment"
+      <SettingsTabs
         subtitle={
           canEdit
-            ? 'Set the mint fee and payment-gateway reference fees. Changes apply to every subsequent order.'
-            : 'View the active fee config. Updates are restricted to the admin role.'
+            ? 'Atur biaya mint dan biaya acuan payment gateway. Perubahan berlaku untuk setiap order berikutnya.'
+            : 'Biaya yang sedang berlaku. Hanya peran Admin yang boleh mengubahnya.'
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <CurrentFeeConfigCard data={fee.data} isLoading={fee.isLoading} />
-        </div>
-        <div className="lg:col-span-7">
-          {canEdit ? <FeeConfigUpdateForm current={fee.data} /> : <ReadOnlyNotice />}
-        </div>
+      {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
+          di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
+      <div className="space-y-4">
+        <CurrentFeeConfigCard
+          data={fee.data}
+          isLoading={fee.isLoading}
+          action={
+            canEdit ? (
+              <Button type="button" onClick={() => setFormOpen(true)}>
+                Ubah biaya
+              </Button>
+            ) : null
+          }
+        />
+        {!canEdit && <ReadOnlyNotice />}
       </div>
+      {canEdit && <FeeConfigUpdateForm current={fee.data} open={formOpen} onOpenChange={setFormOpen} />}
     </div>
   )
 }
@@ -44,10 +53,10 @@ function ReadOnlyNotice() {
       role="note"
       className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
     >
-      <p className="font-medium text-foreground">Read-only</p>
+      <p className="font-medium text-foreground">Hanya bisa melihat</p>
       <p className="mt-1">
-        Your role does not have permission to update the fee config. Contact an
-        admin if a change is needed.
+        Peranmu tidak berwenang mengubah biaya. Hubungi Admin kalau biaya memang
+        perlu diubah.
       </p>
     </div>
   )

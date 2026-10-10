@@ -33,8 +33,18 @@ function loginAsStaffRole(email: string) {
   return staff
 }
 
+/** Klik baris → modal detail → Lainnya → Hapus kontak → konfirmasi di dialog hapus. */
+async function deleteViaModal(user: ReturnType<typeof userEvent.setup>, rowName: RegExp | string) {
+  await user.click(screen.getByRole('button', { name: rowName }))
+  const modal = within(await screen.findByTestId('oncall-modal'))
+  await user.click(modal.getByRole('button', { name: 'Lainnya' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Hapus kontak' }))
+  const dialog = within(await screen.findByRole('dialog', { name: /hapus/i }))
+  await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
+}
+
 async function openAddForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: /add contact/i }))
+  await user.click(await screen.findByRole('button', { name: /tambah kontak/i }))
   return within(await screen.findByRole('dialog'))
 }
 
@@ -45,7 +55,7 @@ describe('OncallContactsPage @integration', () => {
 
       expect(await screen.findByText('Budi Santoso')).toBeInTheDocument()
       expect(screen.getByText(/ops lead/i)).toBeInTheDocument()
-      expect(screen.getAllByText(/payout/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/pencairan/i).length).toBeGreaterThan(0)
     })
 
     test('should add a contact and show it in the list', async () => {
@@ -54,11 +64,11 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Rina Kartika')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Treasury')
-      await user.type(dialog.getByLabelText(/contact value/i), 'rina@usdx.io')
-      await user.click(dialog.getByRole('checkbox', { name: /reconciliation/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Rina Kartika')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Treasury')
+      await user.type(dialog.getByLabelText(/^kontak$/i), 'rina@usdx.io')
+      await user.click(dialog.getByRole('checkbox', { name: /rekonsiliasi/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
       expect(await screen.findByText('Rina Kartika')).toBeInTheDocument()
     })
@@ -68,14 +78,18 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /edit budi santoso/i }))
-      const dialog = within(await screen.findByRole('dialog'))
-      const roleInput = dialog.getByLabelText(/^role$/i)
+      // Klik baris = modal detail (sapu bersih 11 Okt 2026); Ubah di footer.
+      await user.click(screen.getByRole('button', { name: /buka kontak budi santoso/i }))
+      await user.click(within(await screen.findByTestId('oncall-modal')).getByRole('button', { name: 'Ubah kontak' }))
+      const dialog = within(await screen.findByRole('dialog', { name: /ubah kontak/i }))
+      const roleInput = dialog.getByLabelText(/^jabatan$/i)
       await user.clear(roleInput)
       await user.type(roleInput, 'Head of Ops')
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await screen.findByText(/head of ops/i)).toBeInTheDocument()
+      // Modal detail tetap terbuka dan ikut berubah, jadi jabatan baru muncul
+      // di tabel DAN di modal.
+      expect((await screen.findAllByText(/head of ops/i)).length).toBeGreaterThan(0)
     })
 
     test('should delete a contact after confirmation', async () => {
@@ -83,9 +97,7 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /delete budi santoso/i }))
-      const dialog = within(await screen.findByRole('dialog'))
-      await user.click(dialog.getByRole('button', { name: /^delete$/i }))
+      await deleteViaModal(user, /buka kontak budi santoso/i)
 
       await waitFor(() => {
         expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
@@ -100,9 +112,9 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await dialog.findByText(/name is required/i)).toBeInTheDocument()
+      expect(await dialog.findByText(/nama wajib diisi/i)).toBeInTheDocument()
       // Tidak ada baris baru yang masuk daftar.
       expect(screen.queryByText('Rina Kartika')).not.toBeInTheDocument()
     })
@@ -113,12 +125,14 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Rina Kartika')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Treasury')
-      await user.type(dialog.getByLabelText(/contact value/i), 'rina@usdx.io')
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Rina Kartika')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Treasury')
+      await user.type(dialog.getByLabelText(/^kontak$/i), 'rina@usdx.io')
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await dialog.findByText(/at least one incident category/i)).toBeInTheDocument()
+      expect(
+        await dialog.findByText(/minimal satu kategori insiden/i),
+      ).toBeInTheDocument()
     })
 
     test('should surface the backend 409 for a duplicate channel + contact value', async () => {
@@ -128,16 +142,19 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Duplikat')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Ops')
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Duplikat')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Ops')
       // Nilai yang sama persis dengan kontak PHONE yang sudah ada di mock.
-      await user.type(dialog.getByLabelText(/contact value/i), '+6281234567890')
-      await user.click(dialog.getByRole('checkbox', { name: /payout/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^kontak$/i), '+6281234567890')
+      await user.click(dialog.getByRole('checkbox', { name: /pencairan/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
+      // Kode server diterjemahkan lewat peta galat terpusat (`lib/errorMessages`);
+      // pesan Inggris server tidak lagi tampil sebagai kalimat utama.
       await waitFor(() =>
         expect(errSpy).toHaveBeenCalledWith(
-          'A contact with this channel and value is already registered.',
+          expect.stringMatching(/sudah terdaftar/i),
+          expect.anything(),
         ),
       )
       errSpy.mockRestore()
@@ -154,11 +171,13 @@ describe('OncallContactsPage @integration', () => {
         renderWithProviders(<OncallContactsPage />)
 
         expect(
-          await screen.findByText(/your role does not have permission/i),
+          await screen.findByText(/tidak diizinkan membuka daftar kontak darurat/i),
         ).toBeInTheDocument()
         expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
         expect(screen.queryByText('+6281234567890')).not.toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /add contact/i })).not.toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /tambah kontak/i }),
+        ).not.toBeInTheDocument()
       },
     )
   })
@@ -173,19 +192,17 @@ describe('OncallContactsPage @integration', () => {
       // bukan tabel kosong yang tak berkata apa-apa. Ini cermin perilaku
       // backend: nol kontak = alarm tetap terkirim, dengan peringatan.
       for (;;) {
-        const buttons = screen.queryAllByRole('button', { name: /^delete /i })
-        if (buttons.length === 0) break
-        await user.click(buttons[0]!)
-        const dialog = within(await screen.findByRole('dialog'))
-        await user.click(dialog.getByRole('button', { name: /^delete$/i }))
+        const rows = screen.queryAllByRole('button', { name: /^buka kontak /i })
+        if (rows.length === 0) break
+        await deleteViaModal(user, rows[0]!.getAttribute('aria-label')!)
         await waitFor(() => {
           expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
         })
       }
 
       const banner = await screen.findByRole('alert')
-      expect(banner).toHaveTextContent(/no on-call contact is registered at all/i)
-      expect(banner).toHaveTextContent(/no on-call registered/i)
+      expect(banner).toHaveTextContent(/belum ada satu pun kontak darurat yang terdaftar/i)
+      expect(banner).toHaveTextContent(/belum ada kontak darurat terdaftar/i)
     })
 
     test('should keep the modal open and preserve values when the backend rejects', async () => {
@@ -195,15 +212,15 @@ describe('OncallContactsPage @integration', () => {
       await screen.findByText('Budi Santoso')
 
       const dialog = await openAddForm(user)
-      await user.type(dialog.getByLabelText(/^name$/i), 'Duplikat')
-      await user.type(dialog.getByLabelText(/^role$/i), 'Ops')
-      await user.type(dialog.getByLabelText(/contact value/i), '+6281234567890')
-      await user.click(dialog.getByRole('checkbox', { name: /payout/i }))
-      await user.click(dialog.getByRole('button', { name: /save contact/i }))
+      await user.type(dialog.getByLabelText(/^nama$/i), 'Duplikat')
+      await user.type(dialog.getByLabelText(/^jabatan$/i), 'Ops')
+      await user.type(dialog.getByLabelText(/^kontak$/i), '+6281234567890')
+      await user.click(dialog.getByRole('checkbox', { name: /pencairan/i }))
+      await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
       await waitFor(() => expect(errSpy).toHaveBeenCalled())
       expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(dialog.getByLabelText(/^name$/i)).toHaveValue('Duplikat')
+      expect(dialog.getByLabelText(/^nama$/i)).toHaveValue('Duplikat')
       errSpy.mockRestore()
     })
 
@@ -214,16 +231,16 @@ describe('OncallContactsPage @integration', () => {
 
       const dialog = await openAddForm(user)
       for (const category of [
-        'Payout',
-        'Reconciliation',
+        'Pencairan',
+        'Rekonsiliasi',
         'Mint',
         'Redeem',
-        'Fraud',
-        'Security',
-        'Infra',
+        'Penipuan',
+        'Keamanan',
+        'Infrastruktur',
         // USDX-632 — zona kunci custodial (alert WALLET_* dari backend/wallet-service)
         'Custodial',
-        'Other',
+        'Lainnya',
       ]) {
         expect(
           dialog.getByRole('checkbox', { name: new RegExp(`^${category}$`, 'i') }),
@@ -231,4 +248,20 @@ describe('OncallContactsPage @integration', () => {
       }
     })
   })
+
+  describe('kendali yang tidak bekerja', () => {
+    test('TIDAK merender kotak cari — daftarnya tidak pernah menyaring dengan `search`', async () => {
+      // `DataTable` merender kotak "Cari…" di toolbar BAWAANNYA, dan halaman ini
+      // tidak pernah membaca `?search=`: daftarnya dipaginasi di klien dari
+      // `contacts`. Operator mengetik nama, tabel tidak berubah, lalu ia
+      // menyimpulkan orang itu tidak ada di daftar.
+      //
+      // Di layar ini kesimpulan keliru itu mahal: daftarnya menentukan SIAPA YANG
+      // DIPANGGIL saat uang bermasalah.
+      renderWithProviders(<OncallContactsPage />, { authenticated: true })
+      await screen.findByRole('table')
+      expect(screen.queryByPlaceholderText(/cari/i)).not.toBeInTheDocument()
+    })
+  })
+
 })

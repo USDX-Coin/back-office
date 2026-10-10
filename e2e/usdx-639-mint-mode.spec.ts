@@ -49,7 +49,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/mint-mode')
 
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD', { timeout: 15000 })
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal', { timeout: 15000 })
       await expect(page.getByTestId('mint-test-mode-banner')).toHaveCount(0)
 
       await page.getByRole('button', { name: /geser ke mode uji/i }).click()
@@ -82,7 +82,9 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await expect(banner).toContainText(/dibatasi ke 2 email/i)
 
       // Pindah rute: banner ikut, dan tidak ada tombol untuk menutupnya.
-      await page.getByRole('link', { name: /^dashboard$/i }).click()
+      // Beranda dihapus (redesain fase 1) — pindah ke Transaksi.
+      await page.locator('aside').getByRole('link', { name: /^transaksi/i }).click()
+      await expect(page).toHaveURL(/\/transactions/)
       await expect(page.getByTestId('mint-test-mode-banner')).toBeVisible()
       await expect(banner.getByRole('button')).toHaveCount(0)
     })
@@ -189,7 +191,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await expect(
         dialog.getByTestId('mint-mode-error-details').getByText(/bukan pemegang MINTER_ROLE/i),
       ).toBeVisible()
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD')
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal')
     })
 
     test('AC tambahan — email berformat salah menahan simpan; daftar kosong diperingatkan', async ({
@@ -237,11 +239,11 @@ test.describe('USDX-639 mode mint @e2e', () => {
         /tertutup untuk semua user/i,
       )
 
-      await page.getByRole('button', { name: /kembali ke prod/i }).click()
+      await page.getByRole('button', { name: /kembali ke mode normal/i }).click()
       const prodDialog = page.getByRole('dialog')
-      await prodDialog.getByRole('button', { name: /kembali ke prod/i }).click()
+      await prodDialog.getByRole('button', { name: /kembali ke mode normal/i }).click()
 
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD')
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal')
       await expect(page.getByTestId('allowed-emails-empty')).toHaveCount(0)
       await expect(page.getByTestId('allowed-emails-list')).toHaveCount(0)
       // Alamat bundle uji ikut hilang — PROD tidak punya bundle uji (USDX-654).
@@ -293,7 +295,7 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/mint-mode')
 
-      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('PROD', { timeout: 15000 })
+      await expect(page.getByLabel(/mode mint aktif/i)).toHaveText('Normal', { timeout: 15000 })
       await expect(page.getByRole('button', { name: /geser ke mode uji/i })).toHaveCount(0)
       await expect(
         page.getByText(/hanya manager dan admin yang bisa menggeser/i),
@@ -307,11 +309,14 @@ test.describe('USDX-639 mode mint @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await expect(page.getByRole('link', { name: /^mode mint$/i })).toBeVisible({
-        timeout: 15000,
-      })
-      await expect(page.getByRole('link', { name: /^rate$/i })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: /^threshold$/i })).toHaveCount(0)
+      // Redesain fase 1: Mode Mint ada di grup Pengaturan yang bisa dilipat;
+      // "Kurs & Biaya" (canManageSettings = ADMIN + DEVELOPER) tetap tertutup
+      // untuk MANAGER. Yang diuji tetap hal yang sama: MANAGER melihat Mode
+      // Mint dan tidak melihat pengaturan lain.
+      const nav = page.locator('aside')
+      await nav.getByRole('button', { name: /^pengaturan/i }).click({ timeout: 15000 })
+      await expect(nav.getByRole('link', { name: /^mode mint$/i })).toBeVisible()
+      await expect(nav.getByRole('link', { name: /kurs & biaya/i })).toHaveCount(0)
     })
   })
 })

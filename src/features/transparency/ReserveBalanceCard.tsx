@@ -2,11 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmountDecimal } from '@/lib/transparency'
 import type { ReserveBalance } from '@/lib/types'
+import type { ReactNode } from 'react'
 
 interface Props {
   /** `data.balance` from the ledger response — the WHOLE ledger's balance. */
   balance: ReserveBalance | undefined
   isLoading: boolean
+  /** Aksi utama di kanan atas kartu ("Catat entri", Admin saja). */
+  action?: ReactNode
 }
 
 /**
@@ -18,13 +21,14 @@ interface Props {
  * outgrows one page — and quietly publishing a too-low reserve is the worst
  * failure this screen has.
  */
-export default function ReserveBalanceCard({ balance, isLoading }: Props) {
+export default function ReserveBalanceCard({ balance, isLoading, action }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Reserve balance
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <CardTitle className="text-section">
+          Saldo cadangan
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -32,30 +36,30 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
         ) : balance ? (
           <>
             <p
-              aria-label="Reserve balance"
-              className="font-mono text-[28px] font-semibold leading-none tracking-tight text-foreground"
+              aria-label="Saldo cadangan"
+              className="text-money-lg tabular-nums text-foreground"
             >
               {formatAmountDecimal(balance.amount)}{' '}
-              <span className="text-[16px] font-medium text-muted-foreground">
+              <span className="text-base font-medium text-muted-foreground">
                 {balance.currency}
               </span>
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Sum of every entry in the ledger, calculated by the server. This is
-              the figure published on usdx.co.id.
+              Jumlah seluruh entri di buku besar, dihitung oleh server. Angka
+              inilah yang tayang di usdx.co.id.
             </p>
           </>
         ) : (
           <>
             <p
-              aria-label="Reserve balance"
-              className="font-mono text-[28px] font-semibold leading-none tracking-tight text-muted-foreground"
+              aria-label="Saldo cadangan"
+              className="text-money-lg tabular-nums text-muted-foreground"
             >
               —
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              No reserve balance yet. The public page shows nothing until the
-              first entry is recorded.
+              Belum ada saldo cadangan. Halaman publik belum menampilkan angka
+              apa pun sampai entri pertama dicatat.
             </p>
           </>
         )}

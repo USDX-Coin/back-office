@@ -167,7 +167,7 @@ async function putFileToStorage(
 ): Promise<void> {
   if (isTicketExpired(ticket)) {
     throw new Error(
-      'The upload link expired before the file could be sent. Please try again.'
+      'Tautan unggah kedaluwarsa sebelum berkas sempat dikirim. Coba lagi.'
     )
   }
 
@@ -183,11 +183,11 @@ async function putFileToStorage(
     // 403, which reads like a permissions problem the operator cannot fix.
     if (isTicketExpired(ticket)) {
       throw new Error(
-        'The upload link expired before the file finished sending. Please try again.'
+        'Tautan unggah kedaluwarsa sebelum berkas selesai terkirim. Coba lagi.'
       )
     }
     throw new Error(
-      `Upload to storage failed (${response.status}). The report was not published.`
+      `Unggah ke penyimpanan gagal (${response.status}). Laporan tidak diterbitkan.`
     )
   }
 }

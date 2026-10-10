@@ -1,106 +1,96 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router'
-import { Search, ChevronRight, Menu } from 'lucide-react'
+import { Link, useLocation } from 'react-router'
+import { ChevronRight, Menu } from 'lucide-react'
 import ProfileDropdown from './ProfileDropdown'
 import MobileNavDrawer from './MobileNavDrawer'
 import ThemeToggle from '@/components/ThemeToggle'
-import { usePendingMintCount } from '@/features/mint/hooks'
-import { usePendingBurnCount } from '@/features/burn/hooks'
 import { cn } from '@/lib/utils'
-
-// Breadcrumb mapping mirrors the sidebar groupings per Linear USDX-50.
-// Form pages use a verbose tail so operators see "Mint OTC / New" while
-// editing rather than a bare "/mint/new".
-const BREADCRUMB_MAP: Record<string, [string, string]> = {
-  '/dashboard': ['Workspace', 'Dashboard'],
-  '/users': ['Workspace', 'Users'],
-  '/staff': ['Workspace', 'Staff'],
-  '/mint': ['OTC', 'Mint'],
-  '/mint/new': ['OTC', 'New mint OTC'],
-  '/burn': ['OTC', 'Burn'],
-  '/burn/new': ['OTC', 'New burn OTC'],
-  '/transactions': ['Consumer', 'User Transaction'],
-  '/settings/rate': ['Settings', 'Rate'],
-  '/settings/fee': ['Settings', 'Fee'],
-  '/settings/threshold': ['Settings', 'Threshold'],
-  '/profile': ['Account', 'Profile'],
-}
-
-function buildBreadcrumb(pathname: string): string[] {
-  const mapped = BREADCRUMB_MAP[pathname]
-  if (mapped) return [...mapped]
-  const segs = pathname.split('/').filter(Boolean)
-  if (segs.length === 0) return ['USDX', 'Home']
-  return segs.length === 1 ? ['USDX', segs[0]!] : segs
-}
+import { breadcrumbFor, visibleNav } from './navItems'
+import { sumBadges, useNavBadges } from './useNavBadges'
+import { useAuth } from '@/lib/auth'
+import LogoLockup from '@/components/LogoLockup'
 
 export default function Navbar() {
   const { pathname } = useLocation()
-  const segments = buildBreadcrumb(pathname)
+  // Breadcrumb dari tabel menu, tidak pernah dari potongan URL (slug/UUID).
+  const segments = breadcrumbFor(pathname)
   const [navOpen, setNavOpen] = useState(false)
+  const { user } = useAuth()
 
-  // USDX-27: aggregate pending count → a dot on the hamburger, so the
-  // Mint/Burn approval signal stays visible even though the per-item badges
-  // now live inside the drawer.
-  const mintPending = usePendingMintCount()
-  const burnPending = usePendingBurnCount()
-  const pendingTotal = (mintPending.data ?? 0) + (burnPending.data ?? 0)
+  // USDX-27: titik di tombol hamburger = ada antrean di menu mana pun yang
+  // boleh dilihat peran ini — angka per menu tinggal di dalam laci.
+  const badgeFor = useNavBadges()
+  const visibleKeys = visibleNav(user).flatMap((e) =>
+    e.kind === 'item' ? [e.badgeKey] : e.items.map((i) => i.badgeKey),
+  )
+  const pendingTotal = sumBadges(visibleKeys.map((k) => badgeFor(k))).count
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-background pl-2 pr-3 lg:pl-5">
+      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between border-b border-border bg-card pl-2 pr-3 lg:pl-5">
         <div className="flex items-center gap-2 lg:hidden">
           <button
             type="button"
             onClick={() => setNavOpen(true)}
-            aria-label="Open navigation menu"
-            className="relative grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            aria-label="Buka menu navigasi"
+            className="relative grid h-9 w-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Menu className="h-5 w-5" strokeWidth={1.75} />
             {pendingTotal > 0 && (
               <span
                 className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
-                aria-label={`${pendingTotal} pending`}
+                aria-label={`${pendingTotal} menunggu diproses`}
               />
             )}
           </button>
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-[13px] font-bold tracking-tight">
-            U
-          </div>
-          <span className="text-[14px] font-semibold tracking-tight">USDX</span>
+          <LogoLockup className="h-5" />
         </div>
 
         <nav
-          className="hidden lg:flex items-center gap-1.5 text-[12.5px]"
-          aria-label="Breadcrumb"
+          className="hidden lg:flex items-center gap-1.5 text-sm"
+          aria-label="Lokasi halaman"
         >
-          {segments.map((seg, i) => (
-            <span key={`${seg}-${i}`} className="flex items-center gap-1.5">
-              {i > 0 && (
-                <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
-              )}
-              <span
-                className={cn(
-                  i === segments.length - 1
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground'
-                )}
-              >
-                {seg}
-              </span>
-            </span>
-          ))}
+          <ol className="flex items-center gap-1.5">
+            {segments.map((seg, i) => {
+              const last = i === segments.length - 1
+              return (
+                <li key={`${seg.label}-${i}`} className="flex items-center gap-1.5">
+                  {i > 0 && (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/60" aria-hidden />
+                  )}
+                  {/* Segmen yang punya halaman = tautan; nama grup dan segmen
+                      terakhir tetap teks. Segmen terakhir = halaman ini. */}
+                  {seg.to && !last ? (
+                    <Link
+                      to={seg.to}
+                      className="rounded-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {seg.label}
+                    </Link>
+                  ) : (
+                    <span
+                      aria-current={last ? 'page' : undefined}
+                      className={cn(last ? 'font-medium text-foreground' : 'text-muted-foreground')}
+                    >
+                      {seg.label}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
         </nav>
 
+        {/* P0-4 — kotak cari palsu DIBUANG. Yang berdiri di sini dulu adalah
+            sebuah <div> berisi ikon kaca pembesar, teks "Search…", dan lencana
+            ⌘K: bukan <input>, tanpa onClick, tanpa handler, dan tidak ada
+            command palette di mana pun di repo ini. Operator yang mau mencari
+            satu order melihat kotak cari yang tidak bisa diklik — kontrol yang
+            tidak bisa dipakai lebih buruk daripada tidak ada kontrol.
+            Penggantinya bukan command palette melainkan tautan antar layar
+            (P0-2/P0-3); kotak cari nyata di /transactions menunggu parameter
+            `search` di `sot/api/orders.yaml`, yang belum ada. */}
         <div className="flex items-center gap-1">
-          <div className="relative hidden lg:flex h-7 w-64 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-[12px] text-muted-foreground/80 hover:border-border/80 transition-colors">
-            <Search className="h-3.5 w-3.5" />
-            <span>Search…</span>
-            <kbd className="ml-auto rounded border border-border px-1 font-mono text-[10px] leading-none py-0.5">
-              ⌘K
-            </kbd>
-          </div>
-
           <ThemeToggle />
 
           <div className="ml-1">

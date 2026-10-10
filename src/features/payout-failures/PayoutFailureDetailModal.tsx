@@ -1,22 +1,17 @@
 import { useState, type ReactNode } from 'react'
 import { ExternalLink, Info } from 'lucide-react'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
+import DetailTeknis from '@/components/DetailTeknis'
+import WalletShort from '@/components/WalletShort'
+import { getOrderStatusConfig, UNKNOWN_CODE_LABEL } from '@/lib/status'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatWibDateTime, shortHash } from '@/lib/format'
+import { formatRate, formatDateTime } from '@/lib/format'
 import {
   allowedResolveActions,
   formatQueueAge,
@@ -27,38 +22,26 @@ import {
   resolutionTrailLabel,
 } from '@/lib/payoutFailures'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
-import type { PayoutFailureDetail, PayoutResolution } from '@/lib/types'
+import type { OrderStatus, PayoutFailureDetail, PayoutResolution } from '@/lib/types'
 import ResolutionTrail from './ResolutionTrail'
 import ResolvePayoutFailureDialog from './ResolvePayoutFailureDialog'
 import SubmissionTrail from './SubmissionTrail'
 import { usePayoutFailureDetail } from './hooks'
+import { DataField, DataSection } from '@/components/DataList'
 
 interface Props {
   orderId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
-        {label}
-      </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
-        {title}
-      </h3>
-      {children}
-    </section>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
@@ -70,9 +53,7 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
   const href = chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, detail.burnTxHash) : null
   if (!href) {
     return (
-      <span className="break-all font-mono text-[12px]" title={detail.burnTxHash}>
-        {shortHash(detail.burnTxHash)}
-      </span>
+      <span className="break-all font-mono text-xs text-muted-foreground">{detail.burnTxHash}</span>
     )
   }
   return (
@@ -80,10 +61,10 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-[12px] text-primary hover:underline"
-      title={`Lihat di block explorer: ${detail.burnTxHash}`}
+      className="inline-flex items-start gap-1 break-all font-mono text-xs text-primary hover:underline"
+      title="Lihat di block explorer"
     >
-      {shortHash(detail.burnTxHash)}
+      {detail.burnTxHash}
       <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
     </a>
   )
@@ -99,17 +80,17 @@ function ActionAvailabilityNote({
 }) {
   if (detail.resolution !== null) {
     return (
-      <p className="text-[12.5px] text-muted-foreground" data-testid="resolved-note">
+      <p className="text-xs text-muted-foreground" data-testid="resolved-note">
         Sudah dituntaskan: <strong>{resolutionTrailLabel(detail.resolution)}</strong>
         {detail.resolvedByStaffName ? ` oleh ${detail.resolvedByStaffName}` : ''}
-        {detail.resolvedAt ? ` · ${formatWibDateTime(detail.resolvedAt)}` : ''}.
+        {detail.resolvedAt ? ` · diputus (WIB) ${formatDateTime(detail.resolvedAt)}` : ''}.
       </p>
     )
   }
   if (detail.issueKind === 'PAYOUT_STUCK') {
     return (
       <p
-        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-[12.5px]"
+        className="flex items-start gap-2 rounded-md bg-muted/60 px-3 py-2 text-xs"
         data-testid="stuck-readonly"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -124,7 +105,7 @@ function ActionAvailabilityNote({
   }
   if (!canResolve) {
     return (
-      <p className="text-[12.5px] text-muted-foreground" data-testid="role-readonly">
+      <p className="text-xs text-muted-foreground" data-testid="role-readonly">
         Menuntaskan order ini hanya untuk Manager dan Admin.
       </p>
     )
@@ -143,6 +124,7 @@ export default function PayoutFailureDetailModal({
   orderId,
   open,
   onOpenChange,
+  nav,
 }: Props) {
   const { user } = useAuth()
   const canResolve = canResolvePayoutFailure(user)
@@ -165,21 +147,38 @@ export default function PayoutFailureDetailModal({
     detail && detail.resolution === null && canResolve ? allowedResolveActions(detail.issueKind) : []
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl bg-card">
-        <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-2">
-            Pencairan bermasalah
-            {detail && <StatusPill cfg={payoutIssueKindPill(detail.issueKind)} />}
-          </DialogTitle>
-          <DialogDescription>
-            {detail
-              ? `${detail.bankAccountName} · ${formatIdrExact(detail.netPayoutIdr)} · masuk antrean ${formatQueueAge(detail.issueAt)} lalu`
-              : 'Memuat detail order…'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <DialogBody>
+    // Pola `RecordModal` (sapu bersih 11 Okt 2026): ↑/↓ antar baris antrean,
+    // footer menempel, aksi utama (Kirim ulang) paling kanan.
+    <RecordModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          Pencairan bermasalah
+          {detail && <StatusPill cfg={payoutIssueKindPill(detail.issueKind)} />}
+        </span>
+      }
+      subtitle={
+        detail
+          ? `${detail.bankAccountName} · ${formatIdrExact(detail.netPayoutIdr)} · masuk antrean ${formatQueueAge(detail.issueAt)} lalu`
+          : 'Memuat detail order…'
+      }
+      nav={nav}
+      testId="payout-failure-modal"
+      actions={
+        actions.length > 0
+          ? [...actions].reverse().map((action) => (
+              <Button
+                key={action}
+                variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
+                onClick={() => setChosenAction(action)}
+              >
+                {RESOLVE_ACTION_LABELS[action]}
+              </Button>
+            ))
+          : undefined
+      }
+    >
           {query.isLoading && (
             <div className="space-y-3" data-testid="payout-failure-loading">
               <Skeleton className="h-16 w-full" />
@@ -189,7 +188,7 @@ export default function PayoutFailureDetailModal({
 
           {query.isError && (
             <div className="space-y-2" role="alert">
-              <p className="text-[13px] text-destructive">{payoutFailureErrorMessage(query.error)}</p>
+              <p className="text-sm text-destructive">{payoutFailureErrorMessage(query.error)}</p>
               <Button variant="outline" size="sm" onClick={() => query.refetch()}>
                 Coba lagi
               </Button>
@@ -199,22 +198,24 @@ export default function PayoutFailureDetailModal({
           {detail && (
             <div className="space-y-5">
               <Section title="Masalah">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Penyebab">
-                    {/* Kode tak dikenal (daftar kontrak terbuka): hanya kodenya, tanpa arti karangan. */}
-                    {payoutIssueCodeLabel(detail.issueCode) ?? (detail.issueCode ? null : <Dim />)}
-                    {detail.issueCode && (
-                      <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
-                        {detail.issueCode}
+                    {/* Kode tak dikenal (daftar kontrak terbuka): tidak ditebak artinya —
+                        "Belum dikenali", kodenya di Detail teknis. */}
+                    {detail.issueCode ? (
+                      <span title={detail.issueCode}>
+                        {payoutIssueCodeLabel(detail.issueCode) ?? UNKNOWN_CODE_LABEL}
                       </span>
+                    ) : (
+                      <Dim />
                     )}
                   </Field>
                   <Field label="Status order">
-                    <span className="font-mono text-[12.5px]">{detail.status}</span>
+                    <span title={detail.status}>{getOrderStatusConfig(detail.status as OrderStatus).label}</span>
                   </Field>
-                  <Field label="Masuk antrean">
-                    <span className="font-mono text-[12.5px] tabular-nums">
-                      {formatWibDateTime(detail.issueAt)}
+                  <Field label="Masuk antrean (WIB)">
+                    <span className="text-xs tabular-nums">
+                      {formatDateTime(detail.issueAt)}
                     </span>
                   </Field>
                   <Field label="Keterangan dari provider / scanner">
@@ -228,32 +229,36 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <Section title="Nominal">
-                <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Nominal transfer">
                     <span
-                      className="font-mono text-[18px] font-semibold tabular-nums"
+                      className="text-money-lg tabular-nums"
                       data-testid="payout-failure-net-idr"
                     >
                       {formatIdrExact(detail.netPayoutIdr)}
                     </span>
                   </Field>
                   <Field label="USDX terbakar">
-                    <span className="font-mono tabular-nums">{formatUsdxExact(detail.amountUsdx)}</span>
+                    <span className="tabular-nums">{formatUsdxExact(detail.amountUsdx)}</span>
                   </Field>
                   <Field label="Kurs snapshot">
-                    <span className="font-mono tabular-nums">{detail.effectiveRate}</span>
+                    {/* Ketiga tetangganya di grid ini sudah diformat; yang ini
+                        tertinggal mentah (`16250.0000`). */}
+                    <span className="tabular-nums">
+                      {formatRate(detail.effectiveRate)}
+                    </span>
                   </Field>
                   <Field label="Total biaya">
-                    <span className="font-mono tabular-nums">{formatIdrExact(detail.totalFeeIdr)}</span>
+                    <span className="tabular-nums">{formatIdrExact(detail.totalFeeIdr)}</span>
                   </Field>
                 </div>
               </Section>
 
               <Section title="Rekening tujuan">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Bank">{detail.bankName}</Field>
                   <Field label="Nomor rekening">
-                    <span className="break-all font-mono tabular-nums">{detail.bankAccountNumber}</span>
+                    <span className="break-all tabular-nums">{detail.bankAccountNumber}</span>
                   </Field>
                   <Field label="Nama pemilik menurut bank">
                     <span className="font-medium">{detail.bankAccountName}</span>
@@ -261,7 +266,7 @@ export default function PayoutFailureDetailModal({
                   <Field label="Pemilik order">
                     {detail.ownerLabel}
                     {detail.ownerKind === 'PARTNER' && (
-                      <span className="ml-1.5 rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+                      <span className="ml-1.5 rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                         Partner
                       </span>
                     )}
@@ -269,31 +274,28 @@ export default function PayoutFailureDetailModal({
                 </div>
               </Section>
 
-              <Section title="Burn on-chain">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Tx burn">
-                    <BurnHash detail={detail} />
-                  </Field>
-                  <Field label="Dibakar">
-                    <span className="font-mono text-[12.5px] tabular-nums">
-                      {formatWibDateTime(detail.burnedAt)}
+              <Section title="Pembakaran USDX">
+                <div className="@container divide-y divide-border border-t border-border">
+                  <Field label="Dibakar (WIB)">
+                    <span className="text-xs tabular-nums">
+                      {formatDateTime(detail.burnedAt)}
                     </span>
                     {(detail.lateBurn || detail.staleBurn) && (
-                      <span className="ml-1.5 text-[11.5px] font-medium text-amber-700 dark:text-amber-400">
+                      <span className="ml-1.5 text-label font-medium text-amber-700 dark:text-amber-400">
                         {detail.staleBurn ? 'burn basi' : 'burn terlambat'}
                       </span>
                     )}
                   </Field>
                   <Field label="Wallet sumber">
                     {detail.userAddress ? (
-                      <span className="break-all font-mono text-[12px]">{detail.userAddress}</span>
+                      <WalletShort address={detail.userAddress} label="wallet sumber" />
                     ) : (
                       <Dim />
                     )}
                   </Field>
                   <Field label="Referensi payout provider">
                     {detail.payoutRef ? (
-                      <span className="break-all font-mono text-[12px]">{detail.payoutRef}</span>
+                      <span className="break-all font-mono text-xs">{detail.payoutRef}</span>
                     ) : (
                       <Dim />
                     )}
@@ -310,25 +312,37 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <ActionAvailabilityNote detail={detail} canResolve={canResolve} />
+
+              <DetailTeknis>
+                {/* Ops-fokus (Okt 2026): tx hash pembakaran pindah ke sini dari
+                    depan — tetap bertautan explorer, hanya dilipat. */}
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Tx pembakaran</p>
+                  <p className="mt-1">
+                    <BurnHash detail={detail} />
+                  </p>
+                </div>
+                {detail.userAddress && (
+                  <div className="min-w-0 sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Alamat wallet sumber (lengkap)</p>
+                    <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.userAddress}</p>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Kode penyebab</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.issueCode ?? '—'}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Kode jenis masalah</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.issueKind}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Status order (sistem)</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.status}</p>
+                </div>
+              </DetailTeknis>
             </div>
           )}
-        </DialogBody>
-
-        <DialogFooter>
-          {actions.map((action) => (
-            <Button
-              key={action}
-              variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
-              onClick={() => setChosenAction(action)}
-            >
-              {RESOLVE_ACTION_LABELS[action]}
-            </Button>
-          ))}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Tutup
-          </Button>
-        </DialogFooter>
-
         {/* Dirender DI DALAM konten modal detail supaya Radix menumpuk keduanya sebagai
             lapisan bersarang: Esc menutup dialog resolve dulu, bukan detailnya. */}
         {detail && (
@@ -341,7 +355,6 @@ export default function PayoutFailureDetailModal({
             }}
           />
         )}
-      </DialogContent>
-    </Dialog>
+    </RecordModal>
   )
 }

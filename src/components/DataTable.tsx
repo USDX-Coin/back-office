@@ -9,10 +9,6 @@ import {
 } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router'
 import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -24,6 +20,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableColgroup,
   TableHead,
   TableHeader,
   TableRow,
@@ -41,6 +38,8 @@ import {
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import { cn } from '@/lib/utils'
+import { useMediaQuery } from '@/lib/useMediaQuery'
+import TablePagination from '@/components/table/TablePagination'
 
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
@@ -151,6 +150,12 @@ export default function DataTable<T>({
         updateParams({ sortBy: null, sortOrder: null, page: '1' })
       }
     },
+    // USDX — lebar kolom. TanStack sudah menyimpan `size`/`minSize` per kolom
+    // sejak awal; yang hilang adalah JALUR KELUARNYA ke DOM. Angka bawaan
+    // TanStack (150px) dipakai apa adanya oleh tabel 11 kolom dan langsung
+    // memaksa gulir 1650px, jadi diturunkan ke 132 — kolom yang butuh lebih
+    // menyebut `size` sendiri di ColumnDef-nya.
+    defaultColumn: { size: 120, minSize: 80 },
     getCoreRowModel: getCoreRowModel(),
     getRowId,
     manualPagination: true,
@@ -160,6 +165,36 @@ export default function DataTable<T>({
 
   const totalPages = Math.ceil(rowCount / defaultPageSize) || 1
 
+  // ── Lebar kolom, akhirnya sampai ke DOM ─────────────────────────────────
+  //
+  // Sebelumnya tidak ada satu pun dari ini: nol `getSize()`, nol `<colgroup>`,
+  // dan `<table className="w-full">` tanpa lebar minimum. Jadi definisi `size`
+  // di ColumnDef tidak berpengaruh apa pun, dan peramban bebas memeras kolom
+  // sampai muat.
+  //
+  // Dua mode, dan bedanya sengaja:
+  //
+  // Tata letaknya `fixed`, selalu. Tata letak otomatis terbukti memilih MELIPAT
+  // isi daripada menggulir begitu isinya lebih lebar dari wadahnya: baris Mint
+  // membengkak jadi ~80px dengan nama, id pesanan, dan hash masing-masing patah
+  // dua baris. Lebar yang mengikat memindahkan keputusan itu ke tempat yang
+  // benar — sel yang tidak muat DIPOTONG elipsis (nilai utuh di tooltip), dan
+  // tabel yang tidak muat MENGGULIR.
+  //
+  // Kolom yang tidak menyebut `size` memakai angka bawaan dan berbagi lebar
+  // sama rata. Itu keadaan sementara, bukan tujuan: sekarang `size` akhirnya
+  // berpengaruh, halaman bisa menyebutkan lebarnya satu per satu.
+  const kolomTerlihat = table.getVisibleLeafColumns()
+  const lebarKolom = kolomTerlihat.map((c) => c.getSize())
+  const lebarBaris = lebarKolom.reduce((a, b) => a + b, 0)
+
+  // Kisi kolom hanya dipasang saat ADA baris untuk dilindungi. Keadaan kosong
+  // dan keadaan galat merender satu sel `colSpan` berisi kalimat utuh: dengan
+  // lebar minimum terpasang, sel itu ikut selebar tabel dan kalimatnya terpotong
+  // di tepi kartu — memperbaiki tabel berisi data dengan merusak tabel kosong.
+  const adaBaris = isLoading || (!isError && table.getRowModel().rows.length > 0)
+  const lebarMinimum = adaBaris ? lebarBaris : undefined
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     updateParams({ search: searchInput || null, page: '1' })
@@ -168,6 +203,23 @@ export default function DataTable<T>({
   function clearFilters() {
     setSearchInput('')
     setSearchParams(new URLSearchParams())
+  }
+
+  // Ponsel (< sm): baris jadi kartu — kolom pertama sebagai judul, sisanya
+  // pasangan label–nilai — supaya tabel lama (Transaksi, Staf, Jejak Audit, …)
+  // terbaca tanpa digeser ke samping. Keadaan memuat tetap memakai tabel.
+  const ponsel = useMediaQuery('(max-width: 639px)')
+  const kartuPonsel = ponsel && !isLoading && !isError && table.getRowModel().rows.length > 0
+  // Kosong/galat di ponsel: kotak keadaan saja, tanpa kepala tabel lebar yang
+  // memaksa geser ke samping dan memotong kalimatnya (sapu bersih 11 Okt 2026).
+  const keadaanPonsel = ponsel && !isLoading && (isError || table.getRowModel().rows.length === 0)
+  function labelKolom(columnId: string) {
+    const header = table.getFlatHeaders().find((h) => h.column.id === columnId)
+    if (!header) return null
+    const def = header.column.columnDef.header
+    if (typeof def === 'string') return def
+    if (!def) return null
+    return flexRender(def, header.getContext())
   }
 
   const derivedHasFilters = Boolean(search || status || startDate || endDate)
@@ -183,7 +235,7 @@ export default function DataTable<T>({
             <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder="Cari…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9"
@@ -196,10 +248,10 @@ export default function DataTable<T>({
                 onValueChange={(val) => updateParams({ status: val === 'all' ? null : val, page: '1' })}
               >
                 <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="Semua status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">Semua status</SelectItem>
                   {statusOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
@@ -215,21 +267,21 @@ export default function DataTable<T>({
                 value={startDate}
                 onChange={(e) => updateParams({ startDate: e.target.value || null, page: '1' })}
                 className="w-[150px]"
-                aria-label="Start date"
+                aria-label="Tanggal mulai"
               />
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => updateParams({ endDate: e.target.value || null, page: '1' })}
                 className="w-[150px]"
-                aria-label="End date"
+                aria-label="Tanggal akhir"
               />
             </div>
 
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="mr-1 h-4 w-4" />
-                Clear
+                Hapus filter
               </Button>
             )}
           </div>
@@ -237,29 +289,90 @@ export default function DataTable<T>({
           {onExportCsv && (
             <Button variant="outline" size="sm" onClick={onExportCsv}>
               <Download className="mr-1 h-4 w-4" />
-              Export CSV
+              Unduh CSV
             </Button>
           )}
         </div>
       )}
 
+      {keadaanPonsel ? (
+        <div className="overflow-hidden rounded-md bg-card">
+          {isError ? (
+            <TableErrorState onRetry={onRetry} />
+          ) : hasFilters ? (
+            <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
+          ) : emptyState ? (
+            emptyState
+          ) : (
+            <TableEmptyState mode="no-data" />
+          )}
+        </div>
+      ) : kartuPonsel ? (
+        <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-card" aria-label="Daftar">
+          {table.getRowModel().rows.map((row) => {
+            const clickable = Boolean(onRowClick)
+            const [utama, ...lain] = row.getVisibleCells()
+            return (
+              <li
+                key={row.id}
+                data-hoverable=""
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                aria-label={clickable && rowAriaLabel ? rowAriaLabel(row.original) : undefined}
+                onClick={clickable ? () => onRowClick!(row.original) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onRowClick!(row.original)
+                        }
+                      }
+                    : undefined
+                }
+                className={cn(
+                  'px-4 py-3',
+                  clickable && 'cursor-pointer active:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55',
+                  rowClassName?.(row.original),
+                )}
+              >
+                {utama && (
+                  <div className="min-w-0 text-sm font-medium text-foreground">
+                    {flexRender(utama.column.columnDef.cell, utama.getContext())}
+                  </div>
+                )}
+                {lain.length > 0 && (
+                  <dl className="mt-2 space-y-1.5">
+                    {lain.map((cell) => {
+                      const label = labelKolom(cell.column.id)
+                      return (
+                        <div key={cell.id} className="flex min-w-0 items-baseline justify-between gap-3 text-sm" data-col={cell.column.id}>
+                          {label ? <dt className="shrink-0 text-xs text-muted-foreground">{label}</dt> : <dt className="sr-only">—</dt>}
+                          <dd className="min-w-0 text-right [&>*]:justify-end">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
       <div className="relative overflow-hidden rounded-md bg-card">
-        {/* USDX-27: mobile-only edge fade hints that the table scrolls sideways
-            (the list tables have more columns than fit a phone width). */}
-        {!isLoading && !isError && data.length > 0 && (
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-card to-transparent md:hidden"
-          />
-        )}
-        <Table>
+        <Table fixedLayout={adaBaris} minWidth={lebarMinimum}>
+          {adaBaris && <TableColgroup widths={lebarKolom} />}
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent border-border">
+              <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                    // Kepala kolom: huruf biasa, bukan mono KAPITAL berenggang.
+                    // Gayanya diwarisi dari TableHead supaya semua tabel sama.
+                    className="px-3"
                   >
                     {header.isPlaceholder ? null : (
                       <div
@@ -291,23 +404,23 @@ export default function DataTable<T>({
           <TableBody>
             {isLoading ? (
               Array.from({ length: defaultPageSize }).map((_, i) => (
-                <TableRow key={i} className="hover:bg-transparent border-border">
+                <TableRow key={i} className="h-baris-tabel">
                   {columns.map((_, j) => (
-                    <TableCell key={j} className="px-4 py-2.5">
+                    <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : isError ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="p-0">
+              <TableRow>
+                <TableCell colSpan={kolomTerlihat.length} className="p-0">
                   <TableErrorState onRetry={onRetry} />
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="p-0">
+              <TableRow>
+                <TableCell colSpan={kolomTerlihat.length} className="p-0">
                   {hasFilters ? (
                     <TableEmptyState mode="no-results" onClearFilters={clearFilters} />
                   ) : emptyState ? (
@@ -324,11 +437,15 @@ export default function DataTable<T>({
                   <TableRow
                     key={row.id}
                     className={cn(
-                      'border-border hover:bg-muted/40',
+                      'h-baris-tabel animate-baris-masuk',
                       clickable &&
-                        'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/55',
                       rowClassName?.(row.original)
                     )}
+                    // Dibaca oleh aturan sorotan di index.css. Hanya baris DATA
+                    // yang menyala — baris skeleton, galat, dan keadaan kosong
+                    // tidak menunjuk ke apa pun, jadi tidak ikut menyala.
+                    data-hoverable=""
                     role={clickable ? 'button' : undefined}
                     tabIndex={clickable ? 0 : undefined}
                     aria-label={
@@ -351,7 +468,15 @@ export default function DataTable<T>({
                     }
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="px-4 py-2.5 text-[12.5px]">
+                      <TableCell
+                        key={cell.id}
+                        className="text-sm"
+                        // Id kolom ikut ke DOM. Dipakai uji lebar Playwright
+                        // (`e2e/usdx-lebar-sel.spec.ts`) untuk menyebut sel yang
+                        // terpotong dengan NAMA kolomnya, bukan nomor urut yang
+                        // berubah tiap kali ada kolom disembunyikan.
+                        data-col={cell.column.id}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
@@ -362,58 +487,16 @@ export default function DataTable<T>({
           </TableBody>
         </Table>
       </div>
+      )}
 
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-[11.5px] text-muted-foreground tabular-nums">
-          {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
-          {Math.min(page * defaultPageSize, rowCount)} of {rowCount}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="First page"
-          >
-            <ChevronsLeft className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </Button>
-          <span className="px-2 font-mono text-[11.5px] tabular-nums text-muted-foreground">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            aria-label="Next page"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => table.setPageIndex(totalPages - 1)}
-            disabled={!table.getCanNextPage()}
-            aria-label="Last page"
-          >
-            <ChevronsRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination
+        page={page}
+        pageCount={totalPages}
+        total={rowCount}
+        pageSize={defaultPageSize}
+        shown={data.length}
+        onPageChange={(p) => table.setPageIndex(p - 1)}
+      />
     </div>
   )
 }

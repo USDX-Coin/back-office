@@ -15,7 +15,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { findChainConfig } from '@/lib/chainLinks'
 import { safeTxUrl } from '@/lib/safeUrl'
-import { shortRequestId } from '@/lib/format'
+import { formatUsdxListAmount, shortRequestId } from '@/lib/format'
 import type { ManualSyncItem, ManualSyncType, RequestChain, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -40,24 +40,27 @@ const CHAIN_DOT: Record<RequestChain, string> = {
 }
 
 const SAFE_LABEL: Record<SafeType, string> = {
-  STAFF: 'Staff',
+  STAFF: 'Staf',
   MANAGER: 'Manager',
 }
 
 // USDX-208: Manual Sync now carries consumer `mint_order` rows alongside OTC
-// mint/burn. mint & mint_order share the teal/primary family (both mint USDX) —
+// mint/burn. mint & mint_order share the primary (maroon) family (both mint USDX) —
 // OTC mint is filled, the consumer mint_order is outlined so they're
 // distinguishable at a glance; burn stays amber.
+// "Mint nasabah" = order mint dari aplikasi nasabah; "Mint OTC"/"Burn OTC" =
+// request yang diajukan operator. Tiga populasi berbeda di satu tabel, jadi
+// labelnya harus memisahkan ketiganya tanpa perlu ditebak.
 const TYPE_LABEL: Record<ManualSyncType, string> = {
-  mint: 'Mint',
-  burn: 'Burn',
-  mint_order: 'Mint Order',
+  mint: 'Mint OTC',
+  burn: 'Burn OTC',
+  mint_order: 'Mint nasabah',
 }
 
 const TYPE_BADGE_CLASS: Record<ManualSyncType, string> = {
-  mint: 'bg-primary/10 text-primary',
+  mint: 'bg-secondary text-foreground',
   burn: 'bg-warning/10 text-warning',
-  mint_order: 'border border-primary/40 bg-transparent text-primary',
+  mint_order: 'border border-border bg-transparent text-foreground',
 }
 
 // USDX-87 — visual highlight for `?highlight=<id>` deep-links from the
@@ -68,9 +71,9 @@ const HIGHLIGHT_DURATION_MS = 3000
 async function copyId(value: string) {
   try {
     await navigator.clipboard.writeText(value)
-    toast.success('Request ID copied')
+    toast.success('ID request disalin')
   } catch {
-    toast.error('Copy failed')
+    toast.error('Gagal menyalin')
   }
 }
 
@@ -175,12 +178,13 @@ export default function ManualSyncPage() {
   const columns: ColumnDef<ManualSyncItem>[] = [
     {
       id: 'id',
-      header: 'Request ID',
+      size: 152,
+      header: 'ID request',
       cell: ({ row }) => {
         const isHighlight = activeHighlight === row.original.id
         return (
           <span
-            className="inline-flex items-center gap-1.5 font-mono text-[11.5px]"
+            className="inline-flex items-center gap-1.5 font-mono text-xs"
             data-highlight-anchor={isHighlight ? 'true' : undefined}
           >
             <span className="text-foreground" title={row.original.id}>
@@ -193,8 +197,8 @@ export default function ManualSyncPage() {
                 void copyId(row.original.id)
               }}
               className="text-muted-foreground hover:text-primary"
-              aria-label="Copy request ID"
-              title="Copy full request ID"
+              aria-label="Salin ID request"
+              title="Salin ID request lengkap"
             >
               <Copy className="h-3 w-3" />
             </button>
@@ -204,14 +208,15 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'type',
-      header: 'Type',
+      size: 104,
+      header: 'Jenis',
       cell: ({ getValue }) => {
         const t = getValue() as ManualSyncItem['type']
         return (
           <Badge
             variant="secondary"
             className={cn(
-              'rounded-sm text-[10.5px] font-medium uppercase tracking-[0.04em]',
+              'rounded-sm text-xs font-medium',
               TYPE_BADGE_CLASS[t]
             )}
           >
@@ -222,11 +227,12 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'chain',
-      header: 'Chain',
+      size: 120,
+      header: 'Jaringan',
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
         return (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className={cn('h-1.5 w-1.5 rounded-full', CHAIN_DOT[c])} />
             {CHAIN_LABEL[c] ?? c}
           </span>
@@ -235,11 +241,14 @@ export default function ManualSyncPage() {
     },
     {
       id: 'user',
-      header: 'Customer',
+      header: 'Nasabah',
+      size: 200,
       cell: ({ row }) => (
-        <div className="flex flex-col leading-tight">
-          <span className="font-medium">{row.original.userName}</span>
-          <span className="font-mono text-[10.5px] text-muted-foreground">
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-medium" title={row.original.userName}>
+            {row.original.userName}
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">
             <TruncatedHash value={row.original.userAddress} />
           </span>
         </div>
@@ -247,29 +256,38 @@ export default function ManualSyncPage() {
     },
     {
       accessorKey: 'safeType',
-      header: 'Safe',
+      size: 96,
+      header: 'Dompet',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {SAFE_LABEL[getValue() as SafeType]}
         </span>
       ),
     },
     {
       accessorKey: 'amount',
-      header: 'Amount',
-      cell: ({ row }) => (
-        <span className="flex items-center gap-1.5 font-mono font-medium tabular-nums">
-          {Number(row.original.amount).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          <span className="text-[10.5px] text-muted-foreground">USDX</span>
-        </span>
-      ),
+      header: 'Nominal',
+      // Nominal request yang nyangkut. Tanpa `size` kolomnya 120px, dan
+      // pembungkusnya `flex` (kotak blok) jadi kelebihannya dipotong tanpa
+      // elipsis. Nilai utuh ikut di `title`.
+      size: 176,
+      cell: ({ row }) => {
+        const teks = `${formatUsdxListAmount(row.original.amount)} USDX`
+        return (
+          <span
+            className="block truncate font-medium tabular-nums"
+            title={teks}
+          >
+            {teks.replace(/ USDX$/, '')}{' '}
+            <span className="text-xs text-muted-foreground">USDX</span>
+          </span>
+        )
+      },
     },
     {
       id: 'safeTx',
-      header: 'Safe tx',
+      size: 176,
+      header: 'Antrean tanda tangan',
       cell: ({ row }) => {
         const cfg = findChainConfig(chains, row.original.chain)
         const href = safeTxUrl({
@@ -281,26 +299,27 @@ export default function ManualSyncPage() {
           <TxHashLink
             hash={row.original.safeTxHash}
             href={href}
-            label="View transaction in Safe"
+            label="Lihat transaksi di Safe"
           />
         )
       },
     },
     {
       id: 'actions',
-      header: 'Action',
+      size: 104,
+      header: 'Aksi',
       cell: ({ row }) => (
         <Button
           type="button"
           size="sm"
           variant="secondary"
-          className="h-7 text-[11.5px]"
+          className="h-7 text-xs"
           onClick={(e) => {
             e.stopPropagation()
             setActiveItem(row.original)
           }}
         >
-          View
+          Perbaiki
         </Button>
       ),
     },
@@ -310,18 +329,16 @@ export default function ManualSyncPage() {
     <TableEmptyState
       mode="no-data"
       icon={<Wrench className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No pending requests"
-      description="Manual Sync is empty — every mint, burn, and consumer mint order is either executed or rejected."
+      title="Tidak ada status yang nyangkut"
+      description="Semua mint OTC, burn OTC, dan mint nasabah sudah dieksekusi atau ditolak."
     />
   )
 
   return (
     <div>
       <PageHeader
-        eyebrow="Troubleshooting"
-        title="Manual Sync"
-        italicAccent="reconcile stuck requests"
-        subtitle="Recovery surface for requests that stayed pending after auto status sync failed. Paste the on-chain tx hash to verify and flip the record to executed."
+        title="Perbaiki Status Nyangkut"
+        subtitle="Untuk request yang sudah jalan di blockchain tapi statusnya di sistem belum ikut berubah. Tempelkan bukti transaksinya, sistem memeriksa kecocokannya, lalu statusnya diperbaiki."
       />
 
       <DataTable<ManualSyncItem>
@@ -338,7 +355,7 @@ export default function ManualSyncPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search request ID, user, address…',
+              placeholder: 'Cari ID request, nasabah, alamat wallet…',
               onChange: (next) => updateParams({ search: next || null }),
             }}
             filter={{

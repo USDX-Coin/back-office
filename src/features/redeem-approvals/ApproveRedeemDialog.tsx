@@ -1,3 +1,4 @@
+import DetailTeknis from '@/components/DetailTeknis'
 import { useState } from 'react'
 import { AlertTriangle, ExternalLink, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,14 +18,15 @@ import FieldError from '@/components/FieldError'
 import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { shortHash } from '@/lib/format'
+import { formatRate, formatSpreadPct } from '@/lib/format'
 import {
   APPROVE_NOTE_MAX,
   formatIdrExact,
   redeemApprovalErrorMessage,
   validateApproveNote,
 } from '@/lib/redeemApprovals'
-import type { RedeemApprovalDetail, RedeemApprovalListItem } from '@/lib/types'
+import type { OrderStatus, RedeemApprovalDetail, RedeemApprovalListItem } from '@/lib/types'
+import { getOrderStatusConfig } from '@/lib/status'
 import PayoutDestinationSummary from './PayoutDestinationSummary'
 import { useApproveRedeemPayout, useRedeemApprovalDetail } from './hooks'
 
@@ -45,14 +47,14 @@ function BreakdownRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className={strong ? 'text-[12.5px] font-medium' : 'text-[12.5px] text-muted-foreground'}>
+      <span className={strong ? 'text-xs font-medium' : 'text-xs text-muted-foreground'}>
         {label}
       </span>
       <span
         className={
           strong
-            ? 'font-mono text-[13px] font-semibold tabular-nums'
-            : 'font-mono text-[12.5px] tabular-nums text-muted-foreground'
+            ? 'text-sm font-semibold tabular-nums'
+            : 'text-xs tabular-nums text-muted-foreground'
         }
       >
         {value}
@@ -97,38 +99,21 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
         </div>
       </div>
 
-      <div className="grid gap-2 text-[12px] sm:grid-cols-2">
+      <div className="grid gap-2 text-xs sm:grid-cols-2">
         <p className="text-muted-foreground">
+          {/*
+            Ketiganya dulu dicetak MENTAH (`16250.0000`, `2.00`) tepat di bawah
+            empat baris yang sudah lewat `formatIdrExact`. Satu dialog, dua
+            ejaan — dan ini dialog tempat operator MENYETUJUI PENCAIRAN.
+          */}
           Kurs terpakai{' '}
-          <span className="font-mono tabular-nums text-foreground">{detail.effectiveRate}</span>{' '}
-          <span className="text-[11px]">(dasar {detail.baseRate}, spread jual {detail.spreadSellPct}%)</span>
-        </p>
-        <p className="text-muted-foreground">
-          Burn on-chain{' '}
-          {detail.burnTxHash ? (
-            burnHref ? (
-              <a
-                href={burnHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-foreground text-primary hover:underline"
-                title={detail.burnTxHash}
-              >
-                {shortHash(detail.burnTxHash)}
-                <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
-              </a>
-            ) : (
-              <span className="break-all font-mono text-foreground" title={detail.burnTxHash}>
-                {shortHash(detail.burnTxHash)}
-              </span>
-            )
-          ) : (
-            // Antreannya hanya memuat order yang sudah BURNED, jadi hash yang
-            // kosong di sini berarti pencatatannya belum menyusul — bukan bahwa
-            // burn-nya belum terjadi. Dikatakan apa adanya supaya tidak dibaca
-            // sebagai "order ini belum dibakar", yang akan menahan approve keliru.
-            <span className="text-muted-foreground">belum tercatat</span>
-          )}
+          <span className="tabular-nums text-foreground">
+            {formatRate(detail.effectiveRate)}
+          </span>{' '}
+          <span className="text-xs">
+            (dasar {formatRate(detail.baseRate)}, spread jual{' '}
+            {formatSpreadPct(detail.spreadSellPct)})
+          </span>
         </p>
         {detail.externalReference && (
           <p className="text-muted-foreground sm:col-span-2">
@@ -138,8 +123,35 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
         )}
       </div>
 
+      {/* Ops-fokus (PM Okt 2026): bukti pembakaran (tx hash) dilipat di sini,
+          bukan di depan — tetap bertautan explorer dan tetap utuh. */}
+      <DetailTeknis description="Bukti pembakaran di blockchain. Tidak perlu dibuka untuk menyetujui pencairan.">
+        <div className="min-w-0 sm:col-span-2">
+          <p className="text-xs text-muted-foreground">Tx pembakaran</p>
+          {detail.burnTxHash ? (
+            burnHref ? (
+              <a
+                href={burnHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-start gap-1 break-all font-mono text-xs text-primary hover:underline"
+              >
+                {detail.burnTxHash}
+                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-70" />
+              </a>
+            ) : (
+              <p className="break-all font-mono text-xs text-muted-foreground">{detail.burnTxHash}</p>
+            )
+          ) : (
+            // Antreannya hanya memuat order yang sudah BURNED: hash kosong berarti
+            // pencatatannya belum menyusul, bukan burn-nya belum terjadi.
+            <p className="text-xs text-muted-foreground">belum tercatat</p>
+          )}
+        </div>
+      </DetailTeknis>
+
       {detail.lateBurn && (
-        <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
+        <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             Burn terjadi setelah order kedaluwarsa. Nominal di atas dihitung dari
@@ -196,7 +208,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
         onSuccess: (outcome) => {
           toast.success(
             `Pencairan ${row.orderNumber} disetujui — menunggu pengiriman oleh sistem`,
-            { description: `Status order tetap ${outcome.status} sampai transfernya berangkat.` },
+            { description: `Status order tetap “${getOrderStatusConfig(outcome.status as OrderStatus).label}” sampai transfernya berangkat.` },
           )
           onOpenChange(false)
         },
@@ -232,7 +244,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
               <PayoutDestinationSummary row={row} />
 
               <p
-                className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-[12.5px]"
+                className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs"
                 data-testid="approve-irreversible-warning"
               >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
@@ -251,7 +263,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
                 </div>
               ) : detailQuery.isError ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/60 px-3 py-2">
-                  <p className="text-[12.5px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Rincian kurs dan biaya gagal dimuat. Nominal, bank, dan rekening
                     di atas tetap berlaku — keputusan masih bisa diambil.
                   </p>
@@ -266,7 +278,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
               <div className="space-y-2">
                 <label
                   htmlFor="approve-note"
-                  className="text-[12.5px] font-medium text-foreground"
+                  className="text-xs font-medium text-foreground"
                 >
                   Catatan (opsional)
                 </label>
@@ -283,7 +295,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
                   disabled={isMutating}
                 />
                 <FieldError message={noteError} />
-                <p className="text-[11.5px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Masuk ke jejak audit bersama nama Anda. Kosongkan kalau tidak ada
                   yang perlu dijelaskan.
                 </p>

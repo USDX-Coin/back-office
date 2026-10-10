@@ -11,16 +11,12 @@ export default function MintModePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Settings"
         title="Mode Mint"
-        italicAccent="prod & uji"
         subtitle="Mode menentukan token mana yang dicetak untuk uang yang benar-benar masuk. Mode uji selalu punya alasan dan batas waktu."
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-7">
-          <MintModeCard data={mintMode.data} isLoading={mintMode.isLoading} />
-        </div>
+      <div>
+        <MintModeCard data={mintMode.data} isLoading={mintMode.isLoading} />
       </div>
     </div>
   )

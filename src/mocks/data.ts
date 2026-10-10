@@ -1,3 +1,8 @@
+import type { ActivityLogEntry } from '@/features/activity-log/types'
+import type { ApprovalRequest } from '@/features/approvals/types'
+import type { HeldCreditDetail } from '@/features/held-credits/types'
+import type { PaymentMethod } from '@/lib/types'
+import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import type {
   AmountCurrency,
   BniAccount,
@@ -66,6 +71,7 @@ import type {
   PayoutFailureDetail,
   ReplacementBankAccount,
   PayoutSubmissionTrail,
+  DurianpayApiCallDetail,
   OrderOnBehalfOf,
   MintPaymentStatus,
   MintSafeStatus,
@@ -2713,4 +2719,791 @@ export function createMockPayoutFailures(): Map<string, PayoutFailureDetail> {
     },
   ]
   return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EMPAT LAYAR YANG HILANG — data tiruan
+//
+// Keempat endpoint di bawah nyata di backend dan belum pernah punya layar, jadi
+// tiruannya dipakai untuk menjalankan dan menguji layarnya lebih dulu. Semuanya
+// SENGAJA TIDAK masuk `INTEGRATION_PATHS` (`browser.ts`): selama api-dev belum
+// menyajikannya, browser dev harus tetap ditangani MSW.
+//
+// Id memakai UUID sungguhan, bukan `hc_1`: rute backend memasang
+// `ParseUUIDPipe` pada `:id`, dan tiruan yang menerima bentuk yang server tolak
+// menyembunyikan kesalahan sampai integrasi.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function isoMinutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString()
+}
+
+function isoHoursFromNow(hours: number): string {
+  return new Date(Date.now() + hours * 3_600_000).toISOString()
+}
+
+// ─── Jejak Audit (`GET /api/v1/activity-logs`) ──────────────────────────────
+
+export const ACTIVITY_LOG_MOCK_IDS = {
+  staffCreated: '019f3a01-0355-7c31-9b2d-000000000001',
+  kycApproved: '019f3a01-0355-7c31-9b2d-000000000002',
+  kycRejectedForbidden: '019f3a01-0355-7c31-9b2d-000000000003',
+  brakePulled: '019f3a01-0355-7c31-9b2d-000000000004',
+  selfApprovalBlocked: '019f3a01-0355-7c31-9b2d-000000000005',
+  loginFailed: '019f3a01-0355-7c31-9b2d-000000000006',
+  consumerLogout: '019f3a01-0355-7c31-9b2d-000000000007',
+  userWalletAdded: '019f3a01-0355-7c31-9b2d-000000000008',
+} as const
+
+const MOCK_CONSUMER_ID = '019f3a01-d001-7c31-9b2d-0000000000d1'
+
+/**
+ * Sembilan baris yang menutup bentuk-bentuk yang benar-benar ditulis backend:
+ * aksi ter-intercept (`POST /api/v1/...`), kode eksplisit
+ * (`AUTH_LOGIN_FAILED`, `PAYOUT_BRAKE_PULLED`), aktor staf, aktor konsumen,
+ * tanpa aktor sama sekali, SUCCESS dan FAILED, dan satu baris ber-metadata
+ * kosong.
+ */
+export function createMockActivityLog(): ActivityLogEntry[] {
+  const rows: ActivityLogEntry[] = [
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.selfApprovalBlocked,
+      actorStaffId: 'stf_2',
+      actorUserId: null,
+      action: 'APPROVAL_SELF_APPROVAL_BLOCKED',
+      resourceType: 'APPROVALS',
+      resourceId: '019f4a01-0486-7c31-9b2d-000000000002',
+      metadata: { actionType: 'PAYOUT_CONTROLS_RELEASE', amountIdr: null },
+      ipAddress: '103.28.14.77',
+      outcome: 'FAILED',
+      httpStatus: 403,
+      createdAt: isoMinutesAgo(12),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.brakePulled,
+      actorStaffId: 'stf_2',
+      actorUserId: null,
+      action: 'PAYOUT_BRAKE_PULLED',
+      resourceType: 'PAYOUT_CONTROLS',
+      resourceId: '019f5a01-0004-7c31-9b2d-000000000001',
+      metadata: { payoutsEnabled: false },
+      ipAddress: '103.28.14.77',
+      outcome: 'SUCCESS',
+      httpStatus: 200,
+      createdAt: isoMinutesAgo(38),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.kycRejectedForbidden,
+      actorStaffId: 'stf_3',
+      actorUserId: null,
+      action: 'POST /api/v1/kyc/:id/reject',
+      resourceType: 'KYC',
+      resourceId: '019f6a01-0148-7c31-9b2d-000000000011',
+      metadata: { params: { id: '019f6a01-0148-7c31-9b2d-000000000011' } },
+      ipAddress: '10.20.30.41',
+      outcome: 'FAILED',
+      httpStatus: 403,
+      createdAt: isoMinutesAgo(96),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.kycApproved,
+      actorStaffId: 'stf_4',
+      actorUserId: null,
+      action: 'POST /api/v1/kyc/:id/approve',
+      resourceType: 'KYC',
+      resourceId: '019f6a01-0148-7c31-9b2d-000000000011',
+      metadata: { params: { id: '019f6a01-0148-7c31-9b2d-000000000011' } },
+      ipAddress: '10.20.30.44',
+      outcome: 'SUCCESS',
+      httpStatus: 200,
+      createdAt: isoMinutesAgo(140),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.userWalletAdded,
+      actorStaffId: 'stf_1',
+      actorUserId: null,
+      action: 'POST /api/v1/users/:id/wallets',
+      resourceType: 'USERS',
+      resourceId: MOCK_CONSUMER_ID,
+      metadata: { params: { id: MOCK_CONSUMER_ID } },
+      ipAddress: '103.28.14.12',
+      outcome: 'SUCCESS',
+      httpStatus: 201,
+      createdAt: isoMinutesAgo(220),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.consumerLogout,
+      actorStaffId: null,
+      actorUserId: MOCK_CONSUMER_ID,
+      action: 'AUTH_LOGOUT',
+      resourceType: 'AUTH',
+      resourceId: null,
+      metadata: { audience: 'CONSUMER' },
+      ipAddress: '114.79.5.201',
+      outcome: 'SUCCESS',
+      httpStatus: 204,
+      createdAt: isoMinutesAgo(300),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.loginFailed,
+      actorStaffId: null,
+      actorUserId: null,
+      action: 'AUTH_LOGIN_FAILED',
+      resourceType: 'AUTH',
+      resourceId: null,
+      // Email disimpan TER-MASK oleh backend; tiruannya menirukan bentuk itu
+      // supaya layar tidak pernah dipertunjukkan alamat lengkap.
+      metadata: { email: 's***@usdx.io', audience: 'STAFF' },
+      ipAddress: '45.114.8.9',
+      outcome: 'FAILED',
+      httpStatus: 401,
+      createdAt: isoMinutesAgo(420),
+    },
+    {
+      id: ACTIVITY_LOG_MOCK_IDS.staffCreated,
+      actorStaffId: 'stf_1',
+      actorUserId: null,
+      action: 'POST /api/v1/staff',
+      resourceType: 'STAFF',
+      resourceId: null,
+      metadata: null,
+      ipAddress: '103.28.14.12',
+      outcome: 'SUCCESS',
+      httpStatus: 201,
+      createdAt: isoMinutesAgo(1500),
+    },
+  ]
+  return rows
+}
+
+// ─── Persetujuan Orang Kedua (`GET /api/v1/approvals`) ──────────────────────
+
+export const APPROVAL_MOCK_IDS = {
+  heldCreditPending: '019f4a01-0486-7c31-9b2d-000000000001',
+  brakeReleasePending: '019f4a01-0486-7c31-9b2d-000000000002',
+  limitsStalled: '019f4a01-0486-7c31-9b2d-000000000003',
+  rejected: '019f4a01-0486-7c31-9b2d-000000000004',
+  expired: '019f4a01-0486-7c31-9b2d-000000000005',
+} as const
+
+export const HELD_CREDIT_MOCK_IDS = {
+  noMatch: '019f7a01-0341-7c31-9b2d-000000000001',
+  latePayment: '019f7a01-0341-7c31-9b2d-000000000002',
+  durianpayMismatch: '019f7a01-0341-7c31-9b2d-000000000003',
+} as const
+
+export const HELD_CREDIT_ORDER_MOCK_IDS = {
+  late: '019f8a01-0206-7c31-9b2d-000000000001',
+  durianpay: '019f8a01-0206-7c31-9b2d-000000000002',
+  /** Order yang TIDAK dicocokkan mesin — dipakai menguji jalur `forceApproval`. */
+  manual: '019f8a01-0206-7c31-9b2d-000000000003',
+} as const
+
+/**
+ * Lima usulan yang menutup keempat keadaan terminal plus keadaan yang schema
+ * backend sebut "WAJIB terlihat ops" (APPROVED tanpa `executed_at`).
+ *
+ * Pengusulnya sengaja berbeda-beda: `stf_2` (MANAGER) mengusulkan pelepasan rem
+ * supaya sesi `stf_2` menabrak larangan menyetujui usulan sendiri, sementara
+ * usulan lainnya diajukan `stf_4` (STAFF) supaya MANAGER/ADMIN bisa
+ * memutuskannya.
+ */
+export function createMockApprovals(): Map<string, ApprovalRequest> {
+  const rows: ApprovalRequest[] = [
+    {
+      id: APPROVAL_MOCK_IDS.heldCreditPending,
+      actionType: 'HELD_CREDIT_RESOLVE',
+      payload: {
+        creditId: HELD_CREDIT_MOCK_IDS.noMatch,
+        action: 'PAID',
+        orderId: HELD_CREDIT_ORDER_MOCK_IDS.manual,
+        reason: 'Dicocokkan manual dengan rekening koran BNI 09.15, nama pengirim sama dengan pemilik order',
+      },
+      amountIdr: '24750000.00',
+      status: 'PENDING',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(55),
+      expiresAt: isoHoursFromNow(23),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.brakeReleasePending,
+      actionType: 'PAYOUT_CONTROLS_RELEASE',
+      payload: { payoutsEnabled: true },
+      amountIdr: null,
+      status: 'PENDING',
+      proposerStaffId: 'stf_2',
+      proposedAt: isoMinutesAgo(18),
+      expiresAt: isoHoursFromNow(1),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.limitsStalled,
+      actionType: 'PAYOUT_CONTROLS_LIMITS',
+      payload: {
+        maxPerTxIdr: '75000000.00',
+        maxDailyIdr: '3000000000.00',
+        maxBatchPerTick: 25,
+        reason: 'Plafon harian dinaikkan untuk antrean pencairan akhir bulan',
+      },
+      amountIdr: null,
+      status: 'APPROVED',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(600),
+      expiresAt: isoHoursFromNow(-6),
+      approverStaffId: 'stf_5',
+      decidedAt: isoMinutesAgo(540),
+      decisionReason: 'Sesuai kesepakatan rapat ops 18/09',
+      executedAt: null,
+      executionError: 'PAYOUT_LIMITS_PAYLOAD_INVALID: maxBatchPerTick bukan bilangan bulat > 0 maupun null.',
+    },
+    {
+      id: APPROVAL_MOCK_IDS.rejected,
+      actionType: 'HELD_CREDIT_RESOLVE',
+      payload: {
+        creditId: HELD_CREDIT_MOCK_IDS.durianpayMismatch,
+        action: 'FAILED',
+        orderId: null,
+        reason: 'Pengirim tidak dikenali',
+      },
+      amountIdr: '18400000.00',
+      status: 'REJECTED',
+      proposerStaffId: 'stf_4',
+      proposedAt: isoMinutesAgo(2400),
+      expiresAt: isoHoursFromNow(-16),
+      approverStaffId: 'stf_2',
+      decidedAt: isoMinutesAgo(2300),
+      decisionReason: 'Pengirimnya nasabah lama yang baru ganti rekening — jangan ditolak, cocokkan ke ordernya',
+      executedAt: null,
+      executionError: null,
+    },
+    {
+      id: APPROVAL_MOCK_IDS.expired,
+      actionType: 'PAYOUT_CONTROLS_RELEASE',
+      payload: { payoutsEnabled: true },
+      amountIdr: null,
+      status: 'EXPIRED',
+      proposerStaffId: 'stf_5',
+      proposedAt: isoMinutesAgo(4400),
+      expiresAt: isoHoursFromNow(-49),
+      approverStaffId: null,
+      decidedAt: null,
+      decisionReason: null,
+      executedAt: null,
+      executionError: null,
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Mint Bermasalah (`GET /api/v1/held-credits`) ───────────────────────────
+
+/**
+ * Tiga kredit, dipilih supaya ketiga jalur resolve yang berbeda bisa dijalankan
+ * tanpa menyiapkan apa pun:
+ *
+ *   noMatch            tanpa order + Rp 24,75 jt → SELALU empat mata (dua sebab
+ *                      sekaligus: di atas ambang DAN ops menamai ordernya).
+ *   latePayment        ada order + Rp 1,64 jt   → selesai seketika.
+ *   durianpayMismatch  ledger DurianPay         → tanpa jejak keputusan sendiri.
+ */
+export function createMockHeldCredits(): Map<string, HeldCreditDetail> {
+  const rows: HeldCreditDetail[] = [
+    {
+      id: HELD_CREDIT_MOCK_IDS.noMatch,
+      source: 'BNI',
+      heldReason: 'NO_MATCHING_ORDER',
+      receivedAmountIdr: '24750000.00',
+      receivedAmountRaw: '24750000.000',
+      accountFromTo: '0291884501',
+      senderName: 'BUDI HARTONO',
+      collectionAccountNo: '1770009988',
+      journalNum: '884213',
+      receivedAt: isoMinutesAgo(75),
+      order: null,
+      idempotencyKey: 'bni-4f2c1a90-1',
+      requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000001',
+      accountingFlag: 'C',
+      narrative1: 'TRF DR BUDI HARTONO',
+      narrative2: null,
+      narrative3: null,
+      balance: '918237440.00',
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-20T02:14:55+07:00',
+      processedAt: isoMinutesAgo(75),
+      raw: {
+        requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000001',
+        accountNum: '1770009988',
+        amount: '24750000.000',
+        accountingFlag: 'C',
+        journalNum: '884213',
+        accountFromTo: '0291884501',
+        narrative1: 'TRF DR BUDI HARTONO',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+    {
+      id: HELD_CREDIT_MOCK_IDS.latePayment,
+      source: 'BNI',
+      heldReason: 'LATE_PAYMENT',
+      receivedAmountIdr: '1640407.00',
+      receivedAmountRaw: '1640407.000',
+      accountFromTo: '1370012245001',
+      senderName: 'RINA SUSANTI',
+      collectionAccountNo: '1770009988',
+      journalNum: '884190',
+      receivedAt: isoMinutesAgo(260),
+      order: {
+        id: HELD_CREDIT_ORDER_MOCK_IDS.late,
+        userId: MOCK_CONSUMER_ID,
+        userEmail: 'ri***@example.com',
+        customerName: 'Rina Susanti',
+        amount: '100.000000',
+        expectedAmountIdr: '1640407.00',
+        uniqueCode: '407',
+        paymentStatus: 'HELD',
+        safeStatus: 'NONE',
+        status: 'HELD',
+        heldReason: 'LATE_PAYMENT',
+        heldAt: isoMinutesAgo(260),
+        expiresAt: isoMinutesAgo(300),
+        createdAt: isoMinutesAgo(1200),
+      },
+      idempotencyKey: 'bni-4f2c1a90-2',
+      requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000002',
+      accountingFlag: 'C',
+      narrative1: 'TRF DR RINA SUSANTI',
+      narrative2: 'USDX 407',
+      narrative3: null,
+      balance: '893487440.00',
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-19T21:30:12+07:00',
+      processedAt: isoMinutesAgo(260),
+      raw: {
+        requestUuid: '4f2c1a90-7c31-4b2d-9b2d-aa0000000002',
+        accountNum: '1770009988',
+        amount: '1640407.000',
+        accountingFlag: 'C',
+        journalNum: '884190',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+    {
+      id: HELD_CREDIT_MOCK_IDS.durianpayMismatch,
+      source: 'DURIANPAY_SNAP',
+      heldReason: 'AMOUNT_MISMATCH',
+      receivedAmountIdr: '5000000.00',
+      receivedAmountRaw: '5000000.00',
+      accountFromTo: null,
+      senderName: null,
+      collectionAccountNo: '8808123456789012',
+      journalNum: 'pay_9f2c1a90aa03',
+      receivedAt: isoMinutesAgo(510),
+      order: {
+        id: HELD_CREDIT_ORDER_MOCK_IDS.durianpay,
+        userId: null,
+        userEmail: 'Nasabah partner',
+        customerName: 'Pintu Kripto / cust-88120',
+        amount: '320.000000',
+        expectedAmountIdr: '5250000.00',
+        uniqueCode: null,
+        paymentStatus: 'HELD',
+        safeStatus: 'NONE',
+        status: 'HELD',
+        heldReason: 'AMOUNT_MISMATCH',
+        heldAt: isoMinutesAgo(510),
+        expiresAt: isoMinutesAgo(480),
+        createdAt: isoMinutesAgo(900),
+      },
+      idempotencyKey: 'pay_9f2c1a90aa03',
+      requestUuid: 'RDM260919XYZ01',
+      accountingFlag: 'C',
+      narrative1: null,
+      narrative2: null,
+      narrative3: null,
+      balance: null,
+      reversalFlag: null,
+      reversedJournal: null,
+      xTimestamp: '2026-09-19T16:45:03+07:00',
+      processedAt: isoMinutesAgo(510),
+      bankCode: 'MANDIRI',
+      failureReason: null,
+      raw: {
+        trxId: 'RDM260919XYZ01',
+        paymentRequestId: 'pay_9f2c1a90aa03',
+        paidAmount: { value: '5000000.00', currency: 'IDR' },
+        virtualAccountNo: '8808123456789012',
+      },
+      resolution: null,
+      resolvedAt: null,
+      resolvedBy: null,
+      resolvedMintOrderId: null,
+      reviews: [],
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Log Panggilan DurianPay ────────────────────────────────────────────────
+//
+// DILAYANI MSW karena backendnya belum merge (branch
+// `wisnubarata111/be-catat-log-panggilan-durianpay`). Bentuk barisnya disalin
+// dari `durianpay-api-calls.types.ts` + `durianpay-api-call-log.service.ts`, dan
+// `errorSummary` di tiap baris ditulis PERSIS seperti `summarize()` akan
+// menuliskannya — tiruan yang mengarang ringkasannya sendiri membuat test setuju
+// dengan UI karena konstruksinya, bukan karena servernya berperilaku begitu.
+
+const DURIANPAY_CALL_BASE_MS = Date.parse('2026-09-18T02:00:00.000Z')
+
+function durianpayCallAt(minutes: number): string {
+  return new Date(DURIANPAY_CALL_BASE_MS + minutes * 60_000).toISOString()
+}
+
+/** Id tetap supaya test bisa menembak satu baris tanpa menebak urutan. */
+export const DURIANPAY_CALL_MOCK_IDS = {
+  /** create-va yang bersih — satu-satunya baris yang benar-benar "Berhasil". */
+  createVaOk: '019f3a01-0678-7c31-9b2d-0000000000b1',
+  /** Kejadian 5–7 Sep 2026: create-va production gagal `5002701`. */
+  createVaUnavailable: '019f3a02-0678-7c31-9b2d-0000000000b2',
+  /** HTTP 200 dengan responseCode yang TIDAK berawalan 2 — amplop menolak di dalam hijau. */
+  inquiryVaRefusedInside: '019f3a03-0678-7c31-9b2d-0000000000b3',
+  /** 4xx: permintaan sampai lalu ditolak, operasinya TIDAK terjadi. */
+  transferRejected: '019f3a04-0678-7c31-9b2d-0000000000b4',
+  /** Timeout: `httpStatus` null, tidak ada badan respons sama sekali. */
+  statusTimeout: '019f3a05-0678-7c31-9b2d-0000000000b5',
+  /** Token B2B: tanpa referenceNo, dan `accessToken` sudah diredaksi. */
+  tokenOk: '019f3a06-0678-7c31-9b2d-0000000000b6',
+  /** Balasan BUKAN JSON — halaman HTML reverse proxy, tersimpan sebagai `_raw`. */
+  balanceRawHtml: '019f3a07-0678-7c31-9b2d-0000000000b7',
+  /** Jalur lama + badan respons yang DIPOTONG di 16 KiB. */
+  legacyTruncated: '019f3a08-0678-7c31-9b2d-0000000000b8',
+} as const
+
+const SNAP_BASE_URL = 'https://api.durianpay.id'
+const LEGACY_BASE_URL = 'https://api.durianpay.id'
+
+export function createMockDurianpayApiCalls(): Map<string, DurianpayApiCallDetail> {
+  const rows: DurianpayApiCallDetail[] = [
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.createVaOk,
+      requestedAt: durianpayCallAt(0),
+      createdAt: durianpayCallAt(0),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/create-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918090000001',
+      httpStatus: 200,
+      responseCode: '2002700',
+      responseMessage: 'Successful',
+      outcome: 'SUCCESS',
+      referenceNo: 'MNT7K2X9QP',
+      traceId: 'dp-trace-7f31a0',
+      durationMs: 412,
+      errorSummary: null,
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000012345',
+        virtualAccountNo: '89993203000000012345',
+        virtualAccountName: '[REDACTED:PII]',
+        trxId: 'MNT7K2X9QP',
+        totalAmount: { value: '5000000.00', currency: 'IDR' },
+      },
+      responseBody: {
+        responseCode: '2002700',
+        responseMessage: 'Successful',
+        virtualAccountData: {
+          partnerServiceId: '  89993203',
+          customerNo: '000000012345',
+          virtualAccountNo: '89993203000000012345',
+          trxId: 'MNT7K2X9QP',
+          totalAmount: { value: '5000000.00', currency: 'IDR' },
+        },
+        additionalInfo: { trace_id: 'dp-trace-7f31a0' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.createVaUnavailable,
+      requestedAt: durianpayCallAt(-35),
+      createdAt: durianpayCallAt(-35),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/create-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918082500009',
+      httpStatus: 500,
+      responseCode: '5002701',
+      responseMessage: 'Internal Server Error',
+      outcome: 'UNAVAILABLE',
+      referenceNo: 'MNT4QW8ZR1',
+      traceId: 'dp-trace-2b90cc',
+      durationMs: 9840,
+      errorSummary: 'HTTP 500 responseCode=5002701 Internal Server Error',
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000067890',
+        virtualAccountNo: '89993203000000067890',
+        virtualAccountName: '[REDACTED:PII]',
+        trxId: 'MNT4QW8ZR1',
+        totalAmount: { value: '12500000.00', currency: 'IDR' },
+      },
+      responseBody: {
+        responseCode: '5002701',
+        responseMessage: 'Internal Server Error',
+        additionalInfo: { trace_id: 'dp-trace-2b90cc' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.inquiryVaRefusedInside,
+      requestedAt: durianpayCallAt(-70),
+      createdAt: durianpayCallAt(-70),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-va/inquiry-va',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918075000004',
+      httpStatus: 200,
+      responseCode: '4043001',
+      responseMessage: 'Transaction Not Found',
+      // Transportnya 2xx, jadi backend mencatatnya SUCCESS — `errorSummary`-lah
+      // yang menyatakan amplopnya menolak di dalam status hijau.
+      outcome: 'SUCCESS',
+      referenceNo: 'MNT9LD3TVB',
+      traceId: null,
+      durationMs: 305,
+      errorSummary: 'HTTP 200 tapi responseCode=4043001 Transaction Not Found',
+      requestBody: {
+        partnerServiceId: '  89993203',
+        customerNo: '000000099001',
+        virtualAccountNo: '89993203000000099001',
+        inquiryRequestId: 'MNT9LD3TVB',
+      },
+      responseBody: { responseCode: '4043001', responseMessage: 'Transaction Not Found' },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.transferRejected,
+      requestedAt: durianpayCallAt(-140),
+      createdAt: durianpayCallAt(-140),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer-interbank',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918064000002',
+      httpStatus: 400,
+      responseCode: '4001801',
+      responseMessage: 'Invalid Field Format beneficiaryAccountNo',
+      outcome: 'REJECTED',
+      referenceNo: 'RDM5HG2NMC',
+      traceId: 'dp-trace-51aa03',
+      durationMs: 688,
+      errorSummary: 'HTTP 400 responseCode=4001801 Invalid Field Format beneficiaryAccountNo',
+      requestBody: {
+        partnerReferenceNo: 'RDM5HG2NMC',
+        amount: { value: '1188210.00', currency: 'IDR' },
+        beneficiaryAccountNo: '[REDACTED:PII]',
+        beneficiaryAccountName: '[REDACTED:PII]',
+        beneficiaryBankCode: '014',
+        sourceAccountNo: '[REDACTED:SECRET]',
+      },
+      responseBody: {
+        responseCode: '4001801',
+        responseMessage: 'Invalid Field Format beneficiaryAccountNo',
+        additionalInfo: { trace_id: 'dp-trace-51aa03' },
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.statusTimeout,
+      requestedAt: durianpayCallAt(-210),
+      createdAt: durianpayCallAt(-210),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/transfer/status',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918053000007',
+      httpStatus: null,
+      responseCode: null,
+      responseMessage: null,
+      outcome: 'UNAVAILABLE',
+      referenceNo: 'RDM5HG2NMC',
+      traceId: null,
+      durationMs: 30000,
+      errorSummary: 'POST /v1.0/transfer/status network error/timeout',
+      requestBody: { originalPartnerReferenceNo: 'RDM5HG2NMC', serviceCode: '18' },
+      // Tidak ada respons sama sekali — kolomnya null, bukan objek kosong.
+      responseBody: null,
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.tokenOk,
+      requestedAt: durianpayCallAt(-260),
+      createdAt: durianpayCallAt(-260),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/access-token/b2b',
+      baseUrl: SNAP_BASE_URL,
+      externalId: null,
+      httpStatus: 200,
+      responseCode: '2007300',
+      responseMessage: 'Successful',
+      outcome: 'SUCCESS',
+      // Token B2B memang tidak membawa referensi order.
+      referenceNo: null,
+      traceId: null,
+      durationMs: 233,
+      errorSummary: null,
+      requestBody: { grantType: 'client_credentials' },
+      responseBody: {
+        responseCode: '2007300',
+        responseMessage: 'Successful',
+        accessToken: '[REDACTED:SECRET]',
+        tokenType: 'Bearer',
+        expiresIn: '900',
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.balanceRawHtml,
+      requestedAt: durianpayCallAt(-320),
+      createdAt: durianpayCallAt(-320),
+      direction: 'OUTBOUND',
+      apiFlavor: 'SNAP',
+      httpMethod: 'POST',
+      path: '/v1.0/balance-inquiry',
+      baseUrl: SNAP_BASE_URL,
+      externalId: '20260918043000003',
+      httpStatus: 503,
+      responseCode: null,
+      responseMessage: null,
+      outcome: 'UNAVAILABLE',
+      referenceNo: null,
+      traceId: null,
+      durationMs: 1502,
+      errorSummary: 'HTTP 503',
+      requestBody: { accountNo: '[REDACTED:SECRET]' },
+      // Balasan yang BUKAN JSON: inilah bentuk kegagalan yang dulu hanya
+      // menyisakan "HTTP 503" telanjang.
+      responseBody: {
+        _raw: '<html><head><title>503 Service Temporarily Unavailable</title></head><body><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>nginx</center></body></html>',
+      },
+    },
+    {
+      id: DURIANPAY_CALL_MOCK_IDS.legacyTruncated,
+      requestedAt: durianpayCallAt(-410),
+      createdAt: durianpayCallAt(-410),
+      direction: 'OUTBOUND',
+      apiFlavor: 'LEGACY',
+      httpMethod: 'POST',
+      // Path Legacy `submit` memang membawa query stringnya apa adanya.
+      path: '/v1/disbursements/submit?force_disburse=true',
+      baseUrl: LEGACY_BASE_URL,
+      externalId: null,
+      httpStatus: 400,
+      responseCode: 'invalid_bank_account',
+      responseMessage: null,
+      outcome: 'REJECTED',
+      referenceNo: null,
+      traceId: null,
+      durationMs: 774,
+      errorSummary: 'HTTP 400 responseCode=invalid_bank_account',
+      requestBody: { name: '[REDACTED:PII]', description: 'redeem payout' },
+      // Lebih dari 16 KiB: yang tersimpan hanya kepalanya.
+      responseBody: {
+        _truncated: true,
+        _bytes: 41233,
+        _head: '{"error":"invalid_bank_account","data":{"items":[{"id":"dis_item_001","account_number":"[REDACTED:PII]"',
+      },
+    },
+  ]
+  return new Map(rows.map((row) => [row.id, row]))
+}
+
+// ─── Plafon Pencairan (`/api/v1/payout-controls`) ───────────────────────────
+
+export function createInitialPayoutControls(): PayoutControls {
+  return {
+    payoutsEnabled: true,
+    maxPerTxIdr: '50000000.00',
+    maxDailyIdr: '2000000000.00',
+    maxBatchPerTick: 25,
+    updatedAt: isoMinutesAgo(4300),
+    updatedBy: 'stf_1',
+  }
+}
+
+export const PAYOUT_CONTROL_CHANGE_MOCK_IDS = {
+  raiseDaily: '019f9a01-0103-7c31-9b2d-000000000001',
+  tightenPerTx: '019f9a01-0103-7c31-9b2d-000000000002',
+} as const
+
+export function createInitialPayoutControlChanges(): PayoutControlChange[] {
+  return [
+    {
+      id: PAYOUT_CONTROL_CHANGE_MOCK_IDS.tightenPerTx,
+      createdAt: isoMinutesAgo(4300),
+      reason: 'Plafon per transaksi diturunkan setelah insiden payout ganda 14/09; angka disepakati rapat ops.',
+      approvalRequestId: '019f4a01-0486-7c31-9b2d-0000000000f1',
+      proposerStaffId: 'stf_4',
+      approverStaffId: 'stf_2',
+      before: { maxPerTxIdr: '100000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      after: { maxPerTxIdr: '50000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      ipAddress: '103.28.14.12',
+    },
+    {
+      id: PAYOUT_CONTROL_CHANGE_MOCK_IDS.raiseDaily,
+      createdAt: isoMinutesAgo(11000),
+      reason: 'Plafon harian dinaikkan mengikuti volume redeem kuartal ini.',
+      approvalRequestId: null,
+      proposerStaffId: 'stf_2',
+      approverStaffId: 'stf_5',
+      before: { maxPerTxIdr: '100000000.00', maxDailyIdr: '1000000000.00', maxBatchPerTick: null },
+      after: { maxPerTxIdr: '100000000.00', maxDailyIdr: '2000000000.00', maxBatchPerTick: 25 },
+      ipAddress: '10.20.30.41',
+    },
+  ]
+}
+
+// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// Seed persis tabel `bni-integration.md § 4.3.11` (biaya = `pg_fee_va_flat`
+// 4000 / `pg_fee_qris_pct` 0.7 dari fee config tiruan). Tiruan ini meniru
+// PRODUCTION: DurianPay SNAP terpasang (barisnya tersedia), baris MOCK tidak
+// (`PROVIDER_NOT_CONFIGURED`), dan prasyarat D23 Transfer BNI BELUM dinyatakan
+// terpenuhi (`BNI_PREREQUISITE_UNVERIFIED`; menyalakannya → 409).
+export function createInitialPaymentMethods(): PaymentMethod[] {
+  const seedAt = '2026-10-09T03:00:00.000Z'
+  const id = (n: number) => `019e5c10-0000-7000-8000-${String(n).padStart(12, '0')}`
+  const rows: PaymentMethod[] = [
+    { id: id(2), code: 'VA_NOBU_DURIANPAY_SNAP', channel: 'VA', bank: 'NOBU', provider: 'DURIANPAY_SNAP', enabled: true, sortOrder: 10, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(1), code: 'BANK_TRANSFER_BNI_BNI', channel: 'BANK_TRANSFER', bank: 'BNI', provider: 'BNI', enabled: false, sortOrder: 20, feeType: 'FLAT_IDR', feeValue: '0.00', available: false, unavailableReason: 'BNI_PREREQUISITE_UNVERIFIED', maxAmountIdr: '10000000.00', updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(3), code: 'VA_BNI_DURIANPAY_SNAP', channel: 'VA', bank: 'BNI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 30, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(4), code: 'VA_MANDIRI_DURIANPAY_SNAP', channel: 'VA', bank: 'MANDIRI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 40, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+    { id: id(5), code: 'VA_BRI_DURIANPAY_SNAP', channel: 'VA', bank: 'BRI', provider: 'DURIANPAY_SNAP', enabled: false, sortOrder: 50, feeType: 'FLAT_IDR', feeValue: '4000.00', available: true, unavailableReason: null, maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt },
+  ]
+  const vaBanks = ['BCA', 'BNI', 'BRI', 'CIMB', 'DANAMON', 'INA', 'MANDIRI', 'PERMATA', 'MAYBANK', 'NOBU']
+  vaBanks.forEach((bank, i) => {
+    rows.push({ id: id(10 + i), code: `VA_${bank}_MOCK`, channel: 'VA', bank, provider: 'MOCK', enabled: true, sortOrder: 100 + i * 10, feeType: 'FLAT_IDR', feeValue: '4000.00', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
+  })
+  rows.push({ id: id(30), code: 'QRIS_MOCK', channel: 'QRIS', bank: null, provider: 'MOCK', enabled: true, sortOrder: 200, feeType: 'PERCENT', feeValue: '0.7000', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
+  return rows
 }

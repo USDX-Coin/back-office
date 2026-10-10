@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, PhoneCall } from 'lucide-react'
+import { Plus, PhoneCall } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { ToneChip } from '@/components/ToneChip'
+import { rowNav } from '@/components/record-modal/rowNav'
+import OncallContactDetailModal from './OncallContactDetailModal'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import PageHeader from '@/components/PageHeader'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import TableEmptyState from '@/components/TableEmptyState'
 import { canManageOncall, useAuth } from '@/lib/auth'
 import {
@@ -43,6 +47,10 @@ export default function OncallContactsPage() {
 
   // Paginasi lewat URL search param, konsisten dengan tabel lain di repo ini.
   const params = useDataTableParams()
+  // Klik baris = modal detail di `?kontak=:id` (sapu bersih 11 Okt 2026).
+  const selectedId = params.searchParams.get('kontak')
+  const openRow = (id: string, replace = false) => params.updateParams({ kontak: id }, { replace })
+  const closeRow = () => params.updateParams({ kontak: null }, { replace: true })
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeContact, setActiveContact] = useState<OncallContact | null>(null)
@@ -101,20 +109,19 @@ export default function OncallContactsPage() {
     return (
       <div>
         <PageHeader
-          eyebrow="Settings"
-          title="On-Call"
-          italicAccent="money incidents"
-          subtitle="Who answers when money goes wrong."
+          title="Kontak Darurat"
+          subtitle="Siapa yang diangkat teleponnya saat uang bermasalah."
         />
         <div
           role="note"
           className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
         >
-          <p className="font-medium text-foreground">Restricted</p>
+          <p className="font-medium text-foreground">Akses dibatasi</p>
           <p className="mt-1">
-            Your role does not have permission to view the on-call directory. It holds
-            personal phone numbers and decides who is called when money is at risk, so it
-            is limited to admins. Contact an admin if a change is needed.
+            Peran ini tidak diizinkan membuka daftar kontak darurat. Daftarnya memuat
+            nomor telepon pribadi dan menentukan siapa yang ditelepon saat uang
+            bermasalah, jadi hanya peran ADMIN yang boleh melihatnya. Hubungi ADMIN
+            kalau ada yang perlu diubah.
           </p>
         </div>
       </div>
@@ -124,72 +131,55 @@ export default function OncallContactsPage() {
   const columns: ColumnDef<OncallContact>[] = [
     {
       accessorKey: 'name',
-      header: 'Name',
+      size: 176,
+      header: 'Nama',
       enableSorting: false,
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      cell: ({ row }) => (
+        <TableCellText value={row.original.name} className="font-medium" />
+      ),
     },
     {
       accessorKey: 'role',
-      header: 'Role',
+      size: 176,
+      header: 'Jabatan',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.role}</span>
+        <TableCellText value={row.original.role} className="text-muted-foreground" />
       ),
     },
     {
       accessorKey: 'channel',
-      header: 'Channel',
+      size: 112,
+      header: 'Kanal',
       enableSorting: false,
       cell: ({ row }) => (
-        <Badge variant="secondary">{formatChannel(row.original.channel)}</Badge>
+        <ToneChip tone="wait">{formatChannel(row.original.channel)}</ToneChip>
       ),
     },
     {
       accessorKey: 'contactValue',
-      header: 'Contact',
+      size: 224,
+      header: 'Kontak',
       enableSorting: false,
+      // Nomor/alamat yang benar-benar DIHUBUNGI saat uang bermasalah. Nilai
+      // utuh wajib ada di `title`: nomor telepon yang terbaca separuh sama
+      // dengan tidak ada nomor sama sekali.
       cell: ({ row }) => (
-        <span className="font-mono text-[12px]">{row.original.contactValue}</span>
+        <TableCellText value={row.original.contactValue} className="tabular-nums text-xs" />
       ),
     },
     {
       accessorKey: 'categories',
-      header: 'Handles',
+      size: 240,
+      header: 'Menangani',
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.categories.map((category) => (
-            <Badge key={category} variant="outline" className="text-[10.5px]">
+            <ToneChip key={category} tone="wait">
               {formatCategory(category)}
-            </Badge>
+            </ToneChip>
           ))}
-        </div>
-      ),
-    },
-    {
-      id: 'actions',
-      header: '',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Edit ${row.original.name}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Delete ${row.original.name}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
         </div>
       ),
     },
@@ -197,15 +187,12 @@ export default function OncallContactsPage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Settings"
-        title="On-Call"
-        italicAccent="money incidents"
-        subtitle="Money alerts carry the contacts registered here for the matching incident category, so the person who receives an alert knows who to reach."
+      <SettingsTabs
+        subtitle="Peringatan soal uang membawa serta kontak yang terdaftar di sini untuk kategori insiden yang cocok, supaya yang menerima peringatan tahu harus menghubungi siapa."
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Add Contact
+          <Button onClick={openAdd} size="sm">
+            <Plus className="mr-1.5 h-4 w-4" />
+            Tambah kontak
           </Button>
         }
       />
@@ -213,14 +200,14 @@ export default function OncallContactsPage() {
       {!list.isLoading && uncovered.length > 0 && (
         <p
           role="alert"
-          className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-700 dark:text-amber-400"
+          className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
         >
           {contacts.length === 0
-            ? 'No on-call contact is registered at all. '
-            : 'No on-call contact covers '}
+            ? 'Belum ada satu pun kontak darurat yang terdaftar. '
+            : 'Belum ada kontak darurat yang menangani '}
           {contacts.length === 0
-            ? 'Every money alert will be delivered with an explicit “no on-call registered” warning instead of a name.'
-            : `${uncovered.map(formatCategory).join(', ')}. Alerts in those categories are still delivered, but they will carry a “no on-call registered” warning instead of a name.`}
+            ? 'Semua peringatan soal uang tetap terkirim, tapi membawa catatan “belum ada kontak darurat terdaftar”, bukan nama siapa pun.'
+            : `${uncovered.map(formatCategory).join(', ')}. Peringatan di kategori itu tetap terkirim, tapi membawa catatan “belum ada kontak darurat terdaftar”, bukan nama siapa pun.`}
         </p>
       )}
 
@@ -232,23 +219,56 @@ export default function OncallContactsPage() {
         isError={list.isError}
         onRetry={() => list.refetch()}
         pageSize={PAGE_SIZE}
+        // Toolbar KOSONG yang disengaja, bukan kelalaian.
+        //
+        // Tanpa `filterToolbar`, `DataTable` merender toolbar bawaannya — dan di
+        // situ ada kotak "Cari…" yang menulis `?search=` ke URL. Halaman ini tidak
+        // pernah membacanya: daftarnya dipaginasi di klien dari `contacts`, dan
+        // tidak ada satu pun tempat yang menyaring dengan `search`. Jadi operator
+        // mengetik nama, tabelnya tidak berubah, dan ia menyimpulkan orang itu
+        // tidak ada di daftar.
+        //
+        // Di layar ini kesimpulan itu mahal: daftarnya menentukan SIAPA YANG
+        // DIPANGGIL saat uang bermasalah. "Tidak ketemu" yang keliru berarti
+        // insiden dibiarkan tanpa penanggung jawab.
+        //
+        // Preseden yang diikuti: `/redeem-approvals` memasang toolbar hanya berisi
+        // kendali yang benar-benar bekerja, dengan alasan yang sama persis.
+        // Popover Kolom belum dipasang di sini karena kolomnya belum punya
+        // konfigurasi visibilitas — menambahkannya pekerjaan tersendiri.
+        filterToolbar={<></>}
+        onRowClick={(row) => openRow(row.id)}
+        rowAriaLabel={(row) => `Buka kontak ${row.name}`}
         emptyState={
           <TableEmptyState
             mode="no-data"
             icon={
               <PhoneCall className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />
             }
-            title="No on-call contact registered"
-            description="Money alerts are already being delivered — they just cannot say who should pick them up. Add the first contact."
+            title="Belum ada kontak darurat"
+            description="Peringatan soal uang sudah terkirim — cuma belum bisa menyebut siapa yang harus mengangkatnya. Tambahkan kontak pertama."
             cta={
               <Button onClick={openAdd} className="mt-2">
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Contact
+                Tambah Kontak
               </Button>
             }
           />
         }
       />
+
+      {selectedId && (
+        <OncallContactDetailModal
+          contact={contacts.find((c) => c.id === selectedId) ?? null}
+          missingId={selectedId}
+          loading={list.isLoading}
+          orphaned={orphanedBy(contacts.find((c) => c.id === selectedId) ?? null)}
+          onClose={closeRow}
+          onEdit={openEdit}
+          onDelete={openDelete}
+          nav={rowNav(pageRows, (r) => r.id, selectedId, (id) => openRow(id, true))}
+        />
+      )}
 
       <OncallContactModal
         open={modalOpen}
@@ -261,6 +281,7 @@ export default function OncallContactsPage() {
         onOpenChange={setDeleteOpen}
         contact={activeContact}
         orphanedCategories={orphanedBy(activeContact)}
+        onDeleted={closeRow}
       />
     </div>
   )

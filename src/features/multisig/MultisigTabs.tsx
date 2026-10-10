@@ -8,11 +8,8 @@ import { useMultisigStatusCount } from './hooks'
 function TabCount({ status }: { status: SafeTxStatus }) {
   const { data } = useMultisigStatusCount(status)
   if (data == null || data === 0) return null
-  return (
-    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-primary">
-      {data}
-    </span>
-  )
+  // Angka sebagai teks "(n)", sama dengan `TabBar` (Transaksi), bukan pil.
+  return <span className="ml-1 tabular-nums">({data})</span>
 }
 
 export default function MultisigTabs({
@@ -25,8 +22,8 @@ export default function MultisigTabs({
   return (
     <div
       role="tablist"
-      aria-label="Safe transaction status"
-      className="mb-3 flex flex-wrap items-center gap-1 border-b border-outline-variant/15"
+      aria-label="Status transaksi Safe"
+      className="mb-3 flex flex-wrap items-center gap-1 border-b border-border"
     >
       {SAFE_TX_TABS.map((tab) => {
         const isActive = active === tab.value
@@ -38,10 +35,11 @@ export default function MultisigTabs({
             type="button"
             onClick={() => onChange(tab.value)}
             className={cn(
-              'relative -mb-px flex items-center px-3 py-2 text-[12.5px] font-medium transition-colors',
+              // Satu gaya tab dengan `TabBar` (sapu bersih 11 Okt 2026).
+              '-mb-px flex items-center border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               isActive
-                ? 'border-b-2 border-primary text-primary'
-                : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground',
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             {tab.label}

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { server } from '@/mocks/server'
@@ -45,6 +45,8 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       expect(within(subs).getByText(/Ditolak .* Invalid beneficiary account/)).toBeInTheDocument()
       expect(within(dialog).getByText('Satu percobaan, terbukti ditolak provider.')).toBeInTheDocument()
       expect(within(dialog).getByText('8730012245')).toBeInTheDocument()
+      // Ops-fokus (Okt 2026): tx pembakaran dilipat di Detail teknis, bukan di depan.
+      fireEvent.click(within(dialog).getByRole('button', { name: /detail teknis/i }))
       const link = await within(dialog).findByRole('link', { name: /0xc1c1/ })
       expect(link).toHaveAttribute('href', `https://polygonscan.com/tx/0x${'c1'.repeat(32)}`)
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
@@ -64,6 +66,14 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       await user.click(await screen.findByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ }))
       const dialog = await screen.findByRole('dialog')
       expect(await within(dialog).findByText('RDM260912A1B2C3')).toBeInTheDocument()
+
+      // Pagar konvensi angka. "Kurs snapshot" dulu dicetak MENTAH
+      // (`16250.0000`) sementara KETIGA tetangganya di grid Nominal yang sama
+      // sudah diformat. Perbaikannya sempat tidak punya satu pun test — dua
+      // field dikembalikan ke bentuk mentah dan seluruh suite tetap hijau.
+      const teks = dialog.textContent ?? ''
+      expect(teks).toMatch(/IDR\/USD/)
+      expect(teks).not.toMatch(/\d\.\d{4,}/)
     })
   })
 
@@ -100,7 +110,7 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       const user = userEvent.setup()
       setup(`/payout-failures/${IDS.burnRejected}?issueKind=BURN_REJECTED`)
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getAllByRole('button', { name: 'Tutup' })[0]!)
+      await user.click(within(dialog).getByRole('button', { name: 'Tutup dialog' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(screen.queryByText('RINA SUSANTI')).not.toBeInTheDocument()
       expect(screen.getByText('DEWI KARTIKA')).toBeInTheDocument()

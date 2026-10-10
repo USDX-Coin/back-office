@@ -13,21 +13,25 @@ import { seedAuthenticatedSession } from './support/auth'
 
 test.describe('USDX-631 Rekening BNI @e2e', () => {
   test.describe('positive', () => {
-    test('sidebar Treasury → Rekening BNI renders three balance cards', async ({ page }) => {
+    test('menu Keuangan → Rekening BNI renders three balance cards', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
+      await page.goto('/transactions')
 
-      await page.getByRole('link', { name: /rekening bni/i }).click()
+      // Redesain fase 1: Rekening BNI sits in the collapsible Keuangan group.
+      await page.locator('aside').getByRole('button', { name: /^keuangan/i }).click()
+      await page.locator('aside').getByRole('link', { name: /rekening bni/i }).click()
       await expect(page).toHaveURL(/\/bni-accounts/)
       await expect(page.getByRole('heading', { name: /rekening bni/i })).toBeVisible({ timeout: 15000 })
 
       const cards = page.locator('[data-testid^="bni-balance-card-"]')
       await expect(cards).toHaveCount(3)
       await expect(cards.nth(0)).toHaveAttribute('data-state', 'ok')
-      await expect(page.getByTestId('bni-balance-card-TREASURY_USD')).toContainText('$12,500.75')
-      await expect(page.getByTestId('bni-inquired-at-bank')).toHaveText('2026-09-09 14:30')
-      await expect(page.getByTestId('bni-pulled-at')).toHaveText('2026-09-09 14:31:02 WIB')
+      // Kartu USD dibaca BERSEBELAHAN dengan kartu rupiah di layar yang sama, jadi
+      // keduanya satu konvensi: titik ribuan, koma desimal. Glif `$` dipertahankan.
+      await expect(page.getByTestId('bni-balance-card-TREASURY_USD')).toContainText('$12.500,75')
+      await expect(page.getByTestId('bni-inquired-at-bank')).toHaveText('9 Sep 2026, 14:30')
+      await expect(page.getByTestId('bni-pulled-at')).toHaveText('9 Sep 2026, 14:31:02')
     })
 
     test('pick account + Keluar + Tarik → DEBIT rows, then Unduh CSV downloads a BOM-prefixed file', async ({ page }) => {
@@ -65,10 +69,10 @@ test.describe('USDX-631 Rekening BNI @e2e', () => {
       await expect(page.getByRole('columnheader', { name: 'Sumber' })).toBeVisible()
       await expect(page.getByRole('table').getByText('BANK')).toHaveCount(4)
       await expect(page.getByTestId('bni-statement-recorded-through')).toHaveText('direkam s/d 09/09/2026 14:30 WIB')
-      await expect(page.getByTestId('bni-statement-applied')).toContainText('pull 019e2b00-0000-7000-8000-000000000202')
+      await expect(page.getByTestId('bni-statement-applied')).toContainText('No. tarikan 019e2b00-0000-7000-8000-000000000202')
       // Statement pullId pairs with activity_log only (§ 16.8.8); the balance header keeps § 16.4.
-      await expect(page.getByTestId('bni-statement-applied').getByTitle('pullId (korelasi activity_log)', { exact: true })).toHaveCount(1)
-      await expect(page.getByTitle('pullId (korelasi activity_log ↔ api_call_log)', { exact: true })).toHaveCount(1)
+      await expect(page.getByTestId('bni-statement-applied').getByTitle(/tidak menghubungi bank/)).toHaveCount(1)
+      await expect(page.getByTitle(/log panggilan ke bank/)).toHaveCount(1)
       await expect(page.getByTestId('bni-statement-summary')).toContainText('menurut salinan USDX')
       await expect(page.getByTestId('bni-statement-summary')).not.toContainText('Rentang posting')
       await expect(page.getByTestId('bni-statement-closing-balance')).toHaveText('Rp 504.500.000,00')
@@ -198,7 +202,8 @@ test.describe('USDX-692 Rekening BNI — mutasi dari salinan @e2e', () => {
       await page.goto('/bni-accounts')
       await expect(page.getByRole('heading', { name: /rekening bni/i })).toBeVisible({ timeout: 15000 })
       // The session really is STAFF (GET /auth/me re-validates the seeded profile).
-      await expect(page.getByText('STAFF', { exact: true }).first()).toBeVisible()
+      // Role reads as a word now ("Staf"), not the enum.
+      await expect(page.locator('aside').getByText('Staf', { exact: true })).toBeVisible()
       const refresh = page.getByTestId('bni-statement-refresh')
       // idle: nothing pulled yet → nothing to refresh.
       await expect(refresh).toBeDisabled()

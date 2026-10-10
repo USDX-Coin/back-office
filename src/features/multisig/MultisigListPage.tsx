@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMatch, useNavigate } from 'react-router'
+import { useLocation, useMatch, useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, KeyRound, AlertTriangle, Plus } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -15,22 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatShortDate, truncateMiddle } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { type StatusConfig } from '@/lib/status'
 import { useAuth, canProposeGovernance } from '@/lib/auth'
-import {
-  getActivityLabel,
-  getSafeTxStatusConfig,
-  isUnknownActivity,
-} from '@/lib/multisig/status'
+import { getSafeTxStatusConfig, isUnknownActivity } from '@/lib/multisig/status'
+import { proposerLabel, safeTxHeadline, safeTypeLabel } from '@/lib/multisig/present'
 import type { SafeTxListItem, SafeTxStatus, SafeType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useMultisigList } from './hooks'
 import SignatureProgressBar from './SignatureProgressBar'
 import MultisigTabs from './MultisigTabs'
-import MultisigDetailSheet from './MultisigDetailSheet'
+import MultisigDetailModal from './MultisigDetailModal'
 import ProposeModal from './ProposeModal'
 import WalletConnectButton from './WalletConnectButton'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 20
 
@@ -38,11 +36,10 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        STATUS_CHIP_BASE,
         cfg.className,
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
       {cfg.label}
     </span>
   )
@@ -50,6 +47,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
 
 export default function MultisigListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   // Route is a /multisig/* splat (App.tsx) so the wallet provider doesn't
   // remount when the drawer opens; useMatch still resolves the :id from the URL
   // — present when the detail drawer is open, undefined on the bare list.
@@ -90,64 +88,54 @@ export default function MultisigListPage() {
   const columns: ColumnDef<SafeTxListItem>[] = [
     {
       accessorKey: 'createdAt',
-      header: 'Date',
+      size: 168,
+      header: 'Diajukan (WIB)',
       cell: ({ getValue }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
-          {formatShortDate(getValue() as string)}
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {formatDateTime(getValue() as string)}
         </span>
       ),
     },
     {
       id: 'activity',
-      header: 'Activity',
+      header: 'Aktivitas',
+      size: 208,
       cell: ({ row }) => {
+        // Ops-fokus (PM Okt 2026): aktivitas dalam kata saja — tanpa enum
+        // mentah (`MINT`/`BURN`) di baris kedua dan tanpa alamat di label.
         const { activity, activityLabel } = row.original
         const unknown = isUnknownActivity(activity)
+        const headline = safeTxHeadline(activityLabel, activity)
         return (
-          <div className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 text-[12.5px] font-medium">
-              {unknown && <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
-              {activityLabel || getActivityLabel(activity)}
-            </span>
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
-              {activity}
-            </span>
-          </div>
+          <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium" title={headline}>
+            {unknown && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-label="Isi tidak terbaca" />}
+            <span className="truncate">{headline}</span>
+          </span>
         )
       },
     },
     {
       accessorKey: 'safeType',
+      size: 104,
       header: 'Safe',
-      cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.04em]">
-            {row.original.safeType}
-          </span>
-        </span>
-      ),
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">{safeTypeLabel(row.original.safeType)}</span>,
     },
     {
       id: 'signatureProgress',
-      header: 'Signatures',
+      size: 144,
+      header: 'Tanda tangan',
       cell: ({ row }) => <SignatureProgressBar progress={row.original.signatureProgress} />,
     },
     {
       accessorKey: 'proposerAddress',
-      header: 'Proposer',
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-[12px] tabular-nums">
-            {truncateMiddle(row.original.proposerAddress, 6, 4)}
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
-            {row.original.proposerType === 'BACKEND' ? 'backend' : 'staff'}
-          </span>
-        </div>
-      ),
+      header: 'Pengaju',
+      size: 152,
+      // Pengaju sebagai kata; alamat lengkapnya ada di Detail teknis modal.
+      cell: ({ row }) => <span className="text-sm">{proposerLabel(row.original)}</span>,
     },
     {
       accessorKey: 'status',
+      size: 176,
       header: 'Status',
       cell: ({ getValue }) => (
         <StatusBadge cfg={getSafeTxStatusConfig(getValue() as SafeTxStatus)} />
@@ -155,19 +143,20 @@ export default function MultisigListPage() {
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            navigate(`/multisig/${row.original.id}`)
+            navigate(`/multisig/${row.original.id}${location.search}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
-          aria-label={`View Safe transaction ${row.original.activityLabel}`}
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
+          aria-label={`Lihat transaksi ${safeTxHeadline(row.original.activityLabel, row.original.activity)}`}
         >
           <Eye className="h-3.5 w-3.5" />
-          View
+          Lihat
         </button>
       ),
     },
@@ -178,28 +167,36 @@ export default function MultisigListPage() {
   const activeListItem = activeId ? rows.find((r) => r.id === activeId) ?? null : null
   const hasFilters = Boolean(status || safeType || search)
 
+  // ↑/↓ antar baris yang sedang tampil (pola Transaksi/OTC) tanpa menutup modal.
+  const activeIndex = activeId ? rows.findIndex((r) => r.id === activeId) : -1
+  const goTo = (i: number) => navigate(`/multisig/${rows[i]!.id}${location.search}`, { replace: true })
+  const modalNav = {
+    index: activeIndex >= 0 ? activeIndex : null,
+    total: rows.length,
+    onPrev: activeIndex > 0 ? () => goTo(activeIndex - 1) : undefined,
+    onNext: activeIndex >= 0 && activeIndex < rows.length - 1 ? () => goTo(activeIndex + 1) : undefined,
+  }
+
   const noDataState = (
     <TableEmptyState
       mode="no-data"
       icon={<KeyRound className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
-      title="No Safe transactions yet"
-      description="Mint / burn and governance Safe transactions awaiting signatures will appear here."
+      title="Belum ada transaksi Safe"
+      description="Transaksi Safe untuk mint, burn, dan tata kelola yang menunggu tanda tangan akan muncul di sini."
     />
   )
 
   return (
     <div>
       <PageHeader
-        eyebrow="Treasury"
-        title="Multisig"
-        italicAccent="queue"
-        subtitle="Self-hosted Safe transaction queue — sign (EIP-712) and execute mint / burn and governance operations."
+        title="Antrean Tanda Tangan"
+        subtitle="Transaksi wallet Safe yang menunggu ditandatangani lalu dieksekusi — mint, burn, dan operasi tata kelola."
         actions={
           <div className="flex items-center gap-2">
             {canPropose && (
               <Button size="sm" onClick={() => setProposeOpen(true)}>
                 <Plus className="mr-1 h-4 w-4" />
-                Propose
+                Ajukan
               </Button>
             )}
             <WalletConnectButton />
@@ -227,9 +224,9 @@ export default function MultisigListPage() {
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search activity, proposer, or safeTxHash…"
-              className="h-9 w-full max-w-xs text-[13px]"
-              aria-label="Search Safe transactions"
+              placeholder="Cari aktivitas atau pengaju…"
+              className="h-9 w-full max-w-xs text-sm"
+              aria-label="Cari transaksi Safe"
             />
             <Select
               value={safeType || 'ALL'}
@@ -237,31 +234,32 @@ export default function MultisigListPage() {
                 params.updateParams({ safeType: v === 'ALL' ? null : v, page: '1' })
               }
             >
-              <SelectTrigger className="h-9 w-[150px] text-[13px]" aria-label="Filter by Safe">
-                <SelectValue placeholder="All Safes" />
+              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Saring per Safe">
+                <SelectValue placeholder="Semua Safe" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Safes</SelectItem>
-                <SelectItem value="STAFF">Staff Safe</SelectItem>
-                <SelectItem value="MANAGER">Manager Safe</SelectItem>
+                <SelectItem value="ALL">Semua Safe</SelectItem>
+                <SelectItem value="STAFF">Safe Staf</SelectItem>
+                <SelectItem value="MANAGER">Safe Manager</SelectItem>
               </SelectContent>
             </Select>
           </div>
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
-        onRowClick={(r) => navigate(`/multisig/${r.id}`)}
-        rowAriaLabel={(r) => `Open Safe transaction ${r.activityLabel}`}
+        onRowClick={(r) => navigate(`/multisig/${r.id}${location.search}`)}
+        rowAriaLabel={(r) => `Buka transaksi ${safeTxHeadline(r.activityLabel, r.activity)}`}
       />
 
-      <MultisigDetailSheet
-        txId={activeId ?? null}
-        listItem={activeListItem}
-        open={Boolean(activeId)}
-        onOpenChange={(o) => {
-          if (!o) navigate('/multisig', { replace: true })
-        }}
-      />
+      {activeId && (
+        <MultisigDetailModal
+          key={activeId}
+          txId={activeId}
+          listItem={activeListItem}
+          onClose={() => navigate(`/multisig${location.search}`, { replace: true })}
+          nav={modalNav}
+        />
+      )}
 
       {canPropose && <ProposeModal open={proposeOpen} onOpenChange={setProposeOpen} />}
     </div>

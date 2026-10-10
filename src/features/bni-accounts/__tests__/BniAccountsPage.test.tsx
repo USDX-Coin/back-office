@@ -146,12 +146,20 @@ describe('BniAccountsPage — balance cards (F1, AE3, AE4)', () => {
       const usd = within(screen.getByTestId('bni-balance-card-TREASURY_USD'))
       expect(usd.getByText('Saldo efektif')).toBeInTheDocument()
       expect(usd.getByText('Saldo akhir')).toBeInTheDocument()
-      expect(usd.getAllByText('$12,500.75')).toHaveLength(2)
+      // Kedua kartu dibaca BERSEBELAHAN di layar yang sama, jadi keduanya wajib
+      // satu konvensi: titik ribuan, koma desimal. Sebelum ini kartu USD mencetak
+      // `$12,500.75` di sebelah `Rp 602.749.000,00` — dan di situ `12,500.75`
+      // bisa terbaca "dua belas koma lima". Glif `$` sengaja dipertahankan
+      // (bukan `US$` bawaan `id-ID`): yang salah baca pemisahnya, bukan lambangnya.
+      expect(usd.getAllByText('$12.500,75')).toHaveLength(2)
       const idr = within(screen.getByTestId('bni-balance-card-COLLECTION'))
       expect(idr.getByText('Rp 602.749.000,00')).toBeInTheDocument()
 
-      expect(screen.getByTestId('bni-inquired-at-bank').textContent).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
-      expect(screen.getByTestId('bni-pulled-at').textContent).toMatch(/WIB$/)
+      // Format waktu seragam (PM Okt 2026): `12 Sep 2026, 08:00[:09]`, "WIB"
+      // sekali di label, tidak ditempel di nilainya.
+      expect(screen.getByTestId('bni-inquired-at-bank').textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/)
+      expect(screen.getByTestId('bni-pulled-at').textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/)
+      expect(screen.getByText(/Waktu \(WIB\)/)).toBeInTheDocument()
       probe.stop()
     })
 
@@ -347,14 +355,14 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       expect(screen.getByTestId('bni-statement-recorded-through')).toHaveTextContent(
         /^direkam s\/d \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} WIB$/
       )
-      expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent(/pull 019e2b00-/)
+      expect(screen.getByTestId('bni-statement-applied')).toHaveTextContent(/No\. tarikan 019e2b00-/)
       // § 16.8.8 (keputusan PM, PR #112): reading the copy never contacts the
       // bank, so the STATEMENT pullId pairs with activity_log only. The balance
       // header still reaches the bank and keeps the § 16.4 text.
-      const statementPull = within(screen.getByTestId('bni-statement-applied')).getByText(/^pull 019e2b00-/)
-      expect(statementPull).toHaveAttribute('title', 'pullId (korelasi activity_log)')
+      const statementPull = within(screen.getByTestId('bni-statement-applied')).getByText(/^No\. tarikan 019e2b00-/)
+      expect(statementPull).toHaveAttribute('title', expect.stringMatching(/tidak menghubungi bank/))
       const balancePulls = screen
-        .getAllByTitle('pullId (korelasi activity_log ↔ api_call_log)')
+        .getAllByTitle(/log panggilan ke bank/)
         .filter((el) => !screen.getByTestId('bni-statement-applied').contains(el))
       expect(balancePulls).toHaveLength(1)
       // Tarik reads the copy: it never asks the bank to refresh.
@@ -550,7 +558,7 @@ describe('BniAccountsPage — statement panel (F2, F3, AE1, AE2, AE5)', () => {
       await waitFor(() => expect(screen.getByTestId('bni-statement-row-count')).toHaveTextContent('25 baris'))
 
       // Go to page 3 (5 rows there).
-      await user.click(screen.getByRole('button', { name: /last page/i }))
+      await user.click(screen.getByRole('button', { name: /halaman terakhir/i }))
       await waitFor(() =>
         expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(1 + 5)
       )
@@ -780,7 +788,7 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await pullNp(user)
 
       expect(screen.getByTestId('bni-statement-gap')).toHaveTextContent(
-        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1,250.50.'
+        'antara awal riwayat dan 2026-09-18 10:00 — selisih −$1.250,50.'
       )
     })
 
@@ -938,7 +946,13 @@ describe('BniAccountsPage — salinan mutasi (USDX-692, § 16.8.8)', () => {
       await pickAccount(user, /treasury np/i)
       setRange(TODAY, TODAY)
       await user.click(pullButton())
-      expect(await screen.findByText('Bank tidak dapat dihubungi, coba lagi')).toBeInTheDocument()
+      // Kalimatnya + kode galat servernya dalam kurung — kode itu yang dikutip
+      // operator saat melapor.
+      expect(
+        await screen.findByText(
+          'Bank tidak dapat dihubungi, coba lagi (BNI_SERVICE_UNAVAILABLE)'
+        )
+      ).toBeInTheDocument()
 
       const refreshButton = screen.getByTestId('bni-statement-refresh')
       expect(refreshButton).toBeEnabled()

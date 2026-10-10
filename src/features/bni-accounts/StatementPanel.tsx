@@ -35,7 +35,7 @@ import StatementTable from './StatementTable'
 
 const PAGE_SIZE = 10
 const MAX_DAYS = 31
-const LABEL_CLASS = 'text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground'
+const LABEL_CLASS = 'text-xs font-medium text-muted-foreground'
 const NO_ACCOUNT = ''
 
 interface Draft {
@@ -146,7 +146,7 @@ export default function StatementPanel({ accounts }: Props) {
 
   return (
     <section aria-labelledby="bni-statement-heading">
-      <h2 id="bni-statement-heading" className="mb-3 text-[15px] font-semibold tracking-tight">
+      <h2 id="bni-statement-heading" className="mb-3 text-section">
         Mutasi rekening
       </h2>
 
@@ -221,7 +221,7 @@ export default function StatementPanel({ accounts }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 sm:col-span-2 lg:col-span-5">
-          <span className="text-[11px] text-muted-foreground">Preset (WIB):</span>
+          <span className="text-xs text-muted-foreground">Preset (WIB):</span>
           <Button type="button" variant="ghost" size="sm" onClick={() => applyPreset(0)}>
             Hari ini
           </Button>
@@ -231,7 +231,7 @@ export default function StatementPanel({ accounts }: Props) {
           <Button type="button" variant="ghost" size="sm" onClick={() => applyPreset(30)}>
             31 hari terakhir
           </Button>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Kosong = hari ini. Maksimum {MAX_DAYS} hari.
           </span>
         </div>
@@ -251,7 +251,7 @@ export default function StatementPanel({ accounts }: Props) {
           <>
             {refreshStrip}
             <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="alert">
-              <p className="text-[13px] font-medium text-destructive">{errorView.message}</p>
+              <p className="text-sm font-medium text-destructive">{errorView.message}</p>
               {errorView.retryable && (
                 <Button
                   type="button"
@@ -298,7 +298,7 @@ export default function StatementPanel({ accounts }: Props) {
                   data-testid="bni-statement-history-notice"
                 >
                   <History className="h-10 w-10 text-muted-foreground/60" strokeWidth={1.5} aria-hidden />
-                  <p className="max-w-xl text-[13px] font-medium text-foreground">{history.text}</p>
+                  <p className="max-w-xl text-sm font-medium text-foreground">{history.text}</p>
                 </div>
               ) : (
                 <TableEmptyState

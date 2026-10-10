@@ -90,7 +90,9 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
 
       // Antrean diperiksa SETELAH modal ditutup: selama modal terbuka isi halaman di
       // belakangnya `aria-hidden`, dan "baris hilang" akan lolos tanpa membuktikan apa pun.
-      await user.click(within(refreshed).getByRole('button', { name: 'Tutup' }))
+      // Modal detail = `RecordModal` (sapu bersih 11 Okt 2026): tanpa tombol
+      // "Tutup" di footer, ditutup lewat tombol X ("Tutup dialog").
+      await user.click(within(refreshed).getByRole('button', { name: 'Tutup dialog' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(await screen.findByRole('button', { name: /Buka detail pencairan DEWI KARTIKA/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ })).not.toBeInTheDocument()
@@ -99,9 +101,10 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
     test('should offer all three actions on PAYOUT_FAILED to an ADMIN', async () => {
       const detail = await openDetail(IDS.failedRejected, 'stf_1')
       expect(within(detail).getAllByRole('button', { name: ACTION_BUTTONS }).map((b) => b.textContent)).toEqual([
-        'Kirim ulang',
-        'Tandai dibayar manual',
+        // Urutan footer: aksi utama (Kirim ulang) paling kanan.
         'Tutup tanpa pembayaran',
+        'Tandai dibayar manual',
+        'Kirim ulang',
       ])
     })
 
@@ -138,8 +141,8 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
     test('should not offer RESENT on BURN_REJECTED', async () => {
       const detail = await openDetail(IDS.burnRejected)
       expect(within(detail).getAllByRole('button', { name: ACTION_BUTTONS }).map((b) => b.textContent)).toEqual([
-        'Tandai dibayar manual',
         'Tutup tanpa pembayaran',
+        'Tandai dibayar manual',
       ])
     })
 

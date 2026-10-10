@@ -20,21 +20,45 @@ export interface StatusConfig {
   dotClass: string
 }
 
+/**
+ * Label untuk nilai enum yang belum punya terjemahan (P1-5 audit alur).
+ *
+ * Tiap peta status di berkas ini berbentuk `Record<Enum, StatusConfig>`, jadi
+ * enum BARU yang ditambahkan ke `types.ts` menggagalkan build sampai labelnya
+ * ditulis. Yang tidak dijaga oleh build adalah nilai yang datang dari BACKEND
+ * dan belum ada di `types.ts` sama sekali — dulu nilai itu dicetak apa adanya,
+ * sehingga operator membaca `PENDING_APPROVAL` di tengah layar berbahasa
+ * Indonesia dan tidak tahu itu masalah atau bukan.
+ *
+ * Kodenya TIDAK dibuang — ia yang dikutip saat melapor ke tim teknis.
+ */
+/**
+ * Label untuk KODE (bukan status) yang belum punya terjemahan — alasan, jenis
+ * sumber daya, aksi. Kodenya sendiri tidak dicetak di layar utama (audit font
+ * 10 Okt 2026: tanpa enum mentah ke admin); ia tetap ada di `title` dan di
+ * "Detail teknis" untuk dikutip ke tim teknis.
+ */
+export const UNKNOWN_CODE_LABEL = 'Belum dikenali'
+
+export function unknownStatusLabel(status: unknown): string {
+  return `Status belum dikenali (${String(status)})`
+}
+
 const otcStatusMap: Record<OtcStatus, StatusConfig> = {
   pending: {
-    label: 'Pending',
+    label: 'Menunggu',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   completed: {
-    label: 'Completed',
+    label: 'Selesai',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   failed: {
-    label: 'Failed',
+    label: 'Gagal',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
@@ -44,7 +68,7 @@ const otcStatusMap: Record<OtcStatus, StatusConfig> = {
 export function getOtcStatusConfig(status: OtcStatus): StatusConfig {
   return (
     otcStatusMap[status] ?? {
-      label: status,
+      label: unknownStatusLabel(status),
       variant: 'outline',
       className: '',
       dotClass: 'bg-muted-foreground',
@@ -58,31 +82,31 @@ export function isOtcTerminal(status: OtcStatus): boolean {
 
 const requestStatusMap: Record<RequestStatus, StatusConfig> = {
   PENDING_APPROVAL: {
-    label: 'Pending approval',
+    label: 'Menunggu persetujuan',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   APPROVED: {
-    label: 'Approved',
+    label: 'Disetujui',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   EXECUTED: {
-    label: 'Executed',
+    label: 'Sudah dieksekusi',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   IDR_TRANSFERRED: {
-    label: 'IDR transferred',
+    label: 'Rupiah sudah ditransfer',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   REJECTED: {
-    label: 'Rejected',
+    label: 'Ditolak',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
@@ -92,7 +116,7 @@ const requestStatusMap: Record<RequestStatus, StatusConfig> = {
 export function getRequestStatusConfig(status: RequestStatus): StatusConfig {
   return (
     requestStatusMap[status] ?? {
-      label: String(status),
+      label: unknownStatusLabel(status),
       variant: 'outline',
       className: '',
       dotClass: 'bg-muted-foreground',
@@ -115,85 +139,102 @@ export function isRequestTerminal(status: RequestStatus): boolean {
 
 const orderStatusMap: Record<MintOrderStatus, StatusConfig> = {
   WAITING_FOR_PAYMENT: {
-    label: 'Waiting for payment',
+    label: 'Menunggu pembayaran',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   WAITING_FOR_APPROVAL: {
-    label: 'Waiting for approval',
+    label: 'Menunggu persetujuan',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   COMPLETED: {
-    label: 'Completed',
+    label: 'Selesai',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   FAILED: {
-    label: 'Failed',
+    label: 'Gagal',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
+  },
+  // Uangnya SUDAH masuk, ordernya belum bisa dicocokkan — persis keadaan yang
+  // ditangani layar "Mint Bermasalah". Nadanya peringatan, bukan galat: tidak
+  // ada yang rusak, ada satu keputusan manusia yang belum diambil.
+  HELD: {
+    label: 'Uang masuk tertahan',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
   },
 }
 
 const paymentStatusMap: Record<MintPaymentStatus, StatusConfig> = {
   REQUESTED: {
-    label: 'Requested',
+    label: 'Tagihan dibuat',
     variant: 'outline',
     className: 'bg-muted text-muted-foreground',
     dotClass: 'bg-muted-foreground',
   },
   WAITING_FOR_PAYMENT: {
-    label: 'Waiting for payment',
+    label: 'Menunggu pembayaran',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   PAID: {
-    label: 'Paid',
+    label: 'Sudah dibayar',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   EXPIRED: {
-    label: 'Expired',
+    label: 'Kedaluwarsa',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
+  },
+  // Sisi PEMBAYARAN dari keadaan yang sama: notifikasi uang masuk diterima,
+  // tapi belum bisa diikatkan ke satu order.
+  HELD: {
+    label: 'Uang masuk tertahan',
+    variant: 'outline',
+    className: 'bg-warning/10 text-warning',
+    dotClass: 'bg-warning',
   },
 }
 
 const safeStatusMap: Record<MintSafeStatus, StatusConfig> = {
   NONE: {
-    label: 'None',
+    label: 'Belum masuk antrean',
     variant: 'outline',
     className: 'bg-muted text-muted-foreground',
     dotClass: 'bg-muted-foreground',
   },
   PENDING_APPROVAL: {
-    label: 'Pending approval',
+    label: 'Menunggu tanda tangan',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   APPROVED: {
-    label: 'Approved',
+    label: 'Sudah disetujui',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   EXECUTED: {
-    label: 'Executed',
+    label: 'Sudah dieksekusi',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   REJECTED: {
-    label: 'Rejected',
+    label: 'Ditolak',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
@@ -205,31 +246,40 @@ const safeStatusMap: Record<MintSafeStatus, StatusConfig> = {
 // destructive; BURNED/PROCESSING_PAYOUT are in-flight; PAYOUT_COMPLETE = done.
 const redeemStatusMap: Record<RedeemStatus, StatusConfig> = {
   AWAITING_BURN: {
-    label: 'Awaiting burn',
+    label: 'Menunggu pembakaran',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   BURNED: {
-    label: 'Burned',
+    label: 'Sudah dibakar',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   PROCESSING_PAYOUT: {
-    label: 'Processing payout',
+    label: 'Pencairan diproses',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   PAYOUT_COMPLETE: {
-    label: 'Payout complete',
+    label: 'Rupiah sudah dikirim',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   EXPIRED: {
-    label: 'Expired',
+    label: 'Kedaluwarsa',
+    variant: 'destructive',
+    className: 'bg-destructive/10 text-destructive',
+    dotClass: 'bg-destructive',
+  },
+  // Penyedia menolak pencairan secara DEFINITIF (USDX-471). USDX nasabah sudah
+  // terbakar permanen dan rupiahnya tidak berangkat — order inilah yang
+  // mendarat di antrean "Pencairan Bermasalah".
+  PAYOUT_FAILED: {
+    label: 'Pencairan gagal',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
@@ -238,7 +288,7 @@ const redeemStatusMap: Record<RedeemStatus, StatusConfig> = {
 
 function fallbackConfig(status: string): StatusConfig {
   return {
-    label: status,
+    label: unknownStatusLabel(status),
     variant: 'outline',
     className: '',
     dotClass: 'bg-muted-foreground',
@@ -281,25 +331,25 @@ export function isOrderTerminal(status: OrderStatus): boolean {
 // request-status convention so the user list reads consistently with mint/burn.
 const kycStatusMap: Record<KycStatus, StatusConfig> = {
   VERIFIED: {
-    label: 'Verified',
+    label: 'Terverifikasi',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   PENDING: {
-    label: 'Pending',
+    label: 'Menunggu',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   REJECTED: {
-    label: 'Rejected',
+    label: 'Ditolak',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
   },
   UNVERIFIED: {
-    label: 'Unverified',
+    label: 'Belum diverifikasi',
     variant: 'outline',
     className: 'bg-muted text-muted-foreground',
     dotClass: 'bg-muted-foreground',
@@ -320,19 +370,19 @@ export function deriveActivationStatus(
 
 const activationStatusMap: Record<ActivationStatus, StatusConfig> = {
   ACTIVATED: {
-    label: 'Activated',
+    label: 'Aktif',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   PENDING: {
-    label: 'Pending Activation',
+    label: 'Menunggu aktivasi',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   FAILED: {
-    label: 'Failed Email',
+    label: 'Email gagal terkirim',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
@@ -346,7 +396,7 @@ export function getActivationStatusConfig(status: ActivationStatus): StatusConfi
 export function getKycStatusConfig(status: KycStatus): StatusConfig {
   return (
     kycStatusMap[status] ?? {
-      label: String(status),
+      label: unknownStatusLabel(status),
       variant: 'outline',
       className: '',
       dotClass: 'bg-muted-foreground',
@@ -422,7 +472,7 @@ const bniBalanceCardStatusMap: Record<BniBalanceCardStatus, StatusConfig> = {
 export function getBniBalanceCardStatusConfig(status: BniBalanceCardStatus): StatusConfig {
   return (
     bniBalanceCardStatusMap[status] ?? {
-      label: String(status),
+      label: unknownStatusLabel(status),
       variant: 'outline',
       className: 'bg-muted text-muted-foreground',
       dotClass: 'bg-muted-foreground',

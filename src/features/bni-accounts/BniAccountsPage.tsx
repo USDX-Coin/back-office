@@ -22,10 +22,8 @@ export default function BniAccountsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Treasury"
         title="Rekening BNI"
-        italicAccent="saldo & mutasi"
-        subtitle="Saldo LIVE dari BNIdirect dan mutasi dari salinan USDX (direkam tiap 10 menit) untuk tiga rekening MAF. Hanya membaca — tidak ada transfer, tidak disambungkan ke order."
+        subtitle="Saldo langsung dari BNI, dan mutasi yang direkam USDX tiap 10 menit, untuk tiga rekening perusahaan. Halaman ini hanya membaca — tidak ada transfer."
       />
 
       {accounts.isPending ? (
@@ -48,7 +46,12 @@ export default function BniAccountsPage() {
             mode="no-data"
             icon={<Landmark className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
             title="Rekening BNI belum dikonfigurasi"
-            description="Backend belum punya satu pun nomor rekening BNI di env (BNI_COLLECTION_ACCOUNT_NO / BNI_TREASURY_*)."
+            // P1-5 — dulu kalimat ini mencetak NAMA VARIABEL ENVIRONMENT
+            // (`BNI_COLLECTION_ACCOUNT_NO / BNI_TREASURY_*`) ke layar operator.
+            // Operator tidak punya akses ke env dan tidak bisa berbuat apa pun
+            // dengan nama itu; yang ia butuhkan adalah tahu harus menghubungi
+            // siapa. Nama variabelnya tetap hidup di catatan tim teknis.
+            description="Belum ada satu pun nomor rekening BNI yang terpasang di sistem. Hubungi tim teknis untuk memasangnya."
           />
         </div>
       ) : (

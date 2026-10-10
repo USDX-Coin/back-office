@@ -4,43 +4,44 @@
 // destructive convention used by src/lib/status.ts.
 
 import type { SafeActivity, SafeTxStatus } from '@/lib/types'
-import type { StatusConfig } from '@/lib/status'
+import { unknownStatusLabel, type StatusConfig } from '@/lib/status'
 
 const safeTxStatusMap: Record<SafeTxStatus, StatusConfig> = {
   PENDING_SIGN: {
-    label: 'Pending sign',
+    label: 'Menunggu tanda tangan',
     variant: 'outline',
     className: 'bg-warning/10 text-warning',
     dotClass: 'bg-warning',
   },
   READY_TO_EXECUTE: {
-    label: 'Ready to execute',
+    label: 'Siap dieksekusi',
     variant: 'outline',
     className: 'bg-primary/10 text-primary',
     dotClass: 'bg-primary',
   },
   CONFIRMING: {
     // In-flight on-chain (execTransaction broadcast, awaiting confirmations) —
-    // cyan accent (Azure Horizon primary-container) to read as "in progress".
-    label: 'Confirming',
+    // gold accent to read as "in progress", distinct from the maroon
+    // READY_TO_EXECUTE badge. Token-based so it holds in dark mode too.
+    label: 'Menunggu konfirmasi jaringan',
     variant: 'outline',
-    className: 'bg-[#1eaed5]/12 text-[#067d99]',
-    dotClass: 'bg-[#1eaed5]',
+    className: 'bg-gold-soft text-gold-foreground',
+    dotClass: 'bg-gold',
   },
   EXECUTED: {
-    label: 'Executed',
+    label: 'Sudah dieksekusi',
     variant: 'default',
     className: 'bg-success/10 text-success',
     dotClass: 'bg-success',
   },
   FAILED: {
-    label: 'Failed',
+    label: 'Gagal',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive',
     dotClass: 'bg-destructive',
   },
   CANCELLED: {
-    label: 'Cancelled',
+    label: 'Dibatalkan',
     variant: 'outline',
     className: 'bg-muted text-muted-foreground',
     dotClass: 'bg-muted-foreground',
@@ -50,7 +51,7 @@ const safeTxStatusMap: Record<SafeTxStatus, StatusConfig> = {
 export function getSafeTxStatusConfig(status: SafeTxStatus): StatusConfig {
   return (
     safeTxStatusMap[status] ?? {
-      label: String(status),
+      label: unknownStatusLabel(status),
       variant: 'outline',
       className: '',
       dotClass: 'bg-muted-foreground',
@@ -92,12 +93,12 @@ export interface SafeTxTab {
 }
 
 export const SAFE_TX_TABS: SafeTxTab[] = [
-  { value: '', label: 'All', showCount: false },
-  { value: 'PENDING_SIGN', label: 'Pending Sign', showCount: true },
-  { value: 'READY_TO_EXECUTE', label: 'Ready to Execute', showCount: true },
-  { value: 'CONFIRMING', label: 'Confirming', showCount: true },
-  { value: 'EXECUTED', label: 'Executed', showCount: false },
-  { value: 'FAILED', label: 'Failed', showCount: false },
+  { value: '', label: 'Semua', showCount: false },
+  { value: 'PENDING_SIGN', label: 'Menunggu Tanda Tangan', showCount: true },
+  { value: 'READY_TO_EXECUTE', label: 'Siap Dieksekusi', showCount: true },
+  { value: 'CONFIRMING', label: 'Menunggu Konfirmasi', showCount: true },
+  { value: 'EXECUTED', label: 'Sudah Dieksekusi', showCount: false },
+  { value: 'FAILED', label: 'Gagal', showCount: false },
 ]
 
 // Statuses that get a live count badge on their tab (the in-flight, actionable
@@ -111,18 +112,20 @@ export const SAFE_TX_COUNTED_STATUSES = SAFE_TX_TABS.filter((t) => t.showCount).
 const activityLabelMap: Record<SafeActivity, string> = {
   MINT: 'Mint',
   BURN: 'Burn',
-  ADD_BLACKLIST: 'Add to blacklist',
-  REMOVE_BLACKLIST: 'Remove from blacklist',
-  DESTROY_FUNDS: 'Destroy funds',
-  PAUSE: 'Pause',
-  UNPAUSE: 'Unpause',
-  SET_SUPPORTED_CHAIN: 'Set supported chain',
-  GRANT_ROLE: 'Grant role',
-  REVOKE_ROLE: 'Revoke role',
-  MINT_BRIDGE: 'Mint (bridge)',
-  TIMELOCK_SCHEDULE: 'Timelock schedule',
-  TIMELOCK_EXECUTE: 'Timelock execute',
-  UNKNOWN: 'Unknown',
+  ADD_BLACKLIST: 'Tambah ke daftar blokir',
+  REMOVE_BLACKLIST: 'Hapus dari daftar blokir',
+  DESTROY_FUNDS: 'Musnahkan dana',
+  PAUSE: 'Hentikan sementara',
+  UNPAUSE: 'Jalankan kembali',
+  SET_SUPPORTED_CHAIN: 'Atur jaringan yang didukung',
+  GRANT_ROLE: 'Beri wewenang',
+  REVOKE_ROLE: 'Cabut wewenang',
+  MINT_BRIDGE: 'Mint lintas jaringan',
+  TIMELOCK_SCHEDULE: 'Jadwalkan lewat timelock',
+  TIMELOCK_EXECUTE: 'Jalankan jadwal timelock',
+  // JANGAN diganti jadi kalimat yang menenangkan: calldata yang tidak bisa
+  // dibaca decoder adalah justru yang tidak boleh ditandatangani buta.
+  UNKNOWN: 'Tidak dikenali',
 }
 
 export function getActivityLabel(activity: SafeActivity): string {

@@ -73,7 +73,7 @@ describe('AmountWithCurrencyInput auto-convert @ USDX-51 scope', () => {
       server.use(rateOk())
       setup({ initialCurrency: 'USD' })
 
-      // Wait for rate to load before typing — preview otherwise reads "Loading rate…".
+      // Wait for rate to load before typing — preview otherwise reads "Kurs sedang dimuat…".
       await waitFor(() => {
         expect(screen.getByTestId('amount-conversion-preview').textContent).not.toMatch(
           /loading/i
@@ -146,7 +146,7 @@ describe('AmountWithCurrencyInput auto-convert @ USDX-51 scope', () => {
       await user.type(screen.getByLabelText(/^amount$/i), '100')
       const preview = await screen.findByTestId('amount-conversion-preview')
       await waitFor(() =>
-        expect(preview.textContent ?? '').toMatch(/rate unavailable/i)
+        expect(preview.textContent ?? '').toMatch(/kurs belum terbaca/i)
       )
     })
   })

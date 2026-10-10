@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import path from 'node:path'
 import { describe, test, expect } from 'vitest'
 import rawCss from '@/index.css?raw'
 
@@ -5,6 +7,31 @@ function extractToken(name: string): string | null {
   const match = rawCss.match(new RegExp(`${name}\\s*:\\s*([^;]+);`))
   return match ? match[1]!.trim() : null
 }
+
+/** Ambil isi satu blok aturan (`:root`, `.dark`) beserta nilainya. */
+function blockTokens(selector: string): Record<string, string> {
+  const block = rawCss.match(new RegExp(`${selector}\\s*\\{([\\s\\S]*?)\\n\\}`))
+  if (!block) return {}
+  const out: Record<string, string> = {}
+  for (const m of block[1]!.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    out[m[1]!] = m[2]!.trim()
+  }
+  return out
+}
+
+/** `var(--n2)` → nilai `--n2` di blok yang sama. Satu lapis sudah cukup. */
+function resolve(tokens: Record<string, string>, name: string): string | undefined {
+  const raw = tokens[name]
+  if (!raw) return undefined
+  const ref = raw.match(/^var\((--[a-z0-9-]+)\)$/)
+  return ref ? tokens[ref[1]!] : raw
+}
+
+const UI_DIR = path.resolve(process.cwd(), 'src/components/ui')
+
+/** CSS tanpa komentar — komentar di berkas ini MENYEBUT aturan yang dibuang,
+ *  jadi mencarinya di teks mentah akan menemukan penjelasannya, bukan kodenya. */
+const cssKode = rawCss.replace(/\/\*[\s\S]*?\*\//g, '')
 
 describe('shadcn-minimal theme tokens', () => {
   describe('light mode', () => {
@@ -30,9 +57,15 @@ describe('shadcn-minimal theme tokens', () => {
       expect(extractToken('--warning')).not.toBeNull()
     })
 
-    test('primary is a USDX teal accent (HSL around 190°)', () => {
-      const primary = extractToken('--primary')
-      expect(primary).toMatch(/^\s*1[89]\d\s+/)
+    // Merek usdx.co.id: maroon #800000 = hsl(0 100% 25%).
+    test('primary is the USDX maroon (#800000)', () => {
+      expect(blockTokens('\\:root')['--primary']).toBe('0 100% 25%')
+    })
+
+    test('defines the brand gold accent tokens', () => {
+      expect(extractToken('--gold')).not.toBeNull()
+      expect(extractToken('--gold-soft')).not.toBeNull()
+      expect(extractToken('--gold-foreground')).not.toBeNull()
     })
   })
 
@@ -45,15 +78,162 @@ describe('shadcn-minimal theme tokens', () => {
     test('.dark block overrides --primary', () => {
       expect(rawCss).toMatch(/\.dark\s*\{[^}]*--primary\s*:/s)
     })
+
+    // Maroon asli #800000 di atas kartu gelap cuma ±2:1 — yang gelap harus
+    // versi yang dicerahkan, bukan nilai terang yang disalin.
+    test('dark primary is lightened, not the light-mode maroon copied', () => {
+      expect(blockTokens('\\.dark')['--primary']).not.toBe('0 100% 25%')
+    })
   })
 
   describe('typography', () => {
-    test('Inter is declared as the body font', () => {
-      expect(extractToken('--font-sans')).toContain('Inter')
+    // Huruf merek usdx.co.id: Inter untuk UI, Crimson Pro untuk judul, mono
+    // hanya untuk ID/hash. IBM Plex (tiga keluarga yang dicampur) sudah pergi.
+    test('Inter is the body font, Crimson Pro the display font', () => {
+      expect(extractToken('--font-sans')).toMatch(/^'Inter'/)
+      expect(extractToken('--font-display')).toMatch(/^'Crimson Pro'/)
+      expect(extractToken('--font-mono')).toMatch(/^'JetBrains Mono'/)
+      expect(rawCss).not.toContain('IBM Plex')
+    })
+
+    test('fonts are loaded from Google Fonts with the CSP opened for exactly that', () => {
+      const html = readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8')
+      expect(html).toContain('https://fonts.googleapis.com/css2?family=Crimson+Pro')
+      expect(html).toMatch(/style-src [^;]*https:\/\/fonts\.googleapis\.com/)
+      expect(html).toMatch(/font-src [^;]*https:\/\/fonts\.gstatic\.com/)
+    })
+
+    // Serif miring di judul adalah salah satu dari tiga gaya huruf yang
+    // dicampur (audit 8 Okt 2026). Judul display selalu tegak.
+    test('the old italic serif token is gone', () => {
+      expect(extractToken('--font-serif')).toBeNull()
     })
 
     test('Manrope is no longer referenced', () => {
       expect(rawCss).not.toContain('Manrope')
+    })
+
+    // Enam langkah, dan langkah ketujuh tidak boleh ada: skala bawaan Tailwind
+    // dihapus lebih dulu dengan `--text-*: initial`, jadi `text-2xl` gagal
+    // dikompilasi alih-alih diam-diam lolos dan menambah ukuran ke-tujuh.
+    describe('the type scale is one token per role (audit font 10 Okt 2026)', () => {
+      test('clears the inherited scale first', () => {
+        expect(rawCss).toContain('--text-*: initial;')
+      })
+
+      test('declares the role tokens and no more — no 11px, no 18px', () => {
+        const sizes = [...rawCss.matchAll(/^\s*--text-([a-z0-9]+(?:-[a-z0-9]+)*):\s/gm)].map((m) => m[1])
+        expect(sizes.sort()).toEqual(
+          ['base', 'dialog-title', 'label', 'money', 'money-lg', 'page-title', 'section', 'sm', 'xs'].sort(),
+        )
+        expect(rawCss).not.toMatch(/--text-[a-z0-9]+(?:-[a-z0-9]+)*:\s*0\.6875rem/)
+        expect(rawCss).not.toMatch(/--text-[a-z0-9]+(?:-[a-z0-9]+)*:\s*1\.125rem;/)
+      })
+
+      test('no retired size class (text-2xs / text-lg / text-xl / text-2xl) is used in src/', () => {
+        const sisa: string[] = []
+        const walk = (dir: string) => {
+          for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+              if (entry.name !== '__tests__') walk(full)
+            } else if (/\.tsx?$/.test(entry.name)) {
+              if (/\btext-(2xs|lg|xl|2xl)\b/.test(readFileSync(full, 'utf8'))) sisa.push(full)
+            }
+          }
+        }
+        walk(path.resolve(process.cwd(), 'src'))
+        expect(sisa).toEqual([])
+      })
+
+      test('no arbitrary pixel font sizes remain anywhere in src/', () => {
+        // Pengecualian lama untuk `features/dashboard/` gugur bersama Beranda
+        // (dihapus di redesain fase 1).
+        const sisa: string[] = []
+        const walk = (dir: string) => {
+          for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+              walk(full)
+            } else if (/\.tsx?$/.test(entry.name)) {
+              const src = readFileSync(full, 'utf8')
+              if (/text-\[[0-9.]+px\]/.test(src)) sisa.push(full)
+            }
+          }
+        }
+        walk(path.resolve(process.cwd(), 'src'))
+        expect(sisa).toEqual([])
+      })
+    })
+  })
+
+  // Inilah mekanisme di balik keluhan "terlalu kotak": ketiganya dulu bernilai
+  // IDENTIK (220 14% 96%), jadi satu-satunya alat memisahkan kelompok adalah
+  // garis. Dikunci di sini supaya tidak pelan-pelan menyatu lagi.
+  describe('fill levels are distinct', () => {
+    test.each(['\\:root', '\\.dark'])('%s has three different fill tokens', (selector) => {
+      const tokens = blockTokens(selector)
+      const fills = [
+        resolve(tokens, '--secondary'),
+        resolve(tokens, '--muted'),
+        resolve(tokens, '--accent'),
+      ]
+      expect(fills.every(Boolean)).toBe(true)
+      expect(new Set(fills).size).toBe(3)
+    })
+
+    test.each(['\\:root', '\\.dark'])('%s separates the page canvas from cards', (selector) => {
+      const tokens = blockTokens(selector)
+      expect(resolve(tokens, '--background')).not.toBe(resolve(tokens, '--card'))
+    })
+  })
+
+  describe('dead CSS stays dead', () => {
+    // Aturan lama yang tidak pernah berlaku sejak ditulis; tidak dihidupkan
+    // lagi diam-diam hanya karena Inter kini benar-benar dimuat.
+    test('no Inter-only font-feature-settings', () => {
+      expect(cssKode).not.toContain('cv11')
+      expect(cssKode).not.toContain('font-feature-settings')
+    })
+
+    test('the unused pulse-dot animation is gone', () => {
+      expect(cssKode).not.toContain('pulse-dot')
+    })
+
+    // `animate-in` / `fade-in-0` / `zoom-in-95` / `slide-in-from-*` datang dari
+    // paket `tailwindcss-animate`, yang tidak terpasang di repo ini: tujuh
+    // berkas menuliskannya dan tidak satu pun menghasilkan CSS. Diganti utilitas
+    // yang benar-benar didefinisikan di index.css.
+    test('no components reference undefined tailwindcss-animate utilities', () => {
+      const offenders: string[] = []
+      for (const name of readdirSync(UI_DIR)) {
+        if (!name.endsWith('.tsx')) continue
+        const src = readFileSync(path.join(UI_DIR, name), 'utf8')
+        if (/\b(animate-in|animate-out|fade-in-0|fade-out-0|zoom-in-95|zoom-out-95|slide-in-from-|slide-out-to-)/.test(src)) {
+          offenders.push(name)
+        }
+      }
+      expect(offenders).toEqual([])
+    })
+  })
+
+  // `ring-offset-background` menggambar cincin KEDUA berwarna latar halaman di
+  // antara elemen dan cincin fokusnya. Di atas kartu warna itu bukan warna di
+  // belakang elemennya, jadi hasilnya terbaca sebagai garis tebal berlapis.
+  describe('focus rings draw one ring, not two', () => {
+    test('no ui component uses ring-offset', () => {
+      const offenders: string[] = []
+      for (const name of readdirSync(UI_DIR)) {
+        if (!name.endsWith('.tsx')) continue
+        if (readFileSync(path.join(UI_DIR, name), 'utf8').includes('ring-offset')) {
+          offenders.push(name)
+        }
+      }
+      expect(offenders).toEqual([])
+    })
+
+    test('the offset variables are neutralised globally as a safety net', () => {
+      expect(rawCss).toMatch(/--tw-ring-offset-width:\s*0px/)
     })
   })
 })

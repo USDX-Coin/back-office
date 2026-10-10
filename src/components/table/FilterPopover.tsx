@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  adaRentangTidakSah,
+  hariIniWib,
+  periksaRentangWib,
+  pesanRentang,
+} from '@/lib/wibRange'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,10 +61,11 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
   function clearDraft() {
     const cleared: Record<string, string> = {}
     for (const def of defs) {
-      if (def.kind === 'select') cleared[def.key] = ''
-      else {
+      if (def.kind === 'dateRange') {
         cleared[def.startKey] = ''
         cleared[def.endKey] = ''
+      } else {
+        cleared[def.key] = ''
       }
     }
     setDraft(cleared)
@@ -67,32 +74,35 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-[12.5px]">
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-xs">
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>Filter</span>
           {activeCount > 0 && (
             <span
-              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold leading-none text-primary-foreground"
-              aria-label={`${activeCount} active filter${activeCount === 1 ? '' : 's'}`}
+              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-label tabular-nums leading-none text-primary-foreground"
+              aria-label={`${activeCount} filter aktif`}
             >
               {activeCount}
             </span>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(92vw,360px)]">
+      {/* Tinggi dibatasi ruang yang tersisa di layar: di halaman dengan banyak
+          saringan (Transaksi: lima) tombol Terapkan dulu jatuh di bawah layar
+          dan tidak bisa dicapai sama sekali. */}
+      <PopoverContent align="start" collisionPadding={16} className="max-h-[var(--radix-popover-content-available-height)] w-[min(92vw,360px)] overflow-y-auto">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold">Filters</p>
+            <p className="text-sm font-semibold">Filter</p>
             <button
               type="button"
               onClick={() => {
                 clearDraft()
                 onClearAll()
               }}
-              className="text-[12px] text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear all
+              Hapus semua
             </button>
           </div>
 
@@ -102,24 +112,24 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                 const v = draft[def.key] ?? ''
                 return (
                   <div key={def.key}>
-                    <Label className="text-[12px] font-medium">{def.label}</Label>
+                    <Label className="text-xs font-medium">{def.label}</Label>
                     <Select
                       value={v || ALL}
                       onValueChange={(next) => setKey(def.key, next === ALL ? '' : next)}
                     >
                       <SelectTrigger
                         aria-label={def.label}
-                        className="mt-1 h-9 text-[12.5px]"
+                        className="mt-1 h-9 text-xs"
                       >
-                        <SelectValue placeholder={`All ${def.label.toLowerCase()}`} />
+                        <SelectValue placeholder={`Semua ${def.label.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={ALL}>All {def.label.toLowerCase()}</SelectItem>
+                        <SelectItem value={ALL}>Semua {def.label.toLowerCase()}</SelectItem>
                         {def.options.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.label}
                             {opt.disabled && opt.disabledHint && (
-                              <span className="ml-1.5 text-[10.5px] text-muted-foreground">
+                              <span className="ml-1.5 text-xs text-muted-foreground">
                                 {opt.disabledHint}
                               </span>
                             )}
@@ -130,28 +140,75 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                   </div>
                 )
               }
+              if (def.kind === 'text') {
+                const v = draft[def.key] ?? ''
+                const hintId = `filter-hint-${def.key}`
+                return (
+                  <div key={def.key}>
+                    <Label htmlFor={`filter-text-${def.key}`} className="text-xs font-medium">
+                      {def.label}
+                    </Label>
+                    <Input
+                      id={`filter-text-${def.key}`}
+                      value={v}
+                      inputMode={def.inputMode}
+                      maxLength={def.maxLength}
+                      placeholder={def.placeholder}
+                      aria-describedby={def.hint ? hintId : undefined}
+                      onChange={(e) => setKey(def.key, e.target.value)}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    {def.hint && (
+                      <p id={hintId} className="mt-1 text-xs text-muted-foreground">
+                        {def.hint}
+                      </p>
+                    )}
+                  </div>
+                )
+              }
               // dateRange
               const start = draft[def.startKey] ?? ''
               const end = draft[def.endKey] ?? ''
+              // Dua isian telanjang menerima rentang TERBALIK tanpa satu pun
+              // tanda: `?from=2026-09-30&to=2026-09-01` dikirim apa adanya, chip
+              // mencetak "30 September – 1 September", dan server menjawab nol
+              // baris. Di layar bukti kepatuhan, nol baris terbaca "tidak ada
+              // jejaknya" — kesimpulan yang salah dari isian yang salah.
+              //
+              // Aturannya sudah ada di repo ini (`lib/dateRange.ts`, dipakai
+              // `/reports/*` dan `/bni-accounts`); yang kurang cuma memasangnya.
+              // `max` juga dipasang supaya tanggal masa depan tidak bisa dipilih
+              // dari kalender sama sekali.
+              const vonis = periksaRentangWib(start, end)
               return (
                 <div key={`${def.startKey}-${def.endKey}`}>
-                  <Label className="text-[12px] font-medium">{def.label}</Label>
+                  <Label className="text-xs font-medium">{def.label}</Label>
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     <Input
                       type="date"
                       value={start}
+                      max={end || hariIniWib()}
                       onChange={(e) => setKey(def.startKey, e.target.value)}
-                      aria-label={`${def.label} start`}
-                      className="h-9 text-[12.5px]"
+                      aria-label={`${def.label} — tanggal mulai`}
+                      aria-invalid={!vonis.sah || undefined}
+                      className="h-9 text-xs"
                     />
                     <Input
                       type="date"
                       value={end}
+                      min={start || undefined}
+                      max={hariIniWib()}
                       onChange={(e) => setKey(def.endKey, e.target.value)}
-                      aria-label={`${def.label} end`}
-                      className="h-9 text-[12.5px]"
+                      aria-label={`${def.label} — tanggal akhir`}
+                      aria-invalid={!vonis.sah || undefined}
+                      className="h-9 text-xs"
                     />
                   </div>
+                  {!vonis.sah && vonis.masalah && (
+                    <p role="alert" className="mt-1 text-xs text-destructive">
+                      {pesanRentang(vonis.masalah)}
+                    </p>
+                  )}
                 </div>
               )
             })}
@@ -159,10 +216,21 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
 
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
-              Cancel
+              Batal
             </Button>
-            <Button type="button" size="sm" onClick={apply}>
-              Apply
+            {/*
+              Tombol MATI saat rentangnya terbalik, bukan sekadar pesan di atas.
+              Pesan tanpa gerbang tetap mengizinkan permintaan yang hanya bisa
+              menjawab nol baris — dan di layar bukti kepatuhan, nol baris
+              terbaca "tidak ada jejaknya".
+            */}
+            <Button
+              type="button"
+              size="sm"
+              onClick={apply}
+              disabled={adaRentangTidakSah(defs, draft)}
+            >
+              Terapkan
             </Button>
           </div>
         </div>

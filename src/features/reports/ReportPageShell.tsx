@@ -4,13 +4,11 @@ import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import ReportFiltersToolbar, { type StatusOption } from './ReportFiltersToolbar'
+import ReportTabs from './ReportTabs'
 import type { ReportPageState } from './useReportPageState'
 
 interface Props {
   state: ReportPageState
-  eyebrow: string
-  title: string
-  italicAccent?: string
   subtitle?: ReactNode
   statusOptions: readonly StatusOption[]
   showUserPicker: boolean
@@ -20,9 +18,6 @@ interface Props {
 
 export default function ReportPageShell({
   state,
-  eyebrow,
-  title,
-  italicAccent,
   subtitle,
   statusOptions,
   showUserPicker,
@@ -33,10 +28,13 @@ export default function ReportPageShell({
 
   return (
     <div>
+      {/* § 4 P2-1 — empat entri sidebar Reporting jadi satu entri "Laporan";
+          perpindahan antar laporan turun ke tab ini. Rutenya tidak berubah. */}
       <PageHeader
-        eyebrow={eyebrow}
-        title={title}
-        italicAccent={italicAccent}
+        // Judul = nama menu "Laporan" (sama dengan sidebar + breadcrumb); nama
+        // laporannya ada di tab yang aktif. Tab DI BAWAH judul, seperti
+        // Transaksi (sapu bersih 11 Okt 2026).
+        title="Laporan"
         subtitle={subtitle}
         actions={
           <Button
@@ -52,10 +50,11 @@ export default function ReportPageShell({
             ) : (
               <Download className="mr-1.5 h-4 w-4" />
             )}
-            Export CSV
+            Unduh CSV
           </Button>
         }
       />
+      <ReportTabs />
 
       <ReportFiltersToolbar
         values={state.draft}
@@ -70,8 +69,8 @@ export default function ReportPageShell({
         {state.appliedFilter === null ? (
           <TableEmptyState
             mode="no-data"
-            title="Run a report to view data"
-            description="Pick a date range and click Process to populate the table."
+            title="Laporan belum dijalankan"
+            description="Pilih rentang tanggalnya lalu tekan Proses untuk mengisi tabel."
           />
         ) : (
           children

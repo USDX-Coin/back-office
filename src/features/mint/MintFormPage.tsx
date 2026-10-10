@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { canAccessRequestList, useAuth } from '@/lib/auth'
 import { toast } from 'sonner'
 import { getAddress } from 'viem'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -20,13 +19,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
+import { FormField, FormFooter, FormSection } from '@/components/FormLayout'
 import PageHeader from '@/components/PageHeader'
 import RateSnapshotCard from '@/components/RateSnapshotCard'
 import UserPicker from '@/components/UserPicker'
 import WalletPicker from '@/components/WalletPicker'
 import AmountWithCurrencyInput from '@/components/AmountWithCurrencyInput'
 import SafeQueueOccupiedBanner from '@/components/SafeQueueOccupiedBanner'
-import { ApiError } from '@/lib/apiFetch'
+import ErrorNotice from '@/components/ErrorNotice'
+import { toastError } from '@/lib/errorToast'
 import { parseSafeQueueOccupied } from '@/lib/safeQueueError'
 import { validateMintRequestForm } from '@/lib/validators'
 import type { AmountCurrency, PhaseOneUser } from '@/lib/types'
@@ -60,10 +61,14 @@ const EMPTY: FormState = {
 
 export default function MintFormPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  // STAFF tidak boleh membuka daftar OTC (403), jadi setelah kirim ia tetap di
+  // form yang sudah dikosongkan dan Batal kembali ke Ringkasan.
+  const listPath = canAccessRequestList(user) ? '/otc/mint' : null
   const create = useCreateMintRequest()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [apiError, setApiError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<unknown>(null)
   // USDX-84: dedicated state for 409 SAFE_QUEUE_OCCUPIED so the banner can
   // render with its structured `details` payload (safeType, blockingRequestId)
   // instead of being squashed into a flat error string.
@@ -166,10 +171,10 @@ export default function MintFormPage() {
         chain: form.chain,
         notes: form.notes.trim() || undefined,
       })
-      toast.success('Mint request submitted')
+      toast.success('Permintaan mint OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/mint')
+      if (listPath) navigate(listPath)
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a dedicated banner so the
       // operator sees the blocking request ID + Manual Sync shortcut. Form
@@ -180,102 +185,86 @@ export default function MintFormPage() {
         setQueueBlock(queueInfo)
         return
       }
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Submission failed'
-      setApiError(message)
-      toast.error(message)
+      // Kalimat manusia di depan; kode server tetap ada di "Detail teknis"
+      // (ErrorNotice / keterangan toast) — itu yang dikutip saat melapor.
+      setApiError(err)
+      toastError(err, 'Permintaan gagal dikirim. Periksa koneksi lalu coba lagi.')
     }
   }
 
   return (
     <div>
       <PageHeader
-        eyebrow="Operations"
-        title="Mint request"
-        italicAccent="propose to Safe"
-        subtitle="Submit a Phase-1 mint request. The request enters PENDING_APPROVAL and is auto-routed to the Staff or Manager Safe based on the IDR threshold."
+        title="Buat mint OTC"
+        subtitle="Ajukan mint OTC. Permintaannya masuk antrean tanda tangan Safe Staf atau Safe Manager, mengikuti nominalnya."
       />
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          <Card className="rounded-md shadow-none dark:border-0">
-            <CardHeader>
-              <CardTitle className="text-[15px] font-semibold tracking-tight">
-                New mint request
-              </CardTitle>
-            </CardHeader>
-            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Mint request form">
-              <CardContent className="space-y-5">
-                {queueBlock && (
-                  <SafeQueueOccupiedBanner
-                    safeType={queueBlock.safeType}
-                    blockingRequestId={queueBlock.blockingRequestId}
-                  />
-                )}
-                {apiError && (
-                  <div
-                    role="alert"
-                    className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-                  >
-                    {apiError}
-                  </div>
-                )}
+          <Card className="overflow-hidden rounded-lg">
+            <form onSubmit={handleSubmit} noValidate id="mint-request-form" aria-label="Form permintaan mint OTC">
+              {(queueBlock || apiError != null) && (
+                <div className="space-y-3 px-6 pt-6">
+                  {queueBlock && (
+                    <SafeQueueOccupiedBanner
+                      safeType={queueBlock.safeType}
+                      blockingRequestId={queueBlock.blockingRequestId}
+                    />
+                  )}
+                  {apiError != null && (
+                    <ErrorNotice error={apiError} fallback="Permintaan gagal dikirim. Periksa koneksi lalu coba lagi." />
+                  )}
+                </div>
+              )}
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="mintUserPicker">User</Label>
+              <FormSection
+                title="Nasabah & tujuan"
+                description="Token dicetak ke wallet milik nasabah yang sudah terverifikasi."
+              >
+                <FormField label="Nasabah" htmlFor="mintUserPicker" error={errors.userId}>
                   <UserPicker
                     id="mintUserPicker"
                     value={form.user}
                     onSelect={handleUserSelect}
-                    placeholder="Search by name or email…"
                     ariaInvalid={Boolean(errors.userId)}
                     ariaDescribedBy={errors.userId ? 'mintUserPicker-error' : undefined}
                   />
-                  <FieldError message={errors.userId} />
-                </div>
+                </FormField>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="mintChain">Chain</Label>
-                  <Select
-                    value={form.chain}
-                    onValueChange={handleChainChange}
-                  >
-                    <SelectTrigger id="mintChain" aria-invalid={Boolean(errors.chain)}>
-                      <SelectValue placeholder="Select chain" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CHAINS.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldError message={errors.chain} />
-                </div>
+                <div className="grid gap-x-4 gap-y-5 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+                  <FormField label="Jaringan" htmlFor="mintChain" error={errors.chain}>
+                    <Select value={form.chain} onValueChange={handleChainChange}>
+                      <SelectTrigger id="mintChain" aria-invalid={Boolean(errors.chain)}>
+                        <SelectValue placeholder="Pilih jaringan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHAINS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="mintWallet">User wallet address</Label>
-                  <WalletPicker
-                    id="mintWallet"
-                    wallets={walletsForChain}
-                    address={form.walletAddress}
-                    isOtherMode={form.walletIsOther}
-                    onPickExisting={handlePickExistingWallet}
-                    onPickOther={handlePickOther}
-                    onAddressChange={handleAddressChange}
-                    chainSelected={Boolean(form.chain) && Boolean(form.user)}
-                    ariaInvalid={Boolean(errors.userAddress)}
-                  />
-                  <FieldError message={errors.userAddress} />
+                  <FormField label="Alamat wallet nasabah" htmlFor="mintWallet" error={errors.userAddress}>
+                    <WalletPicker
+                      id="mintWallet"
+                      wallets={walletsForChain}
+                      address={form.walletAddress}
+                      isOtherMode={form.walletIsOther}
+                      onPickExisting={handlePickExistingWallet}
+                      onPickOther={handlePickOther}
+                      onAddressChange={handleAddressChange}
+                      chainSelected={Boolean(form.chain) && Boolean(form.user)}
+                      ariaInvalid={Boolean(errors.userAddress)}
+                    />
+                  </FormField>
                 </div>
+              </FormSection>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="mintAmount">Amount</Label>
+              <FormSection title="Nominal" description="Pilih mata uangnya di kanan isian.">
+                <FormField label="Nominal" htmlFor="mintAmount">
                   <AmountWithCurrencyInput
                     amountId="mintAmount"
                     currencyId="mintCurrency"
@@ -288,32 +277,38 @@ export default function MintFormPage() {
                   />
                   <FieldError message={errors.amount} />
                   <FieldError message={errors.amountCurrency} />
-                </div>
+                </FormField>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="mintNotes">Notes</Label>
+                <FormField
+                  label="Catatan"
+                  htmlFor="mintNotes"
+                  optional
+                  hint="Rekening pengirim, nomor referensi internal, dan sejenisnya."
+                >
                   <Textarea
                     id="mintNotes"
                     value={form.notes}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, notes: e.target.value }))
                     }
-                    placeholder="Sender bank account, internal reference, etc."
                     className="min-h-[80px]"
                   />
-                </div>
-              </CardContent>
-              <CardFooter>
+                </FormField>
+              </FormSection>
+
+              <FormFooter note="Permintaan masuk antrean tanda tangan Safe dan muncul di halaman OTC.">
+                <Button type="button" variant="outline" onClick={() => navigate(listPath ?? '/ringkasan')}>
+                  Batal
+                </Button>
                 <Button
                   type="submit"
                   form="mint-request-form"
                   disabled={create.isPending}
                   aria-busy={create.isPending}
-                  className="w-full"
                 >
-                  {create.isPending ? 'Submitting…' : 'Submit mint request'}
+                  {create.isPending ? 'Mengirim…' : 'Kirim permintaan mint OTC'}
                 </Button>
-              </CardFooter>
+              </FormFooter>
             </form>
           </Card>
         </div>
@@ -322,24 +317,24 @@ export default function MintFormPage() {
           <RateSnapshotCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
-              <CardTitle className="text-[14px] font-semibold tracking-tight">
-                What happens next
+              <CardTitle className="text-section">
+                Apa yang terjadi berikutnya
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-[12.5px] text-muted-foreground">
+            <CardContent className="space-y-3 text-xs text-muted-foreground">
               <p>
-                Backend computes IDR equivalent, picks the appropriate Safe by
-                threshold, generates an idempotency key, and proposes the
-                transaction.
+                Sistem menghitung nilai rupiahnya, memilih dompet Safe yang
+                sesuai berdasarkan batas nominal, lalu mengajukan transaksinya
+                ke antrean tanda tangan.
               </p>
               <p>
-                The request appears on the{' '}
-                <span className="font-medium text-foreground">Mint</span> list
-                immediately as <code>PENDING_APPROVAL</code>.
+                Permintaannya langsung muncul di halaman{' '}
+                <span className="font-medium text-foreground">OTC</span>, di kelompok{' '}
+                <span className="font-medium text-foreground">Perlu tindakan</span>, sampai tanda tangannya lengkap.
               </p>
               <p>
-                Manager Safe submissions (≥ 1 milyar IDR) require a Manager or
-                Admin role.
+                Pengajuan yang masuk ke dompet Safe Manager (≥ 1 miliar rupiah)
+                hanya boleh dilakukan peran Manager atau Admin.
               </p>
             </CardContent>
           </Card>

@@ -31,21 +31,21 @@ export default function ColumnsPopover({ columns, visibility, onChange }: Column
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-[12.5px]">
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-xs">
           <Columns3 className="h-3.5 w-3.5" />
-          <span>Columns</span>
+          <span>Kolom</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-56">
+      <PopoverContent align="start" collisionPadding={16} className="w-56">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold">Columns</p>
+            <p className="text-sm font-semibold">Kolom</p>
             <button
               type="button"
               onClick={reset}
-              className="text-[12px] text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Reset
+              Setel ulang
             </button>
           </div>
           <ul className="space-y-2">
@@ -61,7 +61,7 @@ export default function ColumnsPopover({ columns, visibility, onChange }: Column
                   />
                   <label
                     htmlFor={`col-${c.key}`}
-                    className="flex-1 cursor-pointer text-[13px]"
+                    className="flex-1 cursor-pointer text-sm"
                   >
                     {c.label}
                   </label>

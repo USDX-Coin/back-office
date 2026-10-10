@@ -57,19 +57,21 @@ export function addAmounts(a: string, b: string): string | null {
   return centsToAmount(left + right)
 }
 
-/** `"1250000.4"` → `"1,250,000.40"`. Grouping is done on the string, never via Number. */
+/** `"1250000.4"` → `"1.250.000,40"`. Grouping is done on the string, never via Number. */
 export function formatAmountDecimal(raw: string): string {
   const cents = parseAmountToCents(raw)
   if (cents === null) return raw
   const text = centsToAmount(cents)
   const negative = text.startsWith('-')
   const [whole = '0', fraction = '00'] = (negative ? text.slice(1) : text).split('.')
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${negative ? '-' : ''}${grouped}.${fraction}`
+  // Ejaan Indonesia (audit font 10 Okt 2026): titik ribuan, koma desimal —
+  // sama dengan seluruh angka lain di back-office.
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `${negative ? '-' : ''}${grouped},${fraction}`
 }
 
 /**
- * Display form of a ledger amount with its currency, e.g. `"100,667.41 USD"`.
+ * Display form of a ledger amount with its currency, e.g. `"100.667,41 USD"`.
  * An unparseable amount is shown verbatim next to the currency instead of being
  * silently turned into a number that is not what the backend sent.
  */
@@ -145,7 +147,7 @@ export function newIdempotencyKey(): string {
     ].join('-')
   }
   throw new Error(
-    'No cryptographic random source available to generate an idempotency key'
+    'Peramban ini tidak punya sumber acak kriptografis, jadi kode anti-dobel tidak bisa dibuat (crypto.randomUUID / crypto.getRandomValues tidak tersedia)'
   )
 }
 
@@ -203,6 +205,17 @@ export function activeAttestations(
 }
 
 /**
+ * Nama bulan Indonesia, ditulis tetap di sini alih-alih lewat
+ * `Intl.DateTimeFormat`: kolom Bulan / Tahun pada tabel dokumen publik dibaca
+ * operator sebagai label dokumen, jadi ejaannya tidak boleh ikut berubah
+ * mengikuti locale peramban atau kelengkapan ICU runtime.
+ */
+const MONTH_NAME_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
+
+/**
  * Splits a `YYYY-MM` period into month and year. Returns `null` for anything
  * that is not a valid period — the caller must not invent a fallback, because a
  * wrong month/year mislabels a published document.
@@ -214,14 +227,12 @@ export function getPeriodParts(period: string): { month: string; year: string } 
   const month = Number(match[2])
   if (month < 1 || month > 12) return null
   return {
-    month: new Intl.DateTimeFormat('en-US', { month: 'long' }).format(
-      new Date(year, month - 1, 1)
-    ),
+    month: MONTH_NAME_ID[month - 1] as string,
     year: String(year),
   }
 }
 
-/** "2026-07" → "July 2026"; returns the raw value when it is not a period. */
+/** "2026-07" → "Juli 2026"; returns the raw value when it is not a period. */
 export function formatPeriod(period: string): string {
   const parts = getPeriodParts(period)
   if (!parts) return period
@@ -230,8 +241,8 @@ export function formatPeriod(period: string): string {
 
 /** `"2026-07-23"` → `"23 Jul 2026"` without dragging the value through a Date. */
 const MONTH_ABBR = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ]
 
 export function formatOccurredAt(date: string): string {
@@ -240,4 +251,21 @@ export function formatOccurredAt(date: string): string {
   const month = Number(match[2])
   if (month < 1 || month > 12) return date
   return `${Number(match[3])} ${MONTH_ABBR[month - 1]} ${match[1]}`
+}
+
+/**
+ * Nama jenis entri buku cadangan yang dibaca operator (audit copy 8 Okt 2026:
+ * "SEED / ADJUSTMENT" tampil mentah). Nilai wire-nya tidak berubah. `BURN` dan
+ * `REDEEM` sama-sama "Redeem" — satu kosakata di layar.
+ */
+const LEDGER_ENTRY_TYPE_LABEL: Record<string, string> = {
+  SEED: 'Saldo awal',
+  ADJUSTMENT: 'Koreksi',
+  MINT: 'Mint',
+  BURN: 'Redeem',
+  REDEEM: 'Redeem',
+}
+
+export function ledgerEntryTypeLabel(type: string): string {
+  return LEDGER_ENTRY_TYPE_LABEL[type] ?? type
 }

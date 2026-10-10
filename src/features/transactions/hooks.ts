@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { isOrderTerminal } from '@/lib/status'
+import { buildTransactionsQuery, type TransactionsQuery } from '@/lib/backofficeTransactions'
 import type {
+  BackofficeTransactionItem,
+  BackofficeTransactionsMetadata,
   OrderDetail,
   OrderListItem,
   PhaseOnePaginatedResponse,
@@ -18,12 +21,6 @@ export interface OrderListFilters {
   type?: string
   /** Mint overall status (orders.yaml `status` = MintOrderStatus). MINT only. */
   status?: string
-  /**
-   * Redeem overall status (RedeemStatus). Sent only for type=REDEEM via a
-   * distinct `redeemStatus` param so a RedeemStatus value never travels through
-   * the mint `status` param (USDX-254; param lands in orders.yaml via USDX-253).
-   */
-  redeemStatus?: string
   paymentStatus?: string
   safeStatus?: string
   userId?: string
@@ -80,6 +77,26 @@ export function useOrderDetail(id: string | null) {
       const status = query.state.data?.data?.status
       return status && !isOrderTerminal(status) ? 20_000 : false
     },
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ─── Transaksi gabungan (⚠️ DRAF SOT PR #50, `backoffice-transactions.yaml`) ───
+// `GET /api/v1/transactions`. Tidak menulis `pii_access_audit` (list tanpa
+// rekening), jadi refetch saat fokus aman. Aksi memakai endpoint antrean asal;
+// hook mutasi antrean meng-invalidate `BACKOFFICE_TRANSACTIONS_KEY`.
+
+export const BACKOFFICE_TRANSACTIONS_KEY = ['backoffice-transactions'] as const
+
+export function useBackofficeTransactions(filters: TransactionsQuery) {
+  return useQuery({
+    queryKey: [...BACKOFFICE_TRANSACTIONS_KEY, filters],
+    queryFn: () =>
+      apiFetchRaw<{
+        status: 'success'
+        metadata: BackofficeTransactionsMetadata
+        data: BackofficeTransactionItem[]
+      }>(`/api/v1/transactions?${buildTransactionsQuery(filters)}`),
     refetchOnWindowFocus: true,
   })
 }

@@ -157,7 +157,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.message ?? response.statusText ?? 'Permintaan ke server gagal',
       err.error?.details
     )
   }
@@ -205,7 +205,7 @@ export async function apiFetchRaw<TEnvelope>(
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed',
+      err.error?.message ?? response.statusText ?? 'Permintaan ke server gagal',
       err.error?.details
     )
   }
@@ -269,7 +269,7 @@ export async function apiFetchBlob(
     throw new ApiError(
       response.status,
       err.error?.code ?? 'UNKNOWN',
-      err.error?.message ?? response.statusText ?? 'Request failed'
+      err.error?.message ?? response.statusText ?? 'Permintaan ke server gagal'
     )
   }
 

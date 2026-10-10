@@ -15,7 +15,7 @@ export const MANUAL_SYNC_FILTER_DEFS: FilterDef[] = [
   {
     kind: 'select',
     key: 'chain',
-    label: 'Chain',
+    label: 'Jaringan',
     options: [
       { value: 'ethereum', label: 'Ethereum' },
       { value: 'polygon', label: 'Polygon' },
@@ -26,12 +26,14 @@ export const MANUAL_SYNC_FILTER_DEFS: FilterDef[] = [
   {
     kind: 'select',
     key: 'type',
-    label: 'Type',
+    label: 'Jenis',
     options: [
-      { value: 'mint', label: 'Mint' },
-      { value: 'burn', label: 'Burn' },
+      { value: 'mint', label: 'Mint OTC' },
+      { value: 'burn', label: 'Burn OTC' },
       // USDX-208: consumer mint_orders extended into Manual Sync (Phase 2 W2).
-      { value: 'mint_order', label: 'Mint Order' },
+      // "Mint nasabah" = order mint dari aplikasi nasabah, bukan mint OTC yang
+      // diajukan operator — dua populasi yang tidak boleh terbaca sama.
+      { value: 'mint_order', label: 'Mint nasabah' },
     ],
   },
 ]
@@ -44,12 +46,14 @@ export const MANUAL_SYNC_SORT_COLUMNS: SortColumnDef[] = []
 // Column ids must match the `accessorKey` / `id` on the TanStack ColumnDef
 // in ManualSyncPage.
 export const MANUAL_SYNC_COLUMN_CONFIG: ColumnConfig[] = [
-  { key: 'id', label: 'Request ID', required: true },
-  { key: 'type', label: 'Type', required: true },
-  { key: 'chain', label: 'Chain' },
-  { key: 'user', label: 'Customer', required: true },
-  { key: 'safeType', label: 'Safe' },
-  { key: 'amount', label: 'Amount', required: true },
-  { key: 'safeTx', label: 'Safe tx' },
-  { key: 'actions', label: 'Action', required: true },
+  { key: 'id', label: 'ID request', required: true },
+  { key: 'type', label: 'Jenis', required: true },
+  // Ops fokus (PM Okt 2026): info on-chain disembunyikan bawaan, bisa
+  // dinyalakan lewat popover Kolom.
+  { key: 'chain', label: 'Jaringan', hiddenByDefault: true },
+  { key: 'user', label: 'Nasabah', required: true },
+  { key: 'safeType', label: 'Dompet' },
+  { key: 'amount', label: 'Nominal', required: true },
+  { key: 'safeTx', label: 'Antrean tanda tangan', hiddenByDefault: true },
+  { key: 'actions', label: 'Aksi', required: true },
 ]

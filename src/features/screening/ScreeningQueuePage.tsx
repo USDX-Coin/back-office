@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, ListChecks, ShieldAlert } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { SCREENING_COLUMN_CONFIG, SCREENING_FILTER_DEFS } from './filterDefs'
 import ScreeningDecisionModal from './ScreeningDecisionModal'
 import { useScreeningResults } from './hooks'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 10
 
@@ -51,14 +53,14 @@ function ScoreCell({ score }: { score: number | null }) {
   const text = formatScore(score)
   if (text === null) {
     return (
-      <span className="font-mono text-[12px] text-muted-foreground" title="Skor hanya kosong untuk LIST_UNAVAILABLE">
+      <span className="tabular-nums text-xs text-muted-foreground" title="Skor kosong kalau daftar sanksinya belum tersedia saat diperiksa">
         —
       </span>
     )
   }
   return (
     <div className="flex min-w-[84px] flex-col gap-1">
-      <span className="font-mono text-[12.5px] font-semibold tabular-nums">{text}</span>
+      <span className="text-xs font-semibold tabular-nums">{text}</span>
       <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-muted">
         <span
           className="block h-full rounded-full bg-destructive"
@@ -74,11 +76,10 @@ function OutcomeBadge({ outcome }: { outcome: ScreeningOutcome }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+        STATUS_CHIP_BASE,
         style.className,
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', style.dotClass)} />
       {SCREENING_OUTCOME_LABELS[outcome]}
     </span>
   )
@@ -95,6 +96,9 @@ export default function ScreeningQueuePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { id: activeId } = useParams<{ id?: string }>()
+  // Saringan & halaman ikut ke URL modal dan kembali saat ditutup (dulu hilang:
+  // membuka satu temuan dari "Semua jejak" mengembalikan antrean ke bawaan).
+  const { search: suffix } = useLocation()
 
   const params = useDataTableParams()
   // Default antrean = temuan yang masih menahan subjeknya. Itu pekerjaannya;
@@ -126,21 +130,25 @@ export default function ScreeningQueuePage() {
   const columns: ColumnDef<ScreeningResultItem>[] = [
     {
       id: 'score',
+      size: 104,
       header: 'Skor',
       cell: ({ row }) => <ScoreCell score={row.original.score} />,
     },
     {
       id: 'matchedName',
+      size: 208,
       header: 'Nama pada daftar',
       cell: ({ row }) => {
         const { matchedName, matchCount } = row.original
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{matchedName ?? '—'}</span>
+            <span className="truncate font-medium" title={matchedName ?? undefined}>
+              {matchedName ?? '—'}
+            </span>
             {matchCount !== null && matchCount > 1 && (
               // Lebih dari satu entri melewati ambang: layak ditinjau lebih
               // hati-hati, karena entri yang ditampilkan hanya salah satunya.
-              <span className="text-[11px] text-amber-700 dark:text-amber-400">
+              <span className="text-xs text-amber-700 dark:text-amber-400">
                 +{matchCount - 1} entri lain juga cocok
               </span>
             )}
@@ -150,10 +158,11 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'subject',
+      size: 176,
       header: 'Subjek',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="text-[12.5px]">
+          <span className="text-xs">
             {SCREENING_SUBJECT_TYPE_LABELS[row.original.subjectType]}
           </span>
           <RequestIdCell id={row.original.subjectId} />
@@ -162,17 +171,19 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'outcome',
+      size: 152,
       header: 'Hasil',
       cell: ({ row }) => <OutcomeBadge outcome={row.original.outcome} />,
     },
     {
       id: 'decision',
+      size: 176,
       header: 'Keputusan',
       cell: ({ row }) => {
         const decision = row.original.decision
         if (!decision) {
           return (
-            <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400">
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
               Menunggu keputusan
             </span>
           )
@@ -180,7 +191,7 @@ export default function ScreeningQueuePage() {
         return (
           <div className="flex min-w-0 flex-col">
             <OutcomeBadge outcome={decision.outcome} />
-            <span className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <span className="mt-0.5 truncate text-xs text-muted-foreground">
               {decision.decidedByName ?? 'Petugas dihapus'}
             </span>
           </div>
@@ -189,16 +200,20 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'list',
+      size: 144,
       header: 'Daftar',
       cell: ({ row }) => {
         const { listType, listPublishedAt } = row.original
         if (!listType) return <span className="text-muted-foreground">—</span>
         return (
           <div className="flex min-w-0 flex-col">
-            <span className="text-[12.5px]">{SANCTION_LIST_TYPE_SHORT[listType]}</span>
+            <span className="text-xs">{SANCTION_LIST_TYPE_SHORT[listType]}</span>
             {/* Menjawab "lolos pakai daftar terbitan tanggal berapa" — pertanyaan
                 pertama seorang pemeriksa, dan alasan tiap versi disimpan. */}
-            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            <span
+              className="truncate text-xs tabular-nums text-muted-foreground"
+              title={`Daftar terbit ${listPublishedAt ?? 'tidak tercatat'}`}
+            >
               terbit {listPublishedAt ?? '—'}
             </span>
           </div>
@@ -207,33 +222,36 @@ export default function ScreeningQueuePage() {
     },
     {
       id: 'trigger',
+      size: 144,
       header: 'Pemicu',
       cell: ({ row }) => (
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {SCREENING_TRIGGER_LABELS[row.original.trigger]}
         </span>
       ),
     },
     {
       id: 'createdAt',
+      size: 120,
       header: 'Diperiksa',
       cell: ({ row }) => (
-        <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatShortDate(row.original.createdAt)}
         </span>
       ),
     },
     {
       id: 'actions',
+      size: 104,
       header: '',
       cell: ({ row }) => (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            navigate(`/screening/${row.original.id}`)
+            navigate(`/screening/${row.original.id}${suffix}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka banding temuan ${row.original.matchedName ?? row.original.id}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -249,19 +267,16 @@ export default function ScreeningQueuePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Compliance"
-        title="Screening"
-        italicAccent="DTTOT & DPPSPM"
+        title="Daftar Sanksi"
         subtitle="Temuan pencocokan nasabah dengan daftar terduga teroris dan pendanaan proliferasi. Kecocokan menahan subjek — melepasnya adalah keputusan petugas, bukan mesin."
         actions={
           canManageSanctionLists(user) ? (
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[12px]"
               onClick={() => navigate('/screening/lists')}
             >
-              <ListChecks className="mr-1 h-3.5 w-3.5" />
+              <ListChecks className="mr-1.5 h-4 w-4" />
               Daftar sanksi
             </Button>
           ) : undefined
@@ -306,10 +321,10 @@ export default function ScreeningQueuePage() {
             mode="no-data"
             icon={<ShieldAlert className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} />}
             title="Tidak ada temuan yang menahan siapa pun"
-            description="Antrean kosong berarti tidak ada kecocokan yang menunggu keputusan. Pilih “Semua jejak pemeriksaan” untuk melihat riwayat pemeriksaan yang bersih — baris NO_MATCH adalah buktinya sudah diperiksa."
+            description="Antrean kosong berarti tidak ada kecocokan yang menunggu keputusan. Pilih “Semua jejak pemeriksaan” untuk melihat riwayat pemeriksaan yang bersih — hasil “Tidak cocok” adalah bukti nasabahnya sudah diperiksa."
           />
         }
-        onRowClick={(r) => navigate(`/screening/${r.id}`)}
+        onRowClick={(r) => navigate(`/screening/${r.id}${suffix}`)}
         rowAriaLabel={(r) => `Buka banding temuan ${r.matchedName ?? r.id}`}
       />
 
@@ -317,8 +332,9 @@ export default function ScreeningQueuePage() {
         resultId={activeId ?? null}
         open={Boolean(activeId)}
         onOpenChange={(o) => {
-          if (!o) navigate('/screening', { replace: true })
+          if (!o) navigate(`/screening${suffix}`, { replace: true })
         }}
+        nav={rowNav(rows, (r) => r.id, activeId, (id) => navigate(`/screening/${id}${suffix}`, { replace: true }))}
       />
     </div>
   )

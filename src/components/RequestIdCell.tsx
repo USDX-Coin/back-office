@@ -13,14 +13,14 @@ export function RequestIdCell({ id }: { id: string }) {
     e.stopPropagation()
     try {
       await navigator.clipboard.writeText(id)
-      toast.success('Request ID copied')
+      toast.success('ID request disalin')
     } catch {
-      toast.error('Copy failed')
+      toast.error('Gagal menyalin')
     }
   }
   return (
     <span
-      className="inline-flex items-center gap-1.5 font-mono text-[11px] tabular-nums text-muted-foreground"
+      className="inline-flex items-center gap-1.5 font-mono text-xs tabular-nums text-muted-foreground"
       title={id}
     >
       {shortHash(id, 8, 6)}
@@ -28,8 +28,8 @@ export function RequestIdCell({ id }: { id: string }) {
         type="button"
         onClick={handleCopy}
         className="text-muted-foreground/60 transition-colors hover:text-primary"
-        aria-label="Copy request ID"
-        title="Copy request ID"
+        aria-label="Salin ID request"
+        title="Salin ID request"
       >
         <Copy className="h-3 w-3" />
       </button>

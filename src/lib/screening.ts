@@ -65,6 +65,7 @@ export const SCREENING_SUBJECT_TYPE_LABELS: Record<ScreeningSubjectType, string>
   KYC: 'Nasabah perorangan',
   KYC_UBO: 'Pemilik manfaat (UBO)',
   KYB: 'Badan usaha',
+  PARTNER_CUSTOMER: 'Nasabah partner',
 }
 
 export const SCREENING_OUTCOME_LABELS: Record<ScreeningOutcome, string> = {
@@ -78,6 +79,7 @@ export const SCREENING_OUTCOME_LABELS: Record<ScreeningOutcome, string> = {
 export const SCREENING_TRIGGER_LABELS: Record<ScreeningTrigger, string> = {
   KYC_SUBMIT: 'Pengajuan KYC',
   KYB_SUBMIT: 'Pengajuan KYB',
+  PARTNER_CUSTOMER_SUBMIT: 'Pengajuan nasabah partner',
   RESCAN: 'Pemindaian ulang',
   BACKOFFICE_DECISION: 'Keputusan back office',
 }
@@ -260,18 +262,24 @@ export function scoreBarFraction(score: number | null | undefined): number {
  * kalimat yang menyebut SEBABNYA. Petugas yang sedang memegang berkas daftar
  * sanksi perlu tahu apakah masalahnya ada pada berkasnya atau pada kami —
  * `400 Bad Request` tidak menjawab keduanya.
+ *
+ * KODENYA IKUT DALAM KURUNG, mengikuti pola `unknownStatusLabel()` di
+ * `lib/status.ts`: kalimatnya untuk petugas, kodenya untuk tim teknis — dan
+ * kode itulah yang dikutip petugas saat melapor. Kalimat tanpa kode memaksa
+ * laporan ditulis ulang dengan kata-kata sendiri, dan yang menerimanya harus
+ * menebak balik kode mana yang dimaksud.
  */
 export const SCREENING_ERROR_MESSAGES: Record<string, string> = {
   SANCTION_LIST_NOT_DRAFT:
-    'Versi daftar ini sudah tidak berstatus DRAFT, jadi entrinya tidak bisa ditambah atau diaktifkan lagi. Buat versi baru untuk berkas yang lebih baru.',
+    'Versi daftar ini sudah tidak berstatus DRAFT, jadi entrinya tidak bisa ditambah atau diaktifkan lagi. Buat versi baru untuk berkas yang lebih baru. (SANCTION_LIST_NOT_DRAFT)',
   SANCTION_CSV_INVALID:
-    'Server menolak isi berkas: baris headernya tidak dikenali atau ada baris yang tidak terbaca.',
+    'Server menolak isi berkas: baris headernya tidak dikenali atau ada baris yang tidak terbaca. (SANCTION_CSV_INVALID)',
   SANCTION_LIST_EMPTY:
-    'Versi ini belum berisi satu entri pun. Mengaktifkannya berarti memeriksa nasabah terhadap daftar kosong lalu mencatatnya sebagai "lolos".',
+    'Versi ini belum berisi satu entri pun. Mengaktifkannya berarti memeriksa nasabah terhadap daftar kosong lalu mencatatnya sebagai "lolos". (SANCTION_LIST_EMPTY)',
   SANCTION_LIST_UNAVAILABLE:
-    'Belum ada satu pun versi daftar berstatus AKTIF, jadi tidak ada dasar untuk memeriksa. Aktifkan sebuah versi lebih dulu.',
+    'Belum ada satu pun versi daftar berstatus AKTIF, jadi tidak ada dasar untuk memeriksa. Aktifkan sebuah versi lebih dulu. (SANCTION_LIST_UNAVAILABLE)',
   SCREENING_RESULT_NOT_ACTIONABLE:
-    'Temuan ini bukan temuan yang menunggu keputusan — mungkin hasilnya bukan "berpotensi cocok", atau sudah diputuskan orang lain. Muat ulang antrean untuk melihat keadaan terkininya.',
+    'Temuan ini bukan temuan yang menunggu keputusan — mungkin hasilnya bukan "berpotensi cocok", atau sudah diputuskan orang lain. Muat ulang antrean untuk melihat keadaan terkininya. (SCREENING_RESULT_NOT_ACTIONABLE)',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

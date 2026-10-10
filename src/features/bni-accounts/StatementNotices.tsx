@@ -24,7 +24,7 @@ export default function StatementNotices({ historyText, gaps, currency }: Props)
     <div className="space-y-2">
       {historyText && (
         <p
-          className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[12.5px] text-foreground"
+          className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground"
           role="status"
           data-testid="bni-statement-history-notice"
         >
@@ -38,7 +38,7 @@ export default function StatementNotices({ historyText, gaps, currency }: Props)
             <li
               // A gap has no id; its bracketing points identify it within one response.
               key={`${gap.afterAt ?? ''}-${gap.beforeAt}-${i}`}
-              className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[12.5px] text-foreground"
+              className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground"
               data-testid="bni-statement-gap"
             >
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />

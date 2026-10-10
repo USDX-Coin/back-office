@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
-import { ApiError } from '@/lib/apiFetch'
+import { toastErrorMessage } from '@/lib/errorToast'
 import type { ReportFilter, ReportKind } from '@/lib/types'
 import type { ReportFilterDraft } from './ReportFiltersToolbar'
 import { defaultReportDateRange } from './dateRange'
@@ -47,11 +46,8 @@ export function useReportPageState(kind: ReportKind): ReportPageState {
     try {
       await exportCsv.mutateAsync(filter)
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : 'Unable to export CSV. Please try again.'
-      toast.error(message)
+      // Kalimat dari peta galat terpusat; kode server ikut sebagai "Detail teknis".
+      toastErrorMessage('CSV gagal diunduh. Coba lagi sebentar lagi.', err)
     }
   }
 
