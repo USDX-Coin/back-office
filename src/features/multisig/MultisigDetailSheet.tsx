@@ -240,7 +240,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-40 bg-black/80"
+            className="fixed inset-0 z-40 bg-[rgb(17_24_39/0.45)]"
             aria-hidden
             onClick={() => onOpenChange(false)}
           />,

@@ -40,7 +40,7 @@ import {
   isPepCandidateOccupation,
   labelFor,
 } from '@/lib/cdd'
-import { formatDate, shortHash } from '@/lib/format'
+import { formatCountryCode, formatDate, formatIsoDayLong, shortHash } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   KYC_REJECT_REASON_MAX,
@@ -59,7 +59,7 @@ import type {
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
-import { toastError } from '@/lib/errorToast'
+import { toastError, toastErrorMessage } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField } from '@/components/DataList'
 import { STATUS_CHIP_BASE } from '@/lib/statusChip'
@@ -162,7 +162,7 @@ function PiiField({
         <span className="text-muted-foreground">—</span>
       ) : (
         <span className="flex flex-wrap items-baseline gap-1.5">
-          <span className="break-all text-xs tabular-nums">{shown}</span>
+          <span className="break-all tabular-nums">{shown}</span>
           {withheld && (
             <span className="text-xs text-muted-foreground">
               {PII_WITHHELD_LABEL}
@@ -385,9 +385,8 @@ export default function KycDetailModal({
   function handleMutationError(err: unknown) {
     setConfirmApproveOpen(false)
     if (err instanceof ApiError && err.status === 409) {
-      toast.error(
-        `Berkas ini sudah diperiksa orang lain — data dimuat ulang (${err.code})`,
-      )
+      // Kode server di keterangan kecil (pola `toastErrorMessage`), bukan di kalimatnya.
+      toastErrorMessage('Berkas ini sudah diperiksa orang lain — data dimuat ulang.', err)
       setRejectOpen(false)
       detailQuery.refetch()
       qc.invalidateQueries({ queryKey: ['kyc', 'list'] })
@@ -541,7 +540,7 @@ export default function KycDetailModal({
                     <Field label="Jenis nasabah">{ENTITY_LABEL[detail.entityType]}</Field>
                     <Field label="Nama lengkap">{fullName}</Field>
                     <Field label="Tanggal lahir · tempat lahir" testId="kyc-dob">
-                      {detail.dob ?? '—'}
+                      {detail.dob ? formatIsoDayLong(detail.dob) : '—'}
                       {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
                     </Field>
                     <Field label="Jenis &amp; nomor identitas" testId="kyc-identity-number">
@@ -562,7 +561,11 @@ export default function KycDetailModal({
                       testId="kyc-alias-name"
                     />
                     <Field label="Kewarganegaraan" testId="kyc-nationality">
-                      {detail.nationality ?? <span className="text-muted-foreground">—</span>}
+                      {detail.nationality ? (
+                        formatCountryCode(detail.nationality)
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </Field>
                     <CddField
                       label="Jenis kelamin"
@@ -581,7 +584,7 @@ export default function KycDetailModal({
                       testId="kyc-mothers-maiden-name"
                     />
                     <Field label="Negara" testId="kyc-country">
-                      {detail.country ?? '—'}
+                      {detail.country ? formatCountryCode(detail.country) : '—'}
                     </Field>
                     <Field label="Alamat">
                       {detail.addressLine1 ?? '—'}
@@ -603,9 +606,7 @@ export default function KycDetailModal({
                       the reviewer back where this ticket started — deciding
                       without looking at what was collected. */}
                   <div className="space-y-2" data-testid="kyc-cdd">
-                    <p className="text-sm font-semibold text-muted-foreground">
-                      Uji tuntas nasabah (CDD)
-                    </p>
+                    <p className="text-section">Uji tuntas nasabah (CDD)</p>
                     {!hasCdd && (
                       <p className="text-xs text-muted-foreground">
                         Berkas ini tidak punya data CDD — usianya lebih tua daripada
@@ -637,7 +638,7 @@ export default function KycDetailModal({
                         (penghasilan & kekayaan), lalu "untuk apa" (tujuan
                         transaksi). Deretan datar memaksa ia menyusun ulang
                         pengelompokan itu di kepala tiap kali membuka berkas. */}
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="@container divide-y divide-border border-t border-border">
                       <CddField
                         label="Pekerjaan"
                         value={labelFor(detail.occupation, OCCUPATION_LABELS)}

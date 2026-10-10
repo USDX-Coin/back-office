@@ -133,7 +133,7 @@ describe('KycDetailModal @ USDX-155', () => {
       expect(within(dialog).getByText('Alice Anderson')).toBeInTheDocument()
       // Scoped: `employerAddress` (USDX-587) also names Jakarta, so an unscoped
       // `/Jakarta/` no longer proves the BIRTH PLACE is on screen.
-      expect(field(dialog, 'kyc-dob').getByText(/1995-03-15/)).toBeInTheDocument()
+      expect(field(dialog, 'kyc-dob').getByText(/15 Mar 1995/)).toBeInTheDocument()
       expect(field(dialog, 'kyc-dob').getByText(/Jakarta/)).toBeInTheDocument()
       expect(
         field(dialog, 'kyc-identity-number').getByText(/3171234567890123/),
@@ -141,7 +141,7 @@ describe('KycDetailModal @ USDX-155', () => {
       expect(within(dialog).getByText(/Jl\. Sudirman No\. 1/)).toBeInTheDocument()
       // Scoped: `nationality` (USDX-587) is also `ID`, so an unscoped lookup now
       // matches two fields and proves neither.
-      expect(field(dialog, 'kyc-country').getByText('ID')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-country').getByText('Indonesia (ID)')).toBeInTheDocument()
     })
 
     test('AC — KTP + selfie photos render from presigned URLs with expiry countdown', async () => {
@@ -760,7 +760,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
 
-      expect(field(dialog, 'kyc-nationality').getByText('ID')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-nationality').getByText('Indonesia (ID)')).toBeInTheDocument()
       expect(field(dialog, 'kyc-gender').getByText('Perempuan')).toBeInTheDocument()
       expect(field(dialog, 'kyc-marital-status').getByText('Kawin')).toBeInTheDocument()
       expect(field(dialog, 'kyc-alias-name').getByText(ALIAS)).toBeInTheDocument()
@@ -893,7 +893,7 @@ describe('KycDetailModal @ USDX-587 — Pasal 25 identity + Pasal 37 CDD', () =>
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/uji tuntas nasabah/i)
 
-      expect(field(dialog, 'kyc-nationality').getByText('ID')).toBeInTheDocument()
+      expect(field(dialog, 'kyc-nationality').getByText('Indonesia (ID)')).toBeInTheDocument()
       expect(field(dialog, 'kyc-gender').getByText('Perempuan')).toBeInTheDocument()
       expect(field(dialog, 'kyc-marital-status').getByText('Kawin')).toBeInTheDocument()
       expect(

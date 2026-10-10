@@ -1,5 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import {
+  formatIsoDayLong,
+  formatCountryCode,
   rateModeLabel,
   bniAccountTypeLabel,
   formatAmount,
@@ -477,5 +479,45 @@ describe('rateModeLabel', () => {
   })
   test('should return an unknown mode as-is', () => {
     expect(rateModeLabel('X')).toBe('X')
+  })
+})
+
+describe('formatIsoDayLong', () => {
+  describe('positive', () => {
+    test('should spell a calendar day the Indonesian way', () => {
+      expect(formatIsoDayLong('1994-01-25')).toBe('25 Jan 1994')
+      expect(formatIsoDayLong('2026-08-05')).toBe('5 Agu 2026')
+    })
+  })
+  describe('negative', () => {
+    test('should return anything that is not YYYY-MM-DD unchanged', () => {
+      expect(formatIsoDayLong('25/01/1994')).toBe('25/01/1994')
+    })
+  })
+  describe('edge cases', () => {
+    test('should not shift the day through a timezone', () => {
+      expect(formatIsoDayLong('2000-01-01')).toBe('1 Jan 2000')
+    })
+    test('should return an impossible month unchanged', () => {
+      expect(formatIsoDayLong('2000-13-01')).toBe('2000-13-01')
+    })
+  })
+})
+
+describe('formatCountryCode', () => {
+  describe('positive', () => {
+    test('should name the country and keep the code', () => {
+      expect(formatCountryCode('ID')).toBe('Indonesia (ID)')
+    })
+  })
+  describe('negative', () => {
+    test('should return a non alpha-2 value unchanged', () => {
+      expect(formatCountryCode('IDN')).toBe('IDN')
+    })
+  })
+  describe('edge cases', () => {
+    test('should accept lower case input', () => {
+      expect(formatCountryCode('sg')).toBe('Singapura (SG)')
+    })
   })
 })

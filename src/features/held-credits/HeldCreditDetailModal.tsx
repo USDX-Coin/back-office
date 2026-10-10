@@ -108,11 +108,12 @@ export default function HeldCreditDetailModal({ creditId, open, onOpenChange }: 
 
           <DialogFooter>
             {credit && !alreadyResolved && canResolve && (
-              <div className="mr-auto flex flex-wrap gap-2">
-                <Button onClick={() => setAction('PAID')}>Terima &amp; lekatkan ke order</Button>
+              // Pola footer modal detail: aksi di kanan, aksi utama paling kanan.
+              <div className="flex flex-wrap justify-end gap-2 sm:order-last">
                 <Button variant="destructive" onClick={() => setAction('FAILED')}>
                   Tolak kredit
                 </Button>
+                <Button onClick={() => setAction('PAID')}>Terima &amp; lekatkan ke order</Button>
               </div>
             )}
             {credit && !alreadyResolved && !canResolve && (

@@ -102,9 +102,10 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
     test('should offer all three actions on PAYOUT_FAILED to an ADMIN', async () => {
       const detail = await openDetail(IDS.failedRejected, 'stf_1')
       expect(within(detail).getAllByRole('button', { name: ACTION_BUTTONS }).map((b) => b.textContent)).toEqual([
-        'Kirim ulang',
-        'Tandai dibayar manual',
+        // Urutan footer: aksi utama (Kirim ulang) paling kanan.
         'Tutup tanpa pembayaran',
+        'Tandai dibayar manual',
+        'Kirim ulang',
       ])
     })
 
@@ -141,8 +142,8 @@ describe('ResolvePayoutFailureDialog @ USDX-662', () => {
     test('should not offer RESENT on BURN_REJECTED', async () => {
       const detail = await openDetail(IDS.burnRejected)
       expect(within(detail).getAllByRole('button', { name: ACTION_BUTTONS }).map((b) => b.textContent)).toEqual([
-        'Tandai dibayar manual',
         'Tutup tanpa pembayaran',
+        'Tandai dibayar manual',
       ])
     })
 

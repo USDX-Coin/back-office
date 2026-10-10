@@ -324,8 +324,12 @@ export default function PayoutFailureDetailModal({
           )}
         </DialogBody>
 
+        {/* Pola footer modal detail: Tutup lalu aksi, aksi utama (Kirim ulang) paling kanan. */}
         <DialogFooter>
-          {actions.map((action) => (
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Tutup
+          </Button>
+          {[...actions].reverse().map((action) => (
             <Button
               key={action}
               variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
@@ -334,9 +338,6 @@ export default function PayoutFailureDetailModal({
               {RESOLVE_ACTION_LABELS[action]}
             </Button>
           ))}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Tutup
-          </Button>
         </DialogFooter>
 
         {/* Dirender DI DALAM konten modal detail supaya Radix menumpuk keduanya sebagai

@@ -75,7 +75,7 @@ import {
   useUploadKybDocument,
   useUploadKybUboDocument,
 } from './hooks'
-import { toastError } from '@/lib/errorToast'
+import { toastError, toastErrorMessage } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
 import { STATUS_CHIP_BASE } from '@/lib/statusChip'
@@ -753,19 +753,19 @@ export default function KybDetailModal({
     const missing = parseKybDocumentsIncomplete(err)
     if (missing !== null) {
       setMissingDocuments(missing)
-      toast.error(
+      toastErrorMessage(
         missing.length > 0
           ? `Belum bisa disetujui — dokumen yang kurang: ${missing
               .map((slot) => KYB_DOCUMENT_SLOTS[slot])
-              .join(', ')} (KYB_DOCUMENTS_INCOMPLETE)`
-          : 'Belum bisa disetujui — ada dokumen wajib yang belum diunggah (KYB_DOCUMENTS_INCOMPLETE).',
+              .join(', ')}.`
+          : 'Belum bisa disetujui — ada dokumen wajib yang belum diunggah.',
+        err,
       )
       return
     }
     if (err instanceof ApiError && err.status === 409) {
-      toast.error(
-        `Berkas ini sudah diperiksa orang lain — data dimuat ulang (${err.code})`,
-      )
+      // Kode server di keterangan kecil (pola `toastErrorMessage`), bukan di kalimatnya.
+      toastErrorMessage('Berkas ini sudah diperiksa orang lain — data dimuat ulang.', err)
       setRejectOpen(false)
       detailQuery.refetch()
       return

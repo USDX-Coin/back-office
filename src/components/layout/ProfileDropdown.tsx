@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Avatar from '@/components/Avatar'
 import { useAuth } from '@/lib/auth'
+import { formatRole } from './navItems'
 
 export default function ProfileDropdown() {
   const { user, logout } = useAuth()
@@ -22,7 +23,8 @@ export default function ProfileDropdown() {
     navigate('/login', { replace: true })
   }
 
-  const roleLabel = user.role.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  // Peran sebagai kata (`Admin`, `Staf`), sama dengan Sidebar & Profil — bukan enum.
+  const roleLabel = formatRole(user.role)
 
   return (
     <DropdownMenu>

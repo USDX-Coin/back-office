@@ -318,6 +318,38 @@ export function formatIsoDayDmy(day: string | null | undefined): string | null {
   return `${d}/${mo}/${y}`
 }
 
+const ID_SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+/**
+ * Tanggal kalender `YYYY-MM-DD` (mis. tanggal lahir) → `25 Jan 1994`, ejaan
+ * yang sama dengan kolom tanggal lain. Tanpa `Date`: tanggal tanpa jam yang
+ * di-parse akan bergeser ke zona peramban. Bentuk lain dikembalikan APA ADANYA.
+ */
+export function formatIsoDayLong(day: string): string {
+  const m = ISO_DAY.exec(day)
+  if (!m) return day
+  const [, y, mo, d] = m
+  const month = ID_SHORT_MONTH[Number(mo) - 1]
+  return month ? `${Number(d)} ${month} ${y}` : day
+}
+
+/**
+ * Kode negara ISO alpha-2 (`ID`) → `Indonesia (ID)`. Kodenya tetap ditulis
+ * (itu yang tersimpan dan yang dicocokkan dengan sistem lain); kode yang tidak
+ * dikenal peramban dikembalikan apa adanya.
+ */
+export function formatCountryCode(code: string): string {
+  const c = code.trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return code
+  let name: string | undefined
+  try {
+    name = new Intl.DisplayNames(['id'], { type: 'region' }).of(c)
+  } catch {
+    name = undefined
+  }
+  return name && name !== c ? `${name} (${c})` : code
+}
+
 const BNI_ACCOUNT_TYPE_LABEL: Record<string, string> = { G: 'Giro', S: 'Tabungan', T: 'Deposito' }
 
 /**

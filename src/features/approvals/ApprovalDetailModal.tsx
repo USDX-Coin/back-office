@@ -360,15 +360,16 @@ function DecideFooter({
     )
   }
   return (
-    <div className="mr-auto flex flex-wrap gap-2">
+    // Pola footer modal detail: aksi di kanan, aksi utama paling kanan, Tutup di kirinya.
+    <div className="flex flex-wrap justify-end gap-2 sm:order-last">
+      <Button variant="destructive" onClick={() => onDecide('REJECT')}>
+        Tolak
+      </Button>
       <Button
         onClick={() => onDecide('APPROVE')}
         disabled={staffId === null || staffId === approval.proposerStaffId}
       >
         Setujui
-      </Button>
-      <Button variant="destructive" onClick={() => onDecide('REJECT')}>
-        Tolak
       </Button>
     </div>
   )
