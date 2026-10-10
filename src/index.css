@@ -312,6 +312,16 @@ h1, h2, h3, h4, h5, h6 {
  * per halaman. Aturan di bawah adalah jaring pengaman untuk pemanggil yang
  * masih menyisipkan `ring-offset-*` lewat className.
  * ──────────────────────────────────────────────────────────────────────── */
+/* Tailwind v4 memakai currentColor untuk `border` tanpa warna, jadi garis
+ * `border-t` polos tampil hitam. Samakan dengan token garis (pola shadcn). */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-border);
+  }
+}
+
 *,
 *::before,
 *::after {
