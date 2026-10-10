@@ -85,51 +85,96 @@ const INCOMING: BackofficeTransactionItem = {
   actions: [{ actionType: 'HELD_CREDIT', queue: 'HELD_CREDITS', refId: '019e5d03-3333-7000-8000-00000000cccc', since: '2026-10-07T01:00:00Z', heldReason: 'NO_MATCHING_ORDER' }],
 }
 
+/** `needsAction=true` → baris perlu tindakan; tanpa saringan → semuanya (perlu tindakan dulu). */
 function stubList(actionRows: BackofficeTransactionItem[], historyRows: BackofficeTransactionItem[], urls: URL[] = []) {
   server.use(
     http.get('/api/v1/transactions', ({ request }) => {
       const url = new URL(request.url)
       urls.push(url)
-      return url.searchParams.get('needsAction') === 'true' ? ok(actionRows) : ok(historyRows)
+      return url.searchParams.get('needsAction') === 'true'
+        ? ok(actionRows)
+        : ok([...actionRows, ...historyRows], actionRows.length)
     }),
   )
 }
 
+async function openRow(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  await user.click(await screen.findByRole('button', { name }))
+  return screen.findByTestId('transaction-modal')
+}
+
 describe('TransactionsPage (SOT PR #50)', () => {
   describe('positive', () => {
-    test('should list rows needing action on top, then the rest, with no bank account anywhere', async () => {
-      stubList([INCOMING, REDEEM_ACTION], [MINT_DONE])
+    test('should default to the "Perlu tindakan" tab with its count, and never show a bank account', async () => {
+      const urls: URL[] = []
+      stubList([INCOMING, REDEEM_ACTION], [MINT_DONE], urls)
       renderPage()
-      const action = await screen.findByRole('button', { name: /^Buka Uang masuk ANDI WIJAYA/ })
-      const done = await screen.findByRole('button', { name: /^Buka Mint Sari Dewi/ })
-      // DOCUMENT_POSITION_FOLLOWING = 4: baris riwayat SETELAH baris perlu tindakan.
-      expect(action.compareDocumentPosition(done) & 4).toBeTruthy()
+      expect(await screen.findByRole('button', { name: /^Buka Uang masuk ANDI WIJAYA/ })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Buka Mint Sari Dewi/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Perlu tindakan (2)' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.getByText('Perlu persetujuan pencairan')).toBeInTheDocument()
       expect(screen.getByText('Uang masuk tertahan')).toBeInTheDocument()
-      // Partner column carries the code; retail stays empty.
-      expect(screen.getByText('ACME')).toBeInTheDocument()
+      // Referensi pendek = nomor order.
+      expect(screen.getByText('RDM-20261008-0001')).toBeInTheDocument()
+      expect(urls.every((u) => u.searchParams.get('needsAction') === 'true')).toBe(true)
     })
 
-    test('should open the right panel with the queue action as its primary button', async () => {
+    test('should list everything on the "Semua" tab, rows needing action first', async () => {
+      const user = userEvent.setup()
+      const urls: URL[] = []
+      stubList([INCOMING, REDEEM_ACTION], [MINT_DONE], urls)
+      renderPage()
+      await user.click(await screen.findByRole('tab', { name: 'Semua' }))
+      const done = await screen.findByRole('button', { name: /^Buka Mint Sari Dewi/ })
+      const action = screen.getByRole('button', { name: /^Buka Uang masuk ANDI WIJAYA/ })
+      // DOCUMENT_POSITION_FOLLOWING = 4: baris selesai SETELAH baris perlu tindakan.
+      expect(action.compareDocumentPosition(done) & 4).toBeTruthy()
+      expect(urls.at(-1)!.searchParams.has('needsAction')).toBe(false)
+      // Tab perlu tindakan tetap membawa angkanya (metadata.needsActionTotal).
+      expect(screen.getByRole('tab', { name: 'Perlu tindakan (2)' })).toBeInTheDocument()
+    })
+
+    test('should open a centered modal with the queue action in its footer', async () => {
       const user = userEvent.setup()
       stubList([REDEEM_ACTION], [])
       renderPage()
-      await user.click(await screen.findByRole('button', { name: /^Buka Redeem Budi Santoso/ }))
-      const panel = await screen.findByRole('region', { name: 'Detail transaksi' })
-      expect(within(panel).getByTestId('panel-todo')).toHaveTextContent(/cocokkan rekening tujuan/i)
-      expect(within(panel).getByRole('button', { name: 'Setujui pencairan' })).toBeEnabled()
-      expect(within(panel).getByRole('link', { name: 'Buka di antrean' })).toHaveAttribute('href', '/redeem-approvals')
+      const modal = await openRow(user, /^Buka Redeem Budi Santoso/)
+      expect(within(modal).getByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
+      expect(within(modal).getByTestId('record-todo')).toHaveTextContent(/cocokkan rekening tujuan/i)
+      expect(within(modal).getByRole('button', { name: 'Setujui pencairan' })).toBeEnabled()
+      expect(within(modal).getByRole('button', { name: 'Tolak pencairan' })).toBeEnabled()
+      expect(within(modal).getByRole('link', { name: 'Buka di antrean' })).toHaveAttribute('href', '/redeem-approvals')
+    })
+
+    test('should move to the next / previous row with the buttons and the arrow keys', async () => {
+      const user = userEvent.setup()
+      stubList([INCOMING, REDEEM_ACTION], [])
+      renderPage()
+      const modal = await openRow(user, /^Buka Uang masuk ANDI WIJAYA/)
+      expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent('1 dari 2')
+      expect(within(modal).getByRole('button', { name: 'Sebelumnya' })).toBeDisabled()
+      await user.click(within(modal).getByRole('button', { name: 'Berikutnya' }))
+      expect(await within(modal).findByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
+      expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent('2 dari 2')
+      await user.keyboard('{ArrowUp}')
+      expect(await within(modal).findByRole('heading', { name: 'ANDI WIJAYA' })).toBeInTheDocument()
+    })
+
+    test('should open the modal straight from a deep link', async () => {
+      stubList([REDEEM_ACTION], [])
+      renderPage(`/transactions/${REDEEM_ACTION.id}`)
+      const modal = await screen.findByTestId('transaction-modal')
+      expect(within(modal).getByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
     })
 
     test('should send kind + needsAction + q to the contract endpoint', async () => {
       const urls: URL[] = []
       stubList([], [], urls)
       renderPage('/transactions?jenis=REDEEM&q=budi')
-      await waitFor(() => expect(urls.length).toBeGreaterThanOrEqual(2))
+      await waitFor(() => expect(urls.length).toBeGreaterThanOrEqual(1))
       const actionUrl = urls.find((u) => u.searchParams.get('needsAction') === 'true')!
       expect(actionUrl.searchParams.getAll('kind')).toEqual(['REDEEM'])
       expect(actionUrl.searchParams.get('q')).toBe('budi')
-      expect(urls.some((u) => u.searchParams.get('needsAction') === 'false')).toBe(true)
     })
   })
 
@@ -138,11 +183,9 @@ describe('TransactionsPage (SOT PR #50)', () => {
       const user = userEvent.setup()
       stubList([REDEEM_ACTION], [])
       renderPage('/transactions', 'sking@usdx.io')
-      await user.click(await screen.findByRole('button', { name: /^Buka Redeem Budi Santoso/ }))
-      const panel = await screen.findByRole('region', { name: 'Detail transaksi' })
-      const btn = within(panel).getByRole('button', { name: 'Setujui pencairan' })
-      expect(btn).toBeDisabled()
-      expect(within(panel).getByText(/hanya manager atau admin/i)).toBeInTheDocument()
+      const modal = await openRow(user, /^Buka Redeem Budi Santoso/)
+      expect(within(modal).getByRole('button', { name: 'Setujui pencairan' })).toBeDisabled()
+      expect(within(modal).getByText(/hanya manager atau admin/i)).toBeInTheDocument()
     })
 
     test('should show an error state with retry when the list fails', async () => {
@@ -153,6 +196,13 @@ describe('TransactionsPage (SOT PR #50)', () => {
       )
       renderPage()
       expect((await screen.findAllByText(/gagal dimuat/i)).length).toBeGreaterThan(0)
+    })
+
+    test('a deep link to a row that is not in the list says so instead of guessing', async () => {
+      stubList([REDEEM_ACTION], [])
+      renderPage('/transactions/tidak-ada')
+      const modal = await screen.findByTestId('transaction-modal').catch(() => screen.findByRole('dialog'))
+      expect((await within(modal).findAllByText(/tidak ada di daftar/i)).length).toBeGreaterThan(0)
     })
   })
 
@@ -169,10 +219,9 @@ describe('TransactionsPage (SOT PR #50)', () => {
       }
       stubList([stuck], [])
       renderPage()
-      await user.click(await screen.findByRole('button', { name: /^Buka Redeem Rina/ }))
-      const panel = await screen.findByRole('region', { name: 'Detail transaksi' })
-      expect(within(panel).getByTestId('panel-todo')).toHaveTextContent(/dipantau/i)
-      expect(within(panel).queryByRole('button', { name: /kirim ulang/i })).not.toBeInTheDocument()
+      const modal = await openRow(user, /^Buka Redeem Rina/)
+      expect(within(modal).getByTestId('record-todo')).toHaveTextContent(/dipantau/i)
+      expect(within(modal).queryByRole('button', { name: /kirim ulang/i })).not.toBeInTheDocument()
     })
 
     test('an unknown actionType renders its raw value and no action button', async () => {
@@ -186,24 +235,23 @@ describe('TransactionsPage (SOT PR #50)', () => {
       }
       stubList([odd], [])
       renderPage()
-      await user.click(await screen.findByRole('button', { name: /^Buka Redeem Odd/ }))
-      const panel = await screen.findByRole('region', { name: 'Detail transaksi' })
-      expect(within(panel).getAllByText('SECOND_PERSON').length).toBeGreaterThan(0)
-      expect(within(panel).queryByRole('button', { name: /setujui|kirim ulang|terima/i })).not.toBeInTheDocument()
+      const modal = await openRow(user, /^Buka Redeem Odd/)
+      expect(within(modal).getAllByText('SECOND_PERSON').length).toBeGreaterThan(0)
+      expect(within(modal).queryByRole('button', { name: /setujui|kirim ulang|terima/i })).not.toBeInTheDocument()
     })
 
-    test('default MSW mock: approving from the panel removes the row from "perlu tindakan"', async () => {
+    test('default MSW mock: approving from the modal removes the row from "Perlu tindakan"', async () => {
       const user = userEvent.setup()
       renderPage('/transactions?tindakan=REDEEM_APPROVAL')
       const rows = await screen.findAllByRole('button', { name: /^Buka Redeem/ })
       const before = rows.length
       await user.click(rows[0]!)
-      const panel = await screen.findByRole('region', { name: 'Detail transaksi' })
-      await user.click(within(panel).getByRole('button', { name: 'Setujui pencairan' }))
+      const modal = await screen.findByTestId('transaction-modal')
+      await user.click(within(modal).getByRole('button', { name: 'Setujui pencairan' }))
       const dialog = await screen.findByRole('dialog', { name: /setujui pencairan/i })
       await user.click(within(dialog).getByRole('button', { name: /setujui pencairan/i }))
       await waitFor(() =>
-        expect(screen.queryAllByRole('button', { name: /^Buka Redeem/ }).length).toBe(before - 1),
+        expect(screen.queryAllByRole('button', { name: /^Buka Redeem/, hidden: true }).length).toBe(before - 1),
       )
     })
   })

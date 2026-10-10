@@ -32,6 +32,8 @@ export interface RowGroup<T> {
   /** Kalimat tambahan di bawah baris kelompok (mis. "100 terlama ditampilkan"). */
   note?: ReactNode
   pagination?: { page: number; pageCount: number; onPage: (p: number) => void }
+  /** Tanpa baris judul kelompok — tabel satu kelompok di bawah tab (Transaksi, OTC). */
+  hideLabel?: boolean
 }
 
 interface GroupedTableProps<T> {
@@ -91,6 +93,7 @@ export default function GroupedTable<T>({
           const count = g.total ?? g.rows.length
           return (
             <TableBody key={g.key} data-group={g.key}>
+              {!g.hideLabel && (
               <TableRow className="hover:bg-transparent" data-group-row="">
                 <TableCell
                   colSpan={colSpan}
@@ -104,6 +107,7 @@ export default function GroupedTable<T>({
                   {g.note && <span className="ml-2 font-normal text-muted-foreground">{g.note}</span>}
                 </TableCell>
               </TableRow>
+              )}
               {g.isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={`sk-${i}`} className="h-baris-tabel">
