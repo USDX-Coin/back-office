@@ -95,7 +95,8 @@ describe('MintModePage @integration', () => {
       expect(await screen.findByLabelText(/mode mint aktif/i)).toHaveTextContent(/mode uji/i)
       expect(screen.getByText(/uji bayar produksi bersama durianpay/i)).toBeInTheDocument()
       expect(screen.getByText('Linda Chen')).toBeInTheDocument()
-      expect(screen.getByLabelText(/mode uji berakhir/i)).toHaveTextContent(/WIB/)
+      expect(screen.getByLabelText(/mode uji berakhir/i)).toHaveTextContent(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/)
+      expect(screen.getByText('Berakhir (WIB)')).toBeInTheDocument()
     })
 
     test('mode PROD → kartu berkata PROD dan waktu berakhir kosong, bukan tanggal palsu', async () => {

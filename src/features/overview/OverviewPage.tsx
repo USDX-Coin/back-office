@@ -231,7 +231,7 @@ function BniCard() {
       description={
         balances.data && !balances.error ? (
           <>
-            Ditarik <span className="tabular-nums" data-testid="ringkasan-bni-ditarik">{formatDateTime(balances.data.pulledAt)}</span>
+            Ditarik (WIB) <span className="tabular-nums" data-testid="ringkasan-bni-ditarik">{formatDateTime(balances.data.pulledAt)}</span>
           </>
         ) : (
           'Saldo langsung dari bank, hanya saat kamu memintanya.'

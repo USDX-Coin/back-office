@@ -93,9 +93,8 @@ export default function DurianpayApiCallsPage() {
     {
       id: 'requestedAt',
       header: 'Waktu (WIB)',
-      // `2026-09-12 08:00:37 WIB` butuh ±152px. Tanpa `size` kolomnya dapat
-      // 120px bawaan dan yang terpotong justru akhiran WIB-nya — di kolom yang
-      // judulnya sendiri menjanjikan zona itu.
+      // `12 Sep 2026, 08:00:37` butuh ±140px; tanpa `size` kolomnya dapat
+      // 120px bawaan dan detiknya terpotong. "WIB" cukup di judul kolom.
       size: 192,
       cell: ({ row }) => (
         <TableCellText

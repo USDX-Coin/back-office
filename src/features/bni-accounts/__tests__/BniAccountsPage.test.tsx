@@ -155,8 +155,11 @@ describe('BniAccountsPage — balance cards (F1, AE3, AE4)', () => {
       const idr = within(screen.getByTestId('bni-balance-card-COLLECTION'))
       expect(idr.getByText('Rp 602.749.000,00')).toBeInTheDocument()
 
-      expect(screen.getByTestId('bni-inquired-at-bank').textContent).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
-      expect(screen.getByTestId('bni-pulled-at').textContent).toMatch(/WIB$/)
+      // Format waktu seragam (PM Okt 2026): `12 Sep 2026, 08:00[:09]`, "WIB"
+      // sekali di label, tidak ditempel di nilainya.
+      expect(screen.getByTestId('bni-inquired-at-bank').textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/)
+      expect(screen.getByTestId('bni-pulled-at').textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/)
+      expect(screen.getByText(/Waktu \(WIB\)/)).toBeInTheDocument()
       probe.stop()
     })
 

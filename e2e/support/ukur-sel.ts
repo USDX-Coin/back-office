@@ -190,8 +190,8 @@ const POLA_ANGKA = /^\d[\d.,]{2,}$/
 /** `2026-09-12 08:00:37 WIB`, `2026-09-12 08:00`, `2026-09-12`. */
 const POLA_STEMPEL_WAKTU = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?( WIB)?$/
 
-/** `12 Sep 2026`, `12 Sep 2026, 08.00` — ejaan `id-ID`. */
-const POLA_TANGGAL_ID = /^\d{1,2} [A-Za-z]{3,4}\.? \d{4}(,? \d{2}[.:]\d{2})?$/
+/** `12 Sep 2026`, `12 Sep 2026, 08:00:09` — format waktu seragam (`formatDateTime`). */
+const POLA_TANGGAL_ID = /^\d{1,2} [A-Za-z]{3,4}\.? \d{4}(,? \d{2}[.:]\d{2}([.:]\d{2})?)?$/
 
 export type JenisNilai = 'uang' | 'rekening' | 'waktu' | null
 

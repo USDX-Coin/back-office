@@ -384,13 +384,13 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
             {detail.lateBurn ? 'Ya' : 'Tidak'}
           </DataField>
           <DataField label="Penyedia pencairan">{detail.payoutProvider ? providerLabel(detail.payoutProvider) : <Dim />}</DataField>
-          <DataField label="Waktu pembakaran">
+          <DataField label="Waktu pembakaran (WIB)">
             {time(detail.burnedAt)}
           </DataField>
-          <DataField label="Waktu rupiah terkirim">
+          <DataField label="Waktu rupiah terkirim (WIB)">
             {time(detail.payoutCompletedAt)}
           </DataField>
-          <DataField label="Kedaluwarsa pada">{time(detail.expiresAt)}</DataField>
+          <DataField label="Kedaluwarsa pada (WIB)">{time(detail.expiresAt)}</DataField>
         </DataSection>
       ) : (
         <DataSection title="Pembayaran & status">
@@ -412,10 +412,10 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
             <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
           </DataField>
           <DataField label="Penyedia pembayaran">{detail.paymentProvider ? providerLabel(detail.paymentProvider) : <Dim />}</DataField>
-          <DataField label="Waktu dibayar">
+          <DataField label="Waktu dibayar (WIB)">
             {time(detail.paidAt)}
           </DataField>
-          <DataField label="Kedaluwarsa pada">{time(detail.expiresAt)}</DataField>
+          <DataField label="Kedaluwarsa pada (WIB)">{time(detail.expiresAt)}</DataField>
         </DataSection>
       )}
 

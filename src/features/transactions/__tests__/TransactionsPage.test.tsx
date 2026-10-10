@@ -378,15 +378,16 @@ describe('TransactionDetailModal — seksi Rincian order', () => {
       expect(within(modal).queryByRole('button', { name: /rincian order/i })).not.toBeInTheDocument()
     })
 
-    test('should show times in the table format (Inter, tabular), not the ISO-like WIB stamp', async () => {
+    test('should show times in the uniform format (Inter, tabular), not the ISO-like WIB stamp', async () => {
       const user = userEvent.setup()
       stubList([REDEEM_ACTION], [])
       renderPage()
       const modal = await openRow(user, /^Buka Redeem Budi Santoso/)
       expect(within(modal).queryByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} WIB/)).not.toBeInTheDocument()
-      const created = within(modal).getByText('Dibuat').nextElementSibling!
+      const created = within(modal).getByText('Dibuat (WIB)').nextElementSibling!
       expect(created.querySelector('.tabular-nums')).not.toBeNull()
       expect(created.querySelector('.font-mono')).toBeNull()
+      expect(created.textContent).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/)
     })
   })
 })

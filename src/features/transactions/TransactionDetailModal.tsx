@@ -157,7 +157,7 @@ export default function TransactionDetailModal({
               <span className="font-mono text-xs text-muted-foreground">{row.orderNumber}</span>
             </DataField>
           )}
-          <DataField label={isIncoming ? 'Masuk' : 'Dibuat'}>
+          <DataField label={isIncoming ? 'Masuk (WIB)' : 'Dibuat (WIB)'}>
             <span className="tabular-nums">{formatDateTime(row.occurredAt)}</span>
           </DataField>
         </DataSection>

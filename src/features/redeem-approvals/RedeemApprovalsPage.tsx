@@ -193,8 +193,7 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'burnedAt',
-      // `formatDateTime` mencetak "2026-09-12 08:00:00 WIB" — 23 kolom mono
-      // 11px ≈ 152px. Dengan 120px bawaan yang terpotong justru DETIKNYA, yaitu
+      // `formatDateTime` mencetak "12 Sep 2026, 08:00:00" (±140px). Dengan 120px bawaan yang terpotong justru DETIKNYA, yaitu
       // bagian yang dicocokkan ops dengan bukti on-chain. 192px adalah lebar
       // yang sudah dipakai layar Jejak Audit dan Mint Bermasalah untuk format
       // yang sama persis.

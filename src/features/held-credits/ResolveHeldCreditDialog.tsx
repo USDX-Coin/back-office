@@ -268,7 +268,7 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
                   className="mt-1.5"
                   placeholder={
                     action === 'PAID'
-                      ? 'Mis. dicocokkan dengan rekening koran BNI 09.15, nama pengirim sama dengan pemilik order'
+                      ? 'Mis. dicocokkan dengan rekening koran BNI 09:15, nama pengirim sama dengan pemilik order'
                       : 'Mis. pengirim bukan nasabah USDX, dana dikembalikan lewat treasury'
                   }
                 />

@@ -49,7 +49,7 @@ describe('DurianpayApiCallsPage', () => {
       await screen.findAllByText('Buat nomor VA untuk nasabah')
       const row = rowFor(container, 'MNT7K2X9QP')
       // kapan
-      expect(within(row).getByText(/2026-09-18 09:00:00 WIB/)).toBeInTheDocument()
+      expect(within(row).getByText('18 Sep 2026, 09:00:00')).toBeInTheDocument()
       // ke mana — kalimat manusia DI ATAS path mentahnya, bukan sebagai gantinya
       expect(within(row).getByText('Buat nomor VA untuk nasabah')).toBeInTheDocument()
       expect(

@@ -93,7 +93,8 @@ describe('OverviewPage (Ringkasan)', () => {
       expect(calls.some((c) => c.startsWith('/api/v1/bni-accounts/balances'))).toBe(false)
 
       await user.click(within(card).getByTestId('ringkasan-cek-saldo'))
-      expect(await within(card).findByTestId('ringkasan-bni-ditarik')).toHaveTextContent(/WIB$/)
+      expect(await within(card).findByTestId('ringkasan-bni-ditarik')).toHaveTextContent(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2}$/)
+      expect(within(card).getByText(/Ditarik \(WIB\)/)).toBeInTheDocument()
       expect(calls.filter((c) => c.startsWith('/api/v1/bni-accounts/balances'))).toHaveLength(1)
       expect(within(card).getByRole('button', { name: /cek ulang/i })).toBeInTheDocument()
     })
