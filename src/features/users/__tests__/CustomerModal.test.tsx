@@ -1,11 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router'
+import { Route, Routes, useLocation } from 'react-router'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
-import CustomerPanel from '@/features/users/CustomerPanel'
+import CustomerModal from '@/features/users/CustomerModal'
+import UsersPage from '@/features/users/UsersPage'
 import { labelNasabah } from '@/features/users/labelNasabah'
 import { customerSummary } from '@/lib/customerSummary'
 import { renderWithProviders } from '@/test/test-utils'
@@ -40,7 +41,20 @@ function buatNasabah(over: Partial<PhaseOneUser> = {}): PhaseOneUser {
 function render(user: PhaseOneUser, { canManage = true, onClose = vi.fn(), onEdit = vi.fn() } = {}) {
   renderWithProviders(
     <Routes>
-      <Route path="/users" element={<CustomerPanel user={user} canManage={canManage} onClose={onClose} onEdit={onEdit} />} />
+      <Route
+        path="/users"
+        element={
+          <CustomerModal
+            user={user}
+            missingId={user.id}
+            loading={false}
+            canManage={canManage}
+            onClose={onClose}
+            onEdit={onEdit}
+            nav={{ index: 0, total: 1 }}
+          />
+        }
+      />
       <Route path="/transactions" element={<div>HALAMAN TRANSAKSI</div>} />
       <Route path="/verifikasi" element={<div>HALAMAN VERIFIKASI</div>} />
       <Route path="/users/:id" element={<div>PROFIL LENGKAP</div>} />
@@ -86,17 +100,30 @@ describe('customerSummary', () => {
   })
 })
 
-describe('CustomerPanel', () => {
+describe('CustomerModal', () => {
   describe('positive', () => {
-    test('should summarise the customer with facts and a sentence history', () => {
+    test('should summarise the customer in a centred modal: name, email, KYC, activation, wallet + copy', () => {
       render(buatNasabah({ wallets: [{ id: 'w1', chain: 'polygon', address: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed' } as PhaseOneUser['wallets'][number]] }))
-      const panel = screen.getByRole('region', { name: 'Detail nasabah' })
-      expect(within(panel).getByRole('heading', { name: 'Robert Deon' })).toBeInTheDocument()
-      expect(within(panel).getByText('robert.deon@example.com')).toBeInTheDocument()
-      expect(within(panel).getByText('Nasabah mengaktifkan akun lewat email')).toBeInTheDocument()
-      expect(within(panel).getByText('0x5aAe…eAed')).toBeInTheDocument()
+      const modal = screen.getByTestId('customer-modal')
+      expect(within(modal).getByRole('heading', { name: 'Robert Deon' })).toBeInTheDocument()
+      expect(within(modal).getByText('robert.deon@example.com')).toBeInTheDocument()
+      expect(within(modal).getByText('Nasabah mengaktifkan akun lewat email')).toBeInTheDocument()
+      expect(within(modal).getAllByText('Terverifikasi').length).toBeGreaterThan(0)
+      expect(within(modal).getByText('Aktif')).toBeInTheDocument()
+      expect(within(modal).getByText('0x5aAe…eAed')).toBeInTheDocument()
       // Pengecualian ops-fokus: wallet nasabah ringkas + tombol salin.
-      expect(within(panel).getByRole('button', { name: /salin alamat wallet/i })).toBeInTheDocument()
+      expect(within(modal).getByRole('button', { name: /salin alamat wallet/i })).toBeInTheDocument()
+      // Footer: posisi ↑/↓ + profil lengkap selalu ada.
+      expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent('1 dari 1')
+      expect(within(modal).getByRole('button', { name: 'Buka profil lengkap' })).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Detail nasabah' })).not.toBeInTheDocument()
+    })
+
+    test('should open the full profile page from "Buka profil lengkap"', async () => {
+      const user = userEvent.setup()
+      render(buatNasabah())
+      await user.click(screen.getByRole('button', { name: 'Buka profil lengkap' }))
+      expect(screen.getByText('PROFIL LENGKAP')).toBeInTheDocument()
     })
 
     test('should open the customer transactions from the primary button', async () => {
@@ -128,9 +155,9 @@ describe('CustomerPanel', () => {
   describe('negative', () => {
     test('should not offer edit/delete to roles that cannot manage customers', async () => {
       const user = userEvent.setup()
-      render(buatNasabah(), { canManage: false })
+      render(buatNasabah({ kycStatus: 'PENDING' }), { canManage: false })
       await user.click(screen.getByRole('button', { name: /lainnya/i }))
-      expect(await screen.findByRole('menuitem', { name: 'Buka profil lengkap' })).toBeInTheDocument()
+      expect(await screen.findByRole('menuitem', { name: 'Lihat transaksinya' })).toBeInTheDocument()
       expect(screen.queryByRole('menuitem', { name: 'Hapus nasabah' })).not.toBeInTheDocument()
       expect(screen.queryByRole('menuitem', { name: 'Ubah data nasabah' })).not.toBeInTheDocument()
     })
@@ -161,5 +188,67 @@ describe('CustomerPanel', () => {
       await user.click(screen.getByRole('button', { name: 'Periksa verifikasinya' }))
       expect(screen.getByText('HALAMAN VERIFIKASI')).toBeInTheDocument()
     })
+  })
+})
+
+describe('UsersPage — klik baris = modal tengah', () => {
+  function LocationProbe() {
+    const loc = useLocation()
+    return <div data-testid="lokasi">{loc.pathname + loc.search}</div>
+  }
+
+  const LIST = [
+    buatNasabah({ id: 'usr_a', name: 'Ani Lestari', email: 'ani@example.com' }),
+    buatNasabah({ id: 'usr_b', name: 'Budi Santoso', email: 'budi@example.com', kycStatus: 'PENDING' }),
+    buatNasabah({ id: 'usr_c', name: 'Citra Dewi', email: 'citra@example.com' }),
+  ]
+
+  function renderPage(path = '/users') {
+    const detailCalls: string[] = []
+    server.use(
+      http.get('/api/v1/users', () =>
+        HttpResponse.json({ status: 'success', metadata: { page: 1, limit: 10, total: LIST.length }, data: LIST }),
+      ),
+      http.get('/api/v1/users/:id', ({ params }) => {
+        detailCalls.push(String(params.id))
+        return HttpResponse.json({ status: 'error', error: { code: 'NOT_FOUND', message: 'x' } }, { status: 404 })
+      }),
+    )
+    renderWithProviders(
+      <>
+        <Routes>
+          <Route path="/users" element={<UsersPage />} />
+        </Routes>
+        <LocationProbe />
+      </>,
+      { initialEntries: [path], authenticated: true },
+    )
+    return { detailCalls }
+  }
+
+  test('should open the summary modal at ?nasabah=:id without reading GET /users/:id, then move with ↓', async () => {
+    const user = userEvent.setup()
+    const { detailCalls } = renderPage()
+    const rows = await screen.findAllByRole('button', { name: /^buka nasabah/i })
+    await user.click(rows[0]!)
+    const modal = await screen.findByTestId('customer-modal')
+    expect(screen.getByTestId('lokasi').textContent).toMatch(/[?&]nasabah=/)
+    expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent(`1 dari ${rows.length}`)
+    await user.keyboard('{ArrowDown}')
+    await waitFor(() =>
+      expect(within(screen.getByTestId('customer-modal')).getByTestId('record-modal-position')).toHaveTextContent(
+        `2 dari ${rows.length}`,
+      ),
+    )
+    // Baris yang ada di tabel tidak pernah memicu pembacaan teraudit.
+    expect(detailCalls).toEqual([])
+    expect(screen.queryByRole('region', { name: 'Detail nasabah' })).not.toBeInTheDocument()
+  })
+
+  test('should open the modal from a deep link, and still honour an old ?pilih= link', async () => {
+    renderPage('/users?pilih=usr_b')
+    const modal = await screen.findByTestId('customer-modal')
+    expect(within(modal).getByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
+    expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent('2 dari 3')
   })
 })

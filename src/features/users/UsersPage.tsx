@@ -9,9 +9,8 @@ import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
-import CustomerPanel from './CustomerPanel'
-import SplitView from '@/components/detail-panel/SplitView'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
+import CustomerModal from './CustomerModal'
+import { ToneChip } from '@/components/ToneChip'
 import { customerSummary } from '@/lib/customerSummary'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
@@ -74,14 +73,16 @@ export default function UsersPage() {
     setModalOpen(true)
   }
 
-  // Panel kanan (redesain fase 1): nasabah yang dipilih ada di URL (`?pilih=`)
-  // supaya bisa dibagikan dan bertahan saat halaman dimuat ulang.
-  const selectedId = params.searchParams.get('pilih')
-  function select(u: PhaseOneUser) {
-    params.updateParams({ pilih: u.id })
+  // Modal ringkasan di tengah (PM Okt 2026, menggantikan panel kanan). Nasabah
+  // yang dibuka ada di URL `?nasabah=<id>` supaya bisa dibagikan dan bertahan
+  // saat dimuat ulang. Bukan `/users/:id` — rute itu halaman profil lengkap dan
+  // tetap ada. `?pilih=` (tautan panel lama) masih dibaca.
+  const selectedId = params.searchParams.get('nasabah') ?? params.searchParams.get('pilih')
+  function select(u: PhaseOneUser, replace = false) {
+    params.updateParams({ nasabah: u.id, pilih: null }, { replace })
   }
-  function closePanel() {
-    params.updateParams({ pilih: null })
+  function closeModal() {
+    params.updateParams({ nasabah: null, pilih: null })
   }
 
   const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
@@ -131,8 +132,7 @@ export default function UsersPage() {
     },
     {
       id: 'kycStatus',
-      // 152: "Belum diverifikasi" (label terpanjang) + padding sel muat utuh;
-      // 128 memotongnya jadi "Belum diverifikasi .." saat panel terbuka.
+      // 152: "Belum diverifikasi" (label terpanjang) + padding sel muat utuh.
       size: 152,
       header: 'KYC',
       cell: ({ row }) => {
@@ -174,7 +174,7 @@ export default function UsersPage() {
     {
       // Audit 8 Okt 2026: kolom ini dulu KOSONG untuk hampir semua baris (hanya
       // "Dibekukan" yang pernah tampil). Kini satu status ringkas yang sama
-      // dengan chip di panel — `customerSummary`.
+      // dengan chip di modal ringkasan — `customerSummary`.
       id: 'suspended',
       size: 180,
       header: 'Status',
@@ -218,11 +218,15 @@ export default function UsersPage() {
   )
 
   const rows = list.data?.data ?? []
-  const rowSelected = selectedId ? (rows.find((u) => u.id === selectedId) ?? null) : null
+  const selectedIndex = selectedId ? rows.findIndex((u) => u.id === selectedId) : -1
+  const rowSelected = selectedIndex >= 0 ? rows[selectedIndex]! : null
   // Tautan langsung ke nasabah yang tidak ada di halaman tabel ini: tarik
-  // datanya sendiri, supaya panelnya tetap terbuka.
+  // datanya sendiri, supaya modalnya tetap terbuka. Baris yang ADA di tabel
+  // tidak pernah memicu `GET /users/:id` (dekripsi telepon + `pii_access_audit`).
   const deepLink = useUserDetail(selectedId && !rowSelected && !list.isLoading ? selectedId : undefined)
   const selectedUser: PhaseOneUser | null = rowSelected ?? deepLink.data ?? null
+  const prevRow = selectedIndex > 0 ? rows[selectedIndex - 1] : undefined
+  const nextRow = selectedIndex >= 0 ? rows[selectedIndex + 1] : undefined
 
   return (
     <div>
@@ -239,18 +243,6 @@ export default function UsersPage() {
         }
       />
 
-      <SplitView
-        panel={
-          selectedUser ? (
-            <CustomerPanel
-              user={selectedUser}
-              canManage={canManage}
-              onClose={closePanel}
-              onEdit={openEdit}
-            />
-          ) : null
-        }
-        list={
       <DataTable
         columns={columns}
         data={rows}
@@ -288,16 +280,26 @@ export default function UsersPage() {
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
-        onRowClick={select}
+        onRowClick={(u) => select(u)}
         rowAriaLabel={(u) => `Buka nasabah ${u.name ?? u.email}`}
-        rowClassName={(u) =>
-          u.id === selectedId
-            ? '!bg-accent shadow-[inset_2px_0_0_hsl(var(--foreground))]'
-            : undefined
-        }
       />
-        }
-      />
+
+      {selectedId && (
+        <CustomerModal
+          user={selectedUser}
+          missingId={selectedId}
+          loading={list.isLoading || deepLink.isLoading}
+          canManage={canManage}
+          onClose={closeModal}
+          onEdit={openEdit}
+          nav={{
+            index: selectedIndex >= 0 ? selectedIndex : null,
+            total: rows.length,
+            onPrev: prevRow ? () => select(prevRow, true) : undefined,
+            onNext: nextRow ? () => select(nextRow, true) : undefined,
+          }}
+        />
+      )}
 
       <UserModal
         open={modalOpen}

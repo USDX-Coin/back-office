@@ -3,8 +3,8 @@ import { Link } from 'react-router'
 import { AlertTriangle, Check, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
-import PanelActions, { type PanelMoreItem, type PanelPrimary } from '@/components/detail-panel/PanelActions'
+import { ToneChip } from '@/components/ToneChip'
+import RecordActions, { type RecordMoreItem, type RecordPrimary } from '@/components/record-modal/RecordActions'
 import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { DataField, DataSection } from '@/components/DataList'
 import DetailTeknis from '@/components/DetailTeknis'
@@ -134,7 +134,7 @@ export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Pr
   const mismatch = Boolean(d) && !s.hashOk
   const primary = buildPrimary(s, headline, safeWord, mismatch)
 
-  const more: PanelMoreItem[] = []
+  const more: RecordMoreItem[] = []
   if (safeLink) more.push({ label: 'Buka di Safe', onSelect: () => openExternal(safeLink) })
   if (execLink) more.push({ label: 'Lihat di block explorer', onSelect: () => openExternal(execLink) })
   if (s.showCancel) more.push({ label: 'Batalkan transaksi', danger: true, onSelect: () => s.setCancelOpen(true) })
@@ -190,9 +190,8 @@ export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Pr
       title={headline}
       subtitle={`${safeWord} · diajukan ${proposer} · ${formatDateTime(base.createdAt)}`}
       actions={
-        <PanelActions
+        <RecordActions
           key={`${txId}-${status}`}
-          bare
           primary={primary}
           more={more}
           override={cancelOverride}
@@ -277,7 +276,7 @@ export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Pr
   )
 }
 
-function buildPrimary(s: SafeTxSigning, headline: string, safeWord: string, mismatch: boolean): PanelPrimary | null {
+function buildPrimary(s: SafeTxSigning, headline: string, safeWord: string, mismatch: boolean): RecordPrimary | null {
   if (!s.showSign && !s.showExecute) return null
   const action: 'sign' | 'execute' = s.showExecute ? 'execute' : 'sign'
   if (!s.wallet.isConnected) return { label: 'Hubungkan wallet', onClick: s.wallet.connect }

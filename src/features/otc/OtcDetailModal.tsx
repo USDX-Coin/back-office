@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router'
 import { useEffect, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
-import PanelActions, { type PanelMoreItem, type PanelPrimary } from '@/components/detail-panel/PanelActions'
+import { ToneChip } from '@/components/ToneChip'
+import RecordActions, { type RecordMoreItem, type RecordPrimary } from '@/components/record-modal/RecordActions'
 import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { DataField, DataSection } from '@/components/DataList'
 import DetailTeknis from '@/components/DetailTeknis'
@@ -160,7 +160,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
 
   // ── tombol utama + Lainnya ──
   const primary = buildPrimary(state.action, signing, req, usdx, idr, bankLine)
-  const more: PanelMoreItem[] = []
+  const more: RecordMoreItem[] = []
   if (safeLink) more.push({ label: 'Buka di Safe', onSelect: () => openExternal(safeLink) })
   if (explorerLink) more.push({ label: 'Lihat di block explorer', onSelect: () => openExternal(explorerLink) })
   if (safeTx) more.push({ label: 'Buka halaman tanda tangan lengkap', onSelect: () => navigate(`/multisig/${safeTx.id}`) })
@@ -215,9 +215,8 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
       title={req.userName ?? 'Nasabah'}
       subtitle={`${kindLabel} · ${usdx} · ${idr}`}
       actions={
-        <PanelActions
+        <RecordActions
           key={`${requestId}-${state.action ?? 'none'}`}
-          bare
           primary={primary}
           more={more}
           override={cancelOverride}
@@ -305,7 +304,7 @@ function buildPrimary(
   usdx: string,
   idr: string,
   bankLine: string | null,
-): PanelPrimary | null {
+): RecordPrimary | null {
   if (!action) return null
   if (!s.wallet.isConnected) return { label: 'Hubungkan wallet', onClick: s.wallet.connect }
   if (!s.wallet.chainOk)

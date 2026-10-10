@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-export interface PanelConfirm {
+export interface RecordConfirm {
   /** Kalimat-kalimat yang menyebut AKIBAT-nya, termasuk nominal. */
   items: ReactNode[]
   /** Label tombol penegas, mis. "Ya, tanda tangani". */
@@ -17,53 +17,49 @@ export interface PanelConfirm {
   onConfirm: () => void | Promise<void>
 }
 
-export interface PanelPrimary {
+export interface RecordPrimary {
   label: string
   onClick?: () => void
   /** Kalau diisi, klik pertama membuka "Sudah benar semua?" lebih dulu. */
-  confirm?: PanelConfirm
+  confirm?: RecordConfirm
   disabled?: boolean
   /** Alasan tombol mati — selalu ditulis, tombol mati tanpa alasan membingungkan. */
   disabledReason?: string | null
   pending?: boolean
 }
 
-export interface PanelMoreItem {
+export interface RecordMoreItem {
   label: string
   onSelect: () => void
   danger?: boolean
   disabled?: boolean
 }
 
-interface PanelActionsProps {
-  primary?: PanelPrimary | null
-  more?: PanelMoreItem[]
+interface RecordActionsProps {
+  primary?: RecordPrimary | null
+  more?: RecordMoreItem[]
   hint?: ReactNode
-  /** Konten pengganti batang aksi (mis. isian alasan pembatalan). */
+  /** Konten pengganti batang aksi (mis. isian alasan pembatalan, konfirmasi hapus). */
   override?: ReactNode
-  /**
-   * Tanpa garis atas/padding sendiri — untuk footer modal detail
-   * (`RecordModal`), yang sudah punya garis dan padding. Tombol utama di
-   * KANAN, "Lainnya" di kirinya.
-   */
-  bare?: boolean
 }
 
 /**
- * Batang aksi panel detail: SATU tombol utama + menu "Lainnya".
+ * Aksi di footer `RecordModal`: SATU tombol utama (paling kanan) + menu
+ * "Lainnya" di kirinya. Footer modal sudah punya garis dan padding, jadi
+ * komponen ini tidak menggambar bingkai sendiri.
  *
  * Aksi berisiko memakai konfirmasi INLINE "Sudah benar semua?" yang menyebut
- * akibatnya (nominal, tujuan) — bukan dialog yang menutupi tabel. Pasang
- * `key={idBaris}` di pemanggil supaya konfirmasi yang setengah jalan tidak
- * terbawa ke baris lain.
+ * akibatnya (nominal, tujuan) di footer yang sama — bukan dialog kedua yang
+ * bertumpuk. Pasang `key={idBaris}` di pemanggil supaya konfirmasi yang
+ * setengah jalan tidak terbawa ke baris lain saat ↑/↓.
  */
-export default function PanelActions({ primary, more = [], hint, override, bare = false }: PanelActionsProps) {
+export default function RecordActions({ primary, more = [], hint, override }: RecordActionsProps) {
   const [confirming, setConfirming] = useState(false)
   const [running, setRunning] = useState(false)
   const reasonId = useId()
 
   if (override) {
-    return <div className={bare ? 'w-full' : 'border-t border-border bg-muted/50 px-5 py-4 sm:px-6'}>{override}</div>
+    return <div className="w-full">{override}</div>
   }
   if (!primary && more.length === 0 && !hint) return null
 
@@ -71,7 +67,7 @@ export default function PanelActions({ primary, more = [], hint, override, bare 
     const c = primary.confirm
     return (
       <div
-        className={cn('space-y-3', bare ? 'w-full' : 'border-t border-border bg-muted/50 px-5 py-4 sm:px-6')}
+        className="w-full space-y-3"
         role="group"
         aria-label="Konfirmasi"
         onKeyDown={(e) => {
@@ -122,10 +118,7 @@ export default function PanelActions({ primary, more = [], hint, override, bare 
 
   return (
     <div
-      className={cn(
-        'flex flex-wrap items-center gap-2',
-        bare ? 'justify-end sm:flex-row-reverse sm:justify-start' : 'border-t border-border px-5 py-3.5 sm:px-6',
-      )}
+      className="flex flex-wrap items-center justify-end gap-2 sm:flex-row-reverse sm:justify-start"
     >
       {primary && (
         <Button
@@ -164,7 +157,7 @@ export default function PanelActions({ primary, more = [], hint, override, bare 
         </DropdownMenu>
       )}
       {(reason || hint) && (
-        <p id={reasonId} className={cn('w-full text-sm text-muted-foreground', bare && 'text-right')}>
+        <p id={reasonId} className="w-full text-right text-sm text-muted-foreground">
           {reason ?? hint}
         </p>
       )}
