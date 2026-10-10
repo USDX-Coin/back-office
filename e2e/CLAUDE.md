@@ -18,18 +18,21 @@ success UX, list refresh — without the side effects.
 | 1 | Login — valid + invalid + access-control / session | `usdx-26-auth.spec.ts` |
 | 2 | Submit mint request → appears in list | `usdx-26-otc.spec.ts` (mint) |
 | 3 | Submit burn request → appears in list | `usdx-26-otc.spec.ts` (burn) |
-| 4 | Halaman OTC (redesain fase 1): mint + redeem satu tabel, grup "Perlu tindakan" + "x dari y" tanda tangan, panel kanan dengan satu tombol utama, Jenis + cari ke URL, STAFF dialihkan, URL lama `/mint` `/burn` dialihkan, panel layar penuh di ponsel | `usdx-otc-page.spec.ts` |
+| 4 | OTC ▸ Mint / Redeem (10 Okt 2026): grup menu + badge per sub-menu, satu jenis per halaman, grup "Perlu tindakan" + "x dari y" tanda tangan, modal tengah `/otc/mint/:id` dengan aksi Safe di footer yang tetap terlihat saat isi digulir, cari ke URL, STAFF dialihkan, URL lama `/otc?jenis=burn` `/mint` `/burn/:id` dialihkan ke sub-menu, modal muat di ponsel | `usdx-otc-page.spec.ts` |
 | 5 | Daftar Nasabah: buat (tanpa kata sandi) → baris baru, panel kanan, ubah status KYC, hapus inline dari "Lainnya" + saringan direktori | `usdx-26-users.spec.ts` |
 | 6 | Verifikasi (USDX-154/155 + fase 1): menu Nasabah ▸ Verifikasi + badge → tabel menunggu terlama dulu → panel ringkas → "Periksa berkas" → modal lengkap (PII + foto) → setujui / tolak → riwayat keputusan | `usdx-155-kyc.spec.ts` |
 | 7 | User activation (USDX-156): list filter + badges → detail resend (confirm, cooldown, 409/429) → create form phone + no password | `usdx-156-users-activation.spec.ts` |
 | 8 | Pencairan Bermasalah (USDX-662): badge di menu Transaksi + tautan "Perlu tindakan" → antrean → detail → resolve `SETTLED_MANUAL` (body request diperiksa) → jejak resolusi → baris hilang; 409 `ALREADY_RESOLVED` dijelaskan di dialog; `BURN_REJECTED` tanpa kirim ulang | `usdx-662-payout-failures.spec.ts` |
-| 10 | Transaksi gabungan (fase 2, SOT PR #50): perlu tindakan di atas + badge `transactionsNeedsAction` → panel → aksi antrean asal (resolve pencairan bermasalah) → badge turun; rincian order dari panel; tanpa nomor rekening di list; saringan Pemilik; antrean lama tetap via URL | `usdx-transaksi-gabungan.spec.ts` |
+| 10 | Transaksi gabungan (fase 2, SOT PR #50): tab "Perlu tindakan (n)" bawaan + badge `transactionsNeedsAction` → modal tengah → aksi antrean asal di footer (resolve pencairan bermasalah) → badge turun; ↑/↓ (tombol + papan ketik) antar baris tanpa menutup, footer tetap terlihat, Esc kembali ke daftar; rincian order dari modal; tanpa nomor rekening di list; saringan Pemilik; antrean lama tetap via URL | `usdx-transaksi-gabungan.spec.ts` |
+| 11 | Ringkasan (10 Okt 2026): mendarat di sini setelah login (menu pertama), `/dashboard` dialihkan, pasokan/OTC/cadangan/DurianPay "Belum tersedia", tautan ke tab Perlu tindakan, saldo BNI hanya setelah "Cek saldo" (nol tarikan sebelumnya), STAFF tanpa kartu cadangan & tanpa request ledger, tanpa gulir mendatar di 390px | `usdx-ringkasan.spec.ts` |
 | 9 | Badge antrean + rekening pengganti (USDX-678): badge menu Transaksi (`nav-badge-transactions`, jumlah antrean lama) dari `GET /api/v1/queue-counts` tanpa request list `take=1` → detail → Kirim ulang ke rekening tersimpan lain (body membawa `bankAccountId`) → badge turun; 409 `BANK_ACCOUNT_NOT_OWNED` di dialog; hitungan nol tanpa badge | `usdx-678-queue-counts-replacement-account.spec.ts` |
 
 Each spec has `positive` / `negative` / `edge cases` describe blocks.
 
-Redesain fase 1 (Okt 2026) mengubah navigasi, dan spec mengikutinya: Beranda
-dihapus (`/dashboard` → `/transactions`, `loginViaForm` menunggu `/transactions`),
+Redesain fase 1 (Okt 2026) mengubah navigasi, dan spec mengikutinya. Sejak 10
+Okt 2026 halaman awal = Ringkasan (`/dashboard` → `/ringkasan`, `loginViaForm`
+menunggu `/ringkasan`; `seedAuthenticatedSession(page, staff?)` bisa menyimpan
+profil peran lain), OTC adalah grup (Mint `/otc/mint` · Redeem `/otc/redeem`),
 menu Nasabah/Keuangan/Pengaturan adalah GRUP yang harus dibuka dulu
 (`aside.getByRole('button', { name: /^keuangan/i })`) sebelum tautannya
 terlihat, dan antrean lama (Persetujuan Pencairan, Pencairan Bermasalah, Mint
@@ -61,7 +64,8 @@ passthrough requests from the SW context and would bypass `page.route()`.
 - Nested Radix dialogs (e.g. a resolve dialog on top of a detail modal): locate each by its accessible NAME (`getByRole('dialog', { name })`). While the top one is open Radix marks everything beneath it `aria-hidden`, so an unnamed `getByRole('dialog')` sees only the top layer and the page behind the modal is invisible to role queries.
 - Each test is independent — no shared state between tests.
 - Tests run against `http://localhost:5173` (override with `E2E_PORT=5199 pnpm test:e2e` when the port is taken).
-- Panel OTC menunggu hook tanda tangan yang dimuat lazy (pustaka wallet) + `/multisig/:id`; di dev server dengan banyak worker itu bisa lewat 5 dtk, jadi asersi isi panel pertama memakai `timeout: 15000` seperti asersi judul halaman.
+- Modal OTC (`getByTestId('otc-modal')`) menunggu hook tanda tangan yang dimuat lazy (pustaka wallet) + `/multisig/:id`; di dev server dengan banyak worker itu bisa lewat 5 dtk, jadi asersi isi modal pertama memakai `timeout: 15000` seperti asersi judul halaman.
+- Modal detail Transaksi = `getByTestId('transaction-modal')`; footernya punya tombol "Sebelumnya"/"Berikutnya" dan `record-modal-position` ("n dari N"). Tekan panah satu per satu dan tunggu posisinya berubah sebelum menekan lagi.
 
 ## Test naming
 

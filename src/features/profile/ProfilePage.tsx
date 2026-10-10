@@ -4,6 +4,7 @@ import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import SecurityAccessSection from './SecurityAccessSection'
 import { useAuth } from '@/lib/auth'
+import { formatRole } from '@/components/layout/navItems'
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -11,12 +12,11 @@ export default function ProfilePage() {
 
   return (
     <div>
-      {/* `user.role` ditulis apa adanya (`ADMIN`, `MANAGER`, …) — nama peran
-          adalah kata yang sama dengan yang dipakai gerbang akses di kode dan
-          disebut di dokumen tim, jadi ia tidak diterjemahkan. */}
+      {/* Peran tampil sebagai kata (`formatRole`: Admin, Manager, Staf,
+          Developer) — tanpa enum mentah, sama dengan layar lain. */}
       <PageHeader
         title={user.name}
-        subtitle={user.role}
+        subtitle={formatRole(user.role)}
       />
 
       <div className="grid gap-4 lg:grid-cols-12">
@@ -28,7 +28,7 @@ export default function ProfilePage() {
                 {user.name}
               </h2>
               <span className="mt-2 inline-flex rounded-sm bg-secondary px-2 py-0.5 text-label font-medium text-foreground">
-                {user.role}
+                {formatRole(user.role)}
               </span>
               {!user.isActive && (
                 <span className="mt-2 inline-flex rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">

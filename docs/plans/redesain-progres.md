@@ -184,3 +184,81 @@ layar lama diganti `usdx-transaksi-gabungan.spec.ts`). Screenshot terang 1440 +
    ini — konfirmasi apakah perlu.
 5. **Kolom Partner**: list kontrak hanya membawa `partnerCode`, bukan nama
    tampilan partner seperti layar lama (USDX-547). Layar menampilkan kodenya.
+
+## Fase 3 (arahan PM 10 Okt 2026) — SELESAI dengan data tiruan
+
+Empat pekerjaan, satu commit per bagian (di-push, belum PR):
+
+1. **Transaksi** (`0f7d4c3`) — panel samping dibuang. Tabel lebar penuh dengan
+   tab **Perlu tindakan (n)** (bawaan, `needsAction=true`) / **Semua**; kolom
+   Status · Jenis · Nasabah · Nominal (kanan, Inter tabular) · Referensi
+   (nomor order, pendek) · Waktu; tanpa rekening. Klik baris → modal tengah
+   `/transactions/:id` (`components/record-modal/RecordModal`, pola modal Log
+   DurianPay): judul + subjudul, seksi label–nilai, Detail teknis, footer aksi
+   antrean asal yang selalu terlihat (Setujui/Tolak pencairan, Kirim ulang /
+   Tandai manual / Tutup, Terima/Tolak uang masuk, Perbaiki status, Lihat
+   rincian order). Navigasi ↑/↓ (tombol + panah/`j`/`k`) di daftar yang sedang
+   tersaring tanpa menutup modal. Detail antrean tetap ditarik saat tombol
+   ditekan; badge menu tetap `transactionsNeedsAction`. `TransactionDetailPanel`
+   dihapus; komponen `detail-panel/` tetap karena Verifikasi & Daftar Nasabah
+   masih memakainya.
+2. **OTC ▸ Mint / Redeem** (`5e4f7b9`) — grup menu, `/otc/mint` dan
+   `/otc/redeem` masing-masing tabel sendiri + tombol buatnya, badge per
+   sub-menu (`/api/v1/requests?…&type=`). Detail = modal tengah yang sama
+   (`/otc/{mint,redeem}/:id`), tanda tangan/eksekusi Safe + konfirmasi di
+   footer. `/otc`, `/otc/:id`, `/mint`, `/burn` (+ `/:id`) dialihkan;
+   `?jenis=burn` → Redeem. `OtcDetailPanel` dihapus.
+3. **Audit font** (`ccbd52d`) — token per peran di `src/index.css` (lihat
+   CLAUDE.md § Tipografi): 11px & 18px dibuang, judul halaman Crimson 28/32,
+   judul modal/dialog/sheet Crimson 20/26, seksi 14/20, label/badge 12/16 500,
+   uang 13/20 & 24/28. `tracking-tight`/`leading-none` di angka dibuang,
+   `tailwind-merge` mengenal token baru. JetBrains Mono **323 → 104** baris
+   (keduanya termasuk 1 komentar): sisanya hash, ID, alamat wallet, path API, JSON/nilai mentah
+   di Detail teknis, nomor order/referensi, nama kolom CSV. Satu gaya status
+   (`STATUS_CHIP_BASE`). Cadangan kini `51.249,75`. Kode mentah → label
+   (penyebab & status order Pencairan Bermasalah, sebab tertahan & status
+   pembayaran Mint Bermasalah, aksi/objek Jejak Audit, kode metode
+   pembayaran, penyedia & cara bayar rincian order, peran di Profil); kode
+   asli di `title`/Detail teknis. `text-2xl` mati di Profil diperbaiki.
+4. **Ringkasan** (`41f6743`) — `/ringkasan`, menu pertama, halaman setelah
+   login (`/dashboard` dialihkan). Data: `queue-counts`, `dashboard/stats`
+   (pasokan on-chain Polygon, Safe Staf/Manager, kurs beli; angka OTC berlabel
+   khusus OTC), saldo BNI hanya lewat **Cek saldo** (opsi query Rekening BNI,
+   waktu tarikan tampil), cadangan (Admin & Developer, "dicatat manual oleh
+   admin, bukan saldo bank live"), DurianPay "Belum tersedia".
+
+Perbaikan dari screenshot: kartu saldo BNI dan Plafon Pencairan menumpuk
+nominal (24px tidak muat dua kolom), pil status di judul dialog dipaksa Inter.
+
+Angka fase 3: `pnpm lint` 0 error (3 peringatan lama) · `pnpm test` 119 berkas
+/ 2363 tes hijau · `pnpm build` hijau (peringatan ukuran chunk lama) ·
+`E2E_PORT=5197 pnpm test:e2e` 129/129 hijau dua kali berturut-turut (spec baru
+`usdx-ringkasan.spec.ts`; modal Transaksi & OTC di spec masing-masing).
+Screenshot terang 1440 + 390 → `scratchpad/redesain-f3/`.
+
+### Pertanyaan terbuka untuk PM (fase 3)
+
+1. **Tab "Selesai" / "Gagal" di Transaksi** belum dibuat: parameter `status`
+   di `GET /api/v1/transactions` (SOT PR #50) hanya menerima SATU nilai,
+   sedangkan "selesai" = `COMPLETED` (mint) + `PAYOUT_COMPLETE` (redeem) dan
+   "gagal" = `FAILED` (mint) + `PAYOUT_FAILED` + `EXPIRED` (redeem).
+   Perlu kontrak menerima beberapa `status` (atau nilai gabungan seperti
+   `outcome=DONE|FAILED`) — mana yang dipilih?
+2. **Navigasi ↑/↓** hanya di halaman daftar yang sedang dimuat (20 baris);
+   di baris terakhir tombol "Berikutnya" mati, tidak pindah halaman otomatis.
+3. **Total dibakar OTC** di Ringkasan = backend menjumlah `burn_requests`
+   berstatus `EXECUTED` saja (bukan `IDR_TRANSFERRED`) — labelnya ditulis
+   jujur ("berstatus Dieksekusi"); kalau maksudnya semua redeem OTC yang
+   selesai, backend perlu diubah.
+4. **Pasokan beredar** dijawab `"0"` oleh backend kalau rantai belum
+   dikonfigurasi (`readTotalSupplyOrZero`) — layar tidak bisa membedakan nol
+   sungguhan dari "belum dikonfigurasi".
+
+### Belum dikerjakan / sengaja dibiarkan
+
+- `unknownStatusLabel` ("Status belum dikenali (KODE)") untuk status yang
+  belum ada di `types.ts` masih mencetak kodenya — perilaku lama untuk nilai
+  masa depan, di luar daftar audit.
+- Screenshot `m6-kyc-detail` menampilkan "Data tidak ditemukan" dan
+  `m9-konfirmasi-kurs` tidak membuka dialog — artefak data tiruan skrip
+  screenshot (sama seperti fase 2), bukan bug layar.

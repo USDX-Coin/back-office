@@ -20,7 +20,7 @@ function Amount({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-money-lg tabular-nums">
+      <p className="mt-0.5 whitespace-nowrap text-money-lg tabular-nums">
         {value}
       </p>
     </div>
@@ -74,7 +74,9 @@ function BalanceCardView({
           (state.card.effectiveBalance != null || state.card.endingBalance != null) && (
             <div
               className={cn(
-                'mt-3 grid grid-cols-2 gap-3',
+                // Bertumpuk, bukan dua kolom: nominal 24px (token money-lg)
+                // "Rp 603.249.000,00" tidak muat di setengah kartu sepertiga layar.
+                'mt-3 grid gap-3',
                 state.kind === 'bank-rejected' && 'opacity-70'
               )}
             >

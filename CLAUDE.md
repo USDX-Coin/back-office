@@ -4,7 +4,7 @@
 
 Internal back office SPA for managing **OTC mint** and **burn** operations on the USDX stablecoin, plus directory management for end-customers and internal staff. Mint/burn requests follow the SoT phase-1 approval lifecycle (`PENDING_APPROVAL → APPROVED → EXECUTED`, plus `IDR_TRANSFERRED` for burn, terminal `REJECTED`).
 
-**Brand:** USDX — sama dengan landing usdx.co.id sejak redesain fase 1 (Okt 2026): logo koin + lockup (`public/image/`), maroon `#800000` + emas `#e0a93c` (token terang + gelap di `src/index.css`), **Crimson Pro** untuk judul halaman/panel (`font-display`, hemat) + **Inter** untuk UI + JetBrains Mono untuk angka/hash. Tabel tetap tanpa garis antar-baris. Desain lama "Azure Horizon" (teal, Manrope) sudah PENSIUN — jangan dipakai lagi.
+**Brand:** USDX — sama dengan landing usdx.co.id sejak redesain fase 1 (Okt 2026): logo koin + lockup (`public/image/`), maroon `#800000` + emas `#e0a93c` (token terang + gelap di `src/index.css`), **Crimson Pro** untuk judul halaman & judul modal (`font-display`, hemat) + **Inter** untuk UI dan SEMUA angka (`tabular-nums`) + JetBrains Mono HANYA untuk hash/ID/alamat wallet/path API/JSON/nomor order (lihat § Tipografi). Tabel tetap tanpa garis antar-baris. Desain lama "Azure Horizon" (teal, Manrope) sudah PENSIUN — jangan dipakai lagi.
 
 ## Tech Stack
 
@@ -20,25 +20,27 @@ Internal back office SPA for managing **OTC mint** and **burn** operations on th
 - **Vitest** — unit tests
 - **Playwright** — E2E tests
 
-## Menu Structure — redesain fase 1 (keputusan PM 9 Okt 2026)
+## Menu Structure — redesain (keputusan PM 9–10 Okt 2026)
 
 Sumber kebenaran menu: `src/components/layout/navItems.ts` (`NAV`, satu pohon
-untuk Sidebar desktop DAN laci menu ponsel lewat `NavTree`). Lima menu utama,
+untuk Sidebar desktop DAN laci menu ponsel lewat `NavTree`). Enam menu utama,
 grup bisa dilipat (pilihan buka/tutup diingat per peramban), badge antrean
 dijumlah di nama grup saat grup tertutup:
 
 | Menu | Isi | Catatan |
 |------|-----|---------|
-| **Transaksi** `/transactions` | fase 2 (⚠️ DRAF SOT PR #50): SATU daftar mint + redeem + uang masuk tanpa order (`GET /api/v1/transactions`), perlu tindakan di atas, panel kanan dengan aksi antrean asal | Badge = `queue-counts.transactionsNeedsAction` (absen ⇒ disembunyikan). Empat antrean lama (Persetujuan Pencairan, Pencairan Bermasalah, Mint Bermasalah, Perbaiki Status Nyangkut) dilebur ke sini, tidak di navigasi; rutenya hidup lewat URL ("Buka di antrean") |
-| **OTC** `/otc` | mint + redeem OTC satu tabel + tanda tangan multisig di panel kanan | `canAccessRequestList` (bukan STAFF). Tombol "Buat mint OTC" / "Buat redeem OTC" → `/mint/new`, `/burn/new`. `/mint`, `/burn`, `/mint/:id`, `/burn/:id` dialihkan ke `/otc`. `/multisig` tetap hidup via URL (halaman tanda tangan lengkap + Propose) |
+| **Ringkasan** `/ringkasan` | halaman pertama setelah masuk (semua peran): perlu tindakan (`queue-counts`, tautan ke tab "Perlu tindakan" Transaksi) · token (`dashboard/stats`: pasokan on-chain Polygon, saldo Safe Staf/Manager, kurs beli) · Rekening BNI (`bni-accounts/balances` HANYA lewat tombol "Cek saldo") · Cadangan (`transparency/ledger`, Admin & Developer, "dicatat manual, bukan saldo bank live") · saldo DurianPay "Belum tersedia" · OTC (angka `dashboard/stats` berlabel khusus OTC) | `/dashboard` (Beranda lama) dialihkan ke sini. Tidak ada angka karangan/tiruan untuk yang belum ada endpoint-nya |
+| **Transaksi** `/transactions` | fase 2 (⚠️ DRAF SOT PR #50): SATU daftar mint + redeem + uang masuk tanpa order (`GET /api/v1/transactions`), tabel lebar penuh dengan tab **Perlu tindakan (n)** (bawaan, `needsAction=true`) / **Semua**; kolom Status · Jenis · Nasabah · Nominal · Referensi · Waktu (tanpa rekening). Klik baris → modal tengah `/transactions/:id` dengan aksi antrean asal di footer | Badge = `queue-counts.transactionsNeedsAction` (absen ⇒ disembunyikan). Tab "Selesai"/"Gagal" BELUM dibuat: `status` kontrak hanya satu nilai, sedangkan keduanya gabungan beberapa status (pertanyaan ke PM). Empat antrean lama (Persetujuan Pencairan, Pencairan Bermasalah, Mint Bermasalah, Perbaiki Status Nyangkut) dilebur ke sini, tidak di navigasi; rutenya hidup lewat URL ("Buka di antrean") |
+| **OTC ▸** | Mint `/otc/mint` · Redeem `/otc/redeem` — masing-masing tabel sendiri (+ "Buat mint OTC" / "Buat redeem OTC"), badge per sub-menu (`/api/v1/requests?status=PENDING_APPROVAL,APPROVED&type=…&limit=1`); detail = modal tengah `/otc/{mint,redeem}/:id` dengan tanda tangan/eksekusi Safe di footer | `canAccessRequestList` (bukan STAFF). `/otc` (`?jenis=burn` → Redeem), `/otc/:id`, `/mint`, `/burn`, `/mint/:id`, `/burn/:id` dialihkan ke sub-menu (detail redeem yang dibuka di Mint pindah sendiri bila `type` ada di detail). `/multisig` tetap hidup via URL (halaman tanda tangan lengkap + Propose) |
 | **Nasabah ▸** | Daftar Nasabah `/users` · Verifikasi `/verifikasi` · Daftar Sanksi `/screening` | Verifikasi = KYC perorangan + KYB badan usaha satu tabel; `/kyc`, `/kyb` dialihkan, `/kyc/:id` `/kyb/:id` membuka modal berkas lengkap (PII) di atas Verifikasi |
 | **Keuangan ▸** | Rekening BNI `/bni-accounts` · Laporan `/reports/*` · Cadangan & Atestasi `/transparency` | |
 | **Pengaturan ▸** | Kurs & Biaya `/settings/rate` (tab: Kurs · Biaya · Batas Safe Manager · Kontak Darurat) · Metode Pembayaran `/settings/payment-methods` (⚠️ DRAF SOT PR #50, Admin ubah / Developer baca) · Mode Mint · Plafon Pencairan · Staf & Peran `/staff` · Persetujuan Orang Kedua `/persetujuan` · Jejak Audit · Log DurianPay | Mode Mint & Plafon Pencairan terbuka untuk SEMUA peran (rem darurat) |
 
-- **Beranda dihapus**: `/dashboard` → `/transactions`; setelah login operator mendarat di Transaksi.
+- **Beranda lama → Ringkasan**: `/dashboard` → `/ringkasan`; setelah login operator mendarat di Ringkasan (menu pertama).
 - **Gerbang peran tidak berubah**: tiap `visibleWhen` sama dengan menu lama, dan gerbang rute tetap di `App.tsx`. Menu bukan satu-satunya gerbang.
 - **Breadcrumb dari tabel menu** (`breadcrumbFor`), tidak pernah dari potongan URL — tidak ada slug/UUID di layar.
-- **Pola daftar + panel kanan** (`src/components/detail-panel/`): klik baris membuka panel di kanan tabel (≥ xl; di bawahnya panel mengambil layar dengan "‹ Kembali ke tabel"), bukan modal. Isi panel: status + "Yang perlu kamu lakukan" → data ringkas → riwayat dalam kalimat → "Detail teknis" terlipat → SATU tombol utama + menu "Lainnya" (aksi berisiko dikonfirmasi inline "Sudah benar semua?"). Dipakai OTC, Verifikasi, Daftar Nasabah (`?pilih=`).
+- **Pola modal detail tengah** (`src/components/record-modal/RecordModal.tsx`, 10 Okt 2026 — Transaksi & OTC): tabel lebar penuh, klik baris → modal di tengah dengan URL sendiri (deep link). Header = judul (Crimson 20/26) + subjudul; isi = `RecordStatus` ("Yang perlu kamu lakukan") lalu `DataSection`/`DataField` per seksi lalu "Detail teknis" terlipat; footer (`DialogFooter`, tidak ikut menggulir) = navigasi ↑/↓ + posisi "n dari N" di kiri, tombol aksi di kanan (aksi utama paling kanan). ↑/↓ (juga `k`/`j`) pindah ke baris sebelum/sesudahnya di daftar yang sedang tersaring tanpa menutup modal (`navigate(..., { replace: true })`); panah diabaikan saat fokus di isian atau saat dialog lain bertumpuk di atasnya. Aksi memakai dialog antrean asal (Tolak tetap wajib alasan), detail antrean baru ditarik saat tombol ditekan. Pola yang sama dengan modal Log DurianPay.
+- **Pola daftar + panel kanan** (`src/components/detail-panel/`): masih dipakai Verifikasi dan Daftar Nasabah (`?pilih=`). Panel samping Transaksi/OTC sudah dihapus (`TransactionDetailPanel`, `OtcDetailPanel`).
 - **Bahasa**: kata sehari-hari, "mint" / "redeem" (bukan burn) di layar, tanpa enum mentah. Peran tampil sebagai kata (`formatRole`: Admin, Manager, Staf, Developer).
 
 Tabel rute di bawah tetap berlaku per RUTE (perilaku, gerbang, kontrak). Kolom
@@ -47,7 +49,8 @@ untuk letak menu sekarang, pakai tabel di atas.
 
 | Route | Section | Menu label | Visibility | Purpose |
 |-------|---------|------------|------------|---------|
-| `/dashboard` | WORKSPACE | Dashboard | All roles | KPIs, recent activity |
+| `/ringkasan` | *(menu pertama)* | Ringkasan | All roles | Halaman awal — lihat tabel menu di atas. Cadangan hanya ADMIN + DEVELOPER (`canManageSettings`, sama dengan gerbang `/transparency`); saldo BNI tidak ditarik otomatis |
+| `/dashboard` | — | — | All roles | Dialihkan ke `/ringkasan` |
 | `/users` | WORKSPACE | Users | All roles | Customer directory |
 | `/users/:id` | — | — | All roles | Customer detail (deep link) |
 | `/staff` | WORKSPACE | Staff | ADMIN | Staff directory + CRUD |
@@ -58,7 +61,7 @@ untuk letak menu sekarang, pakai tabel di atas.
 | `/multisig` | TREASURY | Multisig | ADMIN + DEVELOPER + MANAGER | Self-hosted Safe transaction queue (USDX-275) — tabs (All/Pending Sign/Ready to Execute/Confirming/Executed/Failed), search, safeType filter; connect wallet (wagmi/RainbowKit). **Propose** governance modal (USDX-280, ADMIN-only): blacklist/pause/setSupportedChain/grant-revoke-role/timelock → `POST /api/v1/multisig/propose`. Consumes `/api/v1/multisig/*` |
 | `/multisig/:id` | — | — | ADMIN + DEVELOPER + MANAGER | Detail drawer — decoded TX + blind-sign cross-check vs linked intent + signers + on-chain links + **Sign** (owner, EIP-712 gasless) + **Execute** (execTransaction, simulate-gated to prevent GS013) + **Cancel** (admin/proposer). Network guard Polygon-137 |
 | `/transactions` | CONSUMER | User Transaction | All roles | Consumer order list — mint (USDX-206) + redeem (USDX-245); read-only; filter type/status (contextual: RedeemStatus when type=REDEEM)/payment/safe + **Owner (partner / retail, USDX-547)**. **Partner column (USDX-547)**: its own column carrying `partners.display_name` + `partners.code`, **EMPTY for retail** — not "—" and not "N/A", both of which read as "this value failed to load". It answers the ops question the `(partner customer)` email marker does not: *which partner is this from*, because a partner order that goes wrong is chased with the PARTNER, never its customer. Partner-ness is decided by `partner_id`, NOT by the email marker — a partner's own (`onBehalfOf: SELF`) order carries a real email and still counts |
-| `/transactions/:id` | — | — | All roles | Order detail modal — MINT: fee/spread/revenue + idempotency key + on-chain/Safe links. REDEEM: spread jual + redeem/disbursement fee + net payout + bank (nama bank + nomor rekening penuh + nama pemilik — un-mask USDX-270) + redeem_id + burn_tx_hash + payout_ref (USDX-245). **Partner section (USDX-547, partner orders only)**: display name + code, on-behalf-of, `partner_customer_id`, and `external_reference` rendered IN FULL (never middle-truncated — it is the number the partner quotes when reporting a problem). Read-only (no approve) |
+| `/transactions/:id` | — | — | All roles | Modal detail baris Transaksi (`TransactionDetailModal`, pola `RecordModal`) dari baris list; tombol "Lihat rincian order" membuka order detail modal — MINT: fee/spread/revenue + idempotency key + on-chain/Safe links. REDEEM: spread jual + redeem/disbursement fee + net payout + bank (nama bank + nomor rekening penuh + nama pemilik — un-mask USDX-270) + redeem_id + burn_tx_hash + payout_ref (USDX-245). **Partner section (USDX-547, partner orders only)**: display name + code, on-behalf-of, `partner_customer_id`, and `external_reference` rendered IN FULL (never middle-truncated — it is the number the partner quotes when reporting a problem). Read-only (no approve) |
 | `/kyc` | COMPLIANCE | KYC Review | All roles | KYC submission list (USDX-154) — sidebar shows `(N)` PENDING count |
 | `/kyc/:id` | — | — | All roles | KYC detail modal — decrypted PII + photos + approve/reject (USDX-155); actions hidden unless PENDING, Developer view-only. **CDD block (USDX-545)**: occupation / source of funds / annual income / transaction purpose / NPWP / PEP status + relation. Enum values are copied value-for-value from `partner_customer_kyc` so retail and partner customers are judged on ONE CDD standard. `npwp` + `pepRelation` are PII → **role yang boleh MEMUTUSKAN** via `canReviewCustomerPii` (`src/lib/pii.ts`, USDX-610: STAFF / MANAGER / ADMIN; DEVELOPER masked). Angka itu bukan pelonggaran sepihak — ia menyamai `KYC_IDENTITY_PII_ROLES` di `kyc-backoffice.service.ts`, yang memang sudah mengirim plaintext-nya ke STAFF, dan `sot/conventions.md § Aturan Implementasi` ("backoffice KYC review (Staff/Manager/Admin)"). Gerbang ADMIN-saja yang lama membuat layar bertentangan dengan dirinya sendiri: NIK dan tanggal lahir utuh di sebelah `***` untuk nama gadis ibu kandung. Yang tersamar melihat `***` + keterangan "not shown to your role", sementara field yang memang kosong menampilkan em dash — "withheld" dan "not collected" tidak boleh terbaca sama. The section renders even when the whole block is empty (pre-USDX-545 customers) with an explicit note, so a reviewer cannot mistake missing CDD for a complete record. **Field POJK 8/2023 (USDX-587)**: identitas Pasal 25 (1) a angka 1 (`nationality` — bukan duplikat `country`: kewarganegaraan orangnya vs negara alamatnya, `gender`, `maritalStatus`, `mothersMaidenName`, `aliasName`) di grid identitas supaya bisa dicocokkan baris demi baris dengan KTP yang terpampang di bawahnya, plus `netWorthRange` (angka 4 separuh kedua), `sourceOfWealth` (**Pasal 37 (1) d**, EDD PEP — bukan Pasal 25) dan `employerAddress`/`employerPhone` (butir g) di blok CDD. `occupation` kini 99 nilai Permendagri 109/2019 dan ditampilkan sebagai **label** (`Pegawai Negeri Sipil (PNS)`), bukan kode enum — petugas mencocokkannya dengan kolom "Pekerjaan" di KTP-el. `mothersMaidenName` / `aliasName` / `employerAddress` / `employerPhone` ikut gerbang PII yang sama dengan `npwp`. **Dua kejanggalan disorot, tidak memblokir Approve**: (a) pekerjaan kode Permendagri 48–63 (jabatan publik = cakupan PEP domestik Pasal 2 (2) b) tapi `pepStatus === false` — `null` TIDAK dihitung, itu "belum ditanya" bukan jawaban yang bertentangan, dan menghitungnya akan memasang banner pada setiap berkas lama sekaligus; (b) `pepStatus === true` tanpa `sourceOfWealth`, karena Pasal 37 (1) d mewajibkan EDD-nya menganalisis sumber dana DAN sumber kekayaan. Keduanya sah setelah diperiksa, jadi yang wajib adalah petugas MELIHATNYA — tombol yang mati justru membuat ia mencari jalan memutar. **Alasan tolak minimal 10 karakter setelah trim (USDX-610)**, angka yang sama dengan KYB, ditegakkan di dialog, lagi di `useRejectKyc`, lagi di `RejectKycDto` + service, dan lagi oleh CHECK `kyc_rejected_requires_reason` — batas lamanya `1` menerima alasan "x", yang lalu dikirim ke nasabah lewat email `kyc-rejected.html` dan membuatnya mengunggah ulang berkas yang sama persis. **Panel status screening (USDX-610, `ScreeningSubjectPanel`)**: hasil DTTOT & DPPSPM berkas ini dibaca dari `GET /api/v1/screening/results?subjectType=KYC&subjectId=` — endpoint terpisah, BUKAN field baru di response KYC, karena tiap pembacaan KYC menulis satu baris `pii_access_audit` sementara membaca hasil screening tidak. Panelnya **tidak pernah memblokir Approve** (fail-open tetap keputusan yang berlaku); yang diperbaiki adalah lolosnya yang diam-diam |
 | `/kyb` | COMPLIANCE | KYB Review | All roles | **KYB review queue (USDX-546)** — business-entity due diligence, sidebar shows `(N)` PENDING count. MANUAL flow (keputusan Mas Yan: KYB partner manual, bukan API): a LEGAL_ENTITY *account* can already be created via `POST /api/v1/users`, what was missing is somewhere to keep the entity's CDD data. The queue shows `users.name` + account email + legal form + status + submission count: `GET /api/v1/kyb` carries NO ciphertext column, so the registered entity name and the NIB are not in the list payload and cannot be searched. LIVE on the real backend since 28 Aug 2026 (PR #271 migration `0077` + PR #275) — the KYB MSW handlers were deleted |
@@ -100,7 +103,9 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   ├── components/
 │   │   ├── ui/            # shadcn/ui primitives (do not edit directly)
 │   │   ├── layout/        # Navbar, Sidebar + MobileNavDrawer (keduanya NavTree), navItems.ts (NAV 5 menu + breadcrumbFor + formatRole), useNavBadges, MainLayout (memasang banner mode uji mint), AuthGuard
-│   │   ├── detail-panel/  # Pola daftar + panel kanan (fase 1): SplitView, DetailPanel (+ ToneChip, PanelSection), PanelActions (satu tombol utama + Lainnya + konfirmasi inline), GroupedTable (grup "Perlu tindakan" / riwayat)
+│   │   ├── record-modal/  # RecordModal (+ RecordStatus) — modal detail tengah Transaksi & OTC: footer aksi menempel, navigasi ↑/↓
+│   │   ├── TabBar.tsx     # Tab di atas tabel (Transaksi): garis bawah, angka Inter tabular
+│   │   ├── detail-panel/  # Pola daftar + panel kanan (Verifikasi, Daftar Nasabah): SplitView, DetailPanel (+ ToneChip, PanelSection), PanelActions (satu tombol utama + Lainnya + konfirmasi inline; `bare` untuk footer RecordModal), GroupedTable (grup "Perlu tindakan" / riwayat; `hideLabel` untuk tabel satu grup)
 │   │   ├── Avatar.tsx     # Initials + fixed-palette avatar
 │   │   ├── FieldError.tsx # Inline form error primitive
 │   │   ├── TableEmptyState.tsx  # Table empty-state primitive
@@ -117,11 +122,12 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── auth/          # LoginPage
 │   │   ├── users/         # UsersPage (daftar + CustomerPanel kanan, ?pilih=) + UserDetailPage + hooks
 │   │   ├── staff/         # StaffPage + modal + hooks
-│   │   ├── otc/           # OtcPage + OtcDetailPanel + OtcRoute + hooks (/otc) — mint + redeem OTC satu tabel, status tanda tangan dari /multisig lewat safeTxHash, tanda tangan/eksekusi di panel via useSafeTxSigning
+│   │   ├── overview/      # OverviewPage + hooks (useDashboardStats) — Ringkasan /ringkasan, halaman awal
+│   │   ├── otc/           # OtcPage({type}) + OtcDetailModal + OtcRoute + OtcLegacyRedirect + hooks (/otc/mint, /otc/redeem) — satu halaman per jenis, status tanda tangan dari /multisig lewat safeTxHash, tanda tangan/eksekusi di footer modal via useSafeTxSigning
 │   │   ├── verification/  # VerificationPage + VerificationDetailPanel (/verifikasi) — KYC + KYB satu tabel, panel ringkas TANPA membaca PII
 │   │   ├── mint/          # MintFormPage + hooks (/mint/new; daftar lama dialihkan ke /otc)
 │   │   ├── burn/          # BurnFormPage + form/info panel + hooks (/burn/new; daftar lama dialihkan ke /otc)
-│   │   ├── transactions/  # TransactionsPage (Transaksi gabungan, SOT PR #50) + TransactionDetailPanel + TransactionActionDialog (dialog antrean asal) + OrderDetailModal + hooks
+│   │   ├── transactions/  # TransactionsPage (Transaksi gabungan, SOT PR #50: tab + tabel lebar penuh) + TransactionDetailModal (RecordModal) + TransactionActionDialog (dialog antrean asal) + OrderDetailModal + hooks
 │   │   ├── payment-methods/ # PaymentMethodsPage + PaymentMethodDialogs + hooks (/settings/payment-methods, SOT PR #50)
 │   │   ├── redeem-approvals/ # RedeemApprovalsPage + RedeemApprovalControlsCard + ApproveRedeemDialog + RejectRedeemDialog + PayoutDestinationSummary + columnConfig + hooks (USDX-669, /redeem-approvals) — gerbang ops sebelum rupiah redeem keluar + ambang nominal
 │   │   ├── payout-failures/ # PayoutFailuresPage + PayoutFailureDetailModal + ResolvePayoutFailureDialog + ReplacementAccountSelect + SubmissionTrail + ResolutionTrail + filterDefs + hooks (USDX-662, /payout-failures) — antrean Pencairan Bermasalah + resolve per issueKind + pemilih rekening pengganti RESENT (USDX-678)
@@ -274,9 +280,42 @@ Tailwind (`bg-primary`, `text-gold`, …), bukan hex.
 | `primary` | maroon `#800000` | tombol utama, menu aktif, tautan; di gelap diangkat ke merah muda terang dengan teks gelap di atasnya |
 | `gold` / `gold-soft` / `gold-foreground` | emas `#e0a93c` | aksen merek, isian "Yang perlu kamu lakukan" |
 | `success` / `warning` / `destructive` | — | chip status (lewat `ToneChip` / `StatusPill`) |
-| `font-display` | Crimson Pro | judul halaman (`PageHeader`), judul panel, dan wordmark USDX di Sidebar/Navbar — tidak untuk isi |
+| `font-display` | Crimson Pro | judul halaman (`PageHeader`), judul modal/dialog/sheet (`DialogTitle`, `SheetTitle`), dan wordmark USDX di Sidebar/Navbar — tidak untuk isi |
 
 Tidak ada gradien CTA lagi (`bg-blue-pulse` milik Azure Horizon sudah pensiun).
+
+### Tipografi — token per peran (audit font 10 Okt 2026)
+
+Skala di `src/index.css` (`--text-*: initial`, jadi ukuran di luar daftar ini
+gagal dikompilasi). 11px (`text-2xs`) dan 18px (`text-lg`) DIBUANG, begitu juga
+`text-xl`/`text-2xl`; `src/__tests__/theme.test.tsx` menjaga keduanya.
+`tailwind-merge` di `lib/utils.ts` mengenal token baru sebagai UKURAN (kalau
+tidak, `cn('text-label', 'text-muted-foreground')` membuang ukurannya).
+
+| Peran | Kelas | Ukuran |
+|-------|-------|--------|
+| Judul halaman | `font-display text-page-title` | Crimson Pro 28/32 600 (`PageHeader`) |
+| Judul modal/dialog/sheet | `font-display text-dialog-title` | Crimson Pro 20/26 600 (`DialogTitle`, `SheetTitle`) |
+| Judul seksi | `text-section` | Inter 14/20 600 (`DataSection`, `FormSection`, `CardTitle`) |
+| Badan & form | `text-base` | Inter 14/22 |
+| Teks tabel | `text-sm` | Inter 13/20, kolom utama `font-medium` |
+| Meta / waktu | `text-xs` | Inter 12/18 |
+| Label, kepala kolom, badge/status | `text-label` | Inter 12/16 500 |
+| Uang di tabel | `text-money` (atau `font-semibold`) | Inter 13/20 600 |
+| Uang besar | `text-money-lg` | Inter 24/28 600 -0.01em — tanpa `leading-none`, tanpa `tracking-tight` |
+
+- **Angka** (uang, kurs, plafon, angka laporan, waktu, "x menit lagi", paginasi
+  "1–8 dari 8", hitungan) = Inter + `tabular-nums`. Ejaan Indonesia di mana pun
+  (`51.249,75`, termasuk Cadangan).
+- **JetBrains Mono HANYA** untuk hash, ID, alamat wallet, path API, JSON / nilai
+  mentah di "Detail teknis", nomor order/referensi — `font-mono text-xs
+  text-muted-foreground`.
+- **Satu gaya status**: `STATUS_CHIP_BASE` (`lib/statusChip.ts`) dipakai `Badge`,
+  `StatusPill`, `ToneChip`, dan badge status lokal — sudut kecil, tanpa titik,
+  `font-sans text-label`.
+- **Tanpa enum mentah ke admin**: kode yang belum punya label tampil
+  `UNKNOWN_CODE_LABEL` ("Belum dikenali", `lib/status.ts`) dengan kodenya di
+  `title` dan di "Detail teknis".
 
 ### Mint/Burn Request Lifecycle (sot/phase-1.md § Flow MINT/BURN OTC)
 

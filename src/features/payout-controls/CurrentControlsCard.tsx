@@ -84,12 +84,14 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
               )}
             </div>
 
-            <dl className="grid gap-4 sm:grid-cols-2">
+            {/* Satu kolom: nominal 24px (money-lg) sampai miliaran tidak muat
+                di setengah kartu. */}
+            <dl className="grid gap-4">
               <div>
                 <dt className="text-xs text-muted-foreground">
                   Plafon per transaksi
                 </dt>
-                <dd className="mt-1 text-money-lg tabular-nums">
+                <dd className="mt-1 whitespace-nowrap text-money-lg tabular-nums">
                   {limitLabel(data.maxPerTxIdr)}
                 </dd>
               </div>
@@ -97,11 +99,11 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <dt className="text-xs text-muted-foreground">
                   Plafon per hari (WIB)
                 </dt>
-                <dd className="mt-1 text-money-lg tabular-nums">
+                <dd className="mt-1 whitespace-nowrap text-money-lg tabular-nums">
                   {limitLabel(data.maxDailyIdr)}
                 </dd>
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <dt className="text-xs text-muted-foreground">
                   Order per putaran pengiriman
                 </dt>
