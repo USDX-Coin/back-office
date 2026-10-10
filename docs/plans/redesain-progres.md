@@ -263,13 +263,40 @@ Screenshot terang 1440 + 390 → `scratchpad/redesain-f3/`.
   `m9-konfirmasi-kurs` tidak membuka dialog — artefak data tiruan skrip
   screenshot (sama seperti fase 2), bukan bug layar.
 
-## Ops fokus + format waktu (GO PM 10 Okt) — WIP, belum selesai
+## Ops fokus + format waktu (GO PM 10 Okt) — SELESAI (11 Okt 2026)
 
-Dihentikan di tengah karena laptop PM ditutup. Halaman galat (404/403/sesi habis) SUDAH selesai di `ef8a717`.
-Sisa:
-- A. Ops fokus ke transaksi — SUDAH di-commit `958a790` (cek ulang kelengkapan sisiran): detail `/multisig` jadi modal tengah (nama penanda tangan, tombol tahap di footer,
-  pemeriksaan kecocokan tetap mengunci tombol); sisir modal lain — alamat/hash/calldata/nonce ke "Detail teknis"
-  (kecuali input yang harus diisi ops). Logika `useSafeTxSigning` tidak boleh berubah.
-- B. (WIP di `08b853b`, ~39 file belum dites) Format waktu seragam `12 Sep 2026, 08:00:09` lewat satu helper di `src/lib`; "WIB" hanya di judul kolom/label;
-  tanggal saja tetap `25 Jan 1994`; waktu relatif tetap; CSV jangan diubah bila kontrak.
-- Cek: lint/unit/build/e2e/audit high hijau, screenshot ke scratchpad/ops-fokus/, update CLAUDE.md, push.
+Halaman galat (404/403/sesi habis) selesai di `ef8a717`; ops fokus di `958a790`;
+format waktu WIP `08b853b` dituntaskan di `3d451aa` + `c0fc798` + commit penutup.
+
+**A. Ops fokus ke transaksi**
+- `/multisig/:id` = modal tengah `MultisigDetailModal` (pola `RecordModal walletSafe`):
+  penanda tangan dengan nama + Sudah/Belum, satu tombol per tahap di footer sticky
+  (Hubungkan wallet → Pindah ke Polygon → Tanda tangani → Eksekusi), jendela wallet
+  RainbowKit bisa diklik (e2e). Isi transaksi yang tidak cocok dengan server memunculkan
+  peringatan kalimat biasa dan mengunci tanda tangan + eksekusi.
+- `useSafeTxSigning`: sejak sebelum ops-fokus (`958a790^`) hanya komentar yang berubah.
+  (Terhadap `origin/dev` berkas ini baru seluruhnya — diekstrak dari `MultisigDetailSheet`
+  di commit fase 1 PR ini, `76d6fdb`.)
+- Sisir: Pencairan Bermasalah (tx burn), dialog Setujui pencairan, modal OTC (alamat
+  Safe/nonce/hash) → Detail teknis; kolom "Bukti pembakaran" Persetujuan Pencairan dan
+  kolom "Jaringan" + "Antrean tanda tangan" Perbaiki Status Nyangkut disembunyikan bawaan.
+- Pengecualian yang disengaja: modal Ubah Tx Hash `/manual-sync` (isian tx hash + jaringan
+  + tabel cocok per baris = pekerjaannya), alamat bundle uji Mode Mint (isian ops), wallet
+  nasabah tujuan/sumber ringkas + salin (OTC, rincian order, Pencairan Bermasalah, panel
+  nasabah), daftar wallet di profil nasabah + dialog lepas wallet (objek yang dikelola),
+  form mint/redeem (isian), ID rekaman KYC/KYB/screening (bukan data on-chain).
+
+**B. Format waktu seragam**
+- Satu helper `formatDateTime` (`src/lib/format.ts`): `12 Sep 2026, 08:00:09`, WIB.
+  "WIB" di judul kolom/label/keterangan kecil, tidak di nilai. Tanggal saja
+  `formatDateOnly`/`formatIsoDayLong`; relatif tetap. `formatDate`/`formatWibDateTime` dihapus.
+- Ikut spec (`sot/bni-integration.md`): tabel mutasi BNI + waktu pengapit selisih
+  `YYYY-MM-DD HH:mm[:ss]`, "direkam s/d DD/MM/YYYY HH:mm WIB", "Riwayat tersedia sejak
+  DD/MM/YYYY", CSV mutasi tidak berubah. Kartu saldo BNI (tidak diatur spec) pakai format seragam.
+- Lebar kolom waktu Jejak Audit (176) dan Pencairan Bermasalah (168) disesuaikan — format
+  baru lebih pendek dan tombol Detail sebelumnya terpotong di 1440.
+- Sisa grep pola lama di kode UI: hanya spec BNI (sengaja) + komentar.
+
+**Cek akhir**: lint 0 error (3 warning lama) · unit 2454/2454 · build hijau · e2e 158/158 ·
+`pnpm audit --audit-level=high` exit 0. Screenshot light 1440 + 390 di
+`scratchpad/ops-fokus/` (modal multisig, OTC, Transaksi, Jejak Audit, Pencairan Bermasalah).

@@ -97,7 +97,7 @@ export default function ApprovalsPage() {
     {
       id: 'proposedAt',
       header: 'Diusulkan (WIB)',
-      // `YYYY-MM-DD HH:MM:SS WIB` utuh butuh 192px — angka yang sama dipakai
+      // `12 Sep 2026, 08:00:09` utuh muat di 192px — angka yang sama dipakai
       // Jejak Audit dan Mint Bermasalah untuk format ini. 168px memotong
       // detiknya, bagian yang justru dipakai mengurutkan dua usulan berdekatan.
       size: 192,

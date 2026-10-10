@@ -79,8 +79,9 @@ export default function PayoutFailuresPage() {
       id: 'issueAt',
       // Cap waktu ditulis penuh sampai detik ("12 Sep 2026, 08:00:09"); zona
       // ditulis sekali di judul kolom. Detik itu yang dicocokkan ops dengan
-      // mutasi bank, jadi lebarnya dijaga.
-      size: 184,
+      // mutasi bank, jadi lebarnya dijaga (168px cukup; 184px membuat tabel
+      // melebar 16px dan tombol Detail terpotong di 1440).
+      size: 168,
       header: 'Masuk antrean (WIB)',
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">

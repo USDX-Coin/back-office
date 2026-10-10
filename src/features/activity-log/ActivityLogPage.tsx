@@ -130,10 +130,10 @@ export default function ActivityLogPage() {
     {
       id: 'createdAt',
       header: 'Waktu (WIB)',
-      // Cukup untuk `YYYY-MM-DD HH:MM:SS WIB` UTUH. Stempel waktu yang terpotong
+      // Cukup untuk `12 Sep 2026, 08:00:09` UTUH. Stempel waktu yang terpotong
       // di layar bukti kepatuhan adalah nilai yang harus dibuka satu per satu
       // untuk bisa dikutip.
-      size: 192,
+      size: 176,
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
           {formatDateTime(row.original.createdAt)}
@@ -215,7 +215,8 @@ export default function ActivityLogPage() {
     {
       id: 'actions',
       header: '',
-      size: 88,
+      // 88px membuat tombol "Detail" (ikon + padding) terpotong jadi "…".
+      size: 104,
       cell: ({ row }) => (
         <button
           type="button"
