@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import ErrorNotice from '@/components/ErrorNotice'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
+import { ToneChip } from '@/components/ToneChip'
 import { useAuth } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format'
 import {

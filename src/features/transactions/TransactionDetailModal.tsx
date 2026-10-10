@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
+import { ToneChip } from '@/components/ToneChip'
 import { DataField, DataSection } from '@/components/DataList'
 import DetailTeknis from '@/components/DetailTeknis'
 import { Button } from '@/components/ui/button'

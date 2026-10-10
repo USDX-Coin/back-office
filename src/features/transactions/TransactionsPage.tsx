@@ -3,8 +3,8 @@ import PageHeader from '@/components/PageHeader'
 import TabBar from '@/components/TabBar'
 import TableToolbar from '@/components/table/TableToolbar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
-import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
+import { ToneChip } from '@/components/ToneChip'
+import GroupedTable, { type GroupedColumn } from '@/components/table/GroupedTable'
 import { formatDateTime, truncateMiddle } from '@/lib/format'
 import {
   ACTION_LABEL,
