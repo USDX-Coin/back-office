@@ -63,15 +63,17 @@ describe('rute /jejak-audit yang benar-benar dikirim', () => {
       ['MANAGER', 'stf_2'],
       ['DEVELOPER', 'stf_3'],
       ['STAFF', 'stf_4'],
-    ])('%s dialihkan ke /transactions', (_role, staffId) => {
+    ])('%s melihat halaman 403 di tempat (tanpa pengalihan)', (_role, staffId) => {
       renderRealGuard(staffId)
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /tidak punya akses/i })).toBeInTheDocument()
+      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
       expect(screen.queryByText('JEJAK_AUDIT_PAGE')).not.toBeInTheDocument()
     })
 
-    test('kunjungan tanpa sesi dialihkan', () => {
+    test('tanpa sesi → halaman 403 (fail-closed)', () => {
       renderRealGuard()
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /tidak punya akses/i })).toBeInTheDocument()
+      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
       expect(screen.queryByText('JEJAK_AUDIT_PAGE')).not.toBeInTheDocument()
     })
   })

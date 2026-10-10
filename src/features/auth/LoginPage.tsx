@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Eye, EyeOff } from 'lucide-react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Clock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,8 @@ import ThemeToggle from '@/components/ThemeToggle'
 import { useAuth } from '@/lib/auth'
 import { validateLoginForm } from '@/lib/validators'
 import LogoLockup from '@/components/LogoLockup'
+import { DEFAULT_AFTER_LOGIN, safeNextPath } from '@/lib/nextPath'
+import type { LoginRedirectState } from '@/components/layout/AuthGuard'
 
 /**
  * Galat login dalam kalimat manusia. `auth.tsx` melempar `ApiError` utuh;
@@ -35,7 +37,15 @@ const LOGIN_ERRORS: Record<string, string> = {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [params] = useSearchParams()
   const { login } = useAuth()
+  // Pesan "sesi habis" HANYA dari state router yang dipasang `ProtectedRoute`
+  // saat 401 — bukan dari query, jadi tautan dari luar tidak bisa memunculkannya,
+  // dan Keluar biasa tidak membawanya.
+  const sessionExpired = (location.state as LoginRedirectState | null)?.sessionExpired === true
+  // `?next=` divalidasi: hanya path internal (`/…`, bukan `//…`); selain itu Ringkasan.
+  const afterLogin = safeNextPath(params.get('next')) ?? DEFAULT_AFTER_LOGIN
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -58,7 +68,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/ringkasan', { replace: true })
+      navigate(afterLogin, { replace: true })
     } catch (err) {
       setSubmitError(err ?? new Error('Gagal masuk.'))
     } finally {
@@ -87,6 +97,23 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent className="px-8 pb-0">
               <form onSubmit={handleSubmit} className="space-y-5" noValidate id="login-form">
+                {sessionExpired && submitError == null && (
+                  <div
+                    role="status"
+                    data-testid="session-expired-notice"
+                    className="flex gap-2.5 rounded-lg border border-border bg-muted/50 px-3.5 py-3 text-base text-foreground"
+                  >
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <div className="space-y-0.5">
+                      <p>Sesimu sudah habis, silakan masuk lagi.</p>
+                      {afterLogin !== DEFAULT_AFTER_LOGIN && (
+                        <p className="text-sm text-muted-foreground">
+                          Setelah masuk, kamu kembali ke halaman tadi.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {submitError != null && (
                   <ErrorNotice
                     error={submitError}

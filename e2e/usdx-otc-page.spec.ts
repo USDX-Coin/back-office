@@ -104,11 +104,12 @@ test.describe('OTC ▸ Mint / Redeem @e2e', () => {
   })
 
   test.describe('negative', () => {
-    test('STAFF does not see the OTC menu and is redirected away from /otc/mint', async ({ page }) => {
+    test('STAFF does not see the OTC menu and gets the 403 page on /otc/mint', async ({ page }) => {
       await installMockApi(page, asStaff())
-      await seedAuthenticatedSession(page)
+      await seedAuthenticatedSession(page, { ...ADMIN_STAFF, role: 'STAFF' })
       await page.goto('/otc/mint')
-      await expect(page).not.toHaveURL(/\/otc/, { timeout: 15000 })
+      await expect(page.getByRole('heading', { name: /tidak punya akses/i, level: 1 })).toBeVisible({ timeout: 15000 })
+      await expect(page).toHaveURL(/\/otc\/mint$/)
       await expect(page.getByRole('button', { name: /^OTC/ })).toHaveCount(0)
     })
   })

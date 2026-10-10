@@ -46,6 +46,7 @@ import PaymentMethodsPage from '@/features/payment-methods/PaymentMethodsPage'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
 import DurianpayApiCallsPage from '@/features/durianpay-api-calls/DurianpayApiCallsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+import NotFoundPage from '@/features/errors/NotFoundPage'
 
 // Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
 // loads only when an operator opens /multisig, not on every page (USDX-275).
@@ -102,6 +103,8 @@ export const appRoutes: RouteObject[] = [
           // Ringkasan (keputusan PM 10 Okt 2026) — halaman pertama setelah
           // masuk, semua peran. `/dashboard` (Beranda lama) dialihkan ke sini.
           { path: '/ringkasan', element: <OverviewPage /> },
+          // `/` (akar) tetap pengalihan sengaja ke Ringkasan — dulu lewat `*`.
+          { path: '/', element: <Navigate to="/ringkasan" replace /> },
           { path: '/dashboard', element: <Navigate to="/ringkasan" replace /> },
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
@@ -145,7 +148,7 @@ export const appRoutes: RouteObject[] = [
             // mengubah DASAR penilaian SELURUH nasabah sekaligus
             // (`screening.controller.ts`), jadi menyembunyikan tombol saja tetap
             // meninggalkan halamannya sejauh satu URL. BE menegakkan 403 juga.
-            element: <RoleGuard allowed={['ADMIN', 'MANAGER']} redirectTo="/screening" />,
+            element: <RoleGuard allowed={['ADMIN', 'MANAGER']} />,
             children: [{ path: '/screening/lists', element: <SanctionListsPage /> }],
           },
           { path: '/screening/:id', element: <ScreeningQueuePage /> },
@@ -196,7 +199,7 @@ export const appRoutes: RouteObject[] = [
             // 10 Okt 2026; fase 1 masih satu tabel `/otc`).
             // Gerbangnya tetap sot/phase-1.md L34 (USDX-78): list + detail
             // `/api/v1/requests` dan `/api/v1/multisig` hanya ADMIN / DEVELOPER /
-            // MANAGER. STAFF diarahkan ke Transaksi, karena menu OTC memang
+            // MANAGER. STAFF melihat halaman 403 di tempat, karena menu OTC memang
             // disembunyikan untuknya.
             //
             // `/otc/mint/:id` merender ulang tabel dan membuka modal detail dari
@@ -285,7 +288,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             // USDX-81 + sot/phase-1.md § Reporting access: ADMIN/DEVELOPER/MANAGER.
-            // STAFF redirect → /transactions via RoleGuard.
+            // STAFF melihat halaman 403 (RoleGuard), tanpa request laporan.
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
               { path: '/reports/mint/daily', element: <DailyMintReportPage /> },
@@ -297,7 +300,7 @@ export const appRoutes: RouteObject[] = [
           {
             // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md §
             // Backoffice Multisig Page: the Multisig queue is ADMIN / DEVELOPER /
-            // MANAGER only (STAFF redirects — signer = Safe owner). The wallet
+            // MANAGER only (STAFF sees the 403 page — signer = Safe owner). The wallet
             // stack (wagmi/RainbowKit) wraps only this subtree so other pages
             // don't pull in the connectors / chain polling. `/multisig/:id`
             // re-renders the list and opens the detail drawer from URL state.
@@ -356,11 +359,18 @@ export const appRoutes: RouteObject[] = [
             ],
           },
           { path: '/profile', element: <ProfilePage /> },
+          // 404 — rute yang benar-benar tidak dikenal, DI DALAM layout (sidebar
+          // tetap). Dulu `*` di luar mengalihkan diam-diam ke /login → Ringkasan.
+          // Karena ia di dalam ProtectedRoute, pengunjung tanpa sesi tetap
+          // diarahkan ke Login dulu (dengan `?next=`), lalu melihat 404 setelah
+          // masuk. Pengalihan yang disengaja di atas (`/`, `/dashboard`, `/mint`,
+          // `/burn`, `/otc`, `/kyc`, `/kyb`) adalah rute sendiri dan menang atas
+          // `*` karena peringkat rute React Router.
+          { path: '*', element: <NotFoundPage /> },
         ],
       },
     ],
   },
-  { path: '*', element: <Navigate to="/login" replace /> },
 ]
 
 const router = createBrowserRouter(appRoutes)

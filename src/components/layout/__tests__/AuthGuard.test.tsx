@@ -6,8 +6,21 @@ import { RoleGuard } from '@/components/layout/AuthGuard'
 import { appRoutes } from '@/App'
 import { renderWithProviders } from '@/test/test-utils'
 
+/**
+ * Sejak halaman 403 (Okt 2026) RoleGuard TIDAK lagi mengalihkan diam-diam ke
+ * /transactions: peran terlarang melihat "Kamu tidak punya akses" DI TEMPAT,
+ * dan halaman aslinya tidak pernah dipasang (datanya tidak diminta).
+ */
+function expectForbidden() {
+  expect(
+    screen.getByRole('heading', { name: /kamu tidak punya akses ke halaman ini/i }),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
+  expect(screen.queryByText('ELSEWHERE')).not.toBeInTheDocument()
+}
+
 // USDX-53 AC3: only ADMIN can reach /settings/threshold; non-ADMIN
-// (STAFF, MANAGER, DEVELOPER) must redirect away. RoleGuard is the
+// (STAFF, MANAGER, DEVELOPER) see the 403 page in place. RoleGuard is the
 // URL-level enforcement; the Sidebar gate is UI-only and not enough on
 // its own. sot/phase-1.md L516 "Threshold Management — admin only".
 
@@ -34,50 +47,46 @@ describe('RoleGuard @ USDX-53', () => {
   })
 
   describe('negative', () => {
-    test('STAFF is redirected to /transactions (Linear AC3)', () => {
+    test('STAFF sees the 403 page (Linear AC3)', () => {
       // stf_4 = Sarah King (STAFF) per createStaff seed sequence.
       renderTree('/settings/threshold', 'stf_4')
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /transactions', () => {
+    test('MANAGER sees the 403 page', () => {
       // stf_2 = Linda Chen (MANAGER).
       renderTree('/settings/threshold', 'stf_2')
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('DEVELOPER is redirected to /transactions', () => {
+    test('DEVELOPER sees the 403 page', () => {
       // stf_3 = Marcus Aurelius (DEVELOPER). SoT phase-1.md L23-30
       // contradicts L464/L516 on DEVELOPER access — strict page-spec wins
       // (admin only).
       renderTree('/settings/threshold', 'stf_3')
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
 
   describe('edge cases', () => {
-    test('unauthenticated visit redirects (no user → not allowed)', () => {
+    test('no user → 403 page (fail-closed)', () => {
       renderTree('/settings/threshold')
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
 
-  // USDX-78 — RoleGuard accepts a `redirectTo` to send disallowed roles
-  // somewhere other than /dashboard. Used on /mint and /burn so STAFF lands
-  // on the form (sot/phase-1.md L34) instead of the dashboard.
-  describe('USDX-78 — custom redirectTo', () => {
+  // USDX-78 — dulu RoleGuard menerima `redirectTo` (STAFF di /mint → /mint/new).
+  // Prop itu DIHAPUS bersama pengalihan diam-diam: STAFF di daftar OTC kini
+  // melihat 403 dengan perannya disebut, bukan dipindah ke halaman lain.
+  describe('USDX-78 — tanpa pengalihan diam-diam', () => {
     function renderMintTree(initialEntry: string, staffId: string) {
       return renderWithProviders(
         <Routes>
-          <Route
-            element={
-              <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} redirectTo="/mint/new" />
-            }
-          >
+          <Route element={<RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />}>
             <Route path="/mint" element={<div>MINT_LIST</div>} />
             <Route path="/mint/:id" element={<div>MINT_LIST_DEEP</div>} />
           </Route>
@@ -88,16 +97,18 @@ describe('RoleGuard @ USDX-53', () => {
       )
     }
 
-    test('STAFF on /mint is redirected to /mint/new (not /transactions)', () => {
+    test('STAFF on /mint sees the 403 page with the role as a word, not MINT_FORM', () => {
       renderMintTree('/mint', 'stf_4') // STAFF
-      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expectForbidden()
+      expect(screen.getByTestId('route-notice-role')).toHaveTextContent('Staf')
+      expect(screen.getByTestId('route-notice-path')).toHaveTextContent('/mint')
       expect(screen.queryByText('MINT_LIST')).not.toBeInTheDocument()
-      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
+      expect(screen.queryByText('MINT_FORM')).not.toBeInTheDocument()
     })
 
-    test('STAFF on /mint/:id is also redirected to /mint/new', () => {
+    test('STAFF on /mint/:id also sees the 403 page', () => {
       renderMintTree('/mint/req_abc', 'stf_4')
-      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('MINT_LIST_DEEP')).not.toBeInTheDocument()
     })
 
@@ -163,26 +174,26 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
     })
   })
 
-  describe('negative — everyone else is redirected', () => {
+  describe('negative — everyone else sees the 403 page', () => {
     // Hiding the sidebar entry is not enough: the page lists the internal
     // `reason` text of every ledger entry and the name of the staff member who
     // filed it, none of which appears publicly. Without the route guard that
     // data is one typed URL away for any authenticated operator.
-    test('STAFF is redirected to /transactions', () => {
+    test('STAFF sees the 403 page', () => {
       renderRealGuard('stf_4') // Sarah King, STAFF
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /transactions', () => {
+    test('MANAGER sees the 403 page', () => {
       renderRealGuard('stf_2') // Linda Chen, MANAGER
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
-    test('an unauthenticated visit is redirected', () => {
+    test('no user → 403 page (fail-closed)', () => {
       renderRealGuard()
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -234,7 +245,7 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       expect(isGuarded('/multisig/*', appRoutes)).toBe(true)
     })
 
-    test('STAFF is still redirected away from /multisig by the shipped guard', () => {
+    test('STAFF still sees the 403 page on /multisig via the shipped guard', () => {
       const guard = findGuardFor('/multisig/*', appRoutes)
       // The multisig subtree nests a Suspense wrapper under the guard; walk up
       // to the RoleGuard element itself.
@@ -250,7 +261,7 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
         </Routes>,
         { initialEntries: ['/multisig'], staffId: 'stf_4' },
       )
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('MULTISIG_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -332,9 +343,9 @@ describe('the SHIPPED /durianpay-api-calls route guard', () => {
   })
 
   describe('negative — the guard is still a guard', () => {
-    test('an unauthenticated visit is redirected', () => {
+    test('no user → 403 page (fail-closed)', () => {
       renderRealGuard()
-      expect(screen.getByText('TRANSAKSI')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('DURIANPAY_LOG_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -398,9 +409,9 @@ describe('the SHIPPED /otc route guard', () => {
   })
 
   describe('negative', () => {
-    test('STAFF is redirected away from /otc and from a deep link', () => {
+    test('STAFF sees the 403 page on /otc', () => {
       renderRealGuard('stf_4')
-      expect(screen.getByText('ELSEWHERE')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('OTC_PAGE')).not.toBeInTheDocument()
     })
   })
