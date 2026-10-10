@@ -4,9 +4,8 @@ import PageHeader from '@/components/PageHeader'
 import TableToolbar from '@/components/table/TableToolbar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { ToneChip } from '@/components/detail-panel/DetailPanel'
-import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
-import SplitView from '@/components/detail-panel/SplitView'
+import { ToneChip } from '@/components/ToneChip'
+import GroupedTable, { type GroupedColumn } from '@/components/table/GroupedTable'
 import KycDetailModal from '@/features/kyc/KycDetailModal'
 import KybDetailModal from '@/features/kyb/KybDetailModal'
 import { useQueries } from '@tanstack/react-query'
@@ -25,7 +24,6 @@ import {
   type VerificationKind,
   type VerificationRow,
 } from '@/lib/verification'
-import VerificationDetailPanel from './VerificationDetailPanel'
 
 /** Antrean menunggu ditarik semua sekaligus (per jenis). */
 const PENDING_LIMIT = 100
@@ -41,9 +39,13 @@ type HistoryFilter = 'all' | 'VERIFIED' | 'REJECTED'
  * satunya). Kedua endpoint hanya menerima satu `status`, jadi tiap pasangan
  * (sumber × keputusan) ditarik sendiri dan berhalaman serempak.
  *
- * Klik baris → panel ringkas di kanan. Foto & dokumen tetap di halaman berkas
- * lengkap lama (`/kyc/:id`, `/kyb/:id` — modal di atas halaman ini), dibuka
- * dari tombol utama panel.
+ * Klik baris → modal berkas di TENGAH (`/verifikasi/:jenis/:id`; rute lama
+ * `/kyc/:id` dan `/kyb/:id` membuka modal yang sama). Tabel tetap lebar penuh —
+ * tidak ada panel samping (PM Okt 2026). ↑/↓ di modal berpindah ke berkas
+ * sebelum/sesudahnya di tabel ini, urutan yang sama dengan yang terlihat.
+ *
+ * Data berkas (PII terdekripsi + presigned URL) HANYA ditarik saat modal
+ * berkas itu terbuka — tabel sendiri tidak pernah menariknya.
  */
 /** Nilai Radix Select untuk "tanpa saringan" — Select tidak menerima string kosong. */
 const SEMUA = 'semua'
@@ -124,13 +126,22 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
   }
 
   const qs = location.search
-  const select = (r: VerificationRow) => navigate(`/verifikasi/${r.kind}/${encodeURIComponent(r.id)}${qs}`)
-  const closePanel = () => navigate(`/verifikasi${qs}`)
+  const open = (r: VerificationRow, replace = false) =>
+    navigate(`/verifikasi/${r.kind}/${encodeURIComponent(r.id)}${qs}`, { replace })
+  const close = () => navigate(`/verifikasi${qs}`)
 
   const selectedKey = selectedKind && selectedId ? `${selectedKind}:${selectedId}` : null
-  const selectedRow = selectedKey
-    ? ([...pendingRows, ...historyRows].find((r) => r.key === selectedKey) ?? null)
-    : null
+  // ↑/↓ mengikuti urutan yang TERLIHAT: menunggu dulu, lalu riwayat.
+  const visibleRows = [...pendingRows, ...historyRows]
+  const selectedIndex = selectedKey ? visibleRows.findIndex((r) => r.key === selectedKey) : -1
+  const prevRow = selectedIndex > 0 ? visibleRows[selectedIndex - 1] : undefined
+  const nextRow = selectedIndex >= 0 ? visibleRows[selectedIndex + 1] : undefined
+  const nav = {
+    index: selectedIndex >= 0 ? selectedIndex : null,
+    total: visibleRows.length,
+    onPrev: prevRow ? () => open(prevRow, true) : undefined,
+    onNext: nextRow ? () => open(nextRow, true) : undefined,
+  }
 
   const columns: GroupedColumn<VerificationRow>[] = [
     {
@@ -178,7 +189,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     },
   ]
 
-    const list = (
+  const list = (
     <div className="space-y-3">
       <TableToolbar
         search={{
@@ -223,7 +234,7 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
         rowKey={(r) => r.key}
         rowLabel={(r) => `Buka berkas ${VERIFICATION_KIND_LABEL[r.kind].toLowerCase()} ${r.name}`}
         selectedKey={selectedKey}
-        onSelect={select}
+        onSelect={(r) => open(r)}
         groups={[
           {
             key: 'pending',
@@ -269,14 +280,14 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
     </div>
   )
 
-  // Modal berkas lengkap (rute lama /kyc/:id, /kyb/:id) — menutupnya kembali
-  // ke panel berkas yang sama, bukan ke daftar kosong.
-  const backToPanel = () =>
-    navigate(`/verifikasi/${detail}/${encodeURIComponent(selectedId ?? '')}${qs}`, { replace: true })
   const rawKyc =
-    detail === 'perorangan' ? (kycPendingItems.concat(kycHistItems).find((k) => k.id === selectedId) ?? null) : null
+    selectedKind === 'perorangan'
+      ? (kycPendingItems.concat(kycHistItems).find((k) => k.id === selectedId) ?? null)
+      : null
   const rawKyb =
-    detail === 'badan-usaha' ? (kybPendingItems.concat(kybHistItems).find((k) => k.id === selectedId) ?? null) : null
+    selectedKind === 'badan-usaha'
+      ? (kybPendingItems.concat(kybHistItems).find((k) => k.id === selectedId) ?? null)
+      : null
 
   return (
     <div>
@@ -292,35 +303,24 @@ export default function VerificationPage({ detail }: { detail?: VerificationKind
           ) : undefined
         }
       />
-      <SplitView
-        list={list}
-        panel={
-          selectedKind && selectedId ? (
-            <VerificationDetailPanel
-              kind={selectedKind}
-              id={selectedId}
-              row={selectedRow}
-              onClose={closePanel}
-              search={qs}
-            />
-          ) : null
-        }
-      />
+      {list}
       <KycDetailModal
-        kycId={detail === 'perorangan' ? selectedId : null}
+        kycId={selectedKind === 'perorangan' ? selectedId : null}
         listItem={rawKyc}
-        open={detail === 'perorangan' && Boolean(selectedId)}
+        open={selectedKind === 'perorangan' && Boolean(selectedId)}
         onOpenChange={(o) => {
-          if (!o) backToPanel()
+          if (!o) close()
         }}
+        nav={selectedKind === 'perorangan' ? nav : null}
       />
       <KybDetailModal
-        kybId={detail === 'badan-usaha' ? selectedId : null}
+        kybId={selectedKind === 'badan-usaha' ? selectedId : null}
         listItem={rawKyb}
-        open={detail === 'badan-usaha' && Boolean(selectedId)}
+        open={selectedKind === 'badan-usaha' && Boolean(selectedId)}
         onOpenChange={(o) => {
-          if (!o) backToPanel()
+          if (!o) close()
         }}
+        nav={selectedKind === 'badan-usaha' ? nav : null}
       />
     </div>
   )

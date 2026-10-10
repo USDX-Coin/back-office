@@ -18,12 +18,6 @@ export const VERIFICATION_KIND_LABEL: Record<VerificationKind, string> = {
   'badan-usaha': 'Badan usaha',
 }
 
-/** Segmen rute detail lengkap lama untuk tiap jenis (`/kyc/:id`, `/kyb/:id`). */
-export const VERIFICATION_DETAIL_BASE: Record<VerificationKind, '/kyc' | '/kyb'> = {
-  perorangan: '/kyc',
-  'badan-usaha': '/kyb',
-}
-
 export interface VerificationRow {
   /** Unik lintas dua sumber: `perorangan:<id>` / `badan-usaha:<id>`. */
   key: string

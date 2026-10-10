@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
+import { Route, Routes } from 'react-router'
 import KycDetailModal from '@/features/kyc/KycDetailModal'
 import { renderWithProviders } from '@/test/test-utils'
 import type { KycDetail, KycListItem, KycReviewLog } from '@/lib/types'
@@ -130,7 +131,9 @@ describe('KycDetailModal @ USDX-155', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText('alice.anderson@example.com')
-      expect(within(dialog).getByText('Alice Anderson')).toBeInTheDocument()
+      expect(within(within(dialog).getByTestId('kyc-identity')).getByText('Alice Anderson')).toBeInTheDocument()
+      // Nama yang sama jadi judul modal (pola RecordModal).
+      expect(within(dialog).getByRole('heading', { name: 'Alice Anderson' })).toBeInTheDocument()
       // Scoped: `employerAddress` (USDX-587) also names Jakarta, so an unscoped
       // `/Jakarta/` no longer proves the BIRTH PLACE is on screen.
       expect(field(dialog, 'kyc-dob').getByText(/15 Mar 1995/)).toBeInTheDocument()
@@ -305,7 +308,8 @@ describe('KycDetailModal @ USDX-155', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
       await within(dialog).findByText(/foto ktp buram, mohon submit ulang/i)
-      expect(within(dialog).getByText(/diperiksa oleh linda chen/i)).toBeInTheDocument()
+      // Pemeriksa + keputusannya di seksi Riwayat (dulu hanya di panel samping).
+      expect(within(dialog).getByText(/linda chen menolak berkas/i)).toBeInTheDocument()
       expect(
         within(dialog).queryByRole('button', { name: /^setujui$/i })
       ).not.toBeInTheDocument()
@@ -468,6 +472,30 @@ describe('KycDetailModal @ USDX-155', () => {
       await within(dialog).findByText(/tidak ditemukan/i)
       await user.click(within(dialog).getByRole('button', { name: /coba lagi/i }))
       await waitFor(() => expect(calls).toBe(2))
+    })
+  })
+
+  describe('pola modal tengah (panel samping dihapus)', () => {
+    test('status in a sentence, Riwayat, and "Lihat profil nasabah" under Lainnya leave the modal for the profile page', async () => {
+      const user = userEvent.setup()
+      stubDetail(makeDetail())
+      renderWithProviders(
+        <Routes>
+          <Route path="/kyc" element={<KycDetailModal kycId={KYC_ID} open onOpenChange={vi.fn()} />} />
+          <Route path="/users/:id" element={<div>PROFIL NASABAH</div>} />
+        </Routes>,
+        { initialEntries: ['/kyc'], authenticated: true },
+      )
+      const dialog = await screen.findByTestId('kyc-modal')
+      await within(dialog).findByTestId('kyc-identity')
+      expect(within(dialog).getByTestId('berkas-status')).toHaveTextContent(/yang perlu kamu lakukan/i)
+      expect(within(dialog).getByRole('heading', { name: 'Riwayat' })).toBeInTheDocument()
+      expect(within(dialog).getByTestId('berkas-diajukan')).toBeInTheDocument()
+      await user.click(within(dialog).getByRole('button', { name: /lainnya/i }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Lihat profil nasabah' }))
+      // Pindah halaman: modalnya ikut tertutup, tidak ada modal bertumpuk.
+      expect(await screen.findByText('PROFIL NASABAH')).toBeInTheDocument()
+      expect(screen.queryByTestId('kyc-modal')).not.toBeInTheDocument()
     })
   })
 

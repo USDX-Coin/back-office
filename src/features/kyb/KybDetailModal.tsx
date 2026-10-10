@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
+import DetailTeknis from '@/components/DetailTeknis'
+import { BerkasActions, BerkasRiwayat, BerkasStatus } from '@/features/verification/BerkasParts'
 import type { ReactNode } from 'react'
 import { AlertTriangle, Copy, FileText } from 'lucide-react'
 import { toast } from 'sonner'
@@ -11,12 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -39,7 +37,7 @@ import {
   UBO_LEGAL_RELATIONSHIP_LABELS,
   labelFor,
 } from '@/lib/cdd'
-import { formatDateTime, shortHash } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { parseKybDocumentsIncomplete } from '@/lib/kybDocumentsError'
 import {
   checkKybDocumentBytes,
@@ -57,7 +55,6 @@ import {
 } from '@/lib/kybDocumentUpload'
 import { isPiiWithheld, PII_MASK, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
-import { getKycStatusConfig } from '@/lib/status'
 import type {
   KybDocumentSlot,
   KybDocuments,
@@ -78,7 +75,6 @@ import {
 import { toastError, toastErrorMessage } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
-import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 interface KybDetailModalProps {
   kybId: string | null
@@ -86,6 +82,8 @@ interface KybDetailModalProps {
   onOpenChange: (open: boolean) => void
   /** Best-effort row from the list — header fallback while the detail loads. */
   listItem?: KybListItem | null
+  /** ↑/↓ ke berkas sebelum/sesudahnya di tabel Verifikasi (pola `RecordModal`). */
+  nav?: RecordModalNav | null
 }
 
 async function copyText(value: string, label: string) {
@@ -676,6 +674,7 @@ export default function KybDetailModal({
   open,
   onOpenChange,
   listItem,
+  nav,
 }: KybDetailModalProps) {
   const { user } = useAuth()
   const canReview = canReviewKyc(user)
@@ -730,7 +729,13 @@ export default function KybDetailModal({
   // record. Upload state is included and it matters more than the rest: a slot
   // left marked "uploaded", or an error left on a row, would be describing the
   // previous entity's file while the operator looks at this one's.
-  useEffect(() => {
+  // Dibuang SAAT RENDER (bukan di efek setelah paint) — ↑/↓ berpindah berkas
+  // tanpa menutup modal, jadi tidak boleh ada satu frame pun yang menampilkan
+  // state berkas sebelumnya di atas berkas ini.
+  const shownKey = `${kybId ?? ''}:${open}`
+  const [prevShownKey, setPrevShownKey] = useState(shownKey)
+  if (prevShownKey !== shownKey) {
+    setPrevShownKey(shownKey)
     setConfirmApproveOpen(false)
     setRejectOpen(false)
     setReason('')
@@ -742,7 +747,7 @@ export default function KybDetailModal({
     setUboUploadedSlots({})
     setUboUploading(null)
     setUboUploadErrors({})
-  }, [kybId, open])
+  }
 
   function handleMutationError(err: unknown) {
     setConfirmApproveOpen(false)
@@ -983,425 +988,389 @@ export default function KybDetailModal({
   // can only end in a 403 or a 409 they cannot do anything about.
   const canUpload = canReview && actionable
 
+  const submittedAt = detail?.submittedAt ?? listItem?.submittedAt ?? null
+  const userId = detail?.userId ?? listItem?.userId ?? null
+  const title =
+    (detail?.userName ?? listItem?.userName)?.trim() || detail?.userEmail || listItem?.userEmail || 'Berkas badan usaha'
+
   return (
     <TooltipProvider delayDuration={150}>
-      <Dialog
+      <RecordModal
         open={open}
-        onOpenChange={(next) => {
-          if (!isMutating) onOpenChange(next)
-        }}
+        onClose={() => onOpenChange(false)}
+        locked={isMutating}
+        testId="kyb-modal"
+        title={title}
+        subtitle={['Berkas verifikasi badan usaha', submittedAt ? `diajukan ${formatDateTime(submittedAt)}` : null]
+          .filter(Boolean)
+          .join(' · ')}
+        // Unggahan dokumen sedang berjalan = jangan pindah berkas.
+        nav={nav && isMutating ? { ...nav, onPrev: undefined, onNext: undefined } : nav}
+        actions={
+          <BerkasActions
+            userId={userId}
+            actionable={actionable}
+            canReview={canReview}
+            busy={isMutating}
+            onReject={() => setRejectOpen(true)}
+            onApprove={() => setConfirmApproveOpen(true)}
+          />
+        }
       >
-        <DialogContent
-          className="max-w-2xl bg-card"
-          onEscapeKeyDown={(e) => isMutating && e.preventDefault()}
-          onPointerDownOutside={(e) => isMutating && e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Berkas Verifikasi Badan Usaha</DialogTitle>
-            <DialogDescription>
-              Penelaahan badan usaha yang diketik operator. Tidak ada pengajuan KYB
-              mandiri dari nasabah.
-            </DialogDescription>
-          </DialogHeader>
+        <div className="space-y-5">
+          <BerkasStatus kind="badan-usaha" status={status} />
+          <p className="text-xs text-muted-foreground">
+            Penelaahan badan usaha yang diketik operator. Tidak ada pengajuan KYB mandiri dari nasabah.
+          </p>
 
-          <DialogBody>
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {status && (
-                    <span
-                      className={cn(
-                        STATUS_CHIP_BASE,
-                        getKycStatusConfig(status).className,
-                      )}
-                    >
-                      {getKycStatusConfig(status).label}
-                    </span>
-                  )}
-                  {kybId && (
-                    <button
-                      type="button"
-                      onClick={() => copyText(kybId, 'KYB ID')}
-                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
-                      title={kybId}
-                      aria-label="Salin ID KYB"
-                    >
-                      <span>{shortHash(kybId, 8, 6)}</span>
-                      <Copy className="h-3 w-3 opacity-50" />
-                    </button>
-                  )}
-                </div>
-                {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    Diajukan{' '}
-                    {formatDateTime((detail?.submittedAt ?? listItem?.submittedAt)!)}
-                  </span>
-                )}
-              </div>
-
-              {detailQuery.isLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className="h-4 w-full" />
-                  ))}
-                </div>
-              ) : detailQuery.isError ? (
-                <div className="space-y-3 py-2 text-center">
-                  <p className="text-sm text-destructive">
-                    {errorMessage(detailQuery.error, 'Detail KYB gagal dimuat.')}
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
-                    Coba lagi
-                  </Button>
-                </div>
-              ) : detail ? (
-                <>
-                  {/* Every field the backend keeps encrypted goes through
-                      `EntityValue`, because for the DEVELOPER role each of them
-                      arrives as `'***'` and rendering that raw would read as the
-                      value itself. `country`, `entityForm`, `establishmentDate`
-                      and `businessSector` are plaintext metadata and are not
-                      masked — they render directly. */}
-                  <Section title="Badan usaha">
-                    <div className="@container divide-y divide-border border-t border-border" data-testid="kyb-entity">
-                      <Field label="Nama badan usaha">
-                        <EntityValue value={detail.entityName} />
-                      </Field>
-                      <Field label="Bentuk badan usaha">
-                        {labelFor(detail.entityForm, KYB_ENTITY_FORM_LABELS) ?? <Dim />}
-                      </Field>
-                      <Field label="Nomor Induk Berusaha (NIB)">
-                        <EntityValue value={detail.registrationNumber} mono />
-                      </Field>
-                      {/* Entity NPWP is a COMPANY tax number, but it is one of
-                          the six ENCRYPTED `kyb` columns, so the backend masks it
-                          alongside the rest for a role that may not read PII. */}
-                      <Field label="NPWP badan usaha">
-                        <EntityValue value={detail.taxId} mono />
-                      </Field>
-                      {/* Pasal 25 (1) b angka 5 berbunyi "tempat DAN tanggal
-                          pendirian". Sebelum USDX-583 hanya tanggalnya punya
-                          kolom — dirender berpasangan supaya butir itu terbaca
-                          utuh atau terbaca separuh, bukan terbaca lengkap
-                          padahal separuh. */}
-                      <Field
-                        label="Didirikan (tanggal · tempat)"
-                        testId="kyb-established"
-                      >
-                        {/* Dua <span> terpisah, bukan satu untai teks: separuh
-                            butir ini bisa kosong sendiri-sendiri, jadi masing-
-                            masing harus bisa dibaca (dan diuji) sendiri. */}
-                        <span>{detail.establishmentDate}</span>
-                        {' · '}
-                        {detail.incorporationPlace ? (
-                          <span>{detail.incorporationPlace}</span>
-                        ) : (
-                          <Dim />
-                        )}
-                      </Field>
-                      <Field label="Bidang usaha">{detail.businessSector}</Field>
-                      <Field label="Negara">{detail.country}</Field>
-                      {/* Pasal 25 (1) b angka 8 & 9 (USDX-584) — enum yang sama
-                          dengan sisi retail, bukan kosakata korporasi sendiri. */}
-                      <Field label="Sumber dana">
-                        {labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
-                      </Field>
-                      <Field label="Tujuan hubungan usaha">
-                        {labelFor(detail.transactionPurpose, TRANSACTION_PURPOSE_LABELS) ?? (
-                          <Dim />
-                        )}
-                      </Field>
-                      <Field label="Telepon">
-                        <EntityValue value={detail.phone} />
-                      </Field>
-                      <Field label="Alamat kedudukan">
-                        <EntityValue value={detail.registeredAddress} />
-                      </Field>
-                      <Field label="Alamat operasional">
-                        <EntityValue value={detail.operationalAddress} />
-                      </Field>
-                      <Field label="Situs web">
-                        {detail.website ? (
-                          <a
-                            href={detail.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="break-all text-primary hover:underline"
-                          >
-                            {detail.website}
-                          </a>
-                        ) : (
-                          <Dim />
-                        )}
-                      </Field>
-                      <Field label="Email akun">
-                        <span className="break-all">{detail.userEmail}</span>
-                      </Field>
-                    </div>
-                    {/* Bukan label deskriptif — nilai ini MENENTUKAN set dokumen
-                        wajibnya. Pasal 27 ayat (1) huruf a berlaku untuk semua
-                        korporasi; huruf b menambah enam dokumen lagi HANYA untuk
-                        yang bukan usaha mikro/kecil. Ditulis sebagai kalimat,
-                        bukan sebagai sel `true`/`false`, karena yang dipakai
-                        petugas adalah konsekuensinya, bukan nilainya.
-                        `null` dibaca sebagai "diperiksa penuh": keliru menuntut
-                        dokumen tambahan bisa diperbaiki petugas, keliru
-                        melepasnya ketahuan saat diperiksa OJK. */}
-                    <p
-                      className="mt-3 text-xs text-muted-foreground"
-                      data-testid="kyb-business-scale"
-                    >
-                      {detail.entityForm === 'PT_PERORANGAN' ? (
-                        <>
-                          Perseroan perorangan — Pasal 27 ayat (1) huruf c, bukan
-                          huruf b. Laporan keuangan, struktur manajemen, dan
-                          struktur kepemilikan tidak dituntut, berapa pun skala
-                          usahanya.
-                        </>
-                      ) : detail.isMicroOrSmall === true ? (
-                        <>
-                          Usaha mikro/kecil — dokumen wajibnya hanya Pasal 27 ayat
-                          (1) huruf a.
-                        </>
-                      ) : detail.isMicroOrSmall === false ? (
-                        <>
-                          Bukan usaha mikro/kecil — wajib lengkap Pasal 27 ayat (1)
-                          huruf a <em>dan</em> huruf b.
-                        </>
-                      ) : (
-                        <>
-                          Skala usaha belum ditanya (berkas lama). Diperiksa sebagai
-                          bukan usaha mikro/kecil — dokumen Pasal 27 ayat (1) huruf
-                          a dan b dituntut lengkap.
-                        </>
-                      )}
-                    </p>
-                  </Section>
-
-                  {/* USDX-610 — status screening badan usaha ini. Cakupannya
-                      SENGAJA badan usahanya saja: hasil UBO disimpan dengan
-                      `subjectType=KYC_UBO` dan `subjectId` = id barisnya, dan
-                      endpoint hasil hanya menyaring SATU subjectId per
-                      permintaan — jadi menampilkan UBO berarti satu permintaan
-                      per orang. `LIST_UNAVAILABLE` sendiri adalah keadaan
-                      DAFTARNYA pada saat pemeriksaan, bukan keadaan subjeknya:
-                      kalau DPPSPM tak terbaca untuk badan usahanya, ia juga tak
-                      terbaca untuk para UBO-nya di pemeriksaan yang sama.
-                      Temuan yang menahan salah satu UBO tetap muncul sebagai
-                      409 saat Approve ditekan, dan pesan itu sudah dipetakan. */}
-                  <ScreeningSubjectPanel
-                    subjectType="KYB"
-                    subjectId={kybId}
-                    enabled={open}
-                  />
-
-                  <Section title={`Pemilik manfaat / UBO (${detail.ubos.length})`}>
-                    {detail.ubos.length === 0 ? (
-                      // Not a neutral empty state: without a UBO there is nothing
-                      // to run due diligence ON, so this record cannot honestly
-                      // be approved.
-                      <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                        Belum ada satu pun UBO tercatat. Berkas KYB tanpa pemilik
-                        manfaat tidak punya subjek yang ditelaah — tambahkan minimal
-                        satu sebelum menyetujui.
-                      </p>
-                    ) : (
-                      <>
-                        <ul className="space-y-2">
-                          {detail.ubos.map((ubo, i) => (
-                            <UboCard
-                              key={ubo.id}
-                              ubo={ubo}
-                              index={i}
-                              staff={user}
-                              urlsWithheld={urlsWithheld}
-                              canUpload={canUpload}
-                              uploadedSlots={uboUploadedSlots[ubo.id]}
-                              uploadingSlot={
-                                uboUploading?.uboId === ubo.id ? uboUploading.slot : null
-                              }
-                              uploadErrors={uboUploadErrors[ubo.id] ?? {}}
-                              disabled={isMutating}
-                              onPickDocument={handlePickUboDocument}
-                            />
-                          ))}
-                        </ul>
-                        <p
-                          className={cn(
-                            'mt-1.5 text-xs tabular-nums',
-                            ownershipTotal > 100.0001
-                              ? 'text-destructive'
-                              : 'text-muted-foreground',
-                          )}
-                        >
-                          Total kepemilikan yang dinyatakan:{' '}
-                          {ownershipTotal.toFixed(2)}%
-                          {ownershipTotal > 100.0001 && ' — melebihi 100%'}
-                        </p>
-                      </>
-                    )}
-                  </Section>
-
-                  {/* Slot TETAP, satu kolom path per jenis dokumen — tidak ada
-                      daftar yang bisa kosong dan tidak ada nama berkas atau
-                      ukuran untuk ditampilkan. Slot yang belum terisi adalah
-                      baris berlabel yang mengatakannya, dan itulah yang memberi
-                      tahu pemeriksa APA yang kurang — sekaligus, selama berkas
-                      masih PENDING dan role-nya boleh memutus, membawa
-                      unggahannya sendiri.
-
-                      YANG DITAMPILKAN bergantung Pasal 27 ayat (1): lihat
-                      `applicableSlots`. */}
-                  <Section
-                    title={
-                      urlsWithheld
-                        ? // "0 of 5" would be a false statement for this role:
-                          // no presigned URL is ever minted for it, so every slot
-                          // reads `null` however many documents are on file. The
-                          // count is unknowable here, and saying so is the only
-                          // honest header.
-                          `Dokumen (${applicableSlots.length} slot — jumlahnya ${PII_WITHHELD_LABEL})`
-                        : `Dokumen (${uploadedCount} dari ${applicableSlots.length})`
-                    }
+          {detailQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : detailQuery.isError ? (
+            <div className="space-y-3 py-2 text-center">
+              <p className="text-sm text-destructive">
+                {errorMessage(detailQuery.error, 'Detail KYB gagal dimuat.')}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
+                Coba lagi
+              </Button>
+            </div>
+          ) : detail ? (
+            <>
+              {/* Every field the backend keeps encrypted goes through
+                  `EntityValue`, because for the DEVELOPER role each of them
+                  arrives as `'***'` and rendering that raw would read as the
+                  value itself. `country`, `entityForm`, `establishmentDate`
+                  and `businessSector` are plaintext metadata and are not
+                  masked — they render directly. */}
+              <Section title="Badan usaha">
+                <div className="@container divide-y divide-border border-t border-border" data-testid="kyb-entity">
+                  <Field label="Nama badan usaha">
+                    <EntityValue value={detail.entityName} />
+                  </Field>
+                  <Field label="Bentuk badan usaha">
+                    {labelFor(detail.entityForm, KYB_ENTITY_FORM_LABELS) ?? <Dim />}
+                  </Field>
+                  <Field label="Nomor Induk Berusaha (NIB)">
+                    <EntityValue value={detail.registrationNumber} mono />
+                  </Field>
+                  {/* Entity NPWP is a COMPANY tax number, but it is one of
+                      the six ENCRYPTED `kyb` columns, so the backend masks it
+                      alongside the rest for a role that may not read PII. */}
+                  <Field label="NPWP badan usaha">
+                    <EntityValue value={detail.taxId} mono />
+                  </Field>
+                  {/* Pasal 25 (1) b angka 5 berbunyi "tempat DAN tanggal
+                      pendirian". Sebelum USDX-583 hanya tanggalnya punya
+                      kolom — dirender berpasangan supaya butir itu terbaca
+                      utuh atau terbaca separuh, bukan terbaca lengkap
+                      padahal separuh. */}
+                  <Field
+                    label="Didirikan (tanggal · tempat)"
+                    testId="kyb-established"
                   >
-                    {missingDocuments !== null && (
-                      <p
-                        data-testid="kyb-documents-incomplete"
-                        className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                      >
-                        {missingDocuments.length > 0 ? (
-                          <>
-                            Persetujuan ditolak — dokumen wajib berikut belum ada:{' '}
-                            <strong>
-                              {missingDocuments
-                                .map((slot) => KYB_DOCUMENT_SLOTS[slot])
-                                .join(', ')}
-                            </strong>
-                            . Minta dokumennya ke nasabah sebelum menyetujui lagi
-                            (KYB_DOCUMENTS_INCOMPLETE).
-                          </>
-                        ) : (
-                          <>
-                            Persetujuan ditolak karena ada dokumen wajib yang belum
-                            ada. Server tidak menyebutkan dokumen yang mana — muat
-                            ulang berkasnya lalu coba lagi
-                            (KYB_DOCUMENTS_INCOMPLETE).
-                          </>
-                        )}
-                      </p>
+                    {/* Dua <span> terpisah, bukan satu untai teks: separuh
+                        butir ini bisa kosong sendiri-sendiri, jadi masing-
+                        masing harus bisa dibaca (dan diuji) sendiri. */}
+                    <span>{detail.establishmentDate}</span>
+                    {' · '}
+                    {detail.incorporationPlace ? (
+                      <span>{detail.incorporationPlace}</span>
+                    ) : (
+                      <Dim />
                     )}
-                    <ul className="space-y-1.5" data-testid="kyb-documents">
-                      {applicableSlots.map((slot) => (
-                        <DocumentSlotRow
-                          key={slot}
-                          slot={slot}
-                          documents={detail.documents}
+                  </Field>
+                  <Field label="Bidang usaha">{detail.businessSector}</Field>
+                  <Field label="Negara">{detail.country}</Field>
+                  {/* Pasal 25 (1) b angka 8 & 9 (USDX-584) — enum yang sama
+                      dengan sisi retail, bukan kosakata korporasi sendiri. */}
+                  <Field label="Sumber dana">
+                    {labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS) ?? <Dim />}
+                  </Field>
+                  <Field label="Tujuan hubungan usaha">
+                    {labelFor(detail.transactionPurpose, TRANSACTION_PURPOSE_LABELS) ?? (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Telepon">
+                    <EntityValue value={detail.phone} />
+                  </Field>
+                  <Field label="Alamat kedudukan">
+                    <EntityValue value={detail.registeredAddress} />
+                  </Field>
+                  <Field label="Alamat operasional">
+                    <EntityValue value={detail.operationalAddress} />
+                  </Field>
+                  <Field label="Situs web">
+                    {detail.website ? (
+                      <a
+                        href={detail.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="break-all text-primary hover:underline"
+                      >
+                        {detail.website}
+                      </a>
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                  <Field label="Email akun">
+                    <span className="break-all">{detail.userEmail}</span>
+                  </Field>
+                </div>
+                {/* Bukan label deskriptif — nilai ini MENENTUKAN set dokumen
+                    wajibnya. Pasal 27 ayat (1) huruf a berlaku untuk semua
+                    korporasi; huruf b menambah enam dokumen lagi HANYA untuk
+                    yang bukan usaha mikro/kecil. Ditulis sebagai kalimat,
+                    bukan sebagai sel `true`/`false`, karena yang dipakai
+                    petugas adalah konsekuensinya, bukan nilainya.
+                    `null` dibaca sebagai "diperiksa penuh": keliru menuntut
+                    dokumen tambahan bisa diperbaiki petugas, keliru
+                    melepasnya ketahuan saat diperiksa OJK. */}
+                <p
+                  className="mt-3 text-xs text-muted-foreground"
+                  data-testid="kyb-business-scale"
+                >
+                  {detail.entityForm === 'PT_PERORANGAN' ? (
+                    <>
+                      Perseroan perorangan — Pasal 27 ayat (1) huruf c, bukan
+                      huruf b. Laporan keuangan, struktur manajemen, dan
+                      struktur kepemilikan tidak dituntut, berapa pun skala
+                      usahanya.
+                    </>
+                  ) : detail.isMicroOrSmall === true ? (
+                    <>
+                      Usaha mikro/kecil — dokumen wajibnya hanya Pasal 27 ayat
+                      (1) huruf a.
+                    </>
+                  ) : detail.isMicroOrSmall === false ? (
+                    <>
+                      Bukan usaha mikro/kecil — wajib lengkap Pasal 27 ayat (1)
+                      huruf a <em>dan</em> huruf b.
+                    </>
+                  ) : (
+                    <>
+                      Skala usaha belum ditanya (berkas lama). Diperiksa sebagai
+                      bukan usaha mikro/kecil — dokumen Pasal 27 ayat (1) huruf
+                      a dan b dituntut lengkap.
+                    </>
+                  )}
+                </p>
+              </Section>
+
+              {/* USDX-610 — status screening badan usaha ini. Cakupannya
+                  SENGAJA badan usahanya saja: hasil UBO disimpan dengan
+                  `subjectType=KYC_UBO` dan `subjectId` = id barisnya, dan
+                  endpoint hasil hanya menyaring SATU subjectId per
+                  permintaan — jadi menampilkan UBO berarti satu permintaan
+                  per orang. `LIST_UNAVAILABLE` sendiri adalah keadaan
+                  DAFTARNYA pada saat pemeriksaan, bukan keadaan subjeknya:
+                  kalau DPPSPM tak terbaca untuk badan usahanya, ia juga tak
+                  terbaca untuk para UBO-nya di pemeriksaan yang sama.
+                  Temuan yang menahan salah satu UBO tetap muncul sebagai
+                  409 saat Approve ditekan, dan pesan itu sudah dipetakan. */}
+              <ScreeningSubjectPanel
+                subjectType="KYB"
+                subjectId={kybId}
+                enabled={open}
+              />
+
+              <Section title={`Pemilik manfaat / UBO (${detail.ubos.length})`}>
+                {detail.ubos.length === 0 ? (
+                  // Not a neutral empty state: without a UBO there is nothing
+                  // to run due diligence ON, so this record cannot honestly
+                  // be approved.
+                  <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    Belum ada satu pun UBO tercatat. Berkas KYB tanpa pemilik
+                    manfaat tidak punya subjek yang ditelaah — tambahkan minimal
+                    satu sebelum menyetujui.
+                  </p>
+                ) : (
+                  <>
+                    <ul className="space-y-2">
+                      {detail.ubos.map((ubo, i) => (
+                        <UboCard
+                          key={ubo.id}
+                          ubo={ubo}
+                          index={i}
+                          staff={user}
                           urlsWithheld={urlsWithheld}
-                          missing={(missingDocuments ?? []).includes(slot)}
-                          uploadedNow={uploadedSlots?.[slot] === true}
                           canUpload={canUpload}
-                          uploading={uploadingSlot === slot}
+                          uploadedSlots={uboUploadedSlots[ubo.id]}
+                          uploadingSlot={
+                            uboUploading?.uboId === ubo.id ? uboUploading.slot : null
+                          }
+                          uploadErrors={uboUploadErrors[ubo.id] ?? {}}
                           disabled={isMutating}
-                          error={uploadErrors[slot]}
-                          onPick={handlePickDocument}
+                          onPickDocument={handlePickUboDocument}
                         />
                       ))}
                     </ul>
-                    {hasUnlinkedUpload && (
-                      // Offered ONCE, and only on the operator's own click: a
-                      // re-read of this record decrypts entity PII and mints
-                      // presigned URLs, which writes a `pii_access_audit` row.
-                      // Refetching automatically after each upload would
-                      // manufacture one audited read per upload, for one piece of work.
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-2 h-7 text-xs"
-                        onClick={() => detailQuery.refetch()}
-                        disabled={detailQuery.isFetching}
-                      >
-                        {detailQuery.isFetching
-                          ? 'Memuat ulang…'
-                          : 'Muat ulang berkas untuk membuka dokumen baru'}
-                      </Button>
-                    )}
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {urlsWithheld
-                        ? 'Peran Anda tidak diberi tautan dokumen — slot kosong di sini bukan berarti dokumennya tidak ada.'
-                        : canUpload
-                          ? `${KYB_DOCUMENT_TYPE_LABEL}, maksimal ${KYB_DOCUMENT_MAX_FILE_LABEL} per berkas — batas yang sama dengan yang ditegakkan server. Akta Pendirian, NIB, NPWP Badan, dan KTP Pengurus harus sudah ada sebelum berkas ini bisa disetujui.`
-                          : 'Dokumen hanya bisa diubah selama berkas masih menunggu pemeriksaan.'}
+                    <p
+                      className={cn(
+                        'mt-1.5 text-xs tabular-nums',
+                        ownershipTotal > 100.0001
+                          ? 'text-destructive'
+                          : 'text-muted-foreground',
+                      )}
+                    >
+                      Total kepemilikan yang dinyatakan:{' '}
+                      {ownershipTotal.toFixed(2)}%
+                      {ownershipTotal > 100.0001 && ' — melebihi 100%'}
                     </p>
-                  </Section>
+                  </>
+                )}
+              </Section>
 
-                  {(detail.rejectionReason || detail.reviewedAt) && (
-                    <div className="space-y-2 rounded-md bg-muted/60 px-3 py-2.5">
-                      {detail.rejectionReason && (
-                        <p className="text-xs text-foreground">
-                          <span className="font-medium text-destructive">
-                            Alasan penolakan:
-                          </span>{' '}
-                          {detail.rejectionReason}
-                        </p>
-                      )}
-                      {detail.reviewedAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
-                          {formatDateTime(detail.reviewedAt)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              ) : null}
-            </div>
-          </DialogBody>
+              {/* Slot TETAP, satu kolom path per jenis dokumen — tidak ada
+                  daftar yang bisa kosong dan tidak ada nama berkas atau
+                  ukuran untuk ditampilkan. Slot yang belum terisi adalah
+                  baris berlabel yang mengatakannya, dan itulah yang memberi
+                  tahu pemeriksa APA yang kurang — sekaligus, selama berkas
+                  masih PENDING dan role-nya boleh memutus, membawa
+                  unggahannya sendiri.
 
-          {actionable && (
-            <DialogFooter>
-              {canReview ? (
-                <>
+                  YANG DITAMPILKAN bergantung Pasal 27 ayat (1): lihat
+                  `applicableSlots`. */}
+              <Section
+                title={
+                  urlsWithheld
+                    ? // "0 of 5" would be a false statement for this role:
+                      // no presigned URL is ever minted for it, so every slot
+                      // reads `null` however many documents are on file. The
+                      // count is unknowable here, and saying so is the only
+                      // honest header.
+                      `Dokumen (${applicableSlots.length} slot — jumlahnya ${PII_WITHHELD_LABEL})`
+                    : `Dokumen (${uploadedCount} dari ${applicableSlots.length})`
+                }
+              >
+                {missingDocuments !== null && (
+                  <p
+                    data-testid="kyb-documents-incomplete"
+                    className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                  >
+                    {missingDocuments.length > 0 ? (
+                      <>
+                        Persetujuan ditolak — dokumen wajib berikut belum ada:{' '}
+                        <strong>
+                          {missingDocuments
+                            .map((slot) => KYB_DOCUMENT_SLOTS[slot])
+                            .join(', ')}
+                        </strong>
+                        . Minta dokumennya ke nasabah sebelum menyetujui lagi
+                        (KYB_DOCUMENTS_INCOMPLETE).
+                      </>
+                    ) : (
+                      <>
+                        Persetujuan ditolak karena ada dokumen wajib yang belum
+                        ada. Server tidak menyebutkan dokumen yang mana — muat
+                        ulang berkasnya lalu coba lagi
+                        (KYB_DOCUMENTS_INCOMPLETE).
+                      </>
+                    )}
+                  </p>
+                )}
+                <ul className="space-y-1.5" data-testid="kyb-documents">
+                  {applicableSlots.map((slot) => (
+                    <DocumentSlotRow
+                      key={slot}
+                      slot={slot}
+                      documents={detail.documents}
+                      urlsWithheld={urlsWithheld}
+                      missing={(missingDocuments ?? []).includes(slot)}
+                      uploadedNow={uploadedSlots?.[slot] === true}
+                      canUpload={canUpload}
+                      uploading={uploadingSlot === slot}
+                      disabled={isMutating}
+                      error={uploadErrors[slot]}
+                      onPick={handlePickDocument}
+                    />
+                  ))}
+                </ul>
+                {hasUnlinkedUpload && (
+                  // Offered ONCE, and only on the operator's own click: a
+                  // re-read of this record decrypts entity PII and mints
+                  // presigned URLs, which writes a `pii_access_audit` row.
+                  // Refetching automatically after each upload would
+                  // manufacture one audited read per upload, for one piece of work.
                   <Button
+                    type="button"
                     variant="outline"
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setRejectOpen(true)}
-                    disabled={isMutating}
+                    size="sm"
+                    className="mt-2 h-7 text-xs"
+                    onClick={() => detailQuery.refetch()}
+                    disabled={detailQuery.isFetching}
                   >
-                    Tolak
+                    {detailQuery.isFetching
+                      ? 'Memuat ulang…'
+                      : 'Muat ulang berkas untuk membuka dokumen baru'}
                   </Button>
-                  <Button
-                    onClick={() => setConfirmApproveOpen(true)}
-                    disabled={isMutating}
-                  >
-                    Setujui
-                  </Button>
-                </>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {/* span wrapper: disabled buttons swallow pointer events */}
-                    <span className="inline-flex gap-2" tabIndex={0}>
-                      <Button
-                        variant="outline"
-                        disabled
-                        aria-disabled="true"
-                        className="border-destructive/40 text-destructive"
-                      >
-                        Tolak
-                      </Button>
-                      <Button disabled aria-disabled="true">
-                        Setujui
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Peran Developer hanya bisa melihat</TooltipContent>
-                </Tooltip>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {urlsWithheld
+                    ? 'Peran Anda tidak diberi tautan dokumen — slot kosong di sini bukan berarti dokumennya tidak ada.'
+                    : canUpload
+                      ? `${KYB_DOCUMENT_TYPE_LABEL}, maksimal ${KYB_DOCUMENT_MAX_FILE_LABEL} per berkas — batas yang sama dengan yang ditegakkan server. Akta Pendirian, NIB, NPWP Badan, dan KTP Pengurus harus sudah ada sebelum berkas ini bisa disetujui.`
+                      : 'Dokumen hanya bisa diubah selama berkas masih menunggu pemeriksaan.'}
+                </p>
+              </Section>
+
+              {detail.rejectionReason && (
+                <div className="rounded-md bg-muted/60 px-3 py-2.5">
+                  <p className="text-xs text-foreground">
+                    <span className="font-medium text-destructive">
+                      Alasan penolakan:
+                    </span>{' '}
+                    {detail.rejectionReason}
+                  </p>
+                </div>
               )}
-            </DialogFooter>
+
+              <BerkasRiwayat
+                status={detail.status}
+                submittedAt={detail.submittedAt}
+                submissionCount={detail.submissionCount}
+                reviewedAt={detail.reviewedAt}
+                reviewedByName={detail.reviewedByName}
+              />
+            </>
+          ) : null}
+
+          {kybId && (
+            <DetailTeknis description="Kode dan nomor untuk penelusuran. Tidak perlu dibuka untuk pekerjaan sehari-hari.">
+              <div className="min-w-0 sm:col-span-2">
+                <p className="text-xs text-muted-foreground">ID berkas KYB</p>
+                <button
+                  type="button"
+                  onClick={() => copyText(kybId, 'KYB ID')}
+                  className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary [overflow-wrap:anywhere]"
+                  title={kybId}
+                  aria-label="Salin ID KYB"
+                >
+                  <span>{kybId}</span>
+                  <Copy className="h-3 w-3 shrink-0 opacity-50" />
+                </button>
+              </div>
+              {userId && (
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">ID nasabah</p>
+                  <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{userId}</p>
+                </div>
+              )}
+              {status && (
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Status sistem</p>
+                  <p className="font-mono text-xs text-muted-foreground">{status}</p>
+                </div>
+              )}
+            </DetailTeknis>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      </RecordModal>
 
       {/* Approve confirmation */}
       <Dialog

@@ -235,9 +235,9 @@ describe('KybDetailModal @ USDX-546', () => {
       renderModal()
       const dialog = await screen.findByRole('dialog')
 
-      expect(
-        await within(dialog).findByText('PT Juara Remiten Indonesia'),
-      ).toBeInTheDocument()
+      // Judul modal (nama akun) + nama badan usaha di blok entitas.
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
+      expect(within(dialog).getAllByText('PT Juara Remiten Indonesia')).toHaveLength(2)
       expect(within(dialog).getByText('8120012345678')).toBeInTheDocument()
       expect(within(dialog).getByText('012345678901234')).toBeInTheDocument()
       expect(within(dialog).getByText('PT (Perseroan Terbatas)')).toBeInTheDocument()
@@ -272,7 +272,7 @@ describe('KybDetailModal @ USDX-546', () => {
       stubDetail(makeDetail())
       renderModal() // stf_1 = ADMIN
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       const docs = within(dialog).getByTestId('kyb-documents')
       expect(docs.querySelectorAll('input[type="file"]')).toHaveLength(8)
@@ -302,7 +302,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       const { onOpenChange } = renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
@@ -331,7 +331,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
       const confirm = await screen.findByRole('dialog', {
@@ -357,7 +357,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
@@ -387,7 +387,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       await user.click(within(dialog).getByRole('button', { name: /^tolak$/i }))
       const rejectDialog = await screen.findByRole('dialog', {
@@ -479,7 +479,7 @@ describe('KybDetailModal @ USDX-546', () => {
       stubDetail(makeDetail({ phone: null, website: null }))
       renderModal() // ADMIN — nothing is withheld from this role
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       expect(
         within(dialog).queryByText(/tidak ditampilkan untuk peran ini/i),
@@ -495,7 +495,7 @@ describe('KybDetailModal @ USDX-546', () => {
       stubDetail(makeDetail())
       renderModal({ staffId: 'stf_3' }) // DEVELOPER
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       expect(within(dialog).queryByText(UBO_IDENTITY)).not.toBeInTheDocument()
       // Asserted on the identity field of EACH card: a dialog-wide count of
@@ -523,7 +523,7 @@ describe('KybDetailModal @ USDX-546', () => {
         stubDetail(makeDetail())
         renderModal(staffId === undefined ? {} : { staffId })
         const dialog = await screen.findByRole('dialog')
-        await within(dialog).findByText('PT Juara Remiten Indonesia')
+        await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
         expect(within(dialog).getByText(UBO_IDENTITY)).toBeInTheDocument()
         expect(within(dialog).queryByText('***')).not.toBeInTheDocument()
@@ -559,7 +559,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       const { onOpenChange } = renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       await user.click(within(dialog).getByRole('button', { name: /^setujui$/i }))
       const confirm = await screen.findByRole('dialog', {
@@ -624,7 +624,7 @@ describe('KybDetailModal @ USDX-546', () => {
       )
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       expect(
         within(dialog).queryByRole('button', { name: /^setujui$/i }),
@@ -643,7 +643,7 @@ describe('KybDetailModal @ USDX-546', () => {
       stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       expect(within(dialog).getByText(/dokumen \(0 dari 8\)/i)).toBeInTheDocument()
       for (const label of SLOT_LABELS) {
@@ -663,7 +663,7 @@ describe('KybDetailModal @ USDX-546', () => {
       stubDetail(makeDetail({ documents: NO_DOCUMENTS }))
       renderModal()
       const dialog = await screen.findByRole('dialog')
-      await within(dialog).findByText('PT Juara Remiten Indonesia')
+      await within(dialog).findByRole('heading', { name: 'PT Juara Remiten Indonesia' })
 
       expect(within(dialog).getByText('Akta Pendirian').tagName).not.toBe('A')
     })

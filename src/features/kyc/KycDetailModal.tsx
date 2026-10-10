@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
+import DetailTeknis from '@/components/DetailTeknis'
+import { BerkasActions, BerkasRiwayat, BerkasStatus } from '@/features/verification/BerkasParts'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ChevronDown, Copy, ImageOff, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,12 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -40,17 +38,15 @@ import {
   isPepCandidateOccupation,
   labelFor,
 } from '@/lib/cdd'
-import { formatCountryCode, formatDateTime, formatIsoDayLong, shortHash } from '@/lib/format'
+import { formatCountryCode, formatDateTime, formatIsoDayLong } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   KYC_REJECT_REASON_MAX,
   KYC_REJECT_REASON_MIN,
   validateKycRejectReason,
 } from '@/lib/validators'
-import { getKycStatusConfig } from '@/lib/status'
 import type {
   EntityType,
-  KycDetail,
   KycListItem,
   KycReviewAction,
   KycReviewLog,
@@ -62,7 +58,6 @@ import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 import { toastError, toastErrorMessage } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField } from '@/components/DataList'
-import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -90,6 +85,8 @@ interface KycDetailModalProps {
   /** Best-effort row from the list page — used as a header fallback while the
    * detail (decrypted server-side) is still loading. */
   listItem?: KycListItem | null
+  /** ↑/↓ ke berkas sebelum/sesudahnya di tabel Verifikasi (pola `RecordModal`). */
+  nav?: RecordModalNav | null
 }
 
 async function copyText(value: string, label: string) {
@@ -224,20 +221,6 @@ function CddFinding({
   )
 }
 
-function StatusBadge({ status }: { status: KycDetail['status'] }) {
-  const cfg = getKycStatusConfig(status)
-  return (
-    <span
-      className={cn(
-        STATUS_CHIP_BASE,
-        cfg.className
-      )}
-    >
-      {cfg.label}
-    </span>
-  )
-}
-
 // Presigned-URL countdown (TTL 5 min — kyc.yaml § detail). Ticks every second
 // so the operator sees expiry coming; once expired the photos can no longer be
 // (re)loaded and the "Refresh photos" button re-fetches the detail for fresh
@@ -344,6 +327,7 @@ export default function KycDetailModal({
   open,
   onOpenChange,
   listItem,
+  nav,
 }: KycDetailModalProps) {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -368,16 +352,19 @@ export default function KycDetailModal({
     detail?.urlExpiresAt
   )
 
-  // Reset sub-dialog state whenever the target row changes or the modal closes.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
+  // Ganti berkas (↑/↓) atau modal ditutup: state milik berkas sebelumnya
+  // dibuang SAAT RENDER, bukan di efek setelah paint — alasan tolak yang sudah
+  // diketik tidak boleh sempat terbawa ke berkas orang lain.
+  const shownKey = `${kycId ?? ''}:${open}`
+  const [prevShownKey, setPrevShownKey] = useState(shownKey)
+  if (prevShownKey !== shownKey) {
+    setPrevShownKey(shownKey)
     setAuditOpen(false)
     setConfirmApproveOpen(false)
     setRejectOpen(false)
     setReason('')
     setReasonError('')
-  }, [kycId, open])
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }
 
   // 409 INVALID_STATUS = concurrent review (kyc.yaml § approve/reject) —
   // toast + force refresh so the operator sees the new terminal status.
@@ -472,414 +459,386 @@ export default function KycDetailModal({
     detail && detail.pepStatus === true && detail.sourceOfWealth === null,
   )
 
+  const submittedAt = detail?.submittedAt ?? listItem?.submittedAt ?? null
+  const userId = detail?.userId ?? listItem?.userId ?? null
+  const title = fullName && fullName !== '—' ? fullName : (detail?.userEmail ?? listItem?.userEmail ?? 'Berkas perorangan')
+
   return (
     <TooltipProvider delayDuration={150}>
-      <Dialog
+      <RecordModal
         open={open}
-        onOpenChange={(next) => {
-          if (!isMutating) onOpenChange(next)
-        }}
+        onClose={() => onOpenChange(false)}
+        locked={isMutating}
+        testId="kyc-modal"
+        title={title}
+        subtitle={['Berkas verifikasi perorangan', submittedAt ? `diajukan ${formatDateTime(submittedAt)}` : null]
+          .filter(Boolean)
+          .join(' · ')}
+        nav={nav && isMutating ? { ...nav, onPrev: undefined, onNext: undefined } : nav}
+        actions={
+          <BerkasActions
+            userId={userId}
+            actionable={actionable}
+            canReview={canReview}
+            busy={isMutating}
+            onReject={() => setRejectOpen(true)}
+            onApprove={() => setConfirmApproveOpen(true)}
+          />
+        }
       >
-        <DialogContent
-          className="max-w-2xl bg-card"
-          onEscapeKeyDown={(e) => isMutating && e.preventDefault()}
-          onPointerDownOutside={(e) => isMutating && e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Berkas Verifikasi Perorangan</DialogTitle>
-            <DialogDescription>
-              Berkas identitas yang dikirim nasabah lewat aplikasi.
-            </DialogDescription>
-          </DialogHeader>
+        <div className="space-y-5">
+          <BerkasStatus kind="perorangan" status={status} />
 
-          <DialogBody>
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {status && <StatusBadge status={status} />}
-                  {kycId && (
-                    <button
-                      type="button"
-                      onClick={() => copyText(kycId, 'KYC ID')}
-                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
-                      title={kycId}
-                      aria-label="Salin ID KYC"
-                    >
-                      <span>{shortHash(kycId, 8, 6)}</span>
-                      <Copy className="h-3 w-3 opacity-50" />
-                    </button>
-                  )}
-                </div>
-                {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    Diajukan {formatDateTime((detail?.submittedAt ?? listItem?.submittedAt)!)}
+          {detailQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : detailQuery.isError ? (
+            <div className="space-y-3 py-2 text-center">
+              <p className="text-sm text-destructive">
+                {errorMessage(detailQuery.error, 'Detail KYC gagal dimuat.')}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
+                Coba lagi
+              </Button>
+            </div>
+          ) : detail ? (
+            <>
+              {/* Decrypted PII (kyc.yaml § KycDetail) */}
+              <div className="@container divide-y divide-border border-t border-border" data-testid="kyc-identity">
+                <Field label="Email akun">{detail.userEmail}</Field>
+                <Field label="Jenis nasabah">{ENTITY_LABEL[detail.entityType]}</Field>
+                <Field label="Nama lengkap">{fullName}</Field>
+                <Field label="Tanggal lahir · tempat lahir" testId="kyc-dob">
+                  {detail.dob ? formatIsoDayLong(detail.dob) : '—'}
+                  {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
+                </Field>
+                <Field label="Jenis &amp; nomor identitas" testId="kyc-identity-number">
+                  <span className="text-xs tabular-nums">
+                    {detail.identityType}
+                    {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
                   </span>
-                )}
+                </Field>
+                {/* Pasal 25 (1) a angka 1 — butir a), e), h), i), j) (USDX-587).
+                    Diletakkan di dalam grid identitas, bukan di blok CDD:
+                    petugas mencocokkannya baris demi baris dengan KTP yang
+                    terpampang di bawah, dan memisahkannya ke seksi lain
+                    memaksa ia bolak-balik. */}
+                <PiiField
+                  label="Nama alias"
+                  value={detail.aliasName}
+                  staff={user}
+                  testId="kyc-alias-name"
+                />
+                <Field label="Kewarganegaraan" testId="kyc-nationality">
+                  {detail.nationality ? (
+                    formatCountryCode(detail.nationality)
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </Field>
+                <CddField
+                  label="Jenis kelamin"
+                  value={labelFor(detail.gender, GENDER_LABELS)}
+                  testId="kyc-gender"
+                />
+                <CddField
+                  label="Status perkawinan"
+                  value={labelFor(detail.maritalStatus, MARITAL_STATUS_LABELS)}
+                  testId="kyc-marital-status"
+                />
+                <PiiField
+                  label="Nama gadis ibu kandung"
+                  value={detail.mothersMaidenName}
+                  staff={user}
+                  testId="kyc-mothers-maiden-name"
+                />
+                <Field label="Negara" testId="kyc-country">
+                  {detail.country ? formatCountryCode(detail.country) : '—'}
+                </Field>
+                <Field label="Alamat">
+                  {detail.addressLine1 ?? '—'}
+                  {detail.addressLine2 && (
+                    <>
+                      <br />
+                      {detail.addressLine2}
+                    </>
+                  )}
+                </Field>
+                <Field label="Jumlah pengajuan">
+                  <span className="tabular-nums">{detail.submissionCount}</span>
+                </Field>
               </div>
 
-              {detailQuery.isLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className="h-4 w-full" />
-                  ))}
-                </div>
-              ) : detailQuery.isError ? (
-                <div className="space-y-3 py-2 text-center">
-                  <p className="text-sm text-destructive">
-                    {errorMessage(detailQuery.error, 'Detail KYC gagal dimuat.')}
+              {/* CDD (USDX-545). Rendered ALWAYS, even when every field is
+                  empty: the reviewer has to be able to see that the CDD data
+                  is missing. Hiding the section when it is empty would put
+                  the reviewer back where this ticket started — deciding
+                  without looking at what was collected. */}
+              <div className="space-y-2" data-testid="kyc-cdd">
+                <p className="text-section">Uji tuntas nasabah (CDD)</p>
+                {!hasCdd && (
+                  <p className="text-xs text-muted-foreground">
+                    Berkas ini tidak punya data CDD — usianya lebih tua daripada
+                    field CDD (USDX-545 / USDX-583). Pekerjaan, sumber dana,
+                    penghasilan, harta kekayaan, tujuan transaksi, sumber
+                    kekayaan, NPWP, dan status PEP memang tidak pernah
+                    dikumpulkan dari nasabah ini.
                   </p>
-                  <Button variant="outline" size="sm" onClick={() => detailQuery.refetch()}>
-                    Coba lagi
-                  </Button>
-                </div>
-              ) : detail ? (
-                <>
-                  {/* Decrypted PII (kyc.yaml § KycDetail) */}
-                  <div className="@container divide-y divide-border border-t border-border" data-testid="kyc-identity">
-                    <Field label="Email akun">{detail.userEmail}</Field>
-                    <Field label="Jenis nasabah">{ENTITY_LABEL[detail.entityType]}</Field>
-                    <Field label="Nama lengkap">{fullName}</Field>
-                    <Field label="Tanggal lahir · tempat lahir" testId="kyc-dob">
-                      {detail.dob ? formatIsoDayLong(detail.dob) : '—'}
-                      {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
-                    </Field>
-                    <Field label="Jenis &amp; nomor identitas" testId="kyc-identity-number">
-                      <span className="text-xs tabular-nums">
-                        {detail.identityType}
-                        {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
-                      </span>
-                    </Field>
-                    {/* Pasal 25 (1) a angka 1 — butir a), e), h), i), j) (USDX-587).
-                        Diletakkan di dalam grid identitas, bukan di blok CDD:
-                        petugas mencocokkannya baris demi baris dengan KTP yang
-                        terpampang di bawah, dan memisahkannya ke seksi lain
-                        memaksa ia bolak-balik. */}
-                    <PiiField
-                      label="Nama alias"
-                      value={detail.aliasName}
-                      staff={user}
-                      testId="kyc-alias-name"
-                    />
-                    <Field label="Kewarganegaraan" testId="kyc-nationality">
-                      {detail.nationality ? (
-                        formatCountryCode(detail.nationality)
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </Field>
-                    <CddField
-                      label="Jenis kelamin"
-                      value={labelFor(detail.gender, GENDER_LABELS)}
-                      testId="kyc-gender"
-                    />
-                    <CddField
-                      label="Status perkawinan"
-                      value={labelFor(detail.maritalStatus, MARITAL_STATUS_LABELS)}
-                      testId="kyc-marital-status"
-                    />
-                    <PiiField
-                      label="Nama gadis ibu kandung"
-                      value={detail.mothersMaidenName}
-                      staff={user}
-                      testId="kyc-mothers-maiden-name"
-                    />
-                    <Field label="Negara" testId="kyc-country">
-                      {detail.country ? formatCountryCode(detail.country) : '—'}
-                    </Field>
-                    <Field label="Alamat">
-                      {detail.addressLine1 ?? '—'}
-                      {detail.addressLine2 && (
-                        <>
-                          <br />
-                          {detail.addressLine2}
-                        </>
-                      )}
-                    </Field>
-                    <Field label="Jumlah pengajuan">
-                      <span className="tabular-nums">{detail.submissionCount}</span>
-                    </Field>
-                  </div>
-
-                  {/* CDD (USDX-545). Rendered ALWAYS, even when every field is
-                      empty: the reviewer has to be able to see that the CDD data
-                      is missing. Hiding the section when it is empty would put
-                      the reviewer back where this ticket started — deciding
-                      without looking at what was collected. */}
-                  <div className="space-y-2" data-testid="kyc-cdd">
-                    <p className="text-section">Uji tuntas nasabah (CDD)</p>
-                    {!hasCdd && (
-                      <p className="text-xs text-muted-foreground">
-                        Berkas ini tidak punya data CDD — usianya lebih tua daripada
-                        field CDD (USDX-545 / USDX-583). Pekerjaan, sumber dana,
-                        penghasilan, harta kekayaan, tujuan transaksi, sumber
-                        kekayaan, NPWP, dan status PEP memang tidak pernah
-                        dikumpulkan dari nasabah ini.
-                      </p>
-                    )}
-                    {pepOccupationMismatch && (
-                      <CddFinding testId="kyc-finding-pep-occupation">
-                        Pekerjaannya jabatan publik (Permendagri kode 48–63,
-                        cakupan PEP domestik Pasal 2 ayat (2) huruf b) tapi
-                        nasabah menjawab <strong>bukan PEP</strong>. Periksa
-                        sebelum menyetujui — kalau benar PEP, berkasnya butuh EDD
-                        Pasal 35–41, bukan CDD biasa.
-                      </CddFinding>
-                    )}
-                    {pepMissingSourceOfWealth && (
-                      <CddFinding testId="kyc-finding-pep-source-of-wealth">
-                        Nasabah PEP tanpa <strong>sumber kekayaan</strong>. Pasal
-                        37 ayat (1) huruf d mewajibkan EDD berkalanya menganalisis
-                        sumber dana <em>dan</em> sumber kekayaan; tanpa jawaban itu
-                        analisisnya belum punya bahan.
-                      </CddFinding>
-                    )}
-                    {/* Tiga kelompok, bukan satu grid panjang: petugas menilai
-                        "siapa orang ini" (pekerjaan), "berapa kemampuannya"
-                        (penghasilan & kekayaan), lalu "untuk apa" (tujuan
-                        transaksi). Deretan datar memaksa ia menyusun ulang
-                        pengelompokan itu di kepala tiap kali membuka berkas. */}
-                    <div className="@container divide-y divide-border border-t border-border">
-                      <CddField
-                        label="Pekerjaan"
-                        value={labelFor(detail.occupation, OCCUPATION_LABELS)}
-                        testId="kyc-occupation"
-                      />
-                      {/* Alamat & telepon tempat kerja — Pasal 25 (1) a angka 1
-                          butir g). PII, gerbang role sama dengan NPWP. */}
-                      <PiiField
-                        label="Alamat tempat kerja"
-                        value={detail.employerAddress}
-                        staff={user}
-                        testId="kyc-employer-address"
-                      />
-                      <PiiField
-                        label="Telepon tempat kerja"
-                        value={detail.employerPhone}
-                        staff={user}
-                        testId="kyc-employer-phone"
-                      />
-                      <CddField
-                        label="Sumber dana"
-                        value={labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS)}
-                      />
-                      <CddField
-                        label="Penghasilan per tahun"
-                        value={labelFor(detail.annualIncomeRange, ANNUAL_INCOME_LABELS)}
-                      />
-                      <CddField
-                        label="Harta kekayaan (net worth)"
-                        value={labelFor(detail.netWorthRange, NET_WORTH_LABELS)}
-                        testId="kyc-net-worth"
-                      />
-                      <CddField
-                        label="Tujuan transaksi"
-                        value={labelFor(
-                          detail.transactionPurpose,
-                          TRANSACTION_PURPOSE_LABELS,
-                        )}
-                      />
-                      <CddField
-                        label="Sumber kekayaan"
-                        value={labelFor(detail.sourceOfWealth, SOURCE_OF_WEALTH_LABELS)}
-                        testId="kyc-source-of-wealth"
-                      />
-                      {/* NPWP is PII — ADMIN only (lib/pii.ts). */}
-                      <PiiField
-                        label="NPWP"
-                        value={detail.npwp}
-                        staff={user}
-                        testId="kyc-npwp"
-                      />
-                      {/* Kepanjangan PEP disebut di LABEL, bukan di nilainya:
-                          label selalu tampil, sedangkan nilai "PEP" hanya muncul
-                          pada berkas yang memang PEP — dan petugas yang baru
-                          justru bertemu berkas non-PEP lebih dulu. */}
-                      <Field
-                        label="Status PEP (orang yang populer secara politis)"
-                        testId="kyc-pep-status"
-                      >
-                        {detail.pepStatus === null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : detail.pepStatus ? (
-                          // Emphasised: a PEP hit changes what the reviewer is
-                          // supposed to do, so it must not read like any other row.
-                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
-                            PEP
-                          </span>
-                        ) : (
-                          'Bukan PEP'
-                        )}
-                      </Field>
-                      {/* PEP relation names a real person and their office — PII,
-                          gated exactly like NPWP. */}
-                      <PiiField
-                        label="Hubungan dengan PEP"
-                        value={detail.pepRelation}
-                        staff={user}
-                        testId="kyc-pep-relation"
-                      />
-                    </div>
-                  </div>
-
-                  {/* USDX-610 — status screening DTTOT & DPPSPM berkas ini,
-                      di halaman tempat berkas ini disetujui. TIDAK memblokir
-                      Approve; yang diperbaiki adalah lolosnya yang diam-diam. */}
-                  <ScreeningSubjectPanel
-                    subjectType="KYC"
-                    subjectId={kycId}
-                    enabled={open}
+                )}
+                {pepOccupationMismatch && (
+                  <CddFinding testId="kyc-finding-pep-occupation">
+                    Pekerjaannya jabatan publik (Permendagri kode 48–63,
+                    cakupan PEP domestik Pasal 2 ayat (2) huruf b) tapi
+                    nasabah menjawab <strong>bukan PEP</strong>. Periksa
+                    sebelum menyetujui — kalau benar PEP, berkasnya butuh EDD
+                    Pasal 35–41, bukan CDD biasa.
+                  </CddFinding>
+                )}
+                {pepMissingSourceOfWealth && (
+                  <CddFinding testId="kyc-finding-pep-source-of-wealth">
+                    Nasabah PEP tanpa <strong>sumber kekayaan</strong>. Pasal
+                    37 ayat (1) huruf d mewajibkan EDD berkalanya menganalisis
+                    sumber dana <em>dan</em> sumber kekayaan; tanpa jawaban itu
+                    analisisnya belum punya bahan.
+                  </CddFinding>
+                )}
+                {/* Tiga kelompok, bukan satu grid panjang: petugas menilai
+                    "siapa orang ini" (pekerjaan), "berapa kemampuannya"
+                    (penghasilan & kekayaan), lalu "untuk apa" (tujuan
+                    transaksi). Deretan datar memaksa ia menyusun ulang
+                    pengelompokan itu di kepala tiap kali membuka berkas. */}
+                <div className="@container divide-y divide-border border-t border-border">
+                  <CddField
+                    label="Pekerjaan"
+                    value={labelFor(detail.occupation, OCCUPATION_LABELS)}
+                    testId="kyc-occupation"
                   />
-
-                  {/* Photos — presigned GET URLs, TTL 5 min */}
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Dokumen
-                      </p>
-                      {expiryLabel && (
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {expiryLabel}
-                        </span>
-                      )}
-                      {photosExpired &&
-                        (detail.ktpPhotoUrl !== null || detail.selfiePhotoUrl !== null) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1.5 text-xs"
-                            onClick={() => detailQuery.refetch()}
-                            disabled={detailQuery.isFetching}
-                          >
-                            <RefreshCw
-                              className={cn('h-3 w-3', detailQuery.isFetching && 'animate-spin')}
-                            />
-                            Muat ulang foto
-                          </Button>
-                        )}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <PhotoFigure
-                        label="Foto KTP"
-                        url={detail.ktpPhotoUrl}
-                        expired={photosExpired}
-                      />
-                      <PhotoFigure
-                        label="Selfie dengan KTP"
-                        url={detail.selfiePhotoUrl}
-                        expired={photosExpired}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Review outcome (REJECTED reason / reviewer info) */}
-                  {(detail.rejectionReason || detail.reviewedAt) && (
-                    <div className="space-y-2 rounded-md bg-muted/60 px-3 py-2.5">
-                      {detail.rejectionReason && (
-                        <p className="text-xs text-foreground">
-                          <span className="font-medium text-destructive">
-                            Alasan penolakan:
-                          </span>{' '}
-                          {detail.rejectionReason}
-                        </p>
-                      )}
-                      {detail.reviewedAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
-                          {formatDateTime(detail.reviewedAt)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Audit trail (kyc.yaml § reviewsHistory) — lazy fetch on expand */}
-                  <Collapsible open={auditOpen} onOpenChange={setAuditOpen}>
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
-                      >
-                        Jejak audit
-                        <ChevronDown
-                          className={cn(
-                            'h-3.5 w-3.5 transition-transform',
-                            auditOpen && 'rotate-180'
-                          )}
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="px-3 pt-2">
-                        {reviewsQuery.isLoading ? (
-                          <div className="space-y-2 py-1">
-                            <Skeleton className="h-3.5 w-full" />
-                            <Skeleton className="h-3.5 w-2/3" />
-                          </div>
-                        ) : reviewsQuery.isError ? (
-                          <p className="py-1 text-xs text-destructive">
-                            Jejak audit gagal dimuat.
-                          </p>
-                        ) : (
-                          <ul className="divide-y divide-border/60">
-                            {(reviewsQuery.data ?? []).map((row) => (
-                              <AuditTrailRow key={row.id} row={row} />
-                            ))}
-                            {reviewsQuery.data?.length === 0 && (
-                              <li className="py-1 text-xs text-muted-foreground">
-                                Belum ada jejak audit.
-                              </li>
-                            )}
-                          </ul>
-                        )}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </>
-              ) : null}
-            </div>
-          </DialogBody>
-
-          {/* Actions — only when PENDING; Developer sees them disabled. */}
-          {actionable && (
-            <DialogFooter>
-              {canReview ? (
-                <>
-                  <Button
-                    variant="outline"
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setRejectOpen(true)}
-                    disabled={isMutating}
+                  {/* Alamat & telepon tempat kerja — Pasal 25 (1) a angka 1
+                      butir g). PII, gerbang role sama dengan NPWP. */}
+                  <PiiField
+                    label="Alamat tempat kerja"
+                    value={detail.employerAddress}
+                    staff={user}
+                    testId="kyc-employer-address"
+                  />
+                  <PiiField
+                    label="Telepon tempat kerja"
+                    value={detail.employerPhone}
+                    staff={user}
+                    testId="kyc-employer-phone"
+                  />
+                  <CddField
+                    label="Sumber dana"
+                    value={labelFor(detail.sourceOfFunds, SOURCE_OF_FUNDS_LABELS)}
+                  />
+                  <CddField
+                    label="Penghasilan per tahun"
+                    value={labelFor(detail.annualIncomeRange, ANNUAL_INCOME_LABELS)}
+                  />
+                  <CddField
+                    label="Harta kekayaan (net worth)"
+                    value={labelFor(detail.netWorthRange, NET_WORTH_LABELS)}
+                    testId="kyc-net-worth"
+                  />
+                  <CddField
+                    label="Tujuan transaksi"
+                    value={labelFor(
+                      detail.transactionPurpose,
+                      TRANSACTION_PURPOSE_LABELS,
+                    )}
+                  />
+                  <CddField
+                    label="Sumber kekayaan"
+                    value={labelFor(detail.sourceOfWealth, SOURCE_OF_WEALTH_LABELS)}
+                    testId="kyc-source-of-wealth"
+                  />
+                  {/* NPWP is PII — ADMIN only (lib/pii.ts). */}
+                  <PiiField
+                    label="NPWP"
+                    value={detail.npwp}
+                    staff={user}
+                    testId="kyc-npwp"
+                  />
+                  {/* Kepanjangan PEP disebut di LABEL, bukan di nilainya:
+                      label selalu tampil, sedangkan nilai "PEP" hanya muncul
+                      pada berkas yang memang PEP — dan petugas yang baru
+                      justru bertemu berkas non-PEP lebih dulu. */}
+                  <Field
+                    label="Status PEP (orang yang populer secara politis)"
+                    testId="kyc-pep-status"
                   >
-                    Tolak
-                  </Button>
-                  <Button onClick={() => setConfirmApproveOpen(true)} disabled={isMutating}>
-                    Setujui
-                  </Button>
-                </>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {/* span wrapper: disabled buttons swallow pointer events */}
-                    <span className="inline-flex gap-2" tabIndex={0}>
+                    {detail.pepStatus === null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : detail.pepStatus ? (
+                      // Emphasised: a PEP hit changes what the reviewer is
+                      // supposed to do, so it must not read like any other row.
+                      <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
+                        PEP
+                      </span>
+                    ) : (
+                      'Bukan PEP'
+                    )}
+                  </Field>
+                  {/* PEP relation names a real person and their office — PII,
+                      gated exactly like NPWP. */}
+                  <PiiField
+                    label="Hubungan dengan PEP"
+                    value={detail.pepRelation}
+                    staff={user}
+                    testId="kyc-pep-relation"
+                  />
+                </div>
+              </div>
+
+              {/* USDX-610 — status screening DTTOT & DPPSPM berkas ini,
+                  di halaman tempat berkas ini disetujui. TIDAK memblokir
+                  Approve; yang diperbaiki adalah lolosnya yang diam-diam. */}
+              <ScreeningSubjectPanel
+                subjectType="KYC"
+                subjectId={kycId}
+                enabled={open}
+              />
+
+              {/* Photos — presigned GET URLs, TTL 5 min */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Dokumen
+                  </p>
+                  {expiryLabel && (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {expiryLabel}
+                    </span>
+                  )}
+                  {photosExpired &&
+                    (detail.ktpPhotoUrl !== null || detail.selfiePhotoUrl !== null) && (
                       <Button
                         variant="outline"
-                        disabled
-                        aria-disabled="true"
-                        className="border-destructive/40 text-destructive"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => detailQuery.refetch()}
+                        disabled={detailQuery.isFetching}
                       >
-                        Tolak
+                        <RefreshCw
+                          className={cn('h-3 w-3', detailQuery.isFetching && 'animate-spin')}
+                        />
+                        Muat ulang foto
                       </Button>
-                      <Button disabled aria-disabled="true">
-                        Setujui
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Peran Developer hanya bisa melihat</TooltipContent>
-                </Tooltip>
+                    )}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <PhotoFigure
+                    label="Foto KTP"
+                    url={detail.ktpPhotoUrl}
+                    expired={photosExpired}
+                  />
+                  <PhotoFigure
+                    label="Selfie dengan KTP"
+                    url={detail.selfiePhotoUrl}
+                    expired={photosExpired}
+                  />
+                </div>
+              </div>
+
+              {/* Alasan penolakan tetap di depan — itu yang dibaca nasabah. */}
+              {detail.rejectionReason && (
+                <div className="rounded-md bg-muted/60 px-3 py-2.5">
+                  <p className="text-xs text-foreground">
+                    <span className="font-medium text-destructive">
+                      Alasan penolakan:
+                    </span>{' '}
+                    {detail.rejectionReason}
+                  </p>
+                </div>
               )}
-            </DialogFooter>
+
+              <BerkasRiwayat
+                status={detail.status}
+                submittedAt={detail.submittedAt}
+                submissionCount={detail.submissionCount}
+                reviewedAt={detail.reviewedAt}
+                reviewedByName={detail.reviewedByName}
+              />
+
+              {/* Audit trail (kyc.yaml § reviewsHistory) — lazy fetch on expand */}
+              <Collapsible open={auditOpen} onOpenChange={setAuditOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted/60"
+                  >
+                    Jejak audit
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        auditOpen && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-3 pt-2">
+                    {reviewsQuery.isLoading ? (
+                      <div className="space-y-2 py-1">
+                        <Skeleton className="h-3.5 w-full" />
+                        <Skeleton className="h-3.5 w-2/3" />
+                      </div>
+                    ) : reviewsQuery.isError ? (
+                      <p className="py-1 text-xs text-destructive">
+                        Jejak audit gagal dimuat.
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border/60">
+                        {(reviewsQuery.data ?? []).map((row) => (
+                          <AuditTrailRow key={row.id} row={row} />
+                        ))}
+                        {reviewsQuery.data?.length === 0 && (
+                          <li className="py-1 text-xs text-muted-foreground">
+                            Belum ada jejak audit.
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          ) : null}
+
+          {kycId && (
+            <DetailTeknis description="Kode dan nomor untuk penelusuran. Tidak perlu dibuka untuk pekerjaan sehari-hari.">
+              <div className="min-w-0 sm:col-span-2">
+                <p className="text-xs text-muted-foreground">ID berkas KYC</p>
+                <button
+                  type="button"
+                  onClick={() => copyText(kycId, 'KYC ID')}
+                  className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-primary [overflow-wrap:anywhere]"
+                  title={kycId}
+                  aria-label="Salin ID KYC"
+                >
+                  <span>{kycId}</span>
+                  <Copy className="h-3 w-3 shrink-0 opacity-50" />
+                </button>
+              </div>
+              {userId && (
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">ID nasabah</p>
+                  <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{userId}</p>
+                </div>
+              )}
+              {status && (
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Status sistem</p>
+                  <p className="font-mono text-xs text-muted-foreground">{status}</p>
+                </div>
+              )}
+            </DetailTeknis>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      </RecordModal>
 
       {/* Approve confirmation (per Linear: konfirmasi modal sebelum POST) */}
       <Dialog

@@ -87,16 +87,12 @@ beforeEach(() => {
   )
 })
 
-function renderPage(path = '/verifikasi', staffEmail = 'demo@usdx.io', fullDetailStub = false) {
+function renderPage(path = '/verifikasi', staffEmail = 'demo@usdx.io') {
   return renderWithProviders(
     <Routes>
       <Route path="/verifikasi" element={<VerificationPage />} />
       <Route path="/verifikasi/:jenis/:id" element={<VerificationPage />} />
-      {fullDetailStub ? (
-        <Route path="/kyc/:id" element={<div>BERKAS LENGKAP KYC</div>} />
-      ) : (
-        <Route path="/kyc/:id" element={<VerificationPage detail="perorangan" />} />
-      )}
+      <Route path="/kyc/:id" element={<VerificationPage detail="perorangan" />} />
       <Route path="/kyb/:id" element={<VerificationPage detail="badan-usaha" />} />
       <Route path="/kyb/new" element={<div>FORM KYB</div>} />
     </Routes>,
@@ -141,16 +137,32 @@ describe('VerificationPage', () => {
       expect(calls.filter((c) => c.status === 'VERIFIED' || c.status === 'REJECTED').length).toBeGreaterThanOrEqual(4)
     })
 
-    test('should open a summary panel without reading the PII detail, then open the full file', async () => {
+    test('should open the file modal in the centre on row click — the detail GET fires only then', async () => {
       const user = userEvent.setup()
-      renderPage('/verifikasi', 'demo@usdx.io', true)
-      await user.click(await screen.findByRole('button', { name: 'Buka berkas perorangan andi@example.com' }))
-      const panel = await screen.findByRole('region', { name: 'Detail verifikasi' })
-      expect(within(panel).getByText(/foto KTP dengan swafoto/)).toBeInTheDocument()
-      // The summary must not decrypt anything: no GET /api/v1/kyc/:id yet.
-      expect(calls.some((c) => c.path.startsWith('/api/v1/kyc/'))).toBe(false)
-      await user.click(within(panel).getByRole('button', { name: 'Periksa berkas' }))
-      expect(await screen.findByText('BERKAS LENGKAP KYC')).toBeInTheDocument()
+      renderPage()
+      const row = await screen.findByRole('button', { name: 'Buka berkas perorangan andi@example.com' })
+      // Tabel saja tidak pernah mendekripsi apa pun.
+      expect(calls.some((c) => c.path.startsWith('/api/v1/kyc/') || c.path.startsWith('/api/v1/kyb/'))).toBe(false)
+      await user.click(row)
+      const dialog = await screen.findByTestId('kyc-modal')
+      expect(within(dialog).getByText(/berkas verifikasi perorangan/i)).toBeInTheDocument()
+      await waitFor(() => expect(calls.filter((c) => c.path === '/api/v1/kyc/kyc_andi')).toHaveLength(1))
+      expect(calls.some((c) => c.path.startsWith('/api/v1/kyb/'))).toBe(false)
+      // Tidak ada panel samping lagi.
+      expect(screen.queryByRole('region', { name: 'Detail verifikasi', hidden: true })).not.toBeInTheDocument()
+    })
+
+    test('should move to the next file with ↓ without closing, fetching only that file', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: 'Buka berkas badan usaha PT Sinar Niaga' }))
+      const first = await screen.findByTestId('kyb-modal')
+      expect(within(first).getByTestId('record-modal-position')).toHaveTextContent('1 dari 4')
+      await user.click(within(first).getByRole('button', { name: 'Berikutnya' }))
+      const second = await screen.findByTestId('kyc-modal')
+      expect(within(second).getByTestId('record-modal-position')).toHaveTextContent('2 dari 4')
+      await waitFor(() => expect(calls.filter((c) => c.path === '/api/v1/kyc/kyc_andi')).toHaveLength(1))
+      expect(calls.filter((c) => c.path === '/api/v1/kyb/kyb_sinar')).toHaveLength(1)
     })
 
     test('should offer the manual KYB form to reviewers', async () => {
@@ -188,17 +200,18 @@ describe('VerificationPage', () => {
       expect(within(body('history')).getAllByText('Ditolak')).toHaveLength(2) // group title + chip
     })
 
-    test('should open the old full-file modal on top of the same panel from a /kyb/:id link', async () => {
+    test('should open the same file modal from an old /kyb/:id link, without any side panel', async () => {
       renderPage('/kyb/kyb_sinar')
-      expect(await screen.findByRole('dialog')).toBeInTheDocument()
-      // Behind it, the page is Verifikasi with the same file's panel.
-      expect(screen.getByRole('region', { name: 'Detail verifikasi', hidden: true })).toBeInTheDocument()
+      expect(await screen.findByTestId('kyb-modal')).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Detail verifikasi', hidden: true })).not.toBeInTheDocument()
     })
 
-    test('should still open a panel for a file that is not on the current page', async () => {
+    test('should still open the file modal for a file that is not on the current page', async () => {
       renderPage('/verifikasi/perorangan/kyc_unknown')
-      const panel = await screen.findByRole('region', { name: 'Detail verifikasi' })
-      expect(within(panel).getByRole('button', { name: 'Buka berkas lengkap' })).toBeInTheDocument()
+      const dialog = await screen.findByTestId('kyc-modal')
+      // Bukan baris di tabel ini → tanpa posisi "n dari N".
+      expect(within(dialog).queryByTestId('record-modal-position')).not.toBeInTheDocument()
+      await waitFor(() => expect(calls.filter((c) => c.path === '/api/v1/kyc/kyc_unknown')).toHaveLength(1))
     })
   })
 })
