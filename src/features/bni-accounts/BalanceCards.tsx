@@ -19,8 +19,8 @@ import { resolveBalanceCardStates, type BalanceCardState } from './balanceCardSt
 function Amount({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-2xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 font-mono text-lg font-semibold leading-none tracking-tight tabular-nums">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-money-lg tabular-nums">
         {value}
       </p>
     </div>
@@ -44,7 +44,7 @@ function BalanceCardView({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{account.label}</p>
-            <p className="font-mono text-2xs text-muted-foreground">{account.accountNo}</p>
+            <p className="tabular-nums text-xs text-muted-foreground">{account.accountNo}</p>
           </div>
           {(state.kind === 'ok' || state.kind === 'bank-rejected') && (
             <StatusPill cfg={getBniBalanceCardStatusConfig(state.card.status)} />
@@ -126,18 +126,18 @@ export default function BalanceCards({
     <section aria-labelledby="bni-balances-heading" className="mb-6">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="bni-balances-heading" className="text-base font-semibold tracking-tight">
+          <h2 id="bni-balances-heading" className="text-section">
             Saldo rekening
           </h2>
           <p className="text-xs text-muted-foreground">
             {balances && !error ? (
               <>
                 Menurut bank:{' '}
-                <span className="font-mono" data-testid="bni-inquired-at-bank">
+                <span className="tabular-nums" data-testid="bni-inquired-at-bank">
                   {formatBniPostDate(balances.inquiredAtBank)}
                 </span>{' '}
                 WIB · Tarikan:{' '}
-                <span className="font-mono" data-testid="bni-pulled-at">
+                <span className="tabular-nums" data-testid="bni-pulled-at">
                   {formatWibDateTime(balances.pulledAt)}
                 </span>
                 {/* pullId = activity_log.metadata.pullId = api_call_log.correlation_id

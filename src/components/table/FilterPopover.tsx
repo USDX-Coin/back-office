@@ -79,7 +79,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
           <span>Filter</span>
           {activeCount > 0 && (
             <span
-              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 font-mono text-2xs font-semibold leading-none text-primary-foreground"
+              className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-label tabular-nums leading-none text-primary-foreground"
               aria-label={`${activeCount} filter aktif`}
             >
               {activeCount}
@@ -129,7 +129,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                           <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                             {opt.label}
                             {opt.disabled && opt.disabledHint && (
-                              <span className="ml-1.5 text-2xs text-muted-foreground">
+                              <span className="ml-1.5 text-xs text-muted-foreground">
                                 {opt.disabledHint}
                               </span>
                             )}
@@ -159,7 +159,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                       className="mt-1 h-9 text-xs"
                     />
                     {def.hint && (
-                      <p id={hintId} className="mt-1 text-2xs text-muted-foreground">
+                      <p id={hintId} className="mt-1 text-xs text-muted-foreground">
                         {def.hint}
                       </p>
                     )}
@@ -205,7 +205,7 @@ export default function FilterPopover({ defs, values, onApply, onClearAll, activ
                     />
                   </div>
                   {!vonis.sah && vonis.masalah && (
-                    <p role="alert" className="mt-1 text-2xs text-destructive">
+                    <p role="alert" className="mt-1 text-xs text-destructive">
                       {pesanRentang(vonis.masalah)}
                     </p>
                   )}

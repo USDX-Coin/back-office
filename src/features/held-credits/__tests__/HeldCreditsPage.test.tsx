@@ -96,7 +96,7 @@ describe('HeldCreditsPage @ USDX-342', () => {
   })
 
   describe('edge cases', () => {
-    test('sebab tertahan yang belum diterjemahkan dirender APA ADANYA', async () => {
+    test('sebab tertahan yang belum diterjemahkan: "Belum dikenali", kodenya di title (tanpa enum mentah)', async () => {
       server.use(
         http.get('/api/v1/held-credits', () =>
           HttpResponse.json({
@@ -121,7 +121,8 @@ describe('HeldCreditsPage @ USDX-342', () => {
         )
       )
       setup()
-      expect(await screen.findByText('SEBAB_YANG_BELUM_ADA')).toBeInTheDocument()
+      expect(await screen.findByText('Belum dikenali')).toHaveAttribute('title', 'SEBAB_YANG_BELUM_ADA')
+      expect(screen.queryByText('SEBAB_YANG_BELUM_ADA')).not.toBeInTheDocument()
       // Nominal yang BUKAN rupiah bulat tetap dirender apa adanya — nilai ganjil
       // itu justru yang paling sering jadi sebab kredit tertahan.
       expect(screen.getByText('Rp 1234567.891 (bukan rupiah bulat)')).toBeInTheDocument()

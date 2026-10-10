@@ -31,6 +31,7 @@ import MultisigTabs from './MultisigTabs'
 import MultisigDetailSheet from './MultisigDetailSheet'
 import ProposeModal from './ProposeModal'
 import WalletConnectButton from './WalletConnectButton'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 20
 
@@ -38,7 +39,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         cfg.className,
       )}
     >
@@ -92,7 +93,7 @@ export default function MultisigListPage() {
       size: 128,
       header: 'Tanggal',
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatShortDate(getValue() as string)}
         </span>
       ),
@@ -125,7 +126,7 @@ export default function MultisigListPage() {
       size: 104,
       header: 'Safe',
       cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
             {row.original.safeType}
           </span>
@@ -177,7 +178,7 @@ export default function MultisigListPage() {
             e.stopPropagation()
             navigate(`/multisig/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Lihat transaksi Safe ${row.original.activityLabel}`}
         >
           <Eye className="h-3.5 w-3.5" />

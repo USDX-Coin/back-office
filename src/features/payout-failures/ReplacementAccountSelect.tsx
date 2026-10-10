@@ -97,13 +97,13 @@ export default function ReplacementAccountSelect({
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value} className="text-xs">
               {option.bankName} ·{' '}
-              <span className="font-mono tabular-nums">{option.accountNumber}</span> ·{' '}
+              <span className="tabular-nums">{option.accountNumber}</span> ·{' '}
               {option.accountName}
               {option.label ? ` · ${option.label}` : ''}
               {option.isCurrent && (
                 <>
                   {/* Spasi eksplisit: tanpa itu nama aksesibel opsinya berbunyi "…utamarekening saat ini". */}{' '}
-                  <span className="ml-1 rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-foreground">
+                  <span className="ml-1 rounded-sm bg-muted px-1.5 py-0.5 text-label font-medium text-foreground">
                     rekening saat ini
                   </span>
                 </>

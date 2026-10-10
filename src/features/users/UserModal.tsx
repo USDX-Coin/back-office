@@ -357,7 +357,7 @@ export default function UserModal({
           <div>
             <Label htmlFor="notes">
               Catatan
-              <span className="ml-2 text-2xs font-normal text-muted-foreground">
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {form.notes.length} / {USER_LIMITS.MAX_NOTES_LEN}
               </span>
             </Label>
@@ -376,7 +376,7 @@ export default function UserModal({
               <div className="flex items-center justify-between">
                 <Label>
                   Wallet
-                  <span className="ml-2 text-2xs font-normal text-muted-foreground">
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
                     {walletCount} / {USER_LIMITS.MAX_WALLETS}
                   </span>
                 </Label>

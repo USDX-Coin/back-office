@@ -61,7 +61,7 @@ function DestinationLine({ destination }: { destination: Destination }) {
   return (
     <>
       {destination.bankName} ·{' '}
-      <span className="break-all font-mono tabular-nums">{destination.accountNumber}</span> ·{' '}
+      <span className="break-all tabular-nums">{destination.accountNumber}</span> ·{' '}
       <span className="font-medium">{destination.accountName}</span>
     </>
   )
@@ -123,7 +123,7 @@ function Consequence({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Menggantikan rekening tujuan saat ini ({detail.bankName} ·{' '}
-              <span className="font-mono tabular-nums">{detail.bankAccountNumber}</span>). Transfer
+              <span className="tabular-nums">{detail.bankAccountNumber}</span>). Transfer
               ke rekening yang salah tidak bisa ditarik kembali.
             </span>
           </p>
@@ -296,7 +296,7 @@ export default function ResolvePayoutFailureDialog({ detail, action, open, onOpe
                 <FieldError message={touched.reason ? errors.reason ?? '' : ''} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-2xs tabular-nums',
+                    'ml-auto text-xs tabular-nums',
                     reason.length >= PAYOUT_RESOLVE_REASON_MAX ? 'text-destructive' : 'text-muted-foreground',
                   )}
                 >

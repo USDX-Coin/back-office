@@ -51,8 +51,8 @@ function BreakdownRow({
       <span
         className={
           strong
-            ? 'font-mono text-sm font-semibold tabular-nums'
-            : 'font-mono text-xs tabular-nums text-muted-foreground'
+            ? 'text-sm font-semibold tabular-nums'
+            : 'text-xs tabular-nums text-muted-foreground'
         }
       >
         {value}
@@ -105,10 +105,10 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
             ejaan — dan ini dialog tempat operator MENYETUJUI PENCAIRAN.
           */}
           Kurs terpakai{' '}
-          <span className="font-mono tabular-nums text-foreground">
+          <span className="tabular-nums text-foreground">
             {formatRate(detail.effectiveRate)}
           </span>{' '}
-          <span className="text-2xs">
+          <span className="text-xs">
             (dasar {formatRate(detail.baseRate)}, spread jual{' '}
             {formatSpreadPct(detail.spreadSellPct)})
           </span>
@@ -293,7 +293,7 @@ export default function ApproveRedeemDialog({ row, open, onOpenChange }: Props) 
                   disabled={isMutating}
                 />
                 <FieldError message={noteError} />
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Masuk ke jejak audit bersama nama Anda. Kosongkan kalau tidak ada
                   yang perlu dijelaskan.
                 </p>

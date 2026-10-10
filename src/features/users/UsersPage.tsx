@@ -30,6 +30,7 @@ import type {
   KycStatus,
   PhaseOneUser,
 } from '@/lib/types'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 10
 
@@ -139,7 +140,7 @@ export default function UsersPage() {
         return (
           <span
             className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-2xs font-medium',
+              STATUS_CHIP_BASE,
               cfg.className
             )}
           >
@@ -160,7 +161,7 @@ export default function UsersPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+              STATUS_CHIP_BASE,
               cfg.className
             )}
             data-testid={`activation-badge-${status.toLowerCase()}`}

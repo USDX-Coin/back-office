@@ -150,7 +150,7 @@ export default function DecideApprovalDialog({ approval, decision, open, onOpenC
                   : 'Kenapa usulan ini tidak jadi dijalankan'
               }
             />
-            <p className="mt-1 text-2xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Tersimpan permanen bersama identitas dan waktu putusanmu. Tidak bisa diubah
               setelah terkirim.
             </p>

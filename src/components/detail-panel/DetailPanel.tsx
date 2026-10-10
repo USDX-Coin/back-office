@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 import DetailTeknis from '@/components/DetailTeknis'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 import { cn } from '@/lib/utils'
 import { TONE_CHIP_CLASS, TONE_TODO_CLASS, type Tone } from './tone'
 
@@ -100,12 +101,12 @@ export default function DetailPanel({
           <h2
             ref={headingRef}
             tabIndex={-1}
-            className="font-display text-xl font-semibold leading-tight text-balance focus:outline-none"
+            className="font-display text-dialog-title text-balance focus:outline-none"
           >
             {title}
           </h2>
           {amount && (
-            <p className="text-lg font-semibold tabular-nums">
+            <p className="text-money-lg tabular-nums">
               {amount}
               {amountSub && (
                 <span className="ml-2 text-sm font-medium text-muted-foreground">{amountSub}</span>
@@ -152,7 +153,7 @@ export function ToneChip({
   return (
     <span
       className={cn(
-        'inline-flex items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-xs font-semibold',
+        STATUS_CHIP_BASE,
         TONE_CHIP_CLASS[tone],
         className
       )}
@@ -165,7 +166,7 @@ export function ToneChip({
 export function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
+      <h3 className="text-section text-foreground">{title}</h3>
       {children}
     </div>
   )

@@ -161,7 +161,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                   <FieldError message={reasonError} />
                   <span
                     className={cn(
-                      'ml-auto font-mono text-2xs tabular-nums',
+                      'ml-auto text-xs tabular-nums',
                       reason.length >= REDEEM_REASON_MAX
                         ? 'text-destructive'
                         : 'text-muted-foreground',
@@ -170,7 +170,7 @@ export default function RejectRedeemDialog({ row, open, onOpenChange }: Props) {
                     {reason.length}/{REDEEM_REASON_MAX}
                   </span>
                 </div>
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Ditulis ke berkas order sebagai keterangan masalahnya. Yang
                   membacanya adalah ops yang harus menuntaskan order ini — jadi tulis
                   APA yang salah, bukan “tidak valid”.

@@ -180,7 +180,7 @@ export default function UpdateTxHashModal({
               Sistem membandingkannya baris demi baris dengan data request ini
               sebelum statusnya boleh diubah.
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-2xs">
+            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-label">
               <span className="font-medium text-foreground">
                 {chainCfg?.name ?? item.chain}
               </span>

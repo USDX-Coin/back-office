@@ -79,7 +79,7 @@ export default function LoginPage() {
 
           <Card className="rounded-xl shadow-[0_1px_3px_rgb(16_24_40/0.06)]">
             <CardHeader className="space-y-1 p-8 pb-6">
-              <CardTitle className="text-lg">Masuk</CardTitle>
+              <CardTitle className="font-display text-dialog-title">Masuk</CardTitle>
               <CardDescription className="text-base">
                 Masuk dengan akun operator untuk melanjutkan.
               </CardDescription>

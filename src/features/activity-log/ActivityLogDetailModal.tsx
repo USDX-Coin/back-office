@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import DetailTeknis from '@/components/DetailTeknis'
+import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 import StatusPill from '@/components/StatusPill'
 import { formatActor, type StaffDirectory } from '@/features/staff-directory/hooks'
 import { formatWibDateTime } from '@/lib/format'
@@ -66,7 +67,7 @@ export default function ActivityLogDetailModal({
 
   const explicit = explicitActionLabel(entry.action)
   const route = parseRouteAction(entry.action)
-  const actionHeadline = explicit ?? (route ? `${methodVerb(route.method)} — ${route.path}` : entry.action)
+  const actionHeadline = explicit ?? (route ? `${methodVerb(route.method)} — ${route.path}` : `Aksi ${UNKNOWN_CODE_LABEL.toLowerCase()}`)
   const typeLabel = resourceTypeLabel(entry.resourceType)
   const meaning = httpStatusMeaning(entry.httpStatus)
 
@@ -104,7 +105,7 @@ export default function ActivityLogDetailModal({
             <Field label="Aksi">{actionHeadline}</Field>
             <Field label="Objek">
               <div className="flex flex-col gap-0.5">
-                <span>{typeLabel ?? <span className="font-mono text-xs">{entry.resourceType}</span>}</span>
+                <span title={entry.resourceType}>{typeLabel ?? UNKNOWN_CODE_LABEL}</span>
                 {entry.resourceId ? (
                   <span className="break-all font-mono text-xs text-muted-foreground">
                     {entry.resourceId}
@@ -118,7 +119,7 @@ export default function ActivityLogDetailModal({
             </Field>
             <Field label="Dari mana (IP)">
               {entry.ipAddress ? (
-                <span className="font-mono text-xs tabular-nums">{entry.ipAddress}</span>
+                <span className="text-xs tabular-nums">{entry.ipAddress}</span>
               ) : (
                 <span className="text-muted-foreground">tidak tercatat</span>
               )}
@@ -199,7 +200,7 @@ export default function ActivityLogDetailModal({
               {entry.metadata && Object.keys(entry.metadata).length > 0 ? (
                 <pre
                   data-testid="jejak-metadata"
-                  className="mt-1 max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-2xs leading-relaxed"
+                  className="mt-1 max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-label leading-relaxed"
                 >
                   {JSON.stringify(entry.metadata, null, 2)}
                 </pre>

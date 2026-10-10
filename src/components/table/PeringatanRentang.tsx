@@ -26,7 +26,7 @@ export default function PeringatanRentang({ masalah, layar }: Props) {
     <p
       role="alert"
       data-testid={`${layar}-rentang-bermasalah`}
-      className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-2xs leading-relaxed text-destructive"
+      className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-label leading-relaxed text-destructive"
     >
       Rentang tanggal di tautan ini tidak dipakai — {pesanRentang(masalah)} Yang ditampilkan di
       bawah adalah hasil TANPA saringan tanggal, bukan hasil pencarian tanggal itu.

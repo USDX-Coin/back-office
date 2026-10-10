@@ -19,6 +19,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 const PROVIDER_LABEL: Record<string, string> = {
   DURIANPAY_SNAP: 'DurianPay',
+  DURIANPAY: 'DurianPay',
   BNI: 'BNI (langsung)',
   MOCK: 'Tiruan (dev/staging)',
 }

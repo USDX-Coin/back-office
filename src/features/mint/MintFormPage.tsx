@@ -312,7 +312,7 @@ export default function MintFormPage() {
           <RateSnapshotCard />
           <Card className="rounded-md shadow-none dark:border-0">
             <CardHeader>
-              <CardTitle className="text-base font-semibold tracking-tight">
+              <CardTitle className="text-section">
                 Apa yang terjadi berikutnya
               </CardTitle>
             </CardHeader>

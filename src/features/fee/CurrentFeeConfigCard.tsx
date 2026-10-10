@@ -12,7 +12,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Biaya saat ini
         </CardTitle>
       </CardHeader>
@@ -29,7 +29,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                 Biaya mint (% dari subtotal)
               </p>
               <p
-                className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
+                className="mt-1 text-money-lg tabular-nums"
                 aria-label="persen biaya mint"
               >
                 {formatSpreadPct(data.mintFeePct)}
@@ -41,7 +41,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Biaya VA (flat)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="biaya VA flat"
                 >
                   {formatIdrAmount(Number(data.pgFeeVaFlat))}
@@ -52,7 +52,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Biaya QRIS (%)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="persen biaya QRIS"
                 >
                   {formatSpreadPct(data.pgFeeQrisPct)}
@@ -63,7 +63,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Biaya redeem (%)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="persen biaya redeem"
                 >
                   {formatSpreadPct(data.redeemFeePct)}
@@ -74,7 +74,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Biaya pencairan (flat)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="biaya pencairan flat"
                 >
                   {formatIdrAmount(Number(data.disbursementFeeFlat))}
@@ -89,7 +89,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Minimum Mint (Rp)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="minimum mint aktif"
                 >
                   {data.minMintIdr ? formatIdrAmount(Number(data.minMintIdr)) : '—'}
@@ -100,7 +100,7 @@ export default function CurrentFeeConfigCard({ data, isLoading }: Props) {
                   Minimum Redeem (Rp)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="minimum redeem aktif"
                 >
                   {data.minRedeemIdr ? formatIdrAmount(Number(data.minRedeemIdr)) : '—'}

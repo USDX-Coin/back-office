@@ -39,7 +39,7 @@ export default function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerP
         <SheetHeader className="flex h-14 shrink-0 flex-row items-center gap-2.5 space-y-0 border-b border-border px-4 text-left">
           <img src="/image/logo-lockup.png" alt="" className="h-6 w-auto" />
           <SheetTitle className="sr-only">USDX</SheetTitle>
-          <SheetDescription className="mt-0.5 rounded border border-border px-1.5 text-2xs font-medium text-muted-foreground">
+          <SheetDescription className="mt-0.5 rounded border border-border px-1.5 text-label font-medium text-muted-foreground">
             Back-office
           </SheetDescription>
         </SheetHeader>

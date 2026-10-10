@@ -4,6 +4,7 @@ import { BanknoteX, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
+import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
@@ -82,7 +83,7 @@ export default function PayoutFailuresPage() {
       size: 184,
       header: 'Masuk antrean',
       cell: ({ row }) => (
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatWibDateTime(row.original.issueAt)}
         </span>
       ),
@@ -103,10 +104,10 @@ export default function PayoutFailuresPage() {
               // terpotong elipsis, dan dulu hover hanya memunculkan kodenya —
               // jadi kalimat yang terpotong tidak bisa dibaca di mana pun.
               <span
-                className="truncate text-2xs text-muted-foreground"
+                className="truncate text-xs text-muted-foreground"
                 title={codeLabel ? `${codeLabel} (${issueCode})` : issueCode}
               >
-                {codeLabel ?? <span className="font-mono">{issueCode}</span>}
+                {codeLabel ?? UNKNOWN_CODE_LABEL}
               </span>
             )}
           </div>
@@ -130,11 +131,11 @@ export default function PayoutFailuresPage() {
           lines={[
             {
               value: formatIdrExact(row.original.netPayoutIdr),
-              className: 'font-mono text-sm font-semibold tabular-nums',
+              className: 'text-sm font-semibold tabular-nums',
             },
             {
               value: formatUsdxExact(row.original.amountUsdx),
-              className: 'font-mono text-2xs tabular-nums text-muted-foreground',
+              className: 'text-xs tabular-nums text-muted-foreground',
             },
           ]}
         />
@@ -156,11 +157,11 @@ export default function PayoutFailuresPage() {
             { value: row.original.bankName, className: 'text-xs' },
             {
               value: row.original.bankAccountNumber,
-              className: 'font-mono text-xs tabular-nums',
+              className: 'text-xs tabular-nums',
             },
             {
               value: row.original.bankAccountName,
-              className: 'text-2xs text-muted-foreground',
+              className: 'text-xs text-muted-foreground',
             },
           ]}
         />
@@ -189,7 +190,7 @@ export default function PayoutFailuresPage() {
       size: 120,
       header: 'Umur antrean',
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums">
+        <span className="text-xs tabular-nums">
           {formatQueueAge(row.original.issueAt)}
         </span>
       ),
@@ -205,7 +206,7 @@ export default function PayoutFailuresPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail pencairan ${row.original.bankAccountName}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -227,7 +228,7 @@ export default function PayoutFailuresPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

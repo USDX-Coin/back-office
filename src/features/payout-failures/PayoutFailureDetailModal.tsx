@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
+import DetailTeknis from '@/components/DetailTeknis'
+import { getOrderStatusConfig, UNKNOWN_CODE_LABEL } from '@/lib/status'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
@@ -27,7 +29,7 @@ import {
   resolutionTrailLabel,
 } from '@/lib/payoutFailures'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
-import type { PayoutFailureDetail, PayoutResolution } from '@/lib/types'
+import type { OrderStatus, PayoutFailureDetail, PayoutResolution } from '@/lib/types'
 import ResolutionTrail from './ResolutionTrail'
 import ResolvePayoutFailureDialog from './ResolvePayoutFailureDialog'
 import SubmissionTrail from './SubmissionTrail'
@@ -188,19 +190,21 @@ export default function PayoutFailureDetailModal({
               <Section title="Masalah">
                 <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Penyebab">
-                    {/* Kode tak dikenal (daftar kontrak terbuka): hanya kodenya, tanpa arti karangan. */}
-                    {payoutIssueCodeLabel(detail.issueCode) ?? (detail.issueCode ? null : <Dim />)}
-                    {detail.issueCode && (
-                      <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
-                        {detail.issueCode}
+                    {/* Kode tak dikenal (daftar kontrak terbuka): tidak ditebak artinya —
+                        "Belum dikenali", kodenya di Detail teknis. */}
+                    {detail.issueCode ? (
+                      <span title={detail.issueCode}>
+                        {payoutIssueCodeLabel(detail.issueCode) ?? UNKNOWN_CODE_LABEL}
                       </span>
+                    ) : (
+                      <Dim />
                     )}
                   </Field>
                   <Field label="Status order">
-                    <span className="font-mono text-xs">{detail.status}</span>
+                    <span title={detail.status}>{getOrderStatusConfig(detail.status as OrderStatus).label}</span>
                   </Field>
                   <Field label="Masuk antrean">
-                    <span className="font-mono text-xs tabular-nums">
+                    <span className="text-xs tabular-nums">
                       {formatWibDateTime(detail.issueAt)}
                     </span>
                   </Field>
@@ -218,24 +222,24 @@ export default function PayoutFailureDetailModal({
                 <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Nominal transfer">
                     <span
-                      className="font-mono text-lg font-semibold tabular-nums"
+                      className="text-money-lg tabular-nums"
                       data-testid="payout-failure-net-idr"
                     >
                       {formatIdrExact(detail.netPayoutIdr)}
                     </span>
                   </Field>
                   <Field label="USDX terbakar">
-                    <span className="font-mono tabular-nums">{formatUsdxExact(detail.amountUsdx)}</span>
+                    <span className="tabular-nums">{formatUsdxExact(detail.amountUsdx)}</span>
                   </Field>
                   <Field label="Kurs snapshot">
                     {/* Ketiga tetangganya di grid ini sudah diformat; yang ini
                         tertinggal mentah (`16250.0000`). */}
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {formatRate(detail.effectiveRate)}
                     </span>
                   </Field>
                   <Field label="Total biaya">
-                    <span className="font-mono tabular-nums">{formatIdrExact(detail.totalFeeIdr)}</span>
+                    <span className="tabular-nums">{formatIdrExact(detail.totalFeeIdr)}</span>
                   </Field>
                 </div>
               </Section>
@@ -244,7 +248,7 @@ export default function PayoutFailureDetailModal({
                 <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Bank">{detail.bankName}</Field>
                   <Field label="Nomor rekening">
-                    <span className="break-all font-mono tabular-nums">{detail.bankAccountNumber}</span>
+                    <span className="break-all tabular-nums">{detail.bankAccountNumber}</span>
                   </Field>
                   <Field label="Nama pemilik menurut bank">
                     <span className="font-medium">{detail.bankAccountName}</span>
@@ -266,11 +270,11 @@ export default function PayoutFailureDetailModal({
                     <BurnHash detail={detail} />
                   </Field>
                   <Field label="Dibakar">
-                    <span className="font-mono text-xs tabular-nums">
+                    <span className="text-xs tabular-nums">
                       {formatWibDateTime(detail.burnedAt)}
                     </span>
                     {(detail.lateBurn || detail.staleBurn) && (
-                      <span className="ml-1.5 text-2xs font-medium text-amber-700 dark:text-amber-400">
+                      <span className="ml-1.5 text-label font-medium text-amber-700 dark:text-amber-400">
                         {detail.staleBurn ? 'burn basi' : 'burn terlambat'}
                       </span>
                     )}
@@ -301,6 +305,21 @@ export default function PayoutFailureDetailModal({
               </Section>
 
               <ActionAvailabilityNote detail={detail} canResolve={canResolve} />
+
+              <DetailTeknis>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Kode penyebab</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.issueCode ?? '—'}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Kode jenis masalah</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.issueKind}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Status order (sistem)</p>
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.status}</p>
+                </div>
+              </DetailTeknis>
             </div>
           )}
         </DialogBody>

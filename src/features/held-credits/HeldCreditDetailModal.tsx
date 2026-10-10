@@ -12,6 +12,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import DetailTeknis from '@/components/DetailTeknis'
+import { getPaymentStatusConfig, UNKNOWN_CODE_LABEL } from '@/lib/status'
+import type { MintPaymentStatus } from '@/lib/types'
 import StatusPill from '@/components/StatusPill'
 import { ApiError } from '@/lib/apiFetch'
 import { useAuth } from '@/lib/auth'
@@ -114,7 +116,7 @@ export default function HeldCreditDetailModal({ creditId, open, onOpenChange }: 
               </div>
             )}
             {credit && !alreadyResolved && !canResolve && (
-              <p className="mr-auto flex max-w-md items-start gap-2 text-2xs leading-relaxed text-muted-foreground">
+              <p className="mr-auto flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
                   Peran Developer read-only pada jalur uang — server menolak penyelesaian
@@ -171,15 +173,15 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
       <Section title="Uang yang masuk">
         <div className="@container divide-y divide-border border-t border-border">
           <Field label="Nominal">
-            <span className="font-mono tabular-nums">{receivedAmountLabel(credit)}</span>
-            {gap && <span className="mt-0.5 block text-2xs text-warning">{gap}</span>}
+            <span className="tabular-nums">{receivedAmountLabel(credit)}</span>
+            {gap && <span className="mt-0.5 block text-xs text-warning">{gap}</span>}
           </Field>
           <Field label="Kenapa tertahan">
             <div className="flex flex-col gap-1">
               <StatusPill cfg={sourcePill(credit.source)} className="w-fit" />
               {credit.heldReason ? (
                 <span className="text-xs" title={credit.heldReason}>
-                  {reasonLabel ?? <span className="font-mono">{credit.heldReason}</span>}
+                  {reasonLabel ?? UNKNOWN_CODE_LABEL}
                 </span>
               ) : (
                 <span className="text-xs text-muted-foreground">
@@ -193,7 +195,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               <>
                 {credit.senderName && <span>{credit.senderName}</span>}
                 {credit.accountFromTo && (
-                  <span className="mt-0.5 block font-mono text-xs tabular-nums">
+                  <span className="mt-0.5 block text-xs tabular-nums">
                     {credit.accountFromTo}
                   </span>
                 )}
@@ -204,14 +206,14 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
           </Field>
           <Field label="Masuk ke rekening">
             {credit.collectionAccountNo ? (
-              <span className="font-mono text-xs tabular-nums">{credit.collectionAccountNo}</span>
+              <span className="text-xs tabular-nums">{credit.collectionAccountNo}</span>
             ) : (
               <span className="text-muted-foreground">tidak disebut penyedia</span>
             )}
           </Field>
           <Field label="Diterima">
             <span className="text-xs">{formatWibDateTime(credit.receivedAt)}</span>
-            <span className="mt-0.5 block text-2xs text-muted-foreground">
+            <span className="mt-0.5 block text-xs text-muted-foreground">
               menunggu {formatCreditAge(credit.receivedAt)}
             </span>
           </Field>
@@ -224,14 +226,14 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
             <Field label="Nasabah">
               <span>{credit.order.customerName}</span>
               {credit.order.userEmail && (
-                <span className="mt-0.5 block break-all text-2xs text-muted-foreground">
+                <span className="mt-0.5 block break-all text-xs text-muted-foreground">
                   {credit.order.userEmail}
                 </span>
               )}
             </Field>
             <Field label="Yang ditagihkan">
               {credit.order.expectedAmountIdr ? (
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {formatIdrExact(credit.order.expectedAmountIdr)}
                 </span>
               ) : (
@@ -239,10 +241,12 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               )}
             </Field>
             <Field label="USDX yang dipesan">
-              <span className="font-mono tabular-nums">{formatUsdxExact(credit.order.amount)}</span>
+              <span className="tabular-nums">{formatUsdxExact(credit.order.amount)}</span>
             </Field>
             <Field label="Keadaan order">
-              <span className="font-mono text-xs">{credit.order.paymentStatus}</span>
+              <span title={credit.order.paymentStatus}>
+                {getPaymentStatusConfig(credit.order.paymentStatus as MintPaymentStatus).label}
+              </span>
             </Field>
           </div>
         ) : (
@@ -267,7 +271,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
                   {review.action === 'PAID' ? 'Diterima' : 'Ditolak'} ·{' '}
                   {review.actorStaffName ?? review.actorStaffId}
                 </p>
-                <p className="mt-0.5 text-2xs text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatWibDateTime(review.createdAt)}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap text-xs">{review.reason}</p>
@@ -280,7 +284,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
       {durianpayResidue && (
         <p
           data-testid="residu-durianpay"
-          className="flex items-start gap-2 text-2xs leading-relaxed text-muted-foreground"
+          className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
@@ -301,6 +305,11 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
         <Field label="Kode sebab tertahan">
           <Raw value={credit.heldReason} />
         </Field>
+        {credit.order && (
+          <Field label="Status pembayaran order (sistem)">
+            <Raw value={credit.order.paymentStatus} />
+          </Field>
+        )}
         <Field label="Nominal mentah penyedia">
           <Raw value={credit.receivedAmountRaw} />
         </Field>
@@ -358,7 +367,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
           </p>
           <pre
             data-testid="notif-raw"
-            className="mt-1 max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-2xs leading-relaxed"
+            className="mt-1 max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-label leading-relaxed"
           >
             {JSON.stringify(credit.raw, null, 2)}
           </pre>

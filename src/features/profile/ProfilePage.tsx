@@ -23,15 +23,15 @@ export default function ProfilePage() {
         <div className="space-y-4 lg:col-span-4">
           <Card className="rounded-md py-0 gap-0 shadow-none">
             <CardContent className="flex flex-col items-center p-6 text-center">
-              <Avatar name={user.name} size="xl" className="h-24 w-24 text-2xl" />
-              <h2 className="mt-4 text-lg font-semibold tracking-tight">
+              <Avatar name={user.name} size="xl" className="h-24 w-24 text-dialog-title" />
+              <h2 className="mt-4 font-display text-dialog-title">
                 {user.name}
               </h2>
-              <span className="mt-2 inline-flex rounded-sm bg-secondary px-2 py-0.5 text-2xs font-medium text-foreground">
+              <span className="mt-2 inline-flex rounded-sm bg-secondary px-2 py-0.5 text-label font-medium text-foreground">
                 {user.role}
               </span>
               {!user.isActive && (
-                <span className="mt-2 inline-flex rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
+                <span className="mt-2 inline-flex rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
                   Nonaktif
                 </span>
               )}

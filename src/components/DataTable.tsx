@@ -479,7 +479,7 @@ export default function DataTable<T>({
       )}
 
       <div className="flex items-center justify-between">
-        <p className="font-mono text-2xs text-muted-foreground tabular-nums">
+        <p className="text-xs text-muted-foreground tabular-nums">
           {data.length > 0 ? (page - 1) * defaultPageSize + 1 : 0}–
           {Math.min(page * defaultPageSize, rowCount)} dari {rowCount}
         </p>
@@ -504,7 +504,7 @@ export default function DataTable<T>({
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="px-2 font-mono text-2xs tabular-nums text-muted-foreground">
+          <span className="px-2 text-xs tabular-nums text-muted-foreground">
             {page} / {totalPages}
           </span>
           <Button

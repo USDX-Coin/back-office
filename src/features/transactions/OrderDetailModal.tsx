@@ -30,6 +30,8 @@ import { useOrderDetail } from './hooks'
 import { resolveOrderNextStep } from './nextStep'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
+import { paymentMethodLabel, providerLabel } from '@/lib/paymentMethods'
 
 interface OrderDetailModalProps {
   orderId: string | null
@@ -144,7 +146,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         cfg.className,
       )}
     >
@@ -158,7 +160,7 @@ const Dim = () => <span className="text-muted-foreground">—</span>
 // Decimal IDR string → "Rp …,00", or a dim dash when null/absent.
 function money(value: string | null | undefined): ReactNode {
   if (value === null || value === undefined || value === '') return <Dim />
-  return <span className="font-mono tabular-nums">{formatIdrAmount(Number(value))}</span>
+  return <span className="tabular-nums">{formatIdrAmount(Number(value))}</span>
 }
 
 // Percent string → "x%", or a dim dash when null/absent.
@@ -224,14 +226,14 @@ export default function OrderDetailModal({
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   {isRedeem && detail.lateBurn ? (
-                    <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
+                    <span className="rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
                       Dibakar setelah kedaluwarsa
                     </span>
                   ) : null}
                   {/* P1-5 — dulu: `STAFF safe · polygon`. Nama rantainya turun
                       ke Detail teknis di bawah; yang dibaca sekilas cuma dompet
                       mana yang memegang order ini. */}
-                  <span className="text-2xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {isRedeem
                       ? 'Redeem'
                       : detail.safeType === 'MANAGER'
@@ -241,7 +243,7 @@ export default function OrderDetailModal({
                           : 'Dompet belum ditentukan'}
                   </span>
                 </div>
-                <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                <span className="text-xs tabular-nums text-muted-foreground">
                   {formatDate(detail.createdAt)}
                 </span>
               </div>
@@ -255,7 +257,7 @@ export default function OrderDetailModal({
                     <p className="text-xs font-medium text-foreground">
                       Langkah berikutnya
                     </p>
-                    <p className="mt-0.5 text-2xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {nextStep.hint}
                     </p>
                   </div>
@@ -327,7 +329,7 @@ export default function OrderDetailModal({
                   id-ID. Satu nilai, dua ejaan, di satu modal.
                 */}
                 <Field label="Nominal (USDX)">
-                  <span className="font-mono tabular-nums">
+                  <span className="tabular-nums">
                     {formatUsdxListAmount(detail.amount)}
                   </span>
                 </Field>
@@ -345,10 +347,10 @@ export default function OrderDetailModal({
 
               <Section title="Kurs & spread">
                 <Field label="Kurs dasar">
-                  <span className="font-mono tabular-nums">{formatRate(detail.baseRate)}</span>
+                  <span className="tabular-nums">{formatRate(detail.baseRate)}</span>
                 </Field>
                 <Field label="Kurs efektif">
-                  <span className="font-mono tabular-nums">
+                  <span className="tabular-nums">
                     {formatRate(detail.effectiveRate)}
                   </span>
                 </Field>
@@ -368,7 +370,7 @@ export default function OrderDetailModal({
               {isRedeem ? (
                 <Section title="Rincian biaya">
                   <Field label="Biaya redeem">
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {pct(detail.redeemFeePct)} ·{' '}
                       {formatIdrAmount(Number(detail.redeemFeeIdr ?? 0))}
                     </span>
@@ -383,16 +385,15 @@ export default function OrderDetailModal({
                 <Section title="Rincian biaya">
                   <Field label="Cara pembayaran">
                     {detail.paymentChannel ? (
-                      <span>
-                        {detail.paymentChannel}
-                        {detail.paymentBank ? ` · ${detail.paymentBank}` : ''}
+                      <span title={[detail.paymentChannel, detail.paymentBank].filter(Boolean).join(' · ')}>
+                        {paymentMethodLabel({ channel: detail.paymentChannel, bank: detail.paymentBank ?? null })}
                       </span>
                     ) : (
                       <Dim />
                     )}
                   </Field>
                   <Field label="Biaya mint">
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       {pct(detail.mintFeePct)} · {formatIdrAmount(Number(detail.mintFeeIdr ?? 0))}
                     </span>
                   </Field>
@@ -410,13 +411,13 @@ export default function OrderDetailModal({
                   <p className="text-sm font-medium text-foreground">
                     Perkiraan pendapatan
                   </p>
-                  <p className="text-2xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {isRedeem
                       ? 'pendapatan spread + biaya redeem (biaya transfer bank diteruskan apa adanya)'
                       : 'pendapatan spread + biaya mint (biaya payment gateway diteruskan apa adanya)'}
                   </p>
                 </div>
-                <span className="font-mono text-base font-semibold tabular-nums text-foreground">
+                <span className="text-base font-semibold tabular-nums text-foreground">
                   {formatIdrAmount(Number(detail.estimatedRevenueIdr))}
                 </span>
               </div>
@@ -429,7 +430,7 @@ export default function OrderDetailModal({
                   <Field label="Dibakar setelah kedaluwarsa">
                     {detail.lateBurn ? 'Ya' : 'Tidak'}
                   </Field>
-                  <Field label="Penyedia pencairan">{detail.payoutProvider ?? <Dim />}</Field>
+                  <Field label="Penyedia pencairan">{detail.payoutProvider ? providerLabel(detail.payoutProvider) : <Dim />}</Field>
                   <Field label="Waktu pembakaran">
                     {detail.burnedAt ? formatDate(detail.burnedAt) : <Dim />}
                   </Field>
@@ -457,7 +458,7 @@ export default function OrderDetailModal({
                   <Field label="Status order">
                     <StatusBadge cfg={getOrderStatusConfig(detail.status)} />
                   </Field>
-                  <Field label="Penyedia pembayaran">{detail.paymentProvider ?? <Dim />}</Field>
+                  <Field label="Penyedia pembayaran">{detail.paymentProvider ? providerLabel(detail.paymentProvider) : <Dim />}</Field>
                   <Field label="Waktu dibayar">
                     {detail.paidAt ? formatDate(detail.paidAt) : <Dim />}
                   </Field>
@@ -473,7 +474,7 @@ export default function OrderDetailModal({
                   <Field label="Bank">{detail.bankName ?? detail.bankCode ?? <Dim />}</Field>
                   <Field label="Nomor rekening">
                     {detail.bankAccountNumber ? (
-                      <span className="font-mono tabular-nums">
+                      <span className="tabular-nums">
                         {detail.bankAccountNumber}
                       </span>
                     ) : (
@@ -533,7 +534,7 @@ export default function OrderDetailModal({
                       tidak terbaca di mana pun secara bawaan. Polanya menyalin
                       `RequestDetailModal`. */}
                   <Field label="Jaringan">
-                    <span className="font-mono text-2xs">{detail.chain}</span>
+                    <span className="tabular-nums text-xs">{detail.chain}</span>
                   </Field>
                 </DetailTeknis>
               ) : (
@@ -583,7 +584,7 @@ export default function OrderDetailModal({
                   {/* Lihat catatan pada cabang redeem di atas: dilipat, bukan
                       dibuang. */}
                   <Field label="Jaringan">
-                    <span className="font-mono text-2xs">{detail.chain}</span>
+                    <span className="tabular-nums text-xs">{detail.chain}</span>
                   </Field>
                 </DetailTeknis>
               )}

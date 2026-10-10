@@ -19,11 +19,11 @@ export default function SummaryStat({
   return (
     <Card className="rounded-md py-0 gap-0 shadow-none dark:border-0">
       <CardContent className="px-4 py-3.5">
-        <p className="text-2xs text-muted-foreground">{label}</p>
-        <p className="mt-2 text-xl font-semibold leading-none tracking-tight tabular-nums">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="mt-2 text-money-lg tabular-nums">
           {value}
         </p>
-        <div className="mt-2.5 flex items-center gap-1.5 font-mono text-2xs text-muted-foreground">
+        <div className="tabular-nums mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           {delta && (
             <span
               className={cn(

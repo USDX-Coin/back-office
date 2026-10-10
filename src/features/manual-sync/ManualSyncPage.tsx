@@ -184,7 +184,7 @@ export default function ManualSyncPage() {
         const isHighlight = activeHighlight === row.original.id
         return (
           <span
-            className="inline-flex items-center gap-1.5 font-mono text-2xs"
+            className="inline-flex items-center gap-1.5 font-mono text-xs"
             data-highlight-anchor={isHighlight ? 'true' : undefined}
           >
             <span className="text-foreground" title={row.original.id}>
@@ -232,7 +232,7 @@ export default function ManualSyncPage() {
       cell: ({ getValue }) => {
         const c = getValue() as RequestChain
         return (
-          <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className={cn('h-1.5 w-1.5 rounded-full', CHAIN_DOT[c])} />
             {CHAIN_LABEL[c] ?? c}
           </span>
@@ -248,7 +248,7 @@ export default function ManualSyncPage() {
           <span className="truncate font-medium" title={row.original.userName}>
             {row.original.userName}
           </span>
-          <span className="font-mono text-2xs text-muted-foreground">
+          <span className="font-mono text-xs text-muted-foreground">
             <TruncatedHash value={row.original.userAddress} />
           </span>
         </div>
@@ -275,11 +275,11 @@ export default function ManualSyncPage() {
         const teks = `${formatUsdxListAmount(row.original.amount)} USDX`
         return (
           <span
-            className="block truncate font-mono font-medium tabular-nums"
+            className="block truncate font-medium tabular-nums"
             title={teks}
           >
             {teks.replace(/ USDX$/, '')}{' '}
-            <span className="text-2xs text-muted-foreground">USDX</span>
+            <span className="text-xs text-muted-foreground">USDX</span>
           </span>
         )
       },
@@ -313,7 +313,7 @@ export default function ManualSyncPage() {
           type="button"
           size="sm"
           variant="secondary"
-          className="h-7 text-2xs"
+          className="h-7 text-xs"
           onClick={(e) => {
             e.stopPropagation()
             setActiveItem(row.original)

@@ -57,7 +57,7 @@ function PayloadJson({ payload }: { payload: Record<string, unknown> }) {
   return (
     <pre
       data-testid="usulan-payload-mentah"
-      className="max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-2xs leading-relaxed"
+      className="max-h-64 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 font-mono text-label leading-relaxed"
     >
       {JSON.stringify(payload, null, 2)}
     </pre>
@@ -240,22 +240,22 @@ function ApprovalBody({
                 Tanpa nominal — yang dilepas bukan sejumlah rupiah, melainkan pagarnya
               </span>
             ) : (
-              <span className="font-mono tabular-nums">{amountLabel(approval.amountIdr)}</span>
+              <span className="tabular-nums">{amountLabel(approval.amountIdr)}</span>
             )}
           </Field>
           <Field label="Pengusul">
             <span title={approval.proposerStaffId}>{actorName(approval.proposerStaffId)}</span>
-            <span className="mt-0.5 block text-2xs text-muted-foreground">
+            <span className="mt-0.5 block text-xs text-muted-foreground">
               {formatWibDateTime(approval.proposedAt)}
             </span>
           </Field>
           <Field label="Batas waktu">
             {approval.status === 'PENDING' ? (
               <>
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {formatExpiry(approval.expiresAt)}
                 </span>
-                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                <span className="mt-0.5 block text-xs text-muted-foreground">
                   {formatWibDateTime(approval.expiresAt)}
                 </span>
               </>
@@ -266,14 +266,14 @@ function ApprovalBody({
           {approval.approverStaffId && (
             <Field label="Diputuskan oleh">
               <span title={approval.approverStaffId}>{actorName(approval.approverStaffId)}</span>
-              <span className="mt-0.5 block text-2xs text-muted-foreground">
+              <span className="mt-0.5 block text-xs text-muted-foreground">
                 {formatWibDateTime(approval.decidedAt)}
               </span>
             </Field>
           )}
           {approval.executedAt && (
             <Field label="Aksinya berjalan">
-              <span className="text-2xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {formatWibDateTime(approval.executedAt)}
               </span>
             </Field>
@@ -352,7 +352,7 @@ function DecideFooter({
     return (
       <p
         data-testid="putusan-terkunci"
-        className="mr-auto flex max-w-md items-start gap-2 text-2xs leading-relaxed text-muted-foreground"
+        className="mr-auto flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>{explanation}</span>

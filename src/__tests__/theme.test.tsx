@@ -116,14 +116,34 @@ describe('shadcn-minimal theme tokens', () => {
     // Enam langkah, dan langkah ketujuh tidak boleh ada: skala bawaan Tailwind
     // dihapus lebih dulu dengan `--text-*: initial`, jadi `text-2xl` gagal
     // dikompilasi alih-alih diam-diam lolos dan menambah ukuran ke-tujuh.
-    describe('the type scale has exactly six steps', () => {
+    describe('the type scale is one token per role (audit font 10 Okt 2026)', () => {
       test('clears the inherited scale first', () => {
         expect(rawCss).toContain('--text-*: initial;')
       })
 
-      test('declares six sizes and no more', () => {
-        const sizes = [...rawCss.matchAll(/^\s*--text-([a-z0-9]+):\s/gm)].map((m) => m[1])
-        expect(sizes.sort()).toEqual(['2xs', 'base', 'lg', 'sm', 'xl', 'xs'])
+      test('declares the role tokens and no more — no 11px, no 18px', () => {
+        const sizes = [...rawCss.matchAll(/^\s*--text-([a-z0-9]+(?:-[a-z0-9]+)*):\s/gm)].map((m) => m[1])
+        expect(sizes.sort()).toEqual(
+          ['base', 'dialog-title', 'label', 'money', 'money-lg', 'page-title', 'section', 'sm', 'xs'].sort(),
+        )
+        expect(rawCss).not.toMatch(/--text-[a-z0-9]+(?:-[a-z0-9]+)*:\s*0\.6875rem/)
+        expect(rawCss).not.toMatch(/--text-[a-z0-9]+(?:-[a-z0-9]+)*:\s*1\.125rem;/)
+      })
+
+      test('no retired size class (text-2xs / text-lg / text-xl / text-2xl) is used in src/', () => {
+        const sisa: string[] = []
+        const walk = (dir: string) => {
+          for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+              if (entry.name !== '__tests__') walk(full)
+            } else if (/\.tsx?$/.test(entry.name)) {
+              if (/\btext-(2xs|lg|xl|2xl)\b/.test(readFileSync(full, 'utf8'))) sisa.push(full)
+            }
+          }
+        }
+        walk(path.resolve(process.cwd(), 'src'))
+        expect(sisa).toEqual([])
       })
 
       test('no arbitrary pixel font sizes remain anywhere in src/', () => {

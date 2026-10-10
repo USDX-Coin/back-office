@@ -238,7 +238,7 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
           htmlFor="pmFeeValue"
           error={touched ? feeError : null}
         >
-          <Input id="pmFeeValue" inputMode="decimal" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} className="font-mono" />
+          <Input id="pmFeeValue" inputMode="decimal" value={feeValue} onChange={(e) => setFeeValue(e.target.value)} className="tabular-nums" />
         </FormField>
       </div>
       <FormField
@@ -247,7 +247,7 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
         hint={isBni ? 'Wajib untuk Transfer BNI, maksimal Rp 10.000.000.' : 'Kosongkan untuk tanpa batas.'}
         error={touched ? max.error : null}
       >
-        <Input id="pmMax" inputMode="decimal" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="font-mono" />
+        <Input id="pmMax" inputMode="decimal" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="tabular-nums" />
       </FormField>
       <ReasonField value={reason} onChange={setReason} error={touched ? why.error : null} />
       {touched && unchanged && <p className="text-sm text-muted-foreground">Belum ada yang diubah.</p>}

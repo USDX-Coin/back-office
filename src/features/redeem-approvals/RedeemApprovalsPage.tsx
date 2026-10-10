@@ -109,7 +109,7 @@ export default function RedeemApprovalsPage() {
         <TableCellStack
           lines={[
             { value: row.original.customerName, className: 'font-medium' },
-            { value: row.original.userEmail, className: 'text-2xs text-muted-foreground' },
+            { value: row.original.userEmail, className: 'text-xs text-muted-foreground' },
           ]}
         />
       ),
@@ -127,11 +127,11 @@ export default function RedeemApprovalsPage() {
           lines={[
             {
               value: formatIdrExact(row.original.netPayoutIdr),
-              className: 'font-mono text-sm font-semibold tabular-nums',
+              className: 'text-sm font-semibold tabular-nums',
             },
             {
               value: formatUsdxExact(row.original.amountUsdx),
-              className: 'font-mono text-2xs tabular-nums text-muted-foreground',
+              className: 'text-xs tabular-nums text-muted-foreground',
             },
           ]}
         />
@@ -162,7 +162,7 @@ export default function RedeemApprovalsPage() {
                 children: (
                   <>
                     {bankName}
-                    <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
+                    <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
                       {bankCode}
                     </span>
                   </>
@@ -170,15 +170,15 @@ export default function RedeemApprovalsPage() {
               },
               {
                 value: bankAccountNumber,
-                className: 'font-mono text-xs tabular-nums',
+                className: 'text-xs tabular-nums',
               },
               {
                 value: mismatch
                   ? `${bankAccountName} — beda dari nama pada order (nama pada order: ${customerName})`
                   : bankAccountName,
                 className: mismatch
-                  ? 'text-2xs font-medium text-amber-700 dark:text-amber-400'
-                  : 'text-2xs text-muted-foreground',
+                  ? 'text-label font-medium text-amber-700 dark:text-amber-400'
+                  : 'text-xs text-muted-foreground',
                 children: (
                   <>
                     {bankAccountName}
@@ -203,7 +203,7 @@ export default function RedeemApprovalsPage() {
       cell: ({ row }) => (
         <TableCellText
           value={formatWibDateTime(row.original.burnedAt)}
-          className="font-mono text-2xs tabular-nums text-muted-foreground"
+          className="text-xs tabular-nums text-muted-foreground"
         />
       ),
     },
@@ -221,7 +221,7 @@ export default function RedeemApprovalsPage() {
           // belum terjadi. Em dash telanjang akan terbaca sebagai yang kedua, dan
           // ops lalu menahan pencairan atas alasan yang tidak ada.
           return (
-            <span className="text-2xs text-muted-foreground">belum tercatat</span>
+            <span className="text-xs text-muted-foreground">belum tercatat</span>
           )
         }
         const href = queueBurnTxHref(hash, chains)
@@ -230,7 +230,7 @@ export default function RedeemApprovalsPage() {
           // tetap terbaca utuh lewat `title`, tanpa tautan yang bisa salah arah.
           return (
             <span
-              className="font-mono text-2xs text-muted-foreground"
+              className="font-mono text-xs text-muted-foreground"
               title={hash}
             >
               {shortHash(hash)}
@@ -243,7 +243,7 @@ export default function RedeemApprovalsPage() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 font-mono text-2xs text-primary hover:underline"
+            className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
             title={`Lihat di block explorer: ${hash}`}
           >
             {shortHash(hash)}
@@ -262,7 +262,7 @@ export default function RedeemApprovalsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 border-destructive/40 text-2xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="h-7 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setRejecting(row.original)}
               aria-label={`Tolak pencairan ${row.original.orderNumber}`}
             >
@@ -271,7 +271,7 @@ export default function RedeemApprovalsPage() {
             </Button>
             <Button
               size="sm"
-              className="h-7 text-2xs"
+              className="h-7 text-xs"
               onClick={() => setApproving(row.original)}
               aria-label={`Setujui pencairan ${row.original.orderNumber}`}
             >
@@ -295,7 +295,7 @@ export default function RedeemApprovalsPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

@@ -115,7 +115,7 @@ function DiffRow({ label, from, to }: { label: string; from: string; to: string 
       <span className="text-xs text-muted-foreground">
         {label}
       </span>
-      <div className="flex flex-wrap items-baseline gap-2 font-mono">
+      <div className="tabular-nums flex flex-wrap items-baseline gap-2">
         <span className={changed ? 'text-muted-foreground line-through' : ''}>
           {from}
         </span>

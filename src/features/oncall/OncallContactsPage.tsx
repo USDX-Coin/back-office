@@ -159,7 +159,7 @@ export default function OncallContactsPage() {
       // utuh wajib ada di `title`: nomor telepon yang terbaca separuh sama
       // dengan tidak ada nomor sama sekali.
       cell: ({ row }) => (
-        <TableCellText value={row.original.contactValue} className="font-mono text-xs" />
+        <TableCellText value={row.original.contactValue} className="tabular-nums text-xs" />
       ),
     },
     {
@@ -170,7 +170,7 @@ export default function OncallContactsPage() {
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.categories.map((category) => (
-            <Badge key={category} variant="outline" className="text-2xs">
+            <Badge key={category} variant="outline" className="text-xs">
               {formatCategory(category)}
             </Badge>
           ))}

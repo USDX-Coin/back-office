@@ -221,7 +221,7 @@ export default function LedgerConfirmDialog({
                       </p>
                       <p
                         aria-label="Saldo cadangan hasil baca ulang"
-                        className="mt-1 font-mono text-sm font-semibold text-foreground"
+                        className="tabular-nums mt-1 text-sm font-semibold text-foreground"
                       >
                         {balanceKnown
                           ? `${formatAmountDecimal(balance.amount)} ${balance.currency}`
@@ -355,10 +355,10 @@ function Row({
         aria-label={ariaLabel}
         className={
           emphasis === 'negative'
-            ? 'font-mono font-semibold text-destructive'
+            ? 'font-semibold tabular-nums text-destructive'
             : emphasis === 'strong'
-              ? 'font-mono font-semibold text-foreground'
-              : 'font-mono text-foreground'
+              ? 'font-semibold tabular-nums text-foreground'
+              : 'tabular-nums text-foreground'
         }
       >
         {value}

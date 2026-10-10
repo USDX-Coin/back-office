@@ -38,6 +38,7 @@ import { SANCTION_LIST_FILTER_DEFS } from './filterDefs'
 import SanctionListImportDialog from './SanctionListImportDialog'
 import { useActivateSanctionList, useRescanScreening, useSanctionLists } from './hooks'
 import { toastError } from '@/lib/errorToast'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 10
 
@@ -129,7 +130,7 @@ export default function SanctionListsPage() {
       size: 128,
       header: 'Terbit',
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs tabular-nums">{getValue() as string}</span>
+        <span className="text-xs tabular-nums">{getValue() as string}</span>
       ),
     },
     {
@@ -142,7 +143,7 @@ export default function SanctionListsPage() {
             {SANCTION_LIST_SOURCE_LABELS[row.original.source]}
           </span>
           {row.original.sourceFileName && (
-            <span className="truncate text-2xs text-muted-foreground">
+            <span className="truncate text-xs text-muted-foreground">
               {row.original.sourceFileName}
             </span>
           )}
@@ -159,7 +160,7 @@ export default function SanctionListsPage() {
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+              STATUS_CHIP_BASE,
               style.className,
             )}
           >
@@ -173,7 +174,7 @@ export default function SanctionListsPage() {
       size: 96,
       header: 'Entri',
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs tabular-nums">
+        <span className="text-xs tabular-nums">
           {(getValue() as number).toLocaleString('id-ID')}
         </span>
       ),
@@ -190,7 +191,7 @@ export default function SanctionListsPage() {
             {row.original.importedByName ?? 'Akun petugas sudah dihapus'}
           </span>
           <span
-            className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+            className="truncate text-xs tabular-nums text-muted-foreground"
             title={formatShortDate(row.original.importedAt)}
           >
             {formatShortDate(row.original.importedAt)}
@@ -207,7 +208,7 @@ export default function SanctionListsPage() {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-2xs"
+            className="h-7 text-xs"
             disabled={activate.isPending}
             onClick={() => handleActivate(row.original)}
           >
@@ -276,7 +277,7 @@ export default function SanctionListsPage() {
           {rescanResult.skipped > 0 && (
             // Bukan kegagalan: nama subjeknya sudah dikosongkan sweeper retensi,
             // jadi tidak ada yang bisa dicocokkan.
-            <p className="mt-1 text-2xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Yang dilewati adalah subjek yang datanya sudah dihapus sweeper
               retensi — namanya tidak ada lagi untuk dicocokkan.
             </p>
@@ -290,7 +291,7 @@ export default function SanctionListsPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-2xs"
+                className="h-7 text-xs"
                 disabled={rescan.isPending}
                 onClick={handleRescan}
               >
@@ -302,7 +303,7 @@ export default function SanctionListsPage() {
             <Button
               size="sm"
               variant="outline"
-              className="mt-2 h-7 text-2xs"
+              className="mt-2 h-7 text-xs"
               onClick={() => navigate('/screening')}
             >
               Buka antrean temuan
@@ -382,7 +383,7 @@ export default function SanctionListsPage() {
               di batas per-panggilan dan bisa dilanjutkan.
             </p>
             {rescanPrompt?.activatedAt && (
-              <p className="mt-2 font-mono text-2xs text-muted-foreground">
+              <p className="tabular-nums mt-2 text-xs text-muted-foreground">
                 Diaktifkan {formatDate(rescanPrompt.activatedAt)}
               </p>
             )}

@@ -100,7 +100,7 @@ export default function DurianpayApiCallsPage() {
       cell: ({ row }) => (
         <TableCellText
           value={formatWibDateTime(row.original.requestedAt)}
-          className="whitespace-nowrap font-mono text-2xs tabular-nums text-muted-foreground"
+          className="whitespace-nowrap text-xs tabular-nums text-muted-foreground"
         />
       ),
     },
@@ -117,7 +117,7 @@ export default function DurianpayApiCallsPage() {
             <span className="truncate text-xs font-medium" title={path}>
               {label ?? path}
             </span>
-            <span className="truncate font-mono text-2xs text-muted-foreground" title={path}>
+            <span className="truncate font-mono text-xs text-muted-foreground" title={path}>
               {httpMethod} {path}
             </span>
           </div>
@@ -134,7 +134,7 @@ export default function DurianpayApiCallsPage() {
         return (
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={view.pill} className="w-fit whitespace-nowrap" />
-            <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+            <span className="text-xs tabular-nums text-muted-foreground">
               {/* `null` di sini berarti TIDAK ADA respons sama sekali — timeout atau
                   jaringan — bukan nilai yang gagal dimuat. Em dash akan terbaca salah. */}
               {httpStatus === null ? 'tanpa jawaban' : `HTTP ${httpStatus}`}
@@ -169,7 +169,7 @@ export default function DurianpayApiCallsPage() {
         if (!referenceNo) {
           return (
             <span
-              className="whitespace-nowrap text-2xs text-muted-foreground"
+              className="whitespace-nowrap text-xs text-muted-foreground"
               title="Sebagian panggilan memang tidak membawa referensi order — mis. ambil token akses dan cek saldo."
             >
               tanpa nomor order
@@ -194,7 +194,7 @@ export default function DurianpayApiCallsPage() {
       size: 104,
       header: 'Lama',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-xs tabular-nums">
+        <span className="whitespace-nowrap text-xs tabular-nums">
           {formatCallDuration(row.original.durationMs)}
         </span>
       ),
@@ -204,7 +204,7 @@ export default function DurianpayApiCallsPage() {
       size: 120,
       header: 'Integrasi',
       cell: ({ row }) => (
-        <span className="font-mono text-2xs text-muted-foreground">
+        <span className="tabular-nums text-xs text-muted-foreground">
           {row.original.apiFlavor}
         </span>
       ),
@@ -220,7 +220,7 @@ export default function DurianpayApiCallsPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail panggilan ${row.original.httpMethod} ${row.original.path}`}
         >
           <Eye className="h-3.5 w-3.5" />

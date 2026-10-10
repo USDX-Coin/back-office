@@ -284,7 +284,7 @@ describe('ActivityLogPage @ jejak audit', () => {
       expect(screen.getByText('Nasabah')).toBeInTheDocument()
     })
 
-    test('kode aksi yang belum punya terjemahan dirender APA ADANYA', async () => {
+    test('kode aksi/objek tanpa terjemahan: label manusia, kodenya di title (tanpa enum mentah)', async () => {
       server.use(
         http.get('/api/v1/activity-logs', () =>
           HttpResponse.json({
@@ -309,8 +309,9 @@ describe('ActivityLogPage @ jejak audit', () => {
         )
       )
       setup()
-      expect(await screen.findByText('SESUATU_YANG_BELUM_ADA')).toBeInTheDocument()
-      expect(screen.getByText('MODUL_BARU')).toBeInTheDocument()
+      expect(await screen.findByText('Aksi belum dikenali')).toHaveAttribute('title', 'SESUATU_YANG_BELUM_ADA')
+      expect(screen.getByText('Belum dikenali')).toHaveAttribute('title', 'MODUL_BARU')
+      expect(screen.queryByText('SESUATU_YANG_BELUM_ADA')).not.toBeInTheDocument()
       expect(screen.getByText('tidak tercatat')).toBeInTheDocument()
     })
   })

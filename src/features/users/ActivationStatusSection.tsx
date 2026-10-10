@@ -19,6 +19,7 @@ import type { PhaseOneUser } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useResendActivation } from './hooks'
 import { toastError } from '@/lib/errorToast'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const COOLDOWN_SECONDS = 60
 
@@ -94,7 +95,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
       <div className="space-y-2">
         <span
           className={cn(
-            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+            STATUS_CHIP_BASE,
             cfg.className
           )}
           data-testid={`activation-badge-${status.toLowerCase()}`}

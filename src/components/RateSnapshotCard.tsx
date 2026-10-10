@@ -44,12 +44,12 @@ export default function RateSnapshotCard({
         ) : (
           <>
             <p
-              className="text-xl font-semibold tracking-tight tabular-nums"
+              className="text-money-lg tabular-nums"
               data-testid="rate-display"
             >
               Rp {formatIdr(effective ?? rate.baseRate)}
             </p>
-            <p className="text-2xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {rate.mode === 'MANUAL' ? 'Kurs manual' : 'Kurs dinamis'} · spread{' '}
               {direction === 'sell' ? 'jual' : 'beli'} {spread}%
             </p>

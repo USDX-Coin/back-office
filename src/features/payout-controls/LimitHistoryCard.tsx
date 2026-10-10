@@ -33,7 +33,7 @@ export default function LimitHistoryCard({ enabled }: { enabled: boolean }) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Riwayat perubahan plafon
         </CardTitle>
       </CardHeader>
@@ -92,18 +92,18 @@ function ChangeEntry({
   const diff = diffLimits(change.before, change.after)
   return (
     <article className="rounded-md border border-border/60 px-3 py-3">
-      <p className="text-2xs text-muted-foreground">{formatWibDateTime(change.createdAt)}</p>
+      <p className="text-xs text-muted-foreground">{formatWibDateTime(change.createdAt)}</p>
       <ul className="mt-2 space-y-1">
         {diff
           .filter((line) => line.changed)
           .map((line) => (
             <li key={line.label} className="flex flex-wrap items-baseline gap-1.5 text-xs">
               <span className="font-medium">{line.label}</span>
-              <span className="font-mono tabular-nums text-muted-foreground line-through">
+              <span className="tabular-nums text-muted-foreground line-through">
                 {line.before}
               </span>
               <span aria-hidden="true">→</span>
-              <span className="font-mono font-semibold tabular-nums">{line.after}</span>
+              <span className="font-semibold tabular-nums">{line.after}</span>
             </li>
           ))}
         {diff.every((line) => !line.changed) && (
@@ -113,14 +113,14 @@ function ChangeEntry({
         )}
       </ul>
       <p className="mt-2 whitespace-pre-wrap text-xs">{change.reason}</p>
-      <p className="mt-2 text-2xs text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         Diusulkan {actorName(change.proposerStaffId)}
         {change.approverStaffId ? ` · disetujui ${actorName(change.approverStaffId)}` : ''}
       </p>
       {change.approvalRequestId && (
         <Link
           to={`/persetujuan/${change.approvalRequestId}`}
-          className="mt-1.5 inline-block text-2xs font-medium text-primary hover:underline"
+          className="mt-1.5 inline-block text-label font-medium text-primary hover:underline"
         >
           Lihat usulan persetujuannya
         </Link>
@@ -156,7 +156,7 @@ function ChangeEntry({
           <p className="text-xs text-muted-foreground">
             IP pengusul
           </p>
-          <p className="mt-1 break-all font-mono text-xs">{change.ipAddress ?? '—'}</p>
+          <p className="tabular-nums mt-1 break-all text-xs">{change.ipAddress ?? '—'}</p>
         </div>
       </DetailTeknis>
     </article>

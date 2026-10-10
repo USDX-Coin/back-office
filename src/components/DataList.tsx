@@ -38,7 +38,7 @@ export function DataSection({
       {(title || action) && (
         <div className="mb-1 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            {title && <h3 className="text-sm font-semibold text-foreground">{title}</h3>}
+            {title && <h3 className="text-section text-foreground">{title}</h3>}
             {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
           </div>
           {action}

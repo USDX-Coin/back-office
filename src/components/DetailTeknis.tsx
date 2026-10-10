@@ -104,7 +104,7 @@ export default function DetailTeknis({
           aria-hidden="true"
         />
         <span className="text-sm font-medium text-foreground">{title}</span>
-        <span className="ml-auto text-2xs text-muted-foreground">
+        <span className="ml-auto text-xs text-muted-foreground">
           {open ? 'Tutup' : 'Buka'}
         </span>
       </button>

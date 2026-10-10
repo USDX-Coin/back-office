@@ -315,7 +315,7 @@ export default function KybFormPage() {
 
       <form onSubmit={handleSubmit} className="max-w-3xl space-y-7" noValidate>
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">
+          <h2 className="text-section text-foreground">
             Akun
           </h2>
           <div>
@@ -337,7 +337,7 @@ export default function KybFormPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">
+          <h2 className="text-section text-foreground">
             Badan usaha
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -565,7 +565,7 @@ export default function KybFormPage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-muted-foreground">
+            <h2 className="text-section text-foreground">
               Pemilik manfaat / UBO
             </h2>
             <Button

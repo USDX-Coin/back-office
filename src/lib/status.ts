@@ -32,6 +32,14 @@ export interface StatusConfig {
  *
  * Kodenya TIDAK dibuang — ia yang dikutip saat melapor ke tim teknis.
  */
+/**
+ * Label untuk KODE (bukan status) yang belum punya terjemahan — alasan, jenis
+ * sumber daya, aksi. Kodenya sendiri tidak dicetak di layar utama (audit font
+ * 10 Okt 2026: tanpa enum mentah ke admin); ia tetap ada di `title` dan di
+ * "Detail teknis" untuk dikutip ke tim teknis.
+ */
+export const UNKNOWN_CODE_LABEL = 'Belum dikenali'
+
 export function unknownStatusLabel(status: unknown): string {
   return `Status belum dikenali (${String(status)})`
 }

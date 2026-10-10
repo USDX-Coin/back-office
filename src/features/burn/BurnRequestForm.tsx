@@ -291,7 +291,7 @@ export default function BurnRequestForm() {
               value={form.bankAccount}
               onChange={(e) => set('bankAccount', e.target.value)}
               placeholder="contoh: 1234567890"
-              className="font-mono text-sm"
+              className="tabular-nums text-sm"
             />
           </FormField>
 

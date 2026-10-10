@@ -19,6 +19,7 @@ import AddWalletModal from './AddWalletModal'
 import RemoveWalletDialog from './RemoveWalletDialog'
 import type { EntityType, PhaseOneUserWallet } from '@/lib/types'
 import { errorMessage } from '@/lib/errorMessages'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -159,7 +160,7 @@ export default function UserDetailPage() {
               <span>
                 <span
                   className={cn(
-                    'inline-flex rounded-sm px-2 py-0.5 text-2xs font-medium',
+                    STATUS_CHIP_BASE,
                     kycCfg.className
                   )}
                 >
@@ -172,7 +173,7 @@ export default function UserDetailPage() {
               </span>
               <span>
                 {data.suspended ? (
-                  <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-2xs font-medium text-destructive">
+                  <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-label font-medium text-destructive">
                     Dibekukan
                   </span>
                 ) : (
@@ -225,7 +226,7 @@ export default function UserDetailPage() {
                       <p className="text-xs font-medium capitalize">
                         {w.chain}
                       </p>
-                      <p className="truncate font-mono text-2xs text-muted-foreground tabular-nums">
+                      <p className="truncate font-mono text-xs text-muted-foreground tabular-nums">
                         <span className="hidden md:inline">{w.address}</span>
                         <span className="md:hidden">{shortAddress(w.address)}</span>
                       </p>
@@ -271,13 +272,13 @@ export default function UserDetailPage() {
                       <p className="font-medium">
                         {OTC_KIND_LABEL[r.type] ?? 'OTC'} · {formatUsdxListAmount(r.amount)} USDX
                       </p>
-                      <p className="truncate font-mono text-2xs text-muted-foreground tabular-nums">
+                      <p className="truncate text-xs text-muted-foreground tabular-nums">
                         {r.chain} · {formatShortDate(r.createdAt)}
                       </p>
                     </div>
                     <span
                       className={cn(
-                        'inline-flex shrink-0 rounded-sm px-2 py-0.5 text-2xs font-medium',
+                        STATUS_CHIP_BASE, 'shrink-0',
                         status.className
                       )}
                     >

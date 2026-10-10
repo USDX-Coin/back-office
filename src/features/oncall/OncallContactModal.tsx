@@ -235,7 +235,7 @@ export default function OncallContactModal({
 
             <fieldset>
               <legend className="text-sm font-medium">Kategori insiden</legend>
-              <p className="mt-0.5 text-2xs text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Insiden uang mana yang jadi tanggung jawab orang ini. Kontak tanpa
                 satu kategori pun tidak pernah ikut dihubungi.
               </p>
@@ -261,7 +261,7 @@ export default function OncallContactModal({
                         <span className="text-xs font-medium">
                           {formatCategory(category)}
                         </span>
-                        <span className="text-2xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {ONCALL_CATEGORY_HINTS[category]}
                         </span>
                       </span>

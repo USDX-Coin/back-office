@@ -139,7 +139,7 @@ export default function RedeemApprovalControlsCard() {
     <Card className="mb-6 rounded-md shadow-none dark:border-0">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
-          <CardTitle className="text-base font-semibold tracking-tight">
+          <CardTitle className="text-section">
             Ambang nominal persetujuan
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -176,14 +176,14 @@ export default function RedeemApprovalControlsCard() {
           <>
             <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
               <p
-                className="font-mono text-xl font-semibold leading-none tracking-tight tabular-nums"
+                className="text-money-lg tabular-nums"
                 aria-label="ambang nominal aktif"
                 data-testid="threshold-active-value"
               >
                 {formatIdrExact(currentValue)}
               </p>
               {strict && (
-                <span className="inline-flex items-center gap-1.5 rounded-sm bg-emerald-500/10 px-2 py-0.5 text-2xs font-medium text-emerald-800 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 rounded-sm bg-emerald-500/10 px-2 py-0.5 text-label font-medium text-emerald-800 dark:text-emerald-300">
                   <Lock className="h-3 w-3" />
                   Paling ketat
                 </span>
@@ -199,26 +199,26 @@ export default function RedeemApprovalControlsCard() {
                 <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
                   Selama ambangnya di atas nol, ada rupiah yang keluar tanpa dilihat
-                  siapa pun. Setel ke <span className="font-mono">0</span> untuk
+                  siapa pun. Setel ke <span className="tabular-nums">0</span> untuk
                   mewajibkan persetujuan pada setiap nominal.
                 </span>
               </p>
             )}
 
             {current?.updatedAt && (
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Terakhir diubah {formatWibDateTime(current.updatedAt)}
                 {current.updatedByName ? ` oleh ${current.updatedByName}` : ''}.
               </p>
             )}
             {current && !current.updatedAt && (
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Belum pernah diubah — ini nilai bawaan sejak gerbang dipasang.
               </p>
             )}
 
             {!canEdit && (
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Hanya Manager dan Admin yang bisa mengubah ambang. Anda bisa melihatnya
                 karena angka ini menjelaskan isi antrean di bawah.
               </p>
@@ -241,12 +241,12 @@ export default function RedeemApprovalControlsCard() {
                     // dilarang kontrak ini untuk uang.
                     inputMode="decimal"
                     placeholder="0"
-                    className="font-mono"
+                    className="tabular-nums"
                     aria-invalid={Boolean(errors.amount)}
                     disabled={update.isPending}
                   />
-                  <p className="text-2xs text-muted-foreground">
-                    <span className="font-mono">0</span> = semua pencairan wajib
+                  <p className="text-xs text-muted-foreground">
+                    <span className="tabular-nums">0</span> = semua pencairan wajib
                     disetujui. Angka di atas nol berarti pencairan sampai nominal itu
                     dikirim otomatis, tanpa ada yang memeriksa rekening tujuannya.
                   </p>
@@ -286,7 +286,7 @@ export default function RedeemApprovalControlsCard() {
                     disabled={update.isPending}
                   />
                   <FieldError message={errors.reason} />
-                  <p className="text-2xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Tercatat di jejak audit bersama nilai lama dan nilai baru.
                   </p>
                 </div>

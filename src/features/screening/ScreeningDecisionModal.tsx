@@ -57,6 +57,7 @@ import {
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 interface ScreeningDecisionModalProps {
   resultId: string | null
@@ -366,7 +367,7 @@ export default function ScreeningDecisionModal({
                     {outcomeStyle && (
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+                          STATUS_CHIP_BASE,
                           outcomeStyle.className,
                         )}
                       >
@@ -384,22 +385,22 @@ export default function ScreeningDecisionModal({
                       <Copy className="h-3 w-3 opacity-50" />
                     </button>
                   </div>
-                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     Diperiksa {formatDate(result.createdAt)}
                   </span>
                 </div>
 
                 <div className="@container divide-y divide-border border-t border-border">
                   <Field label="Skor kemiripan">
-                    <span className="font-mono text-base font-semibold tabular-nums">
+                    <span className="text-base font-semibold tabular-nums">
                       {formatScore(result.score) ?? '—'}
                     </span>
-                    <span className="ml-1.5 text-2xs text-muted-foreground">
+                    <span className="ml-1.5 text-xs text-muted-foreground">
                       ambang {(SCREENING_MATCH_THRESHOLD * 100).toFixed(0)}%
                     </span>
                   </Field>
                   <Field label="Entri yang cocok">
-                    <span className="font-mono text-sm tabular-nums">
+                    <span className="text-sm tabular-nums">
                       {result.matchCount ?? '—'}
                     </span>
                   </Field>
@@ -410,7 +411,7 @@ export default function ScreeningDecisionModal({
                     {result.listType ? (
                       <span className="text-xs">
                         {SANCTION_LIST_TYPE_LABELS[result.listType].split(' — ')[0]}
-                        <span className="ml-1 font-mono text-2xs text-muted-foreground">
+                        <span className="tabular-nums ml-1 text-xs text-muted-foreground">
                           terbit {result.listPublishedAt ?? '—'}
                         </span>
                       </span>
@@ -524,7 +525,7 @@ export default function ScreeningDecisionModal({
                         </Field>
                         <Field label="Diputuskan oleh">
                           {result.decision.decidedByName ?? 'Akun petugas sudah dihapus'}
-                          <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
+                          <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
                             {formatDate(result.decision.createdAt)}
                           </span>
                         </Field>
@@ -534,7 +535,7 @@ export default function ScreeningDecisionModal({
                           </Field>
                         </div>
                       </div>
-                      <p className="mt-2 text-2xs text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         Keputusan ditulis sebagai baris baru dan tidak bisa diubah
                         atau dihapus — tabelnya append-only, dijaga dua trigger
                         database.
@@ -577,7 +578,7 @@ export default function ScreeningDecisionModal({
                       <FieldError message={reasonError} />
                       <span
                         className={cn(
-                          'ml-auto font-mono text-2xs tabular-nums',
+                          'ml-auto text-xs tabular-nums',
                           reason.length >= SCREENING_REASON_MAX
                             ? 'text-destructive'
                             : 'text-muted-foreground',
@@ -586,7 +587,7 @@ export default function ScreeningDecisionModal({
                         {reason.length}/{SCREENING_REASON_MAX}
                       </span>
                     </div>
-                    <p className="text-2xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Alasan wajib dan bukan formalitas: inilah “hasil analisis”
                       yang POJK 8/2023 Pasal 63 ayat (2) huruf c wajibkan
                       ditatausahakan, dan yang dibaca pemeriksa bertahun kemudian.

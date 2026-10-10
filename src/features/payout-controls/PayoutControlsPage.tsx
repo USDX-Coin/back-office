@@ -52,7 +52,7 @@ function PanelUsulan({ controls }: { controls: ReturnType<typeof usePayoutContro
           <p
             role="status"
             data-testid="plafon-baseline-basi"
-            className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-2xs leading-relaxed text-muted-foreground"
+            className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-label leading-relaxed text-muted-foreground"
           >
             Nilai "sebelum" di bawah dibaca sebelum permintaan terakhir gagal, jadi mungkin sudah
             tidak mutakhir. Kalau kamu baru saja mengirim usulan, usulan itu tetap tercatat.
@@ -74,7 +74,7 @@ function PanelUsulan({ controls }: { controls: ReturnType<typeof usePayoutContro
   return (
     <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3">
       <p className="text-sm font-medium text-destructive">Usulan perubahan plafon dimatikan</p>
-      <p className="mt-1 text-2xs leading-relaxed text-muted-foreground">
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
         Nilai yang berlaku sekarang tidak terbaca, jadi tidak ada baseline "sebelum" yang bisa
         ditunjukkan ke orang kedua — dan permintaan ini mengirim SNAPSHOT UTUH, jadi mengusulkan
         satu plafon berarti ikut menetapkan dua lainnya. Tarik ulang keadaan sekarang lebih dulu.
@@ -106,7 +106,7 @@ export default function PayoutControlsPage() {
           {!canChange && (
             <p
               data-testid="hanya-baca"
-              className="flex items-start gap-2 text-2xs leading-relaxed text-muted-foreground"
+              className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
             >
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>

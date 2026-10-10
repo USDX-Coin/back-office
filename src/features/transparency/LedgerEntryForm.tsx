@@ -245,7 +245,7 @@ export default function LedgerEntryForm({ balance }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Catat entri buku besar
         </CardTitle>
       </CardHeader>
@@ -298,7 +298,7 @@ export default function LedgerEntryForm({ balance }: Props) {
                 value={form.amount}
                 onChange={(e) => set('amount', e.target.value)}
                 placeholder="1250.00"
-                className="font-mono"
+                className="tabular-nums"
                 aria-describedby="ledgerAmountHint"
               />
               <p id="ledgerAmountHint" className="text-xs text-muted-foreground">
@@ -314,7 +314,7 @@ export default function LedgerEntryForm({ balance }: Props) {
                 id="ledgerCurrency"
                 readOnly
                 value={LEDGER_SUPPORTED_CURRENCY}
-                className="font-mono"
+                className="tabular-nums"
                 aria-describedby="ledgerCurrencyHint"
               />
               <p id="ledgerCurrencyHint" className="text-xs text-muted-foreground">
@@ -332,7 +332,7 @@ export default function LedgerEntryForm({ balance }: Props) {
               value={form.occurredAt}
               max={wibToday()}
               onChange={(e) => set('occurredAt', e.target.value)}
-              className="font-mono"
+              className="tabular-nums"
               aria-describedby="ledgerOccurredAtHint"
             />
             <p id="ledgerOccurredAtHint" className="text-xs text-muted-foreground">

@@ -56,7 +56,7 @@ export function TechnicalDetail({ text, className }: { text: string; className?:
       <summary className="cursor-pointer select-none list-none underline-offset-2 hover:text-foreground hover:underline [&::-webkit-details-marker]:hidden">
         Detail teknis
       </summary>
-      <code className="mt-1 block break-all font-mono text-2xs text-muted-foreground">{text}</code>
+      <code className="mt-1 block break-all font-mono text-xs text-muted-foreground">{text}</code>
     </details>
   )
 }

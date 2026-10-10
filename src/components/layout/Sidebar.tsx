@@ -11,7 +11,7 @@ export default function Sidebar() {
         {/* Logo asli usdx.co.id — lockup koin + tulisan USDX, salinan
             byte-identik dari landing. Bukan koin + teks serif buatan. */}
         <img src="/image/logo-lockup.png" alt="USDX" className="h-6 w-auto" />
-        <span className="mt-0.5 rounded border border-border px-1.5 text-2xs font-medium text-muted-foreground">
+        <span className="mt-0.5 rounded border border-border px-1.5 text-label font-medium text-muted-foreground">
           Back-office
         </span>
       </div>

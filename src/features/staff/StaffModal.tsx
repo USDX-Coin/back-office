@@ -213,7 +213,7 @@ export default function StaffModal({
                 autoComplete="new-password"
               />
               <FieldError message={errors.password} />
-              <p className="mt-1 text-2xs text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Minimal 8 karakter.
               </p>
             </div>
@@ -248,7 +248,7 @@ export default function StaffModal({
                 >
                   Aktif
                 </Label>
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Pengguna nonaktif tidak bisa masuk ke back-office.
                 </p>
               </div>

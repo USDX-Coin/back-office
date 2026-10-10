@@ -31,7 +31,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Yang berlaku sekarang
         </CardTitle>
       </CardHeader>
@@ -89,7 +89,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <dt className="text-xs text-muted-foreground">
                   Plafon per transaksi
                 </dt>
-                <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
+                <dd className="mt-1 text-money-lg tabular-nums">
                   {limitLabel(data.maxPerTxIdr)}
                 </dd>
               </div>
@@ -97,7 +97,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <dt className="text-xs text-muted-foreground">
                   Plafon per hari (WIB)
                 </dt>
-                <dd className="mt-1 font-mono text-lg font-semibold tabular-nums">
+                <dd className="mt-1 text-money-lg tabular-nums">
                   {limitLabel(data.maxDailyIdr)}
                 </dd>
               </div>
@@ -105,13 +105,13 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <dt className="text-xs text-muted-foreground">
                   Order per putaran pengiriman
                 </dt>
-                <dd className="mt-1 font-mono text-sm tabular-nums">
+                <dd className="mt-1 text-sm tabular-nums">
                   {batchLabel(data.maxBatchPerTick)}
                 </dd>
               </div>
             </dl>
 
-            <p className="border-t border-border pt-4 text-2xs leading-relaxed text-muted-foreground">
+            <p className="border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
               {hasControlRow(data) ? (
                 <>
                   Terakhir diubah {formatWibDateTime(data.updatedAt)}
@@ -131,7 +131,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <p className="text-xs text-muted-foreground">
                   maxPerTxIdr (mentah)
                 </p>
-                <p className="mt-1 break-all font-mono text-xs">
+                <p className="tabular-nums mt-1 break-all text-xs">
                   {data.maxPerTxIdr ?? 'null'}
                 </p>
               </div>
@@ -139,7 +139,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <p className="text-xs text-muted-foreground">
                   maxDailyIdr (mentah)
                 </p>
-                <p className="mt-1 break-all font-mono text-xs">{data.maxDailyIdr ?? 'null'}</p>
+                <p className="tabular-nums mt-1 break-all text-xs">{data.maxDailyIdr ?? 'null'}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">
@@ -153,7 +153,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
                 <p className="text-xs text-muted-foreground">
                   updatedAt / updatedBy
                 </p>
-                <p className="mt-1 break-all font-mono text-xs">
+                <p className="tabular-nums mt-1 break-all text-xs">
                   {data.updatedAt} · {data.updatedBy ?? 'null'}
                 </p>
               </div>

@@ -78,6 +78,7 @@ import {
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 interface KybDetailModalProps {
   kybId: string | null
@@ -144,7 +145,7 @@ function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) 
   if (value === PII_MASK) {
     return (
       <span className="flex flex-wrap items-baseline gap-1.5">
-        <span className="font-mono text-xs">{PII_MASK}</span>
+        <span className="tabular-nums text-xs">{PII_MASK}</span>
         <span className="text-xs text-muted-foreground">
           {PII_WITHHELD_LABEL}
         </span>
@@ -152,7 +153,7 @@ function EntityValue({ value, mono }: { value: string | null; mono?: boolean }) 
     )
   }
   return mono ? (
-    <span className="break-all font-mono text-xs tabular-nums">{value}</span>
+    <span className="break-all text-xs tabular-nums">{value}</span>
   ) : (
     <>{value}</>
   )
@@ -170,7 +171,7 @@ function PiiValue({ value, staff }: { value: string | null; staff: Staff | null 
   if (shown === null) return <Dim />
   return (
     <span className="flex flex-wrap items-baseline gap-1.5">
-      <span className="break-all font-mono text-xs tabular-nums">{shown}</span>
+      <span className="break-all text-xs tabular-nums">{shown}</span>
       {isPiiWithheld(value, staff) && (
         <span className="text-xs text-muted-foreground">
           {PII_WITHHELD_LABEL}
@@ -232,7 +233,7 @@ function UboDocLink({
             Buka dokumen
           </a>
         ) : uploadedNow ? (
-          <span className="text-2xs text-primary">Terunggah — muat ulang untuk membuka</span>
+          <span className="text-xs text-primary">Terunggah — muat ulang untuk membuka</span>
         ) : urlsWithheld ? (
           <span className="text-xs text-muted-foreground">
             {PII_WITHHELD_LABEL}
@@ -244,12 +245,12 @@ function UboDocLink({
         {canUpload && (
           <>
             {uploading && (
-              <span className="text-2xs text-muted-foreground">Mengunggah…</span>
+              <span className="text-xs text-muted-foreground">Mengunggah…</span>
             )}
             <label
               htmlFor={inputId}
               className={cn(
-                'cursor-pointer rounded-md border border-border px-2 py-0.5 text-2xs font-medium hover:bg-muted',
+                'cursor-pointer rounded-md border border-border px-2 py-0.5 text-label font-medium hover:bg-muted',
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
@@ -280,7 +281,7 @@ function UboDocLink({
         )}
       </div>
       {error && (
-        <p className="mt-1 text-2xs text-destructive" role="alert">
+        <p className="mt-1 text-xs text-destructive" role="alert">
           {error}
         </p>
       )}
@@ -353,7 +354,7 @@ function UboCard({
     <li className="rounded-md border border-border px-3 py-2.5" data-testid="kyb-ubo">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-medium">
-          <span className="mr-1.5 font-mono text-2xs text-muted-foreground">
+          <span className="tabular-nums mr-1.5 text-xs text-muted-foreground">
             #{index + 1}
           </span>
           {name}
@@ -363,13 +364,13 @@ function UboCard({
             </span>
           )}
         </span>
-        <span className="font-mono text-xs tabular-nums text-primary">
+        <span className="text-xs tabular-nums text-primary">
           {ubo.ownershipPct}%
         </span>
       </div>
 
       {ubo.cascadeStep !== null && (
-        <p className="mb-2 text-2xs text-muted-foreground">
+        <p className="mb-2 text-xs text-muted-foreground">
           Ditemukan lewat{' '}
           <span className="text-foreground">
             {labelFor(ubo.cascadeStep, UBO_CASCADE_STEP_LABELS)}
@@ -458,7 +459,7 @@ function UboCard({
           {relationshipWithoutDoc && (
             <li
               data-testid="kyb-ubo-finding-legal-doc"
-              className="flex items-start gap-1.5 text-2xs text-muted-foreground"
+              className="flex items-start gap-1.5 text-xs text-muted-foreground"
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
               <span>
@@ -470,7 +471,7 @@ function UboCard({
           {declarationMissing && (
             <li
               data-testid="kyb-ubo-finding-declaration"
-              className="flex items-start gap-1.5 text-2xs text-muted-foreground"
+              className="flex items-start gap-1.5 text-xs text-muted-foreground"
             >
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
               <span>
@@ -609,12 +610,12 @@ function DocumentSlotRow({
         {canUpload && (
           <div className="ml-auto flex items-center gap-2">
             {uploading && (
-              <span className="text-2xs text-muted-foreground">Mengunggah…</span>
+              <span className="text-xs text-muted-foreground">Mengunggah…</span>
             )}
             <label
               htmlFor={inputId}
               className={cn(
-                'cursor-pointer rounded-md border border-border px-2 py-1 text-2xs font-medium hover:bg-muted',
+                'cursor-pointer rounded-md border border-border px-2 py-1 text-label font-medium hover:bg-muted',
                 disabled && 'pointer-events-none opacity-50',
               )}
             >
@@ -647,7 +648,7 @@ function DocumentSlotRow({
       {error && (
         <p
           data-testid={`kyb-upload-error-${slot}`}
-          className="mt-1.5 text-2xs text-destructive"
+          className="mt-1.5 text-xs text-destructive"
         >
           {error}
         </p>
@@ -1010,7 +1011,7 @@ export default function KybDetailModal({
                   {status && (
                     <span
                       className={cn(
-                        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+                        STATUS_CHIP_BASE,
                         getKycStatusConfig(status).className,
                       )}
                     >
@@ -1031,7 +1032,7 @@ export default function KybDetailModal({
                   )}
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     Diajukan{' '}
                     {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
@@ -1227,7 +1228,7 @@ export default function KybDetailModal({
                         </ul>
                         <p
                           className={cn(
-                            'mt-1.5 font-mono text-2xs tabular-nums',
+                            'mt-1.5 text-xs tabular-nums',
                             ownershipTotal > 100.0001
                               ? 'text-destructive'
                               : 'text-muted-foreground',
@@ -1316,7 +1317,7 @@ export default function KybDetailModal({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="mt-2 h-7 text-2xs"
+                        className="mt-2 h-7 text-xs"
                         onClick={() => detailQuery.refetch()}
                         disabled={detailQuery.isFetching}
                       >
@@ -1325,7 +1326,7 @@ export default function KybDetailModal({
                           : 'Muat ulang berkas untuk membuka dokumen baru'}
                       </Button>
                     )}
-                    <p className="mt-2 text-2xs text-muted-foreground">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       {urlsWithheld
                         ? 'Peran Anda tidak diberi tautan dokumen — slot kosong di sini bukan berarti dokumennya tidak ada.'
                         : canUpload
@@ -1481,7 +1482,7 @@ export default function KybDetailModal({
                 <FieldError message={reasonError} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-2xs tabular-nums',
+                    'ml-auto text-xs tabular-nums',
                     reason.length >= KYB_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground',

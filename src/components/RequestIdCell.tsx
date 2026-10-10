@@ -20,7 +20,7 @@ export function RequestIdCell({ id }: { id: string }) {
   }
   return (
     <span
-      className="inline-flex items-center gap-1.5 font-mono text-2xs tabular-nums text-muted-foreground"
+      className="inline-flex items-center gap-1.5 font-mono text-xs tabular-nums text-muted-foreground"
       title={id}
     >
       {shortHash(id, 8, 6)}

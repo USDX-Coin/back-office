@@ -40,7 +40,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
     const teks = formatBankAmount(row[key], currency)
     return (
       <span
-        className="block truncate font-mono text-xs font-medium tabular-nums"
+        className="block truncate text-xs font-medium tabular-nums"
         title={teks}
       >
         {teks}
@@ -54,7 +54,7 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       size: 176,
       header: 'Tanggal posting',
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatBniPostDate(row.original.row.postDate)}
         </span>
       ),

@@ -124,14 +124,14 @@ export default function AmountWithCurrencyInput({
             id={currencyId}
             aria-invalid={Boolean(currencyError)}
             aria-label="Mata uang"
-            className="h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus:outline-none focus:ring-0"
+            className="tabular-nums h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 text-sm shadow-none focus:outline-none focus:ring-0"
           >
             <span>{currency}</span>
           </SelectTrigger>
           <SelectContent align="end">
             {CURRENCIES.map((c) => (
               <SelectItem key={c.value} value={c.value}>
-                <span className="font-mono">{c.value}</span>
+                <span className="tabular-nums">{c.value}</span>
                 <span className="ml-2 text-muted-foreground">({c.hint})</span>
               </SelectItem>
             ))}

@@ -52,7 +52,7 @@ export default function SafeQueueOccupiedBanner({
               {' '}
               Selesaikan dulu permintaan{' '}
               <code
-                className="rounded bg-warning/10 px-1 py-0.5 font-mono text-2xs"
+                className="rounded bg-warning/10 px-1 py-0.5 font-mono text-label"
                 title={blockingRequestId}
               >
                 {shortRequestId(blockingRequestId)}

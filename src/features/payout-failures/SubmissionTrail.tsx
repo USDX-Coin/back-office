@@ -3,6 +3,7 @@ import { formatWibDateTime } from '@/lib/format'
 import { summarizeSubmissions } from '@/lib/payoutFailures'
 import { formatIdrExact } from '@/lib/redeemApprovals'
 import type { PayoutSubmissionTrail } from '@/lib/types'
+import { providerLabel } from '@/lib/paymentMethods'
 
 /**
  * SELURUH `payout_submissions` satu order — blok yang menjawab pertanyaan paling
@@ -54,10 +55,10 @@ export default function SubmissionTrail({
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="break-all font-mono text-xs">{sub.partnerReferenceNo}</span>
-              <span className="font-mono tabular-nums">{formatIdrExact(sub.amountIdr)}</span>
+              <span className="tabular-nums">{formatIdrExact(sub.amountIdr)}</span>
             </div>
             <p className="mt-0.5 text-muted-foreground">
-              {sub.payoutProvider} · diserahkan {formatWibDateTime(sub.submittedAt)}
+              {providerLabel(sub.payoutProvider)} · diserahkan {formatWibDateTime(sub.submittedAt)}
             </p>
             {sub.rejectedAt ? (
               <p className="mt-0.5 text-destructive">

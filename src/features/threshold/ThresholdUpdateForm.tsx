@@ -108,7 +108,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Ubah batas
         </CardTitle>
       </CardHeader>
@@ -142,7 +142,7 @@ export default function ThresholdUpdateForm({ current }: Props) {
                 value={form.amount}
                 onChange={(e) => set('amount', e.target.value)}
                 placeholder={form.mode === 'IDR' ? '1000000000.00' : '70000.00'}
-                className="pr-16 font-mono"
+                className="tabular-nums pr-16"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                 {form.mode || '—'}

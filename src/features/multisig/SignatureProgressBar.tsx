@@ -26,7 +26,7 @@ export default function SignatureProgressBar({
       </div>
       <span
         className={cn(
-          'font-mono text-2xs tabular-nums',
+          'text-xs tabular-nums',
           complete ? 'text-primary' : 'text-muted-foreground',
         )}
       >

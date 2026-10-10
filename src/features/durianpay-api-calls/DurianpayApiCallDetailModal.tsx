@@ -129,12 +129,12 @@ function BodyBlock({ title, view }: { title: string; view: DurianpayBodyView }) 
         </p>
       )}
 
-      <pre className="max-h-72 overflow-auto rounded-md bg-muted/60 px-3 py-2 font-mono text-2xs leading-relaxed text-foreground">
+      <pre className="max-h-72 overflow-auto rounded-md bg-muted/60 px-3 py-2 font-mono text-label leading-relaxed text-foreground">
         {view.text}
       </pre>
 
       {hasRedactedValue(view.text) && (
-        <p className="mt-1 text-2xs text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           <span className="font-mono">{REDACTED_SECRET_MARK}</span> = kredensial atau tanda tangan,{' '}
           <span className="font-mono">{REDACTED_PII_MARK}</span> = data pribadi. Keduanya dibuang
           sebelum baris ini ditulis, jadi nilai aslinya tidak ada di mana pun di layar ini.
@@ -159,7 +159,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
       >
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill cfg={view.pill} />
-          <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+          <span className="text-xs tabular-nums text-muted-foreground">
             {detail.httpStatus === null ? 'tanpa jawaban' : `HTTP ${detail.httpStatus}`} ·{' '}
             {formatCallDuration(detail.durationMs)}
           </span>
@@ -188,7 +188,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
             {callLabel ?? <span className="font-mono text-xs">{detail.path}</span>}
           </Field>
           <Field label="Waktu berangkat">
-            <span className="font-mono text-xs tabular-nums">
+            <span className="text-xs tabular-nums">
               {formatWibDateTime(detail.requestedAt)}
             </span>
           </Field>
@@ -226,7 +226,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
                 Tidak ada — jawabannya tidak pernah sampai (timeout atau jaringan).
               </span>
             ) : (
-              <span className="font-mono text-xs tabular-nums">{detail.httpStatus}</span>
+              <span className="text-xs tabular-nums">{detail.httpStatus}</span>
             )}
           </Field>
           <Field label="Kode jawaban">
@@ -234,9 +234,9 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
               <div className="flex min-w-0 flex-col gap-0.5">
                 {/* Kodenya TETAP tampil utuh: inilah yang dikutip saat melapor ke
                     DurianPay. Keterangannya mendampingi, tidak menggantikan. */}
-                <span className="font-mono text-xs tabular-nums">{detail.responseCode}</span>
+                <span className="text-xs tabular-nums">{detail.responseCode}</span>
                 {codeMeaning && (
-                  <span className="text-2xs text-muted-foreground">{codeMeaning}</span>
+                  <span className="text-xs text-muted-foreground">{codeMeaning}</span>
                 )}
               </div>
             ) : (
@@ -251,7 +251,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
             )}
           </Field>
           <Field label="Integrasi">
-            <span className="font-mono text-xs">{detail.apiFlavor}</span>
+            <span className="tabular-nums text-xs">{detail.apiFlavor}</span>
           </Field>
         </div>
       </Section>
@@ -311,7 +311,7 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
               seseorang akan menghabiskan waktu mencari `X-SIGNATURE` di layar yang
               memang tidak pernah menyimpannya.
             */}
-            <p className="text-2xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Header HTTP tidak disimpan sama sekali — di situlah Authorization, X-SIGNATURE, dan
               X-CLIENT-KEY berada, jadi tidak ada header yang bisa ditampilkan di sini maupun di
               tempat lain.

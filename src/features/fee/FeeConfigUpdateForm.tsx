@@ -159,7 +159,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Ubah biaya
         </CardTitle>
       </CardHeader>
@@ -176,7 +176,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                 value={form.mintFeePct}
                 onChange={(e) => set('mintFeePct', e.target.value)}
                 placeholder="1.0"
-                className="pr-10 font-mono"
+                className="tabular-nums pr-10"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                 %
@@ -200,7 +200,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                   value={form.pgFeeVaFlat}
                   onChange={(e) => set('pgFeeVaFlat', e.target.value)}
                   placeholder="4000.00"
-                  className="pr-12 font-mono"
+                  className="tabular-nums pr-12"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   IDR
@@ -221,7 +221,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                   value={form.pgFeeQrisPct}
                   onChange={(e) => set('pgFeeQrisPct', e.target.value)}
                   placeholder="0.7"
-                  className="pr-10 font-mono"
+                  className="tabular-nums pr-10"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   %
@@ -249,7 +249,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                     value={form.redeemFeePct}
                     onChange={(e) => set('redeemFeePct', e.target.value)}
                     placeholder="1.0"
-                    className="pr-10 font-mono"
+                    className="tabular-nums pr-10"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     %
@@ -270,7 +270,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                     value={form.disbursementFeeFlat}
                     onChange={(e) => set('disbursementFeeFlat', e.target.value)}
                     placeholder="5000.00"
-                    className="pr-12 font-mono"
+                    className="tabular-nums pr-12"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     IDR
@@ -300,7 +300,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                   value={form.minMintIdr}
                   onChange={(e) => set('minMintIdr', e.target.value)}
                   placeholder="20000"
-                  className="pr-12 font-mono"
+                  className="tabular-nums pr-12"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   IDR
@@ -334,7 +334,7 @@ export default function FeeConfigUpdateForm({ current }: Props) {
                   value={form.minRedeemIdr}
                   onChange={(e) => set('minRedeemIdr', e.target.value)}
                   placeholder="20000"
-                  className="pr-12 font-mono"
+                  className="tabular-nums pr-12"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   IDR

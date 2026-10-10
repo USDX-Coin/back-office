@@ -124,8 +124,10 @@ export default function PaymentMethodsPage() {
                         <ToneChip tone="wait">Mati</ToneChip>
                       )}
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {providerLabel(m.provider)} · <span className="font-mono">{m.code}</span>
+                    {/* Kode metode (`VA_NOBU_DURIANPAY_SNAP`) bukan bacaan admin — cukup
+                        di `title` untuk dikutip ke tim teknis. */}
+                    <p className="mt-0.5 text-xs text-muted-foreground" title={m.code}>
+                      {providerLabel(m.provider)}
                     </p>
                     {!m.available && reason && <p className="mt-1 text-xs text-gold-foreground">{reason}</p>}
                   </div>
@@ -224,7 +226,7 @@ function ChangeTrail({ methods }: { methods: PaymentMethod[] }) {
   }
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Jejak perubahan</h2>
+      <h2 className="text-section">Jejak perubahan</h2>
       <Card className="overflow-hidden">
         {q.isError ? (
           <div className="p-4">

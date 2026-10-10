@@ -164,7 +164,7 @@ export default function AttestationSection({ canManage }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Laporan atestasi
         </CardTitle>
       </CardHeader>
@@ -183,7 +183,7 @@ export default function AttestationSection({ canManage }: Props) {
                     clearError('period')
                   }}
                   placeholder="2026-07"
-                  className="font-mono"
+                  className="tabular-nums"
                   aria-describedby="attestationPeriodHint"
                 />
                 {/* The public document table derives its Month / Year columns

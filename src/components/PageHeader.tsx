@@ -22,7 +22,7 @@ export default function PageHeader({ title, subtitle, actions, className }: Page
       )}
     >
       <div className="min-w-0">
-        <h1 className="font-display text-xl font-semibold leading-tight">{title}</h1>
+        <h1 className="font-display text-page-title">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}

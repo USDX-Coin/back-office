@@ -51,11 +51,11 @@ export default function StatementResultsHeader({
         <div className="min-w-0" data-testid="bni-statement-applied">
           <p className="text-sm font-semibold">
             {accountLabel}{' '}
-            <span className="font-mono text-2xs font-normal text-muted-foreground">
+            <span className="tabular-nums text-xs font-normal text-muted-foreground">
               {applied.accountNo}
             </span>
           </p>
-          <p className="font-mono text-2xs text-muted-foreground">
+          <p className="tabular-nums text-xs text-muted-foreground">
             {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
             {statement && (
               <>
@@ -111,25 +111,25 @@ export default function StatementResultsHeader({
           </div>
           <div>
             <dt className="text-muted-foreground">Saldo awal</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.beginningBalance, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Total masuk</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.totalCredit, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Total keluar</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.totalDebit, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Saldo akhir</dt>
-            <dd className="font-mono tabular-nums" data-testid="bni-statement-closing-balance">
+            <dd className="tabular-nums" data-testid="bni-statement-closing-balance">
               {formatBankAmount(summary.closingBalance, summary.currency)}
             </dd>
           </div>

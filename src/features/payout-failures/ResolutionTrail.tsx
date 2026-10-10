@@ -24,7 +24,7 @@ export default function ResolutionTrail({ reviews }: { reviews: PayoutFailureRev
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="font-medium">{resolutionTrailLabel(review.action)}</span>
-            <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+            <span className="text-xs tabular-nums text-muted-foreground">
               {formatWibDateTime(review.createdAt)}
             </span>
           </div>

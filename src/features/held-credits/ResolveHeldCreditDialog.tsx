@@ -205,7 +205,7 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
                     </span>
                   </label>
                   {matchedOrderId && (
-                    <p className="mt-1 text-2xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Mesin sudah memilih order{' '}
                       <span className="break-all font-mono">{matchedOrderId}</span>. Biarkan
                       kosong untuk memakai order itu.
@@ -220,7 +220,7 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
                     className="mt-1.5 font-mono"
                     spellCheck={false}
                   />
-                  <p className="mt-1 flex items-start gap-1.5 text-2xs leading-relaxed text-muted-foreground">
+                  <p className="mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                     <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
                     <span>
                       Salin id order dari layar Transaksi Nasabah — jangan mengetiknya dari
@@ -272,7 +272,7 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
                       : 'Mis. pengirim bukan nasabah USDX, dana dikembalikan lewat treasury'
                   }
                 />
-                <p className="mt-1 text-2xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Tersimpan permanen di jejak yang tidak bisa diubah, bersama identitas dan
                   waktu keputusanmu.
                 </p>

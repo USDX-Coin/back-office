@@ -139,7 +139,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Ubah kurs
         </CardTitle>
       </CardHeader>
@@ -176,7 +176,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                 value={form.manualRate}
                 onChange={(e) => set('manualRate', e.target.value)}
                 placeholder="16250.00"
-                className="pr-16 font-mono"
+                className="tabular-nums pr-16"
                 disabled={dynamic}
                 aria-disabled={dynamic}
               />
@@ -213,7 +213,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                   value={form.spreadBuyPct}
                   onChange={(e) => set('spreadBuyPct', e.target.value)}
                   placeholder="0.5"
-                  className="pr-10 font-mono"
+                  className="tabular-nums pr-10"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   %
@@ -236,7 +236,7 @@ export default function RateUpdateForm({ current }: RateUpdateFormProps) {
                   value={form.spreadSellPct}
                   onChange={(e) => set('spreadSellPct', e.target.value)}
                   placeholder="0.4"
-                  className="pr-10 font-mono"
+                  className="tabular-nums pr-10"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   %

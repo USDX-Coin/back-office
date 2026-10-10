@@ -36,6 +36,7 @@ import { useSafeTxSigning } from './useSafeTxSigning'
 import SignatureProgressBar from './SignatureProgressBar'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 // ─── small presentational helpers (mirror OrderDetailModal) ──────────────────
 
@@ -117,7 +118,7 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         cfg.className,
       )}
     >
@@ -167,10 +168,10 @@ function SignerRow({ signer }: { signer: SafeTxSigner }) {
           </span>
         )}
         {signer.staffName && (
-          <span className="text-2xs text-muted-foreground">{signer.staffName}</span>
+          <span className="text-xs text-muted-foreground">{signer.staffName}</span>
         )}
       </div>
-      <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+      <span className="text-xs tabular-nums text-muted-foreground">
         {signer.signed && signer.signedAt ? formatDate(signer.signedAt) : 'Belum tanda tangan'}
       </span>
     </li>
@@ -281,7 +282,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   Safe {detail.safeType} · {detail.chain} · nonce {detail.nonce}
                 </span>
               </div>
-              <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+              <span className="text-xs tabular-nums text-muted-foreground">
                 {formatDate(detail.createdAt)}
               </span>
             </div>
@@ -326,7 +327,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   <Wallet className="h-3.5 w-3.5" /> Wallet penanda tangan
                 </span>
                 {wallet.isConnected ? (
-                  <span className="font-mono text-2xs">
+                  <span className="font-mono text-xs">
                     {truncateMiddle(wallet.address ?? '', 6, 4)}{' '}
                     {ownerVerification === 'owner' ? (
                       <span className="text-success">· owner Safe</span>
@@ -339,12 +340,12 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                     )}
                   </span>
                 ) : (
-                  <span className="text-2xs text-muted-foreground">Belum terhubung</span>
+                  <span className="text-xs text-muted-foreground">Belum terhubung</span>
                 )}
               </div>
               {wallet.isConnected && !wallet.chainOk && (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-2xs text-warning">Jaringan salah — harus Polygon.</span>
+                  <span className="text-xs text-warning">Jaringan salah — harus Polygon.</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -357,7 +358,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
               )}
               {wallet.isConnected && ownerVerification === 'unavailable' && (
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-2xs text-warning">
+                  <span className="text-xs text-warning">
                     Status owner Safe tidak bisa diperiksa — daftar owner-nya tidak terbaca. Hubungi
                     admin kalau terus begini.
                   </span>
@@ -395,7 +396,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 )}
               </Field>
               <Field label="Nominal">
-                <span className="font-mono tabular-nums">{detail.value ?? '0'}</span>
+                <span className="tabular-nums">{detail.value ?? '0'}</span>
               </Field>
             </Section>
 
@@ -407,8 +408,8 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                 <dl className="space-y-1.5 rounded-md bg-surface-container-low/40 p-3">
                   {Object.entries(detail.decodedArgs).map(([k, v]) => (
                     <div key={k} className="flex items-start justify-between gap-3">
-                      <dt className="font-mono text-2xs text-muted-foreground">{k}</dt>
-                      <dd className="break-all text-right font-mono text-2xs">{String(v)}</dd>
+                      <dt className="font-mono text-xs text-muted-foreground">{k}</dt>
+                      <dd className="break-all text-right font-mono text-xs">{String(v)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -454,7 +455,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
                   </Field>
                 )}
                 <div className="sm:col-span-2">
-                  <p className="text-2xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Cocokkan dulu argumen di atas dengan permintaan ini sebelum menandatangani —
                     pagar tanda tangan buta.
                   </p>
@@ -627,7 +628,7 @@ export default function MultisigDetailSheet({ txId, open, onOpenChange, listItem
 
               {/* Blocked-reason hint */}
               {showSign && signBlockedReason && wallet.isConnected && (
-                <p className="text-2xs text-muted-foreground">{signBlockedReason}</p>
+                <p className="text-xs text-muted-foreground">{signBlockedReason}</p>
               )}
 
               {/* Inline two-step cancel */}

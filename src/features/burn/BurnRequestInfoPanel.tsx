@@ -8,7 +8,7 @@ export default function BurnRequestInfoPanel() {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Bagaimana redeem OTC diselesaikan
         </CardTitle>
       </CardHeader>
@@ -29,7 +29,7 @@ export default function BurnRequestInfoPanel() {
             operator mentransfer rupiahnya ke rekening nasabah.
           </li>
         </ol>
-        <p className="border-t border-border/40 pt-3 text-2xs">
+        <p className="border-t border-border/40 pt-3 text-xs">
           Perjalanannya bisa dipantau di halaman
           <span className="mx-1 font-medium text-foreground">OTC</span>.
           Permintaan baru muncul di kelompok <em>Perlu tindakan</em>.

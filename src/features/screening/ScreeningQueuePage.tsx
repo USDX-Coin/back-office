@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils'
 import { SCREENING_COLUMN_CONFIG, SCREENING_FILTER_DEFS } from './filterDefs'
 import ScreeningDecisionModal from './ScreeningDecisionModal'
 import { useScreeningResults } from './hooks'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 10
 
@@ -51,14 +52,14 @@ function ScoreCell({ score }: { score: number | null }) {
   const text = formatScore(score)
   if (text === null) {
     return (
-      <span className="font-mono text-xs text-muted-foreground" title="Skor kosong kalau daftar sanksinya belum tersedia saat diperiksa">
+      <span className="tabular-nums text-xs text-muted-foreground" title="Skor kosong kalau daftar sanksinya belum tersedia saat diperiksa">
         —
       </span>
     )
   }
   return (
     <div className="flex min-w-[84px] flex-col gap-1">
-      <span className="font-mono text-xs font-semibold tabular-nums">{text}</span>
+      <span className="text-xs font-semibold tabular-nums">{text}</span>
       <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-muted">
         <span
           className="block h-full rounded-full bg-destructive"
@@ -74,7 +75,7 @@ function OutcomeBadge({ outcome }: { outcome: ScreeningOutcome }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         style.className,
       )}
     >
@@ -143,7 +144,7 @@ export default function ScreeningQueuePage() {
             {matchCount !== null && matchCount > 1 && (
               // Lebih dari satu entri melewati ambang: layak ditinjau lebih
               // hati-hati, karena entri yang ditampilkan hanya salah satunya.
-              <span className="text-2xs text-amber-700 dark:text-amber-400">
+              <span className="text-xs text-amber-700 dark:text-amber-400">
                 +{matchCount - 1} entri lain juga cocok
               </span>
             )}
@@ -186,7 +187,7 @@ export default function ScreeningQueuePage() {
         return (
           <div className="flex min-w-0 flex-col">
             <OutcomeBadge outcome={decision.outcome} />
-            <span className="mt-0.5 truncate text-2xs text-muted-foreground">
+            <span className="mt-0.5 truncate text-xs text-muted-foreground">
               {decision.decidedByName ?? 'Petugas dihapus'}
             </span>
           </div>
@@ -206,7 +207,7 @@ export default function ScreeningQueuePage() {
             {/* Menjawab "lolos pakai daftar terbitan tanggal berapa" — pertanyaan
                 pertama seorang pemeriksa, dan alasan tiap versi disimpan. */}
             <span
-              className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+              className="truncate text-xs tabular-nums text-muted-foreground"
               title={`Daftar terbit ${listPublishedAt ?? 'tidak tercatat'}`}
             >
               terbit {listPublishedAt ?? '—'}
@@ -230,7 +231,7 @@ export default function ScreeningQueuePage() {
       size: 120,
       header: 'Diperiksa',
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatShortDate(row.original.createdAt)}
         </span>
       ),
@@ -246,7 +247,7 @@ export default function ScreeningQueuePage() {
             e.stopPropagation()
             navigate(`/screening/${row.original.id}`)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka banding temuan ${row.original.matchedName ?? row.original.id}`}
         >
           <Eye className="h-3.5 w-3.5" />

@@ -1,4 +1,5 @@
 import type { StatusConfig } from '@/lib/status'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 import { cn } from '@/lib/utils'
 
 // Dot + label pill for a `StatusConfig`. Five feature files carry a private
@@ -15,7 +16,7 @@ export default function StatusPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         cfg.className,
         className
       )}

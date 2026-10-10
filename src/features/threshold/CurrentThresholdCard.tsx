@@ -24,7 +24,7 @@ export default function CurrentThresholdCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Batas saat ini
         </CardTitle>
       </CardHeader>
@@ -41,7 +41,7 @@ export default function CurrentThresholdCard({ data, isLoading }: Props) {
                 Nominal sebesar ini atau lebih masuk ke Safe Manager
               </p>
               <p
-                className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
+                className="mt-1 text-money-lg tabular-nums"
                 aria-label="nominal batas"
               >
                 {formatAmount(data.amount, data.mode)}

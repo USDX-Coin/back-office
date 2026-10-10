@@ -62,6 +62,7 @@ import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 import { toastError } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
 import { DataField } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const ENTITY_LABEL: Record<EntityType, string> = {
   INDIVIDUAL: 'Perorangan',
@@ -161,7 +162,7 @@ function PiiField({
         <span className="text-muted-foreground">—</span>
       ) : (
         <span className="flex flex-wrap items-baseline gap-1.5">
-          <span className="break-all font-mono text-xs tabular-nums">{shown}</span>
+          <span className="break-all text-xs tabular-nums">{shown}</span>
           {withheld && (
             <span className="text-xs text-muted-foreground">
               {PII_WITHHELD_LABEL}
@@ -228,7 +229,7 @@ function StatusBadge({ status }: { status: KycDetail['status'] }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-2 py-0.5 text-2xs font-medium',
+        STATUS_CHIP_BASE,
         cfg.className
       )}
     >
@@ -277,12 +278,12 @@ function PhotoFigure({
       {url === null ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-2xs">Foto sudah dihapus permanen</span>
+          <span className="text-xs">Foto sudah dihapus permanen</span>
         </div>
       ) : expired ? (
         <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
           <ImageOff className="h-6 w-6 opacity-50" />
-          <span className="text-2xs">Tautan foto kedaluwarsa</span>
+          <span className="text-xs">Tautan foto kedaluwarsa</span>
         </div>
       ) : (
         <a
@@ -321,7 +322,7 @@ function AuditTrailRow({ row }: { row: KycReviewLog }) {
         {cfg.label}
       </span>
       <span className="text-xs text-foreground">{actor}</span>
-      <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+      <span className="text-xs tabular-nums text-muted-foreground">
         {formatDate(row.createdAt)}
       </span>
       {row.reason && (
@@ -511,7 +512,7 @@ export default function KycDetailModal({
                   )}
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
-                  <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     Diajukan {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
@@ -544,7 +545,7 @@ export default function KycDetailModal({
                       {detail.birthPlace ? ` · ${detail.birthPlace}` : ''}
                     </Field>
                     <Field label="Jenis &amp; nomor identitas" testId="kyc-identity-number">
-                      <span className="font-mono text-xs tabular-nums">
+                      <span className="text-xs tabular-nums">
                         {detail.identityType}
                         {detail.identityNumber ? ` · ${detail.identityNumber}` : ' · —'}
                       </span>
@@ -701,7 +702,7 @@ export default function KycDetailModal({
                         ) : detail.pepStatus ? (
                           // Emphasised: a PEP hit changes what the reviewer is
                           // supposed to do, so it must not read like any other row.
-                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning">
+                          <span className="inline-flex items-center gap-1.5 rounded-sm bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
                             PEP
                           </span>
                         ) : (
@@ -735,7 +736,7 @@ export default function KycDetailModal({
                         Dokumen
                       </p>
                       {expiryLabel && (
-                        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+                        <span className="text-xs tabular-nums text-muted-foreground">
                           {expiryLabel}
                         </span>
                       )}
@@ -959,7 +960,7 @@ export default function KycDetailModal({
                 <FieldError message={reasonError} />
                 <span
                   className={cn(
-                    'ml-auto font-mono text-2xs tabular-nums',
+                    'ml-auto text-xs tabular-nums',
                     reason.length >= KYC_REJECT_REASON_MAX
                       ? 'text-destructive'
                       : 'text-muted-foreground'

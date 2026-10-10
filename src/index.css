@@ -72,38 +72,54 @@
   --color-gold-soft: hsl(var(--gold-soft));
   --color-gold-foreground: hsl(var(--gold-foreground));
 
-  /* ── Skala huruf: ENAM langkah, dan hanya enam ────────────────────────────
+  /* ── Skala huruf: token PER PERAN (audit font 10 Okt 2026) ─────────────────
    *
-   * Yang digantikan: 17 ukuran sembarang (sembilan-setengah piksel,
-   * sebelas-setengah, dua-belas-setengah, …) yang muncul 673 kali di 93 berkas. Itu bukan skala,
-   * itu tebakan per layar — dan karena tiap layar menebak sendiri, dua halaman
-   * yang menampilkan hal yang sama bisa memakai dua ukuran berbeda.
+   * `--text-*: initial` MENGHAPUS seluruh skala bawaan Tailwind lebih dulu, jadi
+   * ukuran di luar daftar ini gagal dikompilasi alih-alih diam-diam lolos
+   * (`text-2xl` di ProfilePage pernah jadi teks tanpa ukuran).
    *
-   * `--text-*: initial` MENGHAPUS seluruh skala bawaan Tailwind lebih dulu.
-   * Jadi enam langkah ini bukan "yang dianjurkan" — langkah ketujuh tidak ada,
-   * dan `text-2xl` gagal dikompilasi alih-alih diam-diam lolos.
+   * 11px (`2xs`) dan 18px (`lg`) DIBUANG: skala sempat tergeser ke 11–12px
+   * dan teks penting jadi terlalu kecil. Inter tetap huruf UI.
    *
-   * Tiap langkah punya satu pekerjaan:
-   *   2xs 11px  label mikro, kepala kolom, badge, kbd
-   *   xs  12px  teks sekunder, meta, keterangan
-   *   sm  13px  isi tabel dan daftar padat
-   *   base 14px teks badan, label formulir, isian
-   *   lg  18px  judul dialog, panel, dan bagian besar
-   *   xl  24px  judul halaman dan angka besar
+   *   page-title    28/32 600  judul halaman — dipakai bersama `font-display`
+   *   dialog-title  20/26 600  judul modal / dialog / sheet — `font-display`
+   *   section       14/20 600  judul seksi (DataSection, kartu)
+   *   base          14/22      badan teks & form
+   *   sm            13/20      teks tabel (kolom utama `font-medium`)
+   *   xs            12/18      meta, waktu, keterangan, hash/ID (mono, muted)
+   *   label         12/16 500  label kecil, kepala kolom, badge/status
+   *   money         13/20 600  uang di tabel
+   *   money-lg      24/28 600  uang besar (-0.01em, tanpa `leading-none`)
+   *
+   * Angka (uang, kurs, waktu, paginasi) = Inter + `tabular-nums`. JetBrains
+   * Mono HANYA untuk hash, ID, alamat wallet, path API, JSON, nomor order.
    */
   --text-*: initial;
-  --text-2xs: 0.6875rem;
-  --text-2xs--line-height: 1rem;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.125rem;
   --text-sm: 0.8125rem;
   --text-sm--line-height: 1.25rem;
   --text-base: 0.875rem;
   --text-base--line-height: 1.375rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.625rem;
-  --text-xl: 1.5rem;
-  --text-xl--line-height: 1.75rem;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-label--font-weight: 500;
+  --text-section: 0.875rem;
+  --text-section--line-height: 1.25rem;
+  --text-section--font-weight: 600;
+  --text-money: 0.8125rem;
+  --text-money--line-height: 1.25rem;
+  --text-money--font-weight: 600;
+  --text-money-lg: 1.5rem;
+  --text-money-lg--line-height: 1.75rem;
+  --text-money-lg--font-weight: 600;
+  --text-money-lg--letter-spacing: -0.01em;
+  --text-dialog-title: 1.25rem;
+  --text-dialog-title--line-height: 1.625rem;
+  --text-dialog-title--font-weight: 600;
+  --text-page-title: 1.75rem;
+  --text-page-title--line-height: 2rem;
+  --text-page-title--font-weight: 600;
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);

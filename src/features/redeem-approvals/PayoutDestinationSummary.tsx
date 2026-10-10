@@ -37,12 +37,12 @@ export default function PayoutDestinationSummary({
           Nominal yang akan ditransfer
         </p>
         <p
-          className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight tabular-nums"
+          className="mt-1 text-money-lg tabular-nums"
           data-testid="payout-net-idr"
         >
           {formatIdrExact(row.netPayoutIdr)}
         </p>
-        <p className="mt-1 text-2xs text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           dari {formatUsdxExact(row.amountUsdx)} yang sudah dibakar
         </p>
       </div>
@@ -50,12 +50,12 @@ export default function PayoutDestinationSummary({
       <div className="@container divide-y divide-border border-t border-border">
         <Field label="Bank">
           {row.bankName}
-          <span className="ml-1.5 font-mono text-2xs text-muted-foreground">
+          <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
             {row.bankCode}
           </span>
         </Field>
         <Field label="Nomor rekening">
-          <span className="break-all font-mono text-sm tabular-nums">
+          <span className="break-all text-sm tabular-nums">
             {row.bankAccountNumber}
           </span>
         </Field>
@@ -66,7 +66,7 @@ export default function PayoutDestinationSummary({
       </div>
 
       {nameMatches ? (
-        <p className="text-2xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Nama pada order dan nama menurut bank sama.
         </p>
       ) : (

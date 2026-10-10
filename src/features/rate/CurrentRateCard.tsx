@@ -12,7 +12,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Kurs saat ini
         </CardTitle>
       </CardHeader>
@@ -29,7 +29,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                 Kurs dasar
               </p>
               <p
-                className="mt-1 font-mono text-xl font-semibold leading-tight tracking-tight"
+                className="mt-1 text-money-lg tabular-nums"
                 aria-label="kurs dasar"
               >
                 {formatRate(data.baseRate)}
@@ -41,7 +41,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                   Kurs beli berlaku (mint)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="kurs beli berlaku"
                 >
                   {formatRate(data.effectiveBuyRate)}
@@ -52,7 +52,7 @@ export default function CurrentRateCard({ data, isLoading }: CurrentRateCardProp
                   Kurs jual berlaku (redeem)
                 </dt>
                 <dd
-                  className="mt-1 font-mono text-sm font-medium"
+                  className="tabular-nums mt-1 text-sm font-medium"
                   aria-label="kurs jual berlaku"
                 >
                   {formatRate(data.effectiveSellRate)}

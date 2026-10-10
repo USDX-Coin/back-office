@@ -57,19 +57,21 @@ export function addAmounts(a: string, b: string): string | null {
   return centsToAmount(left + right)
 }
 
-/** `"1250000.4"` → `"1,250,000.40"`. Grouping is done on the string, never via Number. */
+/** `"1250000.4"` → `"1.250.000,40"`. Grouping is done on the string, never via Number. */
 export function formatAmountDecimal(raw: string): string {
   const cents = parseAmountToCents(raw)
   if (cents === null) return raw
   const text = centsToAmount(cents)
   const negative = text.startsWith('-')
   const [whole = '0', fraction = '00'] = (negative ? text.slice(1) : text).split('.')
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${negative ? '-' : ''}${grouped}.${fraction}`
+  // Ejaan Indonesia (audit font 10 Okt 2026): titik ribuan, koma desimal —
+  // sama dengan seluruh angka lain di back-office.
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `${negative ? '-' : ''}${grouped},${fraction}`
 }
 
 /**
- * Display form of a ledger amount with its currency, e.g. `"100,667.41 USD"`.
+ * Display form of a ledger amount with its currency, e.g. `"100.667,41 USD"`.
  * An unparseable amount is shown verbatim next to the currency instead of being
  * silently turned into a number that is not what the backend sent.
  */

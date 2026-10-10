@@ -65,7 +65,7 @@ export default function LedgerHistoryTable({
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Riwayat buku besar
         </CardTitle>
       </CardHeader>
@@ -121,19 +121,19 @@ export default function LedgerHistoryTable({
                         key={entry.id}
                         className="border-border hover:bg-muted/40"
                       >
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-sm">
+                        <TableCell className="tabular-nums whitespace-nowrap px-4 py-2.5 text-sm">
                           {formatOccurredAt(entry.occurredAt)}
                         </TableCell>
                         <TableCell className="px-4 py-2.5">
                           <Badge
                             variant="outline"
-                            className="font-mono text-2xs font-medium"
+                            className="tabular-nums text-label font-medium"
                           >
                             {ledgerEntryTypeLabel(entry.entryType)}
                           </Badge>
                         </TableCell>
                         <TableCell
-                          className={`whitespace-nowrap px-4 py-2.5 text-right font-mono text-sm font-medium ${
+                          className={`whitespace-nowrap px-4 py-2.5 text-right text-sm font-medium tabular-nums ${
                             negative ? 'text-destructive' : 'text-foreground'
                           }`}
                         >

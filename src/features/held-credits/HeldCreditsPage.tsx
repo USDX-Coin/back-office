@@ -29,6 +29,7 @@ import {
   sourcePill,
 } from './labels'
 import type { HeldCreditListItem } from './types'
+import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 
 const PAGE_SIZE = 10
 
@@ -78,7 +79,7 @@ export default function HeldCreditsPage() {
       // dicocokkan ops dengan rekening koran bank.
       size: 192,
       cell: ({ row }) => (
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatWibDateTime(row.original.receivedAt)}
         </span>
       ),
@@ -95,12 +96,12 @@ export default function HeldCreditsPage() {
             <StatusPill cfg={sourcePill(source)} className="w-fit" />
             {heldReason && (
               <span
-                className="truncate text-2xs text-muted-foreground"
+                className="truncate text-xs text-muted-foreground"
                 // Terjemahan DAN kode mesinnya, dua-duanya. Kode itu yang
                 // dikutip ke tim teknis; terjemahannya yang dibaca operator.
                 title={label ? `${label} (${heldReason})` : heldReason}
               >
-                {label ?? <span className="font-mono">{heldReason}</span>}
+                {label ?? UNKNOWN_CODE_LABEL}
               </span>
             )}
           </div>
@@ -118,14 +119,14 @@ export default function HeldCreditsPage() {
             {/* `title` memuat nominal UTUH: kolomnya cukup untuk nominal sehari-hari,
                 tapi uang masuk yang luar biasa besar tidak boleh terbaca separuh. */}
             <span
-              className="truncate font-mono text-sm font-semibold tabular-nums"
+              className="truncate text-sm font-semibold tabular-nums"
               title={receivedAmountLabel(row.original)}
             >
               {receivedAmountLabel(row.original)}
             </span>
             {gap && (
               <span
-                className="truncate font-mono text-2xs tabular-nums text-warning"
+                className="truncate text-xs tabular-nums text-warning"
                 title={gap}
               >
                 {gap}
@@ -144,7 +145,7 @@ export default function HeldCreditsPage() {
       cell: ({ row }) => {
         const { senderName, accountFromTo } = row.original
         if (!senderName && !accountFromTo) {
-          return <span className="text-2xs text-muted-foreground">tidak disebut penyedia</span>
+          return <span className="text-xs text-muted-foreground">tidak disebut penyedia</span>
         }
         return (
           <div className="flex min-w-0 flex-col">
@@ -155,7 +156,7 @@ export default function HeldCreditsPage() {
             )}
             {accountFromTo && (
               <span
-                className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+                className="truncate text-xs tabular-nums text-muted-foreground"
                 title={accountFromTo}
               >
                 {accountFromTo}
@@ -176,7 +177,7 @@ export default function HeldCreditsPage() {
         const order = row.original.order
         if (!order) {
           return (
-            <span className="text-2xs text-muted-foreground">Tidak ada — ops menentukan</span>
+            <span className="text-xs text-muted-foreground">Tidak ada — ops menentukan</span>
           )
         }
         return (
@@ -184,7 +185,7 @@ export default function HeldCreditsPage() {
             <span className="truncate text-xs">{order.customerName}</span>
             {order.expectedAmountIdr && (
               <span
-                className="truncate font-mono text-2xs tabular-nums text-muted-foreground"
+                className="truncate text-xs tabular-nums text-muted-foreground"
                 title={`Ditagihkan ${formatIdrExact(order.expectedAmountIdr)}`}
               >
                 ditagihkan {formatIdrExact(order.expectedAmountIdr)}
@@ -199,7 +200,7 @@ export default function HeldCreditsPage() {
       header: 'Umur antrean',
       size: 112,
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums">
+        <span className="text-xs tabular-nums">
           {formatCreditAge(row.original.receivedAt)}
         </span>
       ),
@@ -215,7 +216,7 @@ export default function HeldCreditsPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail kredit ${receivedAmountLabel(row.original)}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -237,7 +238,7 @@ export default function HeldCreditsPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

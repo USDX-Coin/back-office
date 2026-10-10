@@ -9,7 +9,7 @@ function TabCount({ status }: { status: SafeTxStatus }) {
   const { data } = useMultisigStatusCount(status)
   if (data == null || data === 0) return null
   return (
-    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 font-mono text-2xs tabular-nums text-foreground">
+    <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-label tabular-nums text-foreground">
       {data}
     </span>
   )

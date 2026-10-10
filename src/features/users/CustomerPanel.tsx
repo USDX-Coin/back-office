@@ -121,7 +121,7 @@ export default function CustomerPanel({ user, canManage, onClose, onEdit }: Prop
         }
       }}
     >
-      <p className="font-display text-lg font-semibold">Hapus {name}?</p>
+      <p className="text-section">Hapus {name}?</p>
       <p className="text-sm text-muted-foreground">
         Akunnya dihapus dari back-office. Setelah ini {name} tidak bisa masuk, mint, maupun redeem, dan tidak ada
         tombol untuk mengembalikannya.

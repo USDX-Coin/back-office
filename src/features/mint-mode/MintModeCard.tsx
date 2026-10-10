@@ -116,7 +116,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Mode Mint
         </CardTitle>
       </CardHeader>
@@ -223,7 +223,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
                     {allowedEmails.map((email) => (
                       <li
                         key={email}
-                        className="rounded-full border border-border bg-muted/60 px-2.5 py-0.5 font-mono text-xs"
+                        className="tabular-nums rounded-full border border-border bg-muted/60 px-2.5 py-0.5 text-xs"
                       >
                         {email}
                       </li>

@@ -364,7 +364,7 @@ export default function SanctionListImportDialog({
                 {/* Bukan tanggal impor: yang ditanyakan pemeriksa adalah "nasabah
                     ini lolos memakai daftar terbitan tanggal berapa". Tanggal
                     impor dicatat server sendiri. */}
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Tanggal terbit menurut PENERBITNYA — bukan tanggal hari ini.
                   Inilah yang menjawab “lolos pakai daftar tanggal berapa”.
                 </p>
@@ -393,7 +393,7 @@ export default function SanctionListImportDialog({
                   {fileName || 'Pilih berkas CSV…'}
                 </label>
                 <FieldError message={errors.file} />
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Kolom wajib: <code className="font-mono">full_name</code>. Kolom
                   opsional: {SANCTION_CSV_KNOWN_COLUMNS.slice(1).join(', ')}. Alias
                   dipisah tanda <code className="font-mono">|</code>.

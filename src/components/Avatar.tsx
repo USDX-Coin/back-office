@@ -13,10 +13,10 @@ const AVATAR_PALETTE = [
 ]
 
 const SIZE_CLASSES = {
-  sm: 'h-6 w-6 text-2xs',
+  sm: 'h-6 w-6 text-xs',
   md: 'h-8 w-8 text-xs',
   lg: 'h-10 w-10 text-sm',
-  xl: 'h-16 w-16 text-lg',
+  xl: 'h-16 w-16 text-dialog-title',
 } as const
 
 export interface AvatarProps {

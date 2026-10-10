@@ -36,7 +36,7 @@ export function FormSection({
     <section className={cn('border-t border-border px-6 py-6 first:border-t-0', className)}>
       {(title || description) && (
         <div className="mb-5">
-          {title && <h3 className="text-base font-semibold text-foreground">{title}</h3>}
+          {title && <h3 className="text-section text-foreground">{title}</h3>}
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
       )}

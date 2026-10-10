@@ -148,7 +148,7 @@ export default function ScreeningSubjectPanel({
           )}
 
           {total > rows.length && (
-            <p className="text-2xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Menampilkan {rows.length} jejak terbaru dari {total}.
             </p>
           )}
@@ -190,7 +190,7 @@ function ListCoverageRow({
           <Badge className={cn('font-normal', style?.className)}>
             {SCREENING_OUTCOME_LABELS[latest.outcome]}
           </Badge>
-          <p className="text-2xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {/* Versi daftarnya, bukan hanya "lolos": inilah yang menjawab
                 "lolos pakai daftar terbitan tanggal berapa" saat diperiksa. */}
             {latest.listPublishedAt

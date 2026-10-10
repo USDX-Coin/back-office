@@ -104,7 +104,7 @@ export default function ApprovalsPage() {
       cell: ({ row }) => (
         <TableCellText
           value={formatWibDateTime(row.original.proposedAt)}
-          className="font-mono text-2xs tabular-nums text-muted-foreground"
+          className="text-xs tabular-nums text-muted-foreground"
         />
       ),
     },
@@ -125,11 +125,11 @@ export default function ApprovalsPage() {
       size: 184,
       cell: ({ row }) =>
         row.original.amountIdr === null ? (
-          <span className="text-2xs text-muted-foreground">Tanpa nominal</span>
+          <span className="text-xs text-muted-foreground">Tanpa nominal</span>
         ) : (
           <TableCellText
             value={amountLabel(row.original.amountIdr)}
-            className="font-mono text-sm font-semibold tabular-nums"
+            className="text-sm font-semibold tabular-nums"
           />
         ),
     },
@@ -141,7 +141,7 @@ export default function ApprovalsPage() {
         <div className="flex min-w-0 flex-col gap-1">
           <StatusPill cfg={statusPill(row.original.status)} className="w-fit" />
           {isApprovedButNotExecuted(row.original) && (
-            <span className="inline-flex items-center gap-1 text-2xs font-medium text-destructive">
+            <span className="inline-flex items-center gap-1 text-label font-medium text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" />
               Belum berjalan
             </span>
@@ -165,15 +165,15 @@ export default function ApprovalsPage() {
       size: 128,
       cell: ({ row }) => {
         if (row.original.status !== 'PENDING') {
-          return <span className="text-2xs text-muted-foreground">—</span>
+          return <span className="text-xs text-muted-foreground">—</span>
         }
         const soon = isExpirySoon(row.original.expiresAt)
         return (
           <span
             className={
               soon
-                ? 'font-mono text-xs font-medium tabular-nums text-warning'
-                : 'font-mono text-xs tabular-nums'
+                ? 'text-xs font-medium tabular-nums text-warning'
+                : 'text-xs tabular-nums'
             }
             title={formatWibDateTime(row.original.expiresAt)}
           >
@@ -193,7 +193,7 @@ export default function ApprovalsPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka usulan ${actionTypeLabel(row.original.actionType)}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -215,7 +215,7 @@ export default function ApprovalsPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>

@@ -200,7 +200,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
               </Select>
               <FieldError message={errors.operation} />
               {meta && (
-                <p className="mt-1.5 text-2xs text-muted-foreground">{meta.description}</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">{meta.description}</p>
               )}
             </div>
 
@@ -246,7 +246,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.chainId ?? ''}
                     onChange={(e) => setField('chainId', e.target.value)}
                     placeholder="137"
-                    className="mt-1.5 font-mono text-sm"
+                    className="tabular-nums mt-1.5 text-sm"
                   />
                   <FieldError message={errors.chainId} />
                 </div>
@@ -255,7 +255,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     <Label htmlFor="propose-supported" className="text-sm font-medium">
                       Didukung
                     </Label>
-                    <p className="text-2xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Nyalakan (on) atau matikan (off) mint/burn lintas jaringan untuk chain ini.
                     </p>
                   </div>
@@ -279,7 +279,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                         setRoleMode((m) => (m === 'name' ? 'raw' : 'name'))
                         setField('role', '')
                       }}
-                      className="text-2xs text-primary hover:underline"
+                      className="text-xs text-primary hover:underline"
                     >
                       {roleMode === 'name' ? 'Isi bytes32 mentah' : 'Pilih role yang dikenal'}
                     </button>
@@ -324,7 +324,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
 
             {kind === 'timelock' && (
               <div className="space-y-3 rounded-md border border-outline-variant/20 bg-surface-container-low/30 p-3">
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Tingkat lanjut — parameter mentah TimelockController (mis. upgrade UUPS). Nilainya
                   harus tepat; payload yang keliru akan ditolak kontrak saat dieksekusi.
                 </p>
@@ -347,7 +347,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.value ?? ''}
                     onChange={(e) => setField('value', e.target.value)}
                     placeholder="0"
-                    className="mt-1.5 font-mono text-sm"
+                    className="tabular-nums mt-1.5 text-sm"
                   />
                   <FieldError message={errors.value} />
                 </div>
@@ -393,7 +393,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     value={values.delay ?? ''}
                     onChange={(e) => setField('delay', e.target.value)}
                     placeholder="86400"
-                    className="mt-1.5 font-mono text-sm"
+                    className="tabular-nums mt-1.5 text-sm"
                   />
                   <FieldError message={errors.delay} />
                 </div>
@@ -418,7 +418,7 @@ export default function ProposeModal({ open, onOpenChange }: ProposeModalProps) 
                     {queueOccupied.blockingRequestId ? (
                       <>
                         {' '}
-                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-2xs">
+                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-label">
                           {shortRequestId(queueOccupied.blockingRequestId)}
                         </code>
                       </>

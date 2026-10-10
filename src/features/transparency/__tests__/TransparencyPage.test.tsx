@@ -188,7 +188,7 @@ describe('TransparencyPage @integration', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent(
-          '987,654.32'
+          '987.654,32'
         )
       })
       expect(screen.getByLabelText(/^saldo cadangan$/i)).not.toHaveTextContent('25.00')
@@ -210,7 +210,7 @@ describe('TransparencyPage @integration', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent(
-          '2,500,000.00'
+          '2.500.000,00'
         )
       })
       expect(screen.getByText(/menampilkan 1–1 dari 120 entri/i)).toBeInTheDocument()
@@ -220,7 +220,7 @@ describe('TransparencyPage @integration', () => {
     // screen shows that zero, because on this screen zero is a fact. (The
     // PUBLIC payload sends `reserve: null` instead, so it never reads as a
     // claim of "zero reserves" — that distinction lives in the backend.)
-    test('shows a real 0.00 when the ledger is empty', async () => {
+    test('shows a real 0,00 when the ledger is empty', async () => {
       server.use(
         http.get('/api/v1/transparency/ledger', () =>
           ledgerResponse({
@@ -235,7 +235,7 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
       expect(await screen.findByText(/belum ada entri buku besar/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('0.00')
+      expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('0,00')
     })
   })
 
@@ -267,7 +267,7 @@ describe('TransparencyPage @integration', () => {
       const table = await screen.findByRole('table', { name: /entri buku besar cadangan/i })
       expect(within(table).getByText('30 Jul 2026')).toBeInTheDocument()
       expect(within(table).getByText('Koreksi')).toBeInTheDocument()
-      expect(within(table).getByText('-1,250.75 USD')).toBeInTheDocument()
+      expect(within(table).getByText('-1.250,75 USD')).toBeInTheDocument()
       expect(
         within(table).getByText('Koreksi pencatatan ganda pada setoran sebelumnya')
       ).toBeInTheDocument()
@@ -350,7 +350,7 @@ describe('TransparencyPage @integration', () => {
       // It reaches the confirmation instead of being rejected.
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
-        '-1,250.75 USD'
+        '-1.250,75 USD'
       )
     })
 
@@ -472,13 +472,13 @@ describe('TransparencyPage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByText(/usdx\.co\.id/i)).toBeInTheDocument()
       expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
-        '2,500.50 USD'
+        '2.500,50 USD'
       )
       // 50000.00 + 2500.50, computed exactly — this is the number the public
       // will see the moment Confirm is pressed.
       expect(
         within(dialog).getByLabelText(/saldo cadangan baru/i)
-      ).toHaveTextContent('52,500.50 USD')
+      ).toHaveTextContent('52.500,50 USD')
       expect(
         within(dialog).getByText(/satu-satunya perbaikan adalah mencatat entri baru/i)
       ).toBeInTheDocument()
@@ -506,7 +506,7 @@ describe('TransparencyPage @integration', () => {
       const dialog = await screen.findByRole('dialog')
       expect(
         within(dialog).getByLabelText(/saldo cadangan baru/i)
-      ).toHaveTextContent('99,416.66 USD')
+      ).toHaveTextContent('99.416,66 USD')
     })
 
     test('cancelling closes the dialog and still sends nothing', async () => {
@@ -612,7 +612,7 @@ describe('TransparencyPage @integration', () => {
 
       // Seeded ledger balance: 50000.00 + 2500.50 - 1250.75 = 51249.75
       await waitFor(() => {
-        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51,249.75')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51.249,75')
       })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '1000.25' })
@@ -621,7 +621,7 @@ describe('TransparencyPage @integration', () => {
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('52,250.00')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('52.250,00')
       })
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
       expect(screen.getByLabelText(/^alasan$/i)).toHaveValue('')
@@ -852,7 +852,7 @@ describe('TransparencyPage @integration', () => {
       await waitFor(() => {
         expect(
           within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
-        ).toHaveTextContent('150,667.41')
+        ).toHaveTextContent('150.667,41')
       })
       expect(
         within(dialog).getByText(/tutup dialog ini, jangan coba lagi/i)
@@ -1027,7 +1027,7 @@ describe('TransparencyPage @integration', () => {
       await waitFor(() => {
         expect(
           within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
-        ).toHaveTextContent('1,050,000.00')
+        ).toHaveTextContent('1.050.000,00')
       })
       expect(counters.reads).toBeGreaterThan(readsBefore)
 
@@ -1058,8 +1058,8 @@ describe('TransparencyPage @integration', () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
       await screen.findByRole('button', { name: /periksa lalu catat/i })
 
-      // The contract's own scenario: 1,000,000.00 was mistyped and DID land,
-      // the operator corrects it to 100,000.00, and the same key comes back 409.
+      // The contract's own scenario: 1.000.000,00 was mistyped and DID land,
+      // the operator corrects it to 100.000,00, and the same key comes back 409.
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
       const dialog = await screen.findByRole('dialog')
@@ -1069,7 +1069,7 @@ describe('TransparencyPage @integration', () => {
       await waitFor(() => {
         expect(
           within(dialog).getByLabelText(/saldo cadangan hasil baca ulang/i)
-        ).toHaveTextContent('1,050,000.00')
+        ).toHaveTextContent('1.050.000,00')
       })
 
       // Not one sentence may say, or hint, that this entry made it in.
@@ -2113,7 +2113,7 @@ describe('TransparencyPage @integration', () => {
 
       // Reading stays available — that is the point of the DEVELOPER role here.
       await waitFor(() => {
-        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51,249.75')
+        expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('51.249,75')
       })
     })
   })
@@ -2617,7 +2617,7 @@ describe('/api/v1/transparency/* contract', () => {
       expect(first.status).toBe(201)
       const before = await ledgerState()
 
-      // The operator spotted a typo — 1,000,000.00 should have been 100,000.00 —
+      // The operator spotted a typo — 1.000.000,00 should have been 100.000,00 —
       // and fixed it before pressing again. Same key: the contract mints one per
       // form-filling attempt.
       const second = await send(entryBody({ amount: '100000.00', idempotencyKey: key }))

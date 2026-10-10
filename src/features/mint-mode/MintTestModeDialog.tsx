@@ -231,7 +231,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                   setErrors((prev) => ({ ...prev, durationHours: '' }))
                 }}
                 placeholder="2"
-                className="font-mono"
+                className="tabular-nums"
               />
               <p className="text-xs text-muted-foreground">
                 Maksimal {MINT_TEST_MODE_MAX_HOURS} jam.
@@ -252,7 +252,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                   }}
                   onKeyDown={handleEmailKeyDown}
                   placeholder="orang@usdx.io"
-                  className="font-mono"
+                  className="tabular-nums"
                 />
                 <Button type="button" variant="outline" onClick={addEmail}>
                   Tambah
@@ -271,7 +271,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                   {allowedEmails.map((email) => (
                     <li
                       key={email}
-                      className="flex items-center gap-1 rounded-full border border-border bg-muted/60 py-0.5 pl-2.5 pr-1 font-mono text-xs"
+                      className="tabular-nums flex items-center gap-1 rounded-full border border-border bg-muted/60 py-0.5 pl-2.5 pr-1 text-xs"
                     >
                       {email}
                       <button
@@ -352,7 +352,7 @@ export default function MintTestModeDialog({ open, onOpenChange }: Props) {
                 {serverDetails.length > 0 ? (
                   <ul
                     data-testid="mint-mode-error-details"
-                    className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono"
+                    className="tabular-nums mt-1.5 list-disc space-y-0.5 pl-4"
                   >
                     {serverDetails.map((item) => (
                       <li key={item}>{item}</li>

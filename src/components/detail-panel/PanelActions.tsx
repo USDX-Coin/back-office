@@ -81,7 +81,7 @@ export default function PanelActions({ primary, more = [], hint, override, bare 
           }
         }}
       >
-        <p className="font-display text-lg font-semibold">Sudah benar semua?</p>
+        <p className="text-section">Sudah benar semua?</p>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {c.items.map((it, i) => (
             <li key={i}>{it}</li>

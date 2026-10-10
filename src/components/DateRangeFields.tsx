@@ -96,7 +96,7 @@ export default function DateRangeFields({
           required
         />
         {showProblem && (
-          <p id={messageId} role="alert" className="text-2xs text-destructive">
+          <p id={messageId} role="alert" className="text-xs text-destructive">
             {problemMessage(verdict.problem!, rules)}
           </p>
         )}

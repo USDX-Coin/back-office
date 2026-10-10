@@ -22,7 +22,7 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">
+        <CardTitle className="text-section">
           Saldo cadangan
         </CardTitle>
       </CardHeader>
@@ -33,10 +33,10 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
           <>
             <p
               aria-label="Saldo cadangan"
-              className="font-mono text-xl font-semibold leading-none tracking-tight text-foreground"
+              className="text-money-lg tabular-nums text-foreground"
             >
               {formatAmountDecimal(balance.amount)}{' '}
-              <span className="text-lg font-medium text-muted-foreground">
+              <span className="text-base font-medium text-muted-foreground">
                 {balance.currency}
               </span>
             </p>
@@ -49,7 +49,7 @@ export default function ReserveBalanceCard({ balance, isLoading }: Props) {
           <>
             <p
               aria-label="Saldo cadangan"
-              className="font-mono text-xl font-semibold leading-none tracking-tight text-muted-foreground"
+              className="text-money-lg tabular-nums text-muted-foreground"
             >
               —
             </p>

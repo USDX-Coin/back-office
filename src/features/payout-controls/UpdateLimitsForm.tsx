@@ -124,7 +124,7 @@ export default function UpdateLimitsForm({ current }: Props) {
     return (
       <Card className="rounded-md shadow-none dark:border-0">
         <CardHeader>
-          <CardTitle className="text-base font-semibold tracking-tight">
+          <CardTitle className="text-section">
             Usulan terkirim — plafon belum berubah
           </CardTitle>
         </CardHeader>
@@ -165,7 +165,7 @@ export default function UpdateLimitsForm({ current }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-base font-semibold tracking-tight">Ubah plafon</CardTitle>
+        <CardTitle className="text-section">Ubah plafon</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-xs leading-relaxed text-muted-foreground">
@@ -186,7 +186,7 @@ export default function UpdateLimitsForm({ current }: Props) {
               onChange={(e) => set({ maxPerTxIdr: e.target.value })}
               onBlur={() => setTouched(true)}
               placeholder="kosong = bawaan server"
-              className="mt-1.5 font-mono tabular-nums"
+              className="mt-1.5 tabular-nums"
               inputMode="decimal"
             />
             <FieldError message={showErrors.maxPerTxIdr} />
@@ -201,7 +201,7 @@ export default function UpdateLimitsForm({ current }: Props) {
               onChange={(e) => set({ maxDailyIdr: e.target.value })}
               onBlur={() => setTouched(true)}
               placeholder="kosong = bawaan server"
-              className="mt-1.5 font-mono tabular-nums"
+              className="mt-1.5 tabular-nums"
               inputMode="decimal"
             />
             <FieldError message={showErrors.maxDailyIdr} />
@@ -216,7 +216,7 @@ export default function UpdateLimitsForm({ current }: Props) {
               onChange={(e) => set({ maxBatchPerTick: e.target.value })}
               onBlur={() => setTouched(true)}
               placeholder="kosong = bawaan server"
-              className="mt-1.5 font-mono tabular-nums"
+              className="mt-1.5 tabular-nums"
               inputMode="numeric"
             />
             <FieldError message={showErrors.maxBatchPerTick} />
@@ -236,7 +236,7 @@ export default function UpdateLimitsForm({ current }: Props) {
                 <span className={line.changed ? 'font-medium' : 'text-muted-foreground'}>
                   {line.label}
                 </span>
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   <span className={line.changed ? 'text-muted-foreground line-through' : 'text-muted-foreground'}>
                     {line.before}
                   </span>
@@ -269,7 +269,7 @@ export default function UpdateLimitsForm({ current }: Props) {
             className="mt-1.5"
             placeholder="Mis. plafon harian dinaikkan untuk antrean pencairan akhir bulan, disepakati rapat ops 19/09"
           />
-          <p className="mt-1 text-2xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Dibaca orang kedua sebelum ia memutuskan, lalu tersimpan permanen bersama nilai
             sebelum dan sesudahnya.
           </p>

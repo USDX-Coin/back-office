@@ -29,6 +29,7 @@ import {
 } from './labels'
 import { periksaRentangWib, pesanRentang, wibDayEndIso, wibDayStartIso } from '@/lib/wibRange'
 import type { ActivityLogEntry, ActivityOutcome } from './types'
+import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 
 const PAGE_SIZE = 20
 
@@ -134,7 +135,7 @@ export default function ActivityLogPage() {
       // untuk bisa dikutip.
       size: 192,
       cell: ({ row }) => (
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {formatWibDateTime(row.original.createdAt)}
         </span>
       ),
@@ -161,11 +162,11 @@ export default function ActivityLogPage() {
         return (
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-xs" title={resourceType}>
-              {label ?? <span className="font-mono">{resourceType}</span>}
+              {label ?? UNKNOWN_CODE_LABEL}
             </span>
             {resourceId && (
               <span
-                className="truncate font-mono text-2xs text-muted-foreground"
+                className="truncate font-mono text-xs text-muted-foreground"
                 title={resourceId}
               >
                 {shortId(resourceId)}
@@ -186,7 +187,7 @@ export default function ActivityLogPage() {
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={outcomePill(outcome)} className="w-fit" />
             {meaning && (
-              <span className="truncate text-2xs text-muted-foreground" title={meaning}>
+              <span className="truncate text-xs text-muted-foreground" title={meaning}>
                 {meaning}
               </span>
             )}
@@ -205,10 +206,10 @@ export default function ActivityLogPage() {
         row.original.ipAddress ? (
           <TableCellText
             value={row.original.ipAddress}
-            className="font-mono text-2xs tabular-nums"
+            className="text-xs tabular-nums"
           />
         ) : (
-          <span className="text-2xs text-muted-foreground">tidak tercatat</span>
+          <span className="text-xs text-muted-foreground">tidak tercatat</span>
         ),
     },
     {
@@ -222,7 +223,7 @@ export default function ActivityLogPage() {
             e.stopPropagation()
             setSelected(row.original)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-2xs font-medium text-primary transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail jejak ${row.original.action}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -294,7 +295,7 @@ export default function ActivityLogPage() {
               <p
                 role="alert"
                 data-testid="jejak-audit-rentang-bermasalah"
-                className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-2xs leading-relaxed text-destructive"
+                className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-label leading-relaxed text-destructive"
               >
                 Rentang tanggal di tautan ini tidak dipakai — {pesanRentang(rentangUrl.masalah)} Yang
                 ditampilkan di bawah adalah jejak TANPA saringan tanggal, bukan hasil pencarian
@@ -357,7 +358,7 @@ function ActorCell({
   if (entry.actorUserId) {
     return (
       <div className="flex min-w-0 flex-col">
-        <span className="truncate font-mono text-2xs" title={entry.actorUserId}>
+        <span className="truncate font-mono text-xs" title={entry.actorUserId}>
           {shortId(entry.actorUserId)}
         </span>
         <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -368,7 +369,7 @@ function ActorCell({
   }
   // Login yang gagal sebelum identitas diketahui tidak punya aktor sama sekali;
   // email percobaannya ada di metadata, ter-mask.
-  return <span className="text-2xs text-muted-foreground">tanpa aktor</span>
+  return <span className="text-xs text-muted-foreground">tanpa aktor</span>
 }
 
 function ActionCell({ action }: { action: string }) {
@@ -384,18 +385,19 @@ function ActionCell({ action }: { action: string }) {
   }
   const route = parseRouteAction(action)
   if (!route) {
-    // Kode yang belum punya terjemahan dirender APA ADANYA — tidak ditebak dan
-    // tidak disembunyikan.
+    // Kode yang belum punya terjemahan TIDAK ditebak artinya dan tidak dicetak
+    // mentah (audit font 10 Okt 2026): "Aksi belum dikenali", kodenya di
+    // `title` dan di Detail teknis modal.
     return (
-      <span className="truncate font-mono text-xs" title={action}>
-        {action}
+      <span className="truncate text-xs" title={action}>
+        Aksi {UNKNOWN_CODE_LABEL.toLowerCase()}
       </span>
     )
   }
   return (
     <div className="flex min-w-0 flex-col">
       <span className="truncate text-xs">{methodVerb(route.method)}</span>
-      <span className="truncate font-mono text-2xs text-muted-foreground" title={action}>
+      <span className="truncate font-mono text-xs text-muted-foreground" title={action}>
         {route.path}
       </span>
     </div>
@@ -426,7 +428,7 @@ function ExactFilterChips({
       {chips.map((chip) => (
         <span
           key={chip.key}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 font-mono text-2xs text-foreground"
+          className="tabular-nums inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-label text-foreground"
         >
           <span className="truncate">{chip.label}</span>
           <button
@@ -446,7 +448,7 @@ function ExactFilterChips({
 /** Batas jujur layar ini, ditulis di tempat orang memakai saringannya. */
 function ScopeNote({ directoryFailed }: { directoryFailed: boolean }) {
   return (
-    <p className="flex items-start gap-2 text-2xs leading-relaxed text-muted-foreground">
+    <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         Urutan tetap terbaru dulu. Rentang tanggal dihitung dalam <strong className="font-medium">WIB</strong>{' '}

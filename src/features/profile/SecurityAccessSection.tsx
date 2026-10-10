@@ -11,7 +11,7 @@ import {
 export default function SecurityAccessSection() {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium">Keamanan akun</h3>
+      <h3 className="text-section">Keamanan akun</h3>
 
       <TooltipProvider>
         <div className="flex items-center justify-between rounded-xl bg-muted/40 p-4">
