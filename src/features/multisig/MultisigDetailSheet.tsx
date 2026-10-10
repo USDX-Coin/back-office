@@ -38,7 +38,7 @@ import { errorMessage } from '@/lib/errorMessages'
 import { DataField, DataSection } from '@/components/DataList'
 import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
-// ─── small presentational helpers (mirror OrderDetailModal) ──────────────────
+// ─── small presentational helpers (mirror transactions/OrderDetailContent) ──────────────────
 
 async function copy(value: string, label: string) {
   try {

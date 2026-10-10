@@ -5,9 +5,10 @@ import { seedAuthenticatedSession } from './support/auth'
 // Fase 2 redesain — Transaksi gabungan (⚠️ DRAF SOT PR #50,
 // `backoffice-transactions.yaml`). Menggantikan spec USDX-206 / USDX-245 /
 // USDX-547 milik layar "User Transaction" yang sudah diganti: rincian order
-// (fee/spread/pendapatan, rekening redeem, blok partner) kini dibuka dari panel
-// lewat "Lihat rincian order", dan aksi antrean asal dijalankan dari footer
-// modal detail (pola modal tengah, 10 Okt 2026 — panel samping dihapus).
+// (fee/spread/pendapatan, rekening redeem, blok partner) kini seksi "Rincian
+// order" yang bisa dibuka-tutup DI DALAM modal Transaksi (bukan modal kedua
+// yang bertumpuk) dan baru ditarik saat seksi dibuka; aksi antrean asal
+// dijalankan dari footer modal detail (pola modal tengah, 10 Okt 2026).
 
 const REASON = 'Ditransfer treasury lewat BNIdirect'
 const ORDERS = [...seedOrders(), ...seedRedeemOrders(), ...seedPartnerOrders()]
@@ -49,31 +50,50 @@ test.describe('Transaksi gabungan @e2e', () => {
       await expect(page.getByTestId('nav-badge-transactions')).toHaveText('1')
     })
 
-    test('order detail (fee / spread / revenue) opens from the modal', async ({ page }) => {
+    test('order detail (fee / spread / revenue) opens INSIDE the modal — never a second dialog', async ({ page }) => {
       await installMockApi(page, { orders: ORDERS })
       await seedAuthenticatedSession(page)
       await page.goto('/transactions/ord_completed?tab=semua')
       const modal = page.getByTestId('transaction-modal')
       await expect(modal.getByText('Tidak ada yang perlu dilakukan')).toBeVisible({ timeout: 15000 })
-      await modal.getByRole('button', { name: 'Lihat rincian order' }).click()
-      const dialog = page.getByRole('dialog').last()
-      await expect(dialog.getByText(/^kurs & spread$/i)).toBeVisible()
-      await expect(dialog.getByText(/^perkiraan pendapatan$/i)).toBeVisible()
+      await expect(modal.getByRole('button', { name: 'Lihat rincian order' })).toHaveCount(0)
+      const toggle = modal.getByRole('button', { name: /rincian order/i })
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await toggle.click()
+      await expect(modal.getByText(/^kurs & spread$/i)).toBeVisible()
+      await expect(modal.getByText(/^perkiraan pendapatan$/i)).toBeVisible()
+      await expect(page.getByRole('dialog')).toHaveCount(1)
       // Read-only order: no approve/reject anywhere.
-      await expect(dialog.getByRole('button', { name: /approve|setujui/i })).toHaveCount(0)
+      await expect(modal.getByRole('button', { name: /approve|setujui/i })).toHaveCount(0)
     })
   })
 
   test.describe('negative', () => {
-    test('the list never shows a bank account number; it appears only in the order detail', async ({ page }) => {
+    test('the bank account is not fetched until "Rincian order" is opened, and ↑/↓ closes it again', async ({ page }) => {
       await installMockApi(page, { orders: ORDERS })
       await seedAuthenticatedSession(page)
+      const detailCalls: string[] = []
+      page.on('request', (r) => {
+        const m = new URL(r.url()).pathname.match(/^\/api\/v1\/orders\/([^/]+)$/)
+        if (m && r.method() === 'GET') detailCalls.push(m[1]!)
+      })
       await page.goto('/transactions/ord_redeem_done?tab=semua')
       const modal = page.getByTestId('transaction-modal')
       await expect(modal.getByText('Tidak ada yang perlu dilakukan')).toBeVisible({ timeout: 15000 })
+      await page.waitForTimeout(300)
+      expect(detailCalls).toEqual([])
       await expect(page.getByText('1234563271')).toHaveCount(0)
-      await modal.getByRole('button', { name: 'Lihat rincian order' }).click()
-      await expect(page.getByRole('dialog').last().getByText('1234563271')).toBeVisible()
+
+      await modal.getByRole('button', { name: /rincian order/i }).click()
+      await expect(modal.getByText('1234563271')).toBeVisible()
+      await expect(page.getByRole('dialog')).toHaveCount(1)
+      expect(detailCalls).toEqual(['ord_redeem_done'])
+
+      await page.keyboard.press('ArrowDown')
+      await expect(modal.getByRole('button', { name: /rincian order/i })).toHaveAttribute('aria-expanded', 'false')
+      await expect(page.getByText('1234563271')).toHaveCount(0)
+      await page.waitForTimeout(300)
+      expect(detailCalls).toEqual(['ord_redeem_done'])
     })
   })
 
@@ -110,6 +130,33 @@ test.describe('Transaksi gabungan @e2e', () => {
   })
 
   test.describe('edge cases', () => {
+    test('the modal stays centred for the whole open animation (no jump from the top-left)', async ({ page }) => {
+      await installMockApi(page, { orders: ORDERS })
+      await seedAuthenticatedSession(page)
+      await page.goto('/transactions?tab=semua')
+      const vp = page.viewportSize()!
+      await page.getByRole('button', { name: /^Buka (Mint|Redeem|Uang masuk)/ }).first().click({ timeout: 15000 })
+      // Ambil pusat kotak dialog di setiap frame selama ±400 ms animasi masuk.
+      const centres = await page.evaluate(async () => {
+        const out: { x: number; y: number }[] = []
+        const t0 = performance.now()
+        while (performance.now() - t0 < 400) {
+          const el = document.querySelector('[data-testid="transaction-modal"]')
+          if (el) {
+            const r = el.getBoundingClientRect()
+            out.push({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+          }
+          await new Promise((res) => requestAnimationFrame(res))
+        }
+        return out
+      })
+      expect(centres.length).toBeGreaterThan(3)
+      for (const c of centres) {
+        expect(Math.abs(c.x - vp.width / 2)).toBeLessThan(4)
+        expect(Math.abs(c.y - vp.height / 2)).toBeLessThan(16)
+      }
+    })
+
     test('Pemilik=Partner narrows to partner orders', async ({ page }) => {
       await installMockApi(page, { orders: ORDERS })
       await seedAuthenticatedSession(page)

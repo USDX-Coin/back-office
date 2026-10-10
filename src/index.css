@@ -442,13 +442,19 @@ h1, h2, h3, h4, h5, h6 {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+/* Dialog: pemusatan TETAP milik kelas `translate-x/y-[-50%]` di
+   `ui/dialog.tsx`, yang di Tailwind v4 menulis properti CSS `translate` —
+   terpisah dari `transform`. Keyframes ini hanya boleh menulis `transform`
+   RELATIF (geser kecil + skala). Dulu ia juga menulis `translate(-50%, -50%)`:
+   keduanya dijumlahkan peramban, jadi dialog muncul di pojok kiri atas lalu
+   loncat ke tengah begitu animasinya selesai (PM 10 Okt 2026). */
 @keyframes usdx-panel-masuk {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(0.975); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(0.975); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes usdx-panel-keluar {
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to   { opacity: 0; transform: translate(-50%, -48%) scale(0.975); }
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(8px) scale(0.975); }
 }
 @keyframes usdx-pop-masuk {
   from { opacity: 0; transform: scale(0.96); }

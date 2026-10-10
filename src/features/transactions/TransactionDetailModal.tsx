@@ -19,9 +19,9 @@ import {
 import { allowedResolveActions, RESOLVE_ACTION_LABELS } from '@/lib/payoutFailures'
 import { heldReasonLabel } from '@/features/held-credits/labels'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import type { BackofficeTransactionAction, BackofficeTransactionItem } from '@/lib/types'
-import OrderDetailModal from './OrderDetailModal'
+import OrderDetailSection from './OrderDetailSection'
 import TransactionActionDialog, { type TransactionIntent } from './TransactionActionDialog'
 
 /**
@@ -30,8 +30,10 @@ import TransactionActionDialog, { type TransactionIntent } from './TransactionAc
  *
  * Isinya dibangun dari BARIS LIST saja — list tidak membawa rekening, jadi
  * membuka modal tidak membaca PII apa pun. Rincian lengkap order (biaya,
- * spread, rekening tujuan redeem) dan detail antrean asal baru ditarik saat
- * operator menekan tombolnya.
+ * spread, rekening tujuan redeem) ada di seksi "Rincian order" yang bisa
+ * dibuka-tutup DI DALAM modal ini (tidak ada modal kedua yang bertumpuk) dan
+ * baru ditarik saat seksi itu dibuka; detail antrean asal baru ditarik saat
+ * tombol aksinya ditekan. Ganti baris (↑/↓) menutup seksinya lagi.
  */
 export default function TransactionDetailModal({
   row,
@@ -50,8 +52,9 @@ export default function TransactionDetailModal({
   const { user } = useAuth()
   const [intent, setIntent] = useState<TransactionIntent | null>(null)
   const [orderOpen, setOrderOpen] = useState(false)
-  // Pindah baris (↑/↓) tanpa menutup modal: niat aksi & rincian order milik
-  // baris sebelumnya dibuang SAAT RENDER, bukan di efek setelah paint.
+  // Pindah baris (↑/↓) tanpa menutup modal: niat aksi & seksi rincian order
+  // milik baris sebelumnya dibuang SAAT RENDER, bukan di efek setelah paint —
+  // jadi baris berikutnya tidak pernah menarik rincian (rekening) sendiri.
   const [shownId, setShownId] = useState(missingId)
   if (shownId !== missingId) {
     setShownId(missingId)
@@ -61,23 +64,17 @@ export default function TransactionDetailModal({
 
   if (!row) {
     return (
-      <>
-        <RecordModal
-          open
-          onClose={onClose}
-          title={loading ? 'Memuat transaksi…' : 'Transaksi tidak ada di daftar ini'}
-          nav={nav}
-          actions={
-            !loading && (
-              <Button variant="outline" onClick={() => setOrderOpen(true)}>
-                Lihat rincian order
-              </Button>
-            )
-          }
-        >
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Memuat…</p>
-          ) : (
+      <RecordModal
+        open
+        onClose={onClose}
+        title={loading ? 'Memuat transaksi…' : 'Transaksi tidak ada di daftar ini'}
+        nav={nav}
+        testId="transaction-modal"
+      >
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Memuat…</p>
+        ) : (
+          <>
             <div className="space-y-2 text-sm">
               <p>
                 Transaksi ini tidak ada di daftar yang sedang ditampilkan — mungkin sudah ditindaklanjuti, atau
@@ -85,13 +82,13 @@ export default function TransactionDetailModal({
               </p>
               <p className="text-muted-foreground">
                 Pindah ke tab Semua, hapus saringan, atau cari nomor order-nya. Kalau ini order mint/redeem, rinciannya
-                tetap bisa dibuka.
+                tetap bisa dibuka di bawah.
               </p>
             </div>
-          )}
-        </RecordModal>
-        <OrderDetailModal orderId={orderOpen ? missingId : null} open={orderOpen} onOpenChange={setOrderOpen} />
-      </>
+            <OrderDetailSection orderId={missingId} open={orderOpen} onOpenChange={setOrderOpen} />
+          </>
+        )}
+      </RecordModal>
     )
   }
 
@@ -109,18 +106,13 @@ export default function TransactionDetailModal({
         open
         onClose={onClose}
         title={transactionPartyName(row)}
-        subtitle={[transactionKindLabel(row.kind), amountLine, formatWibDateTime(row.occurredAt)]
+        subtitle={[transactionKindLabel(row.kind), amountLine, formatDate(row.occurredAt)]
           .filter(Boolean)
           .join(' · ')}
         nav={nav}
         testId="transaction-modal"
         actions={
           <>
-            {isOrder && (
-              <Button variant="outline" onClick={() => setOrderOpen(true)}>
-                Lihat rincian order
-              </Button>
-            )}
             {/* Aksi utama paling kanan; aksi berisiko (tolak/tutup) berbingkai merah. */}
             {[...buttons].reverse().map((b) => (
               <Button
@@ -166,7 +158,7 @@ export default function TransactionDetailModal({
             </DataField>
           )}
           <DataField label={isIncoming ? 'Masuk' : 'Dibuat'}>
-            <span className="tabular-nums">{formatWibDateTime(row.occurredAt)}</span>
+            <span className="tabular-nums">{formatDate(row.occurredAt)}</span>
           </DataField>
         </DataSection>
 
@@ -185,13 +177,15 @@ export default function TransactionDetailModal({
           </DataSection>
         )}
 
+        {isOrder && <OrderDetailSection orderId={row.id} open={orderOpen} onOpenChange={setOrderOpen} />}
+
         {row.actions.length > 0 && (
           <DataSection title={row.actions.length > 1 ? `Tindakan terbuka · ${row.actions.length}` : 'Tindakan terbuka'}>
             {row.actions.map((a) => (
               <DataField key={`${a.actionType}-${a.refId}`} label={actionLabel(a.actionType)}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span className="text-muted-foreground">
-                    Sejak <span className="tabular-nums">{formatWibDateTime(a.since)}</span>
+                    Sejak <span className="tabular-nums">{formatDate(a.since)}</span>
                     {a.heldReason ? ` · ${heldReasonLabel(a.heldReason) ?? a.heldReason}` : ''}
                     {isMonitorOnly(a) ? ' · dipantau' : ''}
                   </span>
@@ -217,7 +211,6 @@ export default function TransactionDetailModal({
       </RecordModal>
 
       <TransactionActionDialog intent={intent} onClose={() => setIntent(null)} />
-      {isOrder && <OrderDetailModal orderId={orderOpen ? row.id : null} open={orderOpen} onOpenChange={setOrderOpen} />}
     </>
   )
 }

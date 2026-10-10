@@ -12,6 +12,7 @@ import TransactionsPage from '../TransactionsPage'
 beforeAll(() => server.listen())
 afterEach(() => {
   server.resetHandlers()
+  server.events.removeAllListeners()
   resetMockData()
 })
 afterAll(() => server.close())
@@ -163,8 +164,8 @@ describe('TransactionsPage (SOT PR #50)', () => {
     test('should open the modal straight from a deep link', async () => {
       stubList([REDEEM_ACTION], [])
       renderPage(`/transactions/${REDEEM_ACTION.id}`)
-      const modal = await screen.findByTestId('transaction-modal')
-      expect(within(modal).getByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Budi Santoso' })).toBeInTheDocument()
+      expect(screen.getByTestId('transaction-modal')).toBeInTheDocument()
     })
 
     test('should send kind + needsAction + q to the contract endpoint', async () => {
@@ -253,6 +254,139 @@ describe('TransactionsPage (SOT PR #50)', () => {
       await waitFor(() =>
         expect(screen.queryAllByRole('button', { name: /^Buka Redeem/, hidden: true }).length).toBe(before - 1),
       )
+    })
+  })
+})
+
+/** Catat setiap `GET /api/v1/orders/{id}` (rincian order) yang benar-benar keluar. */
+function trackOrderDetailRequests() {
+  const ids: string[] = []
+  server.events.on('request:start', ({ request }) => {
+    const m = new URL(request.url).pathname.match(/^\/api\/v1\/orders\/([^/]+)$/)
+    if (m && request.method === 'GET') ids.push(decodeURIComponent(m[1]!))
+  })
+  return ids
+}
+
+describe('TransactionDetailModal — seksi Rincian order', () => {
+  describe('positive', () => {
+    test('should render order details INSIDE the transaction modal — never a second dialog', async () => {
+      const user = userEvent.setup()
+      const requests = trackOrderDetailRequests()
+      renderPage('/transactions?tab=semua&jenis=MINT')
+      const rows = await screen.findAllByRole('button', { name: /^Buka Mint/ })
+      await user.click(rows[0]!)
+      const modal = await screen.findByTestId('transaction-modal')
+      expect(within(modal).queryByRole('button', { name: /lihat rincian order/i })).not.toBeInTheDocument()
+
+      const toggle = within(modal).getByRole('button', { name: /rincian order/i })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(await within(modal).findByText(/^perkiraan pendapatan$/i)).toBeInTheDocument()
+      expect(within(modal).getByText(/^kurs & spread$/i)).toBeInTheDocument()
+      expect(within(modal).getByTestId('order-detail-content')).toBeInTheDocument()
+      // Satu-satunya dialog di layar adalah modal Transaksi.
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+      expect(requests).toHaveLength(1)
+    })
+
+    test('should show the full redeem bank destination only after the section is opened', async () => {
+      const user = userEvent.setup()
+      renderPage('/transactions?tab=semua&jenis=REDEEM')
+      const rows = await screen.findAllByRole('button', { name: /^Buka Redeem/ })
+      // Baris riwayat (bawah) = order redeem dengan rincian di mock.
+      await user.click(rows.at(-2)!)
+      const modal = await screen.findByTestId('transaction-modal')
+      expect(within(modal).queryByText('Nomor rekening')).not.toBeInTheDocument()
+      await user.click(within(modal).getByRole('button', { name: /rincian order/i }))
+      expect(await within(modal).findByText('Bank tujuan')).toBeInTheDocument()
+      expect(within(modal).getByText('Nomor rekening')).toBeInTheDocument()
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    })
+  })
+
+  describe('negative', () => {
+    test('should NOT fetch the order detail when the modal opens, only when the section opens', async () => {
+      const user = userEvent.setup()
+      const requests = trackOrderDetailRequests()
+      renderPage('/transactions?tab=semua&jenis=REDEEM')
+      const rows = await screen.findAllByRole('button', { name: /^Buka Redeem/ })
+      // Baris riwayat (bawah) = order redeem dengan rincian di mock.
+      await user.click(rows.at(-2)!)
+      const modal = await screen.findByTestId('transaction-modal')
+      // Beri kesempatan query mana pun untuk berangkat.
+      await new Promise((r) => setTimeout(r, 50))
+      expect(requests).toHaveLength(0)
+      await user.click(within(modal).getByRole('button', { name: /rincian order/i }))
+      await within(modal).findByText('Bank tujuan')
+      expect(requests).toHaveLength(1)
+    })
+
+    test('should close the section again on ↑/↓ and not fetch the next row', async () => {
+      const user = userEvent.setup()
+      const requests = trackOrderDetailRequests()
+      renderPage('/transactions?tab=semua&jenis=REDEEM')
+      const rows = await screen.findAllByRole('button', { name: /^Buka Redeem/ })
+      // Baris riwayat (bawah) = order redeem dengan rincian di mock.
+      await user.click(rows.at(-2)!)
+      const modal = await screen.findByTestId('transaction-modal')
+      await user.click(within(modal).getByRole('button', { name: /rincian order/i }))
+      await within(modal).findByText('Bank tujuan')
+      expect(requests).toHaveLength(1)
+
+      const before = within(modal).getByTestId('record-modal-position').textContent
+      await user.click(within(modal).getByRole('button', { name: 'Berikutnya' }))
+      await waitFor(() => expect(within(modal).getByTestId('record-modal-position').textContent).not.toBe(before))
+      expect(within(modal).getByRole('button', { name: /rincian order/i })).toHaveAttribute('aria-expanded', 'false')
+      expect(within(modal).queryByText('Bank tujuan')).not.toBeInTheDocument()
+      await new Promise((r) => setTimeout(r, 50))
+      expect(requests).toHaveLength(1)
+    })
+
+    test('should show an error with a retry inside the section when the detail fails', async () => {
+      const user = userEvent.setup()
+      let calls = 0
+      server.use(
+        http.get('/api/v1/orders/:id', () => {
+          calls += 1
+          return HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+            { status: 500 },
+          )
+        }),
+      )
+      renderPage('/transactions?tab=semua&jenis=MINT')
+      const rows = await screen.findAllByRole('button', { name: /^Buka Mint/ })
+      await user.click(rows[0]!)
+      const modal = await screen.findByTestId('transaction-modal')
+      await user.click(within(modal).getByRole('button', { name: /rincian order/i }))
+      const retry = await within(modal).findByRole('button', { name: 'Coba lagi' }, { timeout: 5000 })
+      const before = calls
+      await user.click(retry)
+      await waitFor(() => expect(calls).toBeGreaterThan(before))
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should not offer the section for incoming money without an order', async () => {
+      const user = userEvent.setup()
+      stubList([INCOMING], [])
+      renderPage()
+      const modal = await openRow(user, /^Buka Uang masuk ANDI WIJAYA/)
+      expect(within(modal).queryByRole('button', { name: /rincian order/i })).not.toBeInTheDocument()
+    })
+
+    test('should show times in the table format (Inter, tabular), not the ISO-like WIB stamp', async () => {
+      const user = userEvent.setup()
+      stubList([REDEEM_ACTION], [])
+      renderPage()
+      const modal = await openRow(user, /^Buka Redeem Budi Santoso/)
+      expect(within(modal).queryByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} WIB/)).not.toBeInTheDocument()
+      const created = within(modal).getByText('Dibuat').nextElementSibling!
+      expect(created.querySelector('.tabular-nums')).not.toBeNull()
+      expect(created.querySelector('.font-mono')).toBeNull()
     })
   })
 })
