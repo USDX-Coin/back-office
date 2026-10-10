@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, ShieldCheck } from 'lucide-react'
+import { Plus, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { ToneChip } from '@/components/ToneChip'
+import { rowNav } from '@/components/record-modal/rowNav'
+import StaffDetailModal from './StaffDetailModal'
 import DataTable from '@/components/DataTable'
 import { TableCellText } from '@/components/ui/table'
 import { formatShortDate } from '@/lib/format'
@@ -48,6 +50,12 @@ export default function StaffPage() {
 
   const list = useStaff({ page: 1, limit: FETCH_LIMIT })
   const allStaff = useMemo<Staff[]>(() => list.data?.data ?? [], [list.data])
+
+  // Klik baris = modal detail di `?staf=:id` (sapu bersih 11 Okt 2026; pola
+  // `?nasabah=` Daftar Nasabah). Ubah / Nonaktifkan ada di footer modal itu.
+  const selectedId = params.searchParams.get('staf')
+  const openRow = (id: string, replace = false) => params.updateParams({ staf: id }, { replace })
+  const closeRow = () => params.updateParams({ staf: null }, { replace: true })
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
@@ -139,13 +147,8 @@ export default function StaffPage() {
       header: 'Status',
       enableSorting: true,
       cell: ({ row }) =>
-        row.original.isActive ? (
-          <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 dark:text-success">
-            Aktif
-          </Badge>
-        ) : (
-          <Badge variant="secondary">Nonaktif</Badge>
-        ),
+        // Satu gaya status (ToneChip), bukan Badge berwarna lokal.
+        row.original.isActive ? <ToneChip tone="ok">Aktif</ToneChip> : <ToneChip tone="wait">Nonaktif</ToneChip>,
     },
     {
       accessorKey: 'createdAt',
@@ -163,53 +166,6 @@ export default function StaffPage() {
         />
       ),
     },
-    ...(canManage
-      ? [
-          {
-            id: 'actions',
-            size: 96,
-            header: '',
-            enableSorting: false,
-            cell: ({ row }: { row: { original: Staff } }) => {
-              const isSelf = user?.id === row.original.id
-              return (
-                <div className="flex items-center justify-end gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEdit(row.original)}
-                    aria-label={`Ubah ${row.original.name}`}
-                    className="h-7 w-7"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openDeactivate(row.original)}
-                    aria-label={
-                      isSelf
-                        ? 'Akun sendiri tidak bisa dinonaktifkan'
-                        : `Nonaktifkan ${row.original.name}`
-                    }
-                    disabled={isSelf || !row.original.isActive}
-                    title={
-                      isSelf
-                        ? 'Akun sendiri tidak bisa dinonaktifkan'
-                        : !row.original.isActive
-                          ? 'Sudah nonaktif'
-                          : undefined
-                    }
-                    className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:text-muted-foreground"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )
-            },
-          } satisfies ColumnDef<Staff>,
-        ]
-      : []),
   ]
 
   const noDataState = (
@@ -304,7 +260,23 @@ export default function StaffPage() {
         }
         hasFilters={Boolean(search || role || activeFilter)}
         emptyState={noDataState}
+        onRowClick={(row) => openRow(row.id)}
+        rowAriaLabel={(row) => `Buka staf ${row.name}`}
       />
+
+      {selectedId && (
+        <StaffDetailModal
+          staff={allStaff.find((s) => s.id === selectedId) ?? null}
+          missingId={selectedId}
+          loading={list.isLoading}
+          canManage={canManage}
+          selfId={user?.id ?? null}
+          onClose={closeRow}
+          onEdit={openEdit}
+          onDeactivate={openDeactivate}
+          nav={rowNav(pageRows, (r) => r.id, selectedId, (id) => openRow(id, true))}
+        />
+      )}
 
       <StaffModal
         open={modalOpen}

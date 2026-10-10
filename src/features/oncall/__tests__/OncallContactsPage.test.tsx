@@ -33,6 +33,16 @@ function loginAsStaffRole(email: string) {
   return staff
 }
 
+/** Klik baris → modal detail → Lainnya → Hapus kontak → konfirmasi di dialog hapus. */
+async function deleteViaModal(user: ReturnType<typeof userEvent.setup>, rowName: RegExp | string) {
+  await user.click(screen.getByRole('button', { name: rowName }))
+  const modal = within(await screen.findByTestId('oncall-modal'))
+  await user.click(modal.getByRole('button', { name: 'Lainnya' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Hapus kontak' }))
+  const dialog = within(await screen.findByRole('dialog', { name: /hapus/i }))
+  await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
+}
+
 async function openAddForm(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: /tambah kontak/i }))
   return within(await screen.findByRole('dialog'))
@@ -68,14 +78,18 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /ubah budi santoso/i }))
-      const dialog = within(await screen.findByRole('dialog'))
+      // Klik baris = modal detail (sapu bersih 11 Okt 2026); Ubah di footer.
+      await user.click(screen.getByRole('button', { name: /buka kontak budi santoso/i }))
+      await user.click(within(await screen.findByTestId('oncall-modal')).getByRole('button', { name: 'Ubah kontak' }))
+      const dialog = within(await screen.findByRole('dialog', { name: /ubah kontak/i }))
       const roleInput = dialog.getByLabelText(/^jabatan$/i)
       await user.clear(roleInput)
       await user.type(roleInput, 'Head of Ops')
       await user.click(dialog.getByRole('button', { name: /simpan kontak/i }))
 
-      expect(await screen.findByText(/head of ops/i)).toBeInTheDocument()
+      // Modal detail tetap terbuka dan ikut berubah, jadi jabatan baru muncul
+      // di tabel DAN di modal.
+      expect((await screen.findAllByText(/head of ops/i)).length).toBeGreaterThan(0)
     })
 
     test('should delete a contact after confirmation', async () => {
@@ -83,9 +97,7 @@ describe('OncallContactsPage @integration', () => {
       renderWithProviders(<OncallContactsPage />, { authenticated: true })
       await screen.findByText('Budi Santoso')
 
-      await user.click(screen.getByRole('button', { name: /hapus budi santoso/i }))
-      const dialog = within(await screen.findByRole('dialog'))
-      await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
+      await deleteViaModal(user, /buka kontak budi santoso/i)
 
       await waitFor(() => {
         expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
@@ -180,11 +192,9 @@ describe('OncallContactsPage @integration', () => {
       // bukan tabel kosong yang tak berkata apa-apa. Ini cermin perilaku
       // backend: nol kontak = alarm tetap terkirim, dengan peringatan.
       for (;;) {
-        const buttons = screen.queryAllByRole('button', { name: /^hapus /i })
-        if (buttons.length === 0) break
-        await user.click(buttons[0]!)
-        const dialog = within(await screen.findByRole('dialog'))
-        await user.click(dialog.getByRole('button', { name: /^hapus kontak$/i }))
+        const rows = screen.queryAllByRole('button', { name: /^buka kontak /i })
+        if (rows.length === 0) break
+        await deleteViaModal(user, rows[0]!.getAttribute('aria-label')!)
         await waitFor(() => {
           expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
         })

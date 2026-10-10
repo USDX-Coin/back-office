@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, PhoneCall } from 'lucide-react'
+import { Plus, PhoneCall } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { ToneChip } from '@/components/ToneChip'
+import { rowNav } from '@/components/record-modal/rowNav'
+import OncallContactDetailModal from './OncallContactDetailModal'
 import DataTable from '@/components/DataTable'
 import { TableCellText } from '@/components/ui/table'
 import { useDataTableParams } from '@/components/useDataTableParams'
@@ -45,6 +47,10 @@ export default function OncallContactsPage() {
 
   // Paginasi lewat URL search param, konsisten dengan tabel lain di repo ini.
   const params = useDataTableParams()
+  // Klik baris = modal detail di `?kontak=:id` (sapu bersih 11 Okt 2026).
+  const selectedId = params.searchParams.get('kontak')
+  const openRow = (id: string, replace = false) => params.updateParams({ kontak: id }, { replace })
+  const closeRow = () => params.updateParams({ kontak: null }, { replace: true })
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeContact, setActiveContact] = useState<OncallContact | null>(null)
@@ -147,7 +153,7 @@ export default function OncallContactsPage() {
       header: 'Kanal',
       enableSorting: false,
       cell: ({ row }) => (
-        <Badge variant="secondary">{formatChannel(row.original.channel)}</Badge>
+        <ToneChip tone="wait">{formatChannel(row.original.channel)}</ToneChip>
       ),
     },
     {
@@ -170,38 +176,10 @@ export default function OncallContactsPage() {
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.categories.map((category) => (
-            <Badge key={category} variant="outline" className="text-xs">
+            <ToneChip key={category} tone="wait">
               {formatCategory(category)}
-            </Badge>
+            </ToneChip>
           ))}
-        </div>
-      ),
-    },
-    {
-      id: 'actions',
-      size: 96,
-      header: '',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row.original)}
-            aria-label={`Ubah ${row.original.name}`}
-            className="h-7 w-7"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => openDelete(row.original)}
-            aria-label={`Hapus ${row.original.name}`}
-            className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
         </div>
       ),
     },
@@ -259,6 +237,8 @@ export default function OncallContactsPage() {
         // Popover Kolom belum dipasang di sini karena kolomnya belum punya
         // konfigurasi visibilitas — menambahkannya pekerjaan tersendiri.
         filterToolbar={<></>}
+        onRowClick={(row) => openRow(row.id)}
+        rowAriaLabel={(row) => `Buka kontak ${row.name}`}
         emptyState={
           <TableEmptyState
             mode="no-data"
@@ -277,6 +257,19 @@ export default function OncallContactsPage() {
         }
       />
 
+      {selectedId && (
+        <OncallContactDetailModal
+          contact={contacts.find((c) => c.id === selectedId) ?? null}
+          missingId={selectedId}
+          loading={list.isLoading}
+          orphaned={orphanedBy(contacts.find((c) => c.id === selectedId) ?? null)}
+          onClose={closeRow}
+          onEdit={openEdit}
+          onDelete={openDelete}
+          nav={rowNav(pageRows, (r) => r.id, selectedId, (id) => openRow(id, true))}
+        />
+      )}
+
       <OncallContactModal
         open={modalOpen}
         onOpenChange={setModalOpen}
@@ -288,6 +281,7 @@ export default function OncallContactsPage() {
         onOpenChange={setDeleteOpen}
         contact={activeContact}
         orphanedCategories={orphanedBy(activeContact)}
+        onDeleted={closeRow}
       />
     </div>
   )

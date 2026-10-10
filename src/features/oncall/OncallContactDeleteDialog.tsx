@@ -19,6 +19,8 @@ interface OncallContactDeleteDialogProps {
   contact: OncallContact | null
   /** Kategori yang akan kehilangan penanggung jawab TERAKHIR-nya kalau ini dihapus. */
   orphanedCategories: string[]
+  /** Dipanggil setelah hapus berhasil (mis. menutup modal detail kontak itu). */
+  onDeleted?: () => void
 }
 
 /**
@@ -36,6 +38,7 @@ export default function OncallContactDeleteDialog({
   onOpenChange,
   contact,
   orphanedCategories,
+  onDeleted,
 }: OncallContactDeleteDialogProps) {
   const remove = useDeleteOncallContact()
 
@@ -45,6 +48,7 @@ export default function OncallContactDeleteDialog({
       await remove.mutateAsync(contact.id)
       toast.success(`${contact.name} dihapus dari daftar kontak darurat`)
       onOpenChange(false)
+      onDeleted?.()
     } catch (err) {
       toast.error(
         errorMessage(err, 'Kontak darurat gagal dihapus. Coba lagi.'),

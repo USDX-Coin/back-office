@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/table'
 import TablePagination from '@/components/table/TablePagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { ToneChip } from '@/components/ToneChip'
 import { Skeleton } from '@/components/ui/skeleton'
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
@@ -148,12 +148,7 @@ export default function LedgerHistoryTable({
                           {formatOccurredAt(entry.occurredAt)}
                         </TableCell>
                         <TableCell className="px-4 py-2.5">
-                          <Badge
-                            variant="outline"
-                            className="tabular-nums text-label font-medium"
-                          >
-                            {ledgerEntryTypeLabel(entry.entryType)}
-                          </Badge>
+                          <ToneChip tone="wait">{ledgerEntryTypeLabel(entry.entryType)}</ToneChip>
                         </TableCell>
                         <TableCell
                           className={`whitespace-nowrap px-4 py-2.5 text-right text-sm font-medium tabular-nums ${
