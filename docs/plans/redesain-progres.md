@@ -300,3 +300,50 @@ format waktu WIP `08b853b` dituntaskan di `3d451aa` + `c0fc798` + commit penutup
 **Cek akhir**: lint 0 error (3 warning lama) · unit 2454/2454 · build hijau · e2e 158/158 ·
 `pnpm audit --audit-level=high` exit 0. Screenshot light 1440 + 390 di
 `scratchpad/ops-fokus/` (modal multisig, OTC, Transaksi, Jejak Audit, Pencairan Bermasalah).
+
+## Semua detail = modal tengah (GO PM 11 Okt) — SELESAI (11 Okt 2026)
+
+Aturan: **klik baris di mana pun = modal tengah** (pola `RecordModal`), tabel tetap
+lebar penuh, tidak ada lagi panel samping. Footer sticky (↑/↓ + "n dari N" di kiri,
+aksi di kanan), URL sendiri per modal, info on-chain di Detail teknis.
+
+- **Verifikasi** — klik baris langsung membuka `KycDetailModal` / `KybDetailModal` di
+  `/verifikasi/:jenis/:id` (`/kyc/:id`, `/kyb/:id` tetap membuka modal yang sama).
+  Kedua modal kini `RecordModal`: judul = nama, subjudul "Berkas verifikasi … · diajukan
+  …", kotak status dalam kalimat (dulu hanya di panel), seksi Riwayat (diajukan +
+  pengajuan ke-n, diperiksa oleh siapa + keputusannya), Detail teknis (ID berkas + salin,
+  ID nasabah, status sistem), footer Lainnya ("Lihat profil nasabah" → `/users/:id`,
+  pindah halaman, modal ikut tertutup) · Tolak (alasan ≥ 10, tidak berubah) · Setujui.
+  ↑/↓ mengikuti urutan tabel (menunggu dulu, lalu riwayat), terkunci selama mutasi/unggahan.
+  Audit PII tidak berubah: detail berkas tetap hanya ditarik saat modal berkas itu
+  terbuka (satu tarikan per berkas yang dibuka; tabel nol). `VerificationDetailPanel` dihapus.
+- **Daftar Nasabah** — klik baris membuka `CustomerModal` di **`/users?nasabah=:id`**
+  (bukan `/users/:id`, karena rute itu halaman profil lengkap yang tetap ada; `?pilih=`
+  lama masih dibaca). Isi dari baris `GET /api/v1/users` saja: status + kalimat, nama,
+  email, telepon, jenis, status KYC, aktivasi, wallet ringkas + salin, riwayat akun,
+  catatan, Detail teknis. Footer: Buka profil lengkap + tombol utama sesuai ringkasan +
+  Lainnya (Lihat transaksinya · Ubah data nasabah · Hapus nasabah, konfirmasi inline di
+  footer). **Transaksi terakhir TIDAK ditampilkan**: endpoint daftar tidak membawanya, dan
+  `GET /users/:id` (yang punya `recentRequests`) mendekripsi telepon + menulis
+  `pii_access_audit` — tidak ditarik per modal. `CustomerPanel` dihapus.
+- **Jejak Audit** — modal punya URL `/jejak-audit/:id` (+ saringan & halaman di query,
+  gerbang ADMIN sama) dan ↑/↓. Endpoint hanya punya `list`, jadi tautan menemukan barisnya
+  hanya bila saringan/halamannya sama; kalau tidak, modal mengatakannya terus terang.
+- **Komponen** — `components/detail-panel/` dihapus (DetailPanel, SplitView, tone).
+  `ToneChip` → `components/ToneChip.tsx`, `GroupedTable` → `components/table/`,
+  `PanelActions` → `components/record-modal/RecordActions.tsx` (khusus footer modal).
+  Grep: tidak ada lagi layout tabel + panel; `Sheet` hanya dipakai `MobileNavDrawer`.
+- Nama nasabah di modal Transaksi/OTC: tidak ada tautan profil sebelumnya, jadi tidak
+  diubah. "Lihat profil nasabah" di modal berkas = pindah halaman, tidak bertumpuk.
+
+**Cek akhir**: lint 0 error (3 warning lama) · unit 123 berkas / 2457 tes · build hijau ·
+e2e 164/164 (`E2E_PORT=5199`) · `pnpm audit --audit-level=high` exit 0. Screenshot
+light 1440 + 390 (+ dark 1440 modal nasabah & berkas) di `scratchpad/semua-modal/`.
+
+Belum beres / catatan:
+- Mock e2e tidak punya `GET /api/v1/kyb/:id`, jadi screenshot modal KYB menampilkan
+  "Fitur ini belum aktif di server" (artefak mock; pola modalnya tetap terlihat).
+- ↑/↓ hanya di halaman tabel yang sedang dimuat (sama dengan Transaksi).
+- Di ponsel, footer modal nasabah: tombol utama + Lainnya sebaris, "Buka profil
+  lengkap" penuh di bawahnya (gaya `RecordActions` yang sama dengan OTC); modal berkas
+  menumpuk tiga tombol penuh. Berfungsi, tapi bentuknya belum seragam.
