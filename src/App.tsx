@@ -265,6 +265,9 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER']} />,
             children: [
               { path: '/transparency', element: <TransparencyPage /> },
+              // Modal detail baris (11 Okt 2026): entri buku besar & laporan atestasi.
+              { path: '/transparency/entri/:id', element: <TransparencyPage /> },
+              { path: '/transparency/laporan/:id', element: <TransparencyPage /> },
               // ⚠️ DRAF SOT PR #50 — GET Admin + Developer (read-only), ubah Admin.
               { path: '/settings/payment-methods', element: <PaymentMethodsPage /> },
             ],

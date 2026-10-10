@@ -71,6 +71,38 @@ function setDate(value: string) {
   fireEvent.change(screen.getByLabelText(/^tanggal kejadian$/i), { target: { value } })
 }
 
+/**
+ * 11 Okt 2026: form catat entri tinggal di dialog yang dibuka dari tombol
+ * "Catat entri" di kartu saldo. Dibuka hanya kalau belum terbuka.
+ */
+/**
+ * Dialog KONFIRMASI (catat entri / terbitkan laporan / cabut laporan). Sejak
+ * form-nya sendiri juga dialog, `getByRole('dialog')` polos bisa menunjuk dialog
+ * form — jadi dicari lewat judulnya.
+ */
+const CONFIRM_DIALOG = { name: /ke cadangan publik\?|ke publik\?|cabut laporan atestasi/i }
+
+async function openEntryForm(user: ReturnType<typeof userEvent.setup>) {
+  if (screen.queryByRole('dialog', { name: /catat entri buku besar/i })) return
+  await user.click(await screen.findByRole('button', { name: /^catat entri$/i }))
+  await screen.findByRole('dialog', { name: /catat entri buku besar/i })
+}
+
+/** Form unggah laporan atestasi juga di dialog (tombol "Unggah laporan"). */
+async function openUploadForm(user: ReturnType<typeof userEvent.setup>) {
+  if (screen.queryByRole('dialog', { name: /unggah laporan atestasi/i })) return
+  await user.click(await screen.findByRole('button', { name: /^unggah laporan$/i }))
+  await screen.findByRole('dialog', { name: /unggah laporan atestasi/i })
+}
+
+/** Buka modal detail laporan dari barisnya, lalu Lainnya → Cabut laporan. */
+async function startRevoke(user: ReturnType<typeof userEvent.setup>, title: RegExp | string) {
+  await user.click(await screen.findByRole('button', { name: typeof title === 'string' ? `Buka laporan ${title}` : title }))
+  const modal = await screen.findByTestId('attestation-modal')
+  await user.click(within(modal).getByRole('button', { name: /^lainnya/i }))
+  await user.click(await screen.findByRole('menuitem', { name: /cabut laporan/i }))
+}
+
 async function fillEntryForm(
   user: ReturnType<typeof userEvent.setup>,
   {
@@ -80,6 +112,7 @@ async function fillEntryForm(
     occurredAt = '2026-07-23',
   }: Partial<{ type: string; amount: string; reason: string; occurredAt: string }> = {}
 ) {
+  await openEntryForm(user)
   // Radio dicari lewat NILAI wire-nya — labelnya kini kata ("Saldo awal").
   if (type) await user.click(screen.getAllByRole('radio').find((r) => (r as HTMLInputElement).value === type)!)
   if (amount) await user.type(screen.getByLabelText(/^nominal$/i), amount)
@@ -305,7 +338,7 @@ describe('TransparencyPage @integration', () => {
 
     test('the ledger offers no edit or delete affordance — it is append-only', async () => {
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       expect(screen.queryByRole('button', { name: /^edit/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /^delete/i })).not.toBeInTheDocument()
@@ -317,19 +350,19 @@ describe('TransparencyPage @integration', () => {
     test('blocks a zero amount (LEDGER_AMOUNT_ZERO)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '0' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       expect(await screen.findByText(/nominal tidak boleh nol/i)).toBeInTheDocument()
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
     })
 
     test('blocks an amount with more than 2 decimals (LEDGER_AMOUNT_INVALID)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100.123' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
@@ -342,13 +375,13 @@ describe('TransparencyPage @integration', () => {
     test('ALLOWS a negative amount — that is how a correction is recorded', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       // It reaches the confirmation instead of being rejected.
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
         '-1.250,75 USD'
       )
@@ -357,7 +390,7 @@ describe('TransparencyPage @integration', () => {
     test('blocks a reason under 10 characters (LEDGER_REASON_TOO_SHORT)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { reason: 'setoran' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
@@ -366,13 +399,13 @@ describe('TransparencyPage @integration', () => {
       // also mentions the 10-character minimum.
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(/alasan minimal 10 karakter/i)
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
     })
 
     test('blocks an event date in the future (LEDGER_DATE_IN_FUTURE)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       const tomorrow = new Date(Date.now() + 7 * 60 * 60 * 1000 + 86_400_000)
         .toISOString()
@@ -388,18 +421,18 @@ describe('TransparencyPage @integration', () => {
     test("accepts today's WIB date, which is what an operator files at 01:00 WIB", async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { occurredAt: wibTodayInput() })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(await screen.findByRole('dialog', CONFIRM_DIALOG)).toBeInTheDocument()
     })
 
     test('requires an entry type (LEDGER_TYPE_NOT_ALLOWED)', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { type: '' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
@@ -408,8 +441,9 @@ describe('TransparencyPage @integration', () => {
     })
 
     test('offers only Saldo awal (SEED) and Koreksi (ADJUSTMENT) — the reserved automatic types are not selectable', async () => {
+      const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await openEntryForm(user)
 
       expect(screen.getAllByRole('radio')).toHaveLength(2)
       // Label dibaca operator; nilai wire-nya tetap SEED / ADJUSTMENT.
@@ -422,7 +456,9 @@ describe('TransparencyPage @integration', () => {
     })
 
     test('the currency field is fixed to USD (LEDGER_CURRENCY_UNSUPPORTED)', async () => {
+      const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await openEntryForm(user)
       const currency = await screen.findByLabelText(/^mata uang$/i)
       expect(currency).toHaveValue('USD')
       expect(currency).toHaveAttribute('readonly')
@@ -440,12 +476,12 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      await screen.findByRole('dialog')
+      await screen.findByRole('dialog', CONFIRM_DIALOG)
       // The load-bearing assertion: opening the dialog must not be a write.
       expect(postCalls).toBe(0)
     })
@@ -464,12 +500,12 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '2500.50' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       expect(within(dialog).getByText(/usdx\.co\.id/i)).toBeInTheDocument()
       expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
         '2.500,50 USD'
@@ -498,12 +534,12 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       expect(
         within(dialog).getByLabelText(/saldo cadangan baru/i)
       ).toHaveTextContent('99.416,66 USD')
@@ -519,15 +555,15 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /batal/i }))
 
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
       expect(postCalls).toBe(0)
     })
@@ -545,7 +581,7 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, {
         type: 'SEED',
@@ -554,7 +590,7 @@ describe('TransparencyPage @integration', () => {
         occurredAt: '2026-07-23',
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
@@ -587,11 +623,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // Both actions are disabled, so a double-click cannot file the entry twice.
@@ -601,14 +637,14 @@ describe('TransparencyPage @integration', () => {
 
       release?.()
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
     })
 
     test('a successful entry clears the form and refreshes the balance', async () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       // Seeded ledger balance: 50000.00 + 2500.50 - 1250.75 = 51249.75
       await waitFor(() => {
@@ -617,12 +653,17 @@ describe('TransparencyPage @integration', () => {
 
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '1000.25' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => {
         expect(screen.getByLabelText(/^saldo cadangan$/i)).toHaveTextContent('52.250,00')
       })
+      // Dialog form tertutup setelah tercatat; dibuka lagi = form kosong.
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: /catat entri buku besar/i })).not.toBeInTheDocument()
+      )
+      await openEntryForm(user)
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
       expect(screen.getByLabelText(/^alasan$/i)).toHaveValue('')
     })
@@ -653,11 +694,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await within(dialog).findByText(/upstream request timed out/i)
@@ -675,9 +716,12 @@ describe('TransparencyPage @integration', () => {
       // closes the loop: if a safe replay surfaced as a failure the operator
       // would press again, which is precisely what the key exists to stop.
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
+      // Tercatat = dialog form tertutup (isiannya dibuang).
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: /catat entri buku besar/i })).not.toBeInTheDocument()
+      )
     })
 
     test('a 200 replay is treated as success, exactly like a 201', async () => {
@@ -693,17 +737,20 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
+      // Tercatat = dialog form tertutup (isiannya dibuang).
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: /catat entri buku besar/i })).not.toBeInTheDocument()
+      )
       // No error surface anywhere — not on a field, not in the dialog.
       expect(screen.queryByText(/entri gagal dicatat/i)).not.toBeInTheDocument()
     })
@@ -722,11 +769,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await waitFor(() => expect(keys).toHaveLength(1))
@@ -758,12 +805,12 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       const readsBefore = ledgerReads
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The operator typed nothing wrong — this is the client's own bug — so
@@ -793,17 +840,17 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       for (const amount of ['1000.00', '2000.00']) {
         await fillEntryForm(user, { amount })
         await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-        const dialog = await screen.findByRole('dialog')
+        const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
         await user.click(
           within(dialog).getByRole('button', { name: /ya, catat entri/i })
         )
         await waitFor(() => {
-          expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+          expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
         })
       }
 
@@ -837,11 +884,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The operator is shown the balance AS IT NOW STANDS, not the stale one
@@ -868,11 +915,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await screen.findByText(
@@ -897,14 +944,14 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       // A CORRECTION is the entry most likely to be filed here, and a correction
       // without its running balance is exactly the case that puts the published
       // reserve underwater. So it is refused, not merely annotated.
       await fillEntryForm(user, { type: 'ADJUSTMENT', amount: '-1250.75' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
 
       expect(
         within(dialog).getByText(/saldo cadangan saat ini gagal dimuat/i)
@@ -971,11 +1018,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The server's own wording, in the DIALOG: no single input is at fault —
@@ -985,7 +1032,7 @@ describe('TransparencyPage @integration', () => {
         within(dialog).getByText(/kuncinya sudah dipakai entri lain/i)
       ).toBeInTheDocument()
       // Not success: the dialog stays, the form is untouched, nothing is reset.
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByRole('dialog', CONFIRM_DIALOG)).toBeInTheDocument()
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('100000.00')
       // And no message was pinned to a field the operator filled in correctly.
       expect(
@@ -1007,11 +1054,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       const readsBefore = counters.reads
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
@@ -1056,13 +1103,13 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       // The contract's own scenario: 1.000.000,00 was mistyped and DID land,
       // the operator corrects it to 100.000,00, and the same key comes back 409.
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await within(dialog).findByText(CONFLICT_SHOWN)
@@ -1116,11 +1163,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await within(dialog).findByText(CONFLICT_SHOWN)
@@ -1144,9 +1191,12 @@ describe('TransparencyPage @integration', () => {
       })
 
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
-      expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('')
+      // Tercatat = dialog form tertutup (isiannya dibuang).
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: /catat entri buku besar/i })).not.toBeInTheDocument()
+      )
     })
 
     test('a timeout AFTER the new key re-sends that same new key, not a third one', async () => {
@@ -1171,11 +1221,11 @@ describe('TransparencyPage @integration', () => {
         })
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100000.00' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       await within(dialog).findByText(CONFLICT_SHOWN)
@@ -1210,11 +1260,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       // The server's own wording, not a paraphrase, back on the form.
@@ -1224,7 +1274,7 @@ describe('TransparencyPage @integration', () => {
         )
       ).toBeInTheDocument()
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
     })
 
@@ -1236,11 +1286,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
@@ -1258,17 +1308,17 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user, { amount: '100667.41' })
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
         await within(dialog).findByText(/reserve service unavailable/i)
       ).toBeInTheDocument()
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByRole('dialog', CONFIRM_DIALOG)).toBeInTheDocument()
       // Nobody should have to retype a reserve figure after a transient failure.
       expect(screen.getByLabelText(/^nominal$/i)).toHaveValue('100667.41')
     })
@@ -1281,11 +1331,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
@@ -1315,11 +1365,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
@@ -1337,11 +1387,11 @@ describe('TransparencyPage @integration', () => {
         )
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
-      await screen.findByRole('button', { name: /periksa lalu catat/i })
+      await screen.findByRole('button', { name: /^catat entri$/i })
 
       await fillEntryForm(user)
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, catat entri/i }))
 
       expect(
@@ -1488,13 +1538,14 @@ describe('TransparencyPage @integration', () => {
       )
 
       renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan-juli.pdf', 4096)] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       await waitFor(() => expect(calls).toEqual(['upload-url', 'put', 'register']))
@@ -1533,6 +1584,7 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
@@ -1540,7 +1592,7 @@ describe('TransparencyPage @integration', () => {
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       expect(within(dialog).getByText(/diunduh siapa pun/i)).toBeInTheDocument()
       expect(within(dialog).getByText('Juli')).toBeInTheDocument()
       expect(within(dialog).getByText('2026')).toBeInTheDocument()
@@ -1548,7 +1600,7 @@ describe('TransparencyPage @integration', () => {
 
       await user.click(within(dialog).getByRole('button', { name: /batal/i }))
       await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       })
       expect(ticketCalls).toBe(0)
     })
@@ -1576,13 +1628,14 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
@@ -1619,6 +1672,7 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       // A .pdf whose browser-reported MIME is empty. If the client derived the
@@ -1629,7 +1683,7 @@ describe('TransparencyPage @integration', () => {
         target: { files: [blankTypeFile] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       // Succeeds precisely because the header came from the ticket.
@@ -1661,13 +1715,14 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
@@ -1699,13 +1754,14 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
@@ -1739,13 +1795,14 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-06')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juni 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile()] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
@@ -1769,6 +1826,7 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       // fireEvent (not user.upload) so the input's `accept` filter does not
@@ -1786,6 +1844,7 @@ describe('TransparencyPage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), 'Juli 2026')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
@@ -1806,13 +1865,14 @@ describe('TransparencyPage @integration', () => {
       // `sizeBytes` and step 1 is a 400; send the wrong one and storage 403s.
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan-juli.pdf', 2048)] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       expect(
@@ -1826,13 +1886,14 @@ describe('TransparencyPage @integration', () => {
       try {
         renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-        await user.type(await screen.findByLabelText(/period/i), '2026-07')
+        await openUploadForm(user)
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
         await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
         fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
           target: { files: [pdfFile('laporan-juli.pdf', 2048)] },
         })
         await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-        const dialog = await screen.findByRole('dialog')
+        const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
         await user.click(
           within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i })
         )
@@ -1881,13 +1942,14 @@ describe('TransparencyPage @integration', () => {
         )
         const view = renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-        await user.type(await screen.findByLabelText(/period/i), '2026-07')
+        await openUploadForm(user)
+      await user.type(await screen.findByLabelText(/period/i), '2026-07')
         await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
         fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
           target: { files: [pdfFile('laporan.pdf', 512)] },
         })
         await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-        const dialog = await screen.findByRole('dialog')
+        const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
         await user.click(
           within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i })
         )
@@ -1909,13 +1971,14 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Atestasi Juli 2026')
       fireEvent.change(screen.getByLabelText(/berkas laporan/i), {
         target: { files: [pdfFile('laporan.pdf', 512)] },
       })
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
       await user.click(within(dialog).getByRole('button', { name: /ya, terbitkan ke publik/i }))
 
       // Infrastructure failures fail closed and stay infrastructure failures.
@@ -1943,6 +2006,7 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       // `{ name: 'evil.pdf', type: '' }` passes every name/MIME check: the
@@ -1954,7 +2018,7 @@ describe('TransparencyPage @integration', () => {
       await user.click(screen.getByRole('button', { name: /periksa lalu unggah/i }))
 
       expect(await screen.findByText(/bukan PDF/i)).toBeInTheDocument()
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', CONFIRM_DIALOG)).not.toBeInTheDocument()
       expect(ticketCalls).toBe(0)
     })
 
@@ -1962,6 +2026,7 @@ describe('TransparencyPage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
+      await openUploadForm(user)
       await user.type(await screen.findByLabelText(/period/i), '2026-07')
       await user.type(screen.getByLabelText(/^judul$/i), 'Laporan Juli')
       const tooBig = new File(['%PDF-1.7'], 'besar.pdf', { type: 'application/pdf' })
@@ -2039,10 +2104,8 @@ describe('TransparencyPage @integration', () => {
       const link = await screen.findByRole('link', { name: 'Laporan nomor 51' })
       expect(link).toBeInTheDocument()
 
-      await user.click(
-        screen.getByRole('button', { name: /cabut laporan Laporan nomor 51/i })
-      )
-      const dialog = await screen.findByRole('dialog')
+      await startRevoke(user, 'Laporan nomor 51')
+      const dialog = await screen.findByRole('dialog', { name: /cabut laporan atestasi/i })
       await user.click(within(dialog).getByRole('button', { name: /^cabut laporan$/i }))
 
       await waitFor(() => expect(revoked).toBe('att-51'))
@@ -2053,12 +2116,12 @@ describe('TransparencyPage @integration', () => {
       const user = userEvent.setup()
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      const revokeButtons = await screen.findAllByRole('button', { name: /^cabut laporan/i })
-      // Only the two ACTIVE reports are revocable — the revoked one is not listed.
-      expect(revokeButtons).toHaveLength(2)
-      await user.click(revokeButtons[0]!)
+      // Only the two ACTIVE reports are listed (and so revocable) — the revoked one is not.
+      const rows = await screen.findAllByRole('button', { name: /^buka laporan/i })
+      expect(rows).toHaveLength(2)
+      await startRevoke(user, /^buka laporan laporan atestasi cadangan juni 2026/i)
 
-      const dialog = await screen.findByRole('dialog')
+      const dialog = await screen.findByRole('dialog', { name: /cabut laporan atestasi/i })
       expect(
         within(dialog).getByText(/cabut laporan atestasi ini\?/i)
       ).toBeInTheDocument()
@@ -2080,9 +2143,8 @@ describe('TransparencyPage @integration', () => {
       )
       renderWithProviders(<TransparencyPage />, { authenticated: true })
 
-      const revokeButtons = await screen.findAllByRole('button', { name: /^cabut laporan/i })
-      await user.click(revokeButtons[0]!)
-      const dialog = await screen.findByRole('dialog')
+      await startRevoke(user, /^buka laporan laporan atestasi cadangan juni 2026/i)
+      const dialog = await screen.findByRole('dialog', { name: /cabut laporan atestasi/i })
       await user.click(within(dialog).getByRole('button', { name: /^cabut laporan$/i }))
 
       expect(await within(dialog).findByText(/revoke failed upstream/i)).toBeInTheDocument()
@@ -2090,6 +2152,59 @@ describe('TransparencyPage @integration', () => {
       // dialog aria-hidden, so role queries cannot see the still-listed row.
       const matches = screen.getAllByText('Laporan Atestasi Cadangan Juni 2026')
       expect(matches.some((el) => el.closest('a') !== null)).toBe(true)
+    })
+  })
+
+  // 11 Okt 2026 — susunan baru: saldo + tombol di atas, tabel di bawah, form di
+  // dialog, klik baris = modal tengah dengan ↑/↓ (pola RecordModal).
+  describe('layout: saldo di atas, form di dialog, baris = modal', () => {
+    test('the entry form is NOT on the page until "Catat entri" is pressed', async () => {
+      const user = userEvent.setup()
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /^catat entri$/i })
+      expect(screen.queryByLabelText(/^nominal$/i)).not.toBeInTheDocument()
+      await openEntryForm(user)
+      expect(screen.getByLabelText(/^nominal$/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /^batal$/i }))
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: /catat entri buku besar/i })).not.toBeInTheDocument()
+      )
+    })
+
+    test('the upload form is NOT on the page until "Unggah laporan" is pressed', async () => {
+      const user = userEvent.setup()
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      await screen.findByRole('button', { name: /^unggah laporan$/i })
+      expect(screen.queryByLabelText(/berkas laporan/i)).not.toBeInTheDocument()
+      await openUploadForm(user)
+      expect(screen.getByLabelText(/berkas laporan/i)).toBeInTheDocument()
+    })
+
+    test('clicking a ledger row opens the centred modal with the full entry, and ↓ moves to the next row', async () => {
+      const user = userEvent.setup()
+      renderWithProviders(<TransparencyPage />, { authenticated: true })
+      const rows = await screen.findAllByRole('button', { name: /^buka entri/i })
+      expect(rows.length).toBeGreaterThan(1)
+      await user.click(rows[0]!)
+      const modal = await screen.findByTestId('ledger-entry-modal')
+      expect(within(modal).getByText('Koreksi pencatatan ganda pada setoran sebelumnya')).toBeInTheDocument()
+      expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent(/^1 dari \d+$/)
+      await user.keyboard('{ArrowDown}')
+      await waitFor(() =>
+        expect(within(screen.getByTestId('ledger-entry-modal')).getByTestId('record-modal-position')).toHaveTextContent(/^2 dari/)
+      )
+      expect(
+        within(screen.getByTestId('ledger-entry-modal')).getByText('Tambahan setoran cadangan periode berjalan')
+      ).toBeInTheDocument()
+    })
+
+    test('a deep link to an entry that is not on the loaded page says so', async () => {
+      renderWithProviders(<TransparencyPage />, {
+        authenticated: true,
+        initialEntries: ['/transparency/entri/tidak-ada'],
+      })
+      const modal = await screen.findByTestId('ledger-entry-modal')
+      expect(await within(modal).findByText(/tidak ada di halaman daftar/i)).toBeInTheDocument()
     })
   })
 
@@ -2108,8 +2223,16 @@ describe('TransparencyPage @integration', () => {
         screen.queryByRole('button', { name: /periksa lalu unggah/i })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /^cabut laporan/i })
+        screen.queryByRole('button', { name: /^unggah laporan$/i })
       ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^catat entri$/i })
+      ).not.toBeInTheDocument()
+      // Modal laporan untuk DEVELOPER: tanpa menu Cabut.
+      const user = userEvent.setup()
+      await user.click((await screen.findAllByRole('button', { name: /^buka laporan/i }))[0]!)
+      const modal = await screen.findByTestId('attestation-modal')
+      expect(within(modal).queryByRole('button', { name: /^lainnya/i })).not.toBeInTheDocument()
 
       // Reading stays available — that is the point of the DEVELOPER role here.
       await waitFor(() => {

@@ -13,13 +13,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
   ledgerEntryTypeLabel,
 } from '@/lib/transparency'
-import type { ReserveLedgerPage } from '@/lib/types'
+import type { ReserveLedgerEntry, ReserveLedgerPage } from '@/lib/types'
 
 interface Props {
   data: ReserveLedgerPage | undefined
@@ -28,6 +29,8 @@ interface Props {
   onRetry: () => void
   page: number
   onPageChange: (page: number) => void
+  /** Klik baris = modal detail tengah (`/transparency/entri/:id`). */
+  onRowClick?: (entry: ReserveLedgerEntry) => void
 }
 
 const COLUMNS = [
@@ -52,6 +55,7 @@ export default function LedgerHistoryTable({
   onRetry,
   page,
   onPageChange,
+  onRowClick,
 }: Props) {
   const entries = data?.entries ?? []
   const total = data?.total ?? 0
@@ -119,7 +123,30 @@ export default function LedgerHistoryTable({
                     return (
                       <TableRow
                         key={entry.id}
-                        className="border-border hover:bg-muted/40"
+                        data-hoverable=""
+                        role={onRowClick ? 'button' : undefined}
+                        tabIndex={onRowClick ? 0 : undefined}
+                        aria-label={
+                          onRowClick
+                            ? `Buka entri ${ledgerEntryTypeLabel(entry.entryType)} ${formatAmountDecimal(entry.amount)} ${entry.currency} ${formatOccurredAt(entry.occurredAt)}`
+                            : undefined
+                        }
+                        onClick={onRowClick ? () => onRowClick(entry) : undefined}
+                        onKeyDown={
+                          onRowClick
+                            ? (e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  onRowClick(entry)
+                                }
+                              }
+                            : undefined
+                        }
+                        className={cn(
+                          'border-border hover:bg-muted/40',
+                          onRowClick &&
+                            'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55',
+                        )}
                       >
                         <TableCell className="tabular-nums whitespace-nowrap px-4 py-2.5 text-sm">
                           {formatOccurredAt(entry.occurredAt)}

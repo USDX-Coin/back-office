@@ -2,11 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmountDecimal } from '@/lib/transparency'
 import type { ReserveBalance } from '@/lib/types'
+import type { ReactNode } from 'react'
 
 interface Props {
   /** `data.balance` from the ledger response — the WHOLE ledger's balance. */
   balance: ReserveBalance | undefined
   isLoading: boolean
+  /** Aksi utama di kanan atas kartu ("Catat entri", Admin saja). */
+  action?: ReactNode
 }
 
 /**
@@ -18,13 +21,14 @@ interface Props {
  * outgrows one page — and quietly publishing a too-low reserve is the worst
  * failure this screen has.
  */
-export default function ReserveBalanceCard({ balance, isLoading }: Props) {
+export default function ReserveBalanceCard({ balance, isLoading, action }: Props) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Saldo cadangan
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent>
         {isLoading ? (

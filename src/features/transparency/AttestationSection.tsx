@@ -11,6 +11,16 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -25,20 +35,26 @@ import {
   ATTESTATION_NOT_A_PDF_MESSAGE,
   validateAttestationUploadForm,
 } from '@/lib/validators'
-import type { AttestationReport } from '@/lib/types'
-import {
-  ATTESTATION_PAGE_SIZE,
-  useAttestations,
-  useRevokeAttestation,
-  useUploadAttestation,
-} from './hooks'
-import AttestationRevokeDialog from './AttestationRevokeDialog'
+import type { AttestationListPage, AttestationReport } from '@/lib/types'
+import { ATTESTATION_PAGE_SIZE, useUploadAttestation } from './hooks'
 import AttestationUploadDialog, {
   type PendingAttestationUpload,
 } from './AttestationUploadDialog'
 
 interface Props {
   canManage: boolean
+  /** `useAttestations(page)` — dipegang halaman supaya modal detail bisa ↑/↓. */
+  list: {
+    data: AttestationListPage | undefined
+    isLoading: boolean
+    isError: boolean
+    isFetching: boolean
+    refetch: () => unknown
+  }
+  page: number
+  onPageChange: (page: number) => void
+  /** Klik baris = modal detail tengah (`/transparency/laporan/:id`). Cabut ada di sana. */
+  onRowClick: (report: AttestationReport) => void
 }
 
 /**
@@ -58,11 +74,16 @@ function attestationErrorText(err: unknown, fallback: string): string {
   return fallback
 }
 
-export default function AttestationSection({ canManage }: Props) {
-  const [page, setPage] = useState(1)
-  const list = useAttestations(page)
+/**
+ * Laporan atestasi: tabel di bawah, tombol "Unggah laporan" di kanan atas
+ * kartu (Admin saja), form unggah di DIALOG (11 Okt 2026 — dulu form terbuka
+ * di atas tabel). Isi form, validasi, cek header PDF, dan konfirmasi sebelum
+ * terbit (AttestationUploadDialog, bertumpuk di atas dialog form) tidak berubah.
+ * Mencabut laporan pindah ke footer modal detail barisnya.
+ */
+export default function AttestationSection({ canManage, list, page, onPageChange, onRowClick }: Props) {
   const upload = useUploadAttestation()
-  const revoke = useRevokeAttestation()
+  const [formOpen, setFormOpen] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [period, setPeriod] = useState('')
@@ -71,9 +92,6 @@ export default function AttestationSection({ canManage }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [pendingUpload, setPendingUpload] = useState<PendingAttestationUpload | null>(null)
-
-  const [pendingRevoke, setPendingRevoke] = useState<AttestationReport | null>(null)
-  const [revokeError, setRevokeError] = useState<string | null>(null)
 
   // The API returns revoked reports too, for the audit trail. Showing them here
   // would present a withdrawn report as if it were still valid, so they are
@@ -133,11 +151,8 @@ export default function AttestationSection({ canManage }: Props) {
       await upload.mutateAsync(pendingUpload)
       toast.success('Laporan atestasi terbit')
       setPendingUpload(null)
-      setPeriod('')
-      setTitle('')
-      setFile(null)
-      setErrors({})
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      resetForm()
+      setFormOpen(false)
     } catch (err) {
       // Dialog stays open with the server's own message; the form keeps its
       // values so the operator can retry without re-picking the file.
@@ -147,106 +162,135 @@ export default function AttestationSection({ canManage }: Props) {
     }
   }
 
-  async function handleConfirmRevoke() {
-    if (!pendingRevoke) return
-    setRevokeError(null)
-    try {
-      await revoke.mutateAsync(pendingRevoke.id)
-      toast.success('Laporan atestasi dicabut')
-      setPendingRevoke(null)
-    } catch (err) {
-      const message = attestationErrorText(err, 'Laporan gagal dicabut. Coba lagi.')
-      setRevokeError(message)
-      toast.error(message)
-    }
+  function resetForm() {
+    setPeriod('')
+    setTitle('')
+    setFile(null)
+    setErrors({})
+    setUploadError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function handleFormOpenChange(next: boolean) {
+    if (upload.isPending) return
+    if (!next) resetForm()
+    setFormOpen(next)
   }
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Laporan atestasi
         </CardTitle>
+        {canManage && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setFormOpen(true)}>
+            Unggah laporan
+          </Button>
+        )}
       </CardHeader>
 
       {canManage && (
-        <CardContent>
-          <form onSubmit={handleSubmit} noValidate id="attestation-form">
-            <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
-              <div className="space-y-1.5">
-                <Label htmlFor="attestationPeriod">Periode</Label>
-                <Input
-                  id="attestationPeriod"
-                  value={period}
-                  onChange={(e) => {
-                    setPeriod(e.target.value)
-                    clearError('period')
-                  }}
-                  placeholder="2026-07"
-                  className="tabular-nums"
-                  aria-describedby="attestationPeriodHint"
-                />
-                {/* The public document table derives its Month / Year columns
-                    from this value, so the format is strict and required. */}
-                <p id="attestationPeriodHint" className="text-xs text-muted-foreground">
-                  YYYY-MM. Menentukan kolom Bulan / Tahun yang tampil di publik.
-                </p>
-                <FieldError message={errors.period} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="attestationTitle">Judul</Label>
-                <Input
-                  id="attestationTitle"
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value)
-                    clearError('title')
-                  }}
-                  placeholder="Laporan Atestasi Cadangan Juli 2026"
-                />
-                <FieldError message={errors.title} />
-              </div>
-            </div>
+        <Dialog open={formOpen} onOpenChange={handleFormOpenChange}>
+          <DialogContent className="sm:max-w-xl">
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              id="attestation-form"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <DialogHeader>
+                <DialogTitle>Unggah laporan atestasi</DialogTitle>
+                <DialogDescription>
+                  Laporan yang terbit bisa diunduh siapa pun dari usdx.co.id.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogBody>
+                <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="attestationPeriod">Periode</Label>
+                    <Input
+                      id="attestationPeriod"
+                      value={period}
+                      onChange={(e) => {
+                        setPeriod(e.target.value)
+                        clearError('period')
+                      }}
+                      placeholder="2026-07"
+                      className="tabular-nums"
+                      aria-describedby="attestationPeriodHint"
+                    />
+                    {/* The public document table derives its Month / Year columns
+                        from this value, so the format is strict and required. */}
+                    <p id="attestationPeriodHint" className="text-xs text-muted-foreground">
+                      YYYY-MM. Menentukan kolom Bulan / Tahun yang tampil di publik.
+                    </p>
+                    <FieldError message={errors.period} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="attestationTitle">Judul</Label>
+                    <Input
+                      id="attestationTitle"
+                      value={title}
+                      onChange={(e) => {
+                        setTitle(e.target.value)
+                        clearError('title')
+                      }}
+                      placeholder="Laporan Atestasi Cadangan Juli 2026"
+                    />
+                    <FieldError message={errors.title} />
+                  </div>
+                </div>
 
-            <div className="mt-4 space-y-1.5">
-              <Label htmlFor="attestationFile">Berkas laporan (PDF)</Label>
-              <Input
-                id="attestationFile"
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null)
-                  clearError('file')
-                }}
-                className="file:mr-3 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:font-medium"
-              />
-              {/* The ceiling is the BACKEND's: it signs the upload URL for at
-                  most this many bytes and rejects anything larger with
-                  ATTESTATION_FILE_TOO_LARGE. Promising a bigger number here
-                  would not raise the limit, only move the rejection to after
-                  the operator waited for the upload. */}
-              <p className="text-xs text-muted-foreground">
-                Hanya PDF, maksimal {ATTESTATION_MAX_FILE_LABEL}. Berkasnya
-                diunggah langsung ke penyimpanan lalu didaftarkan di sini; begitu
-                terbit, siapa pun bisa mengunduhnya dari usdx.co.id — akan ada
-                konfirmasi dulu sebelum itu.
-              </p>
-              <FieldError message={errors.file} />
-            </div>
+                <div className="mt-4 space-y-1.5">
+                  <Label htmlFor="attestationFile">Berkas laporan (PDF)</Label>
+                  <Input
+                    id="attestationFile"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(e) => {
+                      setFile(e.target.files?.[0] ?? null)
+                      clearError('file')
+                    }}
+                    className="file:mr-3 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:font-medium"
+                  />
+                  {/* The ceiling is the BACKEND's: it signs the upload URL for at
+                      most this many bytes and rejects anything larger with
+                      ATTESTATION_FILE_TOO_LARGE. Promising a bigger number here
+                      would not raise the limit, only move the rejection to after
+                      the operator waited for the upload. */}
+                  <p className="text-xs text-muted-foreground">
+                    Hanya PDF, maksimal {ATTESTATION_MAX_FILE_LABEL}. Berkasnya
+                    diunggah langsung ke penyimpanan lalu didaftarkan di sini; begitu
+                    terbit, siapa pun bisa mengunduhnya dari usdx.co.id — akan ada
+                    konfirmasi dulu sebelum itu.
+                  </p>
+                  <FieldError message={errors.file} />
+                </div>
 
-            <div className="mt-4">
-              <Button
-                type="submit"
-                form="attestation-form"
-                disabled={upload.isPending}
-                aria-busy={upload.isPending}
-              >
-                {upload.isPending ? 'Mengunggah…' : 'Periksa lalu unggah'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleFormOpenChange(false)}
+                  disabled={upload.isPending}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  form="attestation-form"
+                  disabled={upload.isPending}
+                  aria-busy={upload.isPending}
+                >
+                  {upload.isPending ? 'Mengunggah…' : 'Periksa lalu unggah'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       <CardContent className="px-0 pb-0">
@@ -261,7 +305,7 @@ export default function AttestationSection({ canManage }: Props) {
             <Table aria-label="Laporan atestasi">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  {['Periode', 'Judul', 'Terbit', ''].map((header, i) => (
+                  {['Periode', 'Judul', 'Terbit'].map((header, i) => (
                     <TableHead
                       key={header || `col-${i}`}
                       className="h-9 px-4 text-xs font-medium text-muted-foreground"
@@ -275,7 +319,7 @@ export default function AttestationSection({ canManage }: Props) {
                 {list.isLoading ? (
                   Array.from({ length: 2 }).map((_, i) => (
                     <TableRow key={i} className="border-border hover:bg-transparent">
-                      {Array.from({ length: 4 }).map((__, j) => (
+                      {Array.from({ length: 3 }).map((__, j) => (
                         <TableCell key={j} className="px-4 py-2.5">
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
@@ -284,7 +328,7 @@ export default function AttestationSection({ canManage }: Props) {
                   ))
                 ) : rows.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={4} className="p-0">
+                    <TableCell colSpan={3} className="p-0">
                       <TableEmptyState
                         mode="no-data"
                         title="Belum ada laporan atestasi aktif"
@@ -294,7 +338,25 @@ export default function AttestationSection({ canManage }: Props) {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id} className="border-border hover:bg-muted/40">
+                    <TableRow
+                      key={row.id}
+                      data-hoverable=""
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Buka laporan ${row.title}`}
+                      onClick={() => onRowClick(row)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onRowClick(row)
+                        }
+                      }}
+                      className={cn(
+                        'cursor-pointer border-border hover:bg-muted/40',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55',
+                      )}
+                    >
                       <TableCell className="px-4 py-2.5 text-sm font-medium">
                         {formatPeriod(row.period)}
                       </TableCell>
@@ -303,6 +365,8 @@ export default function AttestationSection({ canManage }: Props) {
                           href={row.fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          // Membuka PDF, bukan modal barisnya.
+                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1.5 text-primary hover:underline"
                         >
                           <FileText className="h-3.5 w-3.5" aria-hidden />
@@ -311,22 +375,6 @@ export default function AttestationSection({ canManage }: Props) {
                       </TableCell>
                       <TableCell className="px-4 py-2.5 text-sm text-muted-foreground">
                         {formatShortDate(row.publishedAt)}
-                      </TableCell>
-                      <TableCell className="px-4 py-2.5 text-right">
-                        {canManage && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setRevokeError(null)
-                              setPendingRevoke(row)
-                            }}
-                            aria-label={`Cabut laporan ${row.title}`}
-                          >
-                            Cabut
-                          </Button>
-                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -354,7 +402,7 @@ export default function AttestationSection({ canManage }: Props) {
               variant="outline"
               size="sm"
               aria-label="Halaman sebelumnya laporan atestasi"
-              onClick={() => setPage(page - 1)}
+              onClick={() => onPageChange(page - 1)}
               disabled={page <= 1 || list.isFetching}
             >
               Sebelumnya
@@ -367,7 +415,7 @@ export default function AttestationSection({ canManage }: Props) {
               variant="outline"
               size="sm"
               aria-label="Halaman berikutnya laporan atestasi"
-              onClick={() => setPage(page + 1)}
+              onClick={() => onPageChange(page + 1)}
               disabled={page >= lastPage || list.isFetching}
             >
               Berikutnya
@@ -390,19 +438,6 @@ export default function AttestationSection({ canManage }: Props) {
         error={uploadError}
       />
 
-      <AttestationRevokeDialog
-        open={pendingRevoke !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingRevoke(null)
-            setRevokeError(null)
-          }
-        }}
-        report={pendingRevoke}
-        onConfirm={handleConfirmRevoke}
-        isPending={revoke.isPending}
-        error={revokeError}
-      />
     </Card>
   )
 }
