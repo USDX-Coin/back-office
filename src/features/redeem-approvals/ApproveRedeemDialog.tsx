@@ -1,3 +1,4 @@
+import DetailTeknis from '@/components/DetailTeknis'
 import { useState } from 'react'
 import { AlertTriangle, ExternalLink, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,7 +18,7 @@ import FieldError from '@/components/FieldError'
 import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatRate, formatSpreadPct, shortHash } from '@/lib/format'
+import { formatRate, formatSpreadPct } from '@/lib/format'
 import {
   APPROVE_NOTE_MAX,
   formatIdrExact,
@@ -113,33 +114,6 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
             {formatSpreadPct(detail.spreadSellPct)})
           </span>
         </p>
-        <p className="text-muted-foreground">
-          Burn on-chain{' '}
-          {detail.burnTxHash ? (
-            burnHref ? (
-              <a
-                href={burnHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-foreground text-primary hover:underline"
-                title={detail.burnTxHash}
-              >
-                {shortHash(detail.burnTxHash)}
-                <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
-              </a>
-            ) : (
-              <span className="break-all font-mono text-foreground" title={detail.burnTxHash}>
-                {shortHash(detail.burnTxHash)}
-              </span>
-            )
-          ) : (
-            // Antreannya hanya memuat order yang sudah BURNED, jadi hash yang
-            // kosong di sini berarti pencatatannya belum menyusul — bukan bahwa
-            // burn-nya belum terjadi. Dikatakan apa adanya supaya tidak dibaca
-            // sebagai "order ini belum dibakar", yang akan menahan approve keliru.
-            <span className="text-muted-foreground">belum tercatat</span>
-          )}
-        </p>
         {detail.externalReference && (
           <p className="text-muted-foreground sm:col-span-2">
             Nomor redeem partner{' '}
@@ -147,6 +121,33 @@ function PayoutBreakdown({ detail }: { detail: RedeemApprovalDetail }) {
           </p>
         )}
       </div>
+
+      {/* Ops-fokus (PM Okt 2026): bukti pembakaran (tx hash) dilipat di sini,
+          bukan di depan — tetap bertautan explorer dan tetap utuh. */}
+      <DetailTeknis description="Bukti pembakaran di blockchain. Tidak perlu dibuka untuk menyetujui pencairan.">
+        <div className="min-w-0 sm:col-span-2">
+          <p className="text-xs text-muted-foreground">Tx pembakaran</p>
+          {detail.burnTxHash ? (
+            burnHref ? (
+              <a
+                href={burnHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-start gap-1 break-all font-mono text-xs text-primary hover:underline"
+              >
+                {detail.burnTxHash}
+                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-70" />
+              </a>
+            ) : (
+              <p className="break-all font-mono text-xs text-muted-foreground">{detail.burnTxHash}</p>
+            )
+          ) : (
+            // Antreannya hanya memuat order yang sudah BURNED: hash kosong berarti
+            // pencatatannya belum menyusul, bukan burn-nya belum terjadi.
+            <p className="text-xs text-muted-foreground">belum tercatat</p>
+          )}
+        </div>
+      </DetailTeknis>
 
       {detail.lateBurn && (
         <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">

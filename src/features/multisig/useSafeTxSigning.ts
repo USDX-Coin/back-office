@@ -27,10 +27,10 @@ import {
 
 /**
  * Seluruh alur tanda tangan / eksekusi / pembatalan satu transaksi Safe —
- * dipakai BERSAMA oleh `MultisigDetailSheet` (halaman Antrean Tanda Tangan
+ * dipakai BERSAMA oleh `MultisigDetailModal` (halaman Antrean Tanda Tangan
  * lama, masih bisa dibuka lewat URL) dan panel detail OTC (redesain fase 1).
  *
- * Diangkat apa adanya dari `MultisigDetailSheet`: tiap pagar (pemeriksaan
+ * Diangkat apa adanya dari `MultisigDetailSheet` lama (kini `MultisigDetailModal`): tiap pagar (pemeriksaan
  * owner, hash SafeTx, calldata tak terbaca, simulasi sebelum eksekusi) tetap
  * sama, hanya tempatnya yang berpindah — supaya dua layar tidak pernah punya
  * dua versi aturan yang sama.

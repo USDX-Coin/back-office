@@ -7,7 +7,7 @@ import TableToolbar from '@/components/table/TableToolbar'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
-import { formatDate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
+import { formatDate, formatUsdxListAmount } from '@/lib/format'
 import {
   OTC_ACTION_STATUSES,
   OTC_HISTORY_STATUSES,
@@ -128,10 +128,9 @@ export default function OtcPage({ type }: { type: RequestType }) {
       header: 'Nasabah',
       cell: (r) => (
         <div className="flex min-w-0 flex-col">
+          {/* Ops-fokus (PM Okt 2026): nama saja di tabel. Wallet tujuan tampil
+              ringkas + tombol salin di modal detail. */}
           <span className="font-medium">{r.userName}</span>
-          <span className="font-mono text-xs text-muted-foreground" title={r.userAddress}>
-            {truncateMiddle(r.userAddress, 6, 5)}
-          </span>
           {/* Di ponsel kolom Nominal disembunyikan supaya Status tetap terlihat
               tanpa menggeser tabel; isinya pindah ke sini. */}
           <span className="mt-0.5 text-xs tabular-nums text-muted-foreground sm:hidden">

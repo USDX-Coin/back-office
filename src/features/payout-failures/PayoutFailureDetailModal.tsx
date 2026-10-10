@@ -13,12 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
 import DetailTeknis from '@/components/DetailTeknis'
+import WalletShort from '@/components/WalletShort'
 import { getOrderStatusConfig, UNKNOWN_CODE_LABEL } from '@/lib/status'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatRate, formatWibDateTime, shortHash } from '@/lib/format'
+import { formatRate, formatWibDateTime } from '@/lib/format'
 import {
   allowedResolveActions,
   formatQueueAge,
@@ -59,9 +60,7 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
   const href = chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, detail.burnTxHash) : null
   if (!href) {
     return (
-      <span className="break-all font-mono text-xs" title={detail.burnTxHash}>
-        {shortHash(detail.burnTxHash)}
-      </span>
+      <span className="break-all font-mono text-xs text-muted-foreground">{detail.burnTxHash}</span>
     )
   }
   return (
@@ -69,10 +68,10 @@ function BurnHash({ detail }: { detail: PayoutFailureDetail }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
-      title={`Lihat di block explorer: ${detail.burnTxHash}`}
+      className="inline-flex items-start gap-1 break-all font-mono text-xs text-primary hover:underline"
+      title="Lihat di block explorer"
     >
-      {shortHash(detail.burnTxHash)}
+      {detail.burnTxHash}
       <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
     </a>
   )
@@ -264,11 +263,8 @@ export default function PayoutFailureDetailModal({
                 </div>
               </Section>
 
-              <Section title="Burn on-chain">
+              <Section title="Pembakaran USDX">
                 <div className="@container divide-y divide-border border-t border-border">
-                  <Field label="Tx burn">
-                    <BurnHash detail={detail} />
-                  </Field>
                   <Field label="Dibakar">
                     <span className="text-xs tabular-nums">
                       {formatWibDateTime(detail.burnedAt)}
@@ -281,7 +277,7 @@ export default function PayoutFailureDetailModal({
                   </Field>
                   <Field label="Wallet sumber">
                     {detail.userAddress ? (
-                      <span className="break-all font-mono text-xs">{detail.userAddress}</span>
+                      <WalletShort address={detail.userAddress} label="wallet sumber" />
                     ) : (
                       <Dim />
                     )}
@@ -307,6 +303,20 @@ export default function PayoutFailureDetailModal({
               <ActionAvailabilityNote detail={detail} canResolve={canResolve} />
 
               <DetailTeknis>
+                {/* Ops-fokus (Okt 2026): tx hash pembakaran pindah ke sini dari
+                    depan — tetap bertautan explorer, hanya dilipat. */}
+                <div className="min-w-0 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Tx pembakaran</p>
+                  <p className="mt-1">
+                    <BurnHash detail={detail} />
+                  </p>
+                </div>
+                {detail.userAddress && (
+                  <div className="min-w-0 sm:col-span-2">
+                    <p className="text-xs text-muted-foreground">Alamat wallet sumber (lengkap)</p>
+                    <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.userAddress}</p>
+                  </div>
+                )}
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Kode penyebab</p>
                   <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detail.issueCode ?? '—'}</p>

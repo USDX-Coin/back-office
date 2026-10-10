@@ -302,7 +302,7 @@ describe('OtcPage', () => {
       renderOtc('/otc/mint/req-mint')
       const m = await modal()
       const btn = await within(m).findByRole('button', { name: 'Tanda tangani di wallet' })
-      await waitFor(() => expect(btn).toHaveAccessibleDescription('Wallet yang terhubung bukan owner Safe ini'))
+      await waitFor(() => expect(btn).toHaveAccessibleDescription('Wallet yang terhubung bukan pemilik Safe ini.'))
       expect(btn).toBeDisabled()
     })
 

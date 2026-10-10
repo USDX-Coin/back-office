@@ -17,6 +17,8 @@ import { OTC_KIND_LABEL, findSafeTxFor, formatIdrPlain, otcRowState } from '@/li
 import { safeTxUrl } from '@/lib/safeUrl'
 import type { BurnRequestDetail, RequestDetail, RequestListItem, RequestType, SafeTxListItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import WalletShort from '@/components/WalletShort'
+import { plainReason, signerDisplayName } from '@/lib/multisig/present'
 import { useRequestDetail } from './hooks'
 
 interface Props {
@@ -104,6 +106,8 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
         open
         onClose={onClose}
         nav={nav}
+        // Sama dengan cabang utama: mode modal berbeda = konten dipasang ulang.
+        walletSafe
         testId="otc-modal"
         title={detailQuery.isError ? 'Permintaan tidak ditemukan' : 'Memuat…'}
       >
@@ -144,7 +148,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
       .sort((a, b) => (a.signedAt ?? '').localeCompare(b.signedAt ?? ''))
     signed.forEach((s, i) =>
       events.push({
-        text: `${s.staffName ?? (s.isBackend ? 'Sistem' : truncateMiddle(s.address, 6, 4))} menandatangani (${i + 1} dari ${sd.signatureProgress.threshold})`,
+        text: `${signerDisplayName(s, sd.signers.indexOf(s))} menandatangani (${i + 1} dari ${sd.signatureProgress.threshold})`,
         time: s.signedAt ? formatDate(s.signedAt) : null,
       }),
     )
@@ -205,6 +209,8 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
       onClose={onClose}
       nav={nav}
       locked={signing.busy || signing.isCancelling}
+      // Jendela wallet (Hubungkan / Tanda tangani) harus bisa diklik dari sini.
+      walletSafe
       testId="otc-modal"
       title={req.userName ?? 'Nasabah'}
       subtitle={`${kindLabel} · ${usdx} · ${idr}`}
@@ -232,9 +238,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
         <DataField label="Nasabah">{req.userName ?? '—'}</DataField>
         {isMint ? (
           <DataField label="Wallet tujuan">
-            <span className="font-mono text-xs text-muted-foreground" title={req.userAddress}>
-              {truncateMiddle(req.userAddress ?? '', 6, 5)}
-            </span>
+            {req.userAddress ? <WalletShort address={req.userAddress} label="wallet tujuan" /> : '—'}
           </DataField>
         ) : (
           <DataField label="Rekening tujuan">{bankLine ?? '—'}</DataField>
@@ -282,6 +286,13 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
         {burn?.depositTxHash && <TechRow label="Tx setoran USDX" value={burn.depositTxHash} />}
         {sd && <TechRow label="Alamat Safe" value={sd.safeAddress} />}
         {sd && <TechRow label="Nonce" value={String(sd.nonce)} />}
+        {req.userAddress && <TechRow label="Wallet tujuan (lengkap)" value={req.userAddress} />}
+        {sd?.signers.map((sg, i) => (
+          <TechRow key={sg.address} label={`Alamat ${signerDisplayName(sg, i)}`} value={sg.address} />
+        ))}
+        {signing.wallet.isConnected && signing.wallet.address && (
+          <TechRow label="Wallet yang terhubung" value={signing.wallet.address} />
+        )}
       </DetailTeknis>
     </RecordModal>
   )
@@ -317,7 +328,7 @@ function buildPrimary(
     return {
       label: 'Tanda tangani di wallet',
       disabled: !s.canSign || s.busy,
-      disabledReason: s.signBlockedReason,
+      disabledReason: plainReason(s.signBlockedReason),
       pending: s.isSigning,
       confirm: { items, confirmLabel: 'Ya, tanda tangani', onConfirm: s.handleSign },
     }
@@ -325,7 +336,7 @@ function buildPrimary(
   return {
     label: 'Eksekusi di blockchain',
     disabled: !s.canExecute || s.busy,
-    disabledReason: s.executeBlockedReason,
+    disabledReason: plainReason(s.executeBlockedReason),
     pending: s.isExecuting,
     confirm: { items, confirmLabel: 'Ya, eksekusi sekarang', onConfirm: s.handleExecute },
   }
@@ -349,7 +360,7 @@ function SignersBlock({ signing }: { signing: SafeTxSigning }) {
                 className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm"
               >
                 <span>
-                  {s.staffName ?? (s.isBackend ? 'Sistem' : truncateMiddle(s.address, 6, 4))}
+                  {signerDisplayName(s, d.signers.indexOf(s))}
                   {mine && ' (kamu)'}
                 </span>
                 <span className={cn('font-semibold', s.signed ? 'text-success' : 'text-gold-foreground')}>
@@ -483,18 +494,18 @@ function SafetyChecks({ signing: s }: { signing: SafeTxSigning }) {
     )
   }
   if (s.wallet.isConnected) {
-    const who = truncateMiddle(s.wallet.address ?? '', 6, 4)
+    // Alamat wallet yang terhubung ada di Detail teknis (ops-fokus, Okt 2026).
     const role =
       s.ownerVerification === 'owner'
-        ? 'pemilik Safe ini'
+        ? 'kamu pemilik Safe ini'
         : s.ownerVerification === 'not-owner'
-          ? 'bukan pemilik Safe ini'
+          ? 'wallet ini bukan pemilik Safe ini'
           : s.ownerVerification === 'checking'
             ? 'memeriksa…'
-            : 'belum diketahui'
+            : 'status pemilik belum diketahui'
     notes.push(
       <p key="wallet" className="text-sm text-muted-foreground">
-        Wallet terhubung: <span className="font-mono text-xs">{who}</span> · {role}
+        Wallet terhubung · {role}
       </p>,
     )
   }

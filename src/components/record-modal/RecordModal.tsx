@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import {
   Dialog,
@@ -48,6 +49,23 @@ interface RecordModalProps {
   locked?: boolean
   className?: string
   testId?: string
+  /**
+   * Modal yang membuka jendela wallet (RainbowKit, portal `[data-rk]`). Dialog
+   * Radix MODAL mengunci `pointer-events` body dan menjebak fokus, sehingga
+   * jendela wallet tidak bisa diklik maupun diketik (terbukti di e2e). Mode ini
+   * memakai dialog NON-modal + tirai sendiri, dan tidak menutup modal saat
+   * pengguna berinteraksi dengan jendela wallet atau menekan Esc di dalamnya.
+   */
+  walletSafe?: boolean
+}
+
+/** Event berasal dari jendela wallet RainbowKit (portal bertanda `data-rk`). */
+function fromWalletModal(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest('[data-rk]'))
+}
+
+function walletModalOpen(): boolean {
+  return Boolean(document.querySelector('[data-rk] [role="dialog"]'))
 }
 
 function isEditable(el: EventTarget | null): boolean {
@@ -70,6 +88,7 @@ export default function RecordModal({
   locked = false,
   className,
   testId,
+  walletSafe = false,
 }: RecordModalProps) {
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -107,8 +126,22 @@ export default function RecordModal({
   }, [open])
 
   return (
+    <>
+    {/* Mode non-modal tidak dirender tirainya oleh Radix → pasang sendiri,
+        di bawah panel (z-50) dan jauh di bawah jendela wallet. */}
+    {walletSafe &&
+      open &&
+      createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-[rgb(17_24_39/0.45)] animate-tirai-masuk"
+          aria-hidden
+          data-testid="record-modal-backdrop"
+        />,
+        document.body,
+      )}
     <Dialog
       open={open}
+      modal={!walletSafe}
       onOpenChange={(o) => {
         if (!o && !locked) onClose()
       }}
@@ -119,10 +152,10 @@ export default function RecordModal({
         data-testid={testId}
         {...(subtitle ? {} : { 'aria-describedby': undefined })}
         onEscapeKeyDown={(e) => {
-          if (locked) e.preventDefault()
+          if (locked || (walletSafe && (fromWalletModal(e.target) || walletModalOpen()))) e.preventDefault()
         }}
         onInteractOutside={(e) => {
-          if (locked) e.preventDefault()
+          if (locked || (walletSafe && fromWalletModal(e.detail.originalEvent.target))) e.preventDefault()
         }}
       >
         <DialogHeader>
@@ -170,6 +203,7 @@ export default function RecordModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   )
 }
 

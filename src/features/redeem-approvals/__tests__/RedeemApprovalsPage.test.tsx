@@ -21,6 +21,7 @@ import type { RedeemApprovalListItem } from '@/lib/types'
 
 beforeAll(() => server.listen())
 afterEach(() => {
+  localStorage.removeItem('usdx:cols:redeem-approvals')
   server.resetHandlers()
   server.events.removeAllListeners()
   resetMockData()
@@ -33,6 +34,11 @@ const OLDEST_CUSTOMER = 'Fajar Ramadhan'
 /** Baris dengan nama menurut bank BERBEDA dari nama pada order. */
 const MISMATCH_CUSTOMER = 'Dewi Kartika'
 const MISMATCH_BANK_NAME = 'SRI WAHYUNI'
+
+/** Kolom "Bukti pembakaran" tersembunyi secara bawaan (ops-fokus, Okt 2026). */
+function showBurnColumn() {
+  localStorage.setItem('usdx:cols:redeem-approvals', JSON.stringify({ burnTx: true }))
+}
 
 function setup(staffId = 'stf_2') {
   return renderWithProviders(<RedeemApprovalsPage />, {
@@ -204,6 +210,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       // per baris berarti satu baris `pii_access_audit` per baris — mencatat akses
       // PII untuk orang yang tidak sedang membuka PII siapa pun.
       server.use(http.get('/api/v1/redeem-approvals', () => okList([row()])))
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 
@@ -214,6 +221,14 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       )
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    })
+
+    test('should hide the burn hash column by default (ops-fokus) — no hash in front', async () => {
+      server.use(http.get('/api/v1/redeem-approvals', () => okList([row()])))
+      setup()
+      await screen.findByText('Budi Santoso')
+      expect(screen.queryByRole('link', { name: /0xfeed0000/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/0xfeed/)).not.toBeInTheDocument()
     })
 
     test('should mark a partner order — it passes through the same gate', async () => {
@@ -468,6 +483,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       server.use(
         http.get('/api/v1/redeem-approvals', () => okList([row({ burnTxHash: null })])),
       )
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 
@@ -511,6 +527,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
           }),
         ),
       )
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 

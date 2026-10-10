@@ -120,6 +120,18 @@ test.describe('OTC ▸ Mint / Redeem @e2e', () => {
       await seedAuthenticatedSession(page)
     })
 
+    test('the wallet window opened from the modal is clickable (non-modal dialog)', async ({ page }) => {
+      // Sebelum Okt 2026 modal OTC adalah Dialog Radix MODAL: body pointer-events
+      // dikunci, jendela RainbowKit muncul tapi tidak bisa diklik.
+      await page.goto('/otc/mint/req_mint_pending')
+      const modal = page.getByTestId('otc-modal')
+      await modal.getByRole('button', { name: 'Hubungkan wallet' }).click({ timeout: 15000 })
+      const rk = page.locator('[data-rk] [role="dialog"]')
+      await expect(rk).toBeVisible({ timeout: 10000 })
+      await rk.getByRole('button').filter({ hasText: 'MetaMask' }).click({ timeout: 5000 })
+      await expect(modal).toBeVisible()
+    })
+
     test('old OTC URLs redirect to the matching sub-menu', async ({ page }) => {
       await page.goto('/mint')
       await expect(page).toHaveURL(/\/otc\/mint$/, { timeout: 15000 })

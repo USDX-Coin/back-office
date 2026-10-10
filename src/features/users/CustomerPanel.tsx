@@ -1,3 +1,4 @@
+import WalletShort from '@/components/WalletShort'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Loader2 } from 'lucide-react'
@@ -12,7 +13,7 @@ import DetailPanel, {
 } from '@/components/detail-panel/DetailPanel'
 import PanelActions, { type PanelMoreItem, type PanelPrimary } from '@/components/detail-panel/PanelActions'
 import { customerSummary } from '@/lib/customerSummary'
-import { formatDate, formatShortDate, truncateMiddle } from '@/lib/format'
+import { formatDate, formatShortDate } from '@/lib/format'
 import { deriveActivationStatus, getActivationStatusConfig, getKycStatusConfig } from '@/lib/status'
 import type { EntityType, PhaseOneUser } from '@/lib/types'
 import { labelNasabah } from './labelNasabah'
@@ -83,9 +84,9 @@ export default function CustomerPanel({ user, canManage, onClose, onEdit }: Prop
       wallets.length === 0 ? (
         'Belum ada'
       ) : (
-        <span className="font-mono text-xs" title={wallets.map((w) => w.address).join('\n')}>
-          {truncateMiddle(wallets[0]!.address, 6, 5)}
-          {wallets.length > 1 && <span className="font-sans text-muted-foreground"> +{wallets.length - 1} lagi</span>}
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <WalletShort address={wallets[0]!.address} />
+          {wallets.length > 1 && <span className="text-xs text-muted-foreground">+{wallets.length - 1} lagi</span>}
         </span>
       ),
     ],

@@ -275,6 +275,46 @@ export function formatWibClock(iso: string | null | undefined): string {
   return `${hour}:${part('minute')} WIB`
 }
 
+// ─── Format waktu seragam (PM Okt 2026) ──────────────────────────────────────
+
+const ID_SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+function wibParts(iso: string | null | undefined) {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = WIB_DATETIME_FMT.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
+  return {
+    day: String(Number(part('day'))),
+    month: ID_SHORT_MONTH[Number(part('month')) - 1] ?? part('month'),
+    year: part('year'),
+    hour: part('hour') === '24' ? '00' : part('hour'),
+    minute: part('minute'),
+    second: part('second'),
+  }
+}
+
+/**
+ * SATU format waktu untuk seluruh back-office: `12 Sep 2026, 08:00:09`.
+ * Tanggal, bulan pendek Indonesia, koma, jam:menit:detik 24 jam dengan TITIK
+ * DUA, selalu di zona WIB (Asia/Jakarta) apa pun zona peramban operatornya.
+ * "WIB" TIDAK ditempel di nilai — tulis sekali di judul kolom ("Waktu (WIB)")
+ * atau label ("Dibuat (WIB)"). Kosong / tak terbaca → "—".
+ */
+export function formatDateTime(iso: string | null | undefined): string {
+  const p = wibParts(iso)
+  if (!p) return '—'
+  return `${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute}:${p.second}`
+}
+
+/** Tanggal saja di WIB: `12 Sep 2026` (tanpa jam). Kosong / tak terbaca → "—". */
+export function formatDateOnly(iso: string | null | undefined): string {
+  const p = wibParts(iso)
+  if (!p) return '—'
+  return `${p.day} ${p.month} ${p.year}`
+}
+
 export function formatWibDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
   const date = new Date(iso)
@@ -317,8 +357,6 @@ export function formatIsoDayDmy(day: string | null | undefined): string | null {
   const [, y, mo, d] = m
   return `${d}/${mo}/${y}`
 }
-
-const ID_SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
 /**
  * Tanggal kalender `YYYY-MM-DD` (mis. tanggal lahir) → `25 Jan 1994`, ejaan

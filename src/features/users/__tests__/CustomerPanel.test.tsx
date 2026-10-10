@@ -94,7 +94,9 @@ describe('CustomerPanel', () => {
       expect(within(panel).getByRole('heading', { name: 'Robert Deon' })).toBeInTheDocument()
       expect(within(panel).getByText('robert.deon@example.com')).toBeInTheDocument()
       expect(within(panel).getByText('Nasabah mengaktifkan akun lewat email')).toBeInTheDocument()
-      expect(within(panel).getByText('0x5aAe…BeAed')).toBeInTheDocument()
+      expect(within(panel).getByText('0x5aAe…eAed')).toBeInTheDocument()
+      // Pengecualian ops-fokus: wallet nasabah ringkas + tombol salin.
+      expect(within(panel).getByRole('button', { name: /salin alamat wallet/i })).toBeInTheDocument()
     })
 
     test('should open the customer transactions from the primary button', async () => {

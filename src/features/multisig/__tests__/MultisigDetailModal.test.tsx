@@ -38,7 +38,7 @@ vi.mock('@/lib/multisig/safeTx', async (importOriginal) => ({
   safeTxHashMatches: () => true,
 }))
 
-import MultisigDetailSheet from '../MultisigDetailSheet'
+import MultisigDetailModal from '../MultisigDetailModal'
 
 const ID = '019f1cb1-57d3-73a4-b4fb-3d510ba4aa94'
 const OWNER = '0x444444840C416D1e7765de855c9100B0A31184d7'
@@ -120,12 +120,17 @@ function setSafes(data: SafeMeta[] | undefined, flags: Record<string, unknown> =
 }
 
 function renderSheet() {
-  return render(<MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={null} />)
+  return render(
+    <MemoryRouter>
+      <MultisigDetailModal txId={ID} onClose={() => {}} listItem={null} nav={null} />
+    </MemoryRouter>,
+  )
 }
 
-const signBtn = () => screen.getByRole('button', { name: /Tanda tangani \(EIP-712\)/ })
+const signBtn = () => screen.getByRole('button', { name: /^Tanda tangani$/ })
+const walletLine = () => screen.getByTestId('multisig-wallet-line')
 
-describe('MultisigDetailSheet owner verification', () => {
+describe('MultisigDetailModal owner verification', () => {
   beforeEach(() => {
     refetchDetail = vi.fn()
     refetchSafes = vi.fn()
@@ -147,7 +152,7 @@ describe('MultisigDetailSheet owner verification', () => {
     test('wallet in detail.signers → owner, Sign enabled (primary source)', () => {
       setDetail({ signers: [signer(OWNER), signer(OTHER)] })
       renderSheet()
-      expect(screen.getByText('· owner Safe')).toBeInTheDocument()
+      expect(walletLine()).toHaveTextContent('kamu pemilik Safe ini')
       expect(signBtn()).toBeEnabled()
     })
 
@@ -155,7 +160,7 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] })
       setSafes([safeMeta([OWNER, OTHER])])
       renderSheet()
-      expect(screen.getByText('· owner Safe')).toBeInTheDocument()
+      expect(walletLine()).toHaveTextContent('kamu pemilik Safe ini')
       expect(signBtn()).toBeEnabled()
     })
   })
@@ -164,10 +169,10 @@ describe('MultisigDetailSheet owner verification', () => {
     test('signers present but wallet absent → not-owner, Sign disabled', () => {
       setDetail({ signers: [signer(OTHER)] })
       renderSheet()
-      expect(screen.getByText('· bukan owner Safe')).toBeInTheDocument()
+      expect(walletLine()).toHaveTextContent('wallet ini bukan pemilik Safe ini')
       const btn = signBtn()
       expect(btn).toBeDisabled()
-      expect(btn).toHaveAttribute('title', expect.stringContaining('bukan owner Safe'))
+      expect(screen.getByText('Wallet yang terhubung bukan pemilik Safe ini.')).toBeInTheDocument()
     })
   })
 
@@ -176,17 +181,17 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] })
       setSafes(undefined, { isLoading: true, isFetching: true })
       renderSheet()
-      expect(screen.getByText(/memeriksa status owner/)).toBeInTheDocument()
+      expect(walletLine()).toHaveTextContent('memeriksa…')
       const btn = signBtn()
       expect(btn).toBeDisabled()
-      expect(btn).toHaveAttribute('title', expect.stringContaining('Memeriksa status owner Safe'))
+      expect(screen.getByText('Memeriksa apakah wallet ini pemilik Safe…')).toBeInTheDocument()
     })
 
     test('empty signers + safes settled empty → unavailable, Retry refetches both', () => {
       setDetail({ signers: [] })
       setSafes([])
       renderSheet()
-      expect(screen.getByText(/daftar owner-nya tidak terbaca/)).toBeInTheDocument()
+      expect(screen.getByText(/Belum bisa memastikan wallet ini pemilik Safe\./)).toBeInTheDocument()
       expect(signBtn()).toBeDisabled()
 
       fireEvent.click(screen.getByRole('button', { name: 'Coba lagi' }))
@@ -200,16 +205,16 @@ describe('MultisigDetailSheet owner verification', () => {
       setDetail({ signers: [] }, { isFetching: true })
       setSafes([], { isFetching: true })
       renderSheet()
-      expect(screen.getByText('· status owner belum diketahui')).toBeInTheDocument()
-      expect(screen.queryByText(/memeriksa status owner/)).not.toBeInTheDocument()
-      expect(screen.getByText(/daftar owner-nya tidak terbaca/)).toBeInTheDocument()
+      expect(walletLine()).toHaveTextContent('status pemilik belum diketahui')
+      expect(walletLine()).not.toHaveTextContent('memeriksa')
+      expect(screen.getByText(/Belum bisa memastikan wallet ini pemilik Safe\./)).toBeInTheDocument()
     })
   })
 })
 
 // Execute is gated by the pre-execute simulate. A transport/RPC failure must read
 // as "unavailable" (retryable), NOT a false "would revert".
-describe('MultisigDetailSheet execute simulate gate', () => {
+describe('MultisigDetailModal execute simulate gate', () => {
   const EXEC_PAYLOAD = {
     to: '0x2702d7043693651BB8A3D2Ec1C296B20692C7426',
     value: '0',
@@ -233,7 +238,7 @@ describe('MultisigDetailSheet execute simulate gate', () => {
     setSafes([safeMeta([OWNER, OTHER])])
   }
 
-  const execBtn = () => screen.getByRole('button', { name: 'Eksekusi' })
+  const execBtn = () => screen.getByRole('button', { name: /^Eksekusi$/ })
 
   beforeEach(() => {
     refetchDetail = vi.fn()
@@ -254,13 +259,13 @@ describe('MultisigDetailSheet execute simulate gate', () => {
     test('simulate ok → Execute enabled', () => {
       state.simulate = { status: 'ok', refetch: vi.fn(), isRefetching: false }
       renderSheet()
-      expect(screen.getByText(/Simulasi lolos/)).toBeInTheDocument()
+      expect(screen.getByText(/Uji coba eksekusi lolos/)).toBeInTheDocument()
       expect(execBtn()).toBeEnabled()
     })
   })
 
   describe('negative', () => {
-    test('simulate revert → Execute disabled, shows "Akan ditolak kontrak"', () => {
+    test('simulate revert → Execute disabled, shows "akan ditolak"', () => {
       state.simulate = {
         status: 'revert',
         reason: 'Kontrak USDX sedang dihentikan sementara (EnforcedPause) — jalankan kembali dulu sebelum transaksi ini bisa dieksekusi.',
@@ -268,7 +273,7 @@ describe('MultisigDetailSheet execute simulate gate', () => {
         isRefetching: false,
       }
       renderSheet()
-      expect(screen.getByText(/Akan ditolak kontrak/)).toBeInTheDocument()
+      expect(screen.getByText(/Eksekusi akan ditolak:/)).toBeInTheDocument()
       expect(execBtn()).toBeDisabled()
     })
   })
@@ -283,8 +288,8 @@ describe('MultisigDetailSheet execute simulate gate', () => {
         isRefetching: false,
       }
       renderSheet()
-      expect(screen.getByText(/Simulasi tidak bisa dijalankan/)).toBeInTheDocument()
-      expect(screen.queryByText(/Akan ditolak kontrak/)).not.toBeInTheDocument()
+      expect(screen.getByText(/Uji coba eksekusi tidak bisa dijalankan/)).toBeInTheDocument()
+      expect(screen.queryByText(/Eksekusi akan ditolak:/)).not.toBeInTheDocument()
       expect(execBtn()).toBeDisabled()
 
       fireEvent.click(screen.getByRole('button', { name: 'Coba lagi' }))
@@ -294,64 +299,109 @@ describe('MultisigDetailSheet execute simulate gate', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 4 P0-2, arah sebaliknya — "Linked order" dulu cuma TEKS yang bisa disalin
-// (`MultisigDetailSheet.tsx:579-596`), jadi penandatangan yang ingin memeriksa
-// order asalnya harus mengingat id-nya, pindah menu, dan mencarinya ulang.
-//
-// Hanya blok ini yang butuh Router: seluruh tes di atas memakai fixture dengan
-// `linkedOrderId: null`, sehingga `<Link>` tidak pernah dirender di sana.
+// § 4 P0-2 — order asal bisa dibuka langsung dari modal (tautan, bukan teks).
+// Ops-fokus (Okt 2026): tautannya berbunyi "Buka transaksi asal"; id mentahnya
+// pindah ke Detail teknis.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MultisigDetailSheet — tautan ke order asalnya (P0-2)', () => {
+describe('MultisigDetailModal — tautan ke order asalnya (P0-2)', () => {
   const ORDER_ID = 'ord_9f3a2b'
 
   beforeEach(() => {
     refetchDetail = vi.fn()
     refetchSafes = vi.fn()
     setSafes([safeMeta([OWNER])])
-    state.wallet = { address: OTHER, isConnected: true, isWrongNetwork: false }
+    state.wallet = { address: OTHER, isConnected: true, chainOk: true }
     state.simulate = { status: 'idle', reason: null, refetch: vi.fn(), isRefetching: false }
   })
 
-  function renderWithRouter() {
-    return render(
-      <MemoryRouter>
-        <MultisigDetailSheet txId={ID} open onOpenChange={() => {}} listItem={null} />
-      </MemoryRouter>,
-    )
-  }
-
   describe('positive', () => {
-    test('id order jadi tautan ke /transactions/:id', () => {
+    test('tautan "Buka transaksi asal" menuju /transactions/:id', () => {
       setDetail({ linkedOrderId: ORDER_ID })
-      renderWithRouter()
-      const link = screen.getByRole('link', { name: new RegExp(ORDER_ID.slice(0, 6), 'i') })
-      expect(link).toHaveAttribute('href', `/transactions/${ORDER_ID}`)
-    })
-
-    test('tombol salin tetap ada — id penuhnya tidak hilang oleh tautan', () => {
-      setDetail({ linkedOrderId: ORDER_ID })
-      renderWithRouter()
-      expect(screen.getByRole('button', { name: /salin id order/i })).toBeInTheDocument()
+      renderSheet()
+      expect(screen.getByRole('link', { name: 'Buka transaksi asal' })).toHaveAttribute('href', `/transactions/${ORDER_ID}`)
     })
   })
 
   describe('negative', () => {
     test('tanpa linkedOrderId tidak ada tautan yang mengarang tujuan', () => {
       setDetail({ linkedOrderId: null })
-      renderWithRouter()
-      expect(
-        screen.queryByRole('link', { name: /transactions/i }),
-      ).not.toBeInTheDocument()
+      renderSheet()
+      expect(screen.queryByRole('link', { name: /transaksi asal/i })).not.toBeInTheDocument()
     })
   })
 
   describe('edge cases', () => {
-    test('pagar blind-sign di sekitarnya tidak ikut berubah', () => {
-      // Kalimat cross-check adalah alasan blok ini ada; menautkannya tidak
-      // boleh diam-diam membuang peringatannya.
+    test('id order mentah tetap ada di Detail teknis (dilipat, tidak dibuang)', () => {
       setDetail({ linkedOrderId: ORDER_ID })
-      renderWithRouter()
-      expect(screen.getByText(/pagar tanda tangan buta/i)).toBeInTheDocument()
+      renderSheet()
+      expect(screen.getByTestId('detail-teknis')).toHaveTextContent(ORDER_ID)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ops-fokus (PM Okt 2026): di depan hanya transaksi dalam kata — alamat, hash,
+// calldata, nonce, operasi, jaringan pindah ke Detail teknis. Pagar kecocokan
+// isi transaksi vs server WAJIB tetap ada dan mengunci tanda tangan + eksekusi.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MultisigDetailModal — bahasa ops', () => {
+  const NAMED = { address: OWNER, staffName: 'Linda Chen', isBackend: false, signed: true, signedAt: '2026-09-12T01:00:09.000Z' }
+  const PENDING = { address: OTHER, staffName: 'Marcus Thorne', isBackend: false, signed: false, signedAt: null }
+
+  beforeEach(() => {
+    refetchDetail = vi.fn()
+    refetchSafes = vi.fn()
+    setSafes([safeMeta([OWNER, OTHER])])
+    state.wallet = { address: OWNER, isConnected: true, chainId: 137, chainOk: true, connect: vi.fn(), switchToPolygon: vi.fn(), isSwitching: false }
+    state.simulate = { status: 'idle', reason: null, refetch: vi.fn(), isRefetching: false }
+  })
+
+  describe('positive', () => {
+    test('judul, status kalimat, Safe sebagai kata, penanda tangan dengan nama', () => {
+      setDetail({
+        activityLabel: `Mint 100 USDX → ${OTHER}`,
+        signers: [NAMED, PENDING],
+        signatureProgress: { collected: 1, threshold: 2 },
+      })
+      renderSheet()
+      expect(screen.getByRole('heading', { name: 'Mint 100 USDX' })).toBeInTheDocument()
+      expect(screen.getByTestId('multisig-status-sentence')).toHaveTextContent('Menunggu 1 tanda tangan lagi')
+      expect(screen.getAllByText('Safe Staf').length).toBeGreaterThan(0)
+      const signers = screen.getByTestId('multisig-signers')
+      expect(signers).toHaveTextContent('Linda Chen')
+      expect(signers).toHaveTextContent('Sudah · 12 Sep 2026, 08:00:09')
+      expect(signers).toHaveTextContent('Marcus Thorne')
+      expect(signers).toHaveTextContent('Belum')
+      expect(signers).not.toHaveTextContent('0x')
+    })
+  })
+
+  describe('negative', () => {
+    test('isi tidak cocok dengan server → peringatan di atas, tombol terkunci', async () => {
+      const safeTx = await import('@/lib/multisig/safeTx')
+      const spy = vi.spyOn(safeTx, 'safeTxHashMatches').mockReturnValue(false)
+      setDetail({ signers: [NAMED, PENDING] })
+      renderSheet()
+      expect(screen.getByTestId('multisig-mismatch')).toHaveTextContent('tidak cocok dengan data server')
+      expect(signBtn()).toBeDisabled()
+      spy.mockRestore()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('alamat, hash, calldata, nonce hanya di Detail teknis', () => {
+      setDetail({ signers: [NAMED, PENDING], safeTxHash: '0xabc123def456', data: '0xdeadbeef', nonce: 42 })
+      renderSheet()
+      const teknis = screen.getByTestId('detail-teknis')
+      expect(teknis).toHaveTextContent(SAFE_ADDR)
+      expect(teknis).toHaveTextContent('0xabc123def456')
+      expect(teknis).toHaveTextContent('0xdeadbeef')
+      expect(teknis).toHaveTextContent('42')
+      expect(teknis).toHaveAttribute('data-state', 'closed')
+      // Di luar Detail teknis tidak ada alamat/hash.
+      const front = screen.getByTestId('multisig-modal').cloneNode(true) as HTMLElement
+      front.querySelector('[data-testid="detail-teknis"]')?.remove()
+      expect(front.textContent).not.toMatch(/0x[0-9a-fA-F]{6,}/)
     })
   })
 })

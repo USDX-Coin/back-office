@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { server } from '@/mocks/server'
@@ -45,6 +45,8 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       expect(within(subs).getByText(/Ditolak .* Invalid beneficiary account/)).toBeInTheDocument()
       expect(within(dialog).getByText('Satu percobaan, terbukti ditolak provider.')).toBeInTheDocument()
       expect(within(dialog).getByText('8730012245')).toBeInTheDocument()
+      // Ops-fokus (Okt 2026): tx pembakaran dilipat di Detail teknis, bukan di depan.
+      fireEvent.click(within(dialog).getByRole('button', { name: /detail teknis/i }))
       const link = await within(dialog).findByRole('link', { name: /0xc1c1/ })
       expect(link).toHaveAttribute('href', `https://polygonscan.com/tx/0x${'c1'.repeat(32)}`)
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
