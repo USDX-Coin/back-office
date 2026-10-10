@@ -17,7 +17,7 @@ import type { MintPaymentStatus } from '@/lib/types'
 import StatusPill from '@/components/StatusPill'
 import { ApiError } from '@/lib/apiFetch'
 import { useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
 import { canResolveHeldCredit } from './access'
 import { useHeldCreditDetail } from './hooks'
@@ -164,7 +164,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               : 'Sudah ditolak.'}
           </p>
           <p className="mt-0.5 text-muted-foreground">
-            {formatWibDateTime(credit.resolvedAt)}
+            {formatDateTime(credit.resolvedAt)} WIB
             {credit.resolution === 'FAILED' &&
               ' · Pengembalian dana ke nasabah dikerjakan treasury secara manual — tidak ada pengembalian otomatis.'}
           </p>
@@ -212,8 +212,8 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               <span className="text-muted-foreground">tidak disebut penyedia</span>
             )}
           </Field>
-          <Field label="Diterima">
-            <span className="text-xs">{formatWibDateTime(credit.receivedAt)}</span>
+          <Field label="Diterima (WIB)">
+            <span className="text-xs">{formatDateTime(credit.receivedAt)}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
               menunggu {formatCreditAge(credit.receivedAt)}
             </span>
@@ -264,7 +264,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
       </Section>
 
       {credit.reviews.length > 0 && (
-        <Section title="Jejak keputusan">
+        <Section title="Jejak keputusan (WIB)">
           <ol data-testid="jejak-keputusan" className="space-y-2.5">
             {credit.reviews.map((review) => (
               <li key={review.id} className="rounded-md border border-border/60 px-3 py-2.5">
@@ -273,7 +273,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
                   {review.actorStaffName ?? review.actorStaffId}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {formatWibDateTime(review.createdAt)}
+                  {formatDateTime(review.createdAt)}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap text-xs">{review.reason}</p>
               </li>

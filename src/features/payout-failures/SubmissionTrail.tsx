@@ -1,5 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { summarizeSubmissions } from '@/lib/payoutFailures'
 import { formatIdrExact } from '@/lib/redeemApprovals'
 import type { PayoutSubmissionTrail } from '@/lib/types'
@@ -58,11 +58,11 @@ export default function SubmissionTrail({
               <span className="tabular-nums">{formatIdrExact(sub.amountIdr)}</span>
             </div>
             <p className="mt-0.5 text-muted-foreground">
-              {providerLabel(sub.payoutProvider)} · diserahkan {formatWibDateTime(sub.submittedAt)}
+              {providerLabel(sub.payoutProvider)} · diserahkan {formatDateTime(sub.submittedAt)}
             </p>
             {sub.rejectedAt ? (
               <p className="mt-0.5 text-destructive">
-                Ditolak {formatWibDateTime(sub.rejectedAt)}
+                Ditolak {formatDateTime(sub.rejectedAt)}
                 {sub.rejectionReason ? ` — ${sub.rejectionReason}` : ''}
               </p>
             ) : (

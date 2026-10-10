@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   SANCTION_LIST_TYPE_LABELS,
   SCREENING_OUTCOME_LABELS,
@@ -196,7 +196,7 @@ function ListCoverageRow({
             {latest.listPublishedAt
               ? `Daftar terbitan ${latest.listPublishedAt}`
               : 'Versi daftar tidak tercatat'}{' '}
-            · {SCREENING_TRIGGER_LABELS[latest.trigger]} · {formatDate(latest.createdAt)}
+            · {SCREENING_TRIGGER_LABELS[latest.trigger]} · {formatDateTime(latest.createdAt)}
           </p>
         </div>
       )}

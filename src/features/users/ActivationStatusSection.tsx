@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/apiFetch'
 import { canManageUsers, useAuth } from '@/lib/auth'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { deriveActivationStatus, getActivationStatusConfig } from '@/lib/status'
 import type { PhaseOneUser } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -105,7 +105,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
 
         {status === 'ACTIVATED' && user.emailVerifiedAt && (
           <p className="text-xs text-muted-foreground">
-            Email terverifikasi · {formatDate(user.emailVerifiedAt)}
+            Email terverifikasi · {formatDateTime(user.emailVerifiedAt)}
           </p>
         )}
         {status === 'PENDING' && (
@@ -116,7 +116,7 @@ export default function ActivationStatusSection({ user }: ActivationStatusSectio
         {status === 'FAILED' && user.activationEmailFailedAt && (
           <p className="flex items-start gap-1.5 text-xs text-destructive">
             <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Email aktivasi gagal terkirim ({formatDate(user.activationEmailFailedAt)}).
+            Email aktivasi gagal terkirim ({formatDateTime(user.activationEmailFailedAt)}).
             Kirim ulang secara manual.
           </p>
         )}

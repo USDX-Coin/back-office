@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   formatQueueAge,
   isPayoutIssueKind,
@@ -77,14 +77,14 @@ export default function PayoutFailuresPage() {
   const columns: ColumnDef<PayoutFailureListItem>[] = [
     {
       id: 'issueAt',
-      // Cap waktu bank ditulis penuh dengan zona ("2026-09-12 08:00:00 WIB").
-      // Dengan lebar bagi-rata kolomnya kurang ~11px dan detiknya terpotong,
-      // padahal justru detik itu yang dicocokkan ops dengan mutasi bank.
+      // Cap waktu ditulis penuh sampai detik ("12 Sep 2026, 08:00:09"); zona
+      // ditulis sekali di judul kolom. Detik itu yang dicocokkan ops dengan
+      // mutasi bank, jadi lebarnya dijaga.
       size: 184,
-      header: 'Masuk antrean',
+      header: 'Masuk antrean (WIB)',
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.issueAt)}
+          {formatDateTime(row.original.issueAt)}
         </span>
       ),
     },

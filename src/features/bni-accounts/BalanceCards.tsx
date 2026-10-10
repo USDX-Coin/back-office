@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
-import { bniAccountTypeLabel as accountTypeLabel, formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
+import { bniAccountTypeLabel as accountTypeLabel, formatBankAmount, formatBniStamp, formatDateTime } from '@/lib/format'
 import { getBniBalanceCardStatusConfig } from '@/lib/status'
 import type { BniAccount, BniBalances } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -134,13 +134,13 @@ export default function BalanceCards({
           <p className="text-xs text-muted-foreground">
             {balances && !error ? (
               <>
-                Menurut bank:{' '}
+                Waktu (WIB) · menurut bank:{' '}
                 <span className="tabular-nums" data-testid="bni-inquired-at-bank">
-                  {formatBniPostDate(balances.inquiredAtBank)}
+                  {formatBniStamp(balances.inquiredAtBank)}
                 </span>{' '}
-                WIB · Tarikan:{' '}
+                · tarikan:{' '}
                 <span className="tabular-nums" data-testid="bni-pulled-at">
-                  {formatWibDateTime(balances.pulledAt)}
+                  {formatDateTime(balances.pulledAt)}
                 </span>
                 {/* pullId = activity_log.metadata.pullId = api_call_log.correlation_id
                     (§ 16.2) — the one number ops can trace from the screen to the

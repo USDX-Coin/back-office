@@ -15,7 +15,7 @@ import DetailTeknis from '@/components/DetailTeknis'
 import StatusPill from '@/components/StatusPill'
 import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
 import { useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { blockedExplanation, decideBlockedReason } from './access'
 import DecideApprovalDialog from './DecideApprovalDialog'
 import { useApprovalDetail } from './hooks'
@@ -246,7 +246,7 @@ function ApprovalBody({
           <Field label="Pengusul">
             <span title={approval.proposerStaffId}>{actorName(approval.proposerStaffId)}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              {formatWibDateTime(approval.proposedAt)}
+              {formatDateTime(approval.proposedAt)}
             </span>
           </Field>
           <Field label="Batas waktu">
@@ -256,7 +256,7 @@ function ApprovalBody({
                   {formatExpiry(approval.expiresAt)}
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {formatWibDateTime(approval.expiresAt)}
+                  {formatDateTime(approval.expiresAt)}
                 </span>
               </>
             ) : (
@@ -267,14 +267,14 @@ function ApprovalBody({
             <Field label="Diputuskan oleh">
               <span title={approval.approverStaffId}>{actorName(approval.approverStaffId)}</span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                {formatWibDateTime(approval.decidedAt)}
+                {formatDateTime(approval.decidedAt)}
               </span>
             </Field>
           )}
           {approval.executedAt && (
             <Field label="Aksinya berjalan">
               <span className="text-xs text-muted-foreground">
-                {formatWibDateTime(approval.executedAt)}
+                {formatDateTime(approval.executedAt)}
               </span>
             </Field>
           )}

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import ErrorNotice from '@/components/ErrorNotice'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import { useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   formatFee,
   formatMaxAmount,
@@ -140,7 +140,7 @@ export default function PaymentMethodsPage() {
                   <p className="text-xs text-muted-foreground">
                     {m.updatedByName ? `Diubah ${m.updatedByName}` : 'Belum pernah diubah'}
                     <br />
-                    {formatWibDateTime(m.updatedAt)}
+                    {formatDateTime(m.updatedAt)}
                   </p>
                   <div className="flex items-center gap-2 md:justify-end">
                     {draftOrder ? (
@@ -244,7 +244,7 @@ function ChangeTrail({ methods }: { methods: PaymentMethod[] }) {
               const reason = typeof r.metadata?.reason === 'string' ? r.metadata.reason : null
               return (
                 <li key={r.id} className="grid gap-1 px-5 py-3 text-sm sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-4">
-                  <span className="text-xs text-muted-foreground">{formatWibDateTime(r.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</span>
                   <div className="min-w-0">
                     <p className="font-medium">
                       {ACTION_TEXT[r.action] ?? r.action}

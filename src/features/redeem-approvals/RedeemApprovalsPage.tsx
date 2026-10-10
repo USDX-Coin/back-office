@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useChainConfig } from '@/features/chains/hooks'
 import { canDecideRedeemPayout, useAuth } from '@/lib/auth'
-import { formatWibDateTime, shortHash } from '@/lib/format'
+import { formatDateTime, shortHash } from '@/lib/format'
 import {
   formatIdrExact,
   formatUsdxExact,
@@ -193,16 +193,16 @@ export default function RedeemApprovalsPage() {
     },
     {
       id: 'burnedAt',
-      // `formatWibDateTime` mencetak "2026-09-12 08:00:00 WIB" — 23 kolom mono
+      // `formatDateTime` mencetak "2026-09-12 08:00:00 WIB" — 23 kolom mono
       // 11px ≈ 152px. Dengan 120px bawaan yang terpotong justru DETIKNYA, yaitu
       // bagian yang dicocokkan ops dengan bukti on-chain. 192px adalah lebar
       // yang sudah dipakai layar Jejak Audit dan Mint Bermasalah untuk format
       // yang sama persis.
       size: 192,
-      header: 'Dibakar',
+      header: 'Dibakar (WIB)',
       cell: ({ row }) => (
         <TableCellText
-          value={formatWibDateTime(row.original.burnedAt)}
+          value={formatDateTime(row.original.burnedAt)}
           className="text-xs tabular-nums text-muted-foreground"
         />
       ),

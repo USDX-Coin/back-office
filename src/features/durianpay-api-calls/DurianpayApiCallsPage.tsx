@@ -19,7 +19,7 @@ import {
   toDurianpayApiCallQuery,
   type DurianpayApiCallFilterValues,
 } from '@/lib/durianpayApiCalls'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import type { DurianpayApiCallListItem } from '@/lib/types'
 import DurianpayApiCallDetailModal from './DurianpayApiCallDetailModal'
 import { DURIANPAY_CALL_COLUMN_CONFIG, DURIANPAY_CALL_FILTER_DEFS } from './filterDefs'
@@ -99,7 +99,7 @@ export default function DurianpayApiCallsPage() {
       size: 192,
       cell: ({ row }) => (
         <TableCellText
-          value={formatWibDateTime(row.original.requestedAt)}
+          value={formatDateTime(row.original.requestedAt)}
           className="whitespace-nowrap text-xs tabular-nums text-muted-foreground"
         />
       ),
@@ -279,7 +279,7 @@ export default function DurianpayApiCallsPage() {
         }
         onRowClick={(r) => openDetail(r.id)}
         rowAriaLabel={(r) =>
-          `Panggilan ${r.httpMethod} ${r.path} ${formatWibDateTime(r.requestedAt)}`
+          `Panggilan ${r.httpMethod} ${r.path} ${formatDateTime(r.requestedAt)}`
         }
       />
 

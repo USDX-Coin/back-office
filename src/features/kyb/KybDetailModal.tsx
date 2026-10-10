@@ -39,7 +39,7 @@ import {
   UBO_LEGAL_RELATIONSHIP_LABELS,
   labelFor,
 } from '@/lib/cdd'
-import { formatDate, shortHash } from '@/lib/format'
+import { formatDateTime, shortHash } from '@/lib/format'
 import { parseKybDocumentsIncomplete } from '@/lib/kybDocumentsError'
 import {
   checkKybDocumentBytes,
@@ -1034,7 +1034,7 @@ export default function KybDetailModal({
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
                   <span className="text-xs tabular-nums text-muted-foreground">
                     Diajukan{' '}
-                    {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
+                    {formatDateTime((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
               </div>
@@ -1348,7 +1348,7 @@ export default function KybDetailModal({
                       {detail.reviewedAt && (
                         <p className="text-xs text-muted-foreground">
                           Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
-                          {formatDate(detail.reviewedAt)}
+                          {formatDateTime(detail.reviewedAt)}
                         </p>
                       )}
                     </div>

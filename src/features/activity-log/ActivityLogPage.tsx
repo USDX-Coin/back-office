@@ -15,7 +15,7 @@ import {
   useStaffDirectory,
   type StaffDirectory,
 } from '@/features/staff-directory/hooks'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import ActivityLogDetailModal from './ActivityLogDetailModal'
 import { ACTIVITY_LOG_COLUMN_CONFIG, activityLogFilterDefs } from './filterDefs'
 import { useActivityLogs } from './hooks'
@@ -129,14 +129,14 @@ export default function ActivityLogPage() {
   const columns: ColumnDef<ActivityLogEntry>[] = [
     {
       id: 'createdAt',
-      header: 'Waktu',
+      header: 'Waktu (WIB)',
       // Cukup untuk `YYYY-MM-DD HH:MM:SS WIB` UTUH. Stempel waktu yang terpotong
       // di layar bukti kepatuhan adalah nilai yang harus dibuka satu per satu
       // untuk bisa dikutip.
       size: 192,
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.createdAt)}
+          {formatDateTime(row.original.createdAt)}
         </span>
       ),
     },
@@ -315,7 +315,7 @@ export default function ActivityLogPage() {
           />
         }
         onRowClick={(row) => setSelected(row)}
-        rowAriaLabel={(row) => `Jejak ${row.action} ${formatWibDateTime(row.createdAt)}`}
+        rowAriaLabel={(row) => `Jejak ${row.action} ${formatDateTime(row.createdAt)}`}
       />
 
       <ActivityLogDetailModal

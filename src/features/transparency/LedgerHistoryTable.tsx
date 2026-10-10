@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   formatAmountDecimal,
   formatOccurredAt,
@@ -36,7 +36,7 @@ const COLUMNS = [
   'Nominal',
   'Alasan',
   'Dicatat oleh',
-  'Dicatat pada',
+  'Dicatat pada (WIB)',
 ]
 
 /**
@@ -149,7 +149,7 @@ export default function LedgerHistoryTable({
                           {entry.createdByName}
                         </TableCell>
                         <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
-                          {formatDate(entry.createdAt)}
+                          {formatDateTime(entry.createdAt)}
                         </TableCell>
                       </TableRow>
                     )

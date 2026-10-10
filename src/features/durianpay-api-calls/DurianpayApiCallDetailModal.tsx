@@ -31,7 +31,7 @@ import {
   REDACTED_SECRET_MARK,
   type DurianpayBodyView,
 } from '@/lib/durianpayApiCalls'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import type { DurianpayApiCallDetail } from '@/lib/types'
 import { useDurianpayApiCallDetail } from './hooks'
 import { DataField, DataSection } from '@/components/DataList'
@@ -187,9 +187,9 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
             {/* Path yang belum dikenal dirender sebagai pathnya, tanpa arti karangan. */}
             {callLabel ?? <span className="font-mono text-xs">{detail.path}</span>}
           </Field>
-          <Field label="Waktu berangkat">
+          <Field label="Waktu berangkat (WIB)">
             <span className="text-xs tabular-nums">
-              {formatWibDateTime(detail.requestedAt)}
+              {formatDateTime(detail.requestedAt)}
             </span>
           </Field>
           <Field label="Metode & path">
@@ -342,7 +342,7 @@ export default function DurianpayApiCallDetailModal({ callId, open, onOpenChange
           <DialogTitle>Panggilan ke DurianPay</DialogTitle>
           <DialogDescription>
             {detail
-              ? `${durianpayCallLabel(detail.path) ?? detail.path} · ${formatWibDateTime(detail.requestedAt)}`
+              ? `${durianpayCallLabel(detail.path) ?? detail.path} · ${formatDateTime(detail.requestedAt)}`
               : 'Memuat detail panggilan…'}
           </DialogDescription>
         </DialogHeader>

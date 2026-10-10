@@ -21,7 +21,7 @@ export const REDEEM_APPROVAL_COLUMN_CONFIG: ColumnConfig[] = [
   { key: 'amount', label: 'Nominal transfer', required: true },
   { key: 'destination', label: 'Rekening tujuan', required: true },
   { key: 'customer', label: 'Nasabah' },
-  { key: 'burnedAt', label: 'Dibakar' },
+  { key: 'burnedAt', label: 'Dibakar (WIB)' },
   // Hash burn boleh disembunyikan — ia bukti yang dibuka saat ada yang
   // dipertanyakan, bukan bagian dari keputusan rutin "berapa, ke mana".
   // Ops-fokus (PM Okt 2026): TERSEMBUNYI secara bawaan; bisa dinyalakan lewat

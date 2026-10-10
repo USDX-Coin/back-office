@@ -1,4 +1,4 @@
-import { formatBankAmount, formatBniPostDate, formatIsoDayDmy, formatWibDayMinute } from '@/lib/format'
+import { formatBankAmount, formatBniStamp, formatIsoDayDmy, formatWibDayMinute } from '@/lib/format'
 import type { BniStatementGap, BniStatementRefresh } from '@/lib/types'
 
 // USDX-692 — sot/bni-integration.md § 16.8.8. Since D24 the statement is read
@@ -48,7 +48,7 @@ export function historyNotice(
 }
 
 function gapPoint(stamp: string | null | undefined): string | null {
-  const formatted = formatBniPostDate(stamp)
+  const formatted = formatBniStamp(stamp)
   return formatted === '—' ? null : formatted
 }
 

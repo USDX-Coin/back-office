@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/tooltip'
 import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
 import { useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { canDecideApproval } from './access'
 import ApprovalDetailModal from './ApprovalDetailModal'
 import { APPROVAL_COLUMN_CONFIG, APPROVAL_FILTER_DEFS } from './filterDefs'
@@ -96,14 +96,14 @@ export default function ApprovalsPage() {
   const columns: ColumnDef<ApprovalRequest>[] = [
     {
       id: 'proposedAt',
-      header: 'Diusulkan',
+      header: 'Diusulkan (WIB)',
       // `YYYY-MM-DD HH:MM:SS WIB` utuh butuh 192px — angka yang sama dipakai
       // Jejak Audit dan Mint Bermasalah untuk format ini. 168px memotong
       // detiknya, bagian yang justru dipakai mengurutkan dua usulan berdekatan.
       size: 192,
       cell: ({ row }) => (
         <TableCellText
-          value={formatWibDateTime(row.original.proposedAt)}
+          value={formatDateTime(row.original.proposedAt)}
           className="text-xs tabular-nums text-muted-foreground"
         />
       ),
@@ -175,7 +175,7 @@ export default function ApprovalsPage() {
                 ? 'text-xs font-medium tabular-nums text-warning'
                 : 'text-xs tabular-nums'
             }
-            title={formatWibDateTime(row.original.expiresAt)}
+            title={formatDateTime(row.original.expiresAt)}
           >
             {formatExpiry(row.original.expiresAt)}
           </span>

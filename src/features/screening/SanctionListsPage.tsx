@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/apiFetch'
-import { formatDate, formatShortDate } from '@/lib/format'
+import { formatDateTime, formatShortDate } from '@/lib/format'
 import {
   SANCTION_LIST_SOURCE_LABELS,
   SANCTION_LIST_STATUS_LABELS,
@@ -384,7 +384,7 @@ export default function SanctionListsPage() {
             </p>
             {rescanPrompt?.activatedAt && (
               <p className="tabular-nums mt-2 text-xs text-muted-foreground">
-                Diaktifkan {formatDate(rescanPrompt.activatedAt)}
+                Diaktifkan {formatDateTime(rescanPrompt.activatedAt)}
               </p>
             )}
           </DialogBody>

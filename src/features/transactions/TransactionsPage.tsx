@@ -5,7 +5,7 @@ import TableToolbar from '@/components/table/TableToolbar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
-import { formatDate, truncateMiddle } from '@/lib/format'
+import { formatDateTime, truncateMiddle } from '@/lib/format'
 import {
   ACTION_LABEL,
   actionLabel,
@@ -171,9 +171,9 @@ export default function TransactionsPage() {
     },
     {
       id: 'occurredAt',
-      header: 'Waktu',
+      header: 'Waktu (WIB)',
       className: 'hidden w-40 md:table-cell',
-      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatDate(r.occurredAt)}</span>,
+      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatDateTime(r.occurredAt)}</span>,
     },
   ]
 

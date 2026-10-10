@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
 import { canDecideRedeemPayout, useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   classifyThresholdChange,
   formatIdrExact,
@@ -207,7 +207,7 @@ export default function RedeemApprovalControlsCard() {
 
             {current?.updatedAt && (
               <p className="text-xs text-muted-foreground">
-                Terakhir diubah {formatWibDateTime(current.updatedAt)}
+                Terakhir diubah {formatDateTime(current.updatedAt)}
                 {current.updatedByName ? ` oleh ${current.updatedByName}` : ''}.
               </p>
             )}

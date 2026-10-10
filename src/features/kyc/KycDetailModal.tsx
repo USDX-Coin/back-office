@@ -40,7 +40,7 @@ import {
   isPepCandidateOccupation,
   labelFor,
 } from '@/lib/cdd'
-import { formatCountryCode, formatDate, formatIsoDayLong, shortHash } from '@/lib/format'
+import { formatCountryCode, formatDateTime, formatIsoDayLong, shortHash } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   KYC_REJECT_REASON_MAX,
@@ -323,7 +323,7 @@ function AuditTrailRow({ row }: { row: KycReviewLog }) {
       </span>
       <span className="text-xs text-foreground">{actor}</span>
       <span className="text-xs tabular-nums text-muted-foreground">
-        {formatDate(row.createdAt)}
+        {formatDateTime(row.createdAt)}
       </span>
       {row.reason && (
         <span className="basis-full text-xs text-muted-foreground">
@@ -512,7 +512,7 @@ export default function KycDetailModal({
                 </div>
                 {(detail?.submittedAt ?? listItem?.submittedAt) && (
                   <span className="text-xs tabular-nums text-muted-foreground">
-                    Diajukan {formatDate((detail?.submittedAt ?? listItem?.submittedAt)!)}
+                    Diajukan {formatDateTime((detail?.submittedAt ?? listItem?.submittedAt)!)}
                   </span>
                 )}
               </div>
@@ -785,7 +785,7 @@ export default function KycDetailModal({
                       {detail.reviewedAt && (
                         <p className="text-xs text-muted-foreground">
                           Diperiksa oleh {detail.reviewedByName ?? '—'} ·{' '}
-                          {formatDate(detail.reviewedAt)}
+                          {formatDateTime(detail.reviewedAt)}
                         </p>
                       )}
                     </div>

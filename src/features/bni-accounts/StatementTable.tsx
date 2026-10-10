@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import DataTable from '@/components/DataTable'
 import StatusPill from '@/components/StatusPill'
-import { formatBankAmount, formatBniPostDate } from '@/lib/format'
+import { formatBankAmount, formatBniStamp } from '@/lib/format'
 import { getBniFlagConfig } from '@/lib/status'
 import type { BniStatementRow } from '@/lib/types'
 import {
@@ -52,10 +52,10 @@ function buildStatementColumns(currency: string | null | undefined): ColumnDef<I
       id: 'postDate',
       // `YYYY-MM-DD HH:MM:SS` bank, utuh dengan detiknya.
       size: 176,
-      header: 'Tanggal posting',
+      header: 'Tanggal posting (WIB)',
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
-          {formatBniPostDate(row.original.row.postDate)}
+          {formatBniStamp(row.original.row.postDate)}
         </span>
       ),
     },

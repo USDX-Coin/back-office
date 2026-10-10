@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { canEnableMintTestMode, canRestoreMintProdMode, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
-import { formatWibDateTime, truncateMiddle } from '@/lib/format'
+import { formatDateTime, truncateMiddle } from '@/lib/format'
 import { TEST_BUNDLE_ADDRESS_LABELS, type TestBundleAddressField } from '@/lib/mintMode'
 import type { MintModeConfig } from '@/lib/types'
 import { useChainConfig } from '@/features/chains/hooks'
@@ -158,17 +158,17 @@ export default function MintModeCard({ data, isLoading }: Props) {
                     sedang panik (sot/api/mint-mode.yaml). */}
                 {data.updatedByName ? data.updatedByName : <Dim />}
               </Field>
-              <Field label="Terakhir digeser">
-                <span title={data.updatedAt}>{formatWibDateTime(data.updatedAt)}</span>
+              <Field label="Terakhir digeser (WIB)">
+                <span title={data.updatedAt}>{formatDateTime(data.updatedAt)}</span>
               </Field>
               <div className="sm:col-span-2">
                 {/* Waktu berakhir hanya bermakna saat mode uji menyala; pada
                     PROD kontraknya mengirim `null`, dan em dash mengatakan itu
                     apa adanya alih-alih memasang tanggal yang tidak berlaku. */}
-                <Field label="Berakhir">
+                <Field label="Berakhir (WIB)">
                   {data.expiresAt ? (
                     <span aria-label="mode uji berakhir">
-                      {formatWibDateTime(data.expiresAt)}
+                      {formatDateTime(data.expiresAt)}
                     </span>
                   ) : (
                     <Dim />

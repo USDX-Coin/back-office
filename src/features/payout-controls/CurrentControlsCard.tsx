@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import DetailTeknis from '@/components/DetailTeknis'
 import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { batchLabel, limitLabel } from './labels'
 import { hasControlRow, type PayoutControls } from './types'
 
@@ -116,7 +116,7 @@ export default function CurrentControlsCard({ data, isLoading, isError, onRetry 
             <p className="border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
               {hasControlRow(data) ? (
                 <>
-                  Terakhir diubah {formatWibDateTime(data.updatedAt)}
+                  Terakhir diubah {formatDateTime(data.updatedAt)}
                   {data.updatedBy ? ` oleh ${formatActor(directory, data.updatedBy)}` : ''}.
                 </>
               ) : (

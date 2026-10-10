@@ -19,7 +19,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatRate, formatWibDateTime } from '@/lib/format'
+import { formatRate, formatDateTime } from '@/lib/format'
 import {
   allowedResolveActions,
   formatQueueAge,
@@ -90,7 +90,7 @@ function ActionAvailabilityNote({
       <p className="text-xs text-muted-foreground" data-testid="resolved-note">
         Sudah dituntaskan: <strong>{resolutionTrailLabel(detail.resolution)}</strong>
         {detail.resolvedByStaffName ? ` oleh ${detail.resolvedByStaffName}` : ''}
-        {detail.resolvedAt ? ` · ${formatWibDateTime(detail.resolvedAt)}` : ''}.
+        {detail.resolvedAt ? ` · ${formatDateTime(detail.resolvedAt)} WIB` : ''}.
       </p>
     )
   }
@@ -202,9 +202,9 @@ export default function PayoutFailureDetailModal({
                   <Field label="Status order">
                     <span title={detail.status}>{getOrderStatusConfig(detail.status as OrderStatus).label}</span>
                   </Field>
-                  <Field label="Masuk antrean">
+                  <Field label="Masuk antrean (WIB)">
                     <span className="text-xs tabular-nums">
-                      {formatWibDateTime(detail.issueAt)}
+                      {formatDateTime(detail.issueAt)}
                     </span>
                   </Field>
                   <Field label="Keterangan dari provider / scanner">
@@ -265,9 +265,9 @@ export default function PayoutFailureDetailModal({
 
               <Section title="Pembakaran USDX">
                 <div className="@container divide-y divide-border border-t border-border">
-                  <Field label="Dibakar">
+                  <Field label="Dibakar (WIB)">
                     <span className="text-xs tabular-nums">
-                      {formatWibDateTime(detail.burnedAt)}
+                      {formatDateTime(detail.burnedAt)}
                     </span>
                     {(detail.lateBurn || detail.staleBurn) && (
                       <span className="ml-1.5 text-label font-medium text-amber-700 dark:text-amber-400">

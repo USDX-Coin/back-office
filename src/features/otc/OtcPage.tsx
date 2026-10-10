@@ -7,7 +7,7 @@ import TableToolbar from '@/components/table/TableToolbar'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
-import { formatDate, formatUsdxListAmount } from '@/lib/format'
+import { formatDateTime, formatUsdxListAmount } from '@/lib/format'
 import {
   OTC_ACTION_STATUSES,
   OTC_HISTORY_STATUSES,
@@ -153,9 +153,9 @@ export default function OtcPage({ type }: { type: RequestType }) {
     },
     {
       id: 'createdAt',
-      header: 'Waktu',
+      header: 'Waktu (WIB)',
       className: 'hidden w-40 md:table-cell',
-      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatDate(r.createdAt)}</span>,
+      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatDateTime(r.createdAt)}</span>,
     },
   ]
 

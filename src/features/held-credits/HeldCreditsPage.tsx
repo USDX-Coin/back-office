@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { formatIdrExact } from '@/lib/redeemApprovals'
 import { canResolveHeldCredit } from './access'
 import { HELD_CREDIT_COLUMN_CONFIG } from './filterDefs'
@@ -74,13 +74,13 @@ export default function HeldCreditsPage() {
   const columns: ColumnDef<HeldCreditListItem>[] = [
     {
       id: 'receivedAt',
-      header: 'Uang masuk',
-      // Cukup untuk `YYYY-MM-DD HH:MM:SS WIB` UTUH — ini stempel waktu yang
-      // dicocokkan ops dengan rekening koran bank.
+      header: 'Uang masuk (WIB)',
+      // Cukup untuk `12 Sep 2026, 08:00:09` UTUH (detik ikut) — ini stempel
+      // waktu yang dicocokkan ops dengan rekening koran bank.
       size: 192,
       cell: ({ row }) => (
         <span className="text-xs tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.receivedAt)}
+          {formatDateTime(row.original.receivedAt)}
         </span>
       ),
     },
@@ -283,7 +283,7 @@ export default function HeldCreditsPage() {
           }
           onRowClick={(row) => openDetail(row.id)}
           rowAriaLabel={(row) =>
-            `Kredit tertahan ${receivedAmountLabel(row)} ${formatWibDateTime(row.receivedAt)}`
+            `Kredit tertahan ${receivedAmountLabel(row)} ${formatDateTime(row.receivedAt)}`
           }
         />
 

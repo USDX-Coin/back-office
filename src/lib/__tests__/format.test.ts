@@ -7,7 +7,9 @@ import {
   formatAmount,
   formatBankAmount,
   formatBniPostDate,
-  formatDate,
+  formatDateTime,
+  formatDateOnly,
+  formatBniStamp,
   formatDecimalId,
   formatIdrRate,
   formatIsoDayDmy,
@@ -16,7 +18,6 @@ import {
   formatShortDate,
   formatSpreadPct,
   formatWibClock,
-  formatWibDateTime,
   formatWibDayMinute,
   shortHash,
   shortRequestId,
@@ -104,21 +105,78 @@ describe('formatAmount', () => {
   })
 })
 
-describe('formatDate', () => {
+describe('formatDateTime', () => {
   describe('positive', () => {
-    test('should format ISO date string', () => {
-      const result = formatDate('2026-03-25T10:30:00.000Z')
-      expect(result).toContain('Mar')
-      expect(result).toContain('25')
-      expect(result).toContain('2026')
+    test('should render the one back-office format in WIB: "12 Sep 2026, 08:00:09"', () => {
+      expect(formatDateTime('2026-09-12T01:00:09.000Z')).toBe('12 Sep 2026, 08:00:09')
+    })
+    test('should use Indonesian short month names', () => {
+      expect(formatDateTime('2026-05-01T00:00:00Z')).toBe('1 Mei 2026, 07:00:00')
+      expect(formatDateTime('2026-08-01T00:00:00Z')).toBe('1 Agu 2026, 07:00:00')
+      expect(formatDateTime('2026-10-01T00:00:00Z')).toBe('1 Okt 2026, 07:00:00')
+      expect(formatDateTime('2026-12-01T00:00:00Z')).toBe('1 Des 2026, 07:00:00')
+    })
+  })
+
+  describe('negative', () => {
+    test('should render a dash for null, empty or unparsable input', () => {
+      expect(formatDateTime(null)).toBe('—')
+      expect(formatDateTime('')).toBe('—')
+      expect(formatDateTime('not-a-date')).toBe('—')
+    })
+    test('should never append "WIB" to the value (it goes in the column header)', () => {
+      expect(formatDateTime('2026-09-12T01:00:09.000Z')).not.toContain('WIB')
     })
   })
 
   describe('edge cases', () => {
-    test('should handle date at midnight', () => {
-      const result = formatDate('2026-01-01T00:00:00.000Z')
-      expect(result).toContain('Jan')
-      expect(result).toContain('2026')
+    test('should cross the day boundary into WIB and print midnight as 00, never 24', () => {
+      expect(formatDateTime('2026-09-09T17:00:00Z')).toBe('10 Sep 2026, 00:00:00')
+    })
+    test('should normalise an offset-bearing stamp to WIB', () => {
+      expect(formatDateTime('2026-09-09T14:30:05+07:00')).toBe('9 Sep 2026, 14:30:05')
+    })
+    test('should use colons, not dots, between hour, minute and second', () => {
+      expect(formatDateTime('2026-09-12T01:00:09.000Z')).toMatch(/, \d{2}:\d{2}:\d{2}$/)
+    })
+  })
+})
+
+describe('formatDateOnly', () => {
+  describe('positive', () => {
+    test('should render the WIB calendar day without time', () => {
+      expect(formatDateOnly('2026-09-12T01:00:09.000Z')).toBe('12 Sep 2026')
+    })
+  })
+  describe('negative', () => {
+    test('should render a dash for garbage', () => {
+      expect(formatDateOnly('x')).toBe('—')
+    })
+  })
+  describe('edge cases', () => {
+    test('should use the WIB day, not the UTC day', () => {
+      expect(formatDateOnly('2026-09-09T17:30:00Z')).toBe('10 Sep 2026')
+    })
+  })
+})
+
+describe('formatBniStamp', () => {
+  describe('positive', () => {
+    test('should re-punctuate a bank stamp into the uniform format without a zone shift', () => {
+      expect(formatBniStamp('20260909143005')).toBe('9 Sep 2026, 14:30:05')
+      expect(formatBniStamp('202609091430')).toBe('9 Sep 2026, 14:30')
+      expect(formatBniStamp('20260909')).toBe('9 Sep 2026')
+    })
+  })
+  describe('negative', () => {
+    test('should render a dash for MALFORMED / null', () => {
+      expect(formatBniStamp('MALFORMED')).toBe('—')
+      expect(formatBniStamp(null)).toBe('—')
+    })
+  })
+  describe('edge cases', () => {
+    test('should reject an impossible month', () => {
+      expect(formatBniStamp('20261309')).toBe('—')
     })
   })
 })
@@ -307,35 +365,6 @@ describe('formatWibClock', () => {
     })
     test('undefined diperlakukan seperti null', () => {
       expect(formatWibClock(undefined)).toBe('—')
-    })
-  })
-})
-
-describe('formatWibDateTime', () => {
-  describe('positive', () => {
-    test('renders a UTC instant as WIB (UTC+7) with a WIB suffix', () => {
-      expect(formatWibDateTime('2026-09-09T07:30:05.000Z')).toBe('2026-09-09 14:30:05 WIB')
-    })
-
-    test('crosses the day boundary when WIB is already tomorrow', () => {
-      expect(formatWibDateTime('2026-09-09T17:00:00Z')).toBe('2026-09-10 00:00:00 WIB')
-    })
-  })
-
-  describe('negative', () => {
-    test('renders a dash for null or an unparsable stamp', () => {
-      expect(formatWibDateTime(null)).toBe('—')
-      expect(formatWibDateTime('not-a-date')).toBe('—')
-    })
-  })
-
-  describe('edge cases', () => {
-    test('midnight WIB renders as 00, never 24 (Intl hourCycle quirk)', () => {
-      expect(formatWibDateTime('2026-09-09T17:00:00Z')).toBe('2026-09-10 00:00:00 WIB')
-    })
-
-    test('an offset-bearing stamp is normalised to WIB too', () => {
-      expect(formatWibDateTime('2026-09-09T14:30:05+07:00')).toBe('2026-09-09 14:30:05 WIB')
     })
   })
 })

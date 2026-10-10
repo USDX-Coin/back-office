@@ -14,7 +14,7 @@ import DetailTeknis from '@/components/DetailTeknis'
 import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 import StatusPill from '@/components/StatusPill'
 import { formatActor, type StaffDirectory } from '@/features/staff-directory/hooks'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   explicitActionLabel,
   httpStatusMeaning,
@@ -77,7 +77,7 @@ export default function ActivityLogDetailModal({
         <DialogHeader>
           <DialogTitle>Jejak audit</DialogTitle>
           <DialogDescription>
-            {formatWibDateTime(entry.createdAt)} · {actionHeadline}
+            {formatDateTime(entry.createdAt)} · {actionHeadline}
           </DialogDescription>
         </DialogHeader>
 

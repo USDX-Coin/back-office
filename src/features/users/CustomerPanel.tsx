@@ -13,7 +13,7 @@ import DetailPanel, {
 } from '@/components/detail-panel/DetailPanel'
 import PanelActions, { type PanelMoreItem, type PanelPrimary } from '@/components/detail-panel/PanelActions'
 import { customerSummary } from '@/lib/customerSummary'
-import { formatDate, formatShortDate } from '@/lib/format'
+import { formatDateTime, formatShortDate } from '@/lib/format'
 import { deriveActivationStatus, getActivationStatusConfig, getKycStatusConfig } from '@/lib/status'
 import type { EntityType, PhaseOneUser } from '@/lib/types'
 import { labelNasabah } from './labelNasabah'
@@ -100,7 +100,7 @@ export default function CustomerPanel({ user, canManage, onClose, onEdit }: Prop
       : []),
   ]
     .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
-    .map((e) => ({ ...e, time: e.time ? formatDate(e.time) : null }))
+    .map((e) => ({ ...e, time: e.time ? formatDateTime(e.time) : null }))
 
   async function handleDelete() {
     try {

@@ -8,7 +8,7 @@ import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { safeTxUrl } from '@/lib/safeUrl'
 import { findChainConfig } from '@/lib/chainLinks'
 import { useChainConfig } from '@/features/chains/hooks'
-import { formatDate, formatIdrAmount, formatRate, formatSpreadPct, formatUsdxListAmount, shortHash } from '@/lib/format'
+import { formatDateTime, formatIdrAmount, formatRate, formatSpreadPct, formatUsdxListAmount, shortHash } from '@/lib/format'
 import {
   getOrderStatusConfig,
   getPaymentStatusConfig,
@@ -143,7 +143,7 @@ function pct(value: string | null | undefined): ReactNode {
 // Waktu = Inter + tabular-nums, ejaan sama dengan kolom Waktu tabel.
 function time(value: string | null | undefined): ReactNode {
   if (!value) return <Dim />
-  return <span className="tabular-nums">{formatDate(value)}</span>
+  return <span className="tabular-nums">{formatDateTime(value)}</span>
 }
 
 /**

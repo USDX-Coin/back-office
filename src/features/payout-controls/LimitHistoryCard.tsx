@@ -6,7 +6,7 @@ import ErrorNotice from '@/components/ErrorNotice'
 import { errorMessage } from '@/lib/errorMessages'
 import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
 import { ApiError } from '@/lib/apiFetch'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { usePayoutLimitHistory } from './hooks'
 import { diffLimits, payoutControlsErrorMessage } from './labels'
 import type { PayoutControlChange } from './types'
@@ -92,7 +92,7 @@ function ChangeEntry({
   const diff = diffLimits(change.before, change.after)
   return (
     <article className="rounded-md border border-border/60 px-3 py-3">
-      <p className="text-xs text-muted-foreground">{formatWibDateTime(change.createdAt)}</p>
+      <p className="text-xs text-muted-foreground">{formatDateTime(change.createdAt)}</p>
       <ul className="mt-2 space-y-1">
         {diff
           .filter((line) => line.changed)

@@ -128,25 +128,12 @@ export function shortRequestId(id: string): string {
   return truncateMiddle(id, 8, 5)
 }
 
-export function formatDate(dateString: string): string {
-  // `id-ID`, bukan `en-US`: tanggalnya terbaca "25 Mar 2026", bukan
-  // "Mar 25, 2026". Urutan hari-bulan-tahun itu yang dibaca operator di
-  // dokumen, mutasi bank, dan KTP.
-  return new Intl.DateTimeFormat('id-ID', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString))
-}
-
+/**
+ * Tanggal saja (tanpa jam) di WIB: `12 Sep 2026`. Dipakai untuk "Bergabung",
+ * "Diajukan" di daftar, dll. — semua waktu lengkap memakai `formatDateTime`.
+ */
 export function formatShortDate(dateString: string): string {
-  return new Intl.DateTimeFormat('id-ID', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(dateString))
+  return formatDateOnly(dateString)
 }
 
 const SHORT_MONTH_DAY = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' })
@@ -221,6 +208,24 @@ export function formatBniPostDate(raw: string | null | undefined): string {
   const date = `${y}-${mo}-${d}`
   if (!h || !mi) return date
   return s ? `${date} ${h}:${mi}:${s}` : `${date} ${h}:${mi}`
+}
+
+/**
+ * Stempel waktu bank di LAYAR, dalam format seragam (`12 Sep 2026, 08:00:09`,
+ * presisi menit → `12 Sep 2026, 08:00`, tanggal saja → `12 Sep 2026`). Stempel
+ * bank sudah WIB, jadi hanya disusun ulang — tidak lewat `Date`. Ekspor CSV
+ * TETAP `formatBniPostDate` (`YYYY-MM-DD HH:mm:ss`, wajib SOT § 16.4 K6).
+ */
+export function formatBniStamp(raw: string | null | undefined): string {
+  if (!raw) return '—'
+  const m = BNI_STAMP.exec(raw)
+  if (!m) return '—'
+  const [, y, mo, d, h, mi, sec] = m
+  const month = ID_SHORT_MONTH[Number(mo) - 1]
+  if (!month) return '—'
+  const date = `${Number(d)} ${month} ${y}`
+  if (!h || !mi) return date
+  return sec ? `${date}, ${h}:${mi}:${sec}` : `${date}, ${h}:${mi}`
 }
 
 // Bank nominal (string decimal, no sign) in the account's own currency:
@@ -315,15 +320,6 @@ export function formatDateOnly(iso: string | null | undefined): string {
   return `${p.day} ${p.month} ${p.year}`
 }
 
-export function formatWibDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    WIB_DATETIME_FMT.formatToParts(date).find((p) => p.type === type)?.value ?? ''
-  const hour = part('hour') === '24' ? '00' : part('hour')
-  return `${part('year')}-${part('month')}-${part('day')} ${hour}:${part('minute')}:${part('second')} WIB`
-}
 
 // ─── Salinan mutasi BNI (USDX-692, sot/bni-integration.md § 16.8.8) ─────────
 

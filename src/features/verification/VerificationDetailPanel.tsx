@@ -7,7 +7,7 @@ import DetailPanel, {
   type PanelFact,
 } from '@/components/detail-panel/DetailPanel'
 import PanelActions, { type PanelMoreItem } from '@/components/detail-panel/PanelActions'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   VERIFICATION_DETAIL_BASE,
   VERIFICATION_KIND_LABEL,
@@ -65,10 +65,10 @@ export default function VerificationDetailPanel({ kind, id, row, onClose, search
 
   const facts: PanelFact[] = [['Email akun', row.email]]
   if (row.entityForm) facts.push(['Bentuk badan usaha', row.entityForm])
-  facts.push(['Diajukan', row.submittedAt ? formatDate(row.submittedAt) : 'Belum pernah'])
+  facts.push(['Diajukan', row.submittedAt ? formatDateTime(row.submittedAt) : 'Belum pernah'])
   facts.push(['Pengajuan ke-', String(row.submissionCount)])
   if (row.reviewedAt)
-    facts.push(['Diperiksa', `${row.reviewedByName ?? 'Staf'} · ${formatDate(row.reviewedAt)}`])
+    facts.push(['Diperiksa', `${row.reviewedByName ?? 'Staf'} · ${formatDateTime(row.reviewedAt)}`])
 
   const events: PanelEvent[] = []
   if (row.submittedAt)
@@ -77,12 +77,12 @@ export default function VerificationDetailPanel({ kind, id, row, onClose, search
         row.submissionCount > 1
           ? `Nasabah mengajukan berkas (pengajuan ke-${row.submissionCount})`
           : 'Nasabah mengajukan berkas',
-      time: formatDate(row.submittedAt),
+      time: formatDateTime(row.submittedAt),
     })
   if (row.reviewedAt && (row.status === 'VERIFIED' || row.status === 'REJECTED'))
     events.push({
       text: `${row.reviewedByName ?? 'Staf'} ${row.status === 'VERIFIED' ? 'menyetujui' : 'menolak'} berkas`,
-      time: formatDate(row.reviewedAt),
+      time: formatDateTime(row.reviewedAt),
     })
 
   const more: PanelMoreItem[] = [

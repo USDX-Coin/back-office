@@ -12,7 +12,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { useSafeTxSigning, type SafeTxSigning } from '@/features/multisig/useSafeTxSigning'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatDate, formatRate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
+import { formatDateTime, formatRate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
 import { OTC_KIND_LABEL, findSafeTxFor, formatIdrPlain, otcRowState } from '@/lib/otc'
 import { safeTxUrl } from '@/lib/safeUrl'
 import type { BurnRequestDetail, RequestDetail, RequestListItem, RequestType, SafeTxListItem } from '@/lib/types'
@@ -138,7 +138,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
   const events: { text: string; time: string | null }[] = [
     {
       text: `${req.createdByName || 'Staf'} membuat permintaan ${isMint ? 'mint' : 'redeem'} OTC`,
-      time: req.createdAt ? formatDate(req.createdAt) : null,
+      time: req.createdAt ? formatDateTime(req.createdAt) : null,
     },
   ]
   const sd = signing.detail
@@ -149,7 +149,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
     signed.forEach((s, i) =>
       events.push({
         text: `${signerDisplayName(s, sd.signers.indexOf(s))} menandatangani (${i + 1} dari ${sd.signatureProgress.threshold})`,
-        time: s.signedAt ? formatDate(s.signedAt) : null,
+        time: s.signedAt ? formatDateTime(s.signedAt) : null,
       }),
     )
   }

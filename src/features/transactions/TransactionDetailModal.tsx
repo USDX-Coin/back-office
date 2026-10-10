@@ -19,7 +19,7 @@ import {
 import { allowedResolveActions, RESOLVE_ACTION_LABELS } from '@/lib/payoutFailures'
 import { heldReasonLabel } from '@/features/held-credits/labels'
 import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import type { BackofficeTransactionAction, BackofficeTransactionItem } from '@/lib/types'
 import OrderDetailSection from './OrderDetailSection'
 import TransactionActionDialog, { type TransactionIntent } from './TransactionActionDialog'
@@ -106,7 +106,7 @@ export default function TransactionDetailModal({
         open
         onClose={onClose}
         title={transactionPartyName(row)}
-        subtitle={[transactionKindLabel(row.kind), amountLine, formatDate(row.occurredAt)]
+        subtitle={[transactionKindLabel(row.kind), amountLine, formatDateTime(row.occurredAt)]
           .filter(Boolean)
           .join(' · ')}
         nav={nav}
@@ -158,7 +158,7 @@ export default function TransactionDetailModal({
             </DataField>
           )}
           <DataField label={isIncoming ? 'Masuk' : 'Dibuat'}>
-            <span className="tabular-nums">{formatDate(row.occurredAt)}</span>
+            <span className="tabular-nums">{formatDateTime(row.occurredAt)}</span>
           </DataField>
         </DataSection>
 
@@ -185,7 +185,7 @@ export default function TransactionDetailModal({
               <DataField key={`${a.actionType}-${a.refId}`} label={actionLabel(a.actionType)}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span className="text-muted-foreground">
-                    Sejak <span className="tabular-nums">{formatDate(a.since)}</span>
+                    Sejak <span className="tabular-nums">{formatDateTime(a.since)}</span>
                     {a.heldReason ? ` · ${heldReasonLabel(a.heldReason) ?? a.heldReason}` : ''}
                     {isMonitorOnly(a) ? ' · dipantau' : ''}
                   </span>

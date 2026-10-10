@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canDecideScreening, useAuth } from '@/lib/auth'
-import { formatDate, shortHash } from '@/lib/format'
+import { formatDateTime, shortHash } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   formatScore,
@@ -386,7 +386,7 @@ export default function ScreeningDecisionModal({
                     </button>
                   </div>
                   <span className="text-xs tabular-nums text-muted-foreground">
-                    Diperiksa {formatDate(result.createdAt)}
+                    Diperiksa {formatDateTime(result.createdAt)}
                   </span>
                 </div>
 
@@ -526,7 +526,7 @@ export default function ScreeningDecisionModal({
                         <Field label="Diputuskan oleh">
                           {result.decision.decidedByName ?? 'Akun petugas sudah dihapus'}
                           <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
-                            {formatDate(result.decision.createdAt)}
+                            {formatDateTime(result.decision.createdAt)}
                           </span>
                         </Field>
                         <div className="sm:col-span-2">

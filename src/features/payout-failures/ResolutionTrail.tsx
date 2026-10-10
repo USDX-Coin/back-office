@@ -1,4 +1,4 @@
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { resolutionTrailLabel } from '@/lib/payoutFailures'
 import type { PayoutFailureReview } from '@/lib/types'
 
@@ -25,7 +25,7 @@ export default function ResolutionTrail({ reviews }: { reviews: PayoutFailureRev
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="font-medium">{resolutionTrailLabel(review.action)}</span>
             <span className="text-xs tabular-nums text-muted-foreground">
-              {formatWibDateTime(review.createdAt)}
+              {formatDateTime(review.createdAt)}
             </span>
           </div>
           <p className="mt-0.5 text-muted-foreground">oleh {review.actorStaffName}</p>

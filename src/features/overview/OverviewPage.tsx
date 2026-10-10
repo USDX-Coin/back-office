@@ -5,7 +5,7 @@ import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { canAccessRequestList, canManageSettings, useAuth } from '@/lib/auth'
-import { formatBankAmount, formatDecimalId, formatIdrRate, formatWibDateTime } from '@/lib/format'
+import { formatBankAmount, formatDecimalId, formatIdrRate, formatDateTime } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
 import { formatAmountDecimal } from '@/lib/transparency'
 import type { BniAccount, BniBalances, DashboardStats } from '@/lib/types'
@@ -231,7 +231,7 @@ function BniCard() {
       description={
         balances.data && !balances.error ? (
           <>
-            Ditarik <span className="tabular-nums" data-testid="ringkasan-bni-ditarik">{formatWibDateTime(balances.data.pulledAt)}</span>
+            Ditarik <span className="tabular-nums" data-testid="ringkasan-bni-ditarik">{formatDateTime(balances.data.pulledAt)}</span>
           </>
         ) : (
           'Saldo langsung dari bank, hanya saat kamu memintanya.'
