@@ -209,7 +209,7 @@ export default function HeldCreditsPage() {
     {
       id: 'actions',
       header: '',
-      size: 80,
+      size: 96,
       cell: ({ row }) => (
         <button
           type="button"

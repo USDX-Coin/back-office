@@ -391,3 +391,74 @@ Belum beres / catatan:
 - Kontak Darurat & Staf masih ikon pensil/tong sampah per baris (bukan klik baris = modal): CRUD
   langsung, dibiarkan karena sudah jelas; kalau PM ingin seragam, itu langkah berikutnya.
 - ↑/↓ di modal Cadangan/Plafon hanya di halaman tabel yang sedang dimuat (riwayat plafon = 10 terakhir).
+
+## Sapu bersih: semua halaman ikut pola baru (GO PM 11 Okt) — SELESAI (11 Okt 2026)
+
+Arahan PM: "pakai standar yang baru, pattern yang baru, kalau ada yang salah benerin, rapiin
+semuanya sampai tuntas". Warna/desain pola baru tidak diubah. Screenshot light 1440 + 390
+`scratchpad/sapu-bersih/sebelum-*` (56 layar) dan `sesudah-*` (59 layar, termasuk modal
+Staf & Kontak Darurat yang baru).
+
+**Tiga hal wajib**
+1. **Kurs & Biaya** — judul = nama menu "Kurs & Biaya" + keterangan tab yang terbuka, LALU tab
+   (Kurs · Biaya · Batas Safe Manager · Kontak Darurat) di bawahnya, seperti Transaksi. Judul
+   per-tab yang dulu berganti-ganti dibuang (tab sudah menyebut dirinya; judul sama dengan
+   sidebar + breadcrumb). Laporan ikut susunan yang sama ("Laporan" + tab). Gaya tab
+   `SectionTabs` disamakan dengan `TabBar`. Kartu Kurs, Biaya, Batas Safe Manager, Mode Mint
+   lebar penuh (grid 4 kolom ≥ lg). "Terakhir diubah (WIB)" = `formatDateTime`;
+   `formatRelativeTime` lewat seminggu kini tanggal lengkap (`1 Feb 2026`, bukan "1 Mei").
+   Mode batas "IDR" → "Rupiah (IDR)".
+2. **Paginasi** — `components/table/TablePagination` satu-satunya pager ("1–8 dari 8" +
+   « ‹ n / N ›): `DataTable`, `GroupedTable` (Transaksi, OTC, Verifikasi — rentang gabungan
+   KYC+KYB dihitung jujur), buku besar + laporan atestasi Cadangan (atestasi memakai kalimat
+   "n aktif di halaman ini · N laporan seluruhnya" karena baris dicabut disaring klien).
+   Grep: tidak ada lagi "Halaman x dari y" / "Sebelumnya·Berikutnya" buatan sendiri.
+3. **Jalan balik ponsel** — `MobileBackLink` di `MainLayout` (`lg:hidden`): satu tautan
+   "‹ Induk" ke segmen ber-halaman terdekat dari `breadcrumbFor` yang sama. Profil nasabah →
+   Daftar Nasabah, Tambah berkas badan usaha → Verifikasi, Versi daftar sanksi → Daftar
+   Sanksi, antrean lama → Transaksi. Menu utama tanpa tautan; desktop tetap breadcrumb saja.
+
+**Temuan sapu bersih**
+
+| Halaman / komponen | Masalah | Perbaikan |
+|---|---|---|
+| Persetujuan Orang Kedua, Log DurianPay, Pencairan Bermasalah, Mint Bermasalah, Daftar Sanksi | modal bentuk lama: tanpa ↑/↓, footer "Tutup" + aksi | `RecordModal` + `rowNav` (↑/↓, "n dari N"), aksi di kanan footer, tutup lewat X |
+| Daftar Sanksi | membuka temuan membuang saringan URL (antrean kembali ke bawaan) | saringan ikut ke `/screening/:id?…` dan kembali saat ditutup; ID temuan ke Detail teknis; tanggal terbit daftar `25 Jan 2026` |
+| Staf & Peran, Kontak Darurat | ikon pensil/tong sampah per baris | klik baris = `RecordModal` (`?staf=`, `?kontak=`), Ubah di footer, Nonaktifkan/Hapus di Lainnya |
+| Staf, Kontak Darurat, Cadangan | status/kanal/kategori/jenis entri pakai Badge lokal (hijau custom, outline hitam) | `ToneChip` — satu gaya status |
+| Mint Bermasalah, Pencairan Bermasalah | "WIB" ditempel di nilai waktu putusan | "diputus (WIB) 12 Sep 2026, 08:00:09" |
+| Toast Setujui pencairan, Ajukan (multisig), kolom Integrasi Log DurianPay | enum mentah (`BURNED`, `Safe STAFF`, `LEGACY`) | label kata |
+| Antrean Tanda Tangan | tab gaya sendiri (pil angka, garis token Azure lama), dua tombol utama | gaya `TabBar` + "(n)", Hubungkan Wallet = outline |
+| Ajukan (multisig) | token Azure lama `surface-container`/`outline-variant` | token `muted`/`border` |
+| Daftar Nasabah, Staf, Daftar Sanksi, Versi daftar, Kontak Darurat | tombol kepala halaman `h-7 text-xs` (lebih kecil dari halaman lain), aksi menumpuk vertikal | satu ukuran `sm`, aksi sebaris (`PageHeader` tidak menyusut) |
+| Mint Bermasalah | kolom Detail terpotong di 1440 | lebar kolom dirapatkan |
+| Profil akun | judul kartu "Kontak" pakai `text-xs` | `text-section` |
+| `DataTable` di ponsel | kosong/galat dirender di tabel lebar → kalimat terpotong | kotak keadaan saja di < 640px |
+
+Diperiksa dan sudah sesuai (tanpa perubahan): `<select` native 0; `DropdownMenu` yang
+memindah halaman semua `modal={false}` (ThemeToggle tidak memindah halaman); `Sheet` hanya
+laci menu; ukuran teks di luar token 0 (Tailwind menolak kompilasi); judul halaman/dialog
+semua `font-display` token; `font-mono` sisanya hash/ID/path/JSON/nomor order/nomor jurnal
+BNI; format waktu lama hanya pengecualian spec BNI + `HH:MM WIB` banner mode uji; waktu
+"menurut bank" BNI tanpa detik karena bank hanya mengirim menit.
+
+**Keputusan Kontak Darurat & Staf**: disamakan ke "klik baris = modal + aksi di footer".
+Barisnya punya detail (ID, dibuat/diubah, peran/kanal sebagai kode) yang tidak muat di
+kolom, dan dua ikon per baris adalah satu-satunya sisa pola lama. Dialog ubah/nonaktifkan/
+hapus lama tetap dipakai apa adanya (peringatan kategori yatim tetap). URL pakai query
+(`?staf=`, `?kontak=`) seperti Daftar Nasabah, jadi rute & gerbang peran di `App.tsx` tidak
+berubah. **Sengaja dibiarkan**: Persetujuan Pencairan (Tolak/Setujui per baris — rekening
+penuh wajib terlihat di tabel, dialog Setujui yang membaca detail = "modal"-nya, USDX-669)
+dan Metode Pembayaran (sakelar + Ubah biaya per baris adalah pekerjaannya).
+
+**Cek akhir**: lint 0 error (3 warning lama) · unit 125 berkas / 2490 tes · build hijau ·
+e2e 182/182 (`E2E_PORT=5196`, spec baru `usdx-sapu-bersih.spec.ts`) ·
+`pnpm audit --audit-level=high` exit 0.
+
+Belum beres / catatan:
+- Screenshot modal OTC & Daftar Sanksi di skrip screenshot tidak terbuka (baris pertama
+  `GroupedTable` = judul kelompok; data MSW screening kosong) — artefak skrip; modal OTC
+  dijaga e2e `usdx-otc-page.spec.ts`.
+- ↑/↓ di modal tetap hanya di halaman tabel yang sedang dimuat.
+- Versi daftar sanksi & Perbaiki Status di screenshot = "Data ini gagal dimuat" (MSW tidak
+  menyajikan endpoint itu) — tampilan galatnya sendiri sudah seragam.
