@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, Info, ScrollText, X } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -76,7 +76,12 @@ function isOutcome(value: string): value is ActivityOutcome {
  */
 export default function ActivityLogPage() {
   const params = useDataTableParams()
-  const [selected, setSelected] = useState<ActivityLogEntry | null>(null)
+  const navigate = useNavigate()
+  const location = useLocation()
+  // Modal detail punya URL sendiri: `/jejak-audit/:id` + saringan & halaman
+  // yang sama di query (endpoint hanya punya `list`, jadi barisnya dicari di
+  // halaman daftar yang sama).
+  const { id: selectedId } = useParams<{ id?: string }>()
   const { directory, isError: directoryFailed } = useStaffDirectory()
 
   const rawOutcome = params.searchParams.get('outcome') ?? ''
@@ -115,6 +120,14 @@ export default function ActivityLogPage() {
 
   const rows = list.data?.data ?? []
   const total = list.data?.metadata.total ?? 0
+  const qs = location.search
+  const openRow = (row: ActivityLogEntry, replace = false) =>
+    navigate(`/jejak-audit/${encodeURIComponent(row.id)}${qs}`, { replace })
+  const closeModal = () => navigate(`/jejak-audit${qs}`)
+  const selectedIndex = selectedId ? rows.findIndex((r) => r.id === selectedId) : -1
+  const selected = selectedIndex >= 0 ? rows[selectedIndex]! : null
+  const prevRow = selectedIndex > 0 ? rows[selectedIndex - 1] : undefined
+  const nextRow = selectedIndex >= 0 ? rows[selectedIndex + 1] : undefined
   const filterDefs = activityLogFilterDefs(directory.all)
   const hasFilters = Boolean(
     filters.outcome ||
@@ -222,7 +235,7 @@ export default function ActivityLogPage() {
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            setSelected(row.original)
+            openRow(row.original)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail jejak ${row.original.action}`}
@@ -315,22 +328,32 @@ export default function ActivityLogPage() {
             description="Jejak terisi sendiri begitu ada staf yang mengubah data atau masuk ke back office. Daftar yang kosong di sistem yang sedang dipakai justru patut ditanyakan ke tim teknis."
           />
         }
-        onRowClick={(row) => setSelected(row)}
+        onRowClick={(row) => openRow(row)}
         rowAriaLabel={(row) => `Jejak ${row.action} ${formatDateTime(row.createdAt)}`}
       />
 
-      <ActivityLogDetailModal
-        entry={selected}
-        directory={directory}
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null)
-        }}
-        onFilter={(key, value) => {
-          setSelected(null)
-          params.updateParams({ [key]: value, page: '1' })
-        }}
-      />
+      {selectedId && (
+        <ActivityLogDetailModal
+          entry={selected}
+          missingId={selectedId}
+          loading={list.isLoading}
+          directory={directory}
+          onClose={closeModal}
+          onFilter={(key, value) => {
+            // Menyaring = kembali ke daftar (modal tertutup) dengan saringan baru.
+            const next = new URLSearchParams(qs)
+            next.set(key, value)
+            next.set('page', '1')
+            navigate(`/jejak-audit?${next.toString()}`)
+          }}
+          nav={{
+            index: selectedIndex >= 0 ? selectedIndex : null,
+            total: rows.length,
+            onPrev: prevRow ? () => openRow(prevRow, true) : undefined,
+            onNext: nextRow ? () => openRow(nextRow, true) : undefined,
+          }}
+        />
+      )}
     </div>
   )
 }

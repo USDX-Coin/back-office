@@ -44,6 +44,10 @@ describe('rute /jejak-audit yang benar-benar dikirim', () => {
     )
   }
 
+  test('modal detail /jejak-audit/:id berada di balik gerbang yang SAMA', () => {
+    expect(findGuardFor('/jejak-audit/:id', appRoutes)).toBe(guard)
+  })
+
   test('rutenya dibungkus RoleGuard sama sekali', () => {
     // Tanpa pemeriksaan ini, menghapus pembungkusnya hanya membuat tes di bawah
     // merender pohon tanpa gerbang — dan semuanya tetap hijau.

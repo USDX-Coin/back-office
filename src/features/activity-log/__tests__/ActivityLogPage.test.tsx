@@ -4,7 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
+import { Route, Routes, useLocation } from 'react-router'
 import ActivityLogPage from '@/features/activity-log/ActivityLogPage'
+import { ACTIVITY_LOG_MOCK_IDS } from '@/mocks/data'
 import { renderWithProviders } from '@/test/test-utils'
 
 // Jejak Audit — `GET /api/v1/activity-logs` (ADMIN saja). Handler MSW bawaan
@@ -313,6 +315,76 @@ describe('ActivityLogPage @ jejak audit', () => {
       expect(screen.getByText('Belum dikenali')).toHaveAttribute('title', 'MODUL_BARU')
       expect(screen.queryByText('SESUATU_YANG_BELUM_ADA')).not.toBeInTheDocument()
       expect(screen.getByText('tidak tercatat')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('ActivityLogPage — modal detail ber-URL (deep link + ↑/↓)', () => {
+  function LocationProbe() {
+    const loc = useLocation()
+    return <div data-testid="lokasi">{loc.pathname + loc.search}</div>
+  }
+
+  function setupRoutes(path: string) {
+    return renderWithProviders(
+      <>
+        <Routes>
+          <Route path="/jejak-audit" element={<ActivityLogPage />} />
+          <Route path="/jejak-audit/:id" element={<ActivityLogPage />} />
+        </Routes>
+        <LocationProbe />
+      </>,
+      { initialEntries: [path], staffId: 'stf_1' },
+    )
+  }
+
+  describe('positive', () => {
+    test('klik baris membuka modal di /jejak-audit/:id dengan saringan tetap di query', async () => {
+      const user = userEvent.setup()
+      setupRoutes('/jejak-audit?outcome=FAILED')
+      const row = (await screen.findAllByRole('button', { name: /^jejak /i }))[0]!
+      await user.click(row)
+      const modal = await screen.findByTestId('jejak-modal')
+      expect(screen.getByTestId('lokasi').textContent).toMatch(/^\/jejak-audit\/[^?]+\?outcome=FAILED$/)
+      expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent(/^1 dari \d+$/)
+    })
+
+    test('tautan langsung membuka baris yang sama dari muatan dingin, lalu ↓ pindah tanpa menutup', async () => {
+      const user = userEvent.setup()
+      setupRoutes(`/jejak-audit/${ACTIVITY_LOG_MOCK_IDS.selfApprovalBlocked}`)
+      const modal = await screen.findByTestId('jejak-modal')
+      await waitFor(() => expect(within(modal).getByTestId('record-modal-position')).toHaveTextContent('1 dari 8'))
+      await user.keyboard('{ArrowDown}')
+      await waitFor(() =>
+        expect(within(screen.getByTestId('jejak-modal')).getByTestId('record-modal-position')).toHaveTextContent(
+          '2 dari 8',
+        ),
+      )
+      expect(screen.getByTestId('lokasi').textContent).not.toContain(ACTIVITY_LOG_MOCK_IDS.selfApprovalBlocked)
+      await user.keyboard('{ArrowUp}')
+      await waitFor(() =>
+        expect(screen.getByTestId('lokasi').textContent).toContain(ACTIVITY_LOG_MOCK_IDS.selfApprovalBlocked),
+      )
+    })
+  })
+
+  describe('negative', () => {
+    test('id yang tidak ada di halaman ini dikatakan terus terang, bukan modal kosong', async () => {
+      setupRoutes('/jejak-audit/tidak-ada-di-halaman-ini')
+      const modal = await screen.findByTestId('jejak-modal')
+      expect(await within(modal).findByRole('heading', { name: 'Jejak tidak ada di halaman ini' })).toBeInTheDocument()
+      expect(within(modal).queryByTestId('record-modal-position')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('"Saring aksi ini" menutup modal dan kembali ke daftar tersaring', async () => {
+      const user = userEvent.setup()
+      setupRoutes(`/jejak-audit/${ACTIVITY_LOG_MOCK_IDS.brakePulled}`)
+      const modal = await screen.findByTestId('jejak-modal')
+      await user.click(await within(modal).findByRole('button', { name: /saring aksi ini/i }))
+      await waitFor(() => expect(screen.queryByTestId('jejak-modal')).not.toBeInTheDocument())
+      expect(screen.getByTestId('lokasi').textContent).toMatch(/^\/jejak-audit\?action=/)
     })
   })
 })

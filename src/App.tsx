@@ -116,11 +116,12 @@ export const appRoutes: RouteObject[] = [
           // (DEVELOPER hanya melihat; backend menegakkan 403), jadi tanpa
           // RoleGuard.
           //
-          // `/verifikasi/:jenis/:id` membuka panel kanan dari URL. Berkas
-          // lengkap (foto KTP, dokumen badan usaha) tetap di rute lamanya
-          // `/kyc/:id` dan `/kyb/:id` — modal di atas halaman yang sama — supaya
-          // tautan lama tetap hidup. `/kyc` dan `/kyb` dialihkan ke Verifikasi
-          // dengan saringan Jenis terpasang. `/kyb/new` (form KYB manual) tetap.
+          // `/verifikasi/:jenis/:id` membuka modal berkas lengkap (foto KTP,
+          // dokumen badan usaha) di tengah, di atas tabel Verifikasi yang tetap
+          // lebar penuh. Rute lama `/kyc/:id` dan `/kyb/:id` membuka modal yang
+          // SAMA supaya tautan lama tetap hidup. `/kyc` dan `/kyb` dialihkan ke
+          // Verifikasi dengan saringan Jenis terpasang. `/kyb/new` (form KYB
+          // manual) tetap.
           { path: '/verifikasi', element: <VerificationPage /> },
           { path: '/verifikasi/:jenis/:id', element: <VerificationPage /> },
           { path: '/kyc', element: <Navigate to="/verifikasi?jenis=perorangan" replace /> },
@@ -279,6 +280,8 @@ export const appRoutes: RouteObject[] = [
               // menu yang disembunyikan tetap meninggalkan halamannya sejauh satu
               // URL, dan 403 dari server dibaca operator sebagai layar rusak.
               { path: '/jejak-audit', element: <ActivityLogPage /> },
+              // Modal detail satu baris jejak (deep link, ↑/↓) — gerbang yang sama.
+              { path: '/jejak-audit/:id', element: <ActivityLogPage /> },
               // USDX-485 (audit alur uang P1-18): kontak on-call insiden uang.
               // ADMIN-only termasuk untuk MEMBACA — daftarnya memuat nomor
               // telepon (PII → ADMIN saja per conventions.md § Audit Akses PII)
