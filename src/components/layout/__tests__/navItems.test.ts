@@ -54,8 +54,12 @@ function routePaths(routes: RouteObject[]): string[] {
 
 describe('NAV — lima menu utama', () => {
   describe('positive', () => {
-    test('ADMIN melihat Transaksi, OTC, lalu tiga grup', () => {
-      expect(topLabels(ADMIN)).toEqual(['Transaksi', 'OTC', 'Nasabah', 'Keuangan', 'Pengaturan'])
+    test('ADMIN melihat Ringkasan, Transaksi, lalu grup OTC, Nasabah, Keuangan, Pengaturan', () => {
+      expect(topLabels(ADMIN)).toEqual(['Ringkasan', 'Transaksi', 'OTC', 'Nasabah', 'Keuangan', 'Pengaturan'])
+    })
+
+    test('Ringkasan menu pertama untuk SEMUA peran', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) expect(topLabels(id)[0]).toBe('Ringkasan')
     })
 
     test('isi tiap grup mengikuti keputusan PM', () => {
@@ -217,6 +221,7 @@ describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
   describe('positive', () => {
     test.each([
       ['/transactions', ['Transaksi']],
+      ['/ringkasan', ['Ringkasan']],
       ['/otc/mint', ['OTC', 'Mint']],
       ['/otc/redeem/019e1aa8-9c7c-7fcd-6abc-deadbeef0001', ['OTC', 'Redeem']],
       ['/mint/new', ['OTC', 'Mint', 'Buat mint OTC']],

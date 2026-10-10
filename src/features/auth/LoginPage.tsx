@@ -57,7 +57,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/transactions', { replace: true })
+      navigate('/ringkasan', { replace: true })
     } catch (err) {
       setSubmitError(err ?? new Error('Gagal masuk.'))
     } finally {

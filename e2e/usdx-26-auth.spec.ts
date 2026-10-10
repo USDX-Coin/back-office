@@ -13,8 +13,8 @@ test.describe('USDX-26 auth @e2e', () => {
     test('should sign in with valid credentials and persist the session', async ({ page }) => {
       await installMockApi(page)
       await loginViaForm(page)
-      // Redesain fase 1 — Beranda dihapus; halaman pertama adalah Transaksi.
-      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible()
+      // 10 Okt 2026 — halaman pertama setelah masuk adalah Ringkasan.
+      await expect(page.getByRole('heading', { name: /^ringkasan$/i, level: 1 })).toBeVisible()
       const stored = await page.evaluate((k) => window.localStorage.getItem(k), STORAGE_KEY)
       expect(stored).toBeTruthy()
       // USDX-392: the persisted profile is v5 and must NOT carry a session token

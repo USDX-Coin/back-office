@@ -19,7 +19,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       })
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
+      await page.goto('/transactions')
 
       await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2', { timeout: 15000 })
       // Fase 2: badge = transactionsNeedsAction; halaman Transaksi sendiri tidak

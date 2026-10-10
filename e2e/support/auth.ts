@@ -9,8 +9,8 @@ export async function loginViaForm(page: Page, email = 'admin@usdx.io', password
   await page.getByLabel(/^email$/i).fill(email)
   await page.getByLabel(/^kata sandi$/i).fill(password)
   await page.getByRole('button', { name: /^masuk$/i }).click()
-  // Redesain fase 1: Beranda dihapus — setelah masuk, operator mendarat di Transaksi.
-  await expect(page).toHaveURL(/\/transactions/, { timeout: 15000 })
+  // 10 Okt 2026: setelah masuk, operator mendarat di Ringkasan.
+  await expect(page).toHaveURL(/\/ringkasan/, { timeout: 15000 })
 }
 
 /**
@@ -22,7 +22,10 @@ export async function loginViaForm(page: Page, email = 'admin@usdx.io', password
  * only holds the non-sensitive v5 Staff profile for synchronous UI restore (no
  * token). Call this AFTER installMockApi and BEFORE the first goto.
  */
-export async function seedAuthenticatedSession(page: Page) {
+export async function seedAuthenticatedSession(
+  page: Page,
+  staff: Omit<typeof ADMIN_STAFF, 'role'> & { role: string } = ADMIN_STAFF,
+) {
   await page.context().addCookies([
     {
       name: 'usdx_session',
@@ -37,7 +40,7 @@ export async function seedAuthenticatedSession(page: Page) {
     ({ key, value }) => window.localStorage.setItem(key, value),
     {
       key: STORAGE_KEY,
-      value: JSON.stringify({ version: 5, staff: ADMIN_STAFF, issuedAt: Date.now() }),
+      value: JSON.stringify({ version: 5, staff, issuedAt: Date.now() }),
     }
   )
 }

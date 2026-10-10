@@ -1,4 +1,4 @@
-import { Coins, Landmark, Receipt, Sliders, Users } from 'lucide-react'
+import { Coins, LayoutGrid, Landmark, Receipt, Sliders, Users } from 'lucide-react'
 import {
   canAccessReports,
   canAccessRequestList,
@@ -47,6 +47,7 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 // ─────────────────────────────────────────────────────────────────────────────
 // REDESAIN FASE 1 (keputusan PM 9 Okt 2026) — 5 menu utama.
 //
+//   Ringkasan            halaman awal (10 Okt 2026) — data backend dev saja
 //   Transaksi            satu tabel transaksi (fase 2); sekarang halaman lama
 //   OTC ▸                Mint · Redeem (sub-menu sejak 10 Okt 2026), tanda
 //                        tangan multisig di footer modal detail
@@ -56,7 +57,7 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 //                        Staf & Peran · Persetujuan Orang Kedua · Jejak Audit ·
 //                        Log DurianPay
 //
-// Beranda dihapus. Fase 2 (⚠️ DRAF SOT PR #50): Persetujuan Pencairan,
+// Beranda lama → Ringkasan. Fase 2 (⚠️ DRAF SOT PR #50): Persetujuan Pencairan,
 // Pencairan Bermasalah, Mint Bermasalah dan Perbaiki Status Nyangkut DILEBUR ke
 // tabel Transaksi (aksi dari panel kanan) dan tidak ada di navigasi mana pun —
 // strip "Perlu tindakan" sudah dihapus. Rutenya tetap hidup untuk tautan
@@ -78,6 +79,8 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 //     bisa dicapai STAFF tanpa mencari atasan (USDX-639).
 // ─────────────────────────────────────────────────────────────────────────────
 export const NAV: NavEntry[] = [
+  // Ringkasan (10 Okt 2026): halaman pertama setelah masuk, semua peran.
+  { kind: 'item', to: '/ringkasan', label: 'Ringkasan', icon: LayoutGrid },
   {
     kind: 'item',
     to: '/transactions',

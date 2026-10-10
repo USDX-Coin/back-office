@@ -17,8 +17,7 @@ test.describe('Transaksi gabungan @e2e', () => {
     test('rows needing action sit on top; the badge counts them', async ({ page }) => {
       await installMockApi(page, { orders: ORDERS })
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
-      await expect(page).toHaveURL(/\/transactions/)
+      await page.goto('/transactions')
       await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2')
 

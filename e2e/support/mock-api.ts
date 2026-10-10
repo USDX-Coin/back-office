@@ -1523,6 +1523,17 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       })
     }
 
+    // ── Cadangan (Ringkasan membaca saldonya saja: take=1) ────────────────
+    if (key === 'GET /api/v1/transparency/ledger') {
+      return envelope(route, {
+        entries: [],
+        page: Number(url.searchParams.get('page') ?? '1'),
+        take: Number(url.searchParams.get('take') ?? '50'),
+        total: 0,
+        balance: { amount: '51249.75', currency: 'USD' },
+      })
+    }
+
     // ── Hitungan antrean badge (USDX-678, sot/api/queue-counts.yaml) ──────
     // Antrean Persetujuan Pencairan tidak dimodelkan di suite ini → 0.
     if (key === 'GET /api/v1/queue-counts') {

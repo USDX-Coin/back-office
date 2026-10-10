@@ -28,6 +28,7 @@ import SanctionListsPage from '@/features/screening/SanctionListsPage'
 import MintFormPage from '@/features/mint/MintFormPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
 import TransactionsPage from '@/features/transactions/TransactionsPage'
+import OverviewPage from '@/features/overview/OverviewPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
 import HeldCreditsPage from '@/features/held-credits/HeldCreditsPage'
@@ -68,7 +69,7 @@ const queryClient = new QueryClient({
 })
 
 // Routing per Linear USDX-50 + sot/phase-1.md § Backoffice Web App.
-//   /dashboard          → redirect /transactions (Beranda dihapus, redesain fase 1)
+//   /dashboard          → redirect /ringkasan (Beranda lama → Ringkasan, 10 Okt 2026)
 //   /users, /users/:id  → User management
 //   /staff              → Staff management (admin sidebar gate)
 //   /mint, /mint/:id    → Mint list + deep-link detail (admin/developer/manager)
@@ -98,9 +99,10 @@ export const appRoutes: RouteObject[] = [
       {
         element: <MainLayout />,
         children: [
-          // Beranda dihapus (redesain fase 1) — setelah masuk, operator mendarat
-          // di Transaksi. Rute lamanya dialihkan supaya bookmark tidak mati.
-          { path: '/dashboard', element: <Navigate to="/transactions" replace /> },
+          // Ringkasan (keputusan PM 10 Okt 2026) — halaman pertama setelah
+          // masuk, semua peran. `/dashboard` (Beranda lama) dialihkan ke sini.
+          { path: '/ringkasan', element: <OverviewPage /> },
+          { path: '/dashboard', element: <Navigate to="/ringkasan" replace /> },
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
