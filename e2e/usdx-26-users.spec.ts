@@ -4,8 +4,10 @@ import { seedAuthenticatedSession } from './support/auth'
 
 // USDX-26 — Critical flow #5: user CRUD (create → list, edit KYC status,
 // delete with confirmation) plus the directory filters. Mock-backed.
-// Redesain fase 1: a row opens the customer panel on the right; edit and
-// delete live under its "Lainnya" menu, and delete confirms INLINE.
+// PM Okt 2026: a row opens the customer SUMMARY MODAL in the centre
+// (`/users?nasabah=:id`, the table keeps its full width); edit and delete live
+// under its footer "Lainnya" menu, delete confirms INLINE in the footer, and
+// "Buka profil lengkap" goes to the full `/users/:id` page.
 // USDX-156 dropped the temporary-password reveal: create now just queues an
 // activation email (the user sets their own password via the 7-day link).
 
@@ -48,19 +50,22 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(page.getByRole('button', { name: new RegExp(`^Buka nasabah ${name}`) })).toBeVisible({ timeout: 10000 })
     })
 
-    test('should open the customer panel next to the table on row click', async ({ page }) => {
+    test('should open the customer summary modal in the centre on row click, then the full profile', async ({ page }) => {
       await page.getByRole('button', { name: /^Buka nasabah Robert Deon/ }).click()
-      await expect(page).toHaveURL(/[?&]pilih=/)
-      const panel = page.getByRole('region', { name: 'Detail nasabah' })
-      await expect(panel.getByRole('heading', { name: 'Robert Deon' })).toBeVisible()
-      await expect(panel.getByRole('button', { name: /lainnya/i })).toBeVisible()
-      await expect(page.locator('table')).toBeVisible()
+      await expect(page).toHaveURL(/[?&]nasabah=/)
+      const modal = page.getByTestId('customer-modal')
+      await expect(modal.getByRole('heading', { name: 'Robert Deon' })).toBeVisible()
+      await expect(modal.getByRole('button', { name: /lainnya/i })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Detail nasabah' })).toHaveCount(0)
+      await modal.getByRole('button', { name: 'Buka profil lengkap' }).click()
+      await expect(page).toHaveURL(/\/users\/[^?]+$/)
+      await expect(page.getByTestId('customer-modal')).toHaveCount(0)
     })
 
     test('should save a KYC-status edit and show a confirmation toast', async ({ page }) => {
       await page.getByRole('button', { name: /^Buka nasabah Robert Deon/ }).click()
-      const panel = page.getByRole('region', { name: 'Detail nasabah' })
-      await panel.getByRole('button', { name: /lainnya/i }).click()
+      const modal = page.getByTestId('customer-modal')
+      await modal.getByRole('button', { name: /lainnya/i }).click()
       await page.getByRole('menuitem', { name: 'Ubah data nasabah' }).click()
       await expect(page.getByRole('dialog', { name: /ubah data nasabah/i })).toBeVisible()
       // Radix Select trigger isn't reliably label-associated — target it by id.
@@ -81,12 +86,13 @@ test.describe('USDX-26 user CRUD @e2e', () => {
       await expect(row).toBeVisible({ timeout: 10000 })
 
       await row.click()
-      const panel = page.getByRole('region', { name: 'Detail nasabah' })
-      await panel.getByRole('button', { name: /lainnya/i }).click()
+      const modal = page.getByTestId('customer-modal')
+      await modal.getByRole('button', { name: /lainnya/i }).click()
       await page.getByRole('menuitem', { name: 'Hapus nasabah' }).click()
-      // Inline confirmation that names the customer — no modal over the table.
-      await expect(panel.getByText(`Hapus ${name}?`)).toBeVisible()
-      await panel.getByRole('button', { name: /^ya, hapus nasabah$/i }).click()
+      // Inline confirmation in the modal footer that names the customer — no second dialog.
+      await expect(modal.getByText(`Hapus ${name}?`)).toBeVisible()
+      await modal.getByRole('button', { name: /^ya, hapus nasabah$/i }).click()
+      await expect(page.getByTestId('customer-modal')).toHaveCount(0)
       await expect(page.getByText(new RegExp(`${name} dihapus`))).toBeVisible({ timeout: 10000 })
       await expect(page.getByRole('button', { name: new RegExp(`^Buka nasabah ${name}`) })).toHaveCount(0)
     })

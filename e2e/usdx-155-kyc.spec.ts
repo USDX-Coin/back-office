@@ -4,9 +4,10 @@ import { seedAuthenticatedSession } from './support/auth'
 
 // USDX-154/155 — Critical flow: KYC review. Redesain fase 1: the KYC queue now
 // lives in Nasabah › Verifikasi together with KYB. Menu badge → /verifikasi
-// (pending first, oldest first) → row → summary panel → "Periksa berkas" →
-// /kyc/:id full-file modal (PII + presigned photos) → approve / reject → the
-// file moves to the decided group + badge refresh. Hermetic via mock-api.ts.
+// (pending first, oldest first) → row → full-file modal in the CENTRE
+// (`/verifikasi/perorangan/:id`, PII + presigned photos; no side panel since
+// PM Okt 2026) → approve / reject → the file moves to the decided group +
+// badge refresh. Old `/kyc/:id` links open the same modal. Hermetic via mock-api.ts.
 
 // 1×1 transparent PNG — stands in for the presigned bucket photos so the
 // <img> elements actually load (and the CSP img-src allowance is exercised).
@@ -47,20 +48,19 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await expect(decided).toContainText('cindy.rejected@example.com')
     })
 
-    test('row → summary panel → full file with decrypted PII + photos; close returns to the panel', async ({ page }) => {
+    test('row → full file in a centred modal with decrypted PII + photos; Esc returns to the full-width table', async ({ page }) => {
       await installMockApi(page)
       await stubPhotos(page)
       await seedAuthenticatedSession(page)
       await page.goto('/verifikasi')
 
       await page.getByRole('button', { name: /buka berkas perorangan alice\.pending/i }).click()
-      const panel = page.getByRole('region', { name: 'Detail verifikasi' })
-      await expect(panel.getByText(/foto KTP dengan swafoto/)).toBeVisible()
-      await panel.getByRole('button', { name: 'Periksa berkas' }).click()
-      await expect(page).toHaveURL(/\/kyc\/kyc_pending$/)
+      await expect(page).toHaveURL(/\/verifikasi\/perorangan\/kyc_pending$/)
 
-      const dialog = page.getByRole('dialog')
-      await expect(dialog.getByText('Alice Anderson')).toBeVisible()
+      const dialog = page.getByTestId('kyc-modal')
+      await expect(dialog.getByRole('heading', { name: 'Alice Anderson' })).toBeVisible()
+      // Status dalam kalimat (dulu hanya di panel samping).
+      await expect(dialog.getByTestId('berkas-status')).toContainText(/foto KTP dengan swafoto/)
       await expect(dialog.getByText('3171234567890123')).toBeVisible()
       await expect(dialog.getByText(/tautan foto kedaluwarsa dalam/i)).toBeVisible()
       await expect(dialog.getByAltText('Foto KTP')).toBeVisible()
@@ -108,9 +108,9 @@ test.describe('USDX-155 KYC review @e2e', () => {
       ).toBeVisible()
 
       await page.keyboard.press('Escape')
-      await expect(page).toHaveURL(/\/verifikasi\/perorangan\/kyc_pending$/)
+      await expect(page).toHaveURL(/\/verifikasi$/)
       await expect(page.getByRole('dialog')).toBeHidden()
-      await expect(page.getByRole('region', { name: 'Detail verifikasi' })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Detail verifikasi' })).toHaveCount(0)
     })
 
     test('deep link /kyc/:id is refresh-safe (modal opens from a cold load)', async ({ page }) => {
@@ -121,7 +121,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
 
       const dialog = page.getByRole('dialog')
       await expect(dialog.getByText(/berkas verifikasi perorangan/i).first()).toBeVisible()
-      await expect(dialog.getByText('Alice Anderson')).toBeVisible()
+      await expect(dialog.getByRole('heading', { name: 'Alice Anderson' })).toBeVisible()
     })
 
     // USDX-610 — berkas yang salah satu daftarnya tidak terbaca harus MENGATAKANNYA,
@@ -152,14 +152,14 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await page.goto('/kyc/kyc_pending')
 
       const dialog = page.getByRole('dialog').first()
-      await expect(dialog.getByText('Alice Anderson')).toBeVisible()
+      await expect(dialog.getByRole('heading', { name: 'Alice Anderson' })).toBeVisible()
       await dialog.getByRole('button', { name: /^setujui$/i }).click()
 
       const confirm = page.getByRole('dialog').filter({ hasText: /setujui berkas kyc ini\?/i })
       await confirm.getByRole('button', { name: /^ya, setujui$/i }).click()
 
-      // Modal closes back to the file's panel; the row moved to the decided group.
-      await expect(page).toHaveURL(/\/verifikasi\/perorangan\/kyc_pending$/)
+      // Modal closes back to the table; the row moved to the decided group.
+      await expect(page).toHaveURL(/\/verifikasi$/)
       const row = page.locator('tbody[data-group="history"]').getByRole('button', { name: /buka berkas perorangan alice\.pending/i })
       await expect(row).toContainText('Terverifikasi')
       // Only the KYB file is still pending → the badge drops from 2 to 1.
@@ -173,7 +173,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await page.goto('/kyc/kyc_pending')
 
       const dialog = page.getByRole('dialog').first()
-      await expect(dialog.getByText('Alice Anderson')).toBeVisible()
+      await expect(dialog.getByRole('heading', { name: 'Alice Anderson' })).toBeVisible()
       await dialog.getByRole('button', { name: /^tolak$/i }).click()
 
       const rejectDialog = page.getByRole('dialog').filter({ hasText: /tolak berkas kyc ini\?/i })
@@ -194,7 +194,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await rejectDialog.getByLabel('Alasan penolakan').fill('Foto KTP buram, mohon submit ulang')
       await rejectDialog.getByRole('button', { name: /^ya, tolak$/i }).click()
 
-      await expect(page).toHaveURL(/\/verifikasi\/perorangan\/kyc_pending$/)
+      await expect(page).toHaveURL(/\/verifikasi$/)
       const row = page.locator('tbody[data-group="history"]').getByRole('button', { name: /buka berkas perorangan alice\.pending/i })
       await expect(row).toContainText('Ditolak')
     })
@@ -208,7 +208,7 @@ test.describe('USDX-155 KYC review @e2e', () => {
       await page.goto('/kyc/kyc_pending')
 
       const dialog = page.getByRole('dialog')
-      await expect(dialog.getByText('Alice Anderson')).toBeVisible()
+      await expect(dialog.getByRole('heading', { name: 'Alice Anderson' })).toBeVisible()
       await dialog.getByRole('button', { name: /jejak audit/i }).click()
 
       // The deep-link's own detail GET already wrote a VIEWED row. Exact match:
