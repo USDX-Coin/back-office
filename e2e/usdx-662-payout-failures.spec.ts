@@ -44,7 +44,7 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
       await expect(page.getByTestId('resolved-note')).toContainText('Dibayar di luar sistem')
       await expect(page.getByTestId('reviews')).toContainText('TRX-778812')
 
-      await detail.getByRole('button', { name: 'Tutup', exact: true }).click()
+      await detail.getByRole('button', { name: 'Tutup dialog' }).click()
       await expect(page).toHaveURL(/\/payout-failures$/)
       await expect(page.getByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ })).toHaveCount(0)
       await expect(page.getByRole('button', { name: /Buka detail pencairan DEWI KARTIKA/ })).toBeVisible()

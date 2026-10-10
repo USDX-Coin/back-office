@@ -1,15 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { Skeleton } from '@/components/ui/skeleton'
 import DetailTeknis from '@/components/DetailTeknis'
 import StatusPill from '@/components/StatusPill'
@@ -38,6 +30,8 @@ interface Props {
   approvalId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** ↑/↓ antar baris daftar yang sedang tampil (pola `RecordModal`). */
+  nav?: RecordModalNav | null
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -78,7 +72,7 @@ function PayloadJson({ payload }: { payload: Record<string, unknown> }) {
  * mata ini dibuat untuk mencegah — jadi nilai itu berhenti menjadi "detail" dan
  * mulai menjadi bahan keputusan.
  */
-export default function ApprovalDetailModal({ approvalId, open, onOpenChange }: Props) {
+export default function ApprovalDetailModal({ approvalId, open, onOpenChange, nav }: Props) {
   const { user } = useAuth()
   const { directory } = useStaffDirectory()
   const detail = useApprovalDetail(open ? approvalId : null)
@@ -88,62 +82,58 @@ export default function ApprovalDetailModal({ approvalId, open, onOpenChange }: 
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Usulan persetujuan</DialogTitle>
-            <DialogDescription>
-              {approval
-                ? `${actionTypeLabel(approval.actionType)} · ${amountLabel(approval.amountIdr)}`
-                : 'Memuat usulan…'}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Pola `RecordModal` (sapu bersih 11 Okt 2026): URL sendiri, ↑/↓,
+          footer menempel dengan putusan di kanan, Detail teknis terlipat. */}
+      <RecordModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title={approval ? actionTypeLabel(approval.actionType) : 'Usulan persetujuan'}
+        subtitle={
+          approval
+            ? `Usulan persetujuan · ${amountLabel(approval.amountIdr)} · diusulkan ${formatDateTime(approval.proposedAt)}`
+            : 'Memuat usulan…'
+        }
+        nav={nav}
+        testId="approval-modal"
+        actions={
+          approval ? (
+            <DecideFooter
+              approval={approval}
+              onDecide={setDecision}
+              staffId={user?.id ?? null}
+              blocked={decideBlockedReason({
+                staff: user,
+                proposerStaffId: approval.proposerStaffId,
+                status: approval.status,
+                expiresAt: approval.expiresAt,
+              })}
+            />
+          ) : undefined
+        }
+      >
+        {detail.isLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        )}
 
-          <DialogBody className="space-y-5">
-            {detail.isLoading && (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            )}
+        {detail.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {detail.error instanceof ApiError
+              ? approvalErrorMessage(detail.error.code, errorMessage(detail.error))
+              : 'Usulan gagal dimuat.'}
+          </p>
+        )}
 
-            {detail.isError && (
-              <p role="alert" className="text-sm text-destructive">
-                {detail.error instanceof ApiError
-                  ? approvalErrorMessage(detail.error.code, errorMessage(detail.error))
-                  : 'Usulan gagal dimuat.'}
-              </p>
-            )}
-
-            {approval && (
-              <ApprovalBody
-                approval={approval}
-                actorName={(id: string | null) => formatActor(directory, id)}
-              />
-            )}
-          </DialogBody>
-
-          <DialogFooter>
-            {approval && (
-              <DecideFooter
-                approval={approval}
-                onDecide={setDecision}
-                staffId={user?.id ?? null}
-                blocked={decideBlockedReason({
-                  staff: user,
-                  proposerStaffId: approval.proposerStaffId,
-                  status: approval.status,
-                  expiresAt: approval.expiresAt,
-                })}
-              />
-            )}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Tutup
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {approval && (
+          <ApprovalBody
+            approval={approval}
+            actorName={(id: string | null) => formatActor(directory, id)}
+          />
+        )}
+      </RecordModal>
 
       {approval && (
         <DecideApprovalDialog
@@ -352,7 +342,7 @@ function DecideFooter({
     return (
       <p
         data-testid="putusan-terkunci"
-        className="mr-auto flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+        className="flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground sm:ml-auto"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>{explanation}</span>
@@ -360,8 +350,8 @@ function DecideFooter({
     )
   }
   return (
-    // Pola footer modal detail: aksi di kanan, aksi utama paling kanan, Tutup di kirinya.
-    <div className="flex flex-wrap justify-end gap-2 sm:order-last">
+    // Pola footer modal detail: aksi di kanan, aksi utama paling kanan.
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <Button variant="destructive" onClick={() => onDecide('REJECT')}>
         Tolak
       </Button>

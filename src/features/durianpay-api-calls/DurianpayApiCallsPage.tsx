@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import PeringatanRentang from '@/components/table/PeringatanRentang'
 import { periksaRentangWib } from '@/lib/wibRange'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -288,6 +289,9 @@ export default function DurianpayApiCallsPage() {
         onOpenChange={(o) => {
           if (!o) navigate(`/durianpay-api-calls${suffix}`, { replace: true })
         }}
+        nav={rowNav(rows, (r) => r.id, activeId, (id) =>
+          navigate(`/durianpay-api-calls/${id}${suffix}`, { replace: true }),
+        )}
       />
     </div>
   )

@@ -3,15 +3,8 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, Copy, ExternalLink, ShieldCheck, ShieldX } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
+import DetailTeknis from '@/components/DetailTeknis'
 import {
   Tooltip,
   TooltipContent,
@@ -24,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canDecideScreening, useAuth } from '@/lib/auth'
-import { formatDateTime, shortHash } from '@/lib/format'
+import { formatDateTime, formatIsoDayLong } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   formatScore,
@@ -63,6 +56,7 @@ interface ScreeningDecisionModalProps {
   resultId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
@@ -241,6 +235,7 @@ export default function ScreeningDecisionModal({
   resultId,
   open,
   onOpenChange,
+  nav,
 }: ScreeningDecisionModalProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -323,27 +318,82 @@ export default function ScreeningDecisionModal({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <Dialog
+      {/* Pola `RecordModal` (sapu bersih 11 Okt 2026): URL sendiri, ↑/↓ antar
+          temuan, footer menempel dengan keputusan di kanan. */}
+      <RecordModal
         open={open}
-        onOpenChange={(next) => {
-          if (!isMutating) onOpenChange(next)
-        }}
+        onClose={() => onOpenChange(false)}
+        locked={isMutating}
+        title="Banding temuan screening"
+        subtitle="Bandingkan data nasabah dengan entri daftar, lalu putuskan apakah ini benar pihak yang sama. Kecocokan menahan subjek — pelepasan adalah keputusan Anda, bukan keputusan mesin."
+        nav={isMutating ? null : nav}
+        testId="screening-modal"
+        actions={
+          actionable ? (
+            <>
+              {canDecide ? (
+                pending ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setPending(null)
+                        setReasonError('')
+                      }}
+                      disabled={isMutating}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      variant={pending === 'CONFIRMED_MATCH' ? 'destructive' : 'default'}
+                      onClick={handleDecide}
+                      disabled={isMutating}
+                    >
+                      {isMutating
+                        ? 'Menyimpan…'
+                        : pending === 'CLEARED'
+                          ? 'Lepas temuan'
+                          : 'Konfirmasi cocok'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setPending('CONFIRMED_MATCH')}
+                    >
+                      <ShieldX className="mr-1.5 h-3.5 w-3.5" />
+                      Cocok dikonfirmasi
+                    </Button>
+                    <Button onClick={() => setPending('CLEARED')}>
+                      <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                      Lepas — bukan pihak yang sama
+                    </Button>
+                  </>
+                )
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* pembungkus span: tombol disabled menelan pointer event */}
+                    <span className="inline-flex gap-2" tabIndex={0}>
+                      <Button variant="outline" disabled aria-disabled="true">
+                        Cocok dikonfirmasi
+                      </Button>
+                      <Button disabled aria-disabled="true">
+                        Lepas
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Role Developer hanya bisa melihat — server menolak dengan 403
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </>
+          ) : undefined
+        }
       >
-        <DialogContent
-          className="max-w-3xl bg-card"
-          onEscapeKeyDown={(e) => isMutating && e.preventDefault()}
-          onPointerDownOutside={(e) => isMutating && e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Banding temuan screening</DialogTitle>
-            <DialogDescription>
-              Bandingkan data nasabah dengan entri daftar, lalu putuskan apakah
-              ini benar pihak yang sama. Kecocokan menahan subjek — pelepasan
-              adalah keputusan Anda, bukan keputusan mesin.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogBody>
             {resultQuery.isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -374,16 +424,6 @@ export default function ScreeningDecisionModal({
                         {SCREENING_OUTCOME_LABELS[result.outcome]}
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => copyText(result.id, 'ID temuan')}
-                      className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground hover:text-primary"
-                      title={result.id}
-                      aria-label="Salin ID temuan"
-                    >
-                      <span>{shortHash(result.id, 8, 6)}</span>
-                      <Copy className="h-3 w-3 opacity-50" />
-                    </button>
                   </div>
                   <span className="text-xs tabular-nums text-muted-foreground">
                     Diperiksa {formatDateTime(result.createdAt)}
@@ -412,7 +452,7 @@ export default function ScreeningDecisionModal({
                       <span className="text-xs">
                         {SANCTION_LIST_TYPE_LABELS[result.listType].split(' — ')[0]}
                         <span className="tabular-nums ml-1 text-xs text-muted-foreground">
-                          terbit {result.listPublishedAt ?? '—'}
+                          terbit {result.listPublishedAt ? formatIsoDayLong(result.listPublishedAt) : '—'}
                         </span>
                       </span>
                     ) : (
@@ -544,6 +584,29 @@ export default function ScreeningDecisionModal({
                   </div>
                 )}
 
+                <DetailTeknis>
+                  <Field label="ID temuan">
+                    <button
+                      type="button"
+                      onClick={() => copyText(result.id, 'ID temuan')}
+                      className="inline-flex items-center gap-1.5 break-all font-mono text-xs text-foreground hover:text-primary"
+                      title={result.id}
+                      aria-label="Salin ID temuan"
+                    >
+                      <span>{result.id}</span>
+                      <Copy className="h-3 w-3 shrink-0 opacity-50" />
+                    </button>
+                  </Field>
+                  <Field label="Subjek (kode)">
+                    <span className="break-all font-mono text-xs text-muted-foreground">
+                      {result.subjectType} · {result.subjectId}
+                    </span>
+                  </Field>
+                  <Field label="Hasil (kode)">
+                    <span className="font-mono text-xs text-muted-foreground">{result.outcome}</span>
+                  </Field>
+                </DetailTeknis>
+
                 {/* Kotak alasan — muncul setelah salah satu keputusan dipilih */}
                 {actionable && canDecide && pending && (
                   <div
@@ -596,73 +659,7 @@ export default function ScreeningDecisionModal({
                 )}
               </div>
             ) : null}
-          </DialogBody>
-
-          {actionable && (
-            <DialogFooter>
-              {canDecide ? (
-                pending ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setPending(null)
-                        setReasonError('')
-                      }}
-                      disabled={isMutating}
-                    >
-                      Batal
-                    </Button>
-                    <Button
-                      variant={pending === 'CONFIRMED_MATCH' ? 'destructive' : 'default'}
-                      onClick={handleDecide}
-                      disabled={isMutating}
-                    >
-                      {isMutating
-                        ? 'Menyimpan…'
-                        : pending === 'CLEARED'
-                          ? 'Lepas temuan'
-                          : 'Konfirmasi cocok'}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => setPending('CONFIRMED_MATCH')}
-                    >
-                      <ShieldX className="mr-1.5 h-3.5 w-3.5" />
-                      Cocok dikonfirmasi
-                    </Button>
-                    <Button onClick={() => setPending('CLEARED')}>
-                      <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                      Lepas — bukan pihak yang sama
-                    </Button>
-                  </>
-                )
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {/* pembungkus span: tombol disabled menelan pointer event */}
-                    <span className="inline-flex gap-2" tabIndex={0}>
-                      <Button variant="outline" disabled aria-disabled="true">
-                        Cocok dikonfirmasi
-                      </Button>
-                      <Button disabled aria-disabled="true">
-                        Lepas
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Role Developer hanya bisa melihat — server menolak dengan 403
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
+      </RecordModal>
     </TooltipProvider>
   )
 }

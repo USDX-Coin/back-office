@@ -174,7 +174,7 @@ describe('DurianpayApiCallDetailModal', () => {
       const user = userEvent.setup()
       setup(`/durianpay-api-calls/${IDS.createVaOk}?outcome=SUCCESS`)
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getByRole('button', { name: 'Tutup' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Tutup dialog' }))
       // Chip saringan masih terpasang setelah kembali ke daftarnya.
       expect(await screen.findByText('Hasil: Sampai & dijawab')).toBeInTheDocument()
     })

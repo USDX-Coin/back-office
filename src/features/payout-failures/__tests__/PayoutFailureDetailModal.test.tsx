@@ -110,7 +110,7 @@ describe('PayoutFailureDetailModal @ USDX-662', () => {
       const user = userEvent.setup()
       setup(`/payout-failures/${IDS.burnRejected}?issueKind=BURN_REJECTED`)
       const dialog = await screen.findByRole('dialog')
-      await user.click(within(dialog).getAllByRole('button', { name: 'Tutup' })[0]!)
+      await user.click(within(dialog).getByRole('button', { name: 'Tutup dialog' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(screen.queryByText('RINA SUSANTI')).not.toBeInTheDocument()
       expect(screen.getByText('DEWI KARTIKA')).toBeInTheDocument()

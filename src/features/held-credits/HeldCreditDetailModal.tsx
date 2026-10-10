@@ -1,14 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import DetailTeknis from '@/components/DetailTeknis'
@@ -39,6 +31,7 @@ interface Props {
   creditId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -65,7 +58,7 @@ function Raw({ value }: { value: string | number | null | undefined }) {
  * jurnal, narasi, saldo, badan permintaan apa adanya — dilipat ke "Detail
  * teknis". Dilipat, tidak dibuang: itu bahan rekonsiliasi dengan bank.
  */
-export default function HeldCreditDetailModal({ creditId, open, onOpenChange }: Props) {
+export default function HeldCreditDetailModal({ creditId, open, onOpenChange, nav }: Props) {
   const { user } = useAuth()
   const detail = useHeldCreditDetail(open ? creditId : null)
   const [action, setAction] = useState<HeldCreditResolution | null>(null)
@@ -75,62 +68,54 @@ export default function HeldCreditDetailModal({ creditId, open, onOpenChange }: 
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Mint bermasalah</DialogTitle>
-            <DialogDescription>
-              {credit
-                ? `${sourceLabel(credit.source)} · ${receivedAmountLabel(credit)}`
-                : 'Memuat kredit…'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogBody className="space-y-5">
-            {detail.isLoading && (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            )}
-
-            {detail.isError && (
-              <p role="alert" className="text-sm text-destructive">
-                {detail.error instanceof ApiError
-                  ? heldCreditErrorMessage(detail.error.code, errorMessage(detail.error))
-                  : 'Kredit gagal dimuat.'}
-              </p>
-            )}
-
-            {credit && <CreditBody credit={credit} />}
-          </DialogBody>
-
-          <DialogFooter>
-            {credit && !alreadyResolved && canResolve && (
-              // Pola footer modal detail: aksi di kanan, aksi utama paling kanan.
-              <div className="flex flex-wrap justify-end gap-2 sm:order-last">
+      {/* Pola `RecordModal` (sapu bersih 11 Okt 2026): ↑/↓ antar baris antrean,
+          footer menempel, aksi utama paling kanan. */}
+      <RecordModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title="Mint bermasalah"
+        subtitle={credit ? `${sourceLabel(credit.source)} · ${receivedAmountLabel(credit)}` : 'Memuat kredit…'}
+        nav={nav}
+        testId="held-credit-modal"
+        actions={
+          credit && !alreadyResolved ? (
+            canResolve ? (
+              <>
                 <Button variant="destructive" onClick={() => setAction('FAILED')}>
                   Tolak kredit
                 </Button>
                 <Button onClick={() => setAction('PAID')}>Terima &amp; lekatkan ke order</Button>
-              </div>
-            )}
-            {credit && !alreadyResolved && !canResolve && (
-              <p className="mr-auto flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+              </>
+            ) : (
+              <p className="flex max-w-md items-start gap-2 text-xs leading-relaxed text-muted-foreground sm:ml-auto">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
                   Peran Developer read-only pada jalur uang — server menolak penyelesaian
                   kredit dengan 403. Halaman ini tetap terbuka supaya antreannya terlihat.
                 </span>
               </p>
-            )}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Tutup
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            )
+          ) : undefined
+        }
+      >
+        {detail.isLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        )}
+
+        {detail.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {detail.error instanceof ApiError
+              ? heldCreditErrorMessage(detail.error.code, errorMessage(detail.error))
+              : 'Kredit gagal dimuat.'}
+          </p>
+        )}
+
+        {credit && <CreditBody credit={credit} />}
+      </RecordModal>
 
       {credit && (
         <ResolveHeldCreditDialog
@@ -164,7 +149,7 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               : 'Sudah ditolak.'}
           </p>
           <p className="mt-0.5 text-muted-foreground">
-            {formatDateTime(credit.resolvedAt)} WIB
+            Diputus (WIB) {formatDateTime(credit.resolvedAt)}
             {credit.resolution === 'FAILED' &&
               ' · Pengembalian dana ke nasabah dikerjakan treasury secara manual — tidak ada pengembalian otomatis.'}
           </p>

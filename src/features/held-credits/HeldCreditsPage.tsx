@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, HandCoins } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -293,6 +294,9 @@ export default function HeldCreditsPage() {
           onOpenChange={(open) => {
             if (!open) navigate(`/mint-bermasalah${suffix}`, { replace: true })
           }}
+          nav={rowNav(rows, (r) => r.id, activeId, (id) =>
+            navigate(`/mint-bermasalah/${id}${suffix}`, { replace: true }),
+          )}
         />
       </div>
     </TooltipProvider>

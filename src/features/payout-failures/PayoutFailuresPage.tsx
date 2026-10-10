@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { BanknoteX, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -287,6 +288,9 @@ export default function PayoutFailuresPage() {
           onOpenChange={(o) => {
             if (!o) navigate(`/payout-failures${suffix}`, { replace: true })
           }}
+          nav={rowNav(rows, (r) => r.id, activeId, (id) =>
+            navigate(`/payout-failures/${id}${suffix}`, { replace: true }),
+          )}
         />
       </div>
     </TooltipProvider>

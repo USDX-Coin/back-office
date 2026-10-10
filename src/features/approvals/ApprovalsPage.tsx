@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format'
 import { canDecideApproval } from './access'
 import ApprovalDetailModal from './ApprovalDetailModal'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { APPROVAL_COLUMN_CONFIG, APPROVAL_FILTER_DEFS } from './filterDefs'
 import { useApprovals } from './hooks'
 import {
@@ -300,6 +301,9 @@ export default function ApprovalsPage() {
           onOpenChange={(open) => {
             if (!open) navigate(`/persetujuan${suffix}`, { replace: true })
           }}
+          nav={rowNav(rows, (r) => r.id, activeId, (id) =>
+            navigate(`/persetujuan/${id}${suffix}`, { replace: true }),
+          )}
         />
       </div>
     </TooltipProvider>

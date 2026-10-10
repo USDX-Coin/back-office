@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Eye, ListChecks, ShieldAlert } from 'lucide-react'
 import DataTable from '@/components/DataTable'
@@ -95,6 +96,9 @@ export default function ScreeningQueuePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { id: activeId } = useParams<{ id?: string }>()
+  // Saringan & halaman ikut ke URL modal dan kembali saat ditutup (dulu hilang:
+  // membuka satu temuan dari "Semua jejak" mengembalikan antrean ke bawaan).
+  const { search: suffix } = useLocation()
 
   const params = useDataTableParams()
   // Default antrean = temuan yang masih menahan subjeknya. Itu pekerjaannya;
@@ -245,7 +249,7 @@ export default function ScreeningQueuePage() {
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            navigate(`/screening/${row.original.id}`)
+            navigate(`/screening/${row.original.id}${suffix}`)
           }}
           className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka banding temuan ${row.original.matchedName ?? row.original.id}`}
@@ -320,7 +324,7 @@ export default function ScreeningQueuePage() {
             description="Antrean kosong berarti tidak ada kecocokan yang menunggu keputusan. Pilih “Semua jejak pemeriksaan” untuk melihat riwayat pemeriksaan yang bersih — hasil “Tidak cocok” adalah bukti nasabahnya sudah diperiksa."
           />
         }
-        onRowClick={(r) => navigate(`/screening/${r.id}`)}
+        onRowClick={(r) => navigate(`/screening/${r.id}${suffix}`)}
         rowAriaLabel={(r) => `Buka banding temuan ${r.matchedName ?? r.id}`}
       />
 
@@ -328,8 +332,9 @@ export default function ScreeningQueuePage() {
         resultId={activeId ?? null}
         open={Boolean(activeId)}
         onOpenChange={(o) => {
-          if (!o) navigate('/screening', { replace: true })
+          if (!o) navigate(`/screening${suffix}`, { replace: true })
         }}
+        nav={rowNav(rows, (r) => r.id, activeId, (id) => navigate(`/screening/${id}${suffix}`, { replace: true }))}
       />
     </div>
   )

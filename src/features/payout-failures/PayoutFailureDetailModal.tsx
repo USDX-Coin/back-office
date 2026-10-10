@@ -1,14 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { ExternalLink, Info } from 'lucide-react'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
@@ -41,6 +33,7 @@ interface Props {
   orderId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -90,7 +83,7 @@ function ActionAvailabilityNote({
       <p className="text-xs text-muted-foreground" data-testid="resolved-note">
         Sudah dituntaskan: <strong>{resolutionTrailLabel(detail.resolution)}</strong>
         {detail.resolvedByStaffName ? ` oleh ${detail.resolvedByStaffName}` : ''}
-        {detail.resolvedAt ? ` · ${formatDateTime(detail.resolvedAt)} WIB` : ''}.
+        {detail.resolvedAt ? ` · diputus (WIB) ${formatDateTime(detail.resolvedAt)}` : ''}.
       </p>
     )
   }
@@ -131,6 +124,7 @@ export default function PayoutFailureDetailModal({
   orderId,
   open,
   onOpenChange,
+  nav,
 }: Props) {
   const { user } = useAuth()
   const canResolve = canResolvePayoutFailure(user)
@@ -153,21 +147,38 @@ export default function PayoutFailureDetailModal({
     detail && detail.resolution === null && canResolve ? allowedResolveActions(detail.issueKind) : []
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl bg-card">
-        <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-2">
-            Pencairan bermasalah
-            {detail && <StatusPill cfg={payoutIssueKindPill(detail.issueKind)} />}
-          </DialogTitle>
-          <DialogDescription>
-            {detail
-              ? `${detail.bankAccountName} · ${formatIdrExact(detail.netPayoutIdr)} · masuk antrean ${formatQueueAge(detail.issueAt)} lalu`
-              : 'Memuat detail order…'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <DialogBody>
+    // Pola `RecordModal` (sapu bersih 11 Okt 2026): ↑/↓ antar baris antrean,
+    // footer menempel, aksi utama (Kirim ulang) paling kanan.
+    <RecordModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          Pencairan bermasalah
+          {detail && <StatusPill cfg={payoutIssueKindPill(detail.issueKind)} />}
+        </span>
+      }
+      subtitle={
+        detail
+          ? `${detail.bankAccountName} · ${formatIdrExact(detail.netPayoutIdr)} · masuk antrean ${formatQueueAge(detail.issueAt)} lalu`
+          : 'Memuat detail order…'
+      }
+      nav={nav}
+      testId="payout-failure-modal"
+      actions={
+        actions.length > 0
+          ? [...actions].reverse().map((action) => (
+              <Button
+                key={action}
+                variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
+                onClick={() => setChosenAction(action)}
+              >
+                {RESOLVE_ACTION_LABELS[action]}
+              </Button>
+            ))
+          : undefined
+      }
+    >
           {query.isLoading && (
             <div className="space-y-3" data-testid="payout-failure-loading">
               <Skeleton className="h-16 w-full" />
@@ -332,24 +343,6 @@ export default function PayoutFailureDetailModal({
               </DetailTeknis>
             </div>
           )}
-        </DialogBody>
-
-        {/* Pola footer modal detail: Tutup lalu aksi, aksi utama (Kirim ulang) paling kanan. */}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Tutup
-          </Button>
-          {[...actions].reverse().map((action) => (
-            <Button
-              key={action}
-              variant={action === 'CLOSED' ? 'destructive' : action === 'RESENT' ? 'default' : 'outline'}
-              onClick={() => setChosenAction(action)}
-            >
-              {RESOLVE_ACTION_LABELS[action]}
-            </Button>
-          ))}
-        </DialogFooter>
-
         {/* Dirender DI DALAM konten modal detail supaya Radix menumpuk keduanya sebagai
             lapisan bersarang: Esc menutup dialog resolve dulu, bukan detailnya. */}
         {detail && (
@@ -362,7 +355,6 @@ export default function PayoutFailureDetailModal({
             }}
           />
         )}
-      </DialogContent>
-    </Dialog>
+    </RecordModal>
   )
 }

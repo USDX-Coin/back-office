@@ -1,15 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown, Copy, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -40,6 +32,7 @@ interface Props {
   callId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -331,50 +324,44 @@ function CallDetail({ detail }: { detail: DurianpayApiCallDetail }) {
  * yang dikutip saat melapor. Badan pesan mentah ada di paling bawah dan terlipat
  * — boleh dilipat, tidak boleh dibuang.
  */
-export default function DurianpayApiCallDetailModal({ callId, open, onOpenChange }: Props) {
+export default function DurianpayApiCallDetailModal({ callId, open, onOpenChange, nav }: Props) {
   const query = useDurianpayApiCallDetail(open ? callId : null)
   const detail = query.data
 
+  // Pola `RecordModal` (sapu bersih 11 Okt 2026): ↑/↓ antar baris, footer
+  // menempel. Halaman ini baca saja, jadi footernya hanya navigasi.
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl bg-card">
-        <DialogHeader>
-          <DialogTitle>Panggilan ke DurianPay</DialogTitle>
-          <DialogDescription>
-            {detail
-              ? `${durianpayCallLabel(detail.path) ?? detail.path} · ${formatDateTime(detail.requestedAt)}`
-              : 'Memuat detail panggilan…'}
-          </DialogDescription>
-        </DialogHeader>
+    <RecordModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={detail ? (durianpayCallLabel(detail.path) ?? 'Panggilan ke DurianPay') : 'Panggilan ke DurianPay'}
+      subtitle={
+        detail
+          ? `Panggilan ke DurianPay · ${formatDateTime(detail.requestedAt)}`
+          : 'Memuat detail panggilan…'
+      }
+      nav={nav}
+      testId="durianpay-modal"
+    >
+      {query.isLoading && (
+        <div className="space-y-3" data-testid="durianpay-call-loading">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      )}
 
-        <DialogBody>
-          {query.isLoading && (
-            <div className="space-y-3" data-testid="durianpay-call-loading">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
-          )}
-
-          {query.isError && (
-            <div className="space-y-2" role="alert">
-              <p className="text-sm text-destructive">
-                {durianpayApiCallErrorMessage(query.error)}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-                Coba lagi
-              </Button>
-            </div>
-          )}
-
-          {detail && <CallDetail detail={detail} />}
-        </DialogBody>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Tutup
+      {query.isError && (
+        <div className="space-y-2" role="alert">
+          <p className="text-sm text-destructive">
+            {durianpayApiCallErrorMessage(query.error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => query.refetch()}>
+            Coba lagi
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+
+      {detail && <CallDetail detail={detail} />}
+    </RecordModal>
   )
 }
