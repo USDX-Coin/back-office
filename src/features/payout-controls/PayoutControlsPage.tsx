@@ -1,11 +1,14 @@
-import { Skeleton } from '@/components/ui/skeleton'
-import { Info } from 'lucide-react'
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
+import { ArrowRight, Info } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/PageHeader'
 import { useAuth } from '@/lib/auth'
+import { useStaffDirectory } from '@/features/staff-directory/hooks'
 import { canChangePayoutLimits } from './access'
 import CurrentControlsCard from './CurrentControlsCard'
-import { usePayoutControls } from './hooks'
-import LimitHistoryCard from './LimitHistoryCard'
+import { usePayoutControls, usePayoutLimitHistory } from './hooks'
+import LimitHistoryCard, { HISTORY_TAKE, LimitHistoryModal } from './LimitHistoryCard'
 import UpdateLimitsForm from './UpdateLimitsForm'
 
 /**
@@ -25,52 +28,24 @@ import UpdateLimitsForm from './UpdateLimitsForm'
  */
 
 /**
- * Form usulan plafon, beserta keputusan KAPAN ia tidak boleh ditawarkan.
+ * Tombol "Ubah plafon", beserta keputusan KAPAN ia tidak boleh ditawarkan.
  *
  * Gerbangnya menggantung pada ADA-TIDAKNYA baseline, bukan pada `isError`.
  * Versi sebelumnya memakai `isError`, dan itu regresi yang lebih berat daripada
  * cacat yang hendak ditutupnya: `useUpdatePayoutLimits.onSuccess`
  * meng-invalidate `PAYOUT_CONTROLS_KEY`, jadi SETIAP usulan yang berhasil
- * memaksa satu GET ulang — dan kalau GET itu gagal, `isError` jadi true,
- * seluruh form di-unmount, dan bersamanya hilang kartu "menunggu orang kedua"
- * beserta tautan ke usulan yang BARU SAJA TERCATAT di server. Operator membaca
- * "usulan dimatikan" untuk usulan yang sudah ada di antrean, lalu mengirim
- * ulang — dua usulan untuk satu perubahan plafon.
+ * memaksa satu GET ulang — dan kalau GET itu gagal, `isError` jadi true dan
+ * form hilang bersama kartu "menunggu orang kedua". (Sejak 11 Okt 2026 kartu
+ * itu milik HALAMAN, bukan form di dialog, jadi tetap terlihat apa pun yang
+ * terjadi pada form.)
  *
- * Tiga keadaan, dan hanya satu yang menutup form:
+ * Tiga keadaan, dan hanya satu yang menutup usulan:
  *   ada data      → tawarkan, apa pun `isError`-nya. Baselinenya NYATA, cuma
- *                   mungkin basi — dan itu dikatakan, bukan disembunyikan.
- *   belum ada, memuat → tunggu. Jangan mencetak "Bawaan server" untuk nilai
- *                   yang belum tiba.
- *   belum ada, selesai → tutup. Di sinilah baseline karangan lahir.
+ *                   mungkin basi — dan itu dikatakan di dialognya.
+ *   belum ada, memuat → tunggu (tanpa tombol).
+ *   belum ada, selesai → tutup, dengan kalimat kenapa (`UsulanMati`).
  */
-function PanelUsulan({ controls }: { controls: ReturnType<typeof usePayoutControls> }) {
-  if (controls.data) {
-    return (
-      <div className="space-y-3">
-        {controls.isError && (
-          <p
-            role="status"
-            data-testid="plafon-baseline-basi"
-            className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-label leading-relaxed text-muted-foreground"
-          >
-            Nilai "sebelum" di bawah dibaca sebelum permintaan terakhir gagal, jadi mungkin sudah
-            tidak mutakhir. Kalau kamu baru saja mengirim usulan, usulan itu tetap tercatat.
-          </p>
-        )}
-        <UpdateLimitsForm current={controls.data} />
-      </div>
-    )
-  }
-  if (controls.isLoading) {
-    return (
-      <div className="space-y-3 rounded-md border border-border px-4 py-3">
-        <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-      </div>
-    )
-  }
+function UsulanMati() {
   return (
     <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3">
       <p className="text-sm font-medium text-destructive">Usulan perubahan plafon dimatikan</p>
@@ -83,10 +58,66 @@ function PanelUsulan({ controls }: { controls: ReturnType<typeof usePayoutContro
   )
 }
 
+/** Usulan tercatat, plafon BELUM berubah — kartu ini tinggal di halaman sampai dibuang. */
+function MenungguOrangKedua({
+  approvalId,
+  onAnother,
+}: {
+  approvalId: string
+  onAnother: () => void
+}) {
+  const navigate = useNavigate()
+  return (
+    <div
+      data-testid="plafon-menunggu-orang-kedua"
+      className="space-y-3 rounded-md border border-warning/40 bg-warning/5 px-4 py-3 text-xs leading-relaxed"
+    >
+      <div>
+        <p className="text-sm font-medium">Usulan terkirim — plafon belum berubah</p>
+        <p className="mt-1 text-muted-foreground">
+          Tidak ada satu plafon pun yang berubah sampai orang kedua menyetujuinya.
+          Pengusul tidak boleh menjadi penyetujunya — mintalah Manager atau Admin LAIN
+          yang membukanya. Usulan punya masa berlaku; lewat itu ia harus diusulkan ulang.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => navigate(`/persetujuan/${approvalId}`)}>
+          Buka usulannya
+          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+        </Button>
+        <Button size="sm" variant="outline" onClick={onAnother}>
+          Usulkan perubahan lain
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Susunan sejak audit layout Pengaturan (11 Okt 2026), dulu form usulan terbuka
+ * besar di samping kartu angka dan riwayat menumpuk sebagai kartu di bawahnya:
+ *   atas  — kartu "Yang berlaku sekarang" + tombol "Ubah plafon" (Manager/Admin)
+ *   dialog — form usulan (isi, validasi, pratinjau sebelum → sesudah, alasan,
+ *           persetujuan orang kedua: TIDAK berubah)
+ *   bawah — tabel riwayat; klik baris = modal tengah `/plafon-pencairan/riwayat/:id`
+ */
 export default function PayoutControlsPage() {
   const { user } = useAuth()
   const controls = usePayoutControls()
   const canChange = canChangePayoutLimits(user)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { directory } = useStaffDirectory()
+  const history = usePayoutLimitHistory(canChange, 1, HISTORY_TAKE)
+  const [formOpen, setFormOpen] = useState(false)
+  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null)
+
+  const match = /^\/plafon-pencairan\/riwayat\/([^/]+)$/.exec(location.pathname)
+  const selectedId = match ? decodeURIComponent(match[1]!) : undefined
+  const rows = history.data?.data ?? []
+  const index = selectedId ? rows.findIndex((r) => r.id === selectedId) : -1
+  const openRow = (id: string, replace = false) =>
+    navigate(`/plafon-pencairan/riwayat/${encodeURIComponent(id)}`, { replace })
 
   return (
     <div>
@@ -95,34 +126,76 @@ export default function PayoutControlsPage() {
         subtitle="Batas nominal satu pencairan, batas akumulasi harian, dan berapa order yang dikirim sekali putaran. Mengubahnya selalu menuntut alasan tertulis dan persetujuan staf kedua — ke arah mana pun perubahannya."
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-5">
-          <CurrentControlsCard
-            data={controls.data}
-            isLoading={controls.isLoading}
-            isError={controls.isError}
-            onRetry={() => controls.refetch()}
+      <div className="space-y-6">
+        {canChange && pendingApprovalId && (
+          <MenungguOrangKedua
+            approvalId={pendingApprovalId}
+            onAnother={() => {
+              setPendingApprovalId(null)
+              setFormOpen(true)
+            }}
           />
-          {!canChange && (
-            <p
-              data-testid="hanya-baca"
-              className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
-            >
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                Mengubah plafon dan membaca riwayatnya hanya untuk Manager dan Admin —
-                server menolak peran lain dengan 403. Keadaan rem dan angka yang berlaku
-                tetap terbuka untuk semua peran, karena itulah yang perlu dilihat cepat
-                saat uang bermasalah.
-              </span>
-            </p>
-          )}
-        </div>
-        <div className="space-y-6 lg:col-span-7">
-          {canChange && <PanelUsulan controls={controls} />}
-          <LimitHistoryCard enabled={canChange} />
-        </div>
+        )}
+
+        <CurrentControlsCard
+          data={controls.data}
+          isLoading={controls.isLoading}
+          isError={controls.isError}
+          onRetry={() => controls.refetch()}
+          action={
+            canChange && controls.data ? (
+              <Button type="button" onClick={() => setFormOpen(true)}>
+                Ubah plafon
+              </Button>
+            ) : null
+          }
+        />
+
+        {canChange && !controls.data && !controls.isLoading && <UsulanMati />}
+
+        {!canChange && (
+          <p
+            data-testid="hanya-baca"
+            className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+          >
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Mengubah plafon dan membaca riwayatnya hanya untuk Manager dan Admin —
+              server menolak peran lain dengan 403. Keadaan rem dan angka yang berlaku
+              tetap terbuka untuk semua peran, karena itulah yang perlu dilihat cepat
+              saat uang bermasalah.
+            </span>
+          </p>
+        )}
+
+        <LimitHistoryCard enabled={canChange} directory={directory} onRowClick={(c) => openRow(c.id)} />
       </div>
+
+      {canChange && controls.data && (
+        <UpdateLimitsForm
+          current={controls.data}
+          stale={controls.isError}
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          onProposed={(id) => setPendingApprovalId(id)}
+        />
+      )}
+
+      {canChange && selectedId && (
+        <LimitHistoryModal
+          change={index >= 0 ? rows[index]! : null}
+          missingId={selectedId}
+          loading={history.isLoading}
+          directory={directory}
+          onClose={() => navigate('/plafon-pencairan')}
+          nav={{
+            index: index >= 0 ? index : null,
+            total: rows.length,
+            onPrev: index > 0 ? () => openRow(rows[index - 1]!.id, true) : undefined,
+            onNext: index >= 0 && index < rows.length - 1 ? () => openRow(rows[index + 1]!.id, true) : undefined,
+          }}
+        />
+      )}
     </div>
   )
 }

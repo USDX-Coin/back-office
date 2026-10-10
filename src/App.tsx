@@ -195,6 +195,9 @@ export const appRoutes: RouteObject[] = [
           // (MANAGER/ADMIN) digerbangi per-bagian di dalam halaman — dua gerbang
           // berbeda di satu layar tidak bisa diwakili satu gerbang rute.
           { path: '/plafon-pencairan', element: <PayoutControlsPage /> },
+          // Modal riwayat perubahan plafon (11 Okt 2026). Riwayatnya sendiri
+          // Manager/Admin — dijaga di halaman + server, sama seperti tabelnya.
+          { path: '/plafon-pencairan/riwayat/:id', element: <PayoutControlsPage /> },
           {
             // OTC ▸ Mint `/otc/mint` + OTC ▸ Redeem `/otc/redeem` (keputusan PM
             // 10 Okt 2026; fase 1 masih satu tabel `/otc`).

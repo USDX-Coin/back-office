@@ -115,10 +115,27 @@ export default function MintModeCard({ data, isLoading }: Props) {
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      {/* Audit layout Pengaturan (11 Okt 2026): aksi utama di kanan atas kartu,
+          sama dengan halaman pengaturan lain (dulu di dasar kartu). */}
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Mode Mint
         </CardTitle>
+        {data && !isTest && canEnableTest ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setTestDialogOpen(true)}
+          >
+            Geser ke mode uji
+          </Button>
+        ) : null}
+        {data && isTest && canRestoreProd ? (
+          <Button type="button" onClick={() => setProdDialogOpen(true)}>
+            Kembali ke mode normal
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-5">
         {isLoading || !data ? (
@@ -244,28 +261,11 @@ export default function MintModeCard({ data, isLoading }: Props) {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-              {!isTest && canEnableTest ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setTestDialogOpen(true)}
-                >
-                  Geser ke mode uji
-                </Button>
-              ) : null}
-              {isTest && canRestoreProd ? (
-                <Button type="button" onClick={() => setProdDialogOpen(true)}>
-                  Kembali ke mode normal
-                </Button>
-              ) : null}
-              {!isTest && !canEnableTest ? (
-                <p className="text-xs text-muted-foreground">
-                  Hanya Manager dan Admin yang bisa menggeser mint ke mode uji.
-                </p>
-              ) : null}
-            </div>
+            {!isTest && !canEnableTest ? (
+              <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+                Hanya Manager dan Admin yang bisa menggeser mint ke mode uji.
+              </p>
+            ) : null}
           </>
         )}
       </CardContent>

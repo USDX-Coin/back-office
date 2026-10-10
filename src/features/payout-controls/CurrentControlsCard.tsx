@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import TableErrorState from '@/components/TableErrorState'
 import { AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +15,8 @@ interface Props {
   /** Wajib diteruskan pemanggil: `!data` saja tidak bisa membedakan gagal dari memuat. */
   isError: boolean
   onRetry?: () => void
+  /** Tombol "Ubah plafon" di kanan atas (Manager/Admin, audit Pengaturan 11 Okt 2026). */
+  action?: ReactNode
 }
 
 /**
@@ -25,15 +28,16 @@ interface Props {
  * Menarik dan melepas rem punya endpoint sendiri (`POST /pull`, `/release`) dan
  * belum punya layar — dicatat sebagai kebutuhan, tidak ditebak di sini.
  */
-export default function CurrentControlsCard({ data, isLoading, isError, onRetry }: Props) {
+export default function CurrentControlsCard({ data, isLoading, isError, onRetry, action }: Props) {
   const { directory } = useStaffDirectory()
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Yang berlaku sekarang
         </CardTitle>
+        {action}
       </CardHeader>
       <CardContent className="space-y-5">
         {isError || (!isLoading && !data) ? (

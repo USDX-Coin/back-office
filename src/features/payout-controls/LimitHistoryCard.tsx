@@ -1,17 +1,34 @@
 import { Link } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import DetailTeknis from '@/components/DetailTeknis'
 import ErrorNotice from '@/components/ErrorNotice'
+import { DataField, DataSection } from '@/components/DataList'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { errorMessage } from '@/lib/errorMessages'
-import { formatActor, useStaffDirectory } from '@/features/staff-directory/hooks'
+import type { StaffDirectory } from '@/features/staff-directory/hooks'
+import { formatActor } from '@/features/staff-directory/hooks'
 import { ApiError } from '@/lib/apiFetch'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { usePayoutLimitHistory } from './hooks'
 import { diffLimits, payoutControlsErrorMessage } from './labels'
 import type { PayoutControlChange } from './types'
 
-const HISTORY_TAKE = 10
+export const HISTORY_TAKE = 10
+
+/** Satu kalimat ringkas perubahan untuk sel tabel ("Plafon per transaksi → Rp 50.000.000,00"). */
+function changedLines(change: PayoutControlChange) {
+  return diffLimits(change.before, change.after).filter((line) => line.changed)
+}
 
 /**
  * Riwayat versi perubahan plafon — alasan, nilai sebelum → sesudah, pengusul +
@@ -21,10 +38,22 @@ const HISTORY_TAKE = 10
  * kolom alasan di tiap baris. Sebelum endpoint ini ada, satu-satunya jalur
  * mengubah plafon adalah psql produksi: tanpa jejak siapa, tanpa persetujuan,
  * tanpa alasan, dan tanpa menyimpan nilai yang ditimpanya.
+ *
+ * Audit layout Pengaturan (11 Okt 2026): dulu daftar kartu di kolom kanan di
+ * bawah form. Sekarang TABEL lebar penuh di bawah kartu "yang berlaku
+ * sekarang"; klik baris = modal tengah (`LimitHistoryModal`) dengan seluruh
+ * isi kartu lama, termasuk Detail teknis. Isinya sama, hanya tempatnya.
  */
-export default function LimitHistoryCard({ enabled }: { enabled: boolean }) {
+export default function LimitHistoryCard({
+  enabled,
+  directory,
+  onRowClick,
+}: {
+  enabled: boolean
+  directory: StaffDirectory
+  onRowClick: (change: PayoutControlChange) => void
+}) {
   const history = usePayoutLimitHistory(enabled, 1, HISTORY_TAKE)
-  const { directory } = useStaffDirectory()
 
   if (!enabled) return null
 
@@ -37,11 +66,11 @@ export default function LimitHistoryCard({ enabled }: { enabled: boolean }) {
           Riwayat perubahan plafon
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={cn('space-y-4', rows.length > 0 && !history.isError && 'px-0 pb-0')}>
         {history.isLoading && (
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
           </div>
         )}
 
@@ -74,91 +103,189 @@ export default function LimitHistoryCard({ enabled }: { enabled: boolean }) {
           </p>
         )}
 
-        {rows.map((change) => (
-          <ChangeEntry key={change.id} change={change} actorName={(id) => formatActor(directory, id)} />
-        ))}
+        {!history.isError && rows.length > 0 && (
+          <div className="overflow-x-auto">
+            <Table aria-label="Riwayat perubahan plafon">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  {['Waktu (WIB)', 'Perubahan', 'Alasan', 'Diusulkan', 'Disetujui'].map((h) => (
+                    <TableHead key={h} className="h-9 px-4 text-xs font-medium text-muted-foreground">
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((change) => {
+                  const lines = changedLines(change)
+                  return (
+                    <TableRow
+                      key={change.id}
+                      data-hoverable=""
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Buka perubahan plafon ${formatDateTime(change.createdAt)}`}
+                      onClick={() => onRowClick(change)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onRowClick(change)
+                        }
+                      }}
+                      className="cursor-pointer border-border align-top hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55"
+                    >
+                      <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-muted-foreground">
+                        {formatDateTime(change.createdAt)}
+                      </TableCell>
+                      <TableCell className="px-4 py-2.5 text-sm">
+                        {lines.length === 0 ? (
+                          <span className="text-muted-foreground">Tidak ada plafon yang berubah</span>
+                        ) : (
+                          <ul className="space-y-0.5">
+                            {lines.map((line) => (
+                              <li key={line.label} className="whitespace-nowrap">
+                                {line.label}{' '}
+                                <span aria-hidden="true">→</span>{' '}
+                                <span className="font-semibold tabular-nums">{line.after}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[320px] px-4 py-2.5 text-sm text-muted-foreground">
+                        <span className="line-clamp-2">{change.reason}</span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm">
+                        {formatActor(directory, change.proposerStaffId)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm">
+                        {change.approverStaffId ? formatActor(directory, change.approverStaffId) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function ChangeEntry({
+/**
+ * Satu versi perubahan plafon, utuh — modal tengah pola `RecordModal` dengan
+ * URL `/plafon-pencairan/riwayat/:id` dan ↑/↓ antar baris. Endpoint riwayat
+ * hanya punya `list`, jadi isinya baris yang sudah dimuat tabel; tautan ke versi
+ * yang tidak ada di halaman itu dikatakan, bukan ditebak.
+ */
+export function LimitHistoryModal({
   change,
-  actorName,
+  missingId,
+  loading,
+  directory,
+  nav,
+  onClose,
 }: {
-  change: PayoutControlChange
-  actorName: (id: string | null) => string
+  change: PayoutControlChange | null
+  missingId: string
+  loading: boolean
+  directory: StaffDirectory
+  nav: RecordModalNav
+  onClose: () => void
 }) {
+  if (!change) {
+    return (
+      <RecordModal
+        open
+        onClose={onClose}
+        title={loading ? 'Memuat riwayat…' : 'Perubahan tidak ada di daftar ini'}
+        nav={nav}
+        testId="plafon-riwayat-modal"
+      >
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Memuat…</p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <p>
+              Versi plafon ini tidak ada di {HISTORY_TAKE} perubahan terakhir yang ditampilkan. Server hanya bisa
+              membaca riwayat per halaman, jadi tautan ini tidak bisa menemukannya.
+            </p>
+            <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{missingId}</p>
+          </div>
+        )}
+      </RecordModal>
+    )
+  }
+
   const diff = diffLimits(change.before, change.after)
   return (
-    <article className="rounded-md border border-border/60 px-3 py-3">
-      <p className="text-xs text-muted-foreground">{formatDateTime(change.createdAt)}</p>
-      <ul className="mt-2 space-y-1">
-        {diff
-          .filter((line) => line.changed)
-          .map((line) => (
-            <li key={line.label} className="flex flex-wrap items-baseline gap-1.5 text-xs">
-              <span className="font-medium">{line.label}</span>
-              <span className="tabular-nums text-muted-foreground line-through">
+    <RecordModal
+      open
+      onClose={onClose}
+      title="Perubahan plafon"
+      subtitle={`Riwayat plafon pencairan · ${formatDateTime(change.createdAt)}`}
+      nav={nav}
+      testId="plafon-riwayat-modal"
+    >
+      <DataSection title="Sebelum → sesudah">
+        {diff.map((line) => (
+          <DataField key={line.label} label={line.label}>
+            <span className="tabular-nums">
+              <span className={line.changed ? 'text-muted-foreground line-through' : 'text-muted-foreground'}>
                 {line.before}
               </span>
-              <span aria-hidden="true">→</span>
-              <span className="font-semibold tabular-nums">{line.after}</span>
-            </li>
-          ))}
-        {diff.every((line) => !line.changed) && (
-          <li className="text-xs text-muted-foreground">
-            Tidak ada plafon yang berubah pada versi ini.
-          </li>
+              {line.changed && (
+                <>
+                  {' → '}
+                  <span className="font-semibold text-foreground">{line.after}</span>
+                </>
+              )}
+            </span>
+          </DataField>
+        ))}
+      </DataSection>
+
+      <DataSection title="Alasan dan orangnya">
+        <DataField label="Alasan">
+          <span className="whitespace-pre-wrap">{change.reason}</span>
+        </DataField>
+        <DataField label="Diusulkan">{formatActor(directory, change.proposerStaffId)}</DataField>
+        <DataField label="Disetujui">
+          {change.approverStaffId ? formatActor(directory, change.approverStaffId) : '—'}
+        </DataField>
+        <DataField label="Waktu (WIB)">
+          <span className="tabular-nums">{formatDateTime(change.createdAt)}</span>
+        </DataField>
+        {change.approvalRequestId && (
+          <DataField label="Persetujuan">
+            <Link
+              to={`/persetujuan/${change.approvalRequestId}`}
+              className="text-label font-medium text-primary hover:underline"
+            >
+              Lihat usulan persetujuannya
+            </Link>
+          </DataField>
         )}
-      </ul>
-      <p className="mt-2 whitespace-pre-wrap text-xs">{change.reason}</p>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Diusulkan {actorName(change.proposerStaffId)}
-        {change.approverStaffId ? ` · disetujui ${actorName(change.approverStaffId)}` : ''}
-      </p>
-      {change.approvalRequestId && (
-        <Link
-          to={`/persetujuan/${change.approvalRequestId}`}
-          className="mt-1.5 inline-block text-label font-medium text-primary hover:underline"
-        >
-          Lihat usulan persetujuannya
-        </Link>
-      )}
-      <DetailTeknis className="mt-3">
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">
-            Id versi
-          </p>
-          <p className="mt-1 break-all font-mono text-xs">{change.id}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">
-            Id usulan
-          </p>
-          <p className="mt-1 break-all font-mono text-xs">
-            {change.approvalRequestId ?? '—'}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">
-            Sebelum (mentah)
-          </p>
-          <p className="mt-1 break-all font-mono text-xs">{JSON.stringify(change.before)}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">
-            Sesudah (mentah)
-          </p>
-          <p className="mt-1 break-all font-mono text-xs">{JSON.stringify(change.after)}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">
-            IP pengusul
-          </p>
-          <p className="tabular-nums mt-1 break-all text-xs">{change.ipAddress ?? '—'}</p>
-        </div>
+      </DataSection>
+
+      <DetailTeknis>
+        <DataField label="Id versi">
+          <span className="break-all font-mono text-xs">{change.id}</span>
+        </DataField>
+        <DataField label="Id usulan">
+          <span className="break-all font-mono text-xs">{change.approvalRequestId ?? '—'}</span>
+        </DataField>
+        <DataField label="Sebelum (mentah)">
+          <span className="break-all font-mono text-xs">{JSON.stringify(change.before)}</span>
+        </DataField>
+        <DataField label="Sesudah (mentah)">
+          <span className="break-all font-mono text-xs">{JSON.stringify(change.after)}</span>
+        </DataField>
+        <DataField label="IP pengusul">
+          <span className="break-all text-xs tabular-nums">{change.ipAddress ?? '—'}</span>
+        </DataField>
       </DetailTeknis>
-    </article>
+    </RecordModal>
   )
 }

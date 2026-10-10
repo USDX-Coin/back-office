@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { AlertTriangle, ArrowRight } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { AlertTriangle } from 'lucide-react'
+import FormDialog from '@/components/FormDialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import FieldError from '@/components/FieldError'
@@ -27,6 +25,17 @@ import {
 
 interface Props {
   current: PayoutControls | undefined
+  /** Dialog dibuka dari tombol "Ubah plafon" di kartu (audit Pengaturan 11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /**
+   * Usulan tercatat dan MENUNGGU orang kedua. Dialog menutup; halaman yang
+   * menampilkan kartu "menunggu orang kedua" + tautan ke usulannya, supaya
+   * kartu itu tetap terlihat setelah dialognya hilang.
+   */
+  onProposed: (approvalId: string | null) => void
+  /** Baseline dibaca sebelum permintaan terakhir gagal — dikatakan di dalam dialog. */
+  stale?: boolean
 }
 
 function toInput(current: PayoutControls | undefined): LimitsFormInput {
@@ -60,11 +69,9 @@ function toInput(current: PayoutControls | undefined): LimitsFormInput {
  * Isian KOSONG berarti "pakai bawaan server", bukan "jangan diubah" — itu arti
  * `null` di kolomnya, dan layar ini tidak memberinya arti ketiga.
  */
-export default function UpdateLimitsForm({ current }: Props) {
-  const navigate = useNavigate()
+export default function UpdateLimitsForm({ current, open, onOpenChange, onProposed, stale = false }: Props) {
   const [input, setInput] = useState<LimitsFormInput>(() => toInput(current))
   const [touched, setTouched] = useState(false)
-  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null)
   const mutation = useUpdatePayoutLimits()
 
   // Isian dipasang dari keadaan yang berlaku begitu ia tiba — pertanyaan
@@ -95,16 +102,28 @@ export default function UpdateLimitsForm({ current }: Props) {
 
   const set = (patch: Partial<LimitsFormInput>) => setInput((prev) => ({ ...prev, ...patch }))
 
-  const submit = () => {
+  // Tutup / Batal / tercatat = isian kembali ke nilai yang berlaku dan alasan
+  // kosong; dibuka lagi berarti usulan BARU, bukan sisa usulan sebelumnya.
+  const reset = () => {
+    setInput(toInput(current))
+    setTouched(false)
+    mutation.reset()
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) reset()
+    onOpenChange(next)
+  }
+
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault()
     setTouched(true)
     if (!built.valid || unchanged) return
     mutation.mutate(input, {
       onSuccess: (result) => {
-        if (result.outcome === 'PENDING_APPROVAL') {
-          setPendingApprovalId(result.approval.id)
-          return
-        }
-        setPendingApprovalId(null)
+        onProposed(result.outcome === 'PENDING_APPROVAL' ? result.approval.id : null)
+        reset()
+        onOpenChange(false)
       },
     })
   }
@@ -120,180 +139,151 @@ export default function UpdateLimitsForm({ current }: Props) {
         ? errorMessage(mutation.error)
         : null
 
-  if (pendingApprovalId) {
-    return (
-      <Card className="rounded-md shadow-none dark:border-0">
-        <CardHeader>
-          <CardTitle className="text-section">
-            Usulan terkirim — plafon belum berubah
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div
-            data-testid="plafon-menunggu-orang-kedua"
-            className="rounded-md border border-warning/40 bg-warning/5 px-3.5 py-3 text-xs leading-relaxed"
-          >
-            <p className="font-medium">Menunggu staf lain membukanya.</p>
-            <p className="mt-1 text-muted-foreground">
-              Tidak ada satu plafon pun yang berubah sampai orang kedua menyetujuinya.
-              Pengusul tidak boleh menjadi penyetujunya — mintalah Manager atau Admin LAIN
-              yang membukanya. Usulan punya masa berlaku; lewat itu ia harus diusulkan ulang.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate(`/persetujuan/${pendingApprovalId}`)}>
-              Buka usulannya
-              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPendingApprovalId(null)
-                setTouched(false)
-                set({ reason: '' })
-                mutation.reset()
-              }}
-            >
-              Usulkan perubahan lain
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-section">Ubah plafon</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Ketiga plafon selalu dikirim bersama: yang tidak kamu ubah ikut terkirim
-          dengan nilai sekarang. Mengosongkan sebuah isian berarti mengembalikannya ke{' '}
-          <strong className="font-medium text-foreground">nilai bawaan</strong>, bukan
-          "biarkan seperti sekarang".
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Usulkan perubahan plafon"
+      description="Plafon yang diusulkan baru berlaku setelah Manager atau Admin LAIN menyetujuinya."
+      formId="plafon-form"
+      onSubmit={submit}
+      pending={mutation.isPending}
+      submitDisabled={!built.valid || unchanged}
+      submitLabel={mutation.isPending ? 'Mengirim…' : 'Usulkan perubahan'}
+      note="Tidak ada plafon yang berubah sampai orang kedua menyetujuinya."
+    >
+      {stale && (
+        <p
+          role="status"
+          data-testid="plafon-baseline-basi"
+          className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-label leading-relaxed text-muted-foreground"
+        >
+          Nilai "sebelum" di bawah dibaca sebelum permintaan terakhir gagal, jadi mungkin sudah
+          tidak mutakhir. Kalau kamu baru saja mengirim usulan, usulan itu tetap tercatat.
         </p>
+      )}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Ketiga plafon selalu dikirim bersama: yang tidak kamu ubah ikut terkirim
+        dengan nilai sekarang. Mengosongkan sebuah isian berarti mengembalikannya ke{' '}
+        <strong className="font-medium text-foreground">nilai bawaan</strong>, bukan
+        "biarkan seperti sekarang".
+      </p>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="plafon-per-tx" className="text-sm font-medium">
-              Plafon per transaksi (Rp)
-            </label>
-            <Input
-              id="plafon-per-tx"
-              value={input.maxPerTxIdr}
-              onChange={(e) => set({ maxPerTxIdr: e.target.value })}
-              onBlur={() => setTouched(true)}
-              placeholder="kosong = bawaan server"
-              className="mt-1.5 tabular-nums"
-              inputMode="decimal"
-            />
-            <FieldError message={showErrors.maxPerTxIdr} />
-          </div>
-          <div>
-            <label htmlFor="plafon-harian" className="text-sm font-medium">
-              Plafon per hari WIB (Rp)
-            </label>
-            <Input
-              id="plafon-harian"
-              value={input.maxDailyIdr}
-              onChange={(e) => set({ maxDailyIdr: e.target.value })}
-              onBlur={() => setTouched(true)}
-              placeholder="kosong = bawaan server"
-              className="mt-1.5 tabular-nums"
-              inputMode="decimal"
-            />
-            <FieldError message={showErrors.maxDailyIdr} />
-          </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="plafon-batch" className="text-sm font-medium">
-              Order per putaran pengiriman
-            </label>
-            <Input
-              id="plafon-batch"
-              value={input.maxBatchPerTick}
-              onChange={(e) => set({ maxBatchPerTick: e.target.value })}
-              onBlur={() => setTouched(true)}
-              placeholder="kosong = bawaan server"
-              className="mt-1.5 tabular-nums"
-              inputMode="numeric"
-            />
-            <FieldError message={showErrors.maxBatchPerTick} />
-          </div>
-        </div>
-
-        <div data-testid="pratinjau-perubahan" className="rounded-md border border-border">
-          <p className="border-b border-border px-3 py-2 text-xs font-medium text-primary">
-            Sebelum → sesudah
-          </p>
-          <ul className="divide-y divide-border">
-            {diff.map((line) => (
-              <li
-                key={line.label}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-xs"
-              >
-                <span className={line.changed ? 'font-medium' : 'text-muted-foreground'}>
-                  {line.label}
-                </span>
-                <span className="tabular-nums">
-                  <span className={line.changed ? 'text-muted-foreground line-through' : 'text-muted-foreground'}>
-                    {line.before}
-                  </span>
-                  {line.changed && (
-                    <>
-                      {' → '}
-                      <span className="font-semibold text-foreground">{line.after}</span>
-                    </>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="alasan-plafon" className="text-sm font-medium">
-            Alasan{' '}
-            <span className="font-normal text-muted-foreground">
-              (wajib, minimal {PAYOUT_LIMITS_REASON_MIN} karakter)
-            </span>
+          <label htmlFor="plafon-per-tx" className="text-sm font-medium">
+            Plafon per transaksi (Rp)
           </label>
-          <Textarea
-            id="alasan-plafon"
-            value={input.reason}
-            onChange={(e) => set({ reason: e.target.value })}
+          <Input
+            id="plafon-per-tx"
+            value={input.maxPerTxIdr}
+            onChange={(e) => set({ maxPerTxIdr: e.target.value })}
             onBlur={() => setTouched(true)}
-            rows={3}
-            maxLength={PAYOUT_LIMITS_REASON_MAX}
-            className="mt-1.5"
-            placeholder="Mis. plafon harian dinaikkan untuk antrean pencairan akhir bulan, disepakati rapat ops 19/09"
+            placeholder="kosong = bawaan server"
+            className="mt-1.5 tabular-nums"
+            inputMode="decimal"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Dibaca orang kedua sebelum ia memutuskan, lalu tersimpan permanen bersama nilai
-            sebelum dan sesudahnya.
-          </p>
-          <FieldError message={showErrors.reason} />
+          <FieldError message={showErrors.maxPerTxIdr} />
         </div>
+        <div>
+          <label htmlFor="plafon-harian" className="text-sm font-medium">
+            Plafon per hari WIB (Rp)
+          </label>
+          <Input
+            id="plafon-harian"
+            value={input.maxDailyIdr}
+            onChange={(e) => set({ maxDailyIdr: e.target.value })}
+            onBlur={() => setTouched(true)}
+            placeholder="kosong = bawaan server"
+            className="mt-1.5 tabular-nums"
+            inputMode="decimal"
+          />
+          <FieldError message={showErrors.maxDailyIdr} />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="plafon-batch" className="text-sm font-medium">
+            Order per putaran pengiriman
+          </label>
+          <Input
+            id="plafon-batch"
+            value={input.maxBatchPerTick}
+            onChange={(e) => set({ maxBatchPerTick: e.target.value })}
+            onBlur={() => setTouched(true)}
+            placeholder="kosong = bawaan server"
+            className="mt-1.5 tabular-nums"
+            inputMode="numeric"
+          />
+          <FieldError message={showErrors.maxBatchPerTick} />
+        </div>
+      </div>
 
-        {unchanged && touched && (
-          <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-            <span>
-              Ketiga plafon masih sama dengan yang berlaku — tidak ada yang perlu disetujui
-              siapa pun.
-            </span>
-          </p>
-        )}
+      <div data-testid="pratinjau-perubahan" className="rounded-md border border-border">
+        <p className="border-b border-border px-3 py-2 text-xs font-medium text-primary">
+          Sebelum → sesudah
+        </p>
+        <ul className="divide-y divide-border">
+          {diff.map((line) => (
+            <li
+              key={line.label}
+              className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-xs"
+            >
+              <span className={line.changed ? 'font-medium' : 'text-muted-foreground'}>
+                {line.label}
+              </span>
+              <span className="tabular-nums">
+                <span className={line.changed ? 'text-muted-foreground line-through' : 'text-muted-foreground'}>
+                  {line.before}
+                </span>
+                {line.changed && (
+                  <>
+                    {' → '}
+                    <span className="font-semibold text-foreground">{line.after}</span>
+                  </>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-        {serverError && (
-          <ErrorNotice error={mutation.error} message={serverError} />
-        )}
+      <div>
+        <label htmlFor="alasan-plafon" className="text-sm font-medium">
+          Alasan{' '}
+          <span className="font-normal text-muted-foreground">
+            (wajib, minimal {PAYOUT_LIMITS_REASON_MIN} karakter)
+          </span>
+        </label>
+        <Textarea
+          id="alasan-plafon"
+          value={input.reason}
+          onChange={(e) => set({ reason: e.target.value })}
+          onBlur={() => setTouched(true)}
+          rows={3}
+          maxLength={PAYOUT_LIMITS_REASON_MAX}
+          className="mt-1.5"
+          placeholder="Mis. plafon harian dinaikkan untuk antrean pencairan akhir bulan, disepakati rapat ops 19/09"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Dibaca orang kedua sebelum ia memutuskan, lalu tersimpan permanen bersama nilai
+          sebelum dan sesudahnya.
+        </p>
+        <FieldError message={showErrors.reason} />
+      </div>
 
-        <Button onClick={submit} disabled={mutation.isPending || !built.valid || unchanged}>
-          {mutation.isPending ? 'Mengirim…' : 'Usulkan perubahan'}
-        </Button>
-      </CardContent>
-    </Card>
+      {unchanged && touched && (
+        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <span>
+            Ketiga plafon masih sama dengan yang berlaku — tidak ada yang perlu disetujui
+            siapa pun.
+          </span>
+        </p>
+      )}
+
+      {serverError && (
+        <ErrorNotice error={mutation.error} message={serverError} />
+      )}
+
+    </FormDialog>
   )
 }

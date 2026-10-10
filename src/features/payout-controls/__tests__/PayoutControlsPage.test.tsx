@@ -28,6 +28,13 @@ function setup(staffId = 'stf_2') {
   })
 }
 
+/** Audit Pengaturan (11 Okt 2026): form usulan di dialog dari tombol "Ubah plafon". */
+async function openPlafonForm() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Ubah plafon' }))
+  await screen.findByRole('dialog', { name: /usulkan perubahan plafon/i })
+}
+
 function captureLimitsBody() {
   const seen: unknown[] = []
   server.events.on('request:start', async ({ request }) => {
@@ -118,6 +125,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
         })
       )
       setup()
+      await openPlafonForm()
       const perTx = await screen.findByLabelText(/Plafon per transaksi/)
       await waitFor(() => expect(perTx).toHaveValue('50000000.00'))
       await user.clear(perTx)
@@ -139,6 +147,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       const user = userEvent.setup()
       const body = captureLimitsBody()
       setup()
+      await openPlafonForm()
       const perTx = await screen.findByLabelText(/Plafon per transaksi/)
       await waitFor(() => expect(perTx).toHaveValue('50000000.00'))
 
@@ -168,6 +177,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
     test('pratinjau menunjukkan nilai SEBELUM → SESUDAH sebelum dikirim', async () => {
       const user = userEvent.setup()
       setup()
+      await openPlafonForm()
       const perTx = await screen.findByLabelText(/Plafon per transaksi/)
       await waitFor(() => expect(perTx).toHaveValue('50000000.00'))
       await user.clear(perTx)
@@ -178,13 +188,23 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
     })
 
     test('riwayat menampilkan alasan, sebelum → sesudah, pengusul dan penyetuju', async () => {
+      // Sejak 11 Okt 2026 riwayat = tabel; isi lengkapnya di modal baris.
+      const user = userEvent.setup()
       setup()
       expect(
         await screen.findByText(/Plafon per transaksi diturunkan setelah insiden payout ganda/)
       ).toBeInTheDocument()
-      expect(screen.getByText('Rp 100.000.000,00')).toBeInTheDocument()
+      const rows = await screen.findAllByRole('button', { name: /^Buka perubahan plafon/ })
+      await user.click(rows[0]!)
+      const modal = await screen.findByTestId('plafon-riwayat-modal')
+      expect(within(modal).getByText('Rp 100.000.000,00')).toBeInTheDocument()
+      await waitFor(() => expect(within(modal).getByText('Sarah King')).toBeInTheDocument())
+      expect(within(modal).getByText('Linda Chen')).toBeInTheDocument()
+      expect(within(modal).getByRole('link', { name: /lihat usulan persetujuannya/i })).toBeInTheDocument()
+      // ↓ pindah ke versi berikutnya tanpa menutup modal.
+      await user.keyboard('{ArrowDown}')
       await waitFor(() =>
-        expect(screen.getByText(/Diusulkan Sarah King · disetujui Linda Chen/)).toBeInTheDocument()
+        expect(within(screen.getByTestId('plafon-riwayat-modal')).getByTestId('record-modal-position')).toHaveTextContent(/^2 dari/)
       )
     })
   })
@@ -205,6 +225,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
     test('usulan yang tidak mengubah apa pun ditahan', async () => {
       const user = userEvent.setup()
       setup()
+      await openPlafonForm()
       await waitFor(() =>
         expect(screen.getByLabelText(/Plafon per transaksi/)).toHaveValue('50000000.00')
       )
@@ -215,6 +236,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
     test('alasan kurang dari 10 karakter menahan tombolnya', async () => {
       const user = userEvent.setup()
       setup()
+      await openPlafonForm()
       const perTx = await screen.findByLabelText(/Plafon per transaksi/)
       await waitFor(() => expect(perTx).toHaveValue('50000000.00'))
       await user.clear(perTx)
@@ -339,6 +361,7 @@ describe('PayoutControlsPage @ plafon pencairan', () => {
       const user = userEvent.setup()
       const body = captureLimitsBody()
       setup()
+      await openPlafonForm()
       const daily = await screen.findByLabelText(/Plafon per hari/)
       await waitFor(() => expect(daily).toHaveValue('2000000000.00'))
       await user.clear(daily)
