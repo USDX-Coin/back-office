@@ -169,7 +169,7 @@ export default function MintFormPage() {
       toast.success('Permintaan mint OTC terkirim — menunggu tanda tangan.')
       setForm(EMPTY)
       setErrors({})
-      navigate('/otc')
+      navigate('/otc/mint')
     } catch (err) {
       // USDX-84 — Safe Propose Queue conflict: render a dedicated banner so the
       // operator sees the blocking request ID + Manual Sync shortcut. Form
@@ -292,7 +292,7 @@ export default function MintFormPage() {
               </FormSection>
 
               <FormFooter note="Permintaan masuk antrean tanda tangan Safe dan muncul di halaman OTC.">
-                <Button type="button" variant="outline" onClick={() => navigate('/otc')}>
+                <Button type="button" variant="outline" onClick={() => navigate('/otc/mint')}>
                   Batal
                 </Button>
                 <Button

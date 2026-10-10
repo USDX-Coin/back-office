@@ -15,6 +15,9 @@ export const OTC_KIND_LABEL: Record<RequestType, string> = {
   burn: 'Redeem OTC',
 }
 
+/** Rute daftar per jenis — sub-menu OTC ▸ Mint / OTC ▸ Redeem (10 Okt 2026). */
+export const OTC_PATH: Record<RequestType, string> = { mint: '/otc/mint', burn: '/otc/redeem' }
+
 /**
  * Dua kelompok status yang TIDAK tumpang tindih (keputusan PM): kelompok
  * pertama ditarik semua dan duduk di atas sebagai "Perlu tindakan", kelompok

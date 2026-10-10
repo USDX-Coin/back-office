@@ -78,13 +78,17 @@ export function useOtcSafeQueue(enabled = true) {
   })
 }
 
-/** Angka menu OTC: permintaan yang masih "Perlu tindakan" (dua status pertama). */
-export function useOtcActionCount(opts: { enabled?: boolean } = {}) {
+/**
+ * Angka sub-menu OTC ▸ Mint / Redeem: permintaan jenis itu yang masih "Perlu
+ * tindakan" (dua status pertama). `type` = parameter `GET /api/v1/requests`
+ * yang sudah ada.
+ */
+export function useOtcActionCount(type: RequestType, opts: { enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: ['requests', 'otc-action-count'],
+    queryKey: ['requests', 'otc-action-count', type],
     queryFn: async () => {
       const json = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
-        `/api/v1/requests?status=${OTC_ACTION_STATUSES.join(',')}&limit=1`,
+        `/api/v1/requests?status=${OTC_ACTION_STATUSES.join(',')}&type=${type}&limit=1`,
       )
       return json.metadata.total
     },

@@ -52,7 +52,7 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/burn/new" element={<BurnFormPage />} />
-      <Route path="/otc" element={<div data-testid="otc-page">OTC landing</div>} />
+      <Route path="/otc/redeem" element={<div data-testid="otc-page">OTC landing</div>} />
     </Routes>
   )
 }

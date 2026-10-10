@@ -51,7 +51,7 @@ function TestApp() {
   return (
     <Routes>
       <Route path="/mint/new" element={<MintFormPage />} />
-      <Route path="/otc" element={<div data-testid="otc-page">OTC landing</div>} />
+      <Route path="/otc/mint" element={<div data-testid="otc-page">OTC landing</div>} />
     </Routes>
   )
 }
@@ -215,7 +215,7 @@ describe('MintFormPage @ USDX-46', () => {
   })
 
   describe('AC4 — submit body shape', () => {
-    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /otc', async () => {
+    test('AC4 — POST /api/v1/mint with userId + amountCurrency, redirects to /otc/mint', async () => {
       const user = userEvent.setup()
       server.use(http.get('/api/v1/users', () => HttpResponse.json(ELIGIBLE_USER_PAYLOAD)))
 

@@ -166,7 +166,7 @@ export default function RecordModal({
           ) : (
             <span />
           )}
-          {actions && <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{actions}</div>}
+          {actions && <div className="flex min-w-0 flex-col-reverse gap-2 sm:flex-1 sm:flex-row sm:flex-wrap sm:justify-end">{actions}</div>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

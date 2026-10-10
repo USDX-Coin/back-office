@@ -59,6 +59,7 @@ describe('NAV — lima menu utama', () => {
     })
 
     test('isi tiap grup mengikuti keputusan PM', () => {
+      expect(itemsIn(ADMIN, 'OTC')).toEqual(['Mint', 'Redeem'])
       expect(itemsIn(ADMIN, 'Nasabah')).toEqual(['Daftar Nasabah', 'Verifikasi', 'Daftar Sanksi'])
       expect(itemsIn(ADMIN, 'Keuangan')).toEqual(['Rekening BNI', 'Laporan', 'Cadangan & Atestasi'])
       expect(itemsIn(ADMIN, 'Pengaturan')).toEqual([
@@ -82,7 +83,8 @@ describe('NAV — lima menu utama', () => {
       const badges = Object.fromEntries(allItems(ADMIN).map((i) => [i.label, i.badgeKey]))
       expect(badges).toMatchObject({
         Transaksi: 'transactions',
-        OTC: 'otc',
+        Mint: 'otcMint',
+        Redeem: 'otcRedeem',
         Verifikasi: 'verification',
         'Daftar Sanksi': 'screening',
         'Persetujuan Orang Kedua': 'approvals',
@@ -129,10 +131,15 @@ describe('NAV — lima menu utama', () => {
       expect(isItemActive(tx as NavItem, '/otc')).toBe(false)
     })
 
-    test('OTC tidak ikut menyala di /mint-bermasalah (awalan yang mirip)', () => {
-      const otc = NAV.find((e) => e.kind === 'item' && e.label === 'OTC')!
-      expect(isItemActive(otc as NavItem, '/mint-bermasalah')).toBe(false)
-      expect(isItemActive(otc as NavItem, '/mint/new')).toBe(true)
+    test('OTC ▸ Mint tidak ikut menyala di /mint-bermasalah (awalan yang mirip)', () => {
+      const otc = NAV.find((e) => e.kind === 'group' && e.label === 'OTC')!
+      const [mint, redeem] = otc.kind === 'group' ? otc.items : []
+      expect(isItemActive(mint!, '/mint-bermasalah')).toBe(false)
+      expect(isItemActive(mint!, '/mint/new')).toBe(true)
+      expect(isItemActive(mint!, '/otc/mint/abc')).toBe(true)
+      expect(isItemActive(redeem!, '/burn/new')).toBe(true)
+      expect(isItemActive(redeem!, '/otc/redeem/abc')).toBe(true)
+      expect(isItemActive(redeem!, '/otc/mint')).toBe(false)
     })
   })
 })
@@ -210,10 +217,10 @@ describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
   describe('positive', () => {
     test.each([
       ['/transactions', ['Transaksi']],
-      ['/otc', ['OTC']],
-      ['/otc/019e1aa8-9c7c-7fcd-6abc-deadbeef0001', ['OTC']],
-      ['/mint/new', ['OTC', 'Buat mint OTC']],
-      ['/burn/new', ['OTC', 'Buat redeem OTC']],
+      ['/otc/mint', ['OTC', 'Mint']],
+      ['/otc/redeem/019e1aa8-9c7c-7fcd-6abc-deadbeef0001', ['OTC', 'Redeem']],
+      ['/mint/new', ['OTC', 'Mint', 'Buat mint OTC']],
+      ['/burn/new', ['OTC', 'Redeem', 'Buat redeem OTC']],
       ['/users', ['Nasabah', 'Daftar Nasabah']],
       ['/verifikasi', ['Nasabah', 'Verifikasi']],
       ['/kyc/abc', ['Nasabah', 'Verifikasi']],

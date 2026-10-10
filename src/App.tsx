@@ -51,6 +51,7 @@ import ProfilePage from '@/features/profile/ProfilePage'
 const MultisigRoute = lazy(() => import('@/features/multisig/MultisigRoute'))
 // Same reason for OTC: its detail panel signs/executes Safe transactions.
 const OtcRoute = lazy(() => import('@/features/otc/OtcRoute'))
+import OtcLegacyRedirect from '@/features/otc/OtcLegacyRedirect'
 import DailyMintReportPage from '@/features/reports/DailyMintPage'
 import MintByUserReportPage from '@/features/reports/MintByUserPage'
 import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
@@ -189,17 +190,17 @@ export const appRoutes: RouteObject[] = [
           // berbeda di satu layar tidak bisa diwakili satu gerbang rute.
           { path: '/plafon-pencairan', element: <PayoutControlsPage /> },
           {
-            // Redesain fase 1 — OTC: SATU halaman untuk mint OTC + redeem OTC
-            // (dulu dua menu Mint OTC / Burn OTC + menu Antrean Tanda Tangan).
+            // OTC ▸ Mint `/otc/mint` + OTC ▸ Redeem `/otc/redeem` (keputusan PM
+            // 10 Okt 2026; fase 1 masih satu tabel `/otc`).
             // Gerbangnya tetap sot/phase-1.md L34 (USDX-78): list + detail
             // `/api/v1/requests` dan `/api/v1/multisig` hanya ADMIN / DEVELOPER /
             // MANAGER. STAFF diarahkan ke Transaksi, karena menu OTC memang
             // disembunyikan untuknya.
             //
-            // `/otc/:id` merender ulang tabel dan membuka panel kanan dari URL,
-            // jadi tautan langsung dan tombol kembali peramban tetap bekerja.
-            // Rute lama `/mint`, `/burn` (+ `/:id`) dialihkan ke sini supaya
-            // bookmark lama tidak mati.
+            // `/otc/mint/:id` merender ulang tabel dan membuka modal detail dari
+            // URL, jadi tautan langsung dan tombol kembali peramban tetap
+            // bekerja. Rute lama `/otc`, `/otc/:id`, `/mint`, `/burn` (+ `/:id`)
+            // dialihkan ke sub-menu supaya bookmark lama tidak mati.
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
               {
@@ -211,14 +212,18 @@ export const appRoutes: RouteObject[] = [
                   </Suspense>
                 ),
                 children: [
-                  { path: '/otc', element: <OtcRoute /> },
-                  { path: '/otc/:id', element: <OtcRoute /> },
+                  { path: '/otc/mint', element: <OtcRoute type="mint" /> },
+                  { path: '/otc/mint/:id', element: <OtcRoute type="mint" /> },
+                  { path: '/otc/redeem', element: <OtcRoute type="burn" /> },
+                  { path: '/otc/redeem/:id', element: <OtcRoute type="burn" /> },
                 ],
               },
-              { path: '/mint', element: <Navigate to="/otc?jenis=mint" replace /> },
-              { path: '/mint/:id', element: <RedirectWithId to="/otc" /> },
-              { path: '/burn', element: <Navigate to="/otc?jenis=burn" replace /> },
-              { path: '/burn/:id', element: <RedirectWithId to="/otc" /> },
+              { path: '/otc', element: <OtcLegacyRedirect /> },
+              { path: '/otc/:id', element: <OtcLegacyRedirect /> },
+              { path: '/mint', element: <Navigate to="/otc/mint" replace /> },
+              { path: '/mint/:id', element: <RedirectWithId to="/otc/mint" /> },
+              { path: '/burn', element: <Navigate to="/otc/redeem" replace /> },
+              { path: '/burn/:id', element: <RedirectWithId to="/otc/redeem" /> },
             ],
           },
           {

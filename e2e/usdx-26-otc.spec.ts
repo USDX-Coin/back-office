@@ -45,13 +45,13 @@ test.describe('USDX-26 mint submit @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('should submit the form and list the new request on /otc under "Perlu tindakan"', async ({ page }) => {
+    test('should submit the form and list the new request on OTC ▸ Mint under "Perlu tindakan"', async ({ page }) => {
       await page.goto('/mint/new')
       await expect(page.getByRole('heading', { name: /^buat mint otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillMintForm(page, '777')
       await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
 
-      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
+      await expect(page).toHaveURL(/\/otc\/mint$/, { timeout: 15000 })
       await expect(page.getByText(/permintaan mint otc terkirim/i)).toBeVisible()
       const row = page.getByRole('button', { name: new RegExp(`Buka Mint OTC ${USER_NAME}, 777,00 USDX`, 'i') })
       await expect(row).toBeVisible({ timeout: 10000 })
@@ -73,7 +73,7 @@ test.describe('USDX-26 mint submit @e2e', () => {
       await page.getByLabel(/^nominal$/i).fill('16250')
       await page.getByRole('button', { name: /kirim permintaan mint otc/i }).click()
 
-      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
+      await expect(page).toHaveURL(/\/otc\/mint$/, { timeout: 15000 })
       // 16,250 IDR / 16,250 rate = 1 USDX (unique amount in the seeded list)
       await expect(
         page.getByRole('button', { name: new RegExp(`Buka Mint OTC ${USER_NAME}, 1,00 USDX`, 'i') })
@@ -158,13 +158,13 @@ test.describe('USDX-26 redeem OTC submit @e2e', () => {
   })
 
   test.describe('positive', () => {
-    test('should submit the redeem form (deposit + bank) and list the new request on /otc', async ({ page }) => {
+    test('should submit the redeem form (deposit + bank) and list the new request on OTC ▸ Redeem', async ({ page }) => {
       await page.goto('/burn/new')
       await expect(page.getByRole('heading', { name: /^buat redeem otc$/i, level: 1 })).toBeVisible({ timeout: 15000 })
       await fillBurnForm(page, '321')
       await page.getByRole('button', { name: /kirim permintaan redeem otc/i }).click()
 
-      await expect(page).toHaveURL(/\/otc$/, { timeout: 15000 })
+      await expect(page).toHaveURL(/\/otc\/redeem$/, { timeout: 15000 })
       await expect(page.getByText(/permintaan redeem otc terkirim/i)).toBeVisible()
       await expect(
         page.getByRole('button', { name: new RegExp(`Buka Redeem OTC ${USER_NAME}, 321,00 USDX`, 'i') })

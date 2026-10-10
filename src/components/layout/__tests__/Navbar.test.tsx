@@ -56,9 +56,9 @@ describe('Navbar', () => {
     test('should open the mobile nav drawer from the hamburger (USDX-27)', () => {
       renderWithProviders(<Navbar />, { initialEntries: ['/transactions'], authenticated: true })
       const hamburger = screen.getByRole('button', { name: /buka menu navigasi/i })
-      expect(screen.queryByRole('link', { name: /^OTC/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^OTC/ })).not.toBeInTheDocument()
       fireEvent.click(hamburger)
-      expect(screen.getByRole('link', { name: /^OTC/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^OTC/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /keluar/i })).toBeInTheDocument()
     })
   })

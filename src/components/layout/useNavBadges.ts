@@ -36,7 +36,8 @@ export function useNavBadges(): (key?: BadgeKey) => BadgeValue {
   // STAFF tidak boleh membaca /api/v1/requests (sot/phase-1.md L34) — query
   // OTC tidak dijalankan sama sekali, alih-alih menghasilkan 403 berisik.
   const canSeeOtc = canAccessRequestList(user)
-  const otc = useOtcActionCount({ enabled: canSeeOtc })
+  const otcMint = useOtcActionCount('mint', { enabled: canSeeOtc })
+  const otcRedeem = useOtcActionCount('burn', { enabled: canSeeOtc })
   const kyc = usePendingKycCount()
   const kyb = usePendingKybCount()
   const screening = useOpenScreeningCount()
@@ -64,8 +65,10 @@ export function useNavBadges(): (key?: BadgeKey) => BadgeValue {
         return typeof queueCounts.data?.transactionsNeedsAction === 'number'
           ? { count: queueCounts.data.transactionsNeedsAction, unknown: false }
           : EMPTY_BADGE
-      case 'otc':
-        return canSeeOtc ? fromQuery(otc) : EMPTY_BADGE
+      case 'otcMint':
+        return canSeeOtc ? fromQuery(otcMint) : EMPTY_BADGE
+      case 'otcRedeem':
+        return canSeeOtc ? fromQuery(otcRedeem) : EMPTY_BADGE
       case 'verification':
         return sumBadges([fromQuery(kyc), fromQuery(kyb)])
       case 'screening':

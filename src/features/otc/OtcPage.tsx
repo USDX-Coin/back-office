@@ -1,44 +1,56 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Plus } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import TableToolbar from '@/components/table/TableToolbar'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import GroupedTable, { type GroupedColumn } from '@/components/detail-panel/GroupedTable'
-import SplitView from '@/components/detail-panel/SplitView'
 import { canSubmitOtc, useAuth } from '@/lib/auth'
-import { formatShortDate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
+import { formatDate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
 import {
   OTC_ACTION_STATUSES,
   OTC_HISTORY_STATUSES,
   OTC_KIND_LABEL,
+  OTC_PATH,
   findSafeTxFor,
   formatIdrPlain,
   indexSafeTxByHash,
   otcRowState,
 } from '@/lib/otc'
 import type { RequestListItem, RequestType } from '@/lib/types'
-import OtcDetailPanel from './OtcDetailPanel'
+import OtcDetailModal from './OtcDetailModal'
 import { useOtcRequests, useOtcSafeQueue } from './hooks'
 
 /** Batas tarikan "Perlu tindakan" — ditarik semua sekaligus, tanpa halaman. */
 const ACTION_LIMIT = 100
 const HISTORY_PAGE_SIZE = 20
 
-/**
- * OTC — satu tabel untuk mint OTC + redeem OTC (redesain fase 1).
- *
- * Menggantikan dua menu lama (Mint OTC, Burn OTC) dan menu Antrean Tanda
- * Tangan: status tanda tangan multisig "x dari y" dicocokkan ke tiap baris,
- * dan tanda tangan / eksekusi dilakukan dari panel detail kanan memakai alur
- * yang sama dengan halaman tanda tangan lengkap (`useSafeTxSigning`).
- */
-/** Nilai Radix Select untuk "tanpa saringan" — Select tidak menerima string kosong. */
-const SEMUA = 'semua'
+const PAGE_COPY: Record<RequestType, { title: string; subtitle: string; create: string; createTo: string }> = {
+  mint: {
+    title: 'Mint OTC',
+    subtitle: 'Mint OTC untuk partner. Yang menunggu tanda tanganmu ada di paling atas.',
+    create: 'Buat mint OTC',
+    createTo: '/mint/new',
+  },
+  burn: {
+    title: 'Redeem OTC',
+    subtitle: 'Redeem OTC untuk partner. Yang menunggu tanda tanganmu ada di paling atas.',
+    create: 'Buat redeem OTC',
+    createTo: '/burn/new',
+  },
+}
 
-export default function OtcPage() {
+/**
+ * OTC ▸ Mint / OTC ▸ Redeem — satu halaman per jenis (keputusan PM 10 Okt
+ * 2026; fase 1 masih satu tabel gabungan).
+ *
+ * Status tanda tangan multisig "x dari y" dicocokkan ke tiap baris, dan tanda
+ * tangan / eksekusi dilakukan dari footer modal detail (`/otc/mint/:id`,
+ * `/otc/redeem/:id`) memakai alur yang sama dengan halaman tanda tangan
+ * lengkap (`useSafeTxSigning`).
+ */
+export default function OtcPage({ type }: { type: RequestType }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { id: selectedId } = useParams<{ id?: string }>()
@@ -46,9 +58,9 @@ export default function OtcPage() {
   const { user } = useAuth()
   const canCreate = canSubmitOtc(user)
 
+  const copy = PAGE_COPY[type]
+  const base = OTC_PATH[type]
   const search = params.get('search') ?? ''
-  const jenisParam = params.get('jenis')
-  const type: RequestType | '' = jenisParam === 'mint' || jenisParam === 'burn' ? jenisParam : ''
   const page = Math.max(1, Number(params.get('page') || '1') || 1)
 
   const actionQ = useOtcRequests({ statuses: OTC_ACTION_STATUSES, limit: ACTION_LIMIT, search, type })
@@ -78,54 +90,24 @@ export default function OtcPage() {
   }
 
   const qs = location.search
-  const select = (r: RequestListItem) => navigate(`/otc/${r.id}${qs}`)
-  const close = () => navigate(`/otc${qs}`)
+  const open = (r: RequestListItem, replace = false) => navigate(`${base}/${r.id}${qs}`, { replace })
+  const close = () => navigate(`${base}${qs}`)
+  // Tautan lama `/otc/:id` dialihkan ke Mint; kalau detailnya ternyata redeem,
+  // pindah ke sub-menu yang benar.
+  const onWrongType = useCallback(
+    (t: RequestType) => {
+      if (selectedId) navigate(`${OTC_PATH[t]}/${selectedId}${location.search}`, { replace: true })
+    },
+    [navigate, selectedId, location.search],
+  )
 
-  const selectedRow =
-    (selectedId && [...actionRows, ...historyRows].find((r) => r.id === selectedId)) || null
+  const rows = [...actionRows, ...historyRows]
+  const selectedIndex = selectedId ? rows.findIndex((r) => r.id === selectedId) : -1
+  const selectedRow = selectedIndex >= 0 ? rows[selectedIndex]! : null
+  const prevRow = selectedIndex > 0 ? rows[selectedIndex - 1] : undefined
+  const nextRow = selectedIndex >= 0 ? rows[selectedIndex + 1] : undefined
 
   const columns: GroupedColumn<RequestListItem>[] = [
-    {
-      id: 'createdAt',
-      header: 'Tanggal',
-      className: 'hidden w-28 md:table-cell',
-      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatShortDate(r.createdAt)}</span>,
-    },
-    {
-      id: 'type',
-      header: 'Jenis',
-      className: 'hidden w-28 sm:table-cell',
-      cell: (r) => <span className="text-muted-foreground">{OTC_KIND_LABEL[r.type] ?? r.type}</span>,
-    },
-    {
-      id: 'user',
-      header: 'Nasabah',
-      cell: (r) => (
-        <div className="flex min-w-0 flex-col leading-tight">
-          <span className="font-semibold">{r.userName}</span>
-          <span className="font-mono text-xs text-muted-foreground" title={r.userAddress}>
-            {truncateMiddle(r.userAddress, 6, 5)}
-          </span>
-          {/* Di ponsel kolom Jenis + Nominal disembunyikan supaya Status tetap
-              terlihat tanpa menggeser tabel; isinya pindah ke sini. */}
-          <span className="mt-0.5 text-xs text-muted-foreground sm:hidden">
-            {OTC_KIND_LABEL[r.type] ?? r.type} · <span className="tabular-nums">{formatUsdxListAmount(r.amount)} USDX</span>
-          </span>
-        </div>
-      ),
-    },
-    {
-      id: 'amount',
-      header: 'Nominal',
-      align: 'right',
-      className: 'hidden w-44 sm:table-cell',
-      cell: (r) => (
-        <div className="flex flex-col items-end leading-tight">
-          <span className="font-semibold tabular-nums">{formatUsdxListAmount(r.amount)} USDX</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{formatIdrPlain(r.amountIdr)}</span>
-        </div>
-      ),
-    },
     {
       id: 'status',
       header: 'Status',
@@ -141,6 +123,41 @@ export default function OtcPage() {
         )
       },
     },
+    {
+      id: 'user',
+      header: 'Nasabah',
+      cell: (r) => (
+        <div className="flex min-w-0 flex-col">
+          <span className="font-medium">{r.userName}</span>
+          <span className="font-mono text-xs text-muted-foreground" title={r.userAddress}>
+            {truncateMiddle(r.userAddress, 6, 5)}
+          </span>
+          {/* Di ponsel kolom Nominal disembunyikan supaya Status tetap terlihat
+              tanpa menggeser tabel; isinya pindah ke sini. */}
+          <span className="mt-0.5 text-xs tabular-nums text-muted-foreground sm:hidden">
+            {formatUsdxListAmount(r.amount)} USDX
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'amount',
+      header: 'Nominal',
+      align: 'right',
+      className: 'hidden w-44 sm:table-cell',
+      cell: (r) => (
+        <div className="flex flex-col items-end">
+          <span className="font-semibold tabular-nums">{formatUsdxListAmount(r.amount)} USDX</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{formatIdrPlain(r.amountIdr)}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'createdAt',
+      header: 'Waktu',
+      className: 'hidden w-40 md:table-cell',
+      cell: (r) => <span className="tabular-nums text-muted-foreground">{formatDate(r.createdAt)}</span>,
+    },
   ]
 
   const list = (
@@ -152,28 +169,13 @@ export default function OtcPage() {
           ariaLabel: 'Cari permintaan OTC',
           onChange: (next) => update({ search: next.trim() || null, page: null }),
         }}
-        extra={
-          <Select
-            value={type || SEMUA}
-            onValueChange={(v) => update({ jenis: v === SEMUA ? null : v, page: null })}
-          >
-            <SelectTrigger aria-label="Jenis" className="h-9 w-full sm:w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={SEMUA}>Semua jenis</SelectItem>
-              <SelectItem value="mint">Mint OTC</SelectItem>
-              <SelectItem value="burn">Redeem OTC</SelectItem>
-            </SelectContent>
-          </Select>
-        }
       />
       <GroupedTable
         columns={columns}
         rowKey={(r) => r.id}
         rowLabel={(r) => `Buka ${OTC_KIND_LABEL[r.type] ?? 'permintaan'} ${r.userName}, ${formatUsdxListAmount(r.amount)} USDX`}
         selectedKey={selectedId ?? null}
-        onSelect={select}
+        onSelect={(r) => open(r)}
         groups={[
           {
             key: 'action',
@@ -204,9 +206,9 @@ export default function OtcPage() {
             onRetry: () => historyQ.refetch(),
             emptyText:
               actionRows.length === 0 && !actionQ.isLoading
-                ? search || type
+                ? search
                   ? 'Tidak ada yang cocok. Coba kata lain, misalnya nama nasabah atau ID.'
-                  : 'Belum ada permintaan OTC.'
+                  : `Belum ada permintaan ${copy.title.toLowerCase()}.`
                 : 'Belum ada yang selesai.',
             pagination: { page, pageCount, onPage: (p) => update({ page: p > 1 ? String(p) : null }) },
           },
@@ -218,36 +220,34 @@ export default function OtcPage() {
   return (
     <div>
       <PageHeader
-        title="OTC"
-        subtitle="Mint dan redeem OTC untuk partner. Yang menunggu tanda tanganmu ada di paling atas."
+        title={copy.title}
+        subtitle={copy.subtitle}
         actions={
           canCreate ? (
-            <>
-              <Button size="sm" onClick={() => navigate('/mint/new')}>
-                <Plus className="mr-1 h-4 w-4" aria-hidden />
-                Buat mint OTC
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate('/burn/new')}>
-                <Plus className="mr-1 h-4 w-4" aria-hidden />
-                Buat redeem OTC
-              </Button>
-            </>
+            <Button size="sm" onClick={() => navigate(copy.createTo)}>
+              <Plus className="mr-1 h-4 w-4" aria-hidden />
+              {copy.create}
+            </Button>
           ) : undefined
         }
       />
-      <SplitView
-        list={list}
-        panel={
-          selectedId ? (
-            <OtcDetailPanel
-              requestId={selectedId}
-              listItem={selectedRow}
-              safeIndex={safeIndex}
-              onClose={close}
-            />
-          ) : null
-        }
-      />
+      {list}
+      {selectedId && (
+        <OtcDetailModal
+          requestId={selectedId}
+          listItem={selectedRow}
+          safeIndex={safeIndex}
+          onClose={close}
+          pageType={type}
+          onWrongType={onWrongType}
+          nav={{
+            index: selectedIndex >= 0 ? selectedIndex : null,
+            total: rows.length,
+            onPrev: prevRow ? () => open(prevRow, true) : undefined,
+            onNext: nextRow ? () => open(nextRow, true) : undefined,
+          }}
+        />
+      )}
     </div>
   )
 }

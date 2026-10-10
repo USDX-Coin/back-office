@@ -30,8 +30,7 @@ describe('MobileNavDrawer', () => {
       const dialog = screen.getByRole('dialog')
       expect(dialog.querySelector('img[src="/image/logo-lockup.png"]')).not.toBeNull()
       expect(screen.getByRole('link', { name: /^Transaksi/ })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^OTC/ })).toBeInTheDocument()
-      for (const g of ['Nasabah', 'Keuangan', 'Pengaturan']) {
+      for (const g of ['OTC', 'Nasabah', 'Keuangan', 'Pengaturan']) {
         expect(screen.getByRole('button', { name: new RegExp(`^${g}`) })).toBeInTheDocument()
       }
       expect(screen.getByRole('button', { name: /keluar/i })).toBeInTheDocument()
@@ -63,7 +62,7 @@ describe('MobileNavDrawer', () => {
   describe('negative', () => {
     test('should not render OTC for STAFF', () => {
       renderOpen('/transactions', 'stf_4')
-      expect(screen.queryByRole('link', { name: /^OTC/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^OTC/ })).not.toBeInTheDocument()
     })
 
     test('should not render the removed menus', () => {

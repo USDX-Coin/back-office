@@ -1,17 +1,13 @@
 import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import DetailPanel, {
-  PanelFacts,
-  PanelHistory,
-  PanelSection,
-  PanelTechnical,
-  type PanelEvent,
-  type PanelFact,
-} from '@/components/detail-panel/DetailPanel'
+import { ToneChip } from '@/components/detail-panel/DetailPanel'
 import PanelActions, { type PanelMoreItem, type PanelPrimary } from '@/components/detail-panel/PanelActions'
+import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
+import { DataField, DataSection } from '@/components/DataList'
+import DetailTeknis from '@/components/DetailTeknis'
 import { useChainConfig } from '@/features/chains/hooks'
 import { useSafeTxSigning, type SafeTxSigning } from '@/features/multisig/useSafeTxSigning'
 import { findChainConfig } from '@/lib/chainLinks'
@@ -19,7 +15,7 @@ import { buildTxExplorerUrl } from '@/lib/explorerUrl'
 import { formatDate, formatRate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
 import { OTC_KIND_LABEL, findSafeTxFor, formatIdrPlain, otcRowState } from '@/lib/otc'
 import { safeTxUrl } from '@/lib/safeUrl'
-import type { BurnRequestDetail, RequestDetail, RequestListItem, SafeTxListItem } from '@/lib/types'
+import type { BurnRequestDetail, RequestDetail, RequestListItem, RequestType, SafeTxListItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useRequestDetail } from './hooks'
 
@@ -30,6 +26,10 @@ interface Props {
   /** Antrean tanda tangan (PENDING_SIGN + READY_TO_EXECUTE) per `safeTxHash`. */
   safeIndex: Map<string, SafeTxListItem>
   onClose: () => void
+  nav: RecordModalNav
+  /** Detail ternyata berjenis lain dari halaman ini (tautan lama `/otc/:id`). */
+  onWrongType?: (type: RequestType) => void
+  pageType: RequestType
 }
 
 function openExternal(url: string) {
@@ -67,7 +67,22 @@ function isBurnDetail(d: RequestDetail | undefined, type: string | undefined): d
   return Boolean(d) && (d!.type ?? type) === 'burn'
 }
 
-export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose }: Props) {
+function TechRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 sm:col-span-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">{value}</p>
+    </div>
+  )
+}
+
+/**
+ * Modal detail permintaan OTC — pola modal tengah yang sama dengan Transaksi
+ * (`/otc/mint/:id`, `/otc/redeem/:id`). Tanda tangan / eksekusi Safe ada di
+ * footer (`useSafeTxSigning`, pagar yang sama dengan `/multisig/:id`), dengan
+ * konfirmasi "Sudah benar semua?" yang menyebut akibatnya.
+ */
+export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose, nav, onWrongType, pageType }: Props) {
   const navigate = useNavigate()
   const detailQuery = useRequestDetail(requestId)
   const detail = detailQuery.data
@@ -78,20 +93,26 @@ export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose
   const safeTx = req ? findSafeTxFor(req, safeIndex) : undefined
   const signing = useSafeTxSigning(safeTx?.id ?? null, Boolean(safeTx))
 
+  const wrongType = detail?.type && detail.type !== pageType ? detail.type : null
+  useEffect(() => {
+    if (wrongType) onWrongType?.(wrongType)
+  }, [wrongType, onWrongType])
+
   if (!req) {
     return (
-      <DetailPanel
-        label="Detail permintaan OTC"
-        kind="OTC"
-        title={detailQuery.isError ? 'Permintaan tidak ditemukan' : 'Memuat…'}
+      <RecordModal
+        open
         onClose={onClose}
-        focusKey={requestId}
-        todo={
-          detailQuery.isError
-            ? { label: 'Status', tone: 'bad', text: 'Permintaan ini gagal dimuat. Tutup panel lalu pilih baris lain, atau coba lagi nanti.' }
-            : undefined
-        }
-      />
+        nav={nav}
+        testId="otc-modal"
+        title={detailQuery.isError ? 'Permintaan tidak ditemukan' : 'Memuat…'}
+      >
+        <p className="text-sm text-muted-foreground">
+          {detailQuery.isError
+            ? 'Permintaan ini gagal dimuat. Tutup lalu pilih baris lain, atau coba lagi nanti.'
+            : 'Memuat permintaan…'}
+        </p>
+      </RecordModal>
     )
   }
 
@@ -108,25 +129,9 @@ export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose
     req.onChainTxHash && chainCfg ? buildTxExplorerUrl(chainCfg.blockExplorerUrl, req.onChainTxHash) : null
   const burn = isBurnDetail(detail, req.type) ? detail : undefined
   const bankLine = burn && (burn.bankName || burn.bankAccount) ? `${burn.bankName ?? ''} ${burn.bankAccount ?? ''}`.trim() : null
-  const wallet = (
-    <span className="font-mono text-xs" title={req.userAddress}>
-      {truncateMiddle(req.userAddress ?? '', 6, 5)}
-    </span>
-  )
 
-  // ── (c) data penting ──
-  const facts: PanelFact[] = [
-    ['Nasabah', req.userName ?? '—'],
-    isMint ? ['Wallet tujuan', wallet] : ['Rekening tujuan', bankLine ?? '—'],
-    ['Nominal rupiah', idr],
-  ]
-  if (detail?.rateUsed) facts.push(['Kurs', formatRate(detail.rateUsed)])
-  facts.push(['Dibuat oleh', req.createdByName || '—'])
-  facts.push(['Dompet Safe', req.safeType === 'MANAGER' ? 'Safe Manager' : 'Safe Staf'])
-  if (detail?.notes) facts.push(['Catatan', <span className="whitespace-pre-wrap font-normal">{detail.notes}</span>])
-
-  // ── (d) riwayat sebagai kalimat ──
-  const events: PanelEvent[] = [
+  // ── riwayat sebagai kalimat ──
+  const events: { text: string; time: string | null }[] = [
     {
       text: `${req.createdByName || 'Staf'} membuat permintaan ${isMint ? 'mint' : 'redeem'} OTC`,
       time: req.createdAt ? formatDate(req.createdAt) : null,
@@ -145,28 +150,11 @@ export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose
     )
   }
   if (req.status === 'EXECUTED' || req.status === 'IDR_TRANSFERRED')
-    events.push({ text: isMint ? 'USDX dicetak di blockchain' : 'USDX dibakar di blockchain' })
-  if (req.status === 'IDR_TRANSFERRED') events.push({ text: 'Rupiah dikirim ke rekening nasabah' })
-  if (req.status === 'REJECTED') events.push({ text: 'Permintaan ditolak' })
+    events.push({ text: isMint ? 'USDX dicetak di blockchain' : 'USDX dibakar di blockchain', time: null })
+  if (req.status === 'IDR_TRANSFERRED') events.push({ text: 'Rupiah dikirim ke rekening nasabah', time: null })
+  if (req.status === 'REJECTED') events.push({ text: 'Permintaan ditolak', time: null })
 
-  // ── (e) detail teknis ──
-  const tech: PanelFact[] = [
-    ['ID permintaan', req.id],
-    ['Status sistem', String(req.status)],
-  ]
-  if (safeTx) tech.push(['Status Safe', safeTx.status])
-  tech.push(['Jaringan', req.chain])
-  if (req.safeTxHash) tech.push(['Safe tx hash', req.safeTxHash])
-  if (req.onChainTxHash) tech.push(['Tx blockchain', req.onChainTxHash])
-  if (detail?.idempotencyKey) tech.push(['Kode anti-dobel', detail.idempotencyKey])
-  if (detail?.amountWei) tech.push(['Nominal (satuan terkecil)', detail.amountWei])
-  if (burn?.depositTxHash) tech.push(['Tx setoran USDX', burn.depositTxHash])
-  if (sd) {
-    tech.push(['Alamat Safe', sd.safeAddress])
-    tech.push(['Nonce', String(sd.nonce)])
-  }
-
-  // ── (f) satu tombol utama + Lainnya ──
+  // ── tombol utama + Lainnya ──
   const primary = buildPrimary(state.action, signing, req, usdx, idr, bankLine)
   const more: PanelMoreItem[] = []
   if (safeLink) more.push({ label: 'Buka di Safe', onSelect: () => openExternal(safeLink) })
@@ -182,11 +170,12 @@ export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.preventDefault()
+            e.stopPropagation()
             signing.setCancelOpen(false)
           }
         }}
       >
-        <p className="font-display text-lg font-semibold">Batalkan permintaan ini?</p>
+        <p className="text-sm font-semibold">Batalkan permintaan ini?</p>
         <p className="text-sm text-muted-foreground">
           Permintaan {kindLabel.toLowerCase()} {usdx} untuk {req.userName} ditandai ditolak dan transaksi Safe-nya
           dibuang tanpa biaya gas. Kalau ternyata masih dibutuhkan, ajukan ulang dari awal.
@@ -198,48 +187,103 @@ export default function OtcDetailPanel({ requestId, listItem, safeIndex, onClose
           value={signing.cancelReason}
           onChange={(e) => signing.setCancelReason(e.target.value)}
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={() => signing.setCancelOpen(false)} disabled={signing.isCancelling}>
+            Kembali
+          </Button>
           <Button variant="destructive" onClick={signing.handleCancel} disabled={signing.isCancelling}>
             {signing.isCancelling && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
             Ya, batalkan permintaan
-          </Button>
-          <Button variant="outline" onClick={() => signing.setCancelOpen(false)} disabled={signing.isCancelling}>
-            Kembali
           </Button>
         </div>
       </div>
     ) : undefined
 
   return (
-    <DetailPanel
-      label="Detail permintaan OTC"
-      kind={kindLabel}
-      status={{ label: state.label, tone: state.tone }}
-      title={req.userName ?? 'Nasabah'}
-      amount={usdx}
-      amountSub={idr}
-      todo={{
-        label: state.action ? 'Yang perlu kamu lakukan' : 'Status',
-        text: state.todo,
-        tone: state.tone === 'bad' ? 'bad' : state.action ? 'act' : 'wait',
-      }}
+    <RecordModal
+      open
       onClose={onClose}
-      focusKey={requestId}
+      nav={nav}
+      locked={signing.busy || signing.isCancelling}
+      testId="otc-modal"
+      title={req.userName ?? 'Nasabah'}
+      subtitle={`${kindLabel} · ${usdx} · ${idr}`}
       actions={
         <PanelActions
           key={`${requestId}-${state.action ?? 'none'}`}
+          bare
           primary={primary}
           more={more}
           override={cancelOverride}
         />
       }
     >
+      <RecordStatus
+        chip={<ToneChip tone={state.tone}>{state.label}</ToneChip>}
+        label={state.action ? 'Yang perlu kamu lakukan' : 'Status'}
+      >
+        <p>{state.todo}</p>
+      </RecordStatus>
+
       {safeTx && <SignersBlock signing={signing} />}
       {safeTx && <SafetyChecks signing={signing} />}
-      <PanelFacts facts={facts} />
-      <PanelHistory events={events} />
-      <PanelTechnical facts={tech} />
-    </DetailPanel>
+
+      <DataSection title="Permintaan">
+        <DataField label="Nasabah">{req.userName ?? '—'}</DataField>
+        {isMint ? (
+          <DataField label="Wallet tujuan">
+            <span className="font-mono text-xs text-muted-foreground" title={req.userAddress}>
+              {truncateMiddle(req.userAddress ?? '', 6, 5)}
+            </span>
+          </DataField>
+        ) : (
+          <DataField label="Rekening tujuan">{bankLine ?? '—'}</DataField>
+        )}
+        <DataField label="Nominal USDX">
+          <span className="font-semibold tabular-nums">{usdx}</span>
+        </DataField>
+        <DataField label="Nominal rupiah">
+          <span className="tabular-nums">{idr}</span>
+        </DataField>
+        {detail?.rateUsed && (
+          <DataField label="Kurs">
+            <span className="tabular-nums">{formatRate(detail.rateUsed)}</span>
+          </DataField>
+        )}
+        <DataField label="Dibuat oleh">{req.createdByName || '—'}</DataField>
+        <DataField label="Dompet Safe">{req.safeType === 'MANAGER' ? 'Safe Manager' : 'Safe Staf'}</DataField>
+        {detail?.notes && (
+          <DataField label="Catatan">
+            <span className="whitespace-pre-wrap">{detail.notes}</span>
+          </DataField>
+        )}
+      </DataSection>
+
+      <DataSection title="Riwayat">
+        <ol className="space-y-2.5 pt-2.5">
+          {events.map((ev, i) => (
+            <li key={i} className="text-sm">
+              <span className="text-foreground">{ev.text}</span>
+              {ev.time && <span className="block text-xs tabular-nums text-muted-foreground">{ev.time}</span>}
+            </li>
+          ))}
+        </ol>
+      </DataSection>
+
+      <DetailTeknis description="Kode dan nomor untuk penelusuran. Tidak perlu dibuka untuk pekerjaan sehari-hari.">
+        <TechRow label="ID permintaan" value={req.id} />
+        <TechRow label="Status sistem" value={String(req.status)} />
+        {safeTx && <TechRow label="Status Safe" value={safeTx.status} />}
+        <TechRow label="Jaringan" value={req.chain} />
+        {req.safeTxHash && <TechRow label="Safe tx hash" value={req.safeTxHash} />}
+        {req.onChainTxHash && <TechRow label="Tx blockchain" value={req.onChainTxHash} />}
+        {detail?.idempotencyKey && <TechRow label="Kode anti-dobel" value={detail.idempotencyKey} />}
+        {detail?.amountWei && <TechRow label="Nominal (satuan terkecil)" value={detail.amountWei} />}
+        {burn?.depositTxHash && <TechRow label="Tx setoran USDX" value={burn.depositTxHash} />}
+        {sd && <TechRow label="Alamat Safe" value={sd.safeAddress} />}
+        {sd && <TechRow label="Nonce" value={String(sd.nonce)} />}
+      </DetailTeknis>
+    </RecordModal>
   )
 }
 
@@ -292,11 +336,11 @@ function SignersBlock({ signing }: { signing: SafeTxSigning }) {
   if (!d) return null
   const me = signing.wallet.address?.toLowerCase()
   return (
-    <PanelSection title={`Tanda tangan · ${d.signatureProgress.collected} dari ${d.signatureProgress.threshold}`}>
+    <DataSection title={`Tanda tangan · ${d.signatureProgress.collected} dari ${d.signatureProgress.threshold}`}>
       {d.signers.length === 0 ? (
         <p className="text-sm text-muted-foreground">Daftar penanda tangan belum tersedia.</p>
       ) : (
-        <ul className="flex flex-wrap gap-2">
+        <ul className="flex flex-wrap gap-2 pt-2.5">
           {d.signers.map((s) => {
             const mine = me && s.address.toLowerCase() === me
             return (
@@ -316,7 +360,7 @@ function SignersBlock({ signing }: { signing: SafeTxSigning }) {
           })}
         </ul>
       )}
-    </PanelSection>
+    </DataSection>
   )
 }
 

@@ -54,11 +54,12 @@ describe('Sidebar (redesain fase 1)', () => {
       expect(within(aside).queryByText(/^U$/)).not.toBeInTheDocument()
     })
 
-    test('should render two top-level links and three collapsible groups', () => {
-      renderSidebar()
+    test('should render the top-level link and four collapsible groups (OTC ▸ Mint / Redeem)', () => {
+      renderSidebar('/otc/mint')
       expect(screen.getByRole('link', { name: /^Transaksi/ })).toHaveAttribute('href', '/transactions')
-      expect(screen.getByRole('link', { name: /^OTC/ })).toHaveAttribute('href', '/otc')
-      for (const g of ['Nasabah', 'Keuangan', 'Pengaturan']) {
+      expect(screen.getByRole('link', { name: /^Mint/ })).toHaveAttribute('href', '/otc/mint')
+      expect(screen.getByRole('link', { name: /^Redeem/ })).toHaveAttribute('href', '/otc/redeem')
+      for (const g of ['OTC', 'Nasabah', 'Keuangan', 'Pengaturan']) {
         expect(screen.getByRole('button', { name: new RegExp(`^${g}`) })).toHaveAttribute('aria-expanded')
       }
     })
@@ -95,12 +96,19 @@ describe('Sidebar (redesain fase 1)', () => {
       expect(calls.some((c) => c.startsWith('/api/v1/held-credits'))).toBe(false)
     })
 
-    test('should count OTC requests needing action (PENDING_APPROVAL + APPROVED)', async () => {
+    test('should count OTC requests needing action per sub-menu (PENDING_APPROVAL + APPROVED)', async () => {
       const calls = recordRequests()
-      server.use(total('/api/v1/requests', 4))
-      renderSidebar()
-      expect(await screen.findByTestId('nav-badge-otc')).toHaveTextContent('4')
-      expect(calls).toContain('/api/v1/requests?status=PENDING_APPROVAL,APPROVED&limit=1')
+      server.use(
+        http.get('/api/v1/requests', ({ request }) => {
+          const n = new URL(request.url).searchParams.get('type') === 'mint' ? 4 : 1
+          return HttpResponse.json({ status: 'success', metadata: { page: 1, limit: 1, total: n }, data: [] })
+        }),
+      )
+      renderSidebar('/otc/mint')
+      expect(await screen.findByTestId('nav-badge-otc-mint')).toHaveTextContent('4')
+      expect(await screen.findByTestId('nav-badge-otc-redeem')).toHaveTextContent('1')
+      expect(calls).toContain('/api/v1/requests?status=PENDING_APPROVAL,APPROVED&type=mint&limit=1')
+      expect(calls).toContain('/api/v1/requests?status=PENDING_APPROVAL,APPROVED&type=burn&limit=1')
     })
 
     test('should show the group total on a CLOSED group and the item count when open', async () => {
@@ -122,7 +130,7 @@ describe('Sidebar (redesain fase 1)', () => {
       server.use(queueCounts({ redeemApprovalsOpen: 1, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 1 }))
       renderSidebar('/transactions', STAFF)
       await screen.findByTestId('nav-badge-transactions')
-      expect(screen.queryByRole('link', { name: /^OTC/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^OTC/ })).not.toBeInTheDocument()
       expect(calls.some((c) => c.startsWith('/api/v1/requests'))).toBe(false)
     })
 
@@ -146,7 +154,7 @@ describe('Sidebar (redesain fase 1)', () => {
       await waitFor(() => expect(screen.queryByTestId('nav-badge-transactions-galat')).not.toBeInTheDocument())
       await new Promise((r) => setTimeout(r, 50))
       expect(screen.queryByTestId('nav-badge-transactions')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('nav-badge-otc')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-grup-otc')).not.toBeInTheDocument()
     })
   })
 

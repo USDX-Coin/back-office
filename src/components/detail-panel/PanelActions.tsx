@@ -41,6 +41,12 @@ interface PanelActionsProps {
   hint?: ReactNode
   /** Konten pengganti batang aksi (mis. isian alasan pembatalan). */
   override?: ReactNode
+  /**
+   * Tanpa garis atas/padding sendiri — untuk footer modal detail
+   * (`RecordModal`), yang sudah punya garis dan padding. Tombol utama di
+   * KANAN, "Lainnya" di kirinya.
+   */
+  bare?: boolean
 }
 
 /**
@@ -51,13 +57,13 @@ interface PanelActionsProps {
  * `key={idBaris}` di pemanggil supaya konfirmasi yang setengah jalan tidak
  * terbawa ke baris lain.
  */
-export default function PanelActions({ primary, more = [], hint, override }: PanelActionsProps) {
+export default function PanelActions({ primary, more = [], hint, override, bare = false }: PanelActionsProps) {
   const [confirming, setConfirming] = useState(false)
   const [running, setRunning] = useState(false)
   const reasonId = useId()
 
   if (override) {
-    return <div className="border-t border-border bg-muted/50 px-5 py-4 sm:px-6">{override}</div>
+    return <div className={bare ? 'w-full' : 'border-t border-border bg-muted/50 px-5 py-4 sm:px-6'}>{override}</div>
   }
   if (!primary && more.length === 0 && !hint) return null
 
@@ -65,7 +71,7 @@ export default function PanelActions({ primary, more = [], hint, override }: Pan
     const c = primary.confirm
     return (
       <div
-        className="space-y-3 border-t border-border bg-muted/50 px-5 py-4 sm:px-6"
+        className={cn('space-y-3', bare ? 'w-full' : 'border-t border-border bg-muted/50 px-5 py-4 sm:px-6')}
         role="group"
         aria-label="Konfirmasi"
         onKeyDown={(e) => {
@@ -115,7 +121,12 @@ export default function PanelActions({ primary, more = [], hint, override }: Pan
   const reason = primary?.disabled ? primary.disabledReason : null
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-3.5 sm:px-6">
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-2',
+        bare ? 'justify-end sm:flex-row-reverse sm:justify-start' : 'border-t border-border px-5 py-3.5 sm:px-6',
+      )}
+    >
       {primary && (
         <Button
           type="button"
@@ -153,7 +164,7 @@ export default function PanelActions({ primary, more = [], hint, override }: Pan
         </DropdownMenu>
       )}
       {(reason || hint) && (
-        <p id={reasonId} className="w-full text-sm text-muted-foreground">
+        <p id={reasonId} className={cn('w-full text-sm text-muted-foreground', bare && 'text-right')}>
           {reason ?? hint}
         </p>
       )}

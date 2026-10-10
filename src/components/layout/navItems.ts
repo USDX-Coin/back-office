@@ -14,12 +14,13 @@ import type { Staff, StaffRole } from '@/lib/types'
  *
  *   transactions — `queue-counts.transactionsNeedsAction` (fase 2, ⚠️ DRAF SOT
  *                  PR #50): baris Transaksi yang perlu tindakan.
- *   otc          — permintaan OTC berstatus PENDING_APPROVAL / APPROVED
+ *   otcMint      — mint OTC berstatus PENDING_APPROVAL / APPROVED
+ *   otcRedeem    — redeem OTC berstatus PENDING_APPROVAL / APPROVED
  *   verification — berkas KYC + KYB yang menunggu diperiksa
  *   screening    — temuan daftar sanksi yang masih menahan subjeknya
  *   approvals    — usulan Persetujuan Orang Kedua yang belum kedaluwarsa
  */
-export type BadgeKey = 'transactions' | 'otc' | 'verification' | 'screening' | 'approvals'
+export type BadgeKey = 'transactions' | 'otcMint' | 'otcRedeem' | 'verification' | 'screening' | 'approvals'
 
 export interface NavItem {
   to: string
@@ -47,7 +48,8 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 // REDESAIN FASE 1 (keputusan PM 9 Okt 2026) — 5 menu utama.
 //
 //   Transaksi            satu tabel transaksi (fase 2); sekarang halaman lama
-//   OTC                  mint OTC + redeem OTC + tanda tangan multisig
+//   OTC ▸                Mint · Redeem (sub-menu sejak 10 Okt 2026), tanda
+//                        tangan multisig di footer modal detail
 //   Nasabah ▸            Daftar Nasabah · Verifikasi · Daftar Sanksi
 //   Keuangan ▸           Rekening BNI · Laporan · Cadangan & Atestasi
 //   Pengaturan ▸         Kurs & Biaya · Mode Mint · Plafon Pencairan ·
@@ -85,13 +87,26 @@ export const NAV: NavEntry[] = [
     match: ['/transactions', '/redeem-approvals', '/payout-failures', '/mint-bermasalah', '/manual-sync'],
   },
   {
-    kind: 'item',
-    to: '/otc',
+    kind: 'group',
+    id: 'otc',
     label: 'OTC',
     icon: Coins,
-    badgeKey: 'otc',
-    visibleWhen: canAccessRequestList,
-    match: ['/otc', '/mint', '/burn', '/multisig'],
+    items: [
+      {
+        to: '/otc/mint',
+        label: 'Mint',
+        badgeKey: 'otcMint',
+        visibleWhen: canAccessRequestList,
+        match: ['/otc/mint', '/mint', '/multisig'],
+      },
+      {
+        to: '/otc/redeem',
+        label: 'Redeem',
+        badgeKey: 'otcRedeem',
+        visibleWhen: canAccessRequestList,
+        match: ['/otc/redeem', '/burn'],
+      },
+    ],
   },
   {
     kind: 'group',
@@ -159,8 +174,8 @@ export function isItemActive(item: NavItem, pathname: string): boolean {
 // Halaman yang bukan entri menu sendiri tapi punya nama yang lebih tepat
 // daripada nama menu induknya. Dicek DULUAN (paling spesifik).
 const EXTRA_CRUMBS: Array<{ prefix: string; exact?: boolean; crumbs: string[] }> = [
-  { prefix: '/mint/new', exact: true, crumbs: ['OTC', 'Buat mint OTC'] },
-  { prefix: '/burn/new', exact: true, crumbs: ['OTC', 'Buat redeem OTC'] },
+  { prefix: '/mint/new', exact: true, crumbs: ['OTC', 'Mint', 'Buat mint OTC'] },
+  { prefix: '/burn/new', exact: true, crumbs: ['OTC', 'Redeem', 'Buat redeem OTC'] },
   { prefix: '/multisig', crumbs: ['OTC', 'Halaman tanda tangan'] },
   { prefix: '/redeem-approvals', crumbs: ['Transaksi', 'Persetujuan Pencairan'] },
   { prefix: '/payout-failures', crumbs: ['Transaksi', 'Pencairan Bermasalah'] },
