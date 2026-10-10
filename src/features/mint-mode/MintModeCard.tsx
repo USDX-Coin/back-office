@@ -163,7 +163,7 @@ export default function MintModeCard({ data, isLoading }: Props) {
               </p>
             </div>
 
-            <dl className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <dl className="grid gap-x-6 gap-y-4 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="sm:col-span-2">
                 <Field label="Alasan">
                   {data.reason ? data.reason : <Dim />}

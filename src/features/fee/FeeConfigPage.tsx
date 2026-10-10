@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
@@ -19,9 +18,7 @@ export default function FeeConfigPage() {
 
   return (
     <div>
-      <SettingsTabs />
-      <PageHeader
-        title="Biaya"
+      <SettingsTabs
         subtitle={
           canEdit
             ? 'Atur biaya mint dan biaya acuan payment gateway. Perubahan berlaku untuk setiap order berikutnya.'
@@ -31,7 +28,7 @@ export default function FeeConfigPage() {
 
       {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
           di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
-      <div className="max-w-3xl space-y-4">
+      <div className="space-y-4">
         <CurrentFeeConfigCard
           data={fee.data}
           isLoading={fee.isLoading}

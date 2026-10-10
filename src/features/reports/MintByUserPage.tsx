@@ -23,7 +23,6 @@ export default function MintByUserPage() {
   return (
     <ReportPageShell
       state={state}
-      title="Mint per Nasabah"
       subtitle="Volume mint OTC dijumlahkan per nasabah. Diurutkan dari total USDX terbesar."
       statusOptions={MINT_STATUS_OPTIONS}
       showUserPicker

@@ -15,7 +15,7 @@ export default function MintModePage() {
         subtitle="Mode menentukan token mana yang dicetak untuk uang yang benar-benar masuk. Mode uji selalu punya alasan dan batas waktu."
       />
 
-      <div className="max-w-3xl">
+      <div>
         <MintModeCard data={mintMode.data} isLoading={mintMode.isLoading} />
       </div>
     </div>

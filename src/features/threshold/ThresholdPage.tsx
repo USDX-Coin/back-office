@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import SettingsTabs from '@/components/layout/SettingsTabs'
 import CurrentThresholdCard from './CurrentThresholdCard'
@@ -15,15 +14,13 @@ export default function ThresholdPage() {
 
   return (
     <div>
-      <SettingsTabs />
-      <PageHeader
-        title="Batas Safe Manager"
+      <SettingsTabs
         subtitle="Permintaan OTC dengan nominal sebesar ini atau lebih ditandatangani lewat dompet Safe Manager, bukan Safe Staf."
       />
 
       {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
           di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
-      <div className="max-w-3xl">
+      <div>
         <CurrentThresholdCard
           data={threshold.data}
           isLoading={threshold.isLoading}

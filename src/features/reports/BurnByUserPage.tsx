@@ -23,7 +23,6 @@ export default function BurnByUserPage() {
   return (
     <ReportPageShell
       state={state}
-      title="Redeem per Nasabah"
       subtitle="Volume redeem OTC dijumlahkan per nasabah. Diurutkan dari total USDX terbesar."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker

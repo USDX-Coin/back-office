@@ -25,7 +25,6 @@ export default function DailyBurnPage() {
   return (
     <ReportPageShell
       state={state}
-      title="Redeem Harian"
       subtitle="Volume redeem OTC per hari beserta sebaran statusnya. Seluruh waktu dalam WIB."
       statusOptions={BURN_STATUS_OPTIONS}
       showUserPicker={false}

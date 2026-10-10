@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRelativeTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import type { ThresholdConfig } from '@/lib/types'
 
 interface Props {
@@ -51,22 +51,24 @@ export default function CurrentThresholdCard({ data, isLoading, action }: Props)
                 {formatAmount(data.amount, data.mode)}
               </p>
             </div>
-            <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t lg:grid-cols-4 border-border pt-4">
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Mode
+                  Mata uang batas
                 </dt>
-                <dd className="mt-1 text-sm font-medium">{data.mode}</dd>
+                <dd className="mt-1 text-sm font-medium" title={data.mode}>
+                  {data.mode === 'IDR' ? 'Rupiah (IDR)' : 'Dolar AS (USD)'}
+                </dd>
               </div>
               <div className="col-span-2">
                 <dt className="text-xs text-muted-foreground">
-                  Terakhir diubah
+                  Terakhir diubah (WIB)
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"
                   title={data.createdAt}
                 >
-                  {formatRelativeTime(data.createdAt)}
+                  {formatDateTime(data.createdAt)}
                 </dd>
               </div>
             </dl>

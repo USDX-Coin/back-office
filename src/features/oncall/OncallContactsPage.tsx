@@ -209,14 +209,12 @@ export default function OncallContactsPage() {
 
   return (
     <div>
-      <SettingsTabs />
-      <PageHeader
-        title="Kontak Darurat"
+      <SettingsTabs
         subtitle="Peringatan soal uang membawa serta kontak yang terdaftar di sini untuk kategori insiden yang cocok, supaya yang menerima peringatan tahu harus menghubungi siapa."
         actions={
-          <Button onClick={openAdd} size="sm" className="h-7 text-xs">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Tambah Kontak
+          <Button onClick={openAdd}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Tambah kontak
           </Button>
         }
       />

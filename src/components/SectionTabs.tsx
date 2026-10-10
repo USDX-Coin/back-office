@@ -16,6 +16,10 @@ export interface SectionTab {
  *  - bookmark lama tetap hidup;
  *  - gerbang peran tetap ditegakkan DI ROUTE (`App.tsx`), bukan oleh tab ini.
  *
+ * Susunannya (sapu bersih 11 Okt 2026) sama dengan halaman lain yang punya
+ * tab (Transaksi): judul + keterangan DULU, baru tab di bawahnya. Judulnya nama
+ * menu (Kurs & Biaya, Laporan), bukan nama tab — tab sudah menyebut dirinya.
+ *
  * Tab ini hanya boleh MENYEMBUNYIKAN tujuan yang tidak berwenang dibuka —
  * menyembunyikan tab tidak pernah menjadi gerbangnya. Preseden dan alasannya
  * ada di `/screening/lists` (USDX-588): menyembunyikan tombol saja meninggalkan
@@ -34,7 +38,7 @@ export default function SectionTabs({
   return (
     <nav
       aria-label={ariaLabel}
-      className="mb-5 flex flex-wrap items-center gap-1 border-b border-border"
+      className="mb-6 flex flex-wrap items-center gap-1 border-b border-border"
     >
       {tabs.map((tab) => (
         <NavLink
@@ -43,9 +47,10 @@ export default function SectionTabs({
           end
           className={({ isActive }) =>
             cn(
-              '-mb-px flex items-center border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+              // Sama dengan `TabBar` (Transaksi): satu gaya tab di seluruh back-office.
+              '-mb-px flex items-center border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               isActive
-                ? 'border-primary text-primary'
+                ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )
           }

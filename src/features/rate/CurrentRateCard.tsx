@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRate, formatSpreadPct, formatRelativeTime, rateModeLabel } from '@/lib/format'
+import { formatRate, formatSpreadPct, formatDateTime, rateModeLabel } from '@/lib/format'
 import type { RateInfo } from '@/lib/types'
 
 interface CurrentRateCardProps {
@@ -39,7 +39,7 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
                 {formatRate(data.baseRate)}
               </p>
             </div>
-            <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t lg:grid-cols-4 border-border pt-4">
               <div>
                 <dt className="text-xs text-muted-foreground">
                   Kurs beli berlaku (mint)
@@ -86,13 +86,13 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
-                  Terakhir diubah
+                  Terakhir diubah (WIB)
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"
                   title={data.updatedAt}
                 >
-                  {formatRelativeTime(data.updatedAt)}
+                  {formatDateTime(data.updatedAt)}
                 </dd>
               </div>
             </dl>

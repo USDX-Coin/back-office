@@ -9,7 +9,6 @@ import type { ReportPageState } from './useReportPageState'
 
 interface Props {
   state: ReportPageState
-  title: string
   subtitle?: ReactNode
   statusOptions: readonly StatusOption[]
   showUserPicker: boolean
@@ -19,7 +18,6 @@ interface Props {
 
 export default function ReportPageShell({
   state,
-  title,
   subtitle,
   statusOptions,
   showUserPicker,
@@ -32,9 +30,11 @@ export default function ReportPageShell({
     <div>
       {/* § 4 P2-1 — empat entri sidebar Reporting jadi satu entri "Laporan";
           perpindahan antar laporan turun ke tab ini. Rutenya tidak berubah. */}
-      <ReportTabs />
       <PageHeader
-        title={title}
+        // Judul = nama menu "Laporan" (sama dengan sidebar + breadcrumb); nama
+        // laporannya ada di tab yang aktif. Tab DI BAWAH judul, seperti
+        // Transaksi (sapu bersih 11 Okt 2026).
+        title="Laporan"
         subtitle={subtitle}
         actions={
           <Button
@@ -54,6 +54,7 @@ export default function ReportPageShell({
           </Button>
         }
       />
+      <ReportTabs />
 
       <ReportFiltersToolbar
         values={state.draft}

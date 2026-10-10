@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatIdrAmount, formatRelativeTime, formatSpreadPct } from '@/lib/format'
+import { formatIdrAmount, formatDateTime, formatSpreadPct } from '@/lib/format'
 import type { FeeConfig } from '@/lib/types'
 
 interface Props {
@@ -39,7 +39,7 @@ export default function CurrentFeeConfigCard({ data, isLoading, action }: Props)
                 {formatSpreadPct(data.mintFeePct)}
               </p>
             </div>
-            <dl className="grid grid-cols-2 gap-3 border-t border-border pt-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t lg:grid-cols-4 border-border pt-4">
               <div>
                 <dt className="text-xs text-muted-foreground">
                   Biaya VA (flat)
@@ -112,13 +112,13 @@ export default function CurrentFeeConfigCard({ data, isLoading, action }: Props)
               </div>
               <div className="col-span-2">
                 <dt className="text-xs text-muted-foreground">
-                  Terakhir diubah
+                  Terakhir diubah (WIB)
                 </dt>
                 <dd
                   className="mt-1 text-sm text-muted-foreground"
                   title={data.createdAt}
                 >
-                  {formatRelativeTime(data.createdAt)}
+                  {formatDateTime(data.createdAt)}
                 </dd>
               </div>
             </dl>
