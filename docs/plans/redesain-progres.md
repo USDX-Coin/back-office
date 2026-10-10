@@ -347,3 +347,47 @@ Belum beres / catatan:
 - Di ponsel, footer modal nasabah: tombol utama + Lainnya sebaris, "Buka profil
   lengkap" penuh di bawahnya (gaya `RecordActions` yang sama dengan OTC); modal berkas
   menumpuk tiga tombol penuh. Berfungsi, tapi bentuknya belum seragam.
+
+## Bug menu + breadcrumb + Cadangan + audit Pengaturan (GO PM 11 Okt) — SELESAI (11 Okt 2026)
+
+**1. Bug halaman terkunci setelah pindah lewat menu "Lainnya"**
+- Penyebab: `DropdownMenu` Radix mode modal (bawaan) bertumpuk di atas `Dialog` modal. Item yang
+  memanggil `navigate()` melepas menu dan dialog bersamaan; kunci `pointer-events: none` milik menu
+  di `<body>` tidak pernah dikembalikan → sidebar/breadcrumb mati, konten tidak bisa digulir.
+- Perbaikan di sumber: `modal={false}` di `RecordActions` (menu "Lainnya" semua modal), menu berkas
+  Verifikasi (`BerkasParts`), dan `ProfileDropdown`. Dialog di bawahnya sudah mengunci halaman, jadi
+  menu tidak perlu kunci kedua; fokus/Esc/panah tetap diurus Radix. Dipilih ketimbang menunda
+  navigasi karena satu baris di satu tempat menutup semua item (sekarang dan nanti), tanpa timer.
+- Ditemukan juga: menu profil navbar → Profil meninggalkan kunci GULIR (bukan pointer) — ikut beres.
+- e2e `usdx-menu-navigasi.spec.ts`: 4 jalur menu + Esc tanpa memilih; cek `body`, gulir roda tetikus,
+  klik link sidebar. Sebelum perbaikan: 2 jalur merah (Verifikasi, menu profil), sesudah: hijau.
+
+**2. Breadcrumb bisa diklik** — `breadcrumbFor` → `{ label, to? }`; segmen ber-halaman = tautan, grup
+dan segmen terakhir teks (`aria-current="page"`, `<nav aria-label>` + `<ol>`). Tombol dobel dihapus:
+"Kembali ke daftar nasabah" (profil nasabah, dua cabang render), "Kembali" (Tambah berkas badan
+usaha), "Antrean temuan" (Versi daftar sanksi).
+
+**3. Cadangan & Atestasi** — atas: kartu saldo + "Catat entri"; bawah: tabel riwayat buku besar +
+laporan atestasi ("Unggah laporan" di kanan atas). Kedua form di dialog (isi/validasi/idempotensi/
+"periksa lalu catat" sama; konfirmasi bertumpuk). Klik baris = `RecordModal`
+`/transparency/entri/:id` & `/transparency/laporan/:id` + ↑/↓; Cabut laporan di Lainnya.
+
+**4. Audit layout Pengaturan + Keuangan** (screenshot `scratchpad/pengaturan-rapi/sebelum-*`/`sesudah-*`)
+
+| Halaman | Hasil |
+|---|---|
+| Kurs, Biaya, Batas Safe Manager | form besar di samping kartu → kartu + tombol "Ubah …" kanan atas, form di `FormDialog` |
+| Plafon Pencairan | form usulan di samping + riwayat kartu-kartu → kartu + "Ubah plafon", usulan di dialog, kartu "menunggu orang kedua" di halaman, riwayat tabel + modal `/plafon-pencairan/riwayat/:id` |
+| Mode Mint | tombol geser di dasar kartu → kanan atas kartu |
+| Cadangan & Atestasi | lihat butir 3 |
+| Metode Pembayaran, Staf & Peran, Persetujuan Orang Kedua, Kontak Darurat, Jejak Audit, Log DurianPay, Rekening BNI, Laporan | dibiarkan — sudah satu pola (judul + aksi kanan atas, tabel/daftar, aksi lewat dialog/modal; BNI & Laporan = panel saringan, bukan form ubah) |
+
+**Cek akhir**: lint 0 error (3 warning lama) · unit 123 berkas / 2474 tes · build hijau · e2e 174/174
+(`E2E_PORT=5197`) · `pnpm audit --audit-level=high` exit 0.
+
+Belum beres / catatan:
+- Breadcrumb hanya tampil ≥ lg (sejak awal). Di ponsel, jalan balik dari profil nasabah = menu laci
+  atau tombol kembali peramban, karena tombol "Kembali" dihapus.
+- Kontak Darurat & Staf masih ikon pensil/tong sampah per baris (bukan klik baris = modal): CRUD
+  langsung, dibiarkan karena sudah jelas; kalau PM ingin seragam, itu langkah berikutnya.
+- ↑/↓ di modal Cadangan/Plafon hanya di halaman tabel yang sedang dimuat (riwayat plafon = 10 terakhir).
