@@ -1,19 +1,21 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Users as UsersIcon } from 'lucide-react'
+import { Plus, Users as UsersIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import DataTable from '@/components/DataTable'
+import { TableCellText } from '@/components/ui/table'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import Avatar from '@/components/Avatar'
 import PageHeader from '@/components/PageHeader'
 import TableEmptyState from '@/components/TableEmptyState'
 import UserModal from './UserModal'
-import UserDeleteDialog from './UserDeleteDialog'
+import CustomerModal from './CustomerModal'
+import { ToneChip } from '@/components/ToneChip'
+import { customerSummary } from '@/lib/customerSummary'
 import TableToolbar from '@/components/table/TableToolbar'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import { USERS_FILTER_DEFS, USERS_COLUMN_CONFIG } from './filterDefs'
-import { useUsers } from './hooks'
+import { useUserDetail, useUsers } from './hooks'
 import { canManageUsers, useAuth } from '@/lib/auth'
 import {
   deriveActivationStatus,
@@ -27,16 +29,16 @@ import type {
   KycStatus,
   PhaseOneUser,
 } from '@/lib/types'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 const PAGE_SIZE = 10
 
 const ENTITY_LABEL: Record<EntityType, string> = {
-  INDIVIDUAL: 'Individual',
-  LEGAL_ENTITY: 'Legal Entity',
+  INDIVIDUAL: 'Perorangan',
+  LEGAL_ENTITY: 'Badan Usaha',
 }
 
 export default function UsersPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const canManage = canManageUsers(user)
   const params = useDataTableParams()
@@ -58,7 +60,6 @@ export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add')
   const [activeUser, setActiveUser] = useState<PhaseOneUser | null>(null)
-  const [deleteOpen, setDeleteOpen] = useState(false)
 
   function openAdd() {
     setModalMode('add')
@@ -72,9 +73,16 @@ export default function UsersPage() {
     setModalOpen(true)
   }
 
-  function openDelete(u: PhaseOneUser) {
-    setActiveUser(u)
-    setDeleteOpen(true)
+  // Modal ringkasan di tengah (PM Okt 2026, menggantikan panel kanan). Nasabah
+  // yang dibuka ada di URL `?nasabah=<id>` supaya bisa dibagikan dan bertahan
+  // saat dimuat ulang. Bukan `/users/:id` — rute itu halaman profil lengkap dan
+  // tetap ada. `?pilih=` (tautan panel lama) masih dibaca.
+  const selectedId = params.searchParams.get('nasabah') ?? params.searchParams.get('pilih')
+  function select(u: PhaseOneUser, replace = false) {
+    params.updateParams({ nasabah: u.id, pilih: null }, { replace })
+  }
+  function closeModal() {
+    params.updateParams({ nasabah: null, pilih: null })
   }
 
   const [colVisibility, setColVisibility] = useColumnVisibility('users', USERS_COLUMN_CONFIG)
@@ -87,54 +95,52 @@ export default function UsersPage() {
   const columns: ColumnDef<PhaseOneUser>[] = [
     {
       id: 'name',
-      header: 'Name',
+      size: 190,
+      header: 'Nama',
       cell: ({ row }) => {
         const u = row.original
         return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate(`/users/${u.id}`)
-            }}
-            className="flex items-center gap-2.5 text-left hover:text-primary"
-            aria-label={`Open ${u.name ?? u.email}`}
-          >
+          <span className="flex items-center gap-2.5">
             {/* Self-signup users have no name until first KYC submit
                 (users.yaml § User.name nullable) — fall back to email. */}
             <Avatar name={u.name ?? u.email} size="sm" />
             <span className="font-medium">{u.name ?? '—'}</span>
-          </button>
+          </span>
         )
       },
     },
     {
       id: 'email',
+      size: 216,
       header: 'Email',
-      cell: ({ row }) => (
-        <span className="text-[12.5px] text-muted-foreground">
-          {row.original.email || '—'}
-        </span>
-      ),
+      cell: ({ row }) =>
+        row.original.email ? (
+          <TableCellText value={row.original.email} className="text-xs text-muted-foreground" />
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
     },
     {
       id: 'entityType',
-      header: 'Entity',
+      size: 104,
+      header: 'Jenis',
       cell: ({ row }) => (
-        <span className="text-[12.5px]">
+        <span className="text-xs">
           {ENTITY_LABEL[row.original.entityType] ?? row.original.entityType}
         </span>
       ),
     },
     {
       id: 'kycStatus',
+      // 152: "Belum diverifikasi" (label terpanjang) + padding sel muat utuh.
+      size: 152,
       header: 'KYC',
       cell: ({ row }) => {
         const cfg = getKycStatusConfig(row.original.kycStatus)
         return (
           <span
             className={cn(
-              'inline-flex rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              STATUS_CHIP_BASE,
               cfg.className
             )}
           >
@@ -147,64 +153,36 @@ export default function UsersPage() {
       // USDX-156 — activation badge: FAILED (destructive) wins over PENDING
       // (warning); ACTIVATED renders muted-success so the column scans quietly.
       id: 'activation',
-      header: 'Activation',
+      size: 168,
+      header: 'Aktivasi',
       cell: ({ row }) => {
         const status = deriveActivationStatus(row.original)
         const cfg = getActivationStatusConfig(status)
         return (
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
+              STATUS_CHIP_BASE,
               cfg.className
             )}
             data-testid={`activation-badge-${status.toLowerCase()}`}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dotClass)} />
             {cfg.label}
           </span>
         )
       },
     },
     {
+      // Audit 8 Okt 2026: kolom ini dulu KOSONG untuk hampir semua baris (hanya
+      // "Dibekukan" yang pernah tampil). Kini satu status ringkas yang sama
+      // dengan chip di modal ringkasan — `customerSummary`.
       id: 'suspended',
+      size: 180,
       header: 'Status',
-      cell: ({ row }) =>
-        row.original.suspended ? (
-          <span className="inline-flex rounded-sm bg-destructive/10 px-2 py-0.5 text-[11.5px] font-medium text-destructive">
-            Suspended
-          </span>
-        ) : null,
+      cell: ({ row }) => {
+        const s = customerSummary(row.original).status
+        return <ToneChip tone={s.tone}>{s.label}</ToneChip>
+      },
     },
-    ...(canManage
-      ? [
-          {
-            id: 'actions',
-            header: '',
-            cell: ({ row }: { row: { original: PhaseOneUser } }) => (
-              <div className="flex items-center justify-end gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openEdit(row.original)}
-                  aria-label={`Edit ${row.original.name ?? row.original.email}`}
-                  className="h-7 w-7"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => openDelete(row.original)}
-                  aria-label={`Delete ${row.original.name ?? row.original.email}`}
-                  className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ),
-          } satisfies ColumnDef<PhaseOneUser>,
-        ]
-      : []),
   ]
 
   const noDataState = (
@@ -216,17 +194,17 @@ export default function UsersPage() {
           strokeWidth={1.5}
         />
       }
-      title="No users yet"
+      title="Belum ada nasabah"
       description={
         canManage
-          ? 'Add your first user to get started.'
-          : 'No users to show.'
+          ? 'Tambahkan nasabah pertama untuk mulai.'
+          : 'Belum ada yang bisa ditampilkan.'
       }
       cta={
         canManage ? (
           <Button onClick={openAdd} className="mt-2">
             <Plus className="mr-1.5 h-4 w-4" />
-            Add User
+            Tambah Nasabah
           </Button>
         ) : undefined
       }
@@ -239,18 +217,27 @@ export default function UsersPage() {
     search || kycStatusParam || entityTypeParam || activationStatusParam
   )
 
+  const rows = list.data?.data ?? []
+  const selectedIndex = selectedId ? rows.findIndex((u) => u.id === selectedId) : -1
+  const rowSelected = selectedIndex >= 0 ? rows[selectedIndex]! : null
+  // Tautan langsung ke nasabah yang tidak ada di halaman tabel ini: tarik
+  // datanya sendiri, supaya modalnya tetap terbuka. Baris yang ADA di tabel
+  // tidak pernah memicu `GET /users/:id` (dekripsi telepon + `pii_access_audit`).
+  const deepLink = useUserDetail(selectedId && !rowSelected && !list.isLoading ? selectedId : undefined)
+  const selectedUser: PhaseOneUser | null = rowSelected ?? deepLink.data ?? null
+  const prevRow = selectedIndex > 0 ? rows[selectedIndex - 1] : undefined
+  const nextRow = selectedIndex >= 0 ? rows[selectedIndex + 1] : undefined
+
   return (
     <div>
       <PageHeader
-        eyebrow="Workspace"
-        title="User"
-        italicAccent="directory"
-        subtitle={`Phase-1 user directory · ${list.isLoading ? '…' : total} total`}
+        title="Daftar Nasabah"
+        subtitle={`${list.isLoading ? '…' : total} nasabah terdaftar`}
         actions={
           canManage ? (
-            <Button onClick={openAdd} size="sm" className="h-7 text-[12px]">
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              Add User
+            <Button onClick={openAdd} size="sm">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Tambah Nasabah
             </Button>
           ) : undefined
         }
@@ -258,7 +245,7 @@ export default function UsersPage() {
 
       <DataTable
         columns={columns}
-        data={list.data?.data ?? []}
+        data={rows}
         rowCount={total}
         isLoading={list.isLoading}
         isError={list.isError}
@@ -270,7 +257,7 @@ export default function UsersPage() {
           <TableToolbar
             search={{
               value: search,
-              placeholder: 'Search by name, email, or wallet',
+              placeholder: 'Cari nama, email, atau wallet',
               onChange: (next) => params.updateParams({ search: next || null, page: '1' }),
             }}
             filter={{
@@ -293,17 +280,31 @@ export default function UsersPage() {
         }
         hasFilters={hasFilters}
         emptyState={noDataState}
+        onRowClick={(u) => select(u)}
+        rowAriaLabel={(u) => `Buka nasabah ${u.name ?? u.email}`}
       />
+
+      {selectedId && (
+        <CustomerModal
+          user={selectedUser}
+          missingId={selectedId}
+          loading={list.isLoading || deepLink.isLoading}
+          canManage={canManage}
+          onClose={closeModal}
+          onEdit={openEdit}
+          nav={{
+            index: selectedIndex >= 0 ? selectedIndex : null,
+            total: rows.length,
+            onPrev: prevRow ? () => select(prevRow, true) : undefined,
+            onNext: nextRow ? () => select(nextRow, true) : undefined,
+          }}
+        />
+      )}
 
       <UserModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         mode={modalMode}
-        user={activeUser}
-      />
-      <UserDeleteDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
         user={activeUser}
       />
     </div>

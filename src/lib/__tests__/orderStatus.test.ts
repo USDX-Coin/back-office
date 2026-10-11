@@ -39,9 +39,14 @@ describe('getOrderStatusConfig', () => {
   })
 
   describe('edge cases', () => {
+    // P1-5 audit alur — peta `Record<Enum, StatusConfig>` sudah menggagalkan
+    // build untuk enum baru di `types.ts`; yang tidak dijaga build adalah nilai
+    // yang datang dari BACKEND tanpa pernah masuk `types.ts`. Kodenya tetap
+    // dibawa dalam labelnya.
     test('unknown status falls back to a neutral config without throwing', () => {
       const cfg = getOrderStatusConfig('SOMETHING_NEW' as MintOrderStatus)
-      expect(cfg.label).toBe('SOMETHING_NEW')
+      expect(cfg.label).toBe('Status belum dikenali (SOMETHING_NEW)')
+      expect(cfg.label).toContain('SOMETHING_NEW')
       expect(cfg.dotClass).toBe('bg-muted-foreground')
     })
   })

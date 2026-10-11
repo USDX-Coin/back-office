@@ -1,0 +1,77 @@
+{
+  "_catatan": [
+    "Endpoint backend yang DIBUTUHKAN layar back-office di branch ini tapi BELUM tentu ada di server.",
+    "Dipakai scripts/cek-backend-siap.mjs sebelum merge ke dev. Sebuah komentar di kode tidak bisa",
+    "gagal; perintah dengan exit code bisa.",
+    "",
+    "Cara bacanya: probe TANPA auth. 404 = endpointnya memang tidak ada. 401/403 = ada, cuma minta",
+    "login — itu artinya SIAP. Jadi pemeriksaan ini tidak butuh kredensial apa pun.",
+    "",
+    "PATH-NYA WAJIB PUNYA HANDLER GET. Nest menjawab 404 untuk path yang rutenya ada tapi",
+    "metodenya tidak — jadi mem-probe endpoint POST-only akan selalu terbaca 'belum ada',",
+    "bahkan sesudah branch-nya merge. `POST /payout-controls/limits` kena persis jebakan ini;",
+    "yang diprobe adalah `GET /payout-controls/limits/history`, saudara GET-nya di modul yang sama.",
+    "",
+    "SEBAGIAN KEBUTUHAN TIDAK BISA DIPROBE. Kalau yang ditunggu adalah PARAMETER atau FIELD baru",
+    "pada endpoint yang SUDAH ada, probe tanpa auth selalu dijawab 401 — auth jalan sebelum",
+    "validasi, jadi tidak ada cara membedakan server yang menerima parameter itu dari yang",
+    "membuangnya diam-diam. Entri seperti itu ditandai \"probe\": false: skripnya TIDAK menebak,",
+    "ia mencetaknya sebagai butir yang wajib dikonfirmasi manusia."
+  ],
+  "wajib": [
+    {
+      "rute": "/durianpay-api-calls",
+      "path": "/api/v1/durianpay-api-calls",
+      "butuhBranch": "wisnubarata111/be-catat-log-panggilan-durianpay",
+      "keterangan": "Log Panggilan DurianPay. Menunya digerbangi peran, jadi 404 terbaca sebagai layar rusak, bukan layar terlarang."
+    },
+    {
+      "rute": "/payout-controls — plafon + riwayat versinya",
+      "path": "/api/v1/payout-controls/limits/history",
+      "butuhBranch": "wisnubarata111/be-tutup-lubang-jejak-dan-plafon",
+      "keterangan": "Plafon pencairan. Diprobe lewat riwayatnya karena `POST /payout-controls/limits` tidak punya handler GET, dan Nest menjawab 404 untuk itu — sinyal yang tidak bisa dibedakan dari modul yang belum ada. `GET /payout-controls` sendiri SUDAH live di dev, jadi ia bukan penanda yang berguna."
+    },
+    {
+      "rute": "/jejak-audit — saringan rentang waktu",
+      "path": "/api/v1/activity-logs",
+      "butuhBranch": "wisnubarata111/be-badge-antrean-dan-rentang-jejak",
+      "keterangan": "Isian tanggal SUDAH dirender di layar ini, jadi server WAJIB menerima `from`/`to`. Kalau belum: ValidationPipe membuang parameter tak dikenal DIAM-DIAM dan seluruh tabel kembali sambil tampak seperti hasil pencarian tersaring — di layar bukti kepatuhan, itu membuat pemeriksa menyimpulkan tidak ada jejaknya. TIDAK BISA DIPROBE tanpa kredensial: endpointnya sudah lama ada, jadi 401 dijawab entah parameternya didukung atau tidak. Konfirmasi manual: pastikan branch backend di bawah sudah naik ke server yang dituju.",
+      "probe": false
+    },
+    {
+      "rute": "/persetujuan — usulan plafon (PAYOUT_CONTROLS_LIMITS)",
+      "path": "/api/v1/payout-controls/limits/history",
+      "butuhBranch": "wisnubarata111/be-tutup-lubang-jejak-dan-plafon",
+      "probe": false,
+      "keterangan": "Layar Persetujuan Orang Kedua menawarkan actionType `PAYOUT_CONTROLS_LIMITS`, sementara `approvalActionTypeEnum` di origin/dev hanya punya `PAYOUT_CONTROLS_RELEASE` dan `HELD_CREDIT_RESOLVE`. `@IsEnum` menjawab 400, jadi antrean maker-checker jadi error state untuk opsi yang UI-nya sendiri tawarkan. TIDAK BISA DIPROBE: yang kurang nilai enum, bukan endpoint. Konfirmasi manual bahwa branch di atas sudah naik."
+    },
+    {
+      "rute": "/transactions — Transaksi gabungan",
+      "path": "/api/v1/transactions",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Tabel Transaksi gabungan (⚠️ DRAF SOT PR #50, backoffice-transactions.yaml). Tanpa endpoint ini menu Transaksi kosong dengan galat."
+    },
+    {
+      "rute": "/settings/payment-methods — Metode Pembayaran",
+      "path": "/api/v1/payment-methods",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Pengaturan metode pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml). PATCH /payment-methods/{id} dan PUT /payment-method-order ikut modul yang sama."
+    }
+  ],
+  "opsional": [
+    {
+      "rute": "badge Mint Bermasalah + Persetujuan Orang Kedua",
+      "path": "/api/v1/queue-counts",
+      "butuhBranch": "wisnubarata111/be-badge-antrean-dan-rentang-jejak",
+      "keterangan": "Dua field baru (heldCreditsOpen, approvalsOpen) pada endpoint yang sudah ada. TIDAK BISA DIPROBE tanpa kredensial. Tetap opsional — TAPI hanya karena sisi FE memperlakukan kunci yang HILANG sama dengan hitungan yang gagal: badge-nya menampilkan penanda 'belum terbaca', bukan nol. Tanpa perlakuan itu klasifikasi ini salah: badge nol permanen di antrean rupiah tertahan bukan fitur yang berkurang, itu sinyal yang berbohong.",
+      "probe": false
+    },
+    {
+      "rute": "badge menu Transaksi",
+      "path": "/api/v1/queue-counts",
+      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
+      "keterangan": "Kunci `transactionsNeedsAction` (aditif). Tidak bisa diprobe: endpointnya sudah ada. Bila kunci absen, badge disembunyikan (kontrak), jadi bukan pemblokir keras — konfirmasi manual.",
+      "probe": false
+    }
+  ]
+}

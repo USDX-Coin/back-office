@@ -7,41 +7,43 @@ export const USERS_FILTER_DEFS: FilterDef[] = [
     key: 'kycStatus',
     label: 'KYC',
     options: [
-      { value: 'UNVERIFIED', label: 'Unverified' },
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'VERIFIED', label: 'Verified' },
-      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'UNVERIFIED', label: 'Belum diverifikasi' },
+      { value: 'PENDING', label: 'Menunggu' },
+      { value: 'VERIFIED', label: 'Terverifikasi' },
+      { value: 'REJECTED', label: 'Ditolak' },
     ],
   },
   {
     kind: 'select',
     key: 'entityType',
-    label: 'Entity',
+    label: 'Jenis',
     options: [
-      { value: 'INDIVIDUAL', label: 'Individual' },
-      { value: 'LEGAL_ENTITY', label: 'Legal Entity' },
+      { value: 'INDIVIDUAL', label: 'Perorangan' },
+      { value: 'LEGAL_ENTITY', label: 'Badan Usaha' },
     ],
   },
   // USDX-156 — sot/api/users.yaml § activationStatus. "All" = no param sent.
+  // Label status aktivasi disalin dari `src/lib/status.ts` supaya filter dan
+  // badge di kolomnya tidak pernah menyebut keadaan yang sama dengan dua kata.
   {
     kind: 'select',
     key: 'activationStatus',
-    label: 'Activation',
+    label: 'Aktivasi',
     options: [
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'ACTIVATED', label: 'Activated' },
-      { value: 'FAILED', label: 'Failed email' },
+      { value: 'PENDING', label: 'Menunggu aktivasi' },
+      { value: 'ACTIVATED', label: 'Aktif' },
+      { value: 'FAILED', label: 'Email gagal terkirim' },
     ],
   },
 ]
 
 // Column ids must match the TanStack ColumnDef ids in UsersPage.
 export const USERS_COLUMN_CONFIG: ColumnConfig[] = [
-  { key: 'name', label: 'Name', required: true },
+  { key: 'name', label: 'Nama', required: true },
   { key: 'email', label: 'Email' },
-  { key: 'entityType', label: 'Entity' },
+  { key: 'entityType', label: 'Jenis' },
   { key: 'kycStatus', label: 'KYC' },
-  { key: 'activation', label: 'Activation' },
+  { key: 'activation', label: 'Aktivasi' },
   { key: 'suspended', label: 'Status' },
-  { key: 'actions', label: 'Actions', required: true },
+  { key: 'actions', label: 'Aksi', required: true },
 ]

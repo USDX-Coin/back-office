@@ -42,7 +42,7 @@ export function StatementRefreshError({ error }: { error: BniErrorView | null })
   if (!error) return null
   return (
     <p
-      className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+      className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
       role="alert"
       data-testid="bni-statement-refresh-error"
     >

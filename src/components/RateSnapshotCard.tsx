@@ -31,26 +31,26 @@ export default function RateSnapshotCard({
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <TrendingUp className="h-3.5 w-3.5 text-primary" />
-          Current rate USD/IDR
+          Kurs saat ini USD/IDR
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
         {isLoading ? (
           <Skeleton className="h-7 w-32" />
         ) : isError || !rate ? (
-          <p className="text-sm text-destructive">Could not load rate</p>
+          <p className="text-sm text-destructive">Kurs gagal dimuat</p>
         ) : (
           <>
             <p
-              className="text-[22px] font-semibold tracking-tight tabular-nums"
+              className="text-money-lg tabular-nums"
               data-testid="rate-display"
             >
               Rp {formatIdr(effective ?? rate.baseRate)}
             </p>
-            <p className="text-[11.5px] text-muted-foreground">
-              {rate.mode === 'MANUAL' ? 'Manual rate' : 'Dynamic rate'} · spread{' '}
+            <p className="text-xs text-muted-foreground">
+              {rate.mode === 'MANUAL' ? 'Kurs manual' : 'Kurs dinamis'} · spread{' '}
               {direction === 'sell' ? 'jual' : 'beli'} {spread}%
             </p>
           </>

@@ -19,6 +19,12 @@ describe('cn', () => {
   })
 
   describe('edge cases', () => {
+    test('role type tokens are font SIZES, not colours — a colour class never drops them', () => {
+      expect(cn('text-label', 'text-muted-foreground')).toBe('text-label text-muted-foreground')
+      expect(cn('text-money-lg', 'text-foreground')).toBe('text-money-lg text-foreground')
+      expect(cn('text-xs', 'text-label')).toBe('text-label')
+    })
+
     test('should handle conditional classes', () => {
       const isHidden = false
       expect(cn('base', isHidden && 'hidden', 'end')).toBe('base end')

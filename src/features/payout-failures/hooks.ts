@@ -101,6 +101,7 @@ function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: strin
   qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['payout-failures', 'detail', id] })
   qc.invalidateQueries({ queryKey: ['orders'] })
+  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
 }
 
 /**

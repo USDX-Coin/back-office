@@ -8,26 +8,33 @@ import {
 } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
+import { DURIANPAY_API_CALLS_ROLES } from '@/lib/types'
 import { ThemeProvider } from '@/lib/theme'
-import { ProtectedRoute, PublicRoute, RoleGuard } from '@/components/layout/AuthGuard'
+import {
+  ProtectedRoute,
+  PublicRoute,
+  RedirectWithId,
+  RoleGuard,
+} from '@/components/layout/AuthGuard'
 import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/features/auth/LoginPage'
-import DashboardPage from '@/features/dashboard/DashboardPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StaffPage from '@/features/staff/StaffPage'
-import KycListPage from '@/features/kyc/KycListPage'
-import KybListPage from '@/features/kyb/KybListPage'
+import VerificationPage from '@/features/verification/VerificationPage'
 import KybFormPage from '@/features/kyb/KybFormPage'
 import ScreeningQueuePage from '@/features/screening/ScreeningQueuePage'
 import SanctionListsPage from '@/features/screening/SanctionListsPage'
-import MintListPage from '@/features/mint/MintListPage'
 import MintFormPage from '@/features/mint/MintFormPage'
-import BurnListPage from '@/features/burn/BurnListPage'
 import BurnFormPage from '@/features/burn/BurnFormPage'
-import TransactionsListPage from '@/features/transactions/TransactionsListPage'
+import TransactionsPage from '@/features/transactions/TransactionsPage'
+import OverviewPage from '@/features/overview/OverviewPage'
 import RedeemApprovalsPage from '@/features/redeem-approvals/RedeemApprovalsPage'
 import PayoutFailuresPage from '@/features/payout-failures/PayoutFailuresPage'
+import HeldCreditsPage from '@/features/held-credits/HeldCreditsPage'
+import ApprovalsPage from '@/features/approvals/ApprovalsPage'
+import PayoutControlsPage from '@/features/payout-controls/PayoutControlsPage'
+import ActivityLogPage from '@/features/activity-log/ActivityLogPage'
 import RatePage from '@/features/rate/RatePage'
 import FeeConfigPage from '@/features/fee/FeeConfigPage'
 import MintModePage from '@/features/mint-mode/MintModePage'
@@ -35,12 +42,18 @@ import ThresholdPage from '@/features/threshold/ThresholdPage'
 import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
+import PaymentMethodsPage from '@/features/payment-methods/PaymentMethodsPage'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
+import DurianpayApiCallsPage from '@/features/durianpay-api-calls/DurianpayApiCallsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+import NotFoundPage from '@/features/errors/NotFoundPage'
 
 // Code-split the Multisig route: the wallet stack (wagmi + RainbowKit, ~1MB)
 // loads only when an operator opens /multisig, not on every page (USDX-275).
 const MultisigRoute = lazy(() => import('@/features/multisig/MultisigRoute'))
+// Same reason for OTC: its detail panel signs/executes Safe transactions.
+const OtcRoute = lazy(() => import('@/features/otc/OtcRoute'))
+import OtcLegacyRedirect from '@/features/otc/OtcLegacyRedirect'
 import DailyMintReportPage from '@/features/reports/DailyMintPage'
 import MintByUserReportPage from '@/features/reports/MintByUserPage'
 import DailyBurnReportPage from '@/features/reports/DailyBurnPage'
@@ -57,7 +70,7 @@ const queryClient = new QueryClient({
 })
 
 // Routing per Linear USDX-50 + sot/phase-1.md § Backoffice Web App.
-//   /dashboard          → Dashboard
+//   /dashboard          → redirect /ringkasan (Beranda lama → Ringkasan, 10 Okt 2026)
 //   /users, /users/:id  → User management
 //   /staff              → Staff management (admin sidebar gate)
 //   /mint, /mint/:id    → Mint list + deep-link detail (admin/developer/manager)
@@ -87,24 +100,35 @@ export const appRoutes: RouteObject[] = [
       {
         element: <MainLayout />,
         children: [
-          { path: '/dashboard', element: <DashboardPage /> },
+          // Ringkasan (keputusan PM 10 Okt 2026) — halaman pertama setelah
+          // masuk, semua peran. `/dashboard` (Beranda lama) dialihkan ke sini.
+          { path: '/ringkasan', element: <OverviewPage /> },
+          // `/` (akar) tetap pengalihan sengaja ke Ringkasan — dulu lewat `*`.
+          { path: '/', element: <Navigate to="/ringkasan" replace /> },
+          { path: '/dashboard', element: <Navigate to="/ringkasan" replace /> },
           { path: '/users', element: <UsersPage /> },
           { path: '/users/:id', element: <UserDetailPage /> },
           { path: '/staff', element: <StaffPage /> },
-          // USDX-154 + week1.md § Authorization Guard: KYC review list is
-          // reachable by every role (Admin/Manager/Staff/Developer) — no
-          // RoleGuard. Approve/reject gating happens inside the detail
-          // (USDX-155); BE enforces 403 for Developer regardless.
-          { path: '/kyc', element: <KycListPage /> },
-          { path: '/kyc/:id', element: <KycListPage /> },
-          // USDX-546 — KYB review. Same visibility rule as KYC: the queue is
-          // readable by every back-office role and the ACTIONS are gated inside
-          // (DEVELOPER is view-only; the backend enforces 403 regardless), so no
-          // RoleGuard here. `/kyb/new` exists because KYB is a MANUAL flow —
-          // nothing but an operator creates these records.
-          { path: '/kyb', element: <KybListPage /> },
+          // Redesain fase 1 — Verifikasi: antrean KYC perorangan (USDX-154) dan
+          // KYB badan usaha (USDX-546) jadi SATU tabel. Aturan visibilitasnya
+          // tidak berubah: terbuka untuk semua peran (server: STAFF / MANAGER /
+          // ADMIN / DEVELOPER), MEMUTUSKAN digerbangi di dalam berkas lengkap
+          // (DEVELOPER hanya melihat; backend menegakkan 403), jadi tanpa
+          // RoleGuard.
+          //
+          // `/verifikasi/:jenis/:id` membuka modal berkas lengkap (foto KTP,
+          // dokumen badan usaha) di tengah, di atas tabel Verifikasi yang tetap
+          // lebar penuh. Rute lama `/kyc/:id` dan `/kyb/:id` membuka modal yang
+          // SAMA supaya tautan lama tetap hidup. `/kyc` dan `/kyb` dialihkan ke
+          // Verifikasi dengan saringan Jenis terpasang. `/kyb/new` (form KYB
+          // manual) tetap.
+          { path: '/verifikasi', element: <VerificationPage /> },
+          { path: '/verifikasi/:jenis/:id', element: <VerificationPage /> },
+          { path: '/kyc', element: <Navigate to="/verifikasi?jenis=perorangan" replace /> },
+          { path: '/kyc/:id', element: <VerificationPage detail="perorangan" /> },
+          { path: '/kyb', element: <Navigate to="/verifikasi?jenis=badan-usaha" replace /> },
           { path: '/kyb/new', element: <KybFormPage /> },
-          { path: '/kyb/:id', element: <KybListPage /> },
+          { path: '/kyb/:id', element: <VerificationPage detail="badan-usaha" /> },
           // USDX-588 — antrean screening DTTOT & DPPSPM. Aturan visibilitas sama
           // dengan KYC/KYB: antreannya terbuka untuk semua role back office
           // (server: STAFF/MANAGER/ADMIN/DEVELOPER) dan MEMUTUSKAN digerbangi di
@@ -125,7 +149,7 @@ export const appRoutes: RouteObject[] = [
             // mengubah DASAR penilaian SELURUH nasabah sekaligus
             // (`screening.controller.ts`), jadi menyembunyikan tombol saja tetap
             // meninggalkan halamannya sejauh satu URL. BE menegakkan 403 juga.
-            element: <RoleGuard allowed={['ADMIN', 'MANAGER']} redirectTo="/screening" />,
+            element: <RoleGuard allowed={['ADMIN', 'MANAGER']} />,
             children: [{ path: '/screening/lists', element: <SanctionListsPage /> }],
           },
           { path: '/screening/:id', element: <ScreeningQueuePage /> },
@@ -133,8 +157,8 @@ export const appRoutes: RouteObject[] = [
           // consumer-order monitoring, read-only, visible to every backoffice
           // role (no RoleGuard — like KYC). `/transactions/:id` re-renders the
           // list and opens the detail modal from URL state (deep-link safe).
-          { path: '/transactions', element: <TransactionsListPage /> },
-          { path: '/transactions/:id', element: <TransactionsListPage /> },
+          { path: '/transactions', element: <TransactionsPage /> },
+          { path: '/transactions/:id', element: <TransactionsPage /> },
           // USDX-669 — antrean Persetujuan Pencairan. TANPA RoleGuard, dan itu
           // disengaja: kontraknya (`sot/api/redeem-approvals.yaml § Akses`) membuka
           // list + detail untuk STAFF / MANAGER / ADMIN / DEVELOPER, dan MENYETUJUI
@@ -150,34 +174,65 @@ export const appRoutes: RouteObject[] = [
           // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
           { path: '/payout-failures', element: <PayoutFailuresPage /> },
           { path: '/payout-failures/:id', element: <PayoutFailuresPage /> },
+          // USDX-342 — antrean Mint Bermasalah (kredit masuk yang tertahan,
+          // `sot/bni-integration.md § 6`). TANPA RoleGuard, alasan yang sama
+          // dengan /payout-failures: `HeldCreditsController` membuka list +
+          // detail untuk keempat peran dan menutup RESOLVE untuk DEVELOPER
+          // (403), jadi yang digerbangi adalah aksinya, di dalam layar.
+          // Menggerbangi rutenya akan menyembunyikan uang nasabah yang belum
+          // jadi USDX dari peran yang paling sering melihat antrean lebih dulu.
+          { path: '/mint-bermasalah', element: <HeldCreditsPage /> },
+          { path: '/mint-bermasalah/:id', element: <HeldCreditsPage /> },
+          // USDX-486 — antrean maker-checker. TANPA RoleGuard: `ApprovalsController`
+          // membuka list + detail untuk keempat peran justru supaya PENGUSUL bisa
+          // melihat nasib usulannya sendiri; memutuskan digerbangi MANAGER/ADMIN di
+          // dalam layar, dengan alasannya ditulis saat tombolnya mati.
+          { path: '/persetujuan', element: <ApprovalsPage /> },
+          { path: '/persetujuan/:id', element: <ApprovalsPage /> },
+          // Plafon pencairan. TANPA RoleGuard: `GET /api/v1/payout-controls`
+          // terbuka untuk keempat peran karena keadaan rem harus bisa dilihat
+          // cepat saat insiden. MENGUBAH plafon dan MEMBACA RIWAYATNYA
+          // (MANAGER/ADMIN) digerbangi per-bagian di dalam halaman — dua gerbang
+          // berbeda di satu layar tidak bisa diwakili satu gerbang rute.
+          { path: '/plafon-pencairan', element: <PayoutControlsPage /> },
+          // Modal riwayat perubahan plafon (11 Okt 2026). Riwayatnya sendiri
+          // Manager/Admin — dijaga di halaman + server, sama seperti tabelnya.
+          { path: '/plafon-pencairan/riwayat/:id', element: <PayoutControlsPage /> },
           {
-            // USDX-78 + sot/phase-1.md L34: list `/mint` (and deep-link
-            // `/mint/:id`) is admin/developer/manager only — STAFF redirects
-            // to /mint/new.
-            element: (
-              <RoleGuard
-                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
-                redirectTo="/mint/new"
-              />
-            ),
+            // OTC ▸ Mint `/otc/mint` + OTC ▸ Redeem `/otc/redeem` (keputusan PM
+            // 10 Okt 2026; fase 1 masih satu tabel `/otc`).
+            // Gerbangnya tetap sot/phase-1.md L34 (USDX-78): list + detail
+            // `/api/v1/requests` dan `/api/v1/multisig` hanya ADMIN / DEVELOPER /
+            // MANAGER. STAFF melihat halaman 403 di tempat, karena menu OTC memang
+            // disembunyikan untuknya.
+            //
+            // `/otc/mint/:id` merender ulang tabel dan membuka modal detail dari
+            // URL, jadi tautan langsung dan tombol kembali peramban tetap
+            // bekerja. Rute lama `/otc`, `/otc/:id`, `/mint`, `/burn` (+ `/:id`)
+            // dialihkan ke sub-menu supaya bookmark lama tidak mati.
+            element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
-              { path: '/mint', element: <MintListPage /> },
-              { path: '/mint/:id', element: <MintListPage /> },
-            ],
-          },
-          {
-            // USDX-78 + sot/phase-1.md L34: list `/burn` (and deep-link
-            // `/burn/:id`) is admin/developer/manager only — STAFF redirects
-            // to /burn/new.
-            element: (
-              <RoleGuard
-                allowed={['ADMIN', 'DEVELOPER', 'MANAGER']}
-                redirectTo="/burn/new"
-              />
-            ),
-            children: [
-              { path: '/burn', element: <BurnListPage /> },
-              { path: '/burn/:id', element: <BurnListPage /> },
+              {
+                element: (
+                  <Suspense
+                    fallback={<div className="p-8 text-sm text-muted-foreground">Memuat…</div>}
+                  >
+                    <Outlet />
+                  </Suspense>
+                ),
+                children: [
+                  { path: '/otc/mint', element: <OtcRoute type="mint" /> },
+                  { path: '/otc/mint/:id', element: <OtcRoute type="mint" /> },
+                  { path: '/otc/redeem', element: <OtcRoute type="burn" /> },
+                  { path: '/otc/redeem/:id', element: <OtcRoute type="burn" /> },
+                ],
+              },
+              { path: '/otc', element: <OtcLegacyRedirect /> },
+              { path: '/otc/:id', element: <OtcLegacyRedirect /> },
+              { path: '/mint', element: <Navigate to="/otc/mint" replace /> },
+              { path: '/mint/:id', element: <RedirectWithId to="/otc/mint" /> },
+              { path: '/burn', element: <Navigate to="/otc/redeem" replace /> },
+              { path: '/burn/:id', element: <RedirectWithId to="/otc/redeem" /> },
             ],
           },
           {
@@ -213,6 +268,11 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER']} />,
             children: [
               { path: '/transparency', element: <TransparencyPage /> },
+              // Modal detail baris (11 Okt 2026): entri buku besar & laporan atestasi.
+              { path: '/transparency/entri/:id', element: <TransparencyPage /> },
+              { path: '/transparency/laporan/:id', element: <TransparencyPage /> },
+              // ⚠️ DRAF SOT PR #50 — GET Admin + Developer (read-only), ubah Admin.
+              { path: '/settings/payment-methods', element: <PaymentMethodsPage /> },
             ],
           },
           {
@@ -221,6 +281,13 @@ export const appRoutes: RouteObject[] = [
             element: <RoleGuard allowed={['ADMIN']} />,
             children: [
               { path: '/settings/threshold', element: <ThresholdPage /> },
+              // Jejak Audit — `GET /api/v1/activity-logs` adalah `@Roles("ADMIN")`,
+              // satu-satunya peran. Digerbangi DI ROUTE, bukan hanya di menu:
+              // menu yang disembunyikan tetap meninggalkan halamannya sejauh satu
+              // URL, dan 403 dari server dibaca operator sebagai layar rusak.
+              { path: '/jejak-audit', element: <ActivityLogPage /> },
+              // Modal detail satu baris jejak (deep link, ↑/↓) — gerbang yang sama.
+              { path: '/jejak-audit/:id', element: <ActivityLogPage /> },
               // USDX-485 (audit alur uang P1-18): kontak on-call insiden uang.
               // ADMIN-only termasuk untuk MEMBACA — daftarnya memuat nomor
               // telepon (PII → ADMIN saja per conventions.md § Audit Akses PII)
@@ -230,7 +297,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             // USDX-81 + sot/phase-1.md § Reporting access: ADMIN/DEVELOPER/MANAGER.
-            // STAFF redirect → /dashboard via RoleGuard.
+            // STAFF melihat halaman 403 (RoleGuard), tanpa request laporan.
             element: <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />,
             children: [
               { path: '/reports/mint/daily', element: <DailyMintReportPage /> },
@@ -242,7 +309,7 @@ export const appRoutes: RouteObject[] = [
           {
             // USDX-275 + sot/phase-1.md § Sidebar (TREASURY) + week4.md §
             // Backoffice Multisig Page: the Multisig queue is ADMIN / DEVELOPER /
-            // MANAGER only (STAFF redirects — signer = Safe owner). The wallet
+            // MANAGER only (STAFF sees the 403 page — signer = Safe owner). The wallet
             // stack (wagmi/RainbowKit) wraps only this subtree so other pages
             // don't pull in the connectors / chain polling. `/multisig/:id`
             // re-renders the list and opens the detail drawer from URL state.
@@ -252,7 +319,7 @@ export const appRoutes: RouteObject[] = [
                 element: (
                   <Suspense
                     fallback={
-                      <div className="p-8 text-sm text-muted-foreground">Loading…</div>
+                      <div className="p-8 text-sm text-muted-foreground">Memuat…</div>
                     }
                   >
                     <Outlet />
@@ -280,12 +347,39 @@ export const appRoutes: RouteObject[] = [
           // USDX-87 / sot/phase-1.md L583 — Manual Sync is reachable to every
           // authenticated role (on-call emergency surface). No RoleGuard.
           { path: '/manual-sync', element: <ManualSyncPage /> },
+          {
+            // Log Panggilan DurianPay — DIGERBANGI DI ROUTE, bukan hanya di
+            // menunya. Menyembunyikan entri sidebar tanpa menggerbangi rutenya
+            // meninggalkan halaman yang tetap bisa dibuka dengan mengetik URL-nya,
+            // lalu setiap permintaannya gagal 403 dan layarnya terbaca sebagai
+            // rusak, bukan sebagai terlarang.
+            //
+            // Daftar perannya diimpor, TIDAK ditulis ulang di sini. Sebelumnya
+            // baris ini memuat literalnya sendiri sementara komentarnya mengklaim
+            // daftar itu "hidup sekali" — dan saat backend membuka layar ini untuk
+            // STAFF, gerbang menu ikut terbuka tapi gerbang rute ini tidak. Satu
+            // sumber, satu tempat berubah.
+            // `/durianpay-api-calls/:id` merender ulang daftar dan membuka detail
+            // dari URL — aman untuk deep link (pola /payout-failures).
+            element: <RoleGuard allowed={DURIANPAY_API_CALLS_ROLES} />,
+            children: [
+              { path: '/durianpay-api-calls', element: <DurianpayApiCallsPage /> },
+              { path: '/durianpay-api-calls/:id', element: <DurianpayApiCallsPage /> },
+            ],
+          },
           { path: '/profile', element: <ProfilePage /> },
+          // 404 — rute yang benar-benar tidak dikenal, DI DALAM layout (sidebar
+          // tetap). Dulu `*` di luar mengalihkan diam-diam ke /login → Ringkasan.
+          // Karena ia di dalam ProtectedRoute, pengunjung tanpa sesi tetap
+          // diarahkan ke Login dulu (dengan `?next=`), lalu melihat 404 setelah
+          // masuk. Pengalihan yang disengaja di atas (`/`, `/dashboard`, `/mint`,
+          // `/burn`, `/otc`, `/kyc`, `/kyb`) adalah rute sendiri dan menang atas
+          // `*` karena peringkat rute React Router.
+          { path: '*', element: <NotFoundPage /> },
         ],
       },
     ],
   },
-  { path: '*', element: <Navigate to="/login" replace /> },
 ]
 
 const router = createBrowserRouter(appRoutes)

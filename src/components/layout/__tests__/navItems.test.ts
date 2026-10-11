@@ -1,123 +1,278 @@
 import { describe, test, expect } from 'vitest'
+import type { RouteObject } from 'react-router'
 import { findStaffById } from '@/mocks/handlers'
-import { visibleNavSections } from '@/components/layout/navItems'
+import { appRoutes } from '@/App'
+import {
+  NAV,
+  breadcrumbFor,
+  formatRole,
+  isItemActive,
+  visibleNav,
+  type NavItem,
+} from '@/components/layout/navItems'
 
-// USDX-631 — sot/phase-1.md § Sidebar: TREASURY is visible to every role since
-// D21; the gate moved from the SECTION to its ITEMS (Multisig keeps
-// ADMIN/DEVELOPER/MANAGER, Rekening BNI is for all roles incl. STAFF).
+// ─────────────────────────────────────────────────────────────────────────────
+// REDESAIN FASE 1 (keputusan PM 9 Okt 2026): 5 menu utama — Transaksi, OTC,
+// Nasabah ▸, Keuangan ▸, Pengaturan ▸.
+//
+// Yang dikunci di sini dua lapis, sama seperti perombakan sebelumnya:
+//   1. bentuk menu yang baru (supaya perubahan berikutnya disengaja), dan
+//   2. — jauh lebih penting — SETIAP GERBANG PERAN tetap sama persis. Merombak
+//      menu adalah cara paling mudah melonggarkan gerbang tanpa ada yang sadar,
+//      jadi bagian kedua ditulis per peran.
+// ─────────────────────────────────────────────────────────────────────────────
 
-function treasuryItems(staffId: string): string[] {
-  const staff = findStaffById(staffId) ?? null
-  const section = visibleNavSections(staff).find((s) => s.label === 'Treasury')
-  return section ? section.items.map((i) => i.label) : []
+const ADMIN = 'stf_1'
+const MANAGER = 'stf_2' // Linda Chen
+const DEVELOPER = 'stf_3' // Marcus Aurelius
+const STAFF = 'stf_4' // Sarah King
+
+function navFor(staffId: string | null) {
+  return visibleNav(staffId ? (findStaffById(staffId) ?? null) : null)
 }
 
-describe('visibleNavSections — Treasury (USDX-631)', () => {
+function topLabels(staffId: string | null): string[] {
+  return navFor(staffId).map((e) => e.label)
+}
+
+function itemsIn(staffId: string, group: string): string[] {
+  const g = navFor(staffId).find((e) => e.kind === 'group' && e.label === group)
+  return g && g.kind === 'group' ? g.items.map((i) => i.label) : []
+}
+
+function allItems(staffId: string | null): NavItem[] {
+  return navFor(staffId).flatMap((e) => (e.kind === 'item' ? [e] : e.items))
+}
+
+function allLabels(staffId: string | null): string[] {
+  return allItems(staffId).map((i) => i.label)
+}
+
+function routePaths(routes: RouteObject[]): string[] {
+  return routes.flatMap((r) => [...(r.path ? [r.path] : []), ...(r.children ? routePaths(r.children) : [])])
+}
+
+describe('NAV — lima menu utama', () => {
   describe('positive', () => {
-    // USDX-662 menambah "Pencairan Bermasalah" ke Treasury (Linear: sidebar
-    // TREASURY/OPS) — terbuka semua peran seperti Rekening BNI.
-    test('STAFF sees the Treasury section without Multisig', () => {
-      expect(treasuryItems('stf_4')).toEqual(['Rekening BNI', 'Pencairan Bermasalah']) // Sarah King, STAFF
+    test('ADMIN melihat Ringkasan, Transaksi, lalu grup OTC, Nasabah, Keuangan, Pengaturan', () => {
+      expect(topLabels(ADMIN)).toEqual(['Ringkasan', 'Transaksi', 'OTC', 'Nasabah', 'Keuangan', 'Pengaturan'])
     })
 
-    test('MANAGER sees Multisig, Rekening BNI and Pencairan Bermasalah', () => {
-      expect(treasuryItems('stf_2')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah']) // Linda Chen
+    test('Ringkasan menu pertama untuk SEMUA peran', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) expect(topLabels(id)[0]).toBe('Ringkasan')
     })
 
-    test('ADMIN and DEVELOPER see every entry too', () => {
-      expect(treasuryItems('stf_1')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah'])
-      expect(treasuryItems('stf_3')).toEqual(['Multisig', 'Rekening BNI', 'Pencairan Bermasalah'])
+    test('isi tiap grup mengikuti keputusan PM', () => {
+      expect(itemsIn(ADMIN, 'OTC')).toEqual(['Mint', 'Redeem'])
+      expect(itemsIn(ADMIN, 'Nasabah')).toEqual(['Daftar Nasabah', 'Verifikasi', 'Daftar Sanksi'])
+      expect(itemsIn(ADMIN, 'Keuangan')).toEqual(['Rekening BNI', 'Laporan', 'Cadangan & Atestasi'])
+      expect(itemsIn(ADMIN, 'Pengaturan')).toEqual([
+        'Kurs & Biaya',
+        'Metode Pembayaran',
+        'Mode Mint',
+        'Plafon Pencairan',
+        'Staf & Peran',
+        'Persetujuan Orang Kedua',
+        'Jejak Audit',
+        'Log DurianPay',
+      ])
+    })
+
+    test('setiap entri menunjuk rute yang terdaftar di App.tsx', () => {
+      const paths = new Set(routePaths(appRoutes))
+      for (const item of allItems(ADMIN)) expect(paths.has(item.to), item.to).toBe(true)
+    })
+
+    test('angka antrean ada di menu yang punya antrean', () => {
+      const badges = Object.fromEntries(allItems(ADMIN).map((i) => [i.label, i.badgeKey]))
+      expect(badges).toMatchObject({
+        Transaksi: 'transactions',
+        Mint: 'otcMint',
+        Redeem: 'otcRedeem',
+        Verifikasi: 'verification',
+        'Daftar Sanksi': 'screening',
+        'Persetujuan Orang Kedua': 'approvals',
+      })
     })
   })
 
   describe('negative', () => {
-    test('STAFF never sees Multisig (signer = Safe owner)', () => {
-      expect(treasuryItems('stf_4')).not.toContain('Multisig')
+    test('Beranda dan menu lama tidak tampil lagi', () => {
+      const labels = allLabels(ADMIN)
+      for (const old of [
+        'Beranda',
+        'Transaksi Nasabah',
+        'Persetujuan Pencairan',
+        'Pencairan Bermasalah',
+        'Mint Bermasalah',
+        'Perbaiki Status Nyangkut',
+        'Mint OTC',
+        'Burn OTC',
+        'Antrean Tanda Tangan',
+        'Pengguna Internal',
+        'Verifikasi Perorangan',
+        'Verifikasi Badan Usaha',
+        'Pemeriksaan Daftar Sanksi',
+      ]) {
+        expect(labels).not.toContain(old)
+      }
     })
 
-    test('a null user still yields the ungated Treasury entries (Multisig is the gated item)', () => {
-      const section = visibleNavSections(null).find((s) => s.label === 'Treasury')
-      // Rekening BNI has no visibleWhen, so the section itself still renders
-      // for a null user at the nav-model level; the ProtectedRoute wrapper is
-      // what keeps an anonymous visitor out of the app. Pin the current model.
-      expect(section?.items.map((i) => i.label)).toEqual(['Rekening BNI', 'Pencairan Bermasalah'])
+    test('halaman lama yang keluar dari menu TETAP punya rute (fase 2 meleburnya)', () => {
+      const paths = new Set(routePaths(appRoutes))
+      for (const p of ['/redeem-approvals', '/payout-failures', '/mint-bermasalah', '/manual-sync', '/multisig/*']) {
+        expect(paths.has(p), p).toBe(true)
+      }
     })
   })
 
   describe('edge cases', () => {
-    test('Rekening BNI links to /bni-accounts and carries no badge', () => {
-      const staff = findStaffById('stf_4') ?? null
-      const item = visibleNavSections(staff)
-        .flatMap((s) => s.items)
-        .find((i) => i.label === 'Rekening BNI')
-      expect(item?.to).toBe('/bni-accounts')
-      expect(item?.badgeKey).toBeUndefined()
+    test('Transaksi menaungi halaman antrean lama (disorot saat dibuka)', () => {
+      const tx = NAV.find((e) => e.kind === 'item' && e.label === 'Transaksi')!
+      for (const p of ['/transactions', '/transactions/abc', '/redeem-approvals', '/payout-failures/x', '/mint-bermasalah', '/manual-sync']) {
+        expect(isItemActive(tx as NavItem, p), p).toBe(true)
+      }
+      expect(isItemActive(tx as NavItem, '/otc')).toBe(false)
     })
 
-    test('Pencairan Bermasalah links to /payout-failures and carries the open-queue badge for STAFF', () => {
-      const staff = findStaffById('stf_4') ?? null
-      const item = visibleNavSections(staff)
-        .flatMap((s) => s.items)
-        .find((i) => i.label === 'Pencairan Bermasalah')
-      expect(item?.to).toBe('/payout-failures')
-      expect(item?.badgeKey).toBe('payoutFailures')
+    test('OTC ▸ Mint tidak ikut menyala di /mint-bermasalah (awalan yang mirip)', () => {
+      const otc = NAV.find((e) => e.kind === 'group' && e.label === 'OTC')!
+      const [mint, redeem] = otc.kind === 'group' ? otc.items : []
+      expect(isItemActive(mint!, '/mint-bermasalah')).toBe(false)
+      expect(isItemActive(mint!, '/mint/new')).toBe(true)
+      expect(isItemActive(mint!, '/otc/mint/abc')).toBe(true)
+      expect(isItemActive(redeem!, '/burn/new')).toBe(true)
+      expect(isItemActive(redeem!, '/otc/redeem/abc')).toBe(true)
+      expect(isItemActive(redeem!, '/otc/mint')).toBe(false)
     })
   })
 })
 
-// USDX-639 — Mode Mint adalah satu-satunya entri Settings yang terbuka untuk
-// semua role: STAFF yang menyadari mode uji menyala harus bisa sampai ke tombol
-// yang mematikannya. Gerbang section dipindah ke item, jadi entri lama WAJIB
-// tetap persis seperti sebelumnya — itu yang diuji di sini, bukan cuma yang baru.
-function settingsItems(staffId: string): string[] {
-  const staff = findStaffById(staffId) ?? null
-  const section = visibleNavSections(staff).find((s) => s.label === 'Settings')
-  return section ? section.items.map((i) => i.label) : []
-}
-
-describe('visibleNavSections — Settings (USDX-639)', () => {
+describe('visibleNav — gerbang peran tidak ikut dirombak', () => {
   describe('positive', () => {
-    test('ADMIN melihat seluruh entri Settings termasuk Mode Mint', () => {
-      expect(settingsItems('stf_1')).toEqual([
-        'Rate',
-        'Fee',
-        'Mode Mint',
-        'Threshold',
-        'On-Call',
-      ])
+    test('OTC untuk ADMIN / MANAGER / DEVELOPER (boleh membaca /requests + /multisig)', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER]) expect(topLabels(id)).toContain('OTC')
     })
 
-    test('DEVELOPER: entri lama tidak berubah, Mode Mint ikut tampil', () => {
-      expect(settingsItems('stf_3')).toEqual(['Rate', 'Fee', 'Mode Mint', 'Threshold'])
+    test('Mode Mint + Plafon Pencairan terbuka untuk SEMUA peran (rem darurat)', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) {
+        expect(itemsIn(id, 'Pengaturan')).toEqual(expect.arrayContaining(['Mode Mint', 'Plafon Pencairan']))
+      }
     })
 
-    test('STAFF dan MANAGER melihat Settings HANYA berisi Mode Mint', () => {
-      expect(settingsItems('stf_4')).toEqual(['Mode Mint']) // Sarah King, STAFF
-      expect(settingsItems('stf_2')).toEqual(['Mode Mint']) // Linda Chen, MANAGER
+    test('Persetujuan Orang Kedua, Rekening BNI, Verifikasi, Daftar Sanksi terbuka untuk semua peran', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) {
+        expect(allLabels(id)).toEqual(
+          expect.arrayContaining(['Persetujuan Orang Kedua', 'Rekening BNI', 'Verifikasi', 'Daftar Sanksi', 'Daftar Nasabah', 'Transaksi']),
+        )
+      }
+    })
+
+    test('Log DurianPay untuk keempat peran', () => {
+      for (const id of [ADMIN, MANAGER, DEVELOPER, STAFF]) expect(allLabels(id)).toContain('Log DurianPay')
     })
   })
 
   describe('negative', () => {
-    test('STAFF tetap tidak melihat Rate / Fee / Threshold / On-Call', () => {
-      const items = settingsItems('stf_4')
-      expect(items).not.toContain('Rate')
-      expect(items).not.toContain('Fee')
-      expect(items).not.toContain('Threshold')
-      expect(items).not.toContain('On-Call')
+    test('STAFF tidak melihat daftar OTC (tidak boleh membaca /api/v1/requests), hanya jalan ke form', () => {
+      expect(itemsIn(STAFF, 'OTC')).toEqual(['Buat mint', 'Buat redeem'])
+      for (const id of [ADMIN, MANAGER, DEVELOPER]) {
+        expect(itemsIn(id, 'OTC')).toEqual(['Mint', 'Redeem'])
+      }
     })
 
-    test('DEVELOPER tetap tidak melihat On-Call (USDX-485)', () => {
-      expect(settingsItems('stf_3')).not.toContain('On-Call')
+    test('Kurs & Biaya + Cadangan & Atestasi hanya ADMIN + DEVELOPER', () => {
+      for (const id of [ADMIN, DEVELOPER]) expect(allLabels(id)).toEqual(expect.arrayContaining(['Kurs & Biaya', 'Cadangan & Atestasi']))
+      for (const id of [MANAGER, STAFF]) {
+        expect(allLabels(id)).not.toContain('Kurs & Biaya')
+        expect(allLabels(id)).not.toContain('Cadangan & Atestasi')
+      }
+    })
+
+    test('Laporan ADMIN / DEVELOPER / MANAGER, bukan STAFF', () => {
+      for (const id of [ADMIN, DEVELOPER, MANAGER]) expect(allLabels(id)).toContain('Laporan')
+      expect(allLabels(STAFF)).not.toContain('Laporan')
+    })
+
+    test('Staf & Peran dan Jejak Audit ADMIN saja', () => {
+      expect(allLabels(ADMIN)).toEqual(expect.arrayContaining(['Staf & Peran', 'Jejak Audit']))
+      for (const id of [MANAGER, DEVELOPER, STAFF]) {
+        expect(allLabels(id)).not.toContain('Staf & Peran')
+        expect(allLabels(id)).not.toContain('Jejak Audit')
+      }
     })
   })
 
   describe('edge cases', () => {
-    test('Mode Mint menunjuk /settings/mint-mode dan tidak membawa badge', () => {
-      const item = visibleNavSections(findStaffById('stf_4') ?? null)
-        .flatMap((s) => s.items)
-        .find((i) => i.label === 'Mode Mint')
-      expect(item?.to).toBe('/settings/mint-mode')
-      expect(item?.badgeKey).toBeUndefined()
+    test('sesi yang belum termuat hanya melihat entri yang memang tidak di-gate (fail-closed)', () => {
+      const labels = allLabels(null)
+      expect(labels).not.toContain('OTC')
+      expect(labels).not.toContain('Log DurianPay')
+      expect(labels).not.toContain('Kurs & Biaya')
+      expect(labels).toContain('Mode Mint')
     })
+
+    test('grup yang seluruh isinya disembunyikan dibuang, bukan dirender kosong', () => {
+      // Tidak ada peran yang hari ini mengosongkan satu grup penuh — tapi grup
+      // Keuangan untuk STAFF tinggal satu entri, dan tetap tampil.
+      expect(itemsIn(STAFF, 'Keuangan')).toEqual(['Rekening BNI'])
+    })
+  })
+})
+
+describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
+  describe('positive', () => {
+    test.each([
+      ['/transactions', ['Transaksi']],
+      ['/ringkasan', ['Ringkasan']],
+      ['/otc/mint', ['OTC', 'Mint']],
+      ['/otc/redeem/019e1aa8-9c7c-7fcd-6abc-deadbeef0001', ['OTC', 'Redeem']],
+      ['/mint/new', ['OTC', 'Mint', 'Buat mint OTC']],
+      ['/burn/new', ['OTC', 'Redeem', 'Buat redeem OTC']],
+      ['/users', ['Nasabah', 'Daftar Nasabah']],
+      ['/verifikasi', ['Nasabah', 'Verifikasi']],
+      ['/kyc/abc', ['Nasabah', 'Verifikasi']],
+      ['/kyb/new', ['Nasabah', 'Verifikasi', 'Tambah berkas badan usaha']],
+      ['/settings/fee', ['Pengaturan', 'Kurs & Biaya']],
+      ['/jejak-audit', ['Pengaturan', 'Jejak Audit']],
+      ['/reports/burn/by-user', ['Keuangan', 'Laporan']],
+      ['/redeem-approvals', ['Transaksi', 'Persetujuan Pencairan']],
+    ])('%s → %j', (path, crumbs) => {
+      expect(breadcrumbFor(path).map((c) => c.label)).toEqual(crumbs)
+    })
+
+    // 11 Okt 2026: segmen yang punya halaman membawa `to`; nama grup tidak.
+    test.each([
+      ['/users/abc', [undefined, '/users', undefined]],
+      ['/mint/new', [undefined, '/otc/mint', undefined]],
+      ['/redeem-approvals', ['/transactions', '/redeem-approvals']],
+      ['/settings/fee', [undefined, '/settings/rate']],
+      ['/reports/burn/by-user', [undefined, '/reports/mint/daily']],
+      ['/screening/lists', [undefined, '/screening', undefined]],
+      ['/transactions', ['/transactions']],
+    ])('%s → tautan %j', (path, tos) => {
+      expect(breadcrumbFor(path).map((c) => c.to)).toEqual(tos)
+    })
+  })
+
+  describe('negative', () => {
+    test('profil satu nasabah tidak menampilkan UUID-nya', () => {
+      const crumbs = breadcrumbFor('/users/00000000-0000-0000-0000-000000000001').map((c) => c.label)
+      expect(crumbs).toEqual(['Nasabah', 'Daftar Nasabah', 'Profil nasabah'])
+      expect(crumbs.join(' ')).not.toMatch(/0000/)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('rute tak dikenal jatuh ke "USDX", bukan potongan URL', () => {
+      expect(breadcrumbFor('/sesuatu-yang-baru/123')).toEqual([{ label: 'USDX' }])
+    })
+  })
+})
+
+describe('formatRole', () => {
+  test('nama peran dibaca sebagai kata, bukan enum', () => {
+    expect(formatRole('STAFF')).toBe('Staf')
+    expect(formatRole('ADMIN')).toBe('Admin')
   })
 })

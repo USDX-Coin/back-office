@@ -144,14 +144,14 @@ describe('kybDocumentUpload @ USDX-546', () => {
       const cases: Array<[ApiError, RegExp]> = [
         [new ApiError(400, 'FILE_TYPE_NOT_ALLOWED', 'x'), /type/i],
         [new ApiError(400, 'FILE_SIZE_EXCEEDED', 'x'), /5 MiB/],
-        [new ApiError(400, 'KYB_FILE_NOT_FOUND', 'x'), /storage/i],
+        [new ApiError(400, 'KYB_FILE_NOT_FOUND', 'x'), /penyimpanan/i],
         [
           new ApiError(400, 'KYB_FILE_INVALID', 'Dokumen kyb_akte tidak valid: ekstensi'),
           /tidak valid/,
         ],
-        [new ApiError(409, 'INVALID_STATUS', 'x'), /review/i],
-        [new ApiError(404, 'KYB_NOT_FOUND', 'x'), /no longer exists/i],
-        [new ApiError(403, 'FORBIDDEN', 'x'), /role/i],
+        [new ApiError(409, 'INVALID_STATUS', 'x'), /pemeriksaan/i],
+        [new ApiError(404, 'KYB_NOT_FOUND', 'x'), /sudah tidak ada/i],
+        [new ApiError(403, 'FORBIDDEN', 'x'), /peran/i],
       ]
       cases.forEach(([err, expected]) => {
         expect(describeKybUploadFailure(err)).toMatch(expected)
@@ -160,22 +160,22 @@ describe('kybDocumentUpload @ USDX-546', () => {
 
     test('a transport failure is named as one — not as a rejected file', () => {
       const message = describeKybUploadFailure(new TypeError('Failed to fetch'))
-      expect(message).toMatch(/connection|reach/i)
+      expect(message).toMatch(/koneksi|dihubungi/i)
       // The operator is holding the customer's document. Blaming the file when
       // the network dropped sends them to ask for a new scan for no reason.
-      expect(message).not.toMatch(/file type|too large/i)
+      expect(message).not.toMatch(/tipe berkas|terlalu besar/i)
     })
   })
 
   describe('edge cases', () => {
     test('no file picked at all is a message, not a crash', () => {
-      expect(validateKybDocumentFile(null)).toMatch(/required|choose|pick/i)
+      expect(validateKybDocumentFile(null)).toMatch(/pilih berkas/i)
     })
 
     test('a zero-byte file is refused before it is signed for', () => {
       expect(
         validateKybDocumentFile({ name: 'akta.pdf', type: 'application/pdf', size: 0 }),
-      ).toMatch(/empty/i)
+      ).toMatch(/kosong/i)
     })
 
     test('an empty browser MIME falls back to the extension, as drag-and-drop needs', () => {

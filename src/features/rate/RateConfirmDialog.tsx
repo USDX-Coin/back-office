@@ -49,10 +49,12 @@ export default function RateConfirmDialog({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Confirm rate update</DialogTitle>
+          <DialogTitle>Ubah kurs yang berlaku?</DialogTitle>
           <DialogDescription>
-            This change becomes active immediately and is applied to every
-            subsequent mint and redeem transaction.
+            Kurs baru langsung dipakai untuk semua order mint dan redeem
+            berikutnya — ini harga yang dibayar setiap nasabah mulai detik
+            tombol ini ditekan. Order yang sudah terbentuk tetap memakai kurs
+            lamanya.
           </DialogDescription>
         </DialogHeader>
 
@@ -63,12 +65,12 @@ export default function RateConfirmDialog({
             to={next.mode}
           />
           <DiffRow
-            label="Base rate"
+            label="Kurs dasar"
             from={current ? formatRate(current.baseRate) : '—'}
             to={
               next.mode === 'MANUAL' && next.manualRate
                 ? formatRate(next.manualRate)
-                : 'auto (DYNAMIC feed)'
+                : 'otomatis (kurs pasar)'
             }
           />
           <DiffRow
@@ -90,7 +92,7 @@ export default function RateConfirmDialog({
             onClick={() => handleOpenChange(false)}
             disabled={isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -98,7 +100,7 @@ export default function RateConfirmDialog({
             disabled={isPending}
             aria-busy={isPending}
           >
-            {isPending ? 'Updating…' : 'Yes, update rate'}
+            {isPending ? 'Menyimpan…' : 'Ya, ubah kurs'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -110,10 +112,10 @@ function DiffRow({ label, from, to }: { label: string; from: string; to: string 
   const changed = from !== to
   return (
     <div className="grid grid-cols-[88px_1fr] items-baseline gap-3 text-sm">
-      <span className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {label}
       </span>
-      <div className="flex flex-wrap items-baseline gap-2 font-mono">
+      <div className="tabular-nums flex flex-wrap items-baseline gap-2">
         <span className={changed ? 'text-muted-foreground line-through' : ''}>
           {from}
         </span>

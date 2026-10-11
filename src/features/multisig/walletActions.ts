@@ -44,7 +44,7 @@ export function useMultisigWallet(): MultisigWallet {
   // Treat the wallet as connected only once the address has actually resolved.
   // wagmi can briefly report status 'connected' before `address` is populated;
   // an undefined address would make the owner-check read 'unknown' and strand
-  // the Sign gate at "Verifying Safe ownership…" (see owner.ts).
+  // the Sign gate at "Memeriksa status owner Safe…" (see owner.ts).
   const isConnected = status === 'connected' && Boolean(address)
   const { openConnectModal } = useConnectModal()
   const { switchChain, isPending: isSwitching } = useSwitchChain()
@@ -76,7 +76,7 @@ export function useSignSafeTx() {
     async (detail: SafeTxDetail, signerAddress: Address): Promise<`0x${string}`> => {
       if (!safeTxHashMatches(detail)) {
         throw new Error(
-          'SafeTx hash mismatch — the displayed transaction does not match the backend safeTxHash. Refusing to sign.',
+          'Hash SafeTx tidak cocok — transaksi yang tampil di layar tidak sama dengan safeTxHash dari server. Tanda tangan dibatalkan.',
         )
       }
       const td = buildSafeTxTypedData(detail)
@@ -102,7 +102,7 @@ export function useExecuteTransaction() {
   const executeAsync = useCallback(
     async (detail: SafeTxDetail): Promise<`0x${string}`> => {
       if (!detail.execPayload) {
-        throw new Error('No exec payload — the transaction is not ready to execute yet.')
+        throw new Error('Exec payload belum ada — transaksi ini belum siap dieksekusi.')
       }
       const call = buildExecTransactionCall(detail.safeAddress, detail.execPayload)
       return sendTransactionAsync({

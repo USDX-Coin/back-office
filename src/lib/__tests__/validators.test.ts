@@ -63,19 +63,19 @@ describe('validateLoginForm', () => {
     test('should fail with empty email', () => {
       const result = validateLoginForm('', 'password123')
       expect(result.valid).toBe(false)
-      expect(result.errors.email).toBe('Email is required')
+      expect(result.errors.email).toBe('Email wajib diisi')
     })
 
     test('should fail with invalid email format', () => {
       const result = validateLoginForm('not-an-email', 'password123')
       expect(result.valid).toBe(false)
-      expect(result.errors.email).toBe('Invalid email format')
+      expect(result.errors.email).toBe('Format email tidak valid')
     })
 
     test('should fail with empty password', () => {
       const result = validateLoginForm('admin@usdx.com', '')
       expect(result.valid).toBe(false)
-      expect(result.errors.password).toBe('Password is required')
+      expect(result.errors.password).toBe('Kata sandi wajib diisi')
     })
 
     test('should fail with both empty', () => {
@@ -89,7 +89,7 @@ describe('validateLoginForm', () => {
     test('should fail with whitespace-only email', () => {
       const result = validateLoginForm('   ', 'password123')
       expect(result.valid).toBe(false)
-      expect(result.errors.email).toBe('Email is required')
+      expect(result.errors.email).toBe('Email wajib diisi')
     })
   })
 })
@@ -112,16 +112,16 @@ describe('validatePhone', () => {
 
   describe('negative', () => {
     test('should reject empty', () => {
-      expect(validatePhone('')).toBe('Phone is required')
+      expect(validatePhone('')).toBe('Nomor telepon wajib diisi')
     })
     test('should reject non-numeric', () => {
-      expect(validatePhone('not-a-phone')).toBe('Invalid phone format')
+      expect(validatePhone('not-a-phone')).toBe('Format nomor telepon tidak valid')
     })
     test('should reject fewer than 10 digits', () => {
-      expect(validatePhone('12345')).toBe('Invalid phone format')
+      expect(validatePhone('12345')).toBe('Format nomor telepon tidak valid')
     })
     test('should reject more than 15 digits', () => {
-      expect(validatePhone('1234567890123456')).toBe('Invalid phone format')
+      expect(validatePhone('1234567890123456')).toBe('Format nomor telepon tidak valid')
     })
   })
 
@@ -147,16 +147,16 @@ describe('validateWalletAddress', () => {
 
   describe('negative', () => {
     test('should reject empty', () => {
-      expect(validateWalletAddress('', 'ethereum')).toBe('Destination wallet is required')
+      expect(validateWalletAddress('', 'ethereum')).toBe('Alamat wallet tujuan wajib diisi')
     })
     test('should reject EVM address with wrong length', () => {
-      expect(validateWalletAddress('0x1234', 'ethereum')).toBe('Invalid wallet address')
+      expect(validateWalletAddress('0x1234', 'ethereum')).toBe('Alamat wallet tidak valid')
     })
     test('should reject EVM address with non-hex', () => {
-      expect(validateWalletAddress('0xZZZZ35Cc6634C0532925a3b844Bc454e4438f44e', 'ethereum')).toBe('Invalid wallet address')
+      expect(validateWalletAddress('0xZZZZ35Cc6634C0532925a3b844Bc454e4438f44e', 'ethereum')).toBe('Alamat wallet tidak valid')
     })
     test('should reject Solana address that is too short', () => {
-      expect(validateWalletAddress('abc123', 'solana')).toBe('Invalid Solana address')
+      expect(validateWalletAddress('abc123', 'solana')).toBe('Alamat Solana tidak valid')
     })
   })
 })
@@ -190,12 +190,12 @@ describe('validateCustomerForm', () => {
     test('should fail with organization type and empty organization', () => {
       const r = validateCustomerForm({ ...valid, organization: '' })
       expect(r.valid).toBe(false)
-      expect(r.errors.organization).toBe('Organization is required')
+      expect(r.errors.organization).toBe('Nama organisasi wajib diisi')
     })
     test('should fail with missing type', () => {
       const r = validateCustomerForm({ ...valid, type: '' })
       expect(r.valid).toBe(false)
-      expect(r.errors.type).toBe('Type is required')
+      expect(r.errors.type).toBe('Jenis wajib dipilih')
     })
   })
 
@@ -203,7 +203,7 @@ describe('validateCustomerForm', () => {
     test('should cap name length', () => {
       const r = validateCustomerForm({ ...valid, firstName: 'A'.repeat(200) })
       expect(r.valid).toBe(false)
-      expect(r.errors.firstName).toContain('under')
+      expect(r.errors.firstName).toContain('maksimal')
     })
   })
 })
@@ -246,7 +246,7 @@ describe('validateOtcRedeemForm', () => {
     test('should fail when amount exceeds balance', () => {
       const r = validateOtcRedeemForm({ amount: 2000, network: 'ethereum', availableBalance: 1000 })
       expect(r.valid).toBe(false)
-      expect(r.errors.amount).toBe('Amount exceeds available balance')
+      expect(r.errors.amount).toBe('Nominal melebihi saldo yang tersedia')
     })
     test('should fail with no network', () => {
       expect(validateOtcRedeemForm({ amount: 500, network: '', availableBalance: 1000 }).valid).toBe(false)
@@ -317,22 +317,22 @@ describe('validateBurnRequestForm', () => {
   describe('negative', () => {
     test('should fail when userId is empty', () => {
       const r = validateBurnRequestForm({ ...valid, userId: '' })
-      expect(r.errors.userId).toBe('User is required')
+      expect(r.errors.userId).toBe('Nasabah wajib dipilih')
     })
     test('should fail when userAddress is empty', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '' })
-      expect(r.errors.userAddress).toBe('User wallet address is required')
+      expect(r.errors.userAddress).toBe('Alamat wallet nasabah wajib diisi')
     })
     test('should fail when userAddress is too short', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '0xnope' })
-      expect(r.errors.userAddress).toBe('Invalid wallet address')
+      expect(r.errors.userAddress).toBe('Alamat wallet tidak valid')
     })
     test('should fail when userAddress has correct length but bad EIP-55 mixed-case checksum', () => {
       const r = validateBurnRequestForm({
         ...valid,
         userAddress: '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa',
       })
-      expect(r.errors.userAddress).toBe('Invalid wallet address')
+      expect(r.errors.userAddress).toBe('Alamat wallet tidak valid')
     })
     test('should accept valid EIP-55-correct mixed-case userAddress', () => {
       const r = validateBurnRequestForm({
@@ -343,60 +343,60 @@ describe('validateBurnRequestForm', () => {
     })
     test('should fail when amount is empty', () => {
       const r = validateBurnRequestForm({ ...valid, amount: '' })
-      expect(r.errors.amount).toBe('Amount is required')
+      expect(r.errors.amount).toBe('Nominal wajib diisi')
     })
     test('should fail when amount is zero', () => {
       const r = validateBurnRequestForm({ ...valid, amount: '0' })
-      expect(r.errors.amount).toBe('Amount must be greater than 0')
+      expect(r.errors.amount).toBe('Nominal harus lebih besar dari 0')
     })
     test('should fail when amount is negative', () => {
       const r = validateBurnRequestForm({ ...valid, amount: '-1' })
-      expect(r.errors.amount).toBe('Amount must be greater than 0')
+      expect(r.errors.amount).toBe('Nominal harus lebih besar dari 0')
     })
     test('should fail when amountCurrency is empty', () => {
       const r = validateBurnRequestForm({ ...valid, amountCurrency: '' })
-      expect(r.errors.amountCurrency).toBe('Currency is required')
+      expect(r.errors.amountCurrency).toBe('Mata uang wajib dipilih')
     })
     test('should fail when chain is empty', () => {
       const r = validateBurnRequestForm({ ...valid, chain: '' })
-      expect(r.errors.chain).toBe('Chain is required')
+      expect(r.errors.chain).toBe('Jaringan wajib dipilih')
     })
     test('should fail when depositTxHash is empty', () => {
       const r = validateBurnRequestForm({ ...valid, depositTxHash: '' })
-      expect(r.errors.depositTxHash).toBe('Deposit TX hash is required')
+      expect(r.errors.depositTxHash).toBe('Tx hash setoran wajib diisi')
     })
     test('should fail when depositTxHash is too short', () => {
       const r = validateBurnRequestForm({
         ...valid,
         depositTxHash: '0x' + 'a'.repeat(63),
       })
-      expect(r.errors.depositTxHash).toMatch(/Invalid TX hash/)
+      expect(r.errors.depositTxHash).toMatch(/Tx hash tidak valid/)
     })
     test('should fail when depositTxHash has no 0x prefix', () => {
       const r = validateBurnRequestForm({
         ...valid,
         depositTxHash: 'a'.repeat(64),
       })
-      expect(r.errors.depositTxHash).toMatch(/Invalid TX hash/)
+      expect(r.errors.depositTxHash).toMatch(/Tx hash tidak valid/)
     })
     test('should fail when bankName is empty', () => {
       const r = validateBurnRequestForm({ ...valid, bankName: '' })
-      expect(r.errors.bankName).toBe('Bank name is required')
+      expect(r.errors.bankName).toBe('Nama bank wajib diisi')
     })
     test('should fail when bankAccount is empty', () => {
       const r = validateBurnRequestForm({ ...valid, bankAccount: '' })
-      expect(r.errors.bankAccount).toBe('Bank account is required')
+      expect(r.errors.bankAccount).toBe('Nomor rekening wajib diisi')
     })
   })
 
   describe('edge cases', () => {
     test('should reject amount that is non-numeric', () => {
       const r = validateBurnRequestForm({ ...valid, amount: 'abc' })
-      expect(r.errors.amount).toBe('Amount must be greater than 0')
+      expect(r.errors.amount).toBe('Nominal harus lebih besar dari 0')
     })
     test('should reject userAddress that is whitespace-only', () => {
       const r = validateBurnRequestForm({ ...valid, userAddress: '   ' })
-      expect(r.errors.userAddress).toBe('User wallet address is required')
+      expect(r.errors.userAddress).toBe('Alamat wallet nasabah wajib diisi')
     })
     test('should accept IDR currency', () => {
       expect(validateBurnRequestForm({ ...valid, amountCurrency: 'IDR' }).valid).toBe(true)
@@ -463,11 +463,11 @@ describe('validateMintRequestForm', () => {
         chain: '',
       })
       expect(r.valid).toBe(false)
-      expect(r.errors.userId).toMatch(/required/i)
-      expect(r.errors.userAddress).toMatch(/required/i)
-      expect(r.errors.amount).toMatch(/required/i)
-      expect(r.errors.amountCurrency).toMatch(/required/i)
-      expect(r.errors.chain).toMatch(/required/i)
+      expect(r.errors.userId).toMatch(/wajib/i)
+      expect(r.errors.userAddress).toMatch(/wajib/i)
+      expect(r.errors.amount).toMatch(/wajib/i)
+      expect(r.errors.amountCurrency).toMatch(/wajib/i)
+      expect(r.errors.chain).toMatch(/wajib/i)
     })
 
     test('should reject address missing 0x prefix', () => {
@@ -476,7 +476,7 @@ describe('validateMintRequestForm', () => {
         userAddress: '5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
       })
       expect(r.valid).toBe(false)
-      expect(r.errors.userAddress).toMatch(/invalid/i)
+      expect(r.errors.userAddress).toMatch(/tidak valid/i)
     })
 
     test('should reject address with wrong length', () => {
@@ -485,7 +485,7 @@ describe('validateMintRequestForm', () => {
         userAddress: '0x123',
       })
       expect(r.valid).toBe(false)
-      expect(r.errors.userAddress).toMatch(/invalid/i)
+      expect(r.errors.userAddress).toMatch(/tidak valid/i)
     })
 
     test('should reject address containing non-hex characters', () => {
@@ -494,7 +494,7 @@ describe('validateMintRequestForm', () => {
         userAddress: '0x' + 'g'.repeat(40),
       })
       expect(r.valid).toBe(false)
-      expect(r.errors.userAddress).toMatch(/invalid/i)
+      expect(r.errors.userAddress).toMatch(/tidak valid/i)
     })
 
     test('should reject mixed-case address with wrong EIP-55 checksum', () => {
@@ -510,25 +510,25 @@ describe('validateMintRequestForm', () => {
     test('should reject zero amount', () => {
       const r = validateMintRequestForm({ ...valid, amount: '0' })
       expect(r.valid).toBe(false)
-      expect(r.errors.amount).toMatch(/greater than 0/i)
+      expect(r.errors.amount).toMatch(/lebih besar dari 0/i)
     })
 
     test('should reject negative amount', () => {
       const r = validateMintRequestForm({ ...valid, amount: '-1' })
       expect(r.valid).toBe(false)
-      expect(r.errors.amount).toMatch(/greater than 0/i)
+      expect(r.errors.amount).toMatch(/lebih besar dari 0/i)
     })
 
     test('should reject non-numeric amount', () => {
       const r = validateMintRequestForm({ ...valid, amount: 'abc' })
       expect(r.valid).toBe(false)
-      expect(r.errors.amount).toMatch(/greater than 0/i)
+      expect(r.errors.amount).toMatch(/lebih besar dari 0/i)
     })
 
     test('should reject amount with more than 6 decimal places', () => {
       const r = validateMintRequestForm({ ...valid, amount: '1.1234567' })
       expect(r.valid).toBe(false)
-      expect(r.errors.amount).toMatch(/6 decimal places/i)
+      expect(r.errors.amount).toMatch(/6 angka di belakang koma/i)
     })
   })
 
@@ -574,22 +574,22 @@ describe('validateManualRate', () => {
 
   describe('negative', () => {
     test('should fail when empty', () => {
-      expect(validateManualRate('')).toBe('Manual rate is required')
+      expect(validateManualRate('')).toBe('Kurs manual wajib diisi')
     })
     test('should fail with non-numeric', () => {
-      expect(validateManualRate('abc')).toMatch(/number/)
+      expect(validateManualRate('abc')).toMatch(/angka/)
     })
     test('should fail with more than 4 decimals', () => {
-      expect(validateManualRate('16250.12345')).toMatch(/number/)
+      expect(validateManualRate('16250.12345')).toMatch(/angka/)
     })
     test('should fail with zero', () => {
-      expect(validateManualRate('0')).toBe('Rate must be greater than 0')
+      expect(validateManualRate('0')).toBe('Kurs harus lebih besar dari 0')
     })
     test('should fail with negative', () => {
-      expect(validateManualRate('-1')).toMatch(/number/)
+      expect(validateManualRate('-1')).toMatch(/angka/)
     })
     test('should fail at hard upper bound', () => {
-      expect(validateManualRate('100000')).toMatch(/less than/)
+      expect(validateManualRate('100000')).toMatch(/di bawah/)
     })
   })
 
@@ -615,16 +615,16 @@ describe('validateSpreadPct', () => {
 
   describe('negative', () => {
     test('should fail above 10%', () => {
-      expect(validateSpreadPct('10.01')).toMatch(/at most/)
+      expect(validateSpreadPct('10.01')).toMatch(/maksimal/)
     })
     test('should fail with negative', () => {
-      expect(validateSpreadPct('-0.1')).toMatch(/number/)
+      expect(validateSpreadPct('-0.1')).toMatch(/angka/)
     })
     test('should fail with non-numeric', () => {
-      expect(validateSpreadPct('abc')).toMatch(/number/)
+      expect(validateSpreadPct('abc')).toMatch(/angka/)
     })
     test('should fail with more than 2 decimals', () => {
-      expect(validateSpreadPct('0.123')).toMatch(/number/)
+      expect(validateSpreadPct('0.123')).toMatch(/angka/)
     })
   })
 })
@@ -650,12 +650,12 @@ describe('validateRateUpdateForm', () => {
     test('MANUAL without rate fails', () => {
       const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
-      expect(r.errors.manualRate).toBe('Manual rate is required')
+      expect(r.errors.manualRate).toBe('Kurs manual wajib diisi')
     })
     test('missing mode fails', () => {
       const r = validateRateUpdateForm({ mode: '', manualRate: '16250', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
-      expect(r.errors.mode).toBe('Mode is required')
+      expect(r.errors.mode).toBe('Mode kurs wajib dipilih')
     })
     test('out-of-range spread beli fails for DYNAMIC mode too', () => {
       const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '99', spreadSellPct: '0.4' })
@@ -705,11 +705,11 @@ describe('validateOptionalIdPhone', () => {
   })
   describe('negative', () => {
     test('should reject non-Indonesian prefixes', () => {
-      expect(validateOptionalIdPhone('+11234567890')).toMatch(/\+62xxx or 08xxx/)
-      expect(validateOptionalIdPhone('628123456789')).toMatch(/\+62xxx or 08xxx/)
+      expect(validateOptionalIdPhone('+11234567890')).toMatch(/\+62xxx atau 08xxx/)
+      expect(validateOptionalIdPhone('628123456789')).toMatch(/\+62xxx atau 08xxx/)
     })
     test('should reject letters', () => {
-      expect(validateOptionalIdPhone('+62abc')).toMatch(/\+62xxx or 08xxx/)
+      expect(validateOptionalIdPhone('+62abc')).toMatch(/\+62xxx atau 08xxx/)
     })
   })
   describe('edge cases', () => {
@@ -798,7 +798,7 @@ describe('validateFeeConfigForm', () => {
     test('minimum mint below the hard floor fails', () => {
       const r = validateFeeConfigForm({ ...ok, minMintIdr: '5000' })
       expect(r.valid).toBe(false)
-      expect(r.errors.minMintIdr).toMatch(/at least 10,000/i)
+      expect(r.errors.minMintIdr).toMatch(/minimal 10\.000/i)
     })
     // USDX-682: required on the backend, so a blank one must be caught here —
     // otherwise the whole snapshot (including fees the operator never touched)
@@ -811,7 +811,7 @@ describe('validateFeeConfigForm', () => {
     test('minimum redeem below the hard floor fails', () => {
       const r = validateFeeConfigForm({ ...ok, minRedeemIdr: '5000' })
       expect(r.valid).toBe(false)
-      expect(r.errors.minRedeemIdr).toMatch(/at least 10,000/i)
+      expect(r.errors.minRedeemIdr).toMatch(/minimal 10\.000/i)
     })
   })
 
@@ -859,13 +859,13 @@ describe('validateMinMintIdr', () => {
 
   describe('negative', () => {
     test('rejects an empty value', () => {
-      expect(validateMinMintIdr('')).toMatch(/required/i)
+      expect(validateMinMintIdr('')).toMatch(/wajib/i)
     })
     test('rejects a value below the floor', () => {
-      expect(validateMinMintIdr('5000')).toMatch(/at least 10,000/i)
+      expect(validateMinMintIdr('5000')).toMatch(/minimal 10\.000/i)
     })
     test('rejects a non-numeric value', () => {
-      expect(validateMinMintIdr('abc')).toMatch(/must be a number/i)
+      expect(validateMinMintIdr('abc')).toMatch(/harus berupa angka/i)
     })
     test('rejects a negative value', () => {
       expect(validateMinMintIdr('-20000')).not.toBeNull()
@@ -874,7 +874,7 @@ describe('validateMinMintIdr', () => {
 
   describe('edge cases', () => {
     test('whitespace only counts as empty, not as a number', () => {
-      expect(validateMinMintIdr('   ')).toMatch(/required/i)
+      expect(validateMinMintIdr('   ')).toMatch(/wajib/i)
     })
     // No upper bound is asserted on purpose: the contract sets none, and a
     // client ceiling would refuse a figure the server accepts.
@@ -904,13 +904,13 @@ describe('validateMinRedeemIdr', () => {
 
   describe('negative', () => {
     test('rejects an empty value', () => {
-      expect(validateMinRedeemIdr('')).toMatch(/required/i)
+      expect(validateMinRedeemIdr('')).toMatch(/wajib/i)
     })
     test('rejects a value below the floor', () => {
-      expect(validateMinRedeemIdr('5000')).toMatch(/at least 10,000/i)
+      expect(validateMinRedeemIdr('5000')).toMatch(/minimal 10\.000/i)
     })
     test('rejects a non-numeric value', () => {
-      expect(validateMinRedeemIdr('abc')).toMatch(/must be a number/i)
+      expect(validateMinRedeemIdr('abc')).toMatch(/harus berupa angka/i)
     })
     test('rejects a negative value', () => {
       expect(validateMinRedeemIdr('-20000')).not.toBeNull()
@@ -919,7 +919,7 @@ describe('validateMinRedeemIdr', () => {
 
   describe('edge cases', () => {
     test('whitespace only counts as empty, not as a number', () => {
-      expect(validateMinRedeemIdr('   ')).toMatch(/required/i)
+      expect(validateMinRedeemIdr('   ')).toMatch(/wajib/i)
     })
     // No upper bound, same reason as minimum mint: the contract sets none.
     test('accepts an extremely large value', () => {
@@ -1232,27 +1232,27 @@ describe('validateLedgerAmount', () => {
 
   describe('negative', () => {
     test('rejects zero (LEDGER_AMOUNT_ZERO)', () => {
-      expect(validateLedgerAmount('0')).toMatch(/cannot be zero/i)
-      expect(validateLedgerAmount('0.00')).toMatch(/cannot be zero/i)
-      expect(validateLedgerAmount('-0.00')).toMatch(/cannot be zero/i)
+      expect(validateLedgerAmount('0')).toMatch(/tidak boleh nol/i)
+      expect(validateLedgerAmount('0.00')).toMatch(/tidak boleh nol/i)
+      expect(validateLedgerAmount('-0.00')).toMatch(/tidak boleh nol/i)
     })
     test('rejects more than 2 decimals (LEDGER_AMOUNT_INVALID)', () => {
-      expect(validateLedgerAmount('100.123')).toMatch(/2 decimal places/i)
+      expect(validateLedgerAmount('100.123')).toMatch(/2 angka di belakang koma/i)
     })
     test('rejects non-numeric text (LEDGER_AMOUNT_INVALID)', () => {
-      expect(validateLedgerAmount('seratus')).toMatch(/2 decimal places/i)
+      expect(validateLedgerAmount('seratus')).toMatch(/2 angka di belakang koma/i)
     })
     test('rejects thousands separators — the wire format has none', () => {
-      expect(validateLedgerAmount('1,250.00')).toMatch(/2 decimal places/i)
+      expect(validateLedgerAmount('1,250.00')).toMatch(/2 angka di belakang koma/i)
     })
     test('rejects an empty amount', () => {
-      expect(validateLedgerAmount('   ')).toMatch(/required/i)
+      expect(validateLedgerAmount('   ')).toMatch(/wajib/i)
     })
     // numeric(30,2) = 30 significant digits, 2 after the point. Postgres
     // refuses a wider value outright and the backend reports it as
     // LEDGER_AMOUNT_INVALID — so the operator should hear it before the trip.
     test('rejects more than 28 digits before the decimal point', () => {
-      expect(validateLedgerAmount(`${'9'.repeat(29)}.00`)).toMatch(/28 digits/i)
+      expect(validateLedgerAmount(`${'9'.repeat(29)}.00`)).toMatch(/28 digit/i)
     })
   })
 
@@ -1271,7 +1271,7 @@ describe('validateLedgerAmount', () => {
     })
     test('applies the width rule to negatives too (the sign is not a digit)', () => {
       expect(validateLedgerAmount(`-${'9'.repeat(28)}.99`)).toBeNull()
-      expect(validateLedgerAmount(`-${'9'.repeat(29)}.99`)).toMatch(/28 digits/i)
+      expect(validateLedgerAmount(`-${'9'.repeat(29)}.99`)).toMatch(/28 digit/i)
     })
   })
 })
@@ -1285,13 +1285,13 @@ describe('validateLedgerReason', () => {
 
   describe('negative', () => {
     test('rejects a missing reason', () => {
-      expect(validateLedgerReason('')).toMatch(/required/i)
+      expect(validateLedgerReason('')).toMatch(/wajib/i)
     })
     test('rejects a reason under 10 characters (LEDGER_REASON_TOO_SHORT)', () => {
-      expect(validateLedgerReason('setoran')).toMatch(/at least 10 characters/i)
+      expect(validateLedgerReason('setoran')).toMatch(/minimal 10 karakter/i)
     })
     test('counts trimmed length, so padding cannot buy the minimum', () => {
-      expect(validateLedgerReason('   abc    ')).toMatch(/at least 10 characters/i)
+      expect(validateLedgerReason('   abc    ')).toMatch(/minimal 10 karakter/i)
     })
   })
 
@@ -1309,13 +1309,13 @@ describe('validateLedgerReason', () => {
       // `NUL.trim()` is still one character long, so a length-only check reads
       // ten NULs as a perfectly good ten-character reason.
       expect(NUL.repeat(10).trim()).toHaveLength(10)
-      expect(validateLedgerReason(NUL.repeat(10))).toMatch(/control/i)
-      expect(validateLedgerReason(`Setoran giro${NUL} USD`)).toMatch(/control/i)
+      expect(validateLedgerReason(NUL.repeat(10))).toMatch(/karakter kontrol/i)
+      expect(validateLedgerReason(`Setoran giro${NUL} USD`)).toMatch(/karakter kontrol/i)
     })
 
     test('rejects an RTL override, which makes the text read differently from the bytes', () => {
       expect(validateLedgerReason(`Koreksi ${RTL_OVERRIDE}nagnarukgnep`)).toMatch(
-        /text-direction|control/i
+        /karakter kontrol|arah teks/i
       )
     })
 
@@ -1323,7 +1323,7 @@ describe('validateLedgerReason', () => {
       // LRM, RLM, LRE, LRI, PDI — same class of problem as the override.
       for (const ch of ['\u200E', '\u200F', '\u202A', '\u2066', '\u2069']) {
         expect(validateLedgerReason(`Setoran giro USD${ch}`)).toMatch(
-          /text-direction|control/i
+          /karakter kontrol|arah teks/i
         )
       }
     })
@@ -1355,10 +1355,10 @@ describe('validateLedgerOccurredAt', () => {
 
   describe('negative', () => {
     test('rejects an empty date', () => {
-      expect(validateLedgerOccurredAt('', earlyWibMorning)).toMatch(/required/i)
+      expect(validateLedgerOccurredAt('', earlyWibMorning)).toMatch(/wajib/i)
     })
     test('rejects a future date (LEDGER_DATE_IN_FUTURE)', () => {
-      expect(validateLedgerOccurredAt('2026-08-11', earlyWibMorning)).toMatch(/future/i)
+      expect(validateLedgerOccurredAt('2026-08-11', earlyWibMorning)).toMatch(/masa depan/i)
     })
     test('rejects a non-ISO format', () => {
       expect(validateLedgerOccurredAt('23/07/2026', earlyWibMorning)).toMatch(
@@ -1370,7 +1370,7 @@ describe('validateLedgerOccurredAt', () => {
   describe('edge cases', () => {
     test('rejects a date that does not exist on the calendar', () => {
       expect(validateLedgerOccurredAt('2026-02-31', earlyWibMorning)).toMatch(
-        /real calendar date/i
+        /tidak ada di kalender/i
       )
     })
     test('accepts a leap day in a leap year', () => {
@@ -1390,13 +1390,13 @@ describe('validateLedgerCurrency', () => {
 
   describe('negative', () => {
     test('rejects any other currency (LEDGER_CURRENCY_UNSUPPORTED)', () => {
-      expect(validateLedgerCurrency('IDR')).toMatch(/only USD/i)
+      expect(validateLedgerCurrency('IDR')).toMatch(/baru mendukung USD/i)
     })
     test('rejects lowercase — the contract says uppercase ISO-4217', () => {
-      expect(validateLedgerCurrency('usd')).toMatch(/only USD/i)
+      expect(validateLedgerCurrency('usd')).toMatch(/baru mendukung USD/i)
     })
     test('rejects an empty currency', () => {
-      expect(validateLedgerCurrency('')).toMatch(/required/i)
+      expect(validateLedgerCurrency('')).toMatch(/wajib/i)
     })
   })
 })
@@ -1411,14 +1411,14 @@ describe('validateLedgerEntryType', () => {
 
   describe('negative', () => {
     test('rejects an unselected type', () => {
-      expect(validateLedgerEntryType('')).toMatch(/required/i)
+      expect(validateLedgerEntryType('')).toMatch(/wajib/i)
     })
     // MINT/BURN/REDEEM exist in the enum but are reserved for automatic hooks —
     // staff must never be able to file one by hand.
     test('rejects the reserved automatic types (LEDGER_TYPE_NOT_ALLOWED)', () => {
-      expect(validateLedgerEntryType('MINT')).toMatch(/SEED or ADJUSTMENT/i)
-      expect(validateLedgerEntryType('BURN')).toMatch(/SEED or ADJUSTMENT/i)
-      expect(validateLedgerEntryType('REDEEM')).toMatch(/SEED or ADJUSTMENT/i)
+      expect(validateLedgerEntryType('MINT')).toMatch(/SEED atau ADJUSTMENT/i)
+      expect(validateLedgerEntryType('BURN')).toMatch(/SEED atau ADJUSTMENT/i)
+      expect(validateLedgerEntryType('REDEEM')).toMatch(/SEED atau ADJUSTMENT/i)
     })
   })
 })
@@ -1522,28 +1522,28 @@ describe('validateAttestationFile', () => {
 
   describe('negative', () => {
     test('rejects a missing file', () => {
-      expect(validateAttestationFile(null)).toMatch(/required/i)
+      expect(validateAttestationFile(null)).toMatch(/wajib/i)
     })
     test('rejects a non-PDF MIME type', () => {
       expect(
         validateAttestationFile({ name: 'foto.png', type: 'image/png', size: 10 })
-      ).toMatch(/only pdf/i)
+      ).toMatch(/hanya berkas pdf/i)
     })
     test('rejects a renamed non-PDF with no MIME type', () => {
       expect(
         validateAttestationFile({ name: 'laporan.docx', type: '', size: 10 })
-      ).toMatch(/only pdf/i)
+      ).toMatch(/hanya berkas pdf/i)
     })
   })
 
   describe('edge cases', () => {
     test('rejects an empty file', () => {
-      expect(validateAttestationFile({ ...pdf, size: 0 })).toMatch(/empty/i)
+      expect(validateAttestationFile({ ...pdf, size: 0 })).toMatch(/kosong/i)
     })
     test('rejects a file above the cap', () => {
       expect(
         validateAttestationFile({ ...pdf, size: ATTESTATION_MAX_FILE_BYTES + 1 })
-      ).toMatch(/at most/i)
+      ).toMatch(/maksimal/i)
     })
     test('accepts a file exactly at the cap', () => {
       expect(
@@ -1562,7 +1562,7 @@ describe('validateAttestationFile', () => {
     test('a 10 MB file — what the old copy promised — is refused', () => {
       expect(
         validateAttestationFile({ ...pdf, size: 10 * 1024 * 1024 })
-      ).toMatch(/at most 5 MiB/i)
+      ).toMatch(/maksimal 5 MiB/i)
     })
   })
 })
@@ -1571,7 +1571,7 @@ describe('validateAttestationFile', () => {
 // picker-controlled; `looksLikePdf` in lib/transparency.ts reads the bytes.
 describe('ATTESTATION_NOT_A_PDF_MESSAGE', () => {
   test('names the content, not the extension — the operator renamed nothing wrong', () => {
-    expect(ATTESTATION_NOT_A_PDF_MESSAGE).toMatch(/not a PDF/i)
+    expect(ATTESTATION_NOT_A_PDF_MESSAGE).toMatch(/bukan PDF/i)
   })
 })
 
@@ -1701,7 +1701,7 @@ describe('validateAttestationUploadForm', () => {
     test('rejects a future period', () => {
       const r = validateAttestationUploadForm({ ...ok, period: '2026-08' }, now)
       expect(r.valid).toBe(false)
-      expect(r.errors.period).toMatch(/future/i)
+      expect(r.errors.period).toMatch(/masa depan/i)
     })
     test('rejects a blank title', () => {
       const r = validateAttestationUploadForm({ ...ok, title: '  ' }, now)
@@ -1887,7 +1887,7 @@ describe('validateKycRejectReason', () => {
       // operator's request comes back a 500, not a 400.
       const result = validateKycRejectReason(' '.repeat(10))
       expect(result.valid).toBe(false)
-      if (!result.valid) expect(result.error).toMatch(/required/i)
+      if (!result.valid) expect(result.error).toMatch(/wajib/i)
     })
 
     test('should measure length AFTER trimming', () => {

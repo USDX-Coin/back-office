@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
-import { isRequestTerminal } from '@/lib/status'
+import { apiFetch } from '@/lib/apiFetch'
 import type {
   CreateMintRequestBody,
   MintRequestDetail,
   PhaseOnePaginatedResponse,
   PhaseOneUser,
-  RequestListItem,
 } from '@/lib/types'
 
 // USDX-46: server filters by kycStatus=VERIFIED. Suspended is filtered FE-side
@@ -48,64 +46,5 @@ export function useCreateMintRequest() {
       qc.invalidateQueries({ queryKey: ['requests'] })
       qc.invalidateQueries({ queryKey: ['mint'] })
     },
-  })
-}
-
-export interface MintListFilters {
-  page?: number
-  limit?: number
-  status?: string
-  chain?: string
-  safeType?: string
-  search?: string
-  /** YYYY-MM-DD, Asia/Jakarta — BE filters created_at (USDX-98). */
-  startDate?: string
-  endDate?: string
-}
-
-function buildQuery(params: MintListFilters & { type: 'mint' }): string {
-  const sp = new URLSearchParams()
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== '' && v !== null) sp.set(k, String(v))
-  })
-  return sp.toString()
-}
-
-function fetchMintList(
-  filters: MintListFilters
-): Promise<PhaseOnePaginatedResponse<RequestListItem>> {
-  const qs = buildQuery({ ...filters, type: 'mint' })
-  return apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(`/api/v1/requests?${qs}`)
-}
-
-export function useMintList(filters: MintListFilters) {
-  return useQuery({
-    queryKey: ['mint', 'list', filters],
-    queryFn: () => fetchMintList(filters),
-    // USDX-27: keep statuses fresh without a manual refresh — poll only while
-    // some row is still in a non-terminal state, then stop.
-    refetchInterval: (query) =>
-      (query.state.data?.data ?? []).some((r) => !isRequestTerminal(r.status)) ? 20_000 : false,
-    refetchOnWindowFocus: true,
-  })
-}
-
-// Sidebar badge count: PENDING_APPROVAL mint requests. SoT phase-1.md line 179
-// sets PENDING_APPROVAL as the initial DB status; SoT § Sidebar uses (N) as
-// "jumlah request dengan status PENDING_APPROVAL" — query metadata.total.
-// USDX-78: `enabled` lets the Sidebar / BottomNav skip the query for STAFF
-// (sot/phase-1.md L34 — STAFF can't access /api/v1/requests*, so firing would
-// produce noisy 403s).
-export function usePendingMintCount(opts: { enabled?: boolean } = {}) {
-  return useQuery({
-    queryKey: ['mint', 'pending-count'],
-    queryFn: async () => {
-      const json = await apiFetchRaw<PhaseOnePaginatedResponse<RequestListItem>>(
-        '/api/v1/requests?type=mint&status=PENDING_APPROVAL&limit=1'
-      )
-      return json.metadata.total
-    },
-    enabled: opts.enabled ?? true,
-    staleTime: 30 * 1000,
   })
 }

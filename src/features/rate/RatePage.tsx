@@ -1,4 +1,6 @@
-import PageHeader from '@/components/PageHeader'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import SettingsTabs from '@/components/layout/SettingsTabs'
 import { useAuth } from '@/lib/auth'
 import { canManageRate } from '@/lib/types'
 import CurrentRateCard from './CurrentRateCard'
@@ -9,32 +11,38 @@ export default function RatePage() {
   const { user } = useAuth()
   const rate = useRate()
   const canEdit = !!user && canManageRate(user.role)
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Configuration"
-        title="Rate"
-        italicAccent="USD/IDR"
+      {/* § 4 P2-1 — empat entri sidebar Settings jadi satu entri "Pengaturan";
+          perpindahan antar halaman turun ke tab ini. Gerbang perannya tetap di
+          route (`App.tsx`), bukan di tab. */}
+      <SettingsTabs
         subtitle={
           canEdit
-            ? 'Update the active rate. Changes apply immediately to every subsequent mint and redeem.'
-            : 'View the active rate. Updates are restricted to the admin role.'
+            ? 'Ubah kurs yang berlaku. Perubahan langsung dipakai oleh setiap mint dan redeem berikutnya.'
+            : 'Kurs yang sedang berlaku. Hanya peran Admin yang boleh mengubahnya.'
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          <CurrentRateCard data={rate.data} isLoading={rate.isLoading} />
-        </div>
-        <div className="lg:col-span-7">
-          {canEdit ? (
-            <RateUpdateForm current={rate.data} />
-          ) : (
-            <ReadOnlyNotice />
-          )}
-        </div>
+      {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
+          di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
+      <div className="space-y-4">
+        <CurrentRateCard
+          data={rate.data}
+          isLoading={rate.isLoading}
+          action={
+            canEdit ? (
+              <Button type="button" onClick={() => setFormOpen(true)}>
+                Ubah kurs
+              </Button>
+            ) : null
+          }
+        />
+        {!canEdit && <ReadOnlyNotice />}
       </div>
+      {canEdit && <RateUpdateForm current={rate.data} open={formOpen} onOpenChange={setFormOpen} />}
     </div>
   )
 }
@@ -45,10 +53,10 @@ function ReadOnlyNotice() {
       role="note"
       className="rounded-md border border-border bg-muted/30 px-4 py-5 text-sm text-muted-foreground"
     >
-      <p className="font-medium text-foreground">Read-only</p>
+      <p className="font-medium text-foreground">Hanya bisa melihat</p>
       <p className="mt-1">
-        Your role does not have permission to update the rate. Contact an admin
-        if a change is needed.
+        Peranmu tidak berwenang mengubah kurs. Hubungi Admin kalau kurs memang
+        perlu diubah.
       </p>
     </div>
   )

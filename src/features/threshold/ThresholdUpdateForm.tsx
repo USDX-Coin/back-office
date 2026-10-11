@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import FormDialog from '@/components/FormDialog'
 import {
   Select,
   SelectContent,
@@ -12,11 +11,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import FieldError from '@/components/FieldError'
+import { ApiError } from '@/lib/apiFetch'
 import type { ThresholdConfig, ThresholdMode } from '@/lib/types'
 import { useUpdateThreshold } from './hooks'
+import { toastErrorMessage } from '@/lib/errorToast'
 
 interface Props {
   current: ThresholdConfig | undefined
+  /** Dialog form dibuka dari tombol di kartu "saat ini" (audit Pengaturan 11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 interface FormState {
@@ -35,20 +39,37 @@ function resolveForm(overrides: FormOverrides, current: ThresholdConfig | undefi
 
 function validate(form: FormState): { valid: boolean; errors: Record<string, string> } {
   const errors: Record<string, string> = {}
-  if (!form.mode) errors.mode = 'Mode is required'
+  if (!form.mode) errors.mode = 'Mode wajib diisi'
   const trimmed = form.amount.trim()
   if (!trimmed) {
-    errors.amount = 'Amount is required'
+    errors.amount = 'Nominal wajib diisi'
   } else {
     const n = Number(trimmed)
     if (!Number.isFinite(n) || n <= 0) {
-      errors.amount = 'Amount must be a positive number'
+      errors.amount = 'Nominal harus berupa angka lebih besar dari 0'
     }
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
-export default function ThresholdUpdateForm({ current }: Props) {
+/**
+ * Galat server → kalimat Indonesia. Kode + pesan servernya ikut sebagai
+ * "Detail teknis" di keterangan toast (`toastErrorMessage`).
+ */
+function thresholdUpdateErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 403) {
+      return 'Peranmu tidak berwenang mengubah batas ini.'
+    }
+    if (err.status === 400 || err.status === 422) {
+      return 'Server menolak isian batas. Periksa kembali angkanya.'
+    }
+    return 'Batas gagal diubah — tidak ada yang berubah. Coba lagi.'
+  }
+  return 'Batas gagal diubah. Periksa koneksi lalu coba lagi.'
+}
+
+export default function ThresholdUpdateForm({ current, open, onOpenChange }: Props) {
   const update = useUpdateThreshold()
   const [overrides, setOverrides] = useState<FormOverrides>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -77,75 +98,90 @@ export default function ThresholdUpdateForm({ current }: Props) {
         mode: form.mode as ThresholdMode,
         amount: form.amount.trim(),
       })
-      toast.success('Threshold updated')
+      toast.success('Batas berhasil diubah')
       setOverrides({})
       setErrors({})
+      onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't update the threshold. Please try again.")
+      toastErrorMessage(thresholdUpdateErrorMessage(err), err)
     }
   }
 
-  return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Update threshold
-        </CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit} noValidate id="threshold-form">
-        <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <Label htmlFor="thresholdMode">Mode</Label>
-            <Select
-              value={form.mode}
-              onValueChange={(val) => set('mode', val as ThresholdMode)}
-            >
-              <SelectTrigger id="thresholdMode">
-                <SelectValue placeholder="Choose mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD — compare USDX amount directly</SelectItem>
-                <SelectItem value="IDR">IDR — compare USDX × rate</SelectItem>
-              </SelectContent>
-            </Select>
-            <FieldError message={errors.mode} />
-          </div>
+  // Batal / tutup membuang isian yang belum dikirim — dialog dibuka lagi
+  // = mulai dari nilai yang berlaku sekarang.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setOverrides({})
+      setErrors({})
+    }
+    onOpenChange(next)
+  }
 
-          <div className="space-y-1.5">
-            <Label htmlFor="thresholdAmount">Amount</Label>
-            <div className="relative">
-              <Input
-                id="thresholdAmount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.amount}
-                onChange={(e) => set('amount', e.target.value)}
-                placeholder={form.mode === 'IDR' ? '1000000000.00' : '70000.00'}
-                className="pr-16 font-mono"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                {form.mode || '—'}
-              </span>
+  return (
+    <>
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Ubah batas"
+        formId="threshold-form"
+        onSubmit={handleSubmit}
+        pending={update.isPending}
+        submitLabel={update.isPending ? 'Menyimpan…' : 'Simpan batas baru'}
+        note={
+          <div className="space-y-2">
+          {/* Batas ini menentukan siapa yang wajib menandatangani request besar,
+              jadi kalimat di atas tombol menyebut akibatnya — bukan "Anda
+              yakin?". Menaikkannya berarti lebih banyak request lolos tanpa
+              tanda tangan Manager. */}
+          <p className="text-xs text-muted-foreground">
+            Batas baru langsung dipakai untuk setiap permintaan mint dan redeem
+            berikutnya. Menaikkannya berarti lebih banyak permintaan besar berhenti
+            di Safe Staf dan tidak pernah sampai ke Safe Manager.
+          </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Requests at or above this amount route to the Manager Safe.
-            </p>
-            <FieldError message={errors.amount} />
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button
-            type="submit"
-            form="threshold-form"
-            disabled={update.isPending}
-            aria-busy={update.isPending}
-            className="w-full"
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="thresholdMode">Mode</Label>
+          <Select
+            value={form.mode}
+            onValueChange={(val) => set('mode', val as ThresholdMode)}
           >
-            {update.isPending ? 'Updating…' : 'Update threshold'}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+            <SelectTrigger id="thresholdMode">
+              <SelectValue placeholder="Pilih mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD — bandingkan langsung dengan nominal USDX</SelectItem>
+              <SelectItem value="IDR">IDR — bandingkan dengan USDX × kurs</SelectItem>
+            </SelectContent>
+          </Select>
+          <FieldError message={errors.mode} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="thresholdAmount">Nominal</Label>
+          <div className="relative">
+            <Input
+              id="thresholdAmount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.amount}
+              onChange={(e) => set('amount', e.target.value)}
+              placeholder={form.mode === 'IDR' ? '1000000000.00' : '70000.00'}
+              className="tabular-nums pr-16"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              {form.mode || '—'}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Permintaan dengan nominal sebesar ini atau lebih diarahkan ke Safe Manager,
+            bukan Safe Staf.
+          </p>
+          <FieldError message={errors.amount} />
+        </div>
+      </FormDialog>
+    </>
   )
 }

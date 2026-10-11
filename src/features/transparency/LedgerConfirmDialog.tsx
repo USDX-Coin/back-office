@@ -16,6 +16,7 @@ import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
+  ledgerEntryTypeLabel,
   parseAmountToCents,
 } from '@/lib/transparency'
 import type { CreateLedgerEntryInput, ReserveBalance } from '@/lib/types'
@@ -110,11 +111,11 @@ export default function LedgerConfirmDialog({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Record this entry to the public reserve?</DialogTitle>
+          <DialogTitle>Catat entri ini ke cadangan publik?</DialogTitle>
           <DialogDescription>
-            This entry changes the reserve figure shown on the public
-            transparency page at usdx.co.id straight away. There is no draft and
-            no review step.
+            Angka cadangan publik akan berubah saat itu juga di halaman
+            transparansi usdx.co.id. Tidak ada draf dan tidak ada tahap
+            peninjauan setelah ini.
           </DialogDescription>
         </DialogHeader>
 
@@ -122,33 +123,33 @@ export default function LedgerConfirmDialog({
           {entry ? (
             <>
               <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-warning">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                  Cannot be edited or deleted
+                  Tidak bisa diubah atau dihapus
                 </p>
                 <p className="mt-1 text-sm text-foreground">
-                  The ledger is append-only. If this is wrong, the only fix is to
-                  record another entry with the opposite amount — the mistake
-                  stays visible in the history.
+                  Buku besar hanya bisa ditambah. Kalau entri ini salah,
+                  satu-satunya perbaikan adalah mencatat entri baru dengan
+                  nominal berlawanan — kekeliruannya tetap terbaca di riwayat.
                 </p>
               </div>
 
               <dl className="space-y-3 text-sm">
-                <Row label="Type" value={entry.entryType} />
+                <Row label="Jenis" value={ledgerEntryTypeLabel(entry.entryType)} />
                 <Row
-                  label="Amount"
-                  ariaLabel="Amount to record"
+                  label="Nominal"
+                  ariaLabel="Nominal yang dicatat"
                   value={`${formatAmountDecimal(entry.amount)} ${entry.currency}`}
                   emphasis={negative ? 'negative' : 'default'}
                 />
-                <Row label="Event date" value={formatOccurredAt(entry.occurredAt)} />
+                <Row label="Tanggal kejadian" value={formatOccurredAt(entry.occurredAt)} />
                 <Row
-                  label="New balance"
-                  ariaLabel="New reserve balance"
+                  label="Saldo baru"
+                  ariaLabel="Saldo cadangan baru"
                   value={
                     projected
                       ? `${formatAmountDecimal(projected)} ${balance?.currency ?? entry.currency}`
-                      : 'Unavailable — current balance not loaded'
+                      : 'Tidak tersedia — saldo sekarang belum termuat'
                   }
                   emphasis="strong"
                 />
@@ -166,12 +167,12 @@ export default function LedgerConfirmDialog({
                   className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    The current reserve balance could not be loaded.
+                    Saldo cadangan saat ini gagal dimuat.
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Recording is blocked until it is known — without it there is
-                    no way to tell what this entry does to the figure published
-                    on usdx.co.id.
+                    Pencatatan ditahan sampai saldonya terbaca — tanpa angka itu
+                    tidak ada cara tahu entri ini mengubah angka publik di
+                    usdx.co.id jadi berapa.
                   </p>
                   {onReloadBalance && (
                     <Button
@@ -183,7 +184,7 @@ export default function LedgerConfirmDialog({
                       disabled={reloading}
                       aria-busy={reloading}
                     >
-                      {reloading ? 'Loading balance…' : 'Reload balance'}
+                      {reloading ? 'Memuat saldo…' : 'Muat ulang saldo'}
                     </Button>
                   )}
                 </div>
@@ -196,8 +197,8 @@ export default function LedgerConfirmDialog({
                   A 409 re-reads the balance too, but it means the OPPOSITE: the
                   backend wrote nothing, and the figure below moved because of
                   the OTHER entry that owns this key — the mistyped one. So the
-                  504 wording ("it was recorded despite the error — close this
-                  dialog") is gated behind `!conflict`. Left ungated it told the
+                  504 wording ("entrinya tercatat meski galat muncul — tutup
+                  dialog ini") is gated behind `!conflict`. Left ungated it told the
                   operator to walk away from a 409 with the wrong number left
                   standing as the public reserve and the correction never
                   filed. The heading changes with it, so the number is never
@@ -209,35 +210,35 @@ export default function LedgerConfirmDialog({
                 >
                   {recheck === 'checking' ? (
                     <p className="text-sm text-muted-foreground">
-                      Re-checking the reserve balance…
+                      Memeriksa ulang saldo cadangan…
                     </p>
                   ) : (
                     <>
-                      <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {conflict
-                          ? 'Balance after the OTHER entry that holds this key'
-                          : 'Balance re-read after the error'}
+                          ? 'Saldo setelah entri LAIN yang memakai kunci ini'
+                          : 'Saldo dibaca ulang setelah galat'}
                       </p>
                       <p
-                        aria-label="Rechecked reserve balance"
-                        className="mt-1 font-mono text-sm font-semibold text-foreground"
+                        aria-label="Saldo cadangan hasil baca ulang"
+                        className="tabular-nums mt-1 text-sm font-semibold text-foreground"
                       >
                         {balanceKnown
                           ? `${formatAmountDecimal(balance.amount)} ${balance.currency}`
-                          : 'Still unavailable'}
+                          : 'Masih belum terbaca'}
                       </p>
                       {conflict ? (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          This figure does NOT include the entry above — nothing
-                          from this attempt was written. It is the reserve as
-                          the other entry, the one already holding this key,
-                          left it.
+                          Angka ini TIDAK memuat entri di atas — tidak ada satu
+                          pun yang tertulis dari percobaan ini. Ini saldo
+                          cadangan yang ditinggalkan entri lain, entri yang sudah
+                          memakai kunci tersebut.
                         </p>
                       ) : (
                         <p className="mt-1 text-sm text-muted-foreground">
-                          If this already includes the entry, it was recorded
-                          despite the error — close this dialog instead of
-                          trying again.
+                          Kalau angka ini sudah memuat entri tadi, berarti
+                          entrinya tercatat meski galat muncul — tutup dialog
+                          ini, jangan coba lagi.
                         </p>
                       )}
                     </>
@@ -259,23 +260,22 @@ export default function LedgerConfirmDialog({
                   className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    This entry was NOT recorded — its key belongs to a different
-                    entry
+                    Entri ini TIDAK tercatat — kuncinya sudah dipakai entri lain
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    An earlier attempt used the same key for an entry whose
-                    details differ from the ones above, so this request was
-                    rejected and nothing changed. That earlier entry is
-                    untouched. Compare the balance above with what you expect: if
-                    it already reflects what you meant to record, close this
-                    dialog.
+                    Percobaan sebelumnya memakai kunci yang sama untuk entri
+                    yang isinya berbeda dari rincian di atas, jadi permintaan ini
+                    ditolak dan tidak ada yang berubah. Entri lama itu tetap
+                    utuh. Bandingkan saldo di atas dengan angka yang seharusnya:
+                    kalau sudah sesuai dengan yang dimaksud, tutup dialog ini.
                   </p>
                   {onRecordWithNewKey && (
                     <>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        If this really is a different entry, record it under a new
-                        key. The ledger is append-only, so it is ADDED next to the
-                        earlier one — it does not replace or correct it.
+                        Kalau ini memang entri yang berbeda, catat dengan kunci
+                        baru. Buku besar hanya bisa ditambah, jadi entrinya
+                        DITAMBAHKAN di samping entri lama — bukan menggantikan
+                        dan bukan mengoreksinya.
                       </p>
                       <Button
                         type="button"
@@ -286,7 +286,7 @@ export default function LedgerConfirmDialog({
                         disabled={busy || !balanceKnown}
                         aria-busy={isPending}
                       >
-                        Record as a new entry
+                        Catat sebagai entri baru
                       </Button>
                     </>
                   )}
@@ -294,8 +294,8 @@ export default function LedgerConfirmDialog({
               )}
 
               <div className="rounded-md border border-border px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                  Reason (internal — not shown publicly)
+                <p className="text-xs text-muted-foreground">
+                  Alasan (internal — tidak tampil di publik)
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
                   {entry.reason}
@@ -305,7 +305,7 @@ export default function LedgerConfirmDialog({
               <FieldError message={error ?? undefined} />
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">No entry to record.</p>
+            <p className="text-sm text-muted-foreground">Tidak ada entri untuk dicatat.</p>
           )}
         </DialogBody>
 
@@ -316,7 +316,7 @@ export default function LedgerConfirmDialog({
             onClick={() => handleOpenChange(false)}
             disabled={isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -327,7 +327,7 @@ export default function LedgerConfirmDialog({
             disabled={busy || !entry || !balanceKnown || conflict}
             aria-busy={isPending}
           >
-            {isPending ? 'Recording…' : 'Yes, record entry'}
+            {isPending ? 'Mencatat…' : 'Ya, catat entri'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -347,18 +347,18 @@ function Row({
   emphasis?: 'default' | 'strong' | 'negative'
 }) {
   return (
-    <div className="grid grid-cols-[104px_1fr] items-baseline gap-3">
-      <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+    <div className="grid grid-cols-[128px_1fr] items-baseline gap-3">
+      <dt className="text-xs text-muted-foreground">
         {label}
       </dt>
       <dd
         aria-label={ariaLabel}
         className={
           emphasis === 'negative'
-            ? 'font-mono font-semibold text-destructive'
+            ? 'font-semibold tabular-nums text-destructive'
             : emphasis === 'strong'
-              ? 'font-mono font-semibold text-foreground'
-              : 'font-mono text-foreground'
+              ? 'font-semibold tabular-nums text-foreground'
+              : 'tabular-nums text-foreground'
         }
       >
         {value}

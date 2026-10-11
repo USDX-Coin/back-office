@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router'
 import MintTestModeBanner from '@/features/mint-mode/MintTestModeBanner'
+import MobileBackLink from './MobileBackLink'
 import Navbar from './Navbar'
 import Sidebar from './Sidebar'
 
@@ -14,6 +15,7 @@ export default function MainLayout() {
             MainLayout tidak di-unmount saat <Outlet /> berganti. */}
         <MintTestModeBanner />
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+          <MobileBackLink />
           <Outlet />
         </main>
       </div>

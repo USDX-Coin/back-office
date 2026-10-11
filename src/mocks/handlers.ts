@@ -1,6 +1,23 @@
 import { http, HttpResponse } from 'msw'
 import { getAddress, isAddress } from 'viem'
 import { canHandleAmountIdr } from '@/lib/roleAuth'
+// Empat layar yang hilang — kontrak + gerbang peran hidup di folder fiturnya,
+// supaya tiruan menegakkan gerbang yang SAMA dengan yang dirender layarnya.
+// Tiruan yang lebih longgar membuat tes "tombolnya tidak dirender" hijau tanpa
+// membuktikan apa pun tentang permintaan yang tetap bisa dikirim dari konsol.
+import { canReadActivityLogRole } from '@/features/activity-log/access'
+import type { ActivityLogEntry } from '@/features/activity-log/types'
+import { canDecideApprovalRole } from '@/features/approvals/access'
+import type { ApprovalRequest } from '@/features/approvals/types'
+import { canResolveHeldCreditRole } from '@/features/held-credits/access'
+import type {
+  HeldCreditDetail,
+  HeldCreditListItem,
+  ResolveHeldCreditBody,
+  ResolvedHeldCredit,
+} from '@/features/held-credits/types'
+import { canChangePayoutLimitsRole } from '@/features/payout-controls/access'
+import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import { MIN_MINT_IDR_FLOOR, MIN_REDEEM_IDR_FLOOR } from '@/lib/validators'
 import type {
   BniAccount,
@@ -34,13 +51,18 @@ import type {
   RedeemApprovalDetail,
   RedeemApprovalListItem,
   RedeemApprovalOutcome,
+  DurianpayApiCallDetail,
+  DurianpayApiCallListItem,
   PayoutFailureDetail,
   PayoutFailureListItem,
   PayoutIssueKind,
   PayoutResolution,
   ResolvePayoutFailureBody,
+  PaymentMethod,
+  BackofficeTransactionItem,
+  BackofficeTransactionAction,
 } from '@/lib/types'
-import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole, canReadDurianpayApiCallsRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -76,9 +98,16 @@ import {
   createBniStatementRows,
   BNI_MOCK_HISTORY_SINCE,
   createMockRedeemApprovals,
+  createMockActivityLog,
+  createMockApprovals,
+  createMockHeldCredits,
+  createInitialPayoutControls,
+  createInitialPayoutControlChanges,
   createInitialRedeemApprovalControls,
+  createMockDurianpayApiCalls,
   createMockPayoutFailures,
   MANAGER_THRESHOLD_IDR,
+  createInitialPaymentMethods,
 } from './data'
 
 // ─── Stores ───
@@ -144,6 +173,34 @@ let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApproval
 let payoutFailureStore: Map<string, PayoutFailureDetail> = createMockPayoutFailures()
 // Cermin `payout_controls.payouts_enabled`; tabel kosong di server = HIDUP.
 let payoutsEnabled = true
+// ─── Empat layar yang hilang ───
+// Keempat kelompok ini DILAYANI MSW dan TIDAK terdaftar di `INTEGRATION_PATHS`:
+// endpoint-nya sudah jadi di backend tapi api-dev belum menyajikannya, dan
+// layarnya harus bisa dijalankan sebelum itu. Berkeadaan, bukan sekadar daftar
+// mati — menyetujui usulan di layar Persetujuan benar-benar menyelesaikan
+// kredit di layar Mint Bermasalah, karena jalan buntu di antara keduanya persis
+// yang tiket ini tutup dan tiruan yang memutusnya tidak membuktikan apa pun.
+let activityLogStore: ActivityLogEntry[] = createMockActivityLog()
+// ⚠️ DRAF SOT PR #50 — metode pembayaran. Mutable (bukan append-only): jejaknya
+// di `activityLogStore` (PAYMENT_METHOD_UPDATED / _REORDERED), persis kontraknya.
+let paymentMethodStore: PaymentMethod[] = createInitialPaymentMethods()
+
+// Cermin `@IsISO8601()` untuk saringan rentang waktu Jejak Audit + Log Panggilan
+// DurianPay: tanggal kalender, opsional diikuti waktu dan penanda zona.
+// Sengaja tidak memakai `Date.parse` sebagai penentu sah — lihat alasannya di
+// pemakainya di bawah.
+const ISO_8601_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+
+let approvalStore: Map<string, ApprovalRequest> = createMockApprovals()
+let heldCreditStore: Map<string, HeldCreditDetail> = createMockHeldCredits()
+let payoutControlsState: PayoutControls = createInitialPayoutControls()
+let payoutControlChanges: PayoutControlChange[] = createInitialPayoutControlChanges()
+// Log Panggilan DurianPay. DILAYANI MSW karena backendnya (branch
+// `wisnubarata111/be-catat-log-panggilan-durianpay`) BELUM merge sama sekali —
+// kedua pathnya sengaja ABSEN dari `INTEGRATION_PATHS`. Tabel aslinya
+// append-only: tidak ada satu pun jalur yang meng-update sebuah panggilan yang
+// sudah selesai, jadi tiruan ini pun tidak punya satu pun penulis.
+let durianpayApiCallStore: Map<string, DurianpayApiCallDetail> = createMockDurianpayApiCalls()
 // USDX-546 — no KYB state here on purpose. `/api/v1/kyb*` is served by the real
 // backend (PR #271 + #275) and is listed in `INTEGRATION_PATHS`; the mock list,
 // detail map, seeded documents and error stubs were DELETED rather than left
@@ -153,6 +210,13 @@ let payoutsEnabled = true
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function resetMockData() {
+  activityLogStore = createMockActivityLog()
+  paymentMethodStore = createInitialPaymentMethods()
+  approvalStore = createMockApprovals()
+  heldCreditStore = createMockHeldCredits()
+  payoutControlsState = createInitialPayoutControls()
+  payoutControlChanges = createInitialPayoutControlChanges()
+  approvalIdCounter = 900
   oncallStore = createInitialOncallContacts()
   customerStore = createMockCustomerList()
   staffStore = createMockStaffList()
@@ -178,6 +242,7 @@ export function resetMockData() {
   redeemApprovalControls = createInitialRedeemApprovalControls()
   payoutFailureStore = createMockPayoutFailures()
   payoutsEnabled = true
+  durianpayApiCallStore = createMockDurianpayApiCalls()
   pendingTimers.forEach(clearTimeout)
   pendingTimers.clear()
 }
@@ -788,6 +853,151 @@ function redeemIdrCents(raw: string): bigint | null {
  * Ambang yang tak terbaca diperlakukan sebagai `0` — fail-closed, semua tertahan.
  * Urut `burnedAt` ASC: terlama dulu, keputusan fairness, bukan preferensi tampilan.
  */
+
+// ─── ⚠️ DRAF SOT PR #50 — pembantu Transaksi gabungan & Metode Pembayaran ───
+
+function transactionsError(message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code: 'VALIDATION_ERROR', message } },
+    { status: 422 },
+  )
+}
+
+function paymentMethodError(status: number, code: string, message: string) {
+  return HttpResponse.json({ status: 'error', metadata: null, data: null, error: { code, message } }, { status })
+}
+
+function sortedPaymentMethods(): PaymentMethod[] {
+  return [...paymentMethodStore].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code))
+}
+
+function pushPaymentMethodLog(action: string, resourceId: string | null, actorStaffId: string | null, metadata: Record<string, unknown>) {
+  activityLogStore.unshift({
+    id: `019f9b00-${Date.now().toString(16).slice(-4)}-7c31-9b2d-${String(activityLogStore.length).padStart(12, '0')}`,
+    actorStaffId,
+    actorUserId: null,
+    action,
+    // Kontrak menyebut `resource_type = "PAYMENT_METHOD"` untuk UPDATED; untuk
+    // REORDERED kontrak DIAM — tiruan memakai nilai yang sama (lihat pertanyaan
+    // terbuka di docs/plans/redesain-progres.md).
+    resourceType: 'PAYMENT_METHOD',
+    resourceId,
+    metadata,
+    ipAddress: '127.0.0.1',
+    outcome: 'SUCCESS',
+    httpStatus: 200,
+    createdAt: new Date().toISOString(),
+  })
+}
+
+/** Batas umur "nyangkut" manual sync — keputusan PM 2026-10-09. */
+const MANUAL_SYNC_STALE_AFTER_MS = 2 * 60 * 60 * 1000
+const ACTION_PRIORITY = ['PAYOUT_FAILURE', 'REDEEM_APPROVAL', 'HELD_CREDIT', 'MANUAL_SYNC']
+
+export function buildBackofficeTransactions(): { rows: BackofficeTransactionItem[]; partnerIds: Set<string> } {
+  const byId = new Map<string, BackofficeTransactionItem>()
+  const partnerIds = new Set<string>()
+  const now = Date.now()
+
+  for (const o of orderList) {
+    const d = orderDetails.get(o.id)
+    if (o.partner) partnerIds.add(o.id)
+    const actions: BackofficeTransactionAction[] = []
+    if (
+      o.type === 'MINT' &&
+      o.paymentStatus === 'PAID' &&
+      (o.safeStatus === 'PENDING_APPROVAL' || o.safeStatus === 'APPROVED') &&
+      d?.paidAt &&
+      now - Date.parse(d.paidAt) > MANUAL_SYNC_STALE_AFTER_MS
+    ) {
+      actions.push({ actionType: 'MANUAL_SYNC', queue: 'MANUAL_SYNC', refId: o.id, since: d.paidAt })
+    }
+    byId.set(o.id, {
+      id: o.id,
+      kind: o.type,
+      occurredAt: o.createdAt,
+      orderNumber: d?.externalReference ?? null,
+      customerName: null,
+      userEmail: o.userEmail,
+      partnerCode: o.partner?.code ?? null,
+      senderName: null,
+      amountUsdx: o.amount,
+      amountIdr: o.type === 'MINT' ? o.totalPayIdr : o.netPayoutIdr,
+      status: o.status,
+      needsAction: false,
+      actions,
+    })
+  }
+
+  for (const r of openRedeemApprovals()) {
+    const row = byId.get(r.id) ?? {
+      id: r.id, kind: 'REDEEM', occurredAt: r.burnedAt, orderNumber: r.orderNumber, customerName: r.customerName,
+      userEmail: r.userEmail, partnerCode: null, senderName: null, amountUsdx: r.amountUsdx, amountIdr: r.netPayoutIdr,
+      status: 'BURNED', needsAction: false, actions: [],
+    }
+    row.actions.push({ actionType: 'REDEEM_APPROVAL', queue: 'REDEEM_APPROVALS', refId: r.id, since: r.burnedAt })
+    byId.set(r.id, row)
+  }
+
+  for (const f of payoutFailureStore.values()) {
+    if (f.resolution !== null) continue
+    const row = byId.get(f.id) ?? {
+      id: f.id, kind: 'REDEEM', occurredAt: f.issueAt ?? new Date(now).toISOString(), orderNumber: null, customerName: null,
+      userEmail: f.ownerLabel, partnerCode: null, senderName: null, amountUsdx: f.amountUsdx, amountIdr: f.netPayoutIdr,
+      status: f.status, needsAction: false, actions: [],
+    }
+    if (f.ownerKind === 'PARTNER') partnerIds.add(f.id)
+    row.actions.push({
+      actionType: 'PAYOUT_FAILURE', queue: 'PAYOUT_FAILURES', refId: f.id,
+      since: f.issueAt ?? row.occurredAt, payoutIssueKind: f.issueKind,
+    })
+    byId.set(f.id, row)
+  }
+
+  for (const c of heldCreditStore.values()) {
+    if (c.resolution !== null) continue
+    const action: BackofficeTransactionAction = {
+      actionType: 'HELD_CREDIT', queue: 'HELD_CREDITS', refId: c.id, since: c.receivedAt, heldReason: c.heldReason,
+    }
+    if (c.order) {
+      const o = c.order
+      const row = byId.get(o.id) ?? {
+        id: o.id, kind: 'MINT', occurredAt: o.createdAt, orderNumber: null, customerName: o.customerName,
+        userEmail: o.userEmail, partnerCode: null, senderName: null, amountUsdx: o.amount, amountIdr: o.expectedAmountIdr,
+        status: o.status, needsAction: false, actions: [],
+      }
+      row.actions.push(action)
+      byId.set(o.id, row)
+    } else {
+      byId.set(c.id, {
+        id: c.id, kind: 'INCOMING_UNMATCHED', occurredAt: c.receivedAt, orderNumber: null, customerName: null,
+        userEmail: null, partnerCode: null, senderName: c.senderName, amountUsdx: null, amountIdr: c.receivedAmountIdr,
+        status: 'HELD', needsAction: true, actions: [action],
+      })
+    }
+  }
+
+  const rows = [...byId.values()].map((r) => {
+    const actions = [...r.actions].sort(
+      (a, b) => ACTION_PRIORITY.indexOf(a.actionType) - ACTION_PRIORITY.indexOf(b.actionType),
+    )
+    const needsAction = actions.length > 0
+    return {
+      ...r,
+      actions,
+      needsAction,
+      actionType: needsAction ? actions[0]!.actionType : null,
+      actionSince: needsAction ? actions.map((a) => a.since).sort()[0]! : null,
+    }
+  })
+  rows.sort((a, b) => {
+    if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1
+    if (a.needsAction) return a.actionSince!.localeCompare(b.actionSince!) || a.id.localeCompare(b.id)
+    return b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id)
+  })
+  return { rows, partnerIds }
+}
+
 function openRedeemApprovals(): RedeemApprovalListItem[] {
   const threshold = redeemIdrCents(redeemApprovalControls.approvalThresholdIdr) ?? 0n
   return redeemApprovalQueue
@@ -870,6 +1080,49 @@ export function upsertPayoutFailureForTests(detail: PayoutFailureDetail) {
   payoutFailureStore.set(detail.id, detail)
 }
 
+// ─── Log Panggilan DurianPay (/api/v1/durianpay-api-calls) ──────────────────
+// Bentuk galatnya meniru filter exception Nest apa adanya, sama dengan blok di
+// atas. Gerbang peran DITEGAKKAN di sini walau layarnya juga menyembunyikan
+// menunya: tiruan yang melepas STAFF membuat test "menu tidak tampil" hijau
+// tanpa membuktikan apa pun tentang permintaan yang tetap bisa dikirim dari
+// konsol peramban.
+
+function durianpayCallError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+const DURIANPAY_OUTCOMES = ['SUCCESS', 'REJECTED', 'UNAVAILABLE']
+const DURIANPAY_FLAVORS = ['SNAP', 'LEGACY']
+/** `ParseUUIDPipe` menolak apa pun yang bukan UUID dengan 400, sebelum service dipanggil. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Baris list SENGAJA tanpa badan pesan — satu halaman berisi 100 badan mengirim megabyte. */
+function toDurianpayApiCallListItem(detail: DurianpayApiCallDetail): DurianpayApiCallListItem {
+  return {
+    id: detail.id,
+    requestedAt: detail.requestedAt,
+    direction: detail.direction,
+    apiFlavor: detail.apiFlavor,
+    httpMethod: detail.httpMethod,
+    path: detail.path,
+    httpStatus: detail.httpStatus,
+    responseCode: detail.responseCode,
+    outcome: detail.outcome,
+    referenceNo: detail.referenceNo,
+    traceId: detail.traceId,
+    durationMs: detail.durationMs,
+    errorSummary: detail.errorSummary,
+  }
+}
+
+/** Test helper: sisipkan atau ganti satu panggilan. Dikembalikan oleh resetMockData(). */
+export function upsertDurianpayApiCallForTests(detail: DurianpayApiCallDetail) {
+  durianpayApiCallStore.set(detail.id, detail)
+}
+
 function bniError(status: number, code: string, message: string, details?: unknown) {
   return HttpResponse.json(
     {
@@ -904,6 +1157,324 @@ function bniRangeProblem(startDate: string, endDate: string): string | null {
   }
   if (dayOf(endDate) - dayOf(startDate) + 1 > 31) return 'range must be at most 31 days'
   return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EMPAT LAYAR YANG HILANG — keadaan + penolong tiruan
+// ═══════════════════════════════════════════════════════════════════════════
+
+function layarError(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { status: 'error', metadata: null, data: null, error: { code, message } },
+    { status }
+  )
+}
+
+const APPROVAL_STATUSES: string[] = ['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED']
+const APPROVAL_ACTION_TYPES: string[] = [
+  'PAYOUT_CONTROLS_RELEASE',
+  'HELD_CREDIT_RESOLVE',
+  'PAYOUT_CONTROLS_LIMITS',
+]
+
+/** Ambang maker-checker, konstanta di kode backend (`approvals.types.ts`). */
+const MOCK_MAKER_CHECKER_THRESHOLD_IDR = 10_000_000n
+
+/** Rupiah BULAT sebagai bigint; `null` kalau bukan angka rupiah yang terbaca. */
+function mockRupiahFloor(value: string): bigint | null {
+  const match = /^(\d+)(?:\.\d+)?$/.exec(value.trim())
+  return match ? BigInt(match[1]!) : null
+}
+
+/**
+ * Nominal TERBESAR dari beberapa sisi rupiah, gagal-tertutup: `null` kalau ADA
+ * satu saja yang tak terbaca atau tak ada. Cermin `maxRupiahIdr` di backend —
+ * nominal yang tidak diketahui tidak boleh membuat aksi tampak lebih kecil
+ * daripada yang sebenarnya.
+ */
+function largestRupiah(values: (string | null)[]): string | null {
+  let best: { raw: string; value: bigint } | null = null
+  for (const raw of values) {
+    if (raw === null) return null
+    const parsed = mockRupiahFloor(raw)
+    if (parsed === null) return raw
+    if (!best || parsed > best.value) best = { raw, value: parsed }
+  }
+  return best ? best.raw : null
+}
+
+function requiresSecondPerson(stakes: (string | null)[]): boolean {
+  const largest = largestRupiah(stakes)
+  if (largest === null) return true
+  const parsed = mockRupiahFloor(largest)
+  if (parsed === null) return true
+  return parsed > MOCK_MAKER_CHECKER_THRESHOLD_IDR
+}
+
+let approvalIdCounter = 900
+function nextApprovalId(): string {
+  approvalIdCounter += 1
+  return `019f4a01-0486-7c31-9b2d-${String(approvalIdCounter).padStart(12, '0')}`
+}
+
+function createApproval(input: {
+  actionType: ApprovalRequest['actionType']
+  payload: Record<string, unknown>
+  amountIdr: string | null
+  proposerStaffId: string
+}): ApprovalRequest {
+  const now = new Date()
+  const approval: ApprovalRequest = {
+    id: nextApprovalId(),
+    actionType: input.actionType,
+    payload: input.payload,
+    amountIdr: input.amountIdr,
+    status: 'PENDING',
+    proposerStaffId: input.proposerStaffId,
+    proposedAt: now.toISOString(),
+    // Masa berlaku bawaan backend: 24 jam (`APPROVAL_EXPIRY_HOURS`).
+    expiresAt: new Date(now.getTime() + 24 * 3_600_000).toISOString(),
+    approverStaffId: null,
+    decidedAt: null,
+    decisionReason: null,
+    executedAt: null,
+    executionError: null,
+  }
+  approvalStore.set(approval.id, approval)
+  return approval
+}
+
+/**
+ * Sapuan kedaluwarsa saat antrean dibaca — KOSMETIK, persis seperti di backend:
+ * penegakannya ada di jalur putusan dengan jam yang sama, supaya sapuan yang
+ * tidak jalan tidak berarti usulan basi masih bisa disetujui.
+ */
+function sweepExpiredApprovals() {
+  const now = Date.now()
+  for (const [id, row] of approvalStore) {
+    if (row.status === 'PENDING' && Date.parse(row.expiresAt) <= now) {
+      approvalStore.set(id, { ...row, status: 'EXPIRED' })
+    }
+  }
+}
+
+/** Proyeksi detail → baris antrean; field khusus detail tidak ikut. */
+function toHeldCreditListItem(credit: HeldCreditDetail): HeldCreditListItem {
+  return {
+    id: credit.id,
+    source: credit.source,
+    heldReason: credit.heldReason,
+    receivedAmountIdr: credit.receivedAmountIdr,
+    receivedAmountRaw: credit.receivedAmountRaw,
+    accountFromTo: credit.accountFromTo,
+    senderName: credit.senderName,
+    collectionAccountNo: credit.collectionAccountNo,
+    journalNum: credit.journalNum,
+    receivedAt: credit.receivedAt,
+    order: credit.order,
+  }
+}
+
+/**
+ * Menulis putusan ke kredit. Jejak `reviews` hanya ditambahkan untuk ledger
+ * BNI — `durianpay_notifications` tidak punya tabel review sama sekali (sisa
+ * audit P0-2), dan tiruan yang mengarang jejaknya akan menyembunyikan justru
+ * lubang yang layarnya harus jelaskan.
+ */
+function applyHeldCreditResolve(
+  creditId: string,
+  action: 'PAID' | 'FAILED',
+  orderId: string | null,
+  actorStaffId: string
+): ResolvedHeldCredit | null {
+  const credit = heldCreditStore.get(creditId)
+  if (!credit || credit.resolution !== null) return null
+  const now = new Date().toISOString()
+  const actor = findStaffById(actorStaffId)
+  const targetOrderId = action === 'PAID' ? (orderId ?? credit.order?.id ?? null) : null
+  const orderStatus = action === 'PAID' ? 'PAID' : 'FAILED'
+  heldCreditStore.set(creditId, {
+    ...credit,
+    resolution: action,
+    resolvedAt: now,
+    resolvedBy: actorStaffId,
+    resolvedMintOrderId: targetOrderId,
+    reviews:
+      credit.source === 'BNI'
+        ? [
+            ...credit.reviews,
+            {
+              id: `${creditId}-review-${credit.reviews.length + 1}`,
+              action,
+              mintOrderId: targetOrderId,
+              actorStaffId,
+              actorStaffName: actor?.name ?? null,
+              reason: 'tercatat di jejak keputusan',
+              ipAddress: '127.0.0.1',
+              createdAt: now,
+            },
+          ]
+        : credit.reviews,
+  })
+  return {
+    creditId,
+    resolution: action,
+    orderId: targetOrderId,
+    orderStatus: credit.order ? orderStatus : null,
+    orderPaymentStatus: credit.order ? orderStatus : null,
+    resolvedAt: now,
+    resolvedBy: actorStaffId,
+    resolvedByName: actor?.name ?? '',
+  }
+}
+
+/**
+ * Menjalankan aksi milik usulan yang baru disetujui. Mengembalikan pesan galat
+ * kalau gagal — usulan TETAP APPROVED dan galatnya tersimpan di
+ * `executionError`, persis perilaku backend: mengembalikannya ke menunggu akan
+ * mengundang eksekusi kedua atas aksi yang mungkin sudah separuh berjalan.
+ */
+function runApprovedAction(approval: ApprovalRequest): string | null {
+  if (approval.actionType === 'HELD_CREDIT_RESOLVE') {
+    const payload = approval.payload as {
+      creditId?: unknown
+      action?: unknown
+      orderId?: unknown
+    }
+    if (typeof payload.creditId !== 'string' || (payload.action !== 'PAID' && payload.action !== 'FAILED')) {
+      return 'HELD_CREDIT_PAYLOAD_INVALID'
+    }
+    const done = applyHeldCreditResolve(
+      payload.creditId,
+      payload.action,
+      typeof payload.orderId === 'string' ? payload.orderId : null,
+      // Aktor domain = PENGUSUL, bukan penyetuju. Siapa yang MENGIZINKAN tersimpan
+      // di `approverStaffId`; dua pertanyaan berbeda, dua jawaban.
+      approval.proposerStaffId
+    )
+    return done ? null : 'CREDIT_NOT_HELD'
+  }
+  if (approval.actionType === 'PAYOUT_CONTROLS_RELEASE') {
+    payoutControlsState = {
+      ...payoutControlsState,
+      payoutsEnabled: true,
+      updatedAt: new Date().toISOString(),
+      updatedBy: approval.proposerStaffId,
+    }
+    return null
+  }
+  if (approval.actionType === 'PAYOUT_CONTROLS_LIMITS') {
+    const payload = approval.payload as Record<string, unknown>
+    const perTx = payload.maxPerTxIdr
+    const daily = payload.maxDailyIdr
+    const batch = payload.maxBatchPerTick
+    const reason = payload.reason
+    const decimalOk = (v: unknown) => v === null || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v))
+    if (
+      !decimalOk(perTx) ||
+      !decimalOk(daily) ||
+      !(batch === null || (typeof batch === 'number' && Number.isInteger(batch) && batch >= 1)) ||
+      typeof reason !== 'string'
+    ) {
+      return 'PAYOUT_LIMITS_PAYLOAD_INVALID'
+    }
+    const before = {
+      maxPerTxIdr: payoutControlsState.maxPerTxIdr,
+      maxDailyIdr: payoutControlsState.maxDailyIdr,
+      maxBatchPerTick: payoutControlsState.maxBatchPerTick,
+    }
+    const after = {
+      maxPerTxIdr: perTx as string | null,
+      maxDailyIdr: daily as string | null,
+      maxBatchPerTick: batch as number | null,
+    }
+    const now = new Date().toISOString()
+    payoutControlsState = {
+      ...payoutControlsState,
+      ...after,
+      updatedAt: now,
+      updatedBy: approval.proposerStaffId,
+    }
+    payoutControlChanges = [
+      {
+        id: `${approval.id}-change`,
+        createdAt: now,
+        reason,
+        approvalRequestId: approval.id,
+        proposerStaffId: approval.proposerStaffId,
+        approverStaffId: approval.approverStaffId,
+        before,
+        after,
+        ipAddress: '127.0.0.1',
+      },
+      ...payoutControlChanges,
+    ]
+    return null
+  }
+  return 'NO_EXECUTOR_REGISTERED'
+}
+
+/**
+ * Empat pagar, urutannya sama dengan backend: ada? → bukan pengusulnya? →
+ * belum kedaluwarsa? → belum diputus?
+ *
+ * Larangan menyetujui usulan sendiri didahulukan dari kedaluwarsa karena di
+ * backend ia dijaga `requirePending` SEBELUM klaim, dan karena percobaannya
+ * dicatat sebagai peristiwa tersendiri di jejak audit.
+ */
+function decideApproval(
+  id: string,
+  staff: Staff | null,
+  status: 'APPROVED' | 'REJECTED',
+  reason: string | null
+) {
+  const row = approvalStore.get(id)
+  if (!row) return layarError(404, 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_FOUND')
+  const approverId = staff?.id ?? null
+  if (approverId !== null && row.proposerStaffId === approverId) {
+    return layarError(
+      403,
+      'SELF_APPROVAL_FORBIDDEN',
+      'Usulan tidak boleh diputuskan oleh pengusulnya sendiri — dibutuhkan staff yang berbeda.'
+    )
+  }
+  if (row.status !== 'PENDING') {
+    return layarError(
+      409,
+      'APPROVAL_ALREADY_DECIDED',
+      'Usulan ini sudah diputuskan — memutuskan ulang tidak menggandakan eksekusi.'
+    )
+  }
+  if (Date.parse(row.expiresAt) <= Date.now()) {
+    approvalStore.set(id, { ...row, status: 'EXPIRED' })
+    return layarError(
+      409,
+      'APPROVAL_EXPIRED',
+      'Usulan sudah lewat masa berlaku dan tidak bisa diputuskan lagi.'
+    )
+  }
+
+  const now = new Date().toISOString()
+  // Penyetuju di tiruan boleh `stf_1` saat sesi tiruan tidak terbaca (browser
+  // dev pakai cookie backend asli) — bukan `null`, karena CHECK
+  // `approval_requests_decision_complete` menolak putusan tanpa penyetuju.
+  const decided: ApprovalRequest = {
+    ...row,
+    status,
+    approverStaffId: approverId ?? (row.proposerStaffId === 'stf_1' ? 'stf_2' : 'stf_1'),
+    decidedAt: now,
+    decisionReason: reason,
+  }
+  approvalStore.set(id, decided)
+  if (status === 'REJECTED') {
+    return HttpResponse.json({ status: 'success', metadata: null, data: decided })
+  }
+  const failure = runApprovedAction(decided)
+  const executed: ApprovalRequest = failure
+    ? { ...decided, executedAt: null, executionError: failure }
+    : { ...decided, executedAt: new Date().toISOString(), executionError: null }
+  approvalStore.set(id, executed)
+  return HttpResponse.json({ status: 'success', metadata: null, data: executed })
 }
 
 export const handlers = [
@@ -2167,7 +2738,13 @@ export const handlers = [
 
     let rows = [...requestList]
     if (type === 'mint' || type === 'burn') rows = rows.filter((r) => r.type === type)
-    if (status) rows = rows.filter((r) => r.status === status)
+    // `status` menerima CSV, sama dengan `ListRequestsDto` di backend
+    // (`PENDING_APPROVAL,APPROVED`) — halaman OTC menarik dua kelompok status
+    // sekaligus.
+    if (status) {
+      const wanted = status.split(',').map((x) => x.trim()).filter(Boolean)
+      rows = rows.filter((r) => wanted.includes(r.status))
+    }
     if (chain) rows = rows.filter((r) => r.chain === chain)
     if (safeType === 'STAFF' || safeType === 'MANAGER') {
       rows = rows.filter((r) => r.safeType === safeType)
@@ -2753,6 +3330,258 @@ export const handlers = [
     })
   }),
 
+  // ─── Log Panggilan DurianPay (backend `durianpay-api-calls/`) ───
+  // MSW-served karena backendnya BELUM merge; begitu merge, kedua path masuk
+  // `INTEGRATION_PATHS` dan handler ini TETAP di sini untuk Vitest (preseden
+  // USDX-154). Saringannya sama persis dengan `ListDurianpayApiCallsDto` — tidak
+  // ada pencarian teks di badan pesan, karena servernya memang tidak punya.
+  http.get('/api/v1/durianpay-api-calls', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadDurianpayApiCallsRole(staff.role)) {
+      return durianpayCallError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const takeRaw = Number(url.searchParams.get('take') || '20')
+    if (!Number.isInteger(takeRaw) || takeRaw < 1 || takeRaw > 100) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'take must not be greater than 100')
+    }
+    const outcome = url.searchParams.get('outcome')
+    if (outcome && !DURIANPAY_OUTCOMES.includes(outcome)) {
+      return durianpayCallError(
+        400,
+        'BAD_REQUEST',
+        'outcome must be one of the following values: SUCCESS, REJECTED, UNAVAILABLE'
+      )
+    }
+    const apiFlavor = url.searchParams.get('apiFlavor')
+    if (apiFlavor && !DURIANPAY_FLAVORS.includes(apiFlavor)) {
+      return durianpayCallError(
+        400,
+        'BAD_REQUEST',
+        'apiFlavor must be one of the following values: SNAP, LEGACY'
+      )
+    }
+    const httpStatusRaw = url.searchParams.get('httpStatus')
+    const httpStatus = httpStatusRaw === null ? null : Number(httpStatusRaw)
+    if (
+      httpStatus !== null &&
+      (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599)
+    ) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'httpStatus must not be less than 100')
+    }
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const pathPrefix = url.searchParams.get('path')
+    const referenceNo = url.searchParams.get('referenceNo')
+    const responseCode = url.searchParams.get('responseCode')
+
+    const rows = [...durianpayApiCallStore.values()]
+      .filter((row) => !from || Date.parse(row.requestedAt) >= Date.parse(from))
+      .filter((row) => !to || Date.parse(row.requestedAt) <= Date.parse(to))
+      .filter((row) => !outcome || row.outcome === outcome)
+      .filter((row) => !apiFlavor || row.apiFlavor === apiFlavor)
+      // AWALAN, bukan `includes` — `LIKE 'prefix%'` di repository backend.
+      .filter((row) => !pathPrefix || row.path.startsWith(pathPrefix))
+      .filter((row) => !referenceNo || row.referenceNo === referenceNo)
+      .filter((row) => httpStatus === null || row.httpStatus === httpStatus)
+      .filter((row) => !responseCode || row.responseCode === responseCode)
+      // TERBARU dulu; `id` jadi tie-break, persis `orderBy` repository backend.
+      .sort(
+        (a, b) =>
+          Date.parse(b.requestedAt) - Date.parse(a.requestedAt) || b.id.localeCompare(a.id)
+      )
+    const start = (page - 1) * takeRaw
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: takeRaw, total: rows.length },
+      data: rows.slice(start, start + takeRaw).map(toDurianpayApiCallListItem),
+    })
+  }),
+
+  http.get('/api/v1/durianpay-api-calls/:id', ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadDurianpayApiCallsRole(staff.role)) {
+      return durianpayCallError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const id = String(params.id)
+    // `ParseUUIDPipe` menolak bentuk yang bukan UUID SEBELUM service dipanggil,
+    // jadi id ngawur dijawab 400 — bukan 404 yang berarti "pernah ada".
+    if (!UUID_SHAPE.test(id)) {
+      return durianpayCallError(400, 'BAD_REQUEST', 'Validation failed (uuid is expected)')
+    }
+    const detail = durianpayApiCallStore.get(id)
+    if (!detail) return durianpayCallError(404, 'NOT_FOUND', 'DURIANPAY_API_CALL_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: detail })
+  }),
+
+
+  // ─── ⚠️ DRAF SOT PR #50 — Transaksi gabungan (`backoffice-transactions.yaml`) ───
+  // Dibangun dari antrean tiruan yang SAMA dengan layar antrean lama, jadi aksi
+  // dari panel Transaksi (approve/reject/resolve) benar-benar mengeluarkan
+  // barisnya dari bagian "perlu tindakan". Predikat per tindakan = predikat
+  // antrean asal; MANUAL_SYNC hanya setelah 2 jam sejak `paid_at`.
+  http.get('/api/v1/transactions', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Number(url.searchParams.get('take') || '20')
+    if (!Number.isInteger(take) || take < 1 || take > 100) {
+      return transactionsError('take must be 1..100')
+    }
+    const kinds = url.searchParams.getAll('kind')
+    const needsActionParam = url.searchParams.get('needsAction')
+    const actionTypeParam = url.searchParams.get('actionType')
+    const q = url.searchParams.get('q')
+    if (q !== null && (q.trim().length < 3 || q.trim().length > 100)) {
+      return transactionsError('q must be 3..100 characters')
+    }
+    const ownerType = url.searchParams.get('ownerType')
+    if (ownerType !== null && ownerType !== 'PARTNER' && ownerType !== 'RETAIL') {
+      return transactionsError('ownerType must be PARTNER or RETAIL')
+    }
+    const { rows, partnerIds } = buildBackofficeTransactions()
+    let out = rows
+    if (kinds.length) out = out.filter((r) => kinds.includes(r.kind))
+    if (needsActionParam === 'true') out = out.filter((r) => r.needsAction)
+    if (needsActionParam === 'false') out = out.filter((r) => !r.needsAction)
+    if (actionTypeParam) out = out.filter((r) => r.actions.some((a) => a.actionType === actionTypeParam))
+    if (q) {
+      const needle = q.trim().toLowerCase()
+      out = out.filter(
+        (r) =>
+          (r.orderNumber ?? '').toLowerCase().startsWith(needle) ||
+          r.id.toLowerCase() === needle ||
+          (r.customerName ?? '').toLowerCase().includes(needle) ||
+          (r.senderName ?? '').toLowerCase().includes(needle),
+      )
+    }
+    if (ownerType === 'PARTNER') out = out.filter((r) => partnerIds.has(r.id))
+    if (ownerType === 'RETAIL') out = out.filter((r) => r.kind !== 'INCOMING_UNMATCHED' && !partnerIds.has(r.id))
+    const needsActionTotal = out.filter((r) => r.needsAction).length
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: out.length, needsActionTotal },
+      data: out.slice(start, start + take),
+    })
+  }),
+
+  // ─── ⚠️ DRAF SOT PR #50 — Metode Pembayaran (`payment-methods.yaml`) ───
+  http.get('/api/v1/payment-methods', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN' && staff.role !== 'DEVELOPER') {
+      return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    return HttpResponse.json({ status: 'success', metadata: null, data: sortedPaymentMethods() })
+  }),
+
+  http.patch('/api/v1/payment-methods/:id', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN') return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    const row = paymentMethodStore.find((m) => m.id === String(params.id))
+    if (!row) return paymentMethodError(404, 'NOT_FOUND', 'Payment method not found')
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    }
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
+    if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr'].some(has)) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'at least one of enabled, sortOrder, feeType+feeValue, maxAmountIdr is required')
+    }
+    if (has('feeType') !== has('feeValue')) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'feeType and feeValue must be sent together')
+    }
+    if (has('enabled') && typeof body.enabled !== 'boolean') {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'enabled must be a boolean')
+    }
+    if (has('sortOrder') && (!Number.isInteger(body.sortOrder) || (body.sortOrder as number) < 0 || (body.sortOrder as number) > 10000)) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'sortOrder must be an integer 0..10000')
+    }
+    if (has('feeType')) {
+      const ft = body.feeType
+      const fv = typeof body.feeValue === 'string' ? body.feeValue : ''
+      if (ft !== 'FLAT_IDR' && ft !== 'PERCENT') return paymentMethodError(422, 'VALIDATION_ERROR', 'feeType must be FLAT_IDR or PERCENT')
+      const ok = ft === 'FLAT_IDR' ? /^\d+(\.\d{1,2})?$/.test(fv) : /^\d+(\.\d{1,4})?$/.test(fv) && Number(fv) <= 100
+      if (!ok) return paymentMethodError(422, 'VALIDATION_ERROR', 'feeValue is invalid for feeType')
+    }
+    const isBniTransfer = row.code === 'BANK_TRANSFER_BNI_BNI'
+    if (has('maxAmountIdr')) {
+      const v = body.maxAmountIdr
+      if (v === null) {
+        if (isBniTransfer) return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr is required for BANK_TRANSFER_BNI_BNI')
+      } else if (typeof v !== 'string' || !/^\d+(\.\d{1,2})?$/.test(v) || Number(v) <= 0) {
+        return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr must be a positive amount with at most 2 decimals')
+      } else if (isBniTransfer && Number(v) > 10_000_000) {
+        return paymentMethodError(422, 'VALIDATION_ERROR', 'maxAmountIdr exceeds BNI_TRANSFER_MAX_AMOUNT_POLICY_IDR')
+      }
+    }
+    if (typeof body.expectedUpdatedAt === 'string' && body.expectedUpdatedAt !== row.updatedAt) {
+      return paymentMethodError(409, 'PAYMENT_METHOD_CHANGED', 'Metode ini baru saja diubah admin lain. Muat ulang lalu ulangi.')
+    }
+    // Pengaman D23 (keputusan PM #1): tiruan meniru production yang BELUM
+    // menyatakan `BNI_TRANSFER_PREREQ_VERIFIED`.
+    if (isBniTransfer && body.enabled === true && !row.enabled) {
+      return paymentMethodError(409, 'PAYMENT_METHOD_PREREQUISITE_UNMET', 'BNI transfer prerequisites (D23) are not verified')
+    }
+    const pick = (m: PaymentMethod) => ({ enabled: m.enabled, sortOrder: m.sortOrder, feeType: m.feeType, feeValue: m.feeValue, maxAmountIdr: m.maxAmountIdr ?? null })
+    const before = pick(row)
+    if (has('enabled')) row.enabled = body.enabled as boolean
+    if (has('sortOrder')) row.sortOrder = body.sortOrder as number
+    if (has('feeType')) {
+      row.feeType = body.feeType as PaymentMethod['feeType']
+      row.feeValue = String(body.feeValue)
+    }
+    if (has('maxAmountIdr')) row.maxAmountIdr = (body.maxAmountIdr as string | null)
+    row.updatedAt = new Date().toISOString()
+    row.updatedBy = staff?.id ?? null
+    row.updatedByName = staff?.name ?? null
+    pushPaymentMethodLog('PAYMENT_METHOD_UPDATED', row.id, staff?.id ?? null, { before, after: pick(row), reason })
+    return HttpResponse.json({ status: 'success', metadata: null, data: row })
+  }),
+
+  http.put('/api/v1/payment-method-order', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && staff.role !== 'ADMIN') return paymentMethodError(403, 'FORBIDDEN', 'FORBIDDEN')
+    let body: { orderedIds?: unknown; reason?: unknown }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    }
+    const ids = Array.isArray(body.orderedIds) ? body.orderedIds.map(String) : []
+    const all = new Set(paymentMethodStore.map((m) => m.id))
+    if (ids.length !== all.size || new Set(ids).size !== ids.length || ids.some((x) => !all.has(x))) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'orderedIds must contain every payment method exactly once')
+    }
+    const before = sortedPaymentMethods().map((m) => m.code)
+    const now = new Date().toISOString()
+    ids.forEach((pmId, i) => {
+      const m = paymentMethodStore.find((x) => x.id === pmId)!
+      if (m.sortOrder !== (i + 1) * 10) {
+        m.sortOrder = (i + 1) * 10
+        m.updatedAt = now
+        m.updatedBy = staff?.id ?? null
+        m.updatedByName = staff?.name ?? null
+      }
+    })
+    pushPaymentMethodLog('PAYMENT_METHOD_REORDERED', null, staff?.id ?? null, {
+      before,
+      after: sortedPaymentMethods().map((m) => m.code),
+      reason,
+    })
+    return HttpResponse.json({ status: 'success', metadata: null, data: sortedPaymentMethods() })
+  }),
+
   // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───
   // MSW-served sampai api-dev menyajikan USDX-676 (13 Sep 2026: 404). Tiap angka
   // dihitung dari predikat YANG SAMA dengan `metadata.total` list tiruannya — badge
@@ -2763,11 +3592,383 @@ export const handlers = [
     const payoutFailuresOpen = [...payoutFailureStore.values()].filter(
       (detail) => detail.resolution === null
     ).length
+    // Predikat PERSIS milik `GET /api/v1/held-credits` di bawah — badge dan
+    // layar tidak boleh berbeda tentang antrean yang sama.
+    const heldCreditsOpen = [...heldCreditStore.values()].filter(
+      (credit) => credit.resolution === null
+    ).length
+    // `PENDING` yang BELUM kedaluwarsa, dihitung dari jamnya langsung — dan
+    // SENGAJA TANPA memanggil `sweepExpiredApprovals()`.
+    //
+    // Sapuan itu kosmetik dan jalan saat ANTREANNYA dibaca. Kalau badge ikut
+    // menyapu, angkanya berubah karena dilihat; kalau badge menghitung
+    // `status === 'PENDING'` mentah tanpa menyapu, ia menghitung usulan yang
+    // jam DB sudah tolak dan mengecil sendiri begitu ops membuka layarnya.
+    // Keduanya angka yang tidak bisa dipercaya. Backend menghitung
+    // `PENDING AND expires_at > now()` langsung; ini cerminnya.
+    const now = Date.now()
+    const approvalsOpen = [...approvalStore.values()].filter(
+      (row) => row.status === 'PENDING' && Date.parse(row.expiresAt) > now
+    ).length
     return HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: { payoutFailuresOpen, redeemApprovalsOpen: openRedeemApprovals().length },
+      data: {
+        payoutFailuresOpen,
+        redeemApprovalsOpen: openRedeemApprovals().length,
+        heldCreditsOpen,
+        approvalsOpen,
+        // ⚠️ DRAF SOT PR #50 — per BARIS, dari predikat yang sama dengan list.
+        transactionsNeedsAction: buildBackofficeTransactions().rows.filter((r) => r.needsAction).length,
+      },
     })
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMPAT LAYAR YANG HILANG — tiruan endpoint yang sudah jadi di backend tapi
+  // belum pernah punya pintu di back office.
+  //
+  // Keempatnya SENGAJA TIDAK masuk `INTEGRATION_PATHS` (`browser.ts`): api-dev
+  // belum menyajikannya, jadi browser dev harus tetap dilayani MSW. Begitu ia
+  // menjawab 401 (bukan 404), path-nya ditambahkan di sana dan handler ini
+  // TETAP di berkas ini untuk Vitest — preseden USDX-154.
+  //
+  // GERBANG PERAN DITEGAKKAN HANYA SAAT SESI TIRUAN TERBACA. Di browser dev,
+  // sesi operator adalah cookie httpOnly backend ASLI yang tidak terlihat oleh
+  // service worker; menolak semua permintaan tanpa sesi tiruan akan membuat
+  // layarnya mustahil dibuka di dev. Tanpa gerbang sama sekali, tes "peran X
+  // ditolak 403" tidak membuktikan apa pun. Karena itu: ada sesi → tegakkan.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Direktori staf (dipakai ketiga layar untuk menerjemahkan staff_id) ───
+  // `GET /api/v1/staff` sudah nyata dan terdaftar di `INTEGRATION_PATHS`, jadi
+  // handler ini hanya melayani Vitest. Controller-nya tidak punya `@Roles`,
+  // hanya AuthGuard global — jadi tiruannya juga tidak menggerbangi peran.
+  http.get('/api/v1/staff', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || '10')))
+    const start = (page - 1) * limit
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit, total: staffStore.length },
+      data: staffStore.slice(start, start + limit),
+    })
+  }),
+
+  // ─── Jejak Audit (`GET /api/v1/activity-logs`, ADMIN saja) ───
+  // Tidak ada POST/PATCH/DELETE di sini, dan itu bukan kelalaian: controller
+  // backend sengaja hanya punya `@Get()`, repository-nya hanya INSERT+SELECT,
+  // dan trigger `activity_log_no_mutate` menolak UPDATE/DELETE di database.
+  // Tiruan yang menerima mutasi akan membuat layar yang mencobanya lolos tes.
+  http.get('/api/v1/activity-logs', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canReadActivityLogRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const outcome = url.searchParams.get('outcome')
+    if (outcome && outcome !== 'SUCCESS' && outcome !== 'FAILED') {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'outcome must be one of the following values: SUCCESS, FAILED'
+      )
+    }
+    const action = url.searchParams.get('action')
+    const resourceType = url.searchParams.get('resourceType')
+    const actorStaffId = url.searchParams.get('actorStaffId')
+    const actorUserId = url.searchParams.get('actorUserId')
+    // Rentang waktu. Bentuk non-ISO dijawab 400 — `@IsISO8601()`, sama dengan
+    // Log Panggilan DurianPay. Tiruan yang menerima apa saja akan membuat
+    // tautan basi lolos di sini lalu gagal di server sungguhan.
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    for (const [nama, nilai] of [
+      ['from', from],
+      ['to', to],
+    ] as const) {
+      // `Date.parse` SENGAJA tidak dipakai sebagai penentu sah: V8 menerima
+      // bentuk non-ISO seperti `12-09-2026` (dibacanya 9 Desember) dan
+      // mengembalikan angka, jadi tiruan yang bersandar padanya akan meloloskan
+      // tautan yang server sungguhan tolak 400 — dan tanggal yang tertukar
+      // hari/bulan adalah hasil pencarian yang salah tanpa satu pun tanda.
+      if (nilai !== null && !ISO_8601_DATE.test(nilai)) {
+        return layarError(400, 'BAD_REQUEST', `${nama} must be a valid ISO 8601 date string`)
+      }
+    }
+    const fromMs = from ? Date.parse(from) : null
+    const toMs = to ? Date.parse(to) : null
+    // Pencocokan PERSIS (`eq`), bukan pencarian sebagian — sama dengan
+    // `ActivityLogRepository.findMany`. Tiruan yang lebih longgar akan membuat
+    // kotak pencarian yang tidak akan pernah bekerja lolos tes.
+    const rows = activityLogStore
+      .filter((row) => !action || row.action === action)
+      .filter((row) => !resourceType || row.resourceType === resourceType)
+      .filter((row) => !outcome || row.outcome === outcome)
+      .filter((row) => !actorStaffId || row.actorStaffId === actorStaffId)
+      .filter((row) => !actorUserId || row.actorUserId === actorUserId)
+      // INKLUSIF di kedua ujung (`gte`/`lte` di server). Handler yang memakai
+      // batas eksklusif akan membuang kejadian pada milidetik terakhir hari itu
+      // — persis baris yang dicari orang saat ia menyaring satu hari.
+      .filter((row) => fromMs === null || Date.parse(row.createdAt) >= fromMs)
+      .filter((row) => toMs === null || Date.parse(row.createdAt) <= toMs)
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  // ─── Persetujuan Orang Kedua (`/api/v1/approvals`) ───
+  http.get('/api/v1/approvals', ({ request }) => {
+    sweepExpiredApprovals()
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const status = url.searchParams.get('status')
+    if (status && !APPROVAL_STATUSES.includes(status)) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'status must be one of the following values: PENDING, APPROVED, REJECTED, EXPIRED'
+      )
+    }
+    const actionType = url.searchParams.get('actionType')
+    if (actionType && !APPROVAL_ACTION_TYPES.includes(actionType)) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'actionType must be one of the following values: PAYOUT_CONTROLS_RELEASE, HELD_CREDIT_RESOLVE, PAYOUT_CONTROLS_LIMITS'
+      )
+    }
+    const rows = [...approvalStore.values()]
+      .filter((row) => !status || row.status === status)
+      .filter((row) => !actionType || row.actionType === actionType)
+      .sort((a, b) => b.proposedAt.localeCompare(a.proposedAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.get('/api/v1/approvals/:id', ({ params }) => {
+    sweepExpiredApprovals()
+    const row = approvalStore.get(String(params.id))
+    if (!row) return layarError(404, 'APPROVAL_NOT_FOUND', 'APPROVAL_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: row })
+  }),
+
+  http.post('/api/v1/approvals/:id/approve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canDecideApprovalRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      body = {}
+    }
+    const reason = typeof body.reason === 'string' ? body.reason : null
+    if (reason !== null && reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be shorter than or equal to 500 characters')
+    }
+    return decideApproval(String(params.id), staff, 'APPROVED', reason)
+  }),
+
+  http.post('/api/v1/approvals/:id/reject', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canDecideApprovalRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: { reason?: unknown } = {}
+    try {
+      body = (await request.json()) as { reason?: unknown }
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 3 || reason.length > 500) {
+      return layarError(
+        400,
+        'BAD_REQUEST',
+        'reason must be longer than or equal to 3 characters'
+      )
+    }
+    return decideApproval(String(params.id), staff, 'REJECTED', reason)
+  }),
+
+  // ─── Mint Bermasalah (`/api/v1/held-credits`) ───
+  http.get('/api/v1/held-credits', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '10')))
+    // Antrean TERBUKA = belum diputus; urut `receivedAt` ASC (terlama dulu).
+    const rows = [...heldCreditStore.values()]
+      .filter((credit) => credit.resolution === null)
+      .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toHeldCreditListItem),
+    })
+  }),
+
+  http.get('/api/v1/held-credits/:id', ({ params }) => {
+    const credit = heldCreditStore.get(String(params.id))
+    // `held-credits.errors.ts` melempar STRING telanjang
+    // (`new NotFoundException("HELD_CREDIT_NOT_FOUND")`), dan filter backend
+    // menyalin string itu ke `code` DAN `message`. Tiruan yang memakai kode
+    // generik `NOT_FOUND` akan membuat peta pesan di layar tidak pernah kena.
+    if (!credit) return layarError(404, 'HELD_CREDIT_NOT_FOUND', 'HELD_CREDIT_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: credit })
+  }),
+
+  http.post('/api/v1/held-credits/:id/resolve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolveHeldCreditRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Partial<ResolveHeldCreditBody>
+    try {
+      body = (await request.json()) as Partial<ResolveHeldCreditBody>
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const action = body.action
+    if (action !== 'PAID' && action !== 'FAILED') {
+      return layarError(400, 'BAD_REQUEST', 'action must be one of the following values: PAID, FAILED')
+    }
+    const reason = body.reason
+    if (typeof reason !== 'string' || reason.length < 3 || reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be longer than or equal to 3 characters')
+    }
+    const credit = heldCreditStore.get(String(params.id))
+    if (!credit) return layarError(404, 'HELD_CREDIT_NOT_FOUND', 'HELD_CREDIT_NOT_FOUND')
+    if (credit.resolution !== null) return layarError(409, 'CREDIT_NOT_HELD', 'CREDIT_NOT_HELD')
+
+    const matchedOrderId = credit.order?.id ?? null
+    const namedOrderId = typeof body.orderId === 'string' ? body.orderId : null
+    if (action === 'PAID' && namedOrderId === null && matchedOrderId === null) {
+      return layarError(400, 'ORDER_ID_REQUIRED', 'ORDER_ID_REQUIRED')
+    }
+
+    // Gerbang maker-checker, ditirukan dengan aturan `ApprovalsService`:
+    // nominal TERBESAR di antara yang masuk dan nilai order yang disentuh,
+    // gagal-tertutup untuk nominal yang tak terbaca, plus `forceApproval` saat
+    // ops menamai order yang BUKAN pilihan mesin.
+    const forceApproval = action === 'PAID' && namedOrderId !== null && namedOrderId !== matchedOrderId
+    const stakes: (string | null)[] = [credit.receivedAmountIdr]
+    if (action === 'PAID' || matchedOrderId !== null) {
+      stakes.push(credit.order?.expectedAmountIdr ?? null)
+    }
+    if (forceApproval || requiresSecondPerson(stakes)) {
+      const approval = createApproval({
+        actionType: 'HELD_CREDIT_RESOLVE',
+        payload: { creditId: credit.id, action, orderId: namedOrderId, reason },
+        amountIdr: largestRupiah(stakes),
+        proposerStaffId: staff?.id ?? 'stf_1',
+      })
+      return HttpResponse.json(
+        { status: 'success', metadata: null, data: approval },
+        { status: 202 }
+      )
+    }
+
+    const resolved = applyHeldCreditResolve(credit.id, action, namedOrderId, staff?.id ?? 'stf_1')
+    if (!resolved) return layarError(409, 'CREDIT_NOT_HELD', 'CREDIT_NOT_HELD')
+    return HttpResponse.json({ status: 'success', metadata: null, data: resolved })
+  }),
+
+  // ─── Plafon Pencairan (`/api/v1/payout-controls`) ───
+  http.get('/api/v1/payout-controls', () => {
+    return HttpResponse.json({ status: 'success', metadata: null, data: payoutControlsState })
+  }),
+
+  // Riwayat didaftarkan SEBELUM tidak diperlukan — MSW mencocokkan per pola,
+  // dan `/limits/history` bukan `/:id` di modul ini — tapi urutannya tetap
+  // ditulis begini supaya pembaca tidak perlu tahu itu untuk yakin.
+  http.get('/api/v1/payout-controls/limits/history', ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canChangePayoutLimitsRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const rows = [...payoutControlChanges].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take),
+    })
+  }),
+
+  http.post('/api/v1/payout-controls/limits', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canChangePayoutLimitsRole(staff.role)) {
+      return layarError(403, 'FORBIDDEN', 'FORBIDDEN')
+    }
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return layarError(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    // SNAPSHOT UTUH: ketiga plafon WAJIB ada di badan, masing-masing boleh null.
+    // Field yang HILANG ditolak — kalau ia diam-diam berarti "jangan diubah",
+    // satu kelalaian mengetik tampak identik dengan keputusan sadar.
+    const decimalOrNull = (key: string): { ok: true; value: string | null } | { ok: false } => {
+      if (!(key in body)) return { ok: false }
+      const value = body[key]
+      if (value === null) return { ok: true, value: null }
+      if (typeof value === 'string' && /^\d+(\.\d+)?$/.test(value)) return { ok: true, value }
+      return { ok: false }
+    }
+    const perTx = decimalOrNull('maxPerTxIdr')
+    if (!perTx.ok) {
+      return layarError(400, 'BAD_REQUEST', 'maxPerTxIdr is required (send null to fall back to the env default)')
+    }
+    const daily = decimalOrNull('maxDailyIdr')
+    if (!daily.ok) {
+      return layarError(400, 'BAD_REQUEST', 'maxDailyIdr is required (send null to fall back to the env default)')
+    }
+    if (!('maxBatchPerTick' in body)) {
+      return layarError(400, 'BAD_REQUEST', 'maxBatchPerTick is required (send null to fall back to the env default)')
+    }
+    const batch = body.maxBatchPerTick
+    if (!(batch === null || (typeof batch === 'number' && Number.isInteger(batch) && batch >= 1))) {
+      return layarError(400, 'BAD_REQUEST', 'maxBatchPerTick must not be less than 1')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500) {
+      return layarError(400, 'BAD_REQUEST', 'reason must be longer than or equal to 10 characters')
+    }
+
+    // SELALU empat mata, untuk arah perubahan APA PUN — `alwaysRequiresApproval`
+    // pada executor-nya. Karena itu jawabannya selalu 202, tidak pernah 200.
+    const approval = createApproval({
+      actionType: 'PAYOUT_CONTROLS_LIMITS',
+      payload: {
+        maxPerTxIdr: perTx.value,
+        maxDailyIdr: daily.value,
+        maxBatchPerTick: batch,
+        reason,
+      },
+      amountIdr: null,
+      proposerStaffId: staff?.id ?? 'stf_1',
+    })
+    return HttpResponse.json({ status: 'success', metadata: null, data: approval }, { status: 202 })
   }),
 
   http.post('/api/v1/mint', async ({ request }) => {

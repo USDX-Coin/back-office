@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import {
@@ -27,7 +29,7 @@ import {
   type ReserveBalance,
   type SelectableLedgerEntryType,
 } from '@/lib/types'
-import { newIdempotencyKey, wibToday } from '@/lib/transparency'
+import { ledgerEntryTypeLabel, newIdempotencyKey, wibToday } from '@/lib/transparency'
 import { useCreateLedgerEntry, useRefetchReserveLedger } from './hooks'
 import LedgerConfirmDialog, {
   type BalanceRecheckState,
@@ -36,11 +38,14 @@ import LedgerConfirmDialog, {
 interface Props {
   /** Current whole-ledger balance, passed to the dialog to project the result. */
   balance: ReserveBalance | undefined
+  /** Dialog form dibuka dari tombol "Catat entri" di kartu saldo (11 Okt 2026). */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 const ENTRY_TYPE_HINTS: Record<SelectableLedgerEntryType, string> = {
-  SEED: 'First recording of a reserve that already exists.',
-  ADJUSTMENT: 'Any later change, including corrections (use a negative amount).',
+  SEED: 'Pencatatan pertama untuk cadangan yang sudah ada.',
+  ADJUSTMENT: 'Perubahan sesudahnya, termasuk koreksi (pakai nominal negatif).',
 }
 
 const EMPTY_FORM = {
@@ -53,20 +58,26 @@ const EMPTY_FORM = {
 /**
  * Records one entry into the append-only reserve ledger.
  *
+ * Sejak 11 Okt 2026 form ini tinggal di DIALOG yang dibuka dari tombol "Catat
+ * entri" di kartu saldo — bukan lagi kartu besar yang selalu terbuka di samping
+ * saldo. Isi, validasi, kunci idempotensi, dan langkah "periksa lalu catat"
+ * (LedgerConfirmDialog, bertumpuk di atas dialog ini) tidak berubah.
+ *
  * Submitting does NOT call the API. It validates and opens the confirmation
  * dialog, which is what actually fires the request — the entry lands on the
  * public site the instant it is created, so a stray click on a submit button
  * must not be enough to move a published number.
  */
-export default function LedgerEntryForm({ balance }: Props) {
+export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) {
   const create = useCreateLedgerEntry()
   const refetchLedger = useRefetchReserveLedger()
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState<Record<string, string>>({})
   // A failure the dialog has to keep showing (500, 403, network). Field-level
   // contract errors go into `errors` instead, so a message is never rendered
-  // twice. Either way the backend's wording is passed through verbatim — the
-  // operator needs to see exactly what the API objected to.
+  // twice. Either way the backend's wording is passed through verbatim, with
+  // its error CODE in brackets (see errorText) — the operator needs to see
+  // exactly what the API objected to, and to be able to quote the code.
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [pending, setPending] = useState<CreateLedgerEntryInput | null>(null)
   // Whether the balance behind the dialog has been re-read since the last
@@ -127,6 +138,26 @@ export default function LedgerEntryForm({ balance }: Props) {
   }
 
   /**
+   * Kalimat galat untuk operator: pesan dari server APA ADANYA plus KODE-nya
+   * dalam kurung.
+   *
+   * Kodenya ikut karena itulah yang dikutip operator saat melapor ke tim
+   * teknis — pola yang sama dengan `unknownStatusLabel()` di `lib/status.ts`.
+   * Pesannya sendiri tidak diterjemahkan di sini: server yang tahu persis apa
+   * yang ditolaknya, dan menulis ulang kalimatnya berisiko menyebut sebab yang
+   * bukan sebabnya.
+   */
+  function errorText(err: unknown): string {
+    if (err instanceof ApiError) {
+      const message = err.message?.trim()
+      const base = message || 'Permintaan ditolak server.'
+      return err.code ? `${base} (${err.code})` : base
+    }
+    if (err instanceof Error && err.message.trim()) return err.message
+    return 'Entri gagal dicatat. Coba lagi.'
+  }
+
+  /**
    * Files the entry EXACTLY as handed over — the key included.
    *
    * The input is a parameter rather than read from `pending` so the caller owns
@@ -139,15 +170,13 @@ export default function LedgerEntryForm({ balance }: Props) {
     setConflict(false)
     try {
       await create.mutateAsync(input)
-      toast.success('Ledger entry recorded')
+      toast.success('Entri buku besar tercatat')
       setPending(null)
       setForm(EMPTY_FORM)
       setErrors({})
+      onOpenChange(false)
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Couldn't record the entry. Please try again."
+      const message = errorText(err)
 
       // 409: this key is already on an entry whose content differs, so the
       // backend wrote NOTHING and answering "success" would be a lie. It is also
@@ -224,158 +253,190 @@ export default function LedgerEntryForm({ balance }: Props) {
     await submitEntry(retried)
   }
 
+  // Menutup dialog form membuang isiannya: entri yang setengah diketik tidak
+  // boleh muncul lagi diam-diam berhari-hari kemudian. Selama permintaan
+  // berjalan dialog tidak bisa ditutup (konvensi form/modal).
+  function handleOpenChange(next: boolean) {
+    if (create.isPending) return
+    if (!next) {
+      setForm(EMPTY_FORM)
+      setErrors({})
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Card className="rounded-md shadow-none dark:border-0">
-      <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Record a ledger entry
-        </CardTitle>
-      </CardHeader>
-
-      <form onSubmit={handleSubmit} noValidate id="ledger-entry-form">
-        <CardContent className="space-y-5">
-          <fieldset className="space-y-1.5">
-            <legend className="mb-1.5 text-sm font-medium">Entry type</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {LEDGER_ENTRY_TYPES_SELECTABLE.map((type) => (
-                <label
-                  key={type}
-                  htmlFor={`entryType-${type}`}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2.5 hover:bg-muted/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-                >
-                  <input
-                    id={`entryType-${type}`}
-                    type="radio"
-                    name="entryType"
-                    value={type}
-                    checked={form.entryType === type}
-                    onChange={() => set('entryType', type)}
-                    className="mt-0.5 accent-primary"
-                  />
-                  <span className="min-w-0">
-                    <span className="block font-mono text-[13px] font-medium">
-                      {type}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {ENTRY_TYPE_HINTS[type]}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <FieldError message={errors.entryType} />
-          </fieldset>
-
-          <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
-            <div className="space-y-1.5">
-              <Label htmlFor="ledgerAmount">Amount</Label>
-              <Input
-                id="ledgerAmount"
-                // `type="text"` on purpose: a negative amount is a first-class
-                // input here, and number inputs hide what was actually typed
-                // (invalid content reads back as an empty string), which would
-                // stop the validator from ever seeing it.
-                type="text"
-                inputMode="decimal"
-                value={form.amount}
-                onChange={(e) => set('amount', e.target.value)}
-                placeholder="1250.00"
-                className="font-mono"
-                aria-describedby="ledgerAmountHint"
-              />
-              <p id="ledgerAmountHint" className="text-xs text-muted-foreground">
-                Up to 2 decimals. Use a negative amount (e.g. −1250.00) to
-                correct an earlier entry. Zero is not allowed.
-              </p>
-              <FieldError message={errors.amount} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="ledgerCurrency">Currency</Label>
-              <Input
-                id="ledgerCurrency"
-                readOnly
-                value={LEDGER_SUPPORTED_CURRENCY}
-                className="font-mono"
-                aria-describedby="ledgerCurrencyHint"
-              />
-              <p id="ledgerCurrencyHint" className="text-xs text-muted-foreground">
-                USD only at this stage.
-              </p>
-              <FieldError message={errors.currency} />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ledgerOccurredAt">Event date</Label>
-            <Input
-              id="ledgerOccurredAt"
-              type="date"
-              value={form.occurredAt}
-              max={wibToday()}
-              onChange={(e) => set('occurredAt', e.target.value)}
-              className="font-mono"
-              aria-describedby="ledgerOccurredAtHint"
-            />
-            <p id="ledgerOccurredAtHint" className="text-xs text-muted-foreground">
-              When it actually happened in the real world (the bank transfer
-              date, for example) — not today's date. Cannot be in the future.
-            </p>
-            <FieldError message={errors.occurredAt} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ledgerReason">Reason</Label>
-            <Textarea
-              id="ledgerReason"
-              value={form.reason}
-              onChange={(e) => set('reason', e.target.value)}
-              rows={3}
-              placeholder="Setoran giro USD untuk penambahan cadangan"
-              aria-describedby="ledgerReasonHint"
-            />
-            <p id="ledgerReasonHint" className="text-xs text-muted-foreground">
-              Required, at least {LEDGER_REASON_MIN_LEN} characters. This is the
-              internal record of why the public figure moved — it is kept for
-              audit and is never shown on the public page.
-            </p>
-            <FieldError message={errors.reason} />
-          </div>
-        </CardContent>
-
-        <CardFooter>
-          <Button
-            type="submit"
-            form="ledger-entry-form"
-            disabled={create.isPending}
-            aria-busy={create.isPending}
-            className="w-full"
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-xl">
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            id="ledger-entry-form"
+            className="flex min-h-0 flex-1 flex-col"
           >
-            {create.isPending ? 'Recording…' : 'Review and record'}
-          </Button>
-        </CardFooter>
-      </form>
+            <DialogHeader>
+              <DialogTitle>Catat entri buku besar</DialogTitle>
+              <DialogDescription>
+                Entri langsung mengubah angka cadangan di usdx.co.id dan tidak bisa
+                disunting atau dihapus.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody className="space-y-5">
+              <fieldset className="space-y-1.5">
+                <legend className="mb-1.5 text-sm font-medium">Jenis entri</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {LEDGER_ENTRY_TYPES_SELECTABLE.map((type) => (
+                    <label
+                      key={type}
+                      htmlFor={`entryType-${type}`}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-3 py-2.5 hover:bg-muted/40 has-[:checked]:border-foreground has-[:checked]:bg-muted/60"
+                    >
+                      <input
+                        id={`entryType-${type}`}
+                        type="radio"
+                        name="entryType"
+                        value={type}
+                        checked={form.entryType === type}
+                        onChange={() => set('entryType', type)}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">
+                          {ledgerEntryTypeLabel(type)}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {ENTRY_TYPE_HINTS[type]}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <FieldError message={errors.entryType} />
+              </fieldset>
 
-      <LedgerConfirmDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPending(null)
-            setDialogError(null)
-            setRecheck('idle')
-            setConflict(false)
-          }
-        }}
-        entry={pending}
-        balance={balance}
-        onConfirm={handleConfirm}
-        isPending={create.isPending}
-        error={dialogError}
-        recheck={recheck}
-        onReloadBalance={refetchLedger}
-        conflict={conflict}
-        onRecordWithNewKey={handleRecordWithNewKey}
-      />
-    </Card>
+              <div className="grid gap-4 sm:grid-cols-[1fr_120px]">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledgerAmount">Nominal</Label>
+                  <Input
+                    id="ledgerAmount"
+                    // `type="text"` on purpose: a negative amount is a first-class
+                    // input here, and number inputs hide what was actually typed
+                    // (invalid content reads back as an empty string), which would
+                    // stop the validator from ever seeing it.
+                    type="text"
+                    inputMode="decimal"
+                    value={form.amount}
+                    onChange={(e) => set('amount', e.target.value)}
+                    placeholder="1250.00"
+                    className="tabular-nums"
+                    aria-describedby="ledgerAmountHint"
+                  />
+                  <p id="ledgerAmountHint" className="text-xs text-muted-foreground">
+                    Maksimal 2 desimal. Pakai nominal negatif (mis. −1250.00) untuk
+                    mengoreksi entri sebelumnya. Nol tidak diterima.
+                  </p>
+                  <FieldError message={errors.amount} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledgerCurrency">Mata uang</Label>
+                  <Input
+                    id="ledgerCurrency"
+                    readOnly
+                    value={LEDGER_SUPPORTED_CURRENCY}
+                    className="tabular-nums"
+                    aria-describedby="ledgerCurrencyHint"
+                  />
+                  <p id="ledgerCurrencyHint" className="text-xs text-muted-foreground">
+                    Tahap ini hanya USD.
+                  </p>
+                  <FieldError message={errors.currency} />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="ledgerOccurredAt">Tanggal kejadian</Label>
+                <Input
+                  id="ledgerOccurredAt"
+                  type="date"
+                  value={form.occurredAt}
+                  max={wibToday()}
+                  onChange={(e) => set('occurredAt', e.target.value)}
+                  className="tabular-nums"
+                  aria-describedby="ledgerOccurredAtHint"
+                />
+                <p id="ledgerOccurredAtHint" className="text-xs text-muted-foreground">
+                  Tanggal kejadian sesungguhnya — misalnya tanggal transfer bank —
+                  bukan tanggal hari ini. Tidak boleh tanggal yang akan datang.
+                </p>
+                <FieldError message={errors.occurredAt} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="ledgerReason">Alasan</Label>
+                <Textarea
+                  id="ledgerReason"
+                  value={form.reason}
+                  onChange={(e) => set('reason', e.target.value)}
+                  rows={3}
+                  placeholder="Setoran giro USD untuk penambahan cadangan"
+                  aria-describedby="ledgerReasonHint"
+                />
+                <p id="ledgerReasonHint" className="text-xs text-muted-foreground">
+                  Wajib diisi, minimal {LEDGER_REASON_MIN_LEN} karakter. Ini catatan
+                  internal tentang kenapa angka publik berubah — disimpan untuk
+                  audit dan tidak pernah tampil di halaman publik.
+                </p>
+                <FieldError message={errors.reason} />
+              </div>
+            </DialogBody>
+            <DialogFooter className="sm:justify-between">
+              <p className="text-xs text-muted-foreground sm:max-w-[55%]">
+                Entri diperiksa ulang di langkah berikutnya sebelum dicatat permanen.
+              </p>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                  disabled={create.isPending}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  form="ledger-entry-form"
+                  disabled={create.isPending}
+                  aria-busy={create.isPending}
+                >
+                  {create.isPending ? 'Mencatat…' : 'Periksa lalu catat'}
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+        <LedgerConfirmDialog
+          open={pending !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPending(null)
+              setDialogError(null)
+              setRecheck('idle')
+              setConflict(false)
+            }
+          }}
+          entry={pending}
+          balance={balance}
+          onConfirm={handleConfirm}
+          isPending={create.isPending}
+          error={dialogError}
+          recheck={recheck}
+          onReloadBalance={refetchLedger}
+          conflict={conflict}
+          onRecordWithNewKey={handleRecordWithNewKey}
+        />
+    </>
   )
 }

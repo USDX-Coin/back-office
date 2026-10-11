@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Search, X } from 'lucide-react'
 import type { VisibilityState } from '@tanstack/react-table'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,8 @@ interface SearchProps {
   placeholder?: string
   /** Apply search after this many ms of no typing. Default 300. */
   debounceMs?: number
+  /** Nama untuk pembaca layar. Default "Cari". */
+  ariaLabel?: string
 }
 
 interface SortProps {
@@ -41,6 +43,8 @@ interface TableToolbarProps {
   sort?: SortProps
   filter?: FilterProps
   columns?: ColumnsProps
+  /** Kontrol tambahan sebaris dengan kotak cari (mis. pilihan Jenis). */
+  extra?: ReactNode
   className?: string
 }
 
@@ -54,6 +58,7 @@ export default function TableToolbar({
   sort,
   filter,
   columns,
+  extra,
   className,
 }: TableToolbarProps) {
   return (
@@ -63,6 +68,7 @@ export default function TableToolbar({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {search && <DebouncedSearch {...search} />}
         <div className="flex flex-wrap items-center gap-2">
+          {extra}
           {sort && (
             <SortPopover
               columns={sort.columns}
@@ -95,7 +101,7 @@ export default function TableToolbar({
   )
 }
 
-function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300 }: SearchProps) {
+function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300, ariaLabel = 'Cari' }: SearchProps) {
   const [draft, setDraft] = useState(value)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastEmitted = useRef(value)
@@ -125,9 +131,9 @@ function DebouncedSearch({ value, onChange, placeholder, debounceMs = 300 }: Sea
       <Input
         value={draft}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder={placeholder ?? 'Search…'}
+        placeholder={placeholder ?? 'Cari…'}
         className="h-9 bg-card pl-8"
-        aria-label="Search"
+        aria-label={ariaLabel}
       />
     </div>
   )
@@ -154,6 +160,14 @@ function ActiveFilterChips({
         label: `${def.label}: ${opt?.label ?? v}`,
         onRemove: () => onChange({ ...values, [def.key]: '' }),
       })
+    } else if (def.kind === 'text') {
+      const v = values[def.key]
+      if (!v) continue
+      chips.push({
+        key: def.key,
+        label: `${def.label}: ${v}`,
+        onRemove: () => onChange({ ...values, [def.key]: '' }),
+      })
     } else {
       const start = values[def.startKey]
       const end = values[def.endKey]
@@ -174,13 +188,13 @@ function ActiveFilterChips({
       {chips.map((chip) => (
         <span
           key={chip.key}
-          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11.5px] text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-label text-foreground"
         >
           {chip.label}
           <button
             type="button"
             onClick={chip.onRemove}
-            aria-label={`Remove ${chip.label}`}
+            aria-label={`Hapus filter ${chip.label}`}
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />
@@ -194,9 +208,9 @@ function ActiveFilterChips({
 function countActiveFilters(defs: FilterDef[], values: Record<string, string>): number {
   let n = 0
   for (const def of defs) {
-    if (def.kind === 'select') {
-      if (values[def.key]) n++
-    } else if (values[def.startKey] || values[def.endKey]) {
+    if (def.kind === 'dateRange') {
+      if (values[def.startKey] || values[def.endKey]) n++
+    } else if (values[def.key]) {
       n++
     }
   }
@@ -206,10 +220,11 @@ function countActiveFilters(defs: FilterDef[], values: Record<string, string>): 
 function emptyFilterValues(defs: FilterDef[]): Record<string, string> {
   const out: Record<string, string> = {}
   for (const def of defs) {
-    if (def.kind === 'select') out[def.key] = ''
-    else {
+    if (def.kind === 'dateRange') {
       out[def.startKey] = ''
       out[def.endKey] = ''
+    } else {
+      out[def.key] = ''
     }
   }
   return out

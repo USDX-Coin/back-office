@@ -49,13 +49,13 @@ export default function StatementResultsHeader({
     <div className="space-y-3 border-b border-border px-4 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0" data-testid="bni-statement-applied">
-          <p className="text-[13px] font-semibold">
+          <p className="text-sm font-semibold">
             {accountLabel}{' '}
-            <span className="font-mono text-[11.5px] font-normal text-muted-foreground">
+            <span className="tabular-nums text-xs font-normal text-muted-foreground">
               {applied.accountNo}
             </span>
           </p>
-          <p className="font-mono text-[11.5px] text-muted-foreground">
+          <p className="tabular-nums text-xs text-muted-foreground">
             {applied.startDate} – {applied.endDate} · {STATEMENT_TYPE_LABEL[applied.type]}
             {statement && (
               <>
@@ -67,7 +67,7 @@ export default function StatementResultsHeader({
                 {/* § 16.8.8: reading the copy never contacts the bank, so this
                     pullId has NO api_call_log row to trace — unlike the balance
                     header's, which keeps the § 16.4 text. */}
-                <span title="pullId (korelasi activity_log)">pull {statement.pullId}</span>
+                <span title="No. tarikan untuk penelusuran tim teknis — tercatat di log aktivitas (tidak menghubungi bank)">No. tarikan {statement.pullId}</span>
               </>
             )}
           </p>
@@ -98,38 +98,38 @@ export default function StatementResultsHeader({
 
       {summary && (
         <dl
-          className="grid gap-x-6 gap-y-2 text-[12px] sm:grid-cols-2 lg:grid-cols-4"
+          className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-4"
           aria-labelledby="bni-statement-summary-caption"
           data-testid="bni-statement-summary"
         >
           {/* `<dl>` only admits dt/dd/div children — the caption is a div. */}
           <div
             id="bni-statement-summary-caption"
-            className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground sm:col-span-2 lg:col-span-4"
+            className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4"
           >
             Ringkasan menurut salinan USDX untuk rentang ini
           </div>
           <div>
             <dt className="text-muted-foreground">Saldo awal</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.beginningBalance, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Total masuk</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.totalCredit, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Total keluar</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatBankAmount(summary.totalDebit, summary.currency)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Saldo akhir</dt>
-            <dd className="font-mono tabular-nums" data-testid="bni-statement-closing-balance">
+            <dd className="tabular-nums" data-testid="bni-statement-closing-balance">
               {formatBankAmount(summary.closingBalance, summary.currency)}
             </dd>
           </div>

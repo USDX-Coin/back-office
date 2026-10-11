@@ -38,9 +38,9 @@ const MAX_USER_WALLETS = 50
 
 function validateEmail(email: string, errors: Record<string, string>) {
   if (!email.trim()) {
-    errors.email = 'Email is required'
+    errors.email = 'Email wajib diisi'
   } else if (!EMAIL_RE.test(email)) {
-    errors.email = 'Invalid email format'
+    errors.email = 'Format email tidak valid'
   }
 }
 
@@ -51,15 +51,15 @@ function validateName(
   errors: Record<string, string>
 ) {
   if (!name.trim()) {
-    errors[field] = `${label} is required`
+    errors[field] = `${label} wajib diisi`
   } else if (name.length > MAX_NAME_LEN) {
-    errors[field] = `${label} must be under ${MAX_NAME_LEN} characters`
+    errors[field] = `${label} maksimal ${MAX_NAME_LEN} karakter`
   }
 }
 
 export function validatePhone(phone: string): string | null {
-  if (!phone.trim()) return 'Phone is required'
-  if (!PHONE_RE.test(phone.replace(/[\s()-]/g, ''))) return 'Invalid phone format'
+  if (!phone.trim()) return 'Nomor telepon wajib diisi'
+  if (!PHONE_RE.test(phone.replace(/[\s()-]/g, ''))) return 'Format nomor telepon tidak valid'
   return null
 }
 
@@ -70,17 +70,17 @@ export function validateWalletAddress(
   address: string,
   network: Network
 ): string | null {
-  if (!address.trim()) return 'Destination wallet is required'
+  if (!address.trim()) return 'Alamat wallet tujuan wajib diisi'
   if (network === 'solana') {
-    return SOLANA_BASE58_RE.test(address) ? null : 'Invalid Solana address'
+    return SOLANA_BASE58_RE.test(address) ? null : 'Alamat Solana tidak valid'
   }
-  return EVM_ADDRESS_RE.test(address) ? null : 'Invalid wallet address'
+  return EVM_ADDRESS_RE.test(address) ? null : 'Alamat wallet tidak valid'
 }
 
 export function validateLoginForm(email: string, password: string): ValidationResult {
   const errors: Record<string, string> = {}
   validateEmail(email, errors)
-  if (!password) errors.password = 'Password is required'
+  if (!password) errors.password = 'Kata sandi wajib diisi'
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -94,16 +94,16 @@ export function validateCustomerForm(input: {
   role: CustomerRole | ''
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  validateName(input.firstName, 'firstName', 'First name', errors)
-  validateName(input.lastName, 'lastName', 'Last name', errors)
+  validateName(input.firstName, 'firstName', 'Nama depan', errors)
+  validateName(input.lastName, 'lastName', 'Nama belakang', errors)
   validateEmail(input.email, errors)
   const phoneErr = validatePhone(input.phone)
   if (phoneErr) errors.phone = phoneErr
-  if (!input.type) errors.type = 'Type is required'
+  if (!input.type) errors.type = 'Jenis wajib dipilih'
   if (input.type === 'organization' && !(input.organization ?? '').trim()) {
-    errors.organization = 'Organization is required'
+    errors.organization = 'Nama organisasi wajib diisi'
   }
-  if (!input.role) errors.role = 'Role is required'
+  if (!input.role) errors.role = 'Peran wajib dipilih'
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -115,14 +115,14 @@ export function validateOtcMintForm(input: {
   notes?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  if (!input.customerId) errors.customerId = 'Customer is required'
-  if (!input.network) errors.network = 'Network is required'
-  if (input.amount === '' || Number(input.amount) <= 0) errors.amount = 'Amount must be greater than 0'
+  if (!input.customerId) errors.customerId = 'Nasabah wajib dipilih'
+  if (!input.network) errors.network = 'Jaringan wajib dipilih'
+  if (input.amount === '' || Number(input.amount) <= 0) errors.amount = 'Nominal harus lebih besar dari 0'
   if (input.network) {
     const walletErr = validateWalletAddress(input.destinationAddress, input.network as Network)
     if (walletErr) errors.destinationAddress = walletErr
   } else if (!input.destinationAddress.trim()) {
-    errors.destinationAddress = 'Destination wallet is required'
+    errors.destinationAddress = 'Alamat wallet tujuan wajib diisi'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -147,21 +147,21 @@ const RATE_SOFT_HIGH = 50_000
 
 export function validateManualRate(raw: string): string | null {
   const trimmed = raw.trim()
-  if (!trimmed) return 'Manual rate is required'
-  if (!DECIMAL_RE.test(trimmed)) return 'Rate must be a number (up to 4 decimals)'
+  if (!trimmed) return 'Kurs manual wajib diisi'
+  if (!DECIMAL_RE.test(trimmed)) return 'Kurs harus berupa angka (maksimal 4 desimal)'
   const n = Number(trimmed)
-  if (!Number.isFinite(n) || n <= RATE_MIN_EXCLUSIVE) return 'Rate must be greater than 0'
-  if (n >= RATE_MAX_EXCLUSIVE) return `Rate must be less than ${RATE_MAX_EXCLUSIVE.toLocaleString()}`
+  if (!Number.isFinite(n) || n <= RATE_MIN_EXCLUSIVE) return 'Kurs harus lebih besar dari 0'
+  if (n >= RATE_MAX_EXCLUSIVE) return `Kurs harus di bawah ${RATE_MAX_EXCLUSIVE.toLocaleString('id-ID')}`
   return null
 }
 
 export function validateSpreadPct(raw: string): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return null // optional in SoT
-  if (!SPREAD_RE.test(trimmed)) return 'Spread must be a number (up to 2 decimals)'
+  if (!SPREAD_RE.test(trimmed)) return 'Spread harus berupa angka (maksimal 2 desimal)'
   const n = Number(trimmed)
-  if (!Number.isFinite(n) || n < SPREAD_MIN_INCLUSIVE) return 'Spread cannot be negative'
-  if (n > SPREAD_MAX_INCLUSIVE) return `Spread must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  if (!Number.isFinite(n) || n < SPREAD_MIN_INCLUSIVE) return 'Spread tidak boleh negatif'
+  if (n > SPREAD_MAX_INCLUSIVE) return `Spread maksimal ${SPREAD_MAX_INCLUSIVE}%`
   return null
 }
 
@@ -186,7 +186,7 @@ export function validateRateUpdateForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
-    errors.mode = 'Mode is required'
+    errors.mode = 'Mode kurs wajib dipilih'
   }
   if (input.mode === 'MANUAL') {
     const err = validateManualRate(input.manualRate)
@@ -209,11 +209,11 @@ const PG_FEE_VA_MAX = 1_000_000 // Rp 1jt flat is already extreme for a PG fee
 
 export function validateFeePct(raw: string, label: string): string | null {
   const trimmed = raw.trim()
-  if (!trimmed) return `${label} is required`
-  if (!SPREAD_RE.test(trimmed)) return `${label} must be a number (up to 2 decimals)`
+  if (!trimmed) return `${label} wajib diisi`
+  if (!SPREAD_RE.test(trimmed)) return `${label} harus berupa angka (maksimal 2 desimal)`
   const n = Number(trimmed)
-  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
-  if (n > SPREAD_MAX_INCLUSIVE) return `${label} must be at most ${SPREAD_MAX_INCLUSIVE}%`
+  if (!Number.isFinite(n) || n < 0) return `${label} tidak boleh negatif`
+  if (n > SPREAD_MAX_INCLUSIVE) return `${label} maksimal ${SPREAD_MAX_INCLUSIVE}%`
   return null
 }
 
@@ -221,21 +221,21 @@ export function validateFeePct(raw: string, label: string): string | null {
 // the field in the error message; both use the same extreme-Rp ceiling.
 function validateFlatFee(raw: string, label: string): string | null {
   const trimmed = raw.trim()
-  if (!trimmed) return `${label} is required`
-  if (!DECIMAL_RE.test(trimmed)) return `${label} must be a number (up to 4 decimals)`
+  if (!trimmed) return `${label} wajib diisi`
+  if (!DECIMAL_RE.test(trimmed)) return `${label} harus berupa angka (maksimal 4 desimal)`
   const n = Number(trimmed)
-  if (!Number.isFinite(n) || n < 0) return `${label} cannot be negative`
-  if (n > PG_FEE_VA_MAX) return `${label} must be at most ${PG_FEE_VA_MAX.toLocaleString()}`
+  if (!Number.isFinite(n) || n < 0) return `${label} tidak boleh negatif`
+  if (n > PG_FEE_VA_MAX) return `${label} maksimal ${PG_FEE_VA_MAX.toLocaleString('id-ID')}`
   return null
 }
 
 export function validatePgFeeVaFlat(raw: string): string | null {
-  return validateFlatFee(raw, 'VA fee')
+  return validateFlatFee(raw, 'Biaya VA')
 }
 
 // USDX-245: disbursement fee = Rp flat per payout (referensi sampai provider real).
 export function validateDisbursementFeeFlat(raw: string): string | null {
-  return validateFlatFee(raw, 'Disbursement fee')
+  return validateFlatFee(raw, 'Biaya pencairan')
 }
 
 /**
@@ -263,11 +263,11 @@ export const MIN_REDEEM_IDR_FLOOR = 10_000
 // global, supaya dua ambang yang kebetulan sama tetap bisa bergerak sendiri.
 function validateMinIdr(raw: string, label: string, floor: number): string | null {
   const trimmed = raw.trim()
-  if (!trimmed) return `${label} is required`
-  if (!DECIMAL_RE.test(trimmed)) return `${label} must be a number (up to 4 decimals)`
+  if (!trimmed) return `${label} wajib diisi`
+  if (!DECIMAL_RE.test(trimmed)) return `${label} harus berupa angka (maksimal 4 desimal)`
   const n = Number(trimmed)
-  if (!Number.isFinite(n)) return `${label} must be a number (up to 4 decimals)`
-  if (n < floor) return `${label} must be at least ${floor.toLocaleString('en-US')}`
+  if (!Number.isFinite(n)) return `${label} harus berupa angka (maksimal 4 desimal)`
+  if (n < floor) return `${label} minimal ${floor.toLocaleString('id-ID')}`
   return null
 }
 
@@ -291,13 +291,13 @@ export function validateFeeConfigForm(input: {
   minRedeemIdr: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  const mintErr = validateFeePct(input.mintFeePct, 'Mint fee')
+  const mintErr = validateFeePct(input.mintFeePct, 'Biaya mint')
   if (mintErr) errors.mintFeePct = mintErr
   const vaErr = validatePgFeeVaFlat(input.pgFeeVaFlat)
   if (vaErr) errors.pgFeeVaFlat = vaErr
-  const qrisErr = validateFeePct(input.pgFeeQrisPct, 'QRIS fee')
+  const qrisErr = validateFeePct(input.pgFeeQrisPct, 'Biaya QRIS')
   if (qrisErr) errors.pgFeeQrisPct = qrisErr
-  const redeemErr = validateFeePct(input.redeemFeePct, 'Redeem fee')
+  const redeemErr = validateFeePct(input.redeemFeePct, 'Biaya redeem')
   if (redeemErr) errors.redeemFeePct = redeemErr
   const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
   if (disbErr) errors.disbursementFeeFlat = disbErr
@@ -590,21 +590,21 @@ export function toDateInputValue(date: Date): string {
  */
 export function validateLedgerAmount(raw: string): string | null {
   const value = raw.trim()
-  if (!value) return 'Amount is required'
+  if (!value) return 'Nominal wajib diisi'
   if (!LEDGER_AMOUNT_RE.test(value)) {
-    return 'Amount must be a decimal number with at most 2 decimal places'
+    return 'Nominal harus berupa angka desimal dengan maksimal 2 angka di belakang koma'
   }
   // Leading zeros are not significant, so "007.00" is a 1-digit value; Postgres
   // counts what is left after normalisation.
   const [whole = ''] = value.replace('-', '').split('.')
   if (whole.replace(/^0+/, '').length > LEDGER_AMOUNT_MAX_INT_DIGITS) {
-    return `Amount can have at most ${LEDGER_AMOUNT_MAX_INT_DIGITS} digits before the decimal point`
+    return `Nominal maksimal ${LEDGER_AMOUNT_MAX_INT_DIGITS} digit sebelum koma`
   }
   const cents = parseAmountToCents(value)
   if (cents === null) {
-    return 'Amount must be a decimal number with at most 2 decimal places'
+    return 'Nominal harus berupa angka desimal dengan maksimal 2 angka di belakang koma'
   }
-  if (cents === 0n) return 'Amount cannot be zero'
+  if (cents === 0n) return 'Nominal tidak boleh nol'
   return null
 }
 
@@ -619,15 +619,15 @@ export function validateLedgerAmount(raw: string): string | null {
  */
 export function validateLedgerReason(raw: string): string | null {
   if (UNSAFE_TEXT_RE.test(raw)) {
-    return 'Reason cannot contain control or text-direction characters'
+    return 'Alasan tidak boleh mengandung karakter kontrol atau pembalik arah teks'
   }
   const value = raw.trim()
-  if (!value) return 'Reason is required'
+  if (!value) return 'Alasan wajib diisi'
   if (value.length < LEDGER_REASON_MIN_LEN) {
-    return `Reason must be at least ${LEDGER_REASON_MIN_LEN} characters`
+    return `Alasan minimal ${LEDGER_REASON_MIN_LEN} karakter`
   }
   if (value.length > LEDGER_REASON_MAX_LEN) {
-    return `Reason must be under ${LEDGER_REASON_MAX_LEN} characters`
+    return `Alasan maksimal ${LEDGER_REASON_MAX_LEN} karakter`
   }
   return null
 }
@@ -642,8 +642,8 @@ export function validateLedgerOccurredAt(
   now: Date = new Date()
 ): string | null {
   const value = raw.trim()
-  if (!value) return 'Event date is required'
-  if (!ISO_DATE_RE.test(value)) return 'Date must use the YYYY-MM-DD format'
+  if (!value) return 'Tanggal kejadian wajib diisi'
+  if (!ISO_DATE_RE.test(value)) return 'Tanggal harus memakai format YYYY-MM-DD'
   const [year, month, day] = value.split('-').map(Number) as [number, number, number]
   // Round-trip guard: `new Date(2026, 1, 31)` silently rolls over to Mar 3.
   const parsed = new Date(Date.UTC(year, month - 1, day))
@@ -652,27 +652,27 @@ export function validateLedgerOccurredAt(
     parsed.getUTCMonth() !== month - 1 ||
     parsed.getUTCDate() !== day
   ) {
-    return 'Date is not a real calendar date'
+    return 'Tanggal itu tidak ada di kalender'
   }
-  if (isFutureWibDate(value, now)) return 'Event date cannot be in the future'
+  if (isFutureWibDate(value, now)) return 'Tanggal kejadian tidak boleh di masa depan'
   return null
 }
 
 /** `currency` — ISO-4217 uppercase; only USD this phase (LEDGER_CURRENCY_UNSUPPORTED). */
 export function validateLedgerCurrency(raw: string): string | null {
   const value = raw.trim()
-  if (!value) return 'Currency is required'
+  if (!value) return 'Mata uang wajib dipilih'
   if (value !== LEDGER_SUPPORTED_CURRENCY) {
-    return `Only ${LEDGER_SUPPORTED_CURRENCY} is supported at this stage`
+    return `Tahap ini baru mendukung ${LEDGER_SUPPORTED_CURRENCY}`
   }
   return null
 }
 
 /** `entryType` — SEED or ADJUSTMENT only (LEDGER_TYPE_NOT_ALLOWED). */
 export function validateLedgerEntryType(raw: string): string | null {
-  if (!raw) return 'Entry type is required'
+  if (!raw) return 'Jenis entri wajib dipilih'
   if (!(LEDGER_ENTRY_TYPES_SELECTABLE as readonly string[]).includes(raw)) {
-    return 'Entry type must be SEED or ADJUSTMENT'
+    return 'Jenis entri harus SEED atau ADJUSTMENT'
   }
   return null
 }
@@ -720,24 +720,24 @@ export interface UploadFileLike {
  * instant answer, that one gives the truthful one.
  */
 export function validateAttestationFile(file: UploadFileLike | null): string | null {
-  if (!file) return 'A PDF report file is required'
+  if (!file) return 'Berkas laporan PDF wajib dipilih'
   const isPdfMime = file.type === ATTESTATION_ACCEPTED_MIME
   // Some browsers report an empty `type` for drag-and-dropped files; fall back
   // to the extension so a genuine PDF is not rejected. Anything else is out.
   const isPdfName = file.name.toLowerCase().endsWith(ATTESTATION_ACCEPTED_EXTENSION)
   if (!isPdfMime && !(file.type === '' && isPdfName)) {
-    return 'Only PDF files can be uploaded'
+    return 'Hanya berkas PDF yang bisa diunggah'
   }
-  if (file.size <= 0) return 'File appears to be empty'
+  if (file.size <= 0) return 'Berkasnya kosong'
   if (file.size > ATTESTATION_MAX_FILE_BYTES) {
-    return `File must be at most ${ATTESTATION_MAX_FILE_LABEL}`
+    return `Ukuran berkas maksimal ${ATTESTATION_MAX_FILE_LABEL}`
   }
   return null
 }
 
 /** Message shown when the picked file's bytes are not a PDF. */
 export const ATTESTATION_NOT_A_PDF_MESSAGE =
-  'This file is not a PDF — its contents do not start with a PDF header'
+  'Berkas ini bukan PDF — isinya tidak diawali header PDF'
 
 /** `period` — strict YYYY-MM (server: 422 INVALID_ATTESTATION_PERIOD). */
 export function validateAttestationPeriod(
@@ -745,11 +745,11 @@ export function validateAttestationPeriod(
   now: Date = new Date()
 ): string | null {
   const value = raw.trim()
-  if (!value) return 'Period is required'
-  if (!PERIOD_RE.test(value)) return 'Period must use the YYYY-MM format'
+  if (!value) return 'Periode wajib diisi'
+  if (!PERIOD_RE.test(value)) return 'Periode harus memakai format YYYY-MM'
   // A report cannot cover a month that has not finished happening. Measured in
   // WIB for the same reason `occurredAt` is.
-  if (value > wibToday(now).slice(0, 7)) return 'Period cannot be in the future'
+  if (value > wibToday(now).slice(0, 7)) return 'Periode tidak boleh di masa depan'
   return null
 }
 
@@ -762,9 +762,9 @@ export function validateAttestationUploadForm(
   if (periodErr) errors.period = periodErr
   const title = input.title.trim()
   if (!title) {
-    errors.title = 'Title is required'
+    errors.title = 'Judul wajib diisi'
   } else if (title.length > MAX_ATTESTATION_TITLE_LEN) {
-    errors.title = `Title must be under ${MAX_ATTESTATION_TITLE_LEN} characters`
+    errors.title = `Judul maksimal ${MAX_ATTESTATION_TITLE_LEN} karakter`
   }
   const fileErr = validateAttestationFile(input.file)
   if (fileErr) errors.file = fileErr
@@ -777,12 +777,12 @@ export function validateOtcRedeemForm(input: {
   availableBalance: number
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  if (!input.network) errors.network = 'Network is required'
+  if (!input.network) errors.network = 'Jaringan wajib dipilih'
   const amt = Number(input.amount)
   if (input.amount === '' || amt <= 0) {
-    errors.amount = 'Amount must be greater than 0'
+    errors.amount = 'Nominal harus lebih besar dari 0'
   } else if (amt > input.availableBalance) {
-    errors.amount = 'Amount exceeds available balance'
+    errors.amount = 'Nominal melebihi saldo yang tersedia'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -794,19 +794,19 @@ export const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/
 
 function validateAmountField(amountStr: string, errors: Record<string, string>) {
   if (!amountStr) {
-    errors.amount = 'Amount is required'
+    errors.amount = 'Nominal wajib diisi'
     return
   }
   const amt = Number(amountStr)
   if (!Number.isFinite(amt) || amt <= 0) {
-    errors.amount = 'Amount must be greater than 0'
+    errors.amount = 'Nominal harus lebih besar dari 0'
     return
   }
   // sot/conventions.md § Decimals: USDX uses 6 decimals; IDR uses 2.
   // We accept up to 6 decimals here (the BE will normalize for IDR input).
   const [, fraction = ''] = amountStr.split('.')
   if (fraction.length > 6) {
-    errors.amount = 'Amount supports at most 6 decimal places'
+    errors.amount = 'Nominal maksimal 6 angka di belakang koma'
   }
 }
 
@@ -819,11 +819,11 @@ function validateUserAddressField(
   // to verify). Mixed-case = harus match EIP-55 (viem.getAddress canonical form).
   const trimmed = userAddress.trim()
   if (!trimmed) {
-    errors.userAddress = 'Wallet address is required'
+    errors.userAddress = 'Alamat wallet wajib diisi'
     return
   }
   if (!EVM_ADDRESS_RE.test(trimmed)) {
-    errors.userAddress = 'Invalid EVM address (expect 0x + 40 hex)'
+    errors.userAddress = 'Alamat EVM tidak valid (harus 0x + 40 karakter heksadesimal)'
     return
   }
   const hex = trimmed.slice(2)
@@ -832,10 +832,10 @@ function validateUserAddressField(
   if (!isAllLower && !isAllUpper) {
     try {
       if (getAddress(trimmed) !== trimmed) {
-        errors.userAddress = 'Address checksum is invalid (EIP-55)'
+        errors.userAddress = 'Checksum alamat tidak cocok (EIP-55)'
       }
     } catch {
-      errors.userAddress = 'Address checksum is invalid (EIP-55)'
+      errors.userAddress = 'Checksum alamat tidak cocok (EIP-55)'
     }
   }
 }
@@ -853,27 +853,27 @@ export function validateBurnRequestForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!input.userId.trim()) errors.userId = 'User is required'
+  if (!input.userId.trim()) errors.userId = 'Nasabah wajib dipilih'
 
   if (!input.userAddress.trim()) {
-    errors.userAddress = 'User wallet address is required'
+    errors.userAddress = 'Alamat wallet nasabah wajib diisi'
   } else if (!isAddress(input.userAddress.trim())) {
-    errors.userAddress = 'Invalid wallet address'
+    errors.userAddress = 'Alamat wallet tidak valid'
   }
 
   validateAmountField(input.amount.trim(), errors)
-  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
+  if (!input.amountCurrency) errors.amountCurrency = 'Mata uang wajib dipilih'
 
-  if (!input.chain) errors.chain = 'Chain is required'
+  if (!input.chain) errors.chain = 'Jaringan wajib dipilih'
 
   if (!input.depositTxHash.trim()) {
-    errors.depositTxHash = 'Deposit TX hash is required'
+    errors.depositTxHash = 'Tx hash setoran wajib diisi'
   } else if (!TX_HASH_RE.test(input.depositTxHash.trim())) {
-    errors.depositTxHash = 'Invalid TX hash (expected 0x + 64 hex chars)'
+    errors.depositTxHash = 'Tx hash tidak valid (harus 0x + 64 karakter heksadesimal)'
   }
 
-  if (!input.bankName.trim()) errors.bankName = 'Bank name is required'
-  if (!input.bankAccount.trim()) errors.bankAccount = 'Bank account is required'
+  if (!input.bankName.trim()) errors.bankName = 'Nama bank wajib diisi'
+  if (!input.bankAccount.trim()) errors.bankAccount = 'Nomor rekening wajib diisi'
 
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -893,14 +893,14 @@ export function validateStaffCreateForm(input: {
   role: StaffRole | ''
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  validateName(input.name, 'name', 'Name', errors)
+  validateName(input.name, 'name', 'Nama', errors)
   validateEmail(input.email, errors)
   if (!input.password) {
-    errors.password = 'Password is required'
+    errors.password = 'Kata sandi wajib diisi'
   } else if (input.password.length < PASSWORD_MIN_LEN) {
-    errors.password = `Password must be at least ${PASSWORD_MIN_LEN} characters`
+    errors.password = `Kata sandi minimal ${PASSWORD_MIN_LEN} karakter`
   }
-  if (!input.role) errors.role = 'Role is required'
+  if (!input.role) errors.role = 'Peran wajib dipilih'
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -912,8 +912,8 @@ export function validateStaffEditForm(input: {
   role: StaffRole | ''
 }): ValidationResult {
   const errors: Record<string, string> = {}
-  validateName(input.name, 'name', 'Name', errors)
-  if (!input.role) errors.role = 'Role is required'
+  validateName(input.name, 'name', 'Nama', errors)
+  if (!input.role) errors.role = 'Peran wajib dipilih'
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -927,7 +927,7 @@ export function validateOptionalIdPhone(phone: string): string | null {
   const cleaned = phone.replace(/[\s()-]/g, '')
   if (!cleaned) return null
   if (!ID_PHONE_RE.test(cleaned)) {
-    return 'Use +62xxx or 08xxx format'
+    return 'Pakai format +62xxx atau 08xxx'
   }
   return null
 }
@@ -946,20 +946,20 @@ export function validateUserForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.name.trim()) {
-    errors.name = 'Name is required'
+    errors.name = 'Nama wajib diisi'
   } else if (input.name.length > MAX_USER_NAME_LEN) {
-    errors.name = `Name must be under ${MAX_USER_NAME_LEN} characters`
+    errors.name = `Nama maksimal ${MAX_USER_NAME_LEN} karakter`
   }
   if (!input.email.trim()) {
-    errors.email = 'Email is required'
+    errors.email = 'Email wajib diisi'
   } else if (!EMAIL_RE.test(input.email)) {
-    errors.email = 'Invalid email format'
+    errors.email = 'Format email tidak valid'
   }
   if (input.entityType !== undefined && !input.entityType) {
-    errors.entityType = 'Entity type is required'
+    errors.entityType = 'Jenis nasabah wajib dipilih'
   }
   if (input.notes !== undefined && input.notes.length > MAX_USER_NOTES_LEN) {
-    errors.notes = `Notes must be under ${MAX_USER_NOTES_LEN} characters`
+    errors.notes = `Catatan maksimal ${MAX_USER_NOTES_LEN} karakter`
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -968,7 +968,7 @@ export function validateUserForm(input: {
 // operator sees the limit immediately; BE 422 is the safety net for races.
 export function validateUserWalletsLimit(currentCount: number, addingCount = 1): string | null {
   if (currentCount + addingCount > MAX_USER_WALLETS) {
-    return `Maximum ${MAX_USER_WALLETS} wallets per user`
+    return `Maksimal ${MAX_USER_WALLETS} wallet per nasabah`
   }
   return null
 }
@@ -987,13 +987,13 @@ export function validateUserWalletForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.chain.trim()) {
-    errors.chain = 'Chain is required'
+    errors.chain = 'Jaringan wajib dipilih'
   }
   const trimmedAddress = input.address.trim()
   if (!trimmedAddress) {
-    errors.address = 'Wallet address is required'
+    errors.address = 'Alamat wallet wajib diisi'
   } else if (!EVM_ADDRESS_RE.test(trimmedAddress)) {
-    errors.address = 'Invalid EVM address (expect 0x + 40 hex)'
+    errors.address = 'Alamat EVM tidak valid (harus 0x + 40 karakter heksadesimal)'
   } else {
     const hex = trimmedAddress.slice(2)
     const isAllLower = hex === hex.toLowerCase()
@@ -1001,10 +1001,10 @@ export function validateUserWalletForm(input: {
     if (!isAllLower && !isAllUpper) {
       try {
         if (getAddress(trimmedAddress) !== trimmedAddress) {
-          errors.address = 'Address checksum is invalid (EIP-55)'
+          errors.address = 'Checksum alamat tidak cocok (EIP-55)'
         }
       } catch {
-        errors.address = 'Address checksum is invalid (EIP-55)'
+        errors.address = 'Checksum alamat tidak cocok (EIP-55)'
       }
     }
   }
@@ -1020,13 +1020,13 @@ export function validateMintRequestForm(input: {
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.userId.trim()) {
-    errors.userId = 'User is required'
+    errors.userId = 'Nasabah wajib dipilih'
   }
   validateUserAddressField(input.userAddress, errors)
   validateAmountField(input.amount.trim(), errors)
-  if (!input.amountCurrency) errors.amountCurrency = 'Currency is required'
+  if (!input.amountCurrency) errors.amountCurrency = 'Mata uang wajib dipilih'
   if (!input.chain.trim()) {
-    errors.chain = 'Chain is required'
+    errors.chain = 'Jaringan wajib dipilih'
   }
   return { valid: Object.keys(errors).length === 0, errors }
 }
@@ -1052,29 +1052,29 @@ export function validateOncallContactForm(input: {
   const errors: Record<string, string> = {}
 
   if (!input.name.trim()) {
-    errors.name = 'Name is required'
+    errors.name = 'Nama wajib diisi'
   } else if (input.name.length > MAX_ONCALL_TEXT_LEN) {
-    errors.name = `Name must be under ${MAX_ONCALL_TEXT_LEN} characters`
+    errors.name = `Nama maksimal ${MAX_ONCALL_TEXT_LEN} karakter`
   }
 
   if (!input.role.trim()) {
-    errors.role = 'Role is required'
+    errors.role = 'Jabatan wajib diisi'
   } else if (input.role.length > MAX_ONCALL_TEXT_LEN) {
-    errors.role = `Role must be under ${MAX_ONCALL_TEXT_LEN} characters`
+    errors.role = `Jabatan maksimal ${MAX_ONCALL_TEXT_LEN} karakter`
   }
 
-  if (!input.channel) errors.channel = 'Channel is required'
+  if (!input.channel) errors.channel = 'Kanal wajib dipilih'
 
   if (!input.contactValue.trim()) {
-    errors.contactValue = 'Contact value is required'
+    errors.contactValue = 'Kontak wajib diisi'
   } else if (input.contactValue.length > MAX_ONCALL_VALUE_LEN) {
-    errors.contactValue = `Contact value must be under ${MAX_ONCALL_VALUE_LEN} characters`
+    errors.contactValue = `Kontak maksimal ${MAX_ONCALL_VALUE_LEN} karakter`
   }
 
   // Kontak tanpa kategori tidak akan pernah ikut di satu alarm pun — ia terlihat
   // terdaftar tapi secara efektif tidak ada.
   if (input.categories.length === 0) {
-    errors.categories = 'Pick at least one incident category'
+    errors.categories = 'Pilih minimal satu kategori insiden'
   }
 
   return { valid: Object.keys(errors).length === 0, errors }
@@ -1229,124 +1229,124 @@ export function kybUboErrorKey(index: number, field: string): string {
 export function validateKybForm(input: KybFormInput): ValidationResult {
   const errors: Record<string, string> = {}
 
-  if (!input.userId.trim()) errors.userId = 'Legal-entity user is required'
+  if (!input.userId.trim()) errors.userId = 'Akun badan usaha wajib dipilih'
 
   if (!input.entityName.trim()) {
-    errors.entityName = 'Entity name is required'
+    errors.entityName = 'Nama badan usaha wajib diisi'
   } else if (input.entityName.trim().length < MIN_KYB_NAME_LEN) {
-    errors.entityName = `Entity name must be at least ${MIN_KYB_NAME_LEN} characters`
+    errors.entityName = `Nama badan usaha minimal ${MIN_KYB_NAME_LEN} karakter`
   } else if (input.entityName.length > MAX_KYB_NAME_LEN) {
-    errors.entityName = `Entity name must be under ${MAX_KYB_NAME_LEN} characters`
+    errors.entityName = `Nama badan usaha maksimal ${MAX_KYB_NAME_LEN} karakter`
   }
 
-  if (!input.entityForm.trim()) errors.entityForm = 'Legal form is required'
+  if (!input.entityForm.trim()) errors.entityForm = 'Bentuk badan usaha wajib dipilih'
 
   if (!input.country.trim()) {
-    errors.country = 'Country is required'
+    errors.country = 'Negara wajib diisi'
   } else if (!KYB_COUNTRY_RE.test(input.country.trim())) {
-    errors.country = 'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+    errors.country = 'Negara harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
   }
 
   if (!input.registrationNumber.trim()) {
-    errors.registrationNumber = 'Registration number (NIB) is required'
+    errors.registrationNumber = 'Nomor Induk Berusaha (NIB) wajib diisi'
   } else if (!KYB_REGISTRATION_RE.test(input.registrationNumber.trim())) {
-    errors.registrationNumber = 'Registration number must be 8-32 digits, no dashes or spaces'
+    errors.registrationNumber = 'NIB harus 8-32 angka, tanpa strip maupun spasi'
   }
 
   if (!input.taxId.trim()) {
-    errors.taxId = 'Entity NPWP is required'
+    errors.taxId = 'NPWP badan usaha wajib diisi'
   } else if (!KYB_TAX_ID_RE.test(input.taxId.trim())) {
-    errors.taxId = 'NPWP must be 15-16 digits (dots / dashes allowed)'
+    errors.taxId = 'NPWP harus 15-16 angka (titik dan strip boleh)'
   }
 
   if (!input.establishmentDate.trim()) {
-    errors.establishmentDate = 'Establishment date is required'
+    errors.establishmentDate = 'Tanggal pendirian wajib diisi'
   } else if (!KYB_ISO_DATE_RE.test(input.establishmentDate.trim())) {
-    errors.establishmentDate = 'Establishment date must be YYYY-MM-DD'
+    errors.establishmentDate = 'Tanggal pendirian harus memakai format YYYY-MM-DD'
   } else if (isFutureWibDate(input.establishmentDate.trim())) {
     // An entity cannot have been established tomorrow. Judged in WIB, like every
     // other date in this app (lib/transparency.ts).
-    errors.establishmentDate = 'Establishment date cannot be in the future'
+    errors.establishmentDate = 'Tanggal pendirian tidak boleh di masa depan'
   }
 
   if (!input.businessSector.trim()) {
-    errors.businessSector = 'Business sector is required'
+    errors.businessSector = 'Bidang usaha wajib diisi'
   } else if (input.businessSector.length > MAX_KYB_SECTOR_LEN) {
-    errors.businessSector = `Business sector must be under ${MAX_KYB_SECTOR_LEN} characters`
+    errors.businessSector = `Bidang usaha maksimal ${MAX_KYB_SECTOR_LEN} karakter`
   }
 
   if (!input.registeredAddress.trim()) {
-    errors.registeredAddress = 'Registered address is required'
+    errors.registeredAddress = 'Alamat kedudukan wajib diisi'
   } else if (input.registeredAddress.length > MAX_KYB_ADDRESS_LEN) {
-    errors.registeredAddress = `Registered address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    errors.registeredAddress = `Alamat kedudukan maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
   }
 
   if (!input.operationalAddress.trim()) {
-    errors.operationalAddress = 'Operational address is required'
+    errors.operationalAddress = 'Alamat operasional wajib diisi'
   } else if (input.operationalAddress.length > MAX_KYB_ADDRESS_LEN) {
-    errors.operationalAddress = `Operational address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+    errors.operationalAddress = `Alamat operasional maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
   }
 
   // Website is optional (the `kyb.website` column is nullable); only its shape
   // is checked when present.
   const website = input.website.trim()
   if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(website)) {
-    errors.website = 'Website must start with http:// or https://'
+    errors.website = 'Situs web harus diawali http:// atau https://'
   } else if (website.length > MAX_KYB_WEBSITE_LEN) {
-    errors.website = `Website must be under ${MAX_KYB_WEBSITE_LEN} characters`
+    errors.website = `Situs web maksimal ${MAX_KYB_WEBSITE_LEN} karakter`
   }
 
   if (!input.phone.trim()) {
-    errors.phone = 'Phone is required'
+    errors.phone = 'Telepon wajib diisi'
   } else if (!PHONE_RE.test(input.phone.trim())) {
-    errors.phone = 'Phone must be 10-15 digits (leading + allowed)'
+    errors.phone = 'Telepon harus 10-15 angka (boleh diawali +)'
   }
 
   // ── Pasal 25 (1) b angka 5, 8, 9 + Pasal 27 (1) — USDX-605 ────────────────
   // `required` di `sot/api/kyb.yaml § CreateKybRequest`. Keempatnya diterima
   // backend sejak USDX-604 dan tidak pernah dikirim form ini.
   if (!input.incorporationPlace.trim()) {
-    errors.incorporationPlace = 'Place of incorporation is required'
+    errors.incorporationPlace = 'Tempat pendirian wajib diisi'
   } else if (input.incorporationPlace.trim().length < 2) {
-    errors.incorporationPlace = 'Place of incorporation must be at least 2 characters'
+    errors.incorporationPlace = 'Tempat pendirian minimal 2 karakter'
   } else if (input.incorporationPlace.length > MAX_KYB_SECTOR_LEN) {
-    errors.incorporationPlace = `Place of incorporation must be under ${MAX_KYB_SECTOR_LEN} characters`
+    errors.incorporationPlace = `Tempat pendirian maksimal ${MAX_KYB_SECTOR_LEN} karakter`
   }
 
-  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Source of funds is required'
+  if (!input.sourceOfFunds.trim()) errors.sourceOfFunds = 'Sumber dana wajib dipilih'
   if (!input.transactionPurpose.trim()) {
-    errors.transactionPurpose = 'Purpose of the business relationship is required'
+    errors.transactionPurpose = 'Tujuan hubungan usaha wajib dipilih'
   }
   // Tidak ada default: lihat catatan di `KybFormInput.isMicroOrSmall`.
   if (input.isMicroOrSmall !== 'YES' && input.isMicroOrSmall !== 'NO') {
-    errors.isMicroOrSmall = 'Answer whether this is a micro/small enterprise'
+    errors.isMicroOrSmall = 'Jawab dulu: badan usaha ini termasuk usaha mikro atau kecil atau bukan'
   }
 
   // ── UBOs ──
   if (input.ubos.length === 0) {
-    errors.ubos = 'At least one UBO is required'
+    errors.ubos = 'Minimal satu UBO wajib diisi'
   } else if (input.ubos.length > MAX_KYB_UBOS) {
-    errors.ubos = `At most ${MAX_KYB_UBOS} UBOs`
+    errors.ubos = `Maksimal ${MAX_KYB_UBOS} UBO`
   }
 
   let ownershipTotal = 0
   let ownershipParsable = input.ubos.length > 0
   input.ubos.forEach((ubo, i) => {
     if (!ubo.firstName.trim())
-      errors[kybUboErrorKey(i, 'firstName')] = 'First name is required'
-    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Last name is required'
+      errors[kybUboErrorKey(i, 'firstName')] = 'Nama depan wajib diisi'
+    if (!ubo.lastName.trim()) errors[kybUboErrorKey(i, 'lastName')] = 'Nama belakang wajib diisi'
 
     const pctRaw = ubo.ownershipPct.trim()
     const pct = Number(pctRaw)
     if (!pctRaw) {
-      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Ownership % is required'
+      errors[kybUboErrorKey(i, 'ownershipPct')] = 'Kepemilikan (%) wajib diisi'
       ownershipParsable = false
     } else if (!KYB_OWNERSHIP_PCT_RE.test(pctRaw)) {
       // One rule, two failures it has to separate: out of range, and more
       // precision than `numeric(5,2)` can hold. Both are 400s from the API, and
       // the second one is the surprising one — say which it is.
       errors[kybUboErrorKey(i, 'ownershipPct')] =
-        'Ownership % must be a decimal between 0.01 and 100.00 with at most 2 decimals'
+        'Kepemilikan (%) harus angka antara 0,01 dan 100,00 dengan maksimal 2 angka di belakang koma'
       ownershipParsable = false
     } else {
       ownershipTotal += pct
@@ -1357,27 +1357,27 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // verified here.
     const idNumber = ubo.identityNumber.trim()
     if (!idNumber) {
-      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number is required'
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Nomor identitas wajib diisi'
     } else if (!/^[0-9]{8,20}$/.test(idNumber)) {
-      errors[kybUboErrorKey(i, 'identityNumber')] = 'Identity number must be 8-20 digits'
+      errors[kybUboErrorKey(i, 'identityNumber')] = 'Nomor identitas harus 8-20 angka'
     }
 
     if (!ubo.country.trim()) {
-      errors[kybUboErrorKey(i, 'country')] = 'Country is required'
+      errors[kybUboErrorKey(i, 'country')] = 'Negara wajib diisi'
     } else if (!KYB_COUNTRY_RE.test(ubo.country.trim())) {
       errors[kybUboErrorKey(i, 'country')] =
-        'Country must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+        'Negara harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
     }
 
     if (!ubo.addressLine1.trim()) {
-      errors[kybUboErrorKey(i, 'addressLine1')] = 'Address is required'
+      errors[kybUboErrorKey(i, 'addressLine1')] = 'Alamat wajib diisi'
     } else if (ubo.addressLine1.length > MAX_KYB_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'addressLine1')] =
-        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+        `Alamat maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
     }
     if (ubo.addressLine2.length > MAX_KYB_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'addressLine2')] =
-        `Address must be under ${MAX_KYB_ADDRESS_LEN} characters`
+        `Alamat maksimal ${MAX_KYB_ADDRESS_LEN} karakter`
     }
 
     // ── Pasal 33 ayat (3) selengkapnya (USDX-605) ───────────────────────────
@@ -1386,44 +1386,44 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // tempat kerja — tetap opsional di sini, dan itu ikut pasalnya: angka 8
     // berbunyi "jika ada", dan tidak semua orang punya nama alias.
     if (!ubo.birthPlace.trim()) {
-      errors[kybUboErrorKey(i, 'birthPlace')] = 'Place of birth is required'
+      errors[kybUboErrorKey(i, 'birthPlace')] = 'Tempat lahir wajib diisi'
     } else if (ubo.birthPlace.trim().length > MAX_KYB_UBO_NAME_LEN) {
       errors[kybUboErrorKey(i, 'birthPlace')] =
-        `Place of birth must be under ${MAX_KYB_UBO_NAME_LEN} characters`
+        `Tempat lahir maksimal ${MAX_KYB_UBO_NAME_LEN} karakter`
     }
 
     const dob = ubo.dob.trim()
     if (!dob) {
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is required'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir wajib diisi'
     } else if (!KYB_ISO_DATE_RE.test(dob)) {
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth must be YYYY-MM-DD'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir harus memakai format YYYY-MM-DD'
     } else if (!isRealCalendarDate(dob)) {
       // `CreateKybUboDto.dob` memakai `@Matches` + `@IsISO8601({ strict: true })`: bentuknya
       // benar TIDAK cukup, tanggalnya harus ada di kalender. Tanpa cermin di sini, 1980-02-30
       // lolos form dan baru ditolak server sebagai 400 yang tidak menunjuk barisnya.
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth is not a real calendar date'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir itu tidak ada di kalender'
     } else if (isFutureWibDate(dob)) {
       // Seseorang tidak bisa lahir besok. Dinilai di WIB, sama dengan setiap
       // tanggal lain di aplikasi ini.
-      errors[kybUboErrorKey(i, 'dob')] = 'Date of birth cannot be in the future'
+      errors[kybUboErrorKey(i, 'dob')] = 'Tanggal lahir tidak boleh di masa depan'
     }
 
     if (!ubo.nationality.trim()) {
-      errors[kybUboErrorKey(i, 'nationality')] = 'Nationality is required'
+      errors[kybUboErrorKey(i, 'nationality')] = 'Kewarganegaraan wajib diisi'
     } else if (!KYB_COUNTRY_RE.test(ubo.nationality.trim())) {
       errors[kybUboErrorKey(i, 'nationality')] =
-        'Nationality must be an ISO 3166-1 alpha-2 code, uppercase (e.g. ID)'
+        'Kewarganegaraan harus berupa kode ISO 3166-1 alpha-2 huruf besar (mis. ID)'
     }
 
     // Panjang diukur SETELAH trim, karena yang dikirim juga hasil trim — tanpa itu satu spasi di
     // ekor menolak nilai yang server justru terima.
     if (ubo.aliasName.trim().length > MAX_KYB_UBO_ALIAS_LEN) {
       errors[kybUboErrorKey(i, 'aliasName')] =
-        `Alias must be under ${MAX_KYB_UBO_ALIAS_LEN} characters`
+        `Nama alias maksimal ${MAX_KYB_UBO_ALIAS_LEN} karakter`
     }
     if (ubo.employerAddress.trim().length > MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN) {
       errors[kybUboErrorKey(i, 'employerAddress')] =
-        `Employer address must be under ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} characters`
+        `Alamat tempat kerja maksimal ${MAX_KYB_UBO_EMPLOYER_ADDRESS_LEN} karakter`
     }
     // HANYA panjangnya. `PHONE_RE` (10–15 digit, tanpa pemisah) di sini akan menolak
     // `021-1234567`, `+62 21 4000 1234`, dan nomor kantor 8 digit — semuanya diterima kontrak
@@ -1434,7 +1434,7 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // tidak dipakai mencari, tidak di-hash, tidak dikirim OTP.
     if (ubo.employerPhone.trim().length > MAX_KYB_UBO_PHONE_LEN) {
       errors[kybUboErrorKey(i, 'employerPhone')] =
-        `Employer phone must be under ${MAX_KYB_UBO_PHONE_LEN} characters`
+        `Telepon tempat kerja maksimal ${MAX_KYB_UBO_PHONE_LEN} karakter`
     }
 
     // Enum tertutup: yang diperiksa di sini hanya "sudah dipilih atau belum".
@@ -1442,14 +1442,14 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
     // menyalinnya ke sini akan membuat salinan kedua yang bisa basi, persis
     // kesalahan yang membuat `PARTNER_OCCUPATIONS` menolak 95 nilai sah (USDX-603).
     const REQUIRED_UBO_CHOICES: ReadonlyArray<[keyof KybUboFormInput, string]> = [
-      ['occupation', 'Occupation is required'],
-      ['gender', 'Gender is required'],
-      ['maritalStatus', 'Marital status is required'],
-      ['sourceOfFunds', 'Source of funds is required'],
-      ['annualIncomeRange', 'Annual income range is required'],
-      ['netWorthRange', 'Net worth range is required'],
-      ['legalRelationship', 'Legal relationship is required'],
-      ['cascadeStep', 'Cascading-test step is required'],
+      ['occupation', 'Pekerjaan wajib dipilih'],
+      ['gender', 'Jenis kelamin wajib dipilih'],
+      ['maritalStatus', 'Status perkawinan wajib dipilih'],
+      ['sourceOfFunds', 'Sumber dana wajib dipilih'],
+      ['annualIncomeRange', 'Penghasilan per tahun wajib dipilih'],
+      ['netWorthRange', 'Harta kekayaan wajib dipilih'],
+      ['legalRelationship', 'Bentuk hubungan hukum wajib dipilih'],
+      ['cascadeStep', 'Langkah cascading test wajib dipilih'],
     ]
     for (const [field, message] of REQUIRED_UBO_CHOICES) {
       if (!String(ubo[field]).trim()) errors[kybUboErrorKey(i, field)] = message
@@ -1459,7 +1459,7 @@ export function validateKybForm(input: KybFormInput): ValidationResult {
   // Only meaningful once every row parsed — otherwise the total is a partial sum
   // and the message would blame the wrong thing.
   if (ownershipParsable && ownershipTotal > 100.0001) {
-    errors.ubos = `Declared ownership totals ${ownershipTotal.toFixed(2)}% — it cannot exceed 100%`
+    errors.ubos = `Total kepemilikan yang dideklarasikan ${ownershipTotal.toFixed(2)}% — tidak boleh lebih dari 100%`
   }
 
   return { valid: Object.keys(errors).length === 0, errors }
@@ -1486,17 +1486,17 @@ export function validateKybRejectReason(
   reason: string,
 ): { valid: true; reason: string } | { valid: false; error: string } {
   const trimmed = reason.trim()
-  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (!trimmed) return { valid: false, error: 'Alasan penolakan wajib diisi' }
   if (trimmed.length < KYB_REJECT_REASON_MIN) {
     return {
       valid: false,
-      error: `Reason must be at least ${KYB_REJECT_REASON_MIN} characters — the entity is told this`,
+      error: `Alasan minimal ${KYB_REJECT_REASON_MIN} karakter — kalimat ini yang dibaca badan usahanya`,
     }
   }
   if (trimmed.length > KYB_REJECT_REASON_MAX) {
     return {
       valid: false,
-      error: `Reason must be at most ${KYB_REJECT_REASON_MAX} characters`,
+      error: `Alasan maksimal ${KYB_REJECT_REASON_MAX} karakter`,
     }
   }
   return { valid: true, reason: trimmed }
@@ -1534,17 +1534,17 @@ export function validateKycRejectReason(
   reason: string,
 ): { valid: true; reason: string } | { valid: false; error: string } {
   const trimmed = reason.trim()
-  if (!trimmed) return { valid: false, error: 'Rejection reason is required' }
+  if (!trimmed) return { valid: false, error: 'Alasan penolakan wajib diisi' }
   if (trimmed.length < KYC_REJECT_REASON_MIN) {
     return {
       valid: false,
-      error: `Reason must be at least ${KYC_REJECT_REASON_MIN} characters — the customer is told this`,
+      error: `Alasan minimal ${KYC_REJECT_REASON_MIN} karakter — kalimat ini yang dibaca nasabahnya`,
     }
   }
   if (trimmed.length > KYC_REJECT_REASON_MAX) {
     return {
       valid: false,
-      error: `Reason must be at most ${KYC_REJECT_REASON_MAX} characters`,
+      error: `Alasan maksimal ${KYC_REJECT_REASON_MAX} karakter`,
     }
   }
   return { valid: true, reason: trimmed }

@@ -106,7 +106,10 @@ describe('ScreeningSubjectPanel @ USDX-610', () => {
       const banner = await screen.findByTestId('screening-unchecked')
       expect(banner).toHaveTextContent(/DPPSPM/)
       expect(banner).toHaveTextContent(/belum pernah berhasil dicek/i)
-      expect(banner).toHaveTextContent(/LIST_UNAVAILABLE/)
+      // Kode mentahnya tidak lagi tampil (audit copy 8 Okt 2026) — yang dibaca
+      // petugas adalah akibatnya.
+      expect(banner).toHaveTextContent(/daftar sanksinya belum tersedia/)
+      expect(banner).not.toHaveTextContent(/LIST_UNAVAILABLE/)
       // Daftar yang MEMANG tercek tidak boleh ikut disebut — banner yang menuduh
       // semuanya akan dibaca sebagai kebisingan lalu dilewati.
       expect(banner).not.toHaveTextContent(/DTTOT/)
@@ -132,7 +135,7 @@ describe('ScreeningSubjectPanel @ USDX-610', () => {
       await screen.findByTestId('screening-unchecked')
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
       expect(screen.getByTestId('screening-unchecked')).toHaveTextContent(
-        /Approve TIDAK diblokir/i,
+        /Kamu tetap bisa menyetujui/i,
       )
     })
 
@@ -165,7 +168,8 @@ describe('ScreeningSubjectPanel @ USDX-610', () => {
 
       const holding = await screen.findByTestId('screening-holding')
       expect(holding).toHaveTextContent(/masih menahan/i)
-      expect(holding).toHaveTextContent(/409/)
+      expect(holding).toHaveTextContent(/Persetujuan akan ditolak/)
+      expect(holding).not.toHaveTextContent(/409/)
     })
   })
 
@@ -199,7 +203,7 @@ describe('ScreeningSubjectPanel @ USDX-610', () => {
       setup()
 
       const note = await screen.findByTestId('screening-unavailable-history')
-      expect(note).toHaveTextContent(/1 pemeriksaan tercatat/i)
+      expect(note).toHaveTextContent(/1 pemeriksaan sempat gagal/i)
       expect(screen.queryByTestId('screening-unchecked')).not.toBeInTheDocument()
     })
 

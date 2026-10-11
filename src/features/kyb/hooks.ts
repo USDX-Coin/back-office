@@ -74,15 +74,21 @@ function buildQuery(filters: KybListFilters): string {
  * ordering (week1.md § Backoffice Approval Menu). No sort params for the same
  * reason: the order is a policy, not a preference.
  */
-export function useKybList(filters: KybListFilters) {
-  return useQuery({
-    queryKey: ['kyb', 'list', filters],
+/** Opsi query daftar KYB — dipakai juga oleh `useQueries` di halaman Verifikasi. */
+export function kybListQueryOptions(filters: KybListFilters, enabled = true) {
+  return {
+    queryKey: ['kyb', 'list', filters] as const,
     queryFn: () =>
       apiFetchRaw<PhaseOnePaginatedResponse<KybListItem>>(
         `/api/v1/kyb?${buildQuery(filters)}`,
       ),
+    enabled,
     refetchOnWindowFocus: true,
-  })
+  }
+}
+
+export function useKybList(filters: KybListFilters, enabled = true) {
+  return useQuery(kybListQueryOptions(filters, enabled))
 }
 
 /** Sidebar `(N)` badge — KYB records still awaiting review. */
@@ -256,7 +262,7 @@ async function putDocumentToStorage(
 ): Promise<void> {
   if (isTicketExpired(ticket)) {
     throw new Error(
-      'The upload link expired before the file could be sent. Pick the file again.',
+      'Tautan unggah kedaluwarsa sebelum berkasnya sempat dikirim. Pilih berkasnya lagi.',
     )
   }
 
@@ -272,11 +278,11 @@ async function putDocumentToStorage(
     // a bare 403, which reads like a permission problem the operator cannot fix.
     if (isTicketExpired(ticket)) {
       throw new Error(
-        'The upload link expired before the file finished sending. Pick the file again.',
+        'Tautan unggah kedaluwarsa sebelum berkasnya selesai terkirim. Pilih berkasnya lagi.',
       )
     }
     throw new Error(
-      `Storage refused the upload (${response.status}). The document was NOT attached to this record.`,
+      `Penyimpanan menolak unggahan ini (${response.status}). Dokumennya TIDAK terpasang ke berkas ini.`,
     )
   }
 }
@@ -312,7 +318,7 @@ export function useUploadKybDocument() {
       const fileType = declaredContentType(file)
       if (!fileType) {
         throw new Error(
-          `Only ${KYB_DOCUMENT_TYPE_LABEL} files can be uploaded as KYB documents`,
+          `Dokumen KYB hanya boleh berupa berkas ${KYB_DOCUMENT_TYPE_LABEL}`,
         )
       }
 
@@ -385,7 +391,7 @@ export function useUploadKybUboDocument() {
       const fileType = isPhoto ? declaredPhotoContentType(file) : declaredContentType(file)
       if (!fileType) {
         throw new Error(
-          `Only ${isPhoto ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL} files can be uploaded here`,
+          `Di sini hanya boleh berkas ${isPhoto ? KYB_UBO_PHOTO_TYPE_LABEL : KYB_DOCUMENT_TYPE_LABEL}`,
         )
       }
 

@@ -97,7 +97,7 @@ const KYB_UBO_PHOTO_ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/heic'] as
 export const KYB_UBO_PHOTO_ACCEPT_ATTR =
   'image/jpeg,.jpg,.jpeg,image/png,.png,image/heic,.heic'
 
-export const KYB_UBO_PHOTO_TYPE_LABEL = 'JPG, PNG or HEIC'
+export const KYB_UBO_PHOTO_TYPE_LABEL = 'JPG, PNG, atau HEIC'
 
 /**
  * Bentuk `declaredContentType` untuk slot FOTO: browser MIME kalau termasuk
@@ -131,15 +131,15 @@ export function validateKybUboDocumentFile(
   slot: KybUboDocumentSlot,
   file: UploadFileLike | null,
 ): string | null {
-  if (!file) return 'Choose a file to upload'
+  if (!file) return 'Pilih berkas yang mau diunggah'
   if (!KYB_UBO_PHOTO_SLOTS.has(slot)) return validateKybDocumentFile(file)
 
   if (!declaredPhotoContentType(file)) {
-    return `Only ${KYB_UBO_PHOTO_TYPE_LABEL} files can be uploaded as a ${KYB_UBO_DOCUMENT_SLOTS[slot]}`
+    return `${KYB_UBO_DOCUMENT_SLOTS[slot]} hanya menerima berkas ${KYB_UBO_PHOTO_TYPE_LABEL}`
   }
-  if (file.size <= 0) return 'File appears to be empty'
+  if (file.size <= 0) return 'Berkas ini kosong'
   if (file.size > KYB_DOCUMENT_MAX_FILE_BYTES) {
-    return `File must be at most ${KYB_DOCUMENT_MAX_FILE_LABEL} — this one is ${formatBytes(file.size)}`
+    return `Berkas maksimal ${KYB_DOCUMENT_MAX_FILE_LABEL} — yang ini ${formatBytes(file.size)}`
   }
   return null
 }
@@ -180,7 +180,7 @@ export const KYB_DOCUMENT_ACCEPT_ATTR =
   'application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png'
 
 /** How the three accepted formats are named to the operator. */
-export const KYB_DOCUMENT_TYPE_LABEL = 'PDF, JPG or PNG'
+export const KYB_DOCUMENT_TYPE_LABEL = 'PDF, JPG, atau PNG'
 
 /**
  * Name / MIME / size — all three are the FILE'S OWN CLAIM about itself and all
@@ -192,15 +192,15 @@ export const KYB_DOCUMENT_TYPE_LABEL = 'PDF, JPG or PNG'
  * Returns `null` when nothing is wrong, otherwise the message to show.
  */
 export function validateKybDocumentFile(file: UploadFileLike | null): string | null {
-  if (!file) return 'Choose a file to upload'
+  if (!file) return 'Pilih berkas yang mau diunggah'
 
   const declared = declaredContentType(file)
   if (!declared) {
-    return `Only ${KYB_DOCUMENT_TYPE_LABEL} files can be uploaded as KYB documents`
+    return `Dokumen KYB hanya menerima berkas ${KYB_DOCUMENT_TYPE_LABEL}`
   }
-  if (file.size <= 0) return 'File appears to be empty'
+  if (file.size <= 0) return 'Berkas ini kosong'
   if (file.size > KYB_DOCUMENT_MAX_FILE_BYTES) {
-    return `File must be at most ${KYB_DOCUMENT_MAX_FILE_LABEL} — this one is ${formatBytes(file.size)}`
+    return `Berkas maksimal ${KYB_DOCUMENT_MAX_FILE_LABEL} — yang ini ${formatBytes(file.size)}`
   }
   return null
 }
@@ -265,7 +265,7 @@ export function sniffKybDocumentType(bytes: Uint8Array): string | null {
  * of a compliance reviewer.
  */
 export const KYB_DOCUMENT_UNREADABLE_MESSAGE =
-  "Could not read this file's contents — pick it again and retry"
+  'Isi berkas ini tidak terbaca — pilih ulang berkasnya lalu coba lagi'
 
 /**
  * Reads the first bytes of the picked file and reports whether they really are
@@ -287,11 +287,11 @@ export async function checkKybDocumentBytes(file: Blob): Promise<string | null> 
   } catch {
     return KYB_DOCUMENT_UNREADABLE_MESSAGE
   }
-  if (head.length === 0) return 'File appears to be empty'
+  if (head.length === 0) return 'Berkas ini kosong'
 
   const detected = sniffKybDocumentType(head)
   if (detected === null) {
-    return `This file's contents are not ${KYB_DOCUMENT_TYPE_LABEL} — only its name says so. Pick the real document.`
+    return `Isi berkas ini bukan ${KYB_DOCUMENT_TYPE_LABEL} — hanya namanya yang mengaku begitu. Pilih dokumen yang sebenarnya.`
   }
   return null
 }
@@ -321,36 +321,36 @@ export function describeKybUploadFailure(
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'FILE_TYPE_NOT_ALLOWED':
-        return `The server refused this file type — it must be ${typeLabel}.`
+        return `Server menolak tipe berkas ini — harus ${typeLabel}. (FILE_TYPE_NOT_ALLOWED)`
       case 'FILE_SIZE_EXCEEDED':
-        return `The server refused this file: it is over the ${KYB_DOCUMENT_MAX_FILE_LABEL} limit.`
+        return `Server menolak berkas ini: ukurannya melewati batas ${KYB_DOCUMENT_MAX_FILE_LABEL}. (FILE_SIZE_EXCEEDED)`
       case 'KYB_FILE_NOT_FOUND':
-        return 'The file never arrived in storage, so nothing was attached. Pick it again and retry.'
+        return 'Berkasnya tidak pernah sampai ke penyimpanan, jadi tidak ada yang terpasang. Pilih ulang berkasnya lalu coba lagi. (KYB_FILE_NOT_FOUND)'
       case 'KYB_FILE_INVALID':
         // The server's own message is the only place the specific defect is
         // named (wrong extension, zero bytes, contents not the declared format),
         // so it is passed through rather than replaced with a summary.
-        return `Storage checked the file and refused it — ${err.message}`
+        return `Penyimpanan memeriksa berkasnya lalu menolaknya — ${err.message} (KYB_FILE_INVALID)`
       case 'INVALID_STATUS':
-        return 'This record is no longer awaiting review, so its documents can no longer be changed.'
+        return 'Berkas ini sudah tidak menunggu pemeriksaan, jadi dokumennya tidak bisa diubah lagi. (INVALID_STATUS)'
       case 'KYB_NOT_FOUND':
-        return 'This KYB record no longer exists — reload the queue.'
+        return 'Berkas KYB ini sudah tidak ada — muat ulang antreannya. (KYB_NOT_FOUND)'
       default:
         break
     }
     if (err.status === 403) {
-      return 'Your role is not allowed to upload KYB documents.'
+      return `Peran Anda tidak boleh mengunggah dokumen KYB. (${err.code})`
     }
-    return `Upload failed (${err.status} ${err.code}) — ${err.message}`
+    return `Unggahan gagal (${err.status} ${err.code}) — ${err.message}`
   }
   // `fetch` rejects with a TypeError when the request never reached anyone:
   // offline, DNS, a CORS preflight refused by the storage bucket, or the CSP
   // blocking the PUT before it is sent.
   if (err instanceof TypeError) {
-    return 'Could not reach the server — check the connection and try again. Nothing was uploaded.'
+    return 'Server tidak bisa dihubungi — periksa koneksi lalu coba lagi. Tidak ada yang terunggah.'
   }
   if (err instanceof Error && err.message) return err.message
-  return 'Upload failed for an unknown reason. Nothing was attached.'
+  return 'Unggahan gagal karena sebab yang tidak diketahui. Tidak ada yang terpasang.'
 }
 
 /** `5242881` → `5.0 MiB`. Only used inside messages about the ceiling. */

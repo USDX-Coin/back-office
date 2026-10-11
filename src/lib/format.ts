@@ -1,10 +1,15 @@
+// SATU KONVENSI ANGKA DI SELURUH BACK OFFICE: titik untuk ribuan, koma untuk
+// desimal. Nominalnya boleh dolar, rupiah, USDX, atau persen — pembacanya satu
+// orang yang sama, dan `1,234.00` di sebelah `Rp 1.234,00` membuatnya berhenti
+// untuk menebak mana yang ribuan.
+//
+// Glif `$` DIPERTAHANKAN (bukan `US$` yang dihasilkan `Intl` untuk `id-ID`):
+// yang salah baca selama ini pemisahnya, bukan lambang mata uangnya, dan
+// mengganti lambang hanya menambah perubahan yang tidak menjawab apa pun.
 export function formatAmount(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
+  if (!Number.isFinite(amount)) return '—'
+  const negatif = amount < 0
+  return `${negatif ? '-' : ''}$${formatDecimalId(Math.abs(amount).toFixed(2))}`
 }
 
 // USDX-46 — preview helpers for the currency-aware amount input.
@@ -13,7 +18,7 @@ export function formatAmount(amount: number): string {
 // - USDX uses 6 decimals (like USDC/USDT) — display up to 6.
 // - IDR uses 2 decimals + locale format `Rp 16.250.000,00`.
 
-const USDX_FORMATTER = new Intl.NumberFormat('en-US', {
+const USDX_FORMATTER = new Intl.NumberFormat('id-ID', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 6,
 })
@@ -31,6 +36,73 @@ export function formatUsdxAmount(usdx: number): string {
 export function formatIdrAmount(idr: number): string {
   if (!Number.isFinite(idr)) return '—'
   return `Rp ${IDR_FORMATTER.format(idr)}`
+}
+
+// ─── Ejaan angka Indonesia untuk nilai yang datang sebagai STRING ───────────
+//
+// Kenapa string, bukan `Number`: nilai uang dan pasokan token di repo ini
+// SELALU string desimal di atas kolom `numeric`. `totalSupply` bisa melewati
+// 2^53, dan `Number("12450000000000000000.50")` sudah kehilangan satuan
+// terkecilnya sebelum sempat diformat. Fungsi di bawah memotong string dan
+// menyisipkan pemisah — tidak ada aritmetika sama sekali, jadi tidak ada digit
+// yang bisa hilang. Ini PENYAJIAN, bukan perhitungan.
+//
+// Ejaannya Indonesia: TITIK untuk ribuan, KOMA untuk desimal. Angka gaya
+// Inggris di layar berbahasa Indonesia bukan sekadar tidak rapi —
+// `12,450,000.00` bisa dibaca "dua belas koma empat", yaitu enam kali lipat
+// salah pada layar yang pertama dibuka operator tiap pagi.
+
+/** Kelompokkan digit ribuan dengan titik. String masuk, string keluar. */
+function kelompokkanRibuan(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+/**
+ * `"12450000.5"` → `"12.450.000,50"`. `fractionDigits: 0` membuang desimalnya
+ * (`"16250.00"` → `"16.250"`). Nilai negatif mempertahankan tandanya.
+ */
+export function formatDecimalId(value: string, fractionDigits = 2): string {
+  const negative = value.startsWith('-')
+  const abs = negative ? value.slice(1) : value
+  const [whole = '0', fraction = ''] = abs.split('.')
+  const sign = negative ? '-' : ''
+  const grouped = kelompokkanRibuan(whole)
+  if (fractionDigits <= 0) return `${sign}${grouped}`
+  const trimmed = (fraction + '0'.repeat(fractionDigits)).slice(0, fractionDigits)
+  return `${sign}${grouped},${trimmed}`
+}
+
+/**
+ * Kurs sebagai rupiah bulat: `"16250.00"` → `"Rp 16.250"`.
+ *
+ * Spasi setelah `Rp` mengikuti `formatIdrAmount` / `formatIdrExact`, yaitu
+ * ejaan yang dipakai SELURUH layar uang lain di back office ini.
+ */
+export function formatIdrRate(value: string): string {
+  return `Rp ${formatDecimalId(value, 0)}`
+}
+
+/**
+ * Nominal USDX sebuah BARIS DAFTAR (`requests.amount`, `orders.amount`,
+ * `manual-sync.amount`) untuk ditampilkan — dua angka di belakang koma.
+ *
+ * Ada supaya empat halaman berhenti menulis aturan yang sama masing-masing:
+ * mint, burn, transaksi nasabah, dan perbaiki-status-nyangkut sebelumnya
+ * memformat sendiri dengan `'en-US'`, jadi `1,234,567.89 USDX` berdiri di
+ * sebelah `Rp 16.250.000,00` pada satu baris yang sama.
+ *
+ * CATATAN SADAR — `Number()` di sini SUDAH ADA sebelumnya dan TIDAK diubah
+ * bersama perapian ejaan ini. Yang diminta perubahan PENYAJIAN, dan mengganti
+ * jalur numeriknya juga akan mengubah pembulatan (`Number('1.005')` dibulatkan,
+ * pemotongan string tidak) — perubahan perilaku yang tidak diminta siapa pun di
+ * layar uang. Nilai di atas 2^53 karena itu masih kehilangan presisi di sini,
+ * persis seperti sebelumnya; kalau itu hendak dibereskan, satu-satunya tempat
+ * yang perlu disentuh sekarang ini, bukan empat halaman.
+ */
+export function formatUsdxListAmount(nilai: string): string {
+  const n = Number(nilai)
+  if (!Number.isFinite(n)) return nilai
+  return n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 // Generic middle-truncation for a hex string (address / tx hash):
@@ -56,34 +128,22 @@ export function shortRequestId(id: string): string {
   return truncateMiddle(id, 8, 5)
 }
 
-export function formatDate(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString))
-}
-
+/**
+ * Tanggal saja (tanpa jam) di WIB: `12 Sep 2026`. Dipakai untuk "Bergabung",
+ * "Diajukan" di daftar, dll. — semua waktu lengkap memakai `formatDateTime`.
+ */
 export function formatShortDate(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(dateString))
+  return formatDateOnly(dateString)
 }
 
-const SHORT_MONTH_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-const SHORT_MONTH_DAY_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-// Format a decimal rate string ("16250.00") as "16,250.00 IDR/USD".
-// Falls back to the raw string when input cannot be parsed, so we never
-// hide unexpected backend values behind a coercion artifact.
+// String desimal kurs ("16250.00") → "16.250,00 IDR/USD".
+// Nilai yang tidak terbaca dikembalikan APA ADANYA, supaya jawaban backend yang
+// tak terduga tidak tersembunyi di balik artefak koersi.
 export function formatRate(rate: string): string {
   const n = Number(rate)
   if (!Number.isFinite(n)) return rate
-  return `${new Intl.NumberFormat('en-US', {
+  return `${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)} IDR/USD`
@@ -95,7 +155,7 @@ export function formatRate(rate: string): string {
 export function formatSpreadPct(pct: string): string {
   const n = Number(pct)
   if (!Number.isFinite(n)) return `${pct}%`
-  return `${new Intl.NumberFormat('en-US', {
+  return `${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(n)}%`
@@ -104,11 +164,11 @@ export function formatSpreadPct(pct: string): string {
 export function formatRelativeTime(dateString: string, now: Date = new Date()): string {
   const then = new Date(dateString)
   const deltaMs = now.getTime() - then.getTime()
-  if (deltaMs < 0) return 'just now'
+  if (deltaMs < 0) return 'baru saja'
 
   const minutes = Math.floor(deltaMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return 'baru saja'
+  if (minutes < 60) return `${minutes} mnt lalu`
 
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const startOfThen = new Date(then.getFullYear(), then.getMonth(), then.getDate())
@@ -117,15 +177,14 @@ export function formatRelativeTime(dateString: string, now: Date = new Date()): 
   // Same calendar day → hour-granular
   if (dayDelta === 0) {
     const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
+    return `${hours} jam lalu`
   }
-  if (dayDelta === 1) return 'yesterday'
-  if (dayDelta < 7) return `${dayDelta}d ago`
+  if (dayDelta === 1) return 'kemarin'
+  if (dayDelta < 7) return `${dayDelta} hr lalu`
 
-  if (now.getFullYear() === then.getFullYear()) {
-    return SHORT_MONTH_DAY.format(then)
-  }
-  return SHORT_MONTH_DAY_YEAR.format(then)
+  // Lewat seminggu: tanggal lengkap `25 Jan 2026` (formatDateOnly), bukan
+  // "1 Mei" tanpa tahun — sapu bersih format waktu 11 Okt 2026.
+  return formatDateOnly(dateString)
 }
 
 // ─── Rekening BNI (USDX-631, sot/bni-integration.md § 16.4) ─────────────────
@@ -148,6 +207,24 @@ export function formatBniPostDate(raw: string | null | undefined): string {
   return s ? `${date} ${h}:${mi}:${s}` : `${date} ${h}:${mi}`
 }
 
+/**
+ * Stempel waktu bank di LAYAR, dalam format seragam (`12 Sep 2026, 08:00:09`,
+ * presisi menit → `12 Sep 2026, 08:00`, tanggal saja → `12 Sep 2026`). Stempel
+ * bank sudah WIB, jadi hanya disusun ulang — tidak lewat `Date`. Ekspor CSV
+ * TETAP `formatBniPostDate` (`YYYY-MM-DD HH:mm:ss`, wajib SOT § 16.4 K6).
+ */
+export function formatBniStamp(raw: string | null | undefined): string {
+  if (!raw) return '—'
+  const m = BNI_STAMP.exec(raw)
+  if (!m) return '—'
+  const [, y, mo, d, h, mi, sec] = m
+  const month = ID_SHORT_MONTH[Number(mo) - 1]
+  if (!month) return '—'
+  const date = `${Number(d)} ${month} ${y}`
+  if (!h || !mi) return date
+  return sec ? `${date}, ${h}:${mi}:${sec}` : `${date}, ${h}:${mi}`
+}
+
 // Bank nominal (string decimal, no sign) in the account's own currency:
 // `IDR` → `Rp 1.234,00`, `USD` → `$1,234.00`; any other code falls back to a
 // plain number followed by the code so nothing is silently mislabelled.
@@ -161,7 +238,7 @@ export function formatBankAmount(
   if (!Number.isFinite(n)) return '—'
   if (currency === 'IDR') return formatIdrAmount(n)
   if (currency === 'USD') return formatAmount(n)
-  const plain = new Intl.NumberFormat('en-US', {
+  const plain = new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)
@@ -200,15 +277,46 @@ export function formatWibClock(iso: string | null | undefined): string {
   return `${hour}:${part('minute')} WIB`
 }
 
-export function formatWibDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
+// ─── Format waktu seragam (PM Okt 2026) ──────────────────────────────────────
+
+const ID_SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+function wibParts(iso: string | null | undefined) {
+  if (!iso) return null
   const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    WIB_DATETIME_FMT.formatToParts(date).find((p) => p.type === type)?.value ?? ''
-  const hour = part('hour') === '24' ? '00' : part('hour')
-  return `${part('year')}-${part('month')}-${part('day')} ${hour}:${part('minute')}:${part('second')} WIB`
+  if (Number.isNaN(date.getTime())) return null
+  const parts = WIB_DATETIME_FMT.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
+  return {
+    day: String(Number(part('day'))),
+    month: ID_SHORT_MONTH[Number(part('month')) - 1] ?? part('month'),
+    year: part('year'),
+    hour: part('hour') === '24' ? '00' : part('hour'),
+    minute: part('minute'),
+    second: part('second'),
+  }
 }
+
+/**
+ * SATU format waktu untuk seluruh back-office: `12 Sep 2026, 08:00:09`.
+ * Tanggal, bulan pendek Indonesia, koma, jam:menit:detik 24 jam dengan TITIK
+ * DUA, selalu di zona WIB (Asia/Jakarta) apa pun zona peramban operatornya.
+ * "WIB" TIDAK ditempel di nilai — tulis sekali di judul kolom ("Waktu (WIB)")
+ * atau label ("Dibuat (WIB)"). Kosong / tak terbaca → "—".
+ */
+export function formatDateTime(iso: string | null | undefined): string {
+  const p = wibParts(iso)
+  if (!p) return '—'
+  return `${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute}:${p.second}`
+}
+
+/** Tanggal saja di WIB: `12 Sep 2026` (tanpa jam). Kosong / tak terbaca → "—". */
+export function formatDateOnly(iso: string | null | undefined): string {
+  const p = wibParts(iso)
+  if (!p) return '—'
+  return `${p.day} ${p.month} ${p.year}`
+}
+
 
 // ─── Salinan mutasi BNI (USDX-692, sot/bni-integration.md § 16.8.8) ─────────
 
@@ -241,4 +349,53 @@ export function formatIsoDayDmy(day: string | null | undefined): string | null {
   if (!m) return null
   const [, y, mo, d] = m
   return `${d}/${mo}/${y}`
+}
+
+/**
+ * Tanggal kalender `YYYY-MM-DD` (mis. tanggal lahir) → `25 Jan 1994`, ejaan
+ * yang sama dengan kolom tanggal lain. Tanpa `Date`: tanggal tanpa jam yang
+ * di-parse akan bergeser ke zona peramban. Bentuk lain dikembalikan APA ADANYA.
+ */
+export function formatIsoDayLong(day: string): string {
+  const m = ISO_DAY.exec(day)
+  if (!m) return day
+  const [, y, mo, d] = m
+  const month = ID_SHORT_MONTH[Number(mo) - 1]
+  return month ? `${Number(d)} ${month} ${y}` : day
+}
+
+/**
+ * Kode negara ISO alpha-2 (`ID`) → `Indonesia (ID)`. Kodenya tetap ditulis
+ * (itu yang tersimpan dan yang dicocokkan dengan sistem lain); kode yang tidak
+ * dikenal peramban dikembalikan apa adanya.
+ */
+export function formatCountryCode(code: string): string {
+  const c = code.trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return code
+  let name: string | undefined
+  try {
+    name = new Intl.DisplayNames(['id'], { type: 'region' }).of(c)
+  } catch {
+    name = undefined
+  }
+  return name && name !== c ? `${name} (${c})` : code
+}
+
+const BNI_ACCOUNT_TYPE_LABEL: Record<string, string> = { G: 'Giro', S: 'Tabungan', T: 'Deposito' }
+
+/**
+ * Kode jenis rekening dari BNI (`G`/`S`/`T`) → kata yang dibaca operator.
+ * Audit 8 Okt 2026: kartu saldo menampilkan "PT … · G · IDR". Kode yang tidak
+ * dikenal dikembalikan apa adanya — ditebak artinya lebih buruk daripada mentah.
+ */
+export function bniAccountTypeLabel(code: string | null | undefined): string | null {
+  if (!code) return null
+  return BNI_ACCOUNT_TYPE_LABEL[code.trim().toUpperCase()] ?? code
+}
+
+/** Mode kurs dari server (`MANUAL` / `DYNAMIC`) → kata yang dibaca operator. */
+export function rateModeLabel(mode: string): string {
+  if (mode === 'MANUAL') return 'Manual'
+  if (mode === 'DYNAMIC') return 'Otomatis (kurs pasar)'
+  return mode
 }

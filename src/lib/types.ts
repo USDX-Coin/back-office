@@ -796,6 +796,11 @@ export type MintPaymentStatus =
   | 'WAITING_FOR_PAYMENT'
   | 'PAID'
   | 'EXPIRED'
+  // `HELD` — uang MASUK tapi belum bisa dicocokkan ke order (BNI/DurianPay,
+  // USDX-349). Nilai enum backend yang sungguhan
+  // (`mint_payment_status` di `src/database/schema/mint-orders.ts`), bukan
+  // keadaan karangan: ia justru keadaan yang ditangani layar Mint Bermasalah.
+  | 'HELD'
 
 // sot/api/common.yaml § MintSafeStatus — on-chain Safe execution (mirrors OTC).
 export type MintSafeStatus =
@@ -811,6 +816,9 @@ export type MintOrderStatus =
   | 'WAITING_FOR_APPROVAL'
   | 'COMPLETED'
   | 'FAILED'
+  // Cermin ter-denormalisasi dari `payment_status = HELD` (`mint_order_status`
+  // di backend `src/database/schema/mint-orders.ts`).
+  | 'HELD'
 
 // sot/api/common.yaml § RedeemStatus — single-dimension redeem lifecycle (W3,
 // USDX-245). Redeem tidak lewat Safe: burn = self-sign user, payout =
@@ -821,6 +829,10 @@ export type RedeemStatus =
   | 'PROCESSING_PAYOUT'
   | 'PAYOUT_COMPLETE'
   | 'EXPIRED'
+  // `PAYOUT_FAILED` — penyedia menolak pencairan secara DEFINITIF (USDX-471,
+  // `redeem_order_status`). USDX nasabah sudah terbakar dan rupiahnya tidak
+  // berangkat; inilah order yang mendarat di antrean Pencairan Bermasalah.
+  | 'PAYOUT_FAILED'
 
 // Union overall status: MINT → MintOrderStatus, REDEEM → RedeemStatus.
 export type OrderStatus = MintOrderStatus | RedeemStatus
@@ -837,6 +849,8 @@ export type VaBank =
   | 'MANDIRI'
   | 'PERMATA'
   | 'MAYBANK'
+  // NOBU — ditambahkan backend untuk go-live (USDX-621, `payment_bank`).
+  | 'NOBU'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USDX-547 — partner ownership on an order (migration 0076 already landed:
@@ -2384,7 +2398,7 @@ export const ONCALL_INCIDENT_CATEGORIES: readonly OncallIncidentCategory[] = [
 
 /** Label yang menerangkan kategori — nama enum saja tak cukup untuk memilih dengan benar. */
 export const ONCALL_CATEGORY_HINTS: Record<OncallIncidentCategory, string> = {
-  PAYOUT: 'Payout gagal, antrean buntu, plafon habis, rem darurat',
+  PAYOUT: 'Pencairan gagal, antrean buntu, plafon habis, rem darurat',
   RECONCILIATION: 'Saldo tak terjelaskan, selisih rekonsiliasi bank',
   MINT: 'Pembayaran masuk tak dikredit, callback tak tercocokkan',
   REDEEM: 'Burn nasabah ditolak scanner, selisih jumlah burn',
@@ -2475,7 +2489,7 @@ export type SanctionEntryType = 'INDIVIDUAL' | 'ENTITY'
  * yang induknya tidak diketahui dari temuan. Layarnya menyatakan itu apa adanya
  * alih-alih menampilkan panel kosong yang terbaca seperti "nasabah tanpa data".
  */
-export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB'
+export type ScreeningSubjectType = 'KYC' | 'KYC_UBO' | 'KYB' | 'PARTNER_CUSTOMER'
 
 /**
  * Tiga nilai pertama ditulis MESIN, dua terakhir ditulis PETUGAS sebagai baris
@@ -2496,6 +2510,8 @@ export type ScreeningOutcome =
 export type ScreeningTrigger =
   | 'KYC_SUBMIT'
   | 'KYB_SUBMIT'
+  // Nasabah yang diserahkan PARTNER — nilai `screening_trigger` backend.
+  | 'PARTNER_CUSTOMER_SUBMIT'
   | 'RESCAN'
   | 'BACKOFFICE_DECISION'
 
@@ -3089,4 +3105,210 @@ export interface ResolvePayoutFailureResult {
 export interface QueueCounts {
   payoutFailuresOpen: number
   redeemApprovalsOpen: number
+  // Dua antrean kerja lainnya. Keduanya dibaca `?? 0` di sisi pemakai, jadi
+  // backend yang belum naik membuat badge-nya tidak muncul — menunya tetap
+  // jalan normal. Berkurang, bukan rusak.
+  //
+  // `heldCreditsOpen` = total `GET /api/v1/held-credits` (BNI + DurianPay SNAP).
+  // `approvalsOpen`   = usulan `PENDING` yang BELUM kedaluwarsa — bukan
+  //                     `PENDING` saja; tidak ada cron yang menyapu
+  //                     `approval_requests`, sapuannya jalan saat layarnya
+  //                     dibuka, jadi hitungan mentah akan mengecil sendiri
+  //                     begitu ops membukanya.
+  heldCreditsOpen: number
+  approvalsOpen: number
+  /**
+   * ⚠️ DRAF SOT PR #50 (`queue-counts.yaml`, aditif) — badge menu Transaksi =
+   * `metadata.needsActionTotal` `GET /api/v1/transactions` tanpa filter.
+   * Dihitung per BARIS, bukan jumlah antrean lain. Opsional selama DRAF: kunci
+   * yang absen ⇒ badge disembunyikan (kontrak), bukan "belum terbaca".
+   */
+  transactionsNeedsAction?: number
+}
+
+// ─── Transaksi gabungan back-office (⚠️ DRAF SOT PR #50, `backoffice-transactions.yaml`) ───
+// `GET /api/v1/transactions`. Ketiga enum TERBUKA — FE wajib punya cabang default.
+
+export type BackofficeTransactionKind = 'MINT' | 'REDEEM' | 'INCOMING_UNMATCHED'
+/** Urutan enum = urutan prioritas. */
+export type BackofficeActionType = 'PAYOUT_FAILURE' | 'REDEEM_APPROVAL' | 'HELD_CREDIT' | 'MANUAL_SYNC'
+export type BackofficeQueue = 'PAYOUT_FAILURES' | 'REDEEM_APPROVALS' | 'HELD_CREDITS' | 'MANUAL_SYNC'
+
+export interface BackofficeTransactionAction {
+  actionType: BackofficeActionType | (string & {})
+  queue: BackofficeQueue | (string & {})
+  /** `{id}` di path antrean asal — id kredit untuk HELD_CREDITS, id order untuk lainnya. */
+  refId: string
+  since: string
+  /** Hanya HELD_CREDIT — `match_reason` kredit (mis. LATE_PAYMENT). */
+  heldReason?: string | null
+  /** Hanya PAYOUT_FAILURE — PAYOUT_STUCK read-only ("dipantau"). */
+  payoutIssueKind?: string | null
+}
+
+export interface BackofficeTransactionItem {
+  /** MINT/REDEEM: id order. INCOMING_UNMATCHED: id kredit. */
+  id: string
+  kind: BackofficeTransactionKind | (string & {})
+  occurredAt: string
+  orderNumber?: string | null
+  customerName?: string | null
+  /** Ter-mask untuk non-ADMIN; `(partner customer)` untuk order tanpa baris users. */
+  userEmail?: string | null
+  partnerCode?: string | null
+  /** Hanya INCOMING_UNMATCHED — nama pengirim dari notif bank. */
+  senderName?: string | null
+  amountUsdx?: string | null
+  /** MINT = total_pay_idr; REDEEM = net_payout_idr; uang masuk = nominal masuk. */
+  amountIdr?: string | null
+  /** MintOrderStatus / RedeemStatus / HELD. */
+  status: string
+  needsAction: boolean
+  actionType?: BackofficeActionType | (string & {}) | null
+  actionSince?: string | null
+  actions: BackofficeTransactionAction[]
+}
+
+export interface BackofficeTransactionsMetadata {
+  page: number
+  limit: number
+  total: number
+  needsActionTotal?: number
+}
+
+// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// `GET /api/v1/payment-methods` (Admin/Developer), `PATCH /api/v1/payment-methods/{id}`
+// dan `PUT /api/v1/payment-method-order` (Admin saja). Enum terbuka.
+
+export type PaymentProvider = 'MOCK' | 'BNI' | 'DURIANPAY_SNAP'
+export type PaymentFeeType = 'FLAT_IDR' | 'PERCENT'
+export type PaymentMethodUnavailableReason =
+  | 'PROVIDER_NOT_CONFIGURED'
+  | 'NOT_SUPPORTED_BY_ADAPTER'
+  | 'BNI_BUY_RATE_MISSING'
+  | 'BNI_PREREQUISITE_UNVERIFIED'
+
+export interface PaymentMethod {
+  id: string
+  /** `<CHANNEL>_<BANK>_<PROVIDER>` — kunci stabil, bukan label layar. */
+  code: string
+  channel: string
+  bank?: string | null
+  provider: PaymentProvider | (string & {})
+  enabled: boolean
+  sortOrder: number
+  feeType: PaymentFeeType | (string & {})
+  /** Desimal string: FLAT_IDR rupiah 2 desimal; PERCENT 0–100 maks 4 desimal. */
+  feeValue: string
+  /** Ditawarkan ke nasabah ⟺ `enabled && available`. */
+  available: boolean
+  unavailableReason?: PaymentMethodUnavailableReason | (string & {}) | null
+  /** null = tanpa batas. */
+  maxAmountIdr?: string | null
+  updatedBy?: string | null
+  updatedByName?: string | null
+  updatedAt: string
+}
+
+export interface UpdatePaymentMethodBody {
+  enabled?: boolean
+  sortOrder?: number
+  feeType?: PaymentFeeType
+  feeValue?: string
+  maxAmountIdr?: string | null
+  reason: string
+  expectedUpdatedAt?: string
+}
+
+export interface ReorderPaymentMethodsBody {
+  orderedIds: string[]
+  reason: string
+}
+
+// ─── Log Panggilan DurianPay (backend `src/modules/durianpay-api-calls/`) ────
+//
+// TIDAK ADA KONTRAK SOT UNTUK ENDPOINT INI. Bentuk di bawah DITRANSKRIPSI dari
+// `durianpay-api-calls.types.ts` + `dto/list-durianpay-api-calls.dto.ts` di
+// branch backend `wisnubarata111/be-catat-log-panggilan-durianpay`, yang BELUM
+// merge. Kalau kontraknya nanti masuk `sot/api/`, berkas itu yang menang dan
+// bentuk ini menyesuaikan — bukan sebaliknya.
+//
+// DUA HAL YANG TIDAK ADA DI SINI, DAN ITU DISENGAJA DI BACKEND:
+//   1. HEADER HTTP tidak pernah disimpan sama sekali — di situlah `Authorization`,
+//      `X-SIGNATURE` dan `X-CLIENT-KEY` hidup. Layar ini tidak boleh menjanjikan
+//      tampilan header, karena tidak ada satu pun yang bisa ditampilkan.
+//   2. PENCARIAN TEKS BEBAS di badan pesan. Saringan yang ADA hanya tujuh di
+//      `ListDurianpayApiCallsQuery`; `path` pun AWALAN, bukan `LIKE '%…%'`.
+
+/** Vonis transport satu panggilan (mirror enum DB `durianpay_api_call_outcome`). */
+export type DurianpayApiCallOutcome = 'SUCCESS' | 'REJECTED' | 'UNAVAILABLE'
+
+/** Integrasi yang dipakai (mirror enum DB `durianpay_api_flavor`). */
+export type DurianpayApiFlavor = 'SNAP' | 'LEGACY'
+
+/** Satu baris list. SENGAJA tanpa badan request/response — badannya hanya di detail. */
+export interface DurianpayApiCallListItem {
+  id: string
+  /** Kapan panggilannya BERANGKAT (bukan kapan barisnya ditulis). */
+  requestedAt: string
+  /** Hari ini SELALU `OUTBOUND`; arah masuk punya tiga tabel notifikasinya sendiri. */
+  direction: 'OUTBOUND'
+  apiFlavor: DurianpayApiFlavor
+  httpMethod: string
+  /** Path endpoint saja (mis. `/v1.0/transfer-va/create-va`). */
+  path: string
+  /** `null` berarti TIDAK ADA respons sama sekali: timeout atau error jaringan. */
+  httpStatus: number | null
+  /** `responseCode` SNAP (mis. `2002700`) atau `error_code` Legacy. */
+  responseCode: string | null
+  outcome: DurianpayApiCallOutcome
+  /** `trxId` / `partnerReferenceNo` KITA. `null` = panggilannya memang tidak membawanya. */
+  referenceNo: string | null
+  /** `trace_id` milik DurianPay — pengenal SISI MEREKA. */
+  traceId: string | null
+  durationMs: number
+  /** Satu baris "kenapa ini tidak mulus". `null` saat panggilannya benar-benar bersih. */
+  errorSummary: string | null
+}
+
+/** `GET /api/v1/durianpay-api-calls/{id}` — plus badan pesan yang SUDAH diredaksi. */
+export interface DurianpayApiCallDetail extends DurianpayApiCallListItem {
+  /** Tujuan panggilan. Ia yang menjawab "sandbox atau production?". */
+  baseUrl: string
+  /** `X-EXTERNAL-ID` panggilan SNAP; `null` untuk Legacy (tak punya header itu). */
+  externalId: string | null
+  responseMessage: string | null
+  /**
+   * Badan SESUDAH redaksi: rahasia jadi `[REDACTED:SECRET]`, PII jadi `[REDACTED:PII]`,
+   * dan badan di atas 16 KiB diganti `{ _truncated, _bytes, _head }`. Respons yang
+   * BUKAN JSON disimpan sebagai `{ _raw: "…" }`.
+   */
+  requestBody: Record<string, unknown> | null
+  responseBody: Record<string, unknown> | null
+  createdAt: string
+}
+
+// Membaca Log Panggilan DurianPay: SEMUA peran back-office
+// (`@Roles("STAFF", "MANAGER", "ADMIN", "DEVELOPER")` di
+// `durianpay-api-calls.controller.ts`, kontrak `sot/api/durianpay-api-calls.yaml`).
+// Sejajar dengan "Pencairan Bermasalah" dan "Persetujuan Pencairan".
+//
+// Rancangan awal menyempitkannya ke MANAGER ke atas karena layar ini tidak punya
+// keputusan untuk diambil. Itu ditolak Wisnu (19 Sep 2026): yang menjaga jalur
+// uang sehari-hari justru STAFF, dan sejak log stdout produksi tidak terbaca
+// siapa pun, layar ini satu-satunya tempat "kenapa pembayaran ini tidak masuk"
+// bisa dijawab. Yang ditukar: badan pesan memuat nomor VA nasabah apa adanya
+// (sengaja, supaya baris bisa dicocokkan dengan keluhan yang masuk).
+//
+// Dipakai handler MSW supaya tiruannya memakai gerbang yang sama dengan server.
+// Pasangan sisi UI-nya `canReadDurianpayApiCalls` di `src/lib/auth.tsx`.
+export const DURIANPAY_API_CALLS_ROLES: readonly StaffRole[] = [
+  'STAFF',
+  'MANAGER',
+  'ADMIN',
+  'DEVELOPER',
+]
+
+export function canReadDurianpayApiCallsRole(role: StaffRole): boolean {
+  return DURIANPAY_API_CALLS_ROLES.includes(role)
 }

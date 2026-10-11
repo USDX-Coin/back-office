@@ -1,12 +1,15 @@
 import { useNavigate, useParams } from 'react-router'
+import { rowNav } from '@/components/record-modal/rowNav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { BanknoteX, Eye } from 'lucide-react'
 import DataTable from '@/components/DataTable'
 import PageHeader from '@/components/PageHeader'
 import StatusPill from '@/components/StatusPill'
+import { UNKNOWN_CODE_LABEL } from '@/lib/status'
 import TableEmptyState from '@/components/TableEmptyState'
 import { useDataTableParams } from '@/components/useDataTableParams'
 import TableToolbar from '@/components/table/TableToolbar'
+import { TableCellStack } from '@/components/ui/table'
 import { useColumnVisibility } from '@/components/table/useColumnVisibility'
 import {
   Tooltip,
@@ -15,7 +18,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { canResolvePayoutFailure, useAuth } from '@/lib/auth'
-import { formatWibDateTime } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   formatQueueAge,
   isPayoutIssueKind,
@@ -75,15 +78,21 @@ export default function PayoutFailuresPage() {
   const columns: ColumnDef<PayoutFailureListItem>[] = [
     {
       id: 'issueAt',
-      header: 'Masuk antrean',
+      // Cap waktu ditulis penuh sampai detik ("12 Sep 2026, 08:00:09"); zona
+      // ditulis sekali di judul kolom. Detik itu yang dicocokkan ops dengan
+      // mutasi bank, jadi lebarnya dijaga (168px cukup; 184px membuat tabel
+      // melebar 16px dan tombol Detail terpotong di 1440).
+      size: 168,
+      header: 'Masuk antrean (WIB)',
       cell: ({ row }) => (
-        <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
-          {formatWibDateTime(row.original.issueAt)}
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {formatDateTime(row.original.issueAt)}
         </span>
       ),
     },
     {
       id: 'issue',
+      size: 208,
       header: 'Masalah',
       cell: ({ row }) => {
         const { issueKind: kind, issueCode } = row.original
@@ -92,8 +101,15 @@ export default function PayoutFailuresPage() {
           <div className="flex min-w-0 flex-col gap-1">
             <StatusPill cfg={payoutIssueKindPill(kind)} className="w-fit" />
             {issueCode && (
-              <span className="text-[11.5px] text-muted-foreground" title={issueCode}>
-                {codeLabel ?? <span className="font-mono">{issueCode}</span>}
+              // `title` memuat kalimat UTUH plus kodenya: keterangan masalah
+              // dalam bahasa Indonesia lebih panjang dari lebar kolom dan
+              // terpotong elipsis, dan dulu hover hanya memunculkan kodenya —
+              // jadi kalimat yang terpotong tidak bisa dibaca di mana pun.
+              <span
+                className="truncate text-xs text-muted-foreground"
+                title={codeLabel ? `${codeLabel} (${issueCode})` : issueCode}
+              >
+                {codeLabel ?? UNKNOWN_CODE_LABEL}
               </span>
             )}
           </div>
@@ -102,43 +118,69 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'amount',
+      // RUPIAH YANG AKAN DIKIRIM ULANG KE NASABAH — sel paling mahal di layar ini.
+      //
+      // Tanpa `size` kolomnya dapat angka bawaan 120px, yang setelah padding sel
+      // menyisakan 96px isi. "Rp 4.012.350,00" butuh ±126px, jadi ia terpotong —
+      // dan karena isinya kotak BLOK, `text-overflow` di `td` tidak berlaku, jadi
+      // terpotongnya TANPA TANDA: "Rp 4.012.350,0". 184px memuat bentuk terpanjang
+      // yang realistis ("Rp 999.999.999,00" ≈ 143px + 24px padding), dan nominal
+      // di atas itu pun tetap terbaca utuh lewat `title`/tooltip `TableCellStack`.
+      size: 184,
       header: 'Nominal',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-[13px] font-semibold tabular-nums">
-            {formatIdrExact(row.original.netPayoutIdr)}
-          </span>
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-            {formatUsdxExact(row.original.amountUsdx)}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            {
+              value: formatIdrExact(row.original.netPayoutIdr),
+              className: 'text-sm font-semibold tabular-nums',
+            },
+            {
+              value: formatUsdxExact(row.original.amountUsdx),
+              className: 'text-xs tabular-nums text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'destination',
+      // Nomor rekening: nilai yang dicocokkan ops dengan keluhan nasabah, jadi
+      // ia harus terbaca UTUH. Dulu itu dijamin `break-all` (nomornya turun
+      // baris daripada terpotong); kelas itu dibuang saat sel dipaksa satu
+      // baris, dan tidak ada penggantinya — nomornya lalu terpotong diam-diam.
+      // Sekarang dua-duanya: lebar yang memuat nomor terpanjang (BNI 10 digit,
+      // bank lain sampai 16) DAN nilai utuh di `title`.
+      size: 208,
       header: 'Rekening tujuan',
       cell: ({ row }) => (
-        <div className="flex min-w-0 flex-col">
-          <span className="text-[12.5px]">{row.original.bankName}</span>
-          {/* PENUH, tidak dipotong: nilai yang dicocokkan ops dengan keluhan nasabah. */}
-          <span className="break-all font-mono text-[12px] tabular-nums">
-            {row.original.bankAccountNumber}
-          </span>
-          <span className="truncate text-[11.5px] text-muted-foreground">
-            {row.original.bankAccountName}
-          </span>
-        </div>
+        <TableCellStack
+          lines={[
+            { value: row.original.bankName, className: 'text-xs' },
+            {
+              value: row.original.bankAccountNumber,
+              className: 'text-xs tabular-nums',
+            },
+            {
+              value: row.original.bankAccountName,
+              className: 'text-xs text-muted-foreground',
+            },
+          ]}
+        />
       ),
     },
     {
       id: 'owner',
+      size: 168,
       header: 'Pemilik order',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-[12.5px]">{row.original.ownerLabel}</span>
+          <span className="truncate text-xs" title={row.original.ownerLabel}>
+            {row.original.ownerLabel}
+          </span>
           {row.original.ownerKind === 'PARTNER' && (
             // Order partner yang bermasalah dikejar ke PARTNER-nya, bukan ke nasabahnya.
-            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="mt-0.5 w-fit rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               Partner
             </span>
           )}
@@ -147,15 +189,17 @@ export default function PayoutFailuresPage() {
     },
     {
       id: 'age',
+      size: 120,
       header: 'Umur antrean',
       cell: ({ row }) => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="text-xs tabular-nums">
           {formatQueueAge(row.original.issueAt)}
         </span>
       ),
     },
     {
       id: 'actions',
+      size: 96,
       header: '',
       cell: ({ row }) => (
         <button
@@ -164,7 +208,7 @@ export default function PayoutFailuresPage() {
             e.stopPropagation()
             openDetail(row.original.id)
           }}
-          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-label font-medium text-primary transition-colors hover:bg-muted"
           aria-label={`Buka detail pencairan ${row.original.bankAccountName}`}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -178,9 +222,7 @@ export default function PayoutFailuresPage() {
     <TooltipProvider delayDuration={150}>
       <div>
         <PageHeader
-          eyebrow="Treasury"
           title="Pencairan Bermasalah"
-          italicAccent="redeem"
           subtitle="Payout redeem yang gagal, burn yang ditolak, dan payout yang tertahan. USDX nasabah sudah terbakar dan rupiahnya belum sampai — setiap baris menunggu satu keputusan manusia."
           actions={
             canResolve ? undefined : (
@@ -188,7 +230,7 @@ export default function PayoutFailuresPage() {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="rounded-sm bg-muted px-2 py-1 text-[11.5px] font-medium text-muted-foreground"
+                    className="rounded-sm bg-muted px-2 py-1 text-label font-medium text-muted-foreground"
                   >
                     Hanya bisa melihat
                   </span>
@@ -246,6 +288,9 @@ export default function PayoutFailuresPage() {
           onOpenChange={(o) => {
             if (!o) navigate(`/payout-failures${suffix}`, { replace: true })
           }}
+          nav={rowNav(rows, (r) => r.id, activeId, (id) =>
+            navigate(`/payout-failures/${id}${suffix}`, { replace: true }),
+          )}
         />
       </div>
     </TooltipProvider>

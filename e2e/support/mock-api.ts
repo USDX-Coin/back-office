@@ -1,4 +1,7 @@
 import type { Page, Route } from '@playwright/test'
+import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
+import { createInitialPaymentMethods } from '../../src/mocks/data'
+import type { PaymentMethod } from '../../src/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hermetic mock of the Phase-1 API for E2E.
@@ -159,6 +162,28 @@ const DASHBOARD_STATS = {
 
 const HEX64 = (c: string) => '0x' + c.repeat(64)
 
+const SAFE_ADDRESS = '0xaA3e70397F3668D6Fd9C25e36a6FB151241EE015'
+const SAFE_TX_TO = '0x2702d7043693651BB8A3D2Ec1C296B20692C7426'
+
+/**
+ * `safeTxHash` ASLI untuk transaksi Safe tiruan: hash EIP-712 dari isi yang
+ * benar-benar dikirim di detailnya (to/value/data/operation/nonce + Safe),
+ * dihitung dengan fungsi yang sama yang dipakai layar untuk memeriksanya.
+ *
+ * Dulu nilainya `HEX64('5')` — angka karangan. Layar menghitung ulang hash
+ * dari isi transaksi sebelum mengizinkan tanda tangan (pagar anti blind-sign),
+ * jadi hash karangan SELALU gagal dicocokkan dan panel OTC menampilkan
+ * "Isi transaksi tidak cocok dengan server" di setiap e2e/screenshot. Itu
+ * kesalahan data tiruan, bukan layar — layarnya justru bekerja benar.
+ */
+function mockSafeTxHash(nonce: number): string {
+  return computeSafeTxHash({
+    safeAddress: SAFE_ADDRESS, to: SAFE_TX_TO, value: '0', data: '0x', operation: 0, nonce, execPayload: null,
+  } as unknown as Parameters<typeof computeSafeTxHash>[0])
+}
+const SAFE_TX_HASH_MINT = mockSafeTxHash(7)
+const SAFE_TX_HASH_BURN = mockSafeTxHash(8)
+
 interface MockRequest {
   id: string
   type: 'mint' | 'burn'
@@ -218,10 +243,95 @@ function seedRequests(): MockRequest[] {
   })
   return [
     mk({ id: 'req_mint_executed', amount: '1000.000000', amountIdr: '16250000.00' }),
-    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
+    mk({ id: 'req_mint_pending', status: 'PENDING_APPROVAL', safeTxHash: SAFE_TX_HASH_MINT, onChainTxHash: null, createdAt: '2026-05-11T09:00:00.000Z' }),
     mk({ id: 'req_mint_rejected', status: 'REJECTED', safeTxHash: null, onChainTxHash: null, createdAt: '2026-05-09T08:00:00.000Z' }),
     mk({ id: 'req_burn_executed', type: 'burn', status: 'IDR_TRANSFERRED', amount: '50.000000', amountIdr: '812500.00', safeType: 'MANAGER', depositTxHash: HEX64('c'), bankName: 'BCA', bankAccount: '1234567890', createdAt: '2026-05-11T11:00:00.000Z' }),
-    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
+    mk({ id: 'req_burn_pending', type: 'burn', status: 'PENDING_APPROVAL', safeTxHash: SAFE_TX_HASH_BURN, onChainTxHash: null, amount: '10.000000', amountIdr: '162500.00', depositTxHash: HEX64('d'), bankName: 'Mandiri', bankAccount: '9876543210', createdAt: '2026-05-11T07:30:00.000Z' }),
+  ]
+}
+
+// ── Multisig queue (USDX-275) — matched to OTC rows by safeTxHash (redesain fase 1) ──
+
+export interface MockSafeTx {
+  id: string
+  chain: string
+  safeType: 'STAFF' | 'MANAGER'
+  safeAddress: string
+  nonce: number
+  activity: string
+  activityLabel: string
+  signatureProgress: { collected: number; threshold: number }
+  proposerType: 'BACKEND' | 'STAFF'
+  proposerAddress: string
+  status: string
+  safeTxHash: string
+  execTxHash: string | null
+  createdAt: string
+  signers: { address: string; staffName: string | null; isBackend: boolean; signed: boolean; signedAt: string | null }[]
+}
+
+function seedSafeTxs(): MockSafeTx[] {
+  return [
+    {
+      id: 'stx_mint_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 7,
+      activity: 'MINT', activityLabel: 'Mint 100 USDX', signatureProgress: { collected: 1, threshold: 2 },
+      proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
+      status: 'PENDING_SIGN', safeTxHash: SAFE_TX_HASH_MINT, execTxHash: null, createdAt: '2026-05-11T09:00:00.000Z',
+      signers: [
+        { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T09:05:00.000Z' },
+        { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: false, signedAt: null },
+      ],
+    },
+    {
+      id: 'stx_burn_pending', chain: 'polygon', safeType: 'STAFF', safeAddress: SAFE_ADDRESS, nonce: 8,
+      activity: 'BURN', activityLabel: 'Burn 10 USDX', signatureProgress: { collected: 2, threshold: 2 },
+      proposerType: 'BACKEND', proposerAddress: '0x1111111111111111111111111111111111111111',
+      status: 'READY_TO_EXECUTE', safeTxHash: SAFE_TX_HASH_BURN, execTxHash: null, createdAt: '2026-05-11T07:30:00.000Z',
+      signers: [
+        { address: '0x1111111111111111111111111111111111111111', staffName: 'Marcus Thorne', isBackend: false, signed: true, signedAt: '2026-05-11T07:35:00.000Z' },
+        { address: '0x2222222222222222222222222222222222222222', staffName: 'Linda Chen', isBackend: false, signed: true, signedAt: '2026-05-11T07:40:00.000Z' },
+      ],
+    },
+  ]
+}
+
+function safeTxListItem(t: MockSafeTx) {
+  const { signers: _signers, ...rest } = t
+  void _signers
+  return rest
+}
+
+function safeTxDetail(t: MockSafeTx) {
+  return {
+    ...t,
+    to: SAFE_TX_TO, value: '0', data: '0x', operation: 0,
+    decodedArgs: {}, linkedRequestId: null, linkedOrderId: null, execPayload: null,
+    lastExecError: null, executedByStaffName: null, executedAt: null,
+  }
+}
+
+// ── KYB queue (USDX-546) — list only; joins the KYC queue in Verifikasi ─────
+
+export interface MockKybRecord {
+  id: string
+  userId: string
+  userEmail: string
+  userName: string | null
+  entityForm: string
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED'
+  submissionCount: number
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewedByName: string | null
+}
+
+function seedKyb(): MockKybRecord[] {
+  return [
+    {
+      id: 'kyb_pending', userId: 'usr_legal_1', userEmail: 'legal@sinarniaga.co.id', userName: 'PT Sinar Niaga',
+      entityForm: 'PT', status: 'PENDING', submissionCount: 1, submittedAt: '2026-05-02T03:00:00.000Z',
+      reviewedAt: null, reviewedByName: null,
+    },
   ]
 }
 
@@ -768,6 +878,10 @@ export interface MockApiOptions {
   requests?: MockRequest[]
   /** Replace the seeded KYC records (USDX-154/155). */
   kyc?: MockKycRecord[]
+  /** Replace the seeded KYB records (USDX-546). */
+  kyb?: MockKybRecord[]
+  /** Replace the seeded Safe transactions (USDX-275). */
+  safeTxs?: MockSafeTx[]
   /** Replace the seeded consumer orders (USDX-206). */
   orders?: MockOrder[]
   /** Override a single endpoint, keyed by `"METHOD /api/v1/path"`. Return `true` if handled. */
@@ -787,9 +901,19 @@ export interface MockApiState {
   requests: MockRequest[]
   orders: MockOrder[]
   kyc: MockKycRecord[]
+  kyb: MockKybRecord[]
+  safeTxs: MockSafeTx[]
   kycReviews: Map<string, MockKycReview[]>
   /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
   resendLog: Map<string, number>
+  /** Metode Pembayaran (SOT PR #50) — seed MSW `createInitialPaymentMethods`, mutable per test. */
+  paymentMethods: PaymentMethod[]
+  /** Body PATCH/PUT metode pembayaran yang SAMPAI ke server tiruan, berurutan. */
+  paymentMethodWrites: { method: string; path: string; body: Record<string, unknown> }[]
+  /** Baris activity_log `PAYMENT_METHOD` yang ditulis PATCH/PUT di atas (terbaru dulu). */
+  activityLogs: { id: string; action: string; resourceType: string; resourceId: string | null; metadata: Record<string, unknown>; createdAt: string }[]
+  /** Berapa kali `GET /api/v1/activity-logs` diminta (Jejak perubahan = Admin saja). */
+  activityLogRequests: number
 }
 
 export async function installMockApi(page: Page, opts: MockApiOptions = {}): Promise<MockApiState> {
@@ -799,8 +923,14 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     requests: opts.requests ?? seedRequests(),
     orders: opts.orders ?? seedOrders(),
     kyc: kycRecords,
+    kyb: opts.kyb ?? seedKyb(),
+    safeTxs: opts.safeTxs ?? seedSafeTxs(),
     kycReviews: seedKycReviews(kycRecords),
     resendLog: new Map(),
+    paymentMethods: createInitialPaymentMethods(),
+    paymentMethodWrites: [],
+    activityLogs: [],
+    activityLogRequests: 0,
   }
 
   // USDX-207: per-test mutable rate + fee config so POST is reflected by the
@@ -1019,7 +1149,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     }
     if (key === 'POST /api/v1/users') {
       const b = body()
-      if (state.users.some((u) => u.email.toLowerCase() === String(b.email ?? '').toLowerCase())) return error(route, 'CONFLICT', 'A user with this email already exists', 409)
+      if (state.users.some((u) => u.email.toLowerCase() === String(b.email ?? '').toLowerCase())) return error(route, 'EMAIL_ALREADY_REGISTERED', 'Email sudah terdaftar.', 409)
       // USDX-156: Phase 2 create — no password anywhere; user starts
       // unverified and BE queues the activation email (admin-created.html).
       const created = {
@@ -1169,6 +1299,30 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       return envelope(route, { ...k, urlExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })
     }
 
+    // ── Multisig queue (matched to OTC rows) ──────────────────────────────
+    if (key === 'GET /api/v1/multisig/safes') return envelope(route, [])
+    if (method === 'GET' && path === '/api/v1/multisig') {
+      const status = url.searchParams.get('status')
+      const list = state.safeTxs.filter((t) => !status || t.status === status)
+      return paginated(route, list.map(safeTxListItem), Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '20'))
+    }
+    const safeTxMatch = path.match(/^\/api\/v1\/multisig\/([^/]+)$/)
+    if (method === 'GET' && safeTxMatch) {
+      const t = state.safeTxs.find((x) => x.id === safeTxMatch[1])
+      if (!t) return error(route, 'NOT_FOUND', 'Safe transaction not found', 404)
+      return envelope(route, safeTxDetail(t))
+    }
+
+    // ── KYB queue (list only) ─────────────────────────────────────────────
+    if (method === 'GET' && path === '/api/v1/kyb') {
+      const status = url.searchParams.get('status')
+      const search = url.searchParams.get('search')?.toLowerCase()
+      let list = [...state.kyb]
+      if (status) list = list.filter((k) => k.status === status)
+      if (search) list = list.filter((k) => k.userEmail.toLowerCase().includes(search) || (k.userName ?? '').toLowerCase().includes(search))
+      return paginated(route, list, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('limit') ?? '10'))
+    }
+
     // ── Requests list / detail ────────────────────────────────────────────
     if (method === 'GET' && path === '/api/v1/requests') {
       const type = url.searchParams.get('type')
@@ -1178,7 +1332,12 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const search = url.searchParams.get('search')?.toLowerCase()
       let list = [...state.requests]
       if (type === 'mint' || type === 'burn') list = list.filter((r) => r.type === type)
-      if (status) list = list.filter((r) => r.status === status)
+      // `status` is CSV on the backend (`ListRequestsDto`) — the OTC page pulls
+      // `PENDING_APPROVAL,APPROVED` and `EXECUTED,IDR_TRANSFERRED,REJECTED`.
+      if (status) {
+        const wanted = status.split(',').map((x) => x.trim())
+        list = list.filter((r) => wanted.includes(r.status))
+      }
       if (chain) list = list.filter((r) => r.chain === chain)
       if (safeType === 'STAFF' || safeType === 'MANAGER') list = list.filter((r) => r.safeType === safeType)
       if (search) list = list.filter((r) => r.userName.toLowerCase().includes(search) || r.userAddress.toLowerCase().includes(search))
@@ -1322,12 +1481,85 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       })
     }
 
+    // ── ⚠️ DRAF SOT PR #50 — Transaksi gabungan (backoffice-transactions.yaml) ──
+    // Order dari state + antrean Pencairan Bermasalah (PAYOUT_FAILURE). Resolve
+    // di antrean asal mengeluarkan barisnya dari "perlu tindakan".
+    const buildTransactions = () => {
+      const rows = new Map<string, Record<string, unknown> & { id: string; needsAction: boolean; actions: Record<string, unknown>[]; occurredAt: string; kind: string }>()
+      for (const o of state.orders) {
+        rows.set(o.id, {
+          id: o.id, kind: o.type, occurredAt: o.createdAt, orderNumber: o.externalReference, customerName: null,
+          userEmail: o.userEmail, partnerCode: o.partner?.code ?? null, senderName: null, amountUsdx: o.amount,
+          amountIdr: o.type === 'MINT' ? o.totalPayIdr : (o.netPayoutIdr ?? null), status: o.status,
+          needsAction: false, actionType: null, actionSince: null, actions: [],
+        })
+      }
+      for (const f of payoutFailures) {
+        if (f.resolution !== null) continue
+        const action = { actionType: 'PAYOUT_FAILURE', queue: 'PAYOUT_FAILURES', refId: f.id, since: f.issueAt, payoutIssueKind: f.issueKind }
+        rows.set(f.id, {
+          id: f.id, kind: 'REDEEM', occurredAt: f.issueAt, orderNumber: null, customerName: f.bankAccountName,
+          userEmail: f.ownerLabel, partnerCode: null, senderName: null, amountUsdx: f.amountUsdx, amountIdr: f.netPayoutIdr,
+          status: f.status, needsAction: true, actionType: 'PAYOUT_FAILURE', actionSince: f.issueAt, actions: [action],
+        })
+      }
+      return [...rows.values()].sort((a, b) => {
+        if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1
+        return a.needsAction
+          ? String(a.actionSince).localeCompare(String(b.actionSince))
+          : b.occurredAt.localeCompare(a.occurredAt)
+      })
+    }
+    if (key === 'GET /api/v1/transactions') {
+      let list = buildTransactions()
+      const kinds = url.searchParams.getAll('kind')
+      const needsAction = url.searchParams.get('needsAction')
+      const actionType = url.searchParams.get('actionType')
+      const q = url.searchParams.get('q')?.toLowerCase()
+      const ownerType = url.searchParams.get('ownerType')
+      if (kinds.length) list = list.filter((r) => kinds.includes(r.kind))
+      if (needsAction === 'true') list = list.filter((r) => r.needsAction)
+      if (needsAction === 'false') list = list.filter((r) => !r.needsAction)
+      if (actionType) list = list.filter((r) => r.actions.some((a) => a.actionType === actionType))
+      if (q) list = list.filter((r) => [r.orderNumber, r.customerName, r.senderName].some((v) => typeof v === 'string' && v.toLowerCase().includes(q)))
+      if (ownerType === 'PARTNER') list = list.filter((r) => r.partnerCode !== null)
+      if (ownerType === 'RETAIL') list = list.filter((r) => r.partnerCode === null && r.kind !== 'INCOMING_UNMATCHED')
+      const page = Number(url.searchParams.get('page') ?? '1')
+      const take = Number(url.searchParams.get('take') ?? '20')
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          metadata: { page, limit: take, total: list.length, needsActionTotal: list.filter((r) => r.needsAction).length },
+          data: list.slice((page - 1) * take, page * take),
+        }),
+      })
+    }
+
+    // ── Cadangan (Ringkasan membaca saldonya saja: take=1) ────────────────
+    if (key === 'GET /api/v1/transparency/ledger') {
+      return envelope(route, {
+        entries: [],
+        page: Number(url.searchParams.get('page') ?? '1'),
+        take: Number(url.searchParams.get('take') ?? '50'),
+        total: 0,
+        balance: { amount: '51249.75', currency: 'USD' },
+      })
+    }
+
     // ── Hitungan antrean badge (USDX-678, sot/api/queue-counts.yaml) ──────
     // Antrean Persetujuan Pencairan tidak dimodelkan di suite ini → 0.
     if (key === 'GET /api/v1/queue-counts') {
       return envelope(route, {
         payoutFailuresOpen: payoutFailures.filter((f) => f.resolution === null).length,
         redeemApprovalsOpen: 0,
+        // Redesain fase 1: the Transaksi menu sums these with the two above.
+        // Not modelled here → 0 (a missing key would read "belum terbaca").
+        heldCreditsOpen: 0,
+        approvalsOpen: 0,
+        // ⚠️ DRAF SOT PR #50 — badge menu Transaksi, per baris.
+        transactionsNeedsAction: buildTransactions().filter((r) => r.needsAction).length,
       })
     }
 
@@ -1386,6 +1618,78 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           resolvedAt: now,
         })
       }
+    }
+
+    // ── Metode Pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml) ──────
+    // Meniru handler MSW (`src/mocks/handlers.ts`) dengan seed yang sama:
+    // hanya Virtual Account NOBU yang ditawarkan, Transfer BNI dijaga D23 (409).
+    const sortedPm = () =>
+      [...state.paymentMethods].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code))
+    const pushPmLog = (action: string, resourceId: string | null, metadata: Record<string, unknown>) =>
+      state.activityLogs.unshift({
+        id: `log-pm-${state.activityLogs.length + 1}`,
+        action,
+        resourceType: 'PAYMENT_METHOD',
+        resourceId,
+        metadata,
+        createdAt: '2026-10-10T03:15:00.000Z',
+      })
+    if (key === 'GET /api/v1/payment-methods') return envelope(route, sortedPm())
+    const pmMatch = path.match(/^\/api\/v1\/payment-methods\/([^/]+)$/)
+    if (pmMatch && method === 'PATCH') {
+      const row = state.paymentMethods.find((m) => m.id === pmMatch[1])
+      if (!row) return error(route, 'NOT_FOUND', 'Payment method not found', 404)
+      const b = body() as Record<string, unknown>
+      state.paymentMethodWrites.push({ method, path, body: b })
+      const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
+      if (reason.length < 10) return error(route, 'VALIDATION_ERROR', 'reason must be 10..500 characters', 422)
+      if (typeof b.expectedUpdatedAt === 'string' && b.expectedUpdatedAt !== row.updatedAt) {
+        return error(route, 'PAYMENT_METHOD_CHANGED', 'PAYMENT_METHOD_CHANGED', 409)
+      }
+      if (row.code === 'BANK_TRANSFER_BNI_BNI' && b.enabled === true && !row.enabled) {
+        return error(route, 'PAYMENT_METHOD_PREREQUISITE_UNMET', 'BNI transfer prerequisites (D23) are not verified', 409)
+      }
+      const before = { enabled: row.enabled, feeType: row.feeType, feeValue: row.feeValue, maxAmountIdr: row.maxAmountIdr ?? null }
+      if (typeof b.enabled === 'boolean') row.enabled = b.enabled
+      if (typeof b.feeType === 'string' && typeof b.feeValue === 'string') {
+        row.feeType = b.feeType as PaymentMethod['feeType']
+        row.feeValue = b.feeValue
+      }
+      if ('maxAmountIdr' in b) row.maxAmountIdr = b.maxAmountIdr as string | null
+      row.updatedAt = '2026-10-10T03:15:00.000Z'
+      row.updatedBy = ADMIN_STAFF.id
+      row.updatedByName = ADMIN_STAFF.name
+      pushPmLog('PAYMENT_METHOD_UPDATED', row.id, {
+        before,
+        after: { enabled: row.enabled, feeType: row.feeType, feeValue: row.feeValue, maxAmountIdr: row.maxAmountIdr ?? null },
+        reason,
+      })
+      return envelope(route, row)
+    }
+    if (key === 'PUT /api/v1/payment-method-order') {
+      const b = body() as { orderedIds?: string[]; reason?: string }
+      state.paymentMethodWrites.push({ method, path, body: b })
+      const ids = Array.isArray(b.orderedIds) ? b.orderedIds : []
+      if (ids.length !== state.paymentMethods.length || ids.some((pmId) => !state.paymentMethods.some((m) => m.id === pmId))) {
+        return error(route, 'VALIDATION_ERROR', 'orderedIds must contain every payment method exactly once', 422)
+      }
+      const before = sortedPm().map((m) => m.code)
+      ids.forEach((pmId, i) => {
+        state.paymentMethods.find((m) => m.id === pmId)!.sortOrder = (i + 1) * 10
+      })
+      pushPmLog('PAYMENT_METHOD_REORDERED', null, { before, after: sortedPm().map((m) => m.code), reason: b.reason })
+      return envelope(route, sortedPm())
+    }
+    // Jejak Audit (ADMIN saja di server). Tiruan hanya menyajikan baris yang
+    // ditulis metode pembayaran di atas; hitungannya dipakai untuk membuktikan
+    // peran lain tidak pernah memintanya.
+    if (key === 'GET /api/v1/activity-logs') {
+      state.activityLogRequests += 1
+      const resourceType = url.searchParams.get('resourceType')
+      const rows = state.activityLogs
+        .filter((r) => !resourceType || r.resourceType === resourceType)
+        .map((r) => ({ ...r, actorStaffId: ADMIN_STAFF.id, actorUserId: null, ipAddress: '127.0.0.1', outcome: 'SUCCESS', httpStatus: 200 }))
+      return paginated(route, rows, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('take') ?? '20'))
     }
 
     // ── Fallback ──────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ describe('RateSnapshotCard', () => {
   })
 
   describe('error state', () => {
-    test('should render the "Could not load rate" fallback when the API errors', async () => {
+    test('should render the "Kurs gagal dimuat" fallback when the API errors', async () => {
       server.use(
         http.get('/api/v1/rate', () =>
           HttpResponse.json(
@@ -76,7 +76,7 @@ describe('RateSnapshotCard', () => {
 
       setup()
       expect(
-        await screen.findByText(/could not load rate/i)
+        await screen.findByText(/kurs gagal dimuat/i)
       ).toBeInTheDocument()
       // Value display must NOT appear on error.
       expect(screen.queryByTestId('rate-display')).toBeNull()
@@ -112,11 +112,11 @@ describe('RateSnapshotCard', () => {
       expect(display.textContent ?? '').toMatch(/^Rp\s/)
       expect((display.textContent ?? '').replace(/\D/g, '')).toContain('16250')
 
-      expect(await screen.findByText(/manual rate/i)).toBeInTheDocument()
+      expect(await screen.findByText(/kurs manual/i)).toBeInTheDocument()
       expect(screen.getByText(/spread\s*beli\s*0\.5%/i)).toBeInTheDocument()
     })
 
-    test('should render "Dynamic rate" label when mode is DYNAMIC', async () => {
+    test('should render "Kurs dinamis" label when mode is DYNAMIC', async () => {
       server.use(
         http.get('/api/v1/rate', () =>
           HttpResponse.json({
@@ -136,7 +136,7 @@ describe('RateSnapshotCard', () => {
       )
 
       setup()
-      expect(await screen.findByText(/dynamic rate/i)).toBeInTheDocument()
+      expect(await screen.findByText(/kurs dinamis/i)).toBeInTheDocument()
       // Sanity-check the value too so we don't accidentally accept stale
       // MANUAL fixture leaking from a prior test.
       const display = await screen.findByTestId('rate-display')

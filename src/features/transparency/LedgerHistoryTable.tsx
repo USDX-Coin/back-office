@@ -6,19 +6,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
+import TablePagination from '@/components/table/TablePagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { ToneChip } from '@/components/ToneChip'
 import { Skeleton } from '@/components/ui/skeleton'
 import TableEmptyState from '@/components/TableEmptyState'
 import TableErrorState from '@/components/TableErrorState'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import {
   formatAmountDecimal,
   formatOccurredAt,
   isNegativeAmount,
+  ledgerEntryTypeLabel,
 } from '@/lib/transparency'
-import type { ReserveLedgerPage } from '@/lib/types'
+import type { ReserveLedgerEntry, ReserveLedgerPage } from '@/lib/types'
 
 interface Props {
   data: ReserveLedgerPage | undefined
@@ -27,15 +29,17 @@ interface Props {
   onRetry: () => void
   page: number
   onPageChange: (page: number) => void
+  /** Klik baris = modal detail tengah (`/transparency/entri/:id`). */
+  onRowClick?: (entry: ReserveLedgerEntry) => void
 }
 
 const COLUMNS = [
-  'Event date',
-  'Type',
-  'Amount',
-  'Reason',
-  'Recorded by',
-  'Recorded at',
+  'Tanggal kejadian',
+  'Jenis',
+  'Nominal',
+  'Alasan',
+  'Dicatat oleh',
+  'Dicatat pada (WIB)',
 ]
 
 /**
@@ -51,40 +55,37 @@ export default function LedgerHistoryTable({
   onRetry,
   page,
   onPageChange,
+  onRowClick,
 }: Props) {
   const entries = data?.entries ?? []
   const total = data?.total ?? 0
   const take = data?.take ?? entries.length
   const lastPage = take > 0 ? Math.max(1, Math.ceil(total / take)) : 1
-  const firstRow = total === 0 ? 0 : (page - 1) * take + 1
-  // Counted from the rows actually returned, not from `page * take` — a short
-  // final page would otherwise claim to be showing entries it does not have.
-  const lastRow = total === 0 ? 0 : (page - 1) * take + entries.length
 
   return (
     <Card className="rounded-md shadow-none dark:border-0">
       <CardHeader>
-        <CardTitle className="text-[15px] font-semibold tracking-tight">
-          Ledger history
+        <CardTitle className="text-section">
+          Riwayat buku besar
         </CardTitle>
       </CardHeader>
 
       <CardContent className="px-0 pb-0">
         {isError ? (
           <TableErrorState
-            title="Couldn't load the reserve ledger"
-            description="The transparency service did not respond. Nothing was changed."
+            title="Buku besar cadangan gagal dimuat"
+            description="Layanan transparansi tidak menjawab dan tidak ada yang berubah. Periksa koneksi lalu coba lagi."
             onRetry={onRetry}
           />
         ) : (
           <div className="overflow-x-auto">
-            <Table aria-label="Reserve ledger entries">
+            <Table aria-label="Entri buku besar cadangan">
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
                   {COLUMNS.map((header) => (
                     <TableHead
                       key={header}
-                      className="h-9 px-4 font-mono text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground/80"
+                      className="h-9 px-4 text-xs font-medium text-muted-foreground"
                     >
                       {header}
                     </TableHead>
@@ -107,8 +108,8 @@ export default function LedgerHistoryTable({
                     <TableCell colSpan={COLUMNS.length} className="p-0">
                       <TableEmptyState
                         mode="no-data"
-                        title="No ledger entries yet"
-                        description="Record the first entry to publish a reserve figure on usdx.co.id."
+                        title="Belum ada entri buku besar"
+                        description="Catat entri pertama supaya angka cadangan tayang di usdx.co.id."
                       />
                     </TableCell>
                   </TableRow>
@@ -118,21 +119,39 @@ export default function LedgerHistoryTable({
                     return (
                       <TableRow
                         key={entry.id}
-                        className="border-border hover:bg-muted/40"
+                        data-hoverable=""
+                        role={onRowClick ? 'button' : undefined}
+                        tabIndex={onRowClick ? 0 : undefined}
+                        aria-label={
+                          onRowClick
+                            ? `Buka entri ${ledgerEntryTypeLabel(entry.entryType)} ${formatAmountDecimal(entry.amount)} ${entry.currency} ${formatOccurredAt(entry.occurredAt)}`
+                            : undefined
+                        }
+                        onClick={onRowClick ? () => onRowClick(entry) : undefined}
+                        onKeyDown={
+                          onRowClick
+                            ? (e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  onRowClick(entry)
+                                }
+                              }
+                            : undefined
+                        }
+                        className={cn(
+                          'border-border hover:bg-muted/40',
+                          onRowClick &&
+                            'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/55',
+                        )}
                       >
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-[13px]">
+                        <TableCell className="tabular-nums whitespace-nowrap px-4 py-2.5 text-sm">
                           {formatOccurredAt(entry.occurredAt)}
                         </TableCell>
                         <TableCell className="px-4 py-2.5">
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-[11px] font-medium"
-                          >
-                            {entry.entryType}
-                          </Badge>
+                          <ToneChip tone="wait">{ledgerEntryTypeLabel(entry.entryType)}</ToneChip>
                         </TableCell>
                         <TableCell
-                          className={`whitespace-nowrap px-4 py-2.5 text-right font-mono text-[13px] font-medium ${
+                          className={`whitespace-nowrap px-4 py-2.5 text-right text-sm font-medium tabular-nums ${
                             negative ? 'text-destructive' : 'text-foreground'
                           }`}
                         >
@@ -141,14 +160,14 @@ export default function LedgerHistoryTable({
                         {/* `reason` is internal only — it is deliberately absent
                             from the public payload, and this table is the only
                             place it is shown. */}
-                        <TableCell className="max-w-[320px] px-4 py-2.5 text-[13px] text-muted-foreground">
+                        <TableCell className="max-w-[320px] px-4 py-2.5 text-sm text-muted-foreground">
                           {entry.reason}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-[13px]">
+                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm">
                           {entry.createdByName}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-[13px] text-muted-foreground">
-                          {formatDate(entry.createdAt)}
+                        <TableCell className="whitespace-nowrap px-4 py-2.5 text-sm text-muted-foreground">
+                          {formatDateTime(entry.createdAt)}
                         </TableCell>
                       </TableRow>
                     )
@@ -161,39 +180,17 @@ export default function LedgerHistoryTable({
       </CardContent>
 
       {!isError && total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {`Showing ${firstRow}–${lastRow} of ${total} entries`}
-          </p>
-          <div className="flex items-center gap-2">
-            {/* Named explicitly: the attestation table below has its own
-                Previous/Next, and "Next" alone is ambiguous to a screen reader
-                landing anywhere on this page. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Previous page of ledger entries"
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1 || isLoading}
-            >
-              Previous
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Page {page} of {lastPage}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Next page of ledger entries"
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= lastPage || isLoading}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <TablePagination
+          className="border-t border-border px-4 py-3"
+          page={page}
+          pageCount={lastPage}
+          onPageChange={onPageChange}
+          total={total}
+          pageSize={take}
+          shown={entries.length}
+          disabled={isLoading}
+          label="buku besar"
+        />
       )}
     </Card>
   )

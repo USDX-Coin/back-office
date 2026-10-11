@@ -46,9 +46,13 @@ describe('getBniBalanceCardStatusConfig', () => {
   describe('negative', () => {
     // yaml § BniBalanceCardStatus: "FE wajib memperlakukan enum ini terbuka
     // (cabang default menampilkan nilainya)".
+    // P1-5 audit alur — nilainya TETAP terbaca (itu yang dikutip saat melapor
+    // ke tim teknis), tapi tidak lagi berdiri sendiri sebagai kode mentah di
+    // layar operator.
     test('an unknown status falls back to showing the raw value', () => {
       const cfg = getBniBalanceCardStatusConfig('SUSPENDED' as BniBalanceCardStatus)
-      expect(cfg.label).toBe('SUSPENDED')
+      expect(cfg.label).toBe('Status belum dikenali (SUSPENDED)')
+      expect(cfg.label).toContain('SUSPENDED')
       expect(cfg.variant).toBe('outline')
     })
   })

@@ -11,15 +11,19 @@ export function useDataTableParams() {
   const sortBy = searchParams.get('sortBy') || ''
   const sortOrder = searchParams.get('sortOrder') || 'desc'
 
-  function updateParams(updates: Record<string, string | null>) {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value) next.set(key, value)
-        else next.delete(key)
-      })
-      return next
-    })
+  /** `replace` = ganti entri riwayat (mis. ↑/↓ di modal detail), bukan menambah. */
+  function updateParams(updates: Record<string, string | null>, options?: { replace?: boolean }) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        Object.entries(updates).forEach(([key, value]) => {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        })
+        return next
+      },
+      options,
+    )
   }
 
   function clearAll() {
