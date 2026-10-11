@@ -59,7 +59,7 @@ export type NavEntry = ({ kind: 'item' } & NavItem) | ({ kind: 'group' } & NavGr
 //
 // Beranda lama → Ringkasan. Fase 2 (⚠️ DRAF SOT PR #50): Persetujuan Pencairan,
 // Pencairan Bermasalah, Mint Bermasalah dan Perbaiki Status Nyangkut DILEBUR ke
-// tabel Transaksi (aksi dari panel kanan) dan tidak ada di navigasi mana pun —
+// tabel Transaksi (aksi di modal detail) dan tidak ada di navigasi mana pun —
 // strip "Perlu tindakan" sudah dihapus. Rutenya tetap hidup untuk tautan
 // langsung ("Buka di antrean" di panel). Antrean Tanda Tangan juga keluar dari menu — alurnya pindah
 // ke panel OTC — dan halamannya tetap bisa dibuka lewat URL.
