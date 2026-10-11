@@ -13,9 +13,9 @@ import LogoLockup from '@/components/LogoLockup'
 export default function Navbar() {
   const { pathname } = useLocation()
   // Breadcrumb dari tabel menu, tidak pernah dari potongan URL (slug/UUID).
-  const segments = breadcrumbFor(pathname)
-  const [navOpen, setNavOpen] = useState(false)
   const { user } = useAuth()
+  const segments = breadcrumbFor(pathname, user)
+  const [navOpen, setNavOpen] = useState(false)
 
   // USDX-27: titik di tombol hamburger = ada antrean di menu mana pun yang
   // boleh dilihat peran ini — angka per menu tinggal di dalam laci.

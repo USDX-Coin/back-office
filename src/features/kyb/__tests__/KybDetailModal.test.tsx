@@ -1897,3 +1897,52 @@ describe('KybDetailModal @ USDX-610 — status screening', () => {
     })
   })
 })
+
+// Tiap GET detail menulis `pii_access_audit`: menahan ↓ tidak boleh mencatat
+// setiap berkas yang dilewati sekilas sebagai "dibuka" (useSettledId).
+describe('KybDetailModal — ↓ ditahan tidak membanjiri jejak akses PII', () => {
+  function stubAll() {
+    const calls: string[] = []
+    server.use(
+      http.get('/api/v1/kyb/:id', ({ params }) => {
+        calls.push(String(params.id))
+        return HttpResponse.json({
+          status: 'success',
+          metadata: null,
+          data: makeDetail({ id: String(params.id), userName: `Badan ${String(params.id)}` }),
+        })
+      }),
+    )
+    return calls
+  }
+
+  describe('positive', () => {
+    test('should fetch the record the operator stops on, and only that one', async () => {
+      const calls = stubAll()
+      const { rerender } = renderWithProviders(
+        <KybDetailModal kybId="kyb_1" open onOpenChange={() => {}} />,
+        { initialEntries: ['/kyb'], authenticated: true },
+      )
+      await waitFor(() => expect(calls).toEqual(['kyb_1']))
+      for (const id of ['kyb_2', 'kyb_3', 'kyb_4']) {
+        rerender(<KybDetailModal kybId={id} open onOpenChange={() => {}} />)
+      }
+      await waitFor(() => expect(calls).toEqual(['kyb_1', 'kyb_4']), { timeout: 2000 })
+    })
+  })
+
+  describe('negative', () => {
+    test('should NOT fetch the next record when the modal is closed before it settles', async () => {
+      const calls = stubAll()
+      const { rerender } = renderWithProviders(
+        <KybDetailModal kybId="kyb_1" open onOpenChange={() => {}} />,
+        { initialEntries: ['/kyb'], authenticated: true },
+      )
+      await waitFor(() => expect(calls).toEqual(['kyb_1']))
+      rerender(<KybDetailModal kybId="kyb_2" open onOpenChange={() => {}} />)
+      rerender(<KybDetailModal kybId="kyb_2" open={false} onOpenChange={() => {}} />)
+      await new Promise((r) => setTimeout(r, 600))
+      expect(calls).toEqual(['kyb_1'])
+    })
+  })
+})
