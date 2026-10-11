@@ -1188,6 +1188,7 @@ describe('KycDetailModal — ↓ ditahan tidak membanjiri jejak akses PII', () =
         { initialEntries: ['/kyc'], authenticated: true },
       )
       await screen.findByRole('heading', { name: 'Nasabah kyc_1 Anderson' })
+      expect(screen.getByRole('button', { name: /^Setujui/ })).toBeInTheDocument()
       rerender(<KycDetailModal kycId="kyc_2" open onOpenChange={() => {}} />)
       expect(screen.queryByRole('heading', { name: 'Nasabah kyc_1 Anderson' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /^Setujui/ })).not.toBeInTheDocument()
@@ -1201,7 +1202,8 @@ describe('KycDetailModal — ↓ ditahan tidak membanjiri jejak akses PII', () =
         initialEntries: ['/kyc'],
         authenticated: true,
       })
-      await waitFor(() => expect(calls).toEqual(['kyc_1']), { timeout: 200 })
+      // Di bawah jeda 400 ms: membuka modal tidak ikut ditahan.
+      await waitFor(() => expect(calls).toEqual(['kyc_1']), { timeout: 350 })
     })
   })
 })
