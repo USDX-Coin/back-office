@@ -3,8 +3,8 @@ import { screen } from '@testing-library/react'
 import MobileBackLink from '@/components/layout/MobileBackLink'
 import { renderWithProviders } from '@/test/test-utils'
 
-function render(path: string) {
-  renderWithProviders(<MobileBackLink />, { initialEntries: [path], authenticated: true })
+function render(path: string, staffId?: string) {
+  renderWithProviders(<MobileBackLink />, { initialEntries: [path], authenticated: true, staffId })
 }
 
 describe('MobileBackLink', () => {
@@ -42,6 +42,12 @@ describe('MobileBackLink', () => {
       expect(screen.queryByRole('navigation', { name: 'Kembali ke halaman induk' })).not.toBeInTheDocument()
     })
 
+    // stf_4 = STAFF: daftar OTC 403 untuknya, jadi "‹ Mint" tidak boleh muncul.
+    test.each(['/mint/new', '/burn/new'])('should not link STAFF on %s back to an OTC list it cannot open', (path) => {
+      render(path, 'stf_4')
+      expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    })
+
     test('should render nothing when the parent segment is only a group name', () => {
       render('/settings/fee')
       expect(screen.queryByRole('link')).not.toBeInTheDocument()
@@ -52,6 +58,11 @@ describe('MobileBackLink', () => {
     test('should not link the list to itself while a row modal is open', () => {
       render('/users')
       expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    })
+
+    test('should still link the mint form back to the OTC list for roles that can open it', () => {
+      render('/mint/new')
+      expect(screen.getByRole('link', { name: 'Mint' })).toHaveAttribute('href', '/otc/mint')
     })
 
     test('should render nothing for an unknown route', () => {

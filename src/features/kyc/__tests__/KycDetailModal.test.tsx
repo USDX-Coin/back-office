@@ -1149,3 +1149,59 @@ describe('KycDetailModal @ USDX-610 — status screening', () => {
     })
   })
 })
+
+// Tiap GET detail menulis `pii_access_audit`: menahan ↓ tidak boleh mencatat
+// setiap berkas yang dilewati sekilas sebagai "dibuka" (useSettledId).
+describe('KycDetailModal — ↓ ditahan tidak membanjiri jejak akses PII', () => {
+  function stubAll() {
+    const calls: string[] = []
+    server.use(
+      http.get('/api/v1/kyc/:id', ({ params }) => {
+        calls.push(String(params.id))
+        return ok(makeDetail({ id: String(params.id), firstName: `Nasabah ${String(params.id)}` }))
+      }),
+    )
+    return calls
+  }
+
+  describe('positive', () => {
+    test('should fetch the record the operator stops on, and only that one', async () => {
+      const calls = stubAll()
+      const { rerender } = renderWithProviders(
+        <KycDetailModal kycId="kyc_1" open onOpenChange={() => {}} />,
+        { initialEntries: ['/kyc'], authenticated: true },
+      )
+      await screen.findByRole('heading', { name: 'Nasabah kyc_1 Anderson' })
+      for (const id of ['kyc_2', 'kyc_3', 'kyc_4']) {
+        rerender(<KycDetailModal kycId={id} open onOpenChange={() => {}} />)
+      }
+      expect(await screen.findByRole('heading', { name: 'Nasabah kyc_4 Anderson' }, { timeout: 2000 })).toBeInTheDocument()
+      expect(calls).toEqual(['kyc_1', 'kyc_4'])
+    })
+  })
+
+  describe('negative', () => {
+    test('should NOT show the previous record while the next one is settling', async () => {
+      stubAll()
+      const { rerender } = renderWithProviders(
+        <KycDetailModal kycId="kyc_1" open onOpenChange={() => {}} />,
+        { initialEntries: ['/kyc'], authenticated: true },
+      )
+      await screen.findByRole('heading', { name: 'Nasabah kyc_1 Anderson' })
+      rerender(<KycDetailModal kycId="kyc_2" open onOpenChange={() => {}} />)
+      expect(screen.queryByRole('heading', { name: 'Nasabah kyc_1 Anderson' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Setujui/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should open the first record without waiting', async () => {
+      const calls = stubAll()
+      renderWithProviders(<KycDetailModal kycId="kyc_1" open onOpenChange={() => {}} />, {
+        initialEntries: ['/kyc'],
+        authenticated: true,
+      })
+      await waitFor(() => expect(calls).toEqual(['kyc_1']), { timeout: 200 })
+    })
+  })
+})

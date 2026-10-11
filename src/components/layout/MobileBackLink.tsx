@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router'
 import { ChevronLeft } from 'lucide-react'
 import { breadcrumbFor } from './navItems'
+import { useAuth } from '@/lib/auth'
 
 /**
  * Jalan balik di ponsel (sapu bersih 11 Okt 2026). Breadcrumb hanya tampil ≥ lg
@@ -14,7 +15,8 @@ import { breadcrumbFor } from './navItems'
  */
 export default function MobileBackLink() {
   const { pathname } = useLocation()
-  const crumbs = breadcrumbFor(pathname)
+  const { user } = useAuth()
+  const crumbs = breadcrumbFor(pathname, user)
   const parent = crumbs
     .slice(0, -1)
     .reverse()

@@ -261,9 +261,27 @@ describe('breadcrumbFor — tidak pernah membocorkan slug atau UUID', () => {
       expect(crumbs).toEqual(['Nasabah', 'Daftar Nasabah', 'Profil nasabah'])
       expect(crumbs.join(' ')).not.toMatch(/0000/)
     })
+
+    // STAFF tidak boleh membuka daftar OTC — "Mint"/"Redeem" jadi teks biasa.
+    test.each(['/mint/new', '/burn/new'])('STAFF di %s tidak mendapat tautan ke daftar OTC', (path) => {
+      const crumbs = breadcrumbFor(path, findStaffById(STAFF))
+      expect(crumbs.map((c) => c.to)).toEqual([undefined, undefined, undefined])
+      expect(crumbs.map((c) => c.label)).toEqual(breadcrumbFor(path).map((c) => c.label))
+    })
   })
 
   describe('edge cases', () => {
+    test.each([ADMIN, MANAGER, DEVELOPER])('peran %s tetap mendapat tautan ke daftar OTC', (id) => {
+      expect(breadcrumbFor('/mint/new', findStaffById(id)).map((c) => c.to)).toEqual([undefined, '/otc/mint', undefined])
+    })
+
+    test('tautan ke halaman yang boleh dibuka semua peran (antrean lama) tetap ada untuk STAFF', () => {
+      expect(breadcrumbFor('/redeem-approvals', findStaffById(STAFF)).map((c) => c.to)).toEqual([
+        '/transactions',
+        '/redeem-approvals',
+      ])
+    })
+
     test('rute tak dikenal jatuh ke "USDX", bukan potongan URL', () => {
       expect(breadcrumbFor('/sesuatu-yang-baru/123')).toEqual([{ label: 'USDX' }])
     })

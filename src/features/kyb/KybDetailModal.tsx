@@ -21,6 +21,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canReviewKyc, useAuth } from '@/lib/auth'
+import { useQueryClient } from '@tanstack/react-query'
+import { useSettledId } from '@/lib/useSettledId'
 import {
   ANNUAL_INCOME_LABELS,
   GENDER_LABELS,
@@ -679,7 +681,14 @@ export default function KybDetailModal({
   const { user } = useAuth()
   const canReview = canReviewKyc(user)
 
-  const detailQuery = useKybDetail(open ? kybId : null)
+  const qc = useQueryClient()
+  // Tiap GET detail menulis `pii_access_audit`: menahan ↓ tidak boleh mencatat
+  // setiap berkas yang dilewati sekilas sebagai dibuka (lihat `useSettledId`).
+  const detailId = useSettledId(open ? kybId : null, {
+    isReady: (id) => qc.getQueryData(['kyb', 'detail', id]) !== undefined,
+  })
+  const settling = open && kybId !== null && detailId !== kybId
+  const detailQuery = useKybDetail(detailId)
   const detail = detailQuery.data ?? null
 
   const [confirmApproveOpen, setConfirmApproveOpen] = useState(false)
@@ -1023,7 +1032,7 @@ export default function KybDetailModal({
             Penelaahan badan usaha yang diketik operator. Tidak ada pengajuan KYB mandiri dari nasabah.
           </p>
 
-          {detailQuery.isLoading ? (
+          {detailQuery.isLoading || settling ? (
             <div className="space-y-3">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-4 w-full" />

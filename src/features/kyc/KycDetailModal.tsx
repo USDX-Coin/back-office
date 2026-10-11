@@ -54,6 +54,7 @@ import type {
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useApproveKyc, useKycDetail, useKycReviews, useRejectKyc } from './hooks'
+import { useSettledId } from '@/lib/useSettledId'
 import ScreeningSubjectPanel from '@/features/screening/ScreeningSubjectPanel'
 import { toastError, toastErrorMessage } from '@/lib/errorToast'
 import { errorMessage } from '@/lib/errorMessages'
@@ -333,7 +334,13 @@ export default function KycDetailModal({
   const qc = useQueryClient()
   const canReview = canReviewKyc(user)
 
-  const detailQuery = useKycDetail(open ? kycId : null)
+  // Tiap GET detail menulis `pii_access_audit`: menahan ↓ tidak boleh mencatat
+  // setiap berkas yang dilewati sekilas sebagai dibuka (lihat `useSettledId`).
+  const detailId = useSettledId(open ? kycId : null, {
+    isReady: (id) => qc.getQueryData(['kyc', 'detail', id]) !== undefined,
+  })
+  const settling = open && kycId !== null && detailId !== kycId
+  const detailQuery = useKycDetail(detailId)
   const detail = detailQuery.data ?? null
 
   const [auditOpen, setAuditOpen] = useState(false)
@@ -489,7 +496,7 @@ export default function KycDetailModal({
         <div className="space-y-5">
           <BerkasStatus kind="perorangan" status={status} />
 
-          {detailQuery.isLoading ? (
+          {detailQuery.isLoading || settling ? (
             <div className="space-y-3">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="h-4 w-full" />

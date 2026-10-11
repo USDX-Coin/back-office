@@ -225,8 +225,31 @@ const EXTRA_CRUMBS: Array<{ prefix: string; exact?: boolean; crumbs: Crumb[] }> 
  * Sejak 11 Okt 2026 tiap segmen yang punya halaman membawa `to` (Navbar
  * menautkannya, kecuali segmen terakhir) — pengganti tombol "← Kembali"
  * yang dulu berdiri dobel di atas halaman turunan.
+ *
+ * Dengan `user`, segmen ke halaman yang menunya tersembunyi untuk peran itu
+ * kehilangan `to` (lihat `canOpen`). Tanpa `user` (tes lama) tidak disaring.
  */
-export function breadcrumbFor(pathname: string): Crumb[] {
+export function breadcrumbFor(pathname: string, user?: Staff | null): Crumb[] {
+  const crumbs = crumbsFor(pathname)
+  return user === undefined ? crumbs : crumbs.map((c) => (c.to && !canOpen(c.to, user) ? { label: c.label } : c))
+}
+
+/**
+ * Segmen yang menaut ke entri menu tersembunyi untuk `user` jadi teks biasa:
+ * STAFF di "Buat mint OTC" tidak boleh membuka daftar OTC (/otc/mint → 403),
+ * jadi "Mint" tidak boleh jadi tautan — di breadcrumb maupun `MobileBackLink`.
+ * Gerbangnya `visibleWhen` yang sama dengan menu, jadi tidak ada daftar kedua.
+ */
+function canOpen(to: string, user: Staff | null): boolean {
+  for (const entry of NAV) {
+    const items = entry.kind === 'item' ? [entry] : entry.items
+    const item = items.find((i) => i.to === to)
+    if (item) return !item.visibleWhen || item.visibleWhen(user)
+  }
+  return true
+}
+
+function crumbsFor(pathname: string): Crumb[] {
   for (const e of EXTRA_CRUMBS) {
     if (e.exact ? pathname === e.prefix : pathMatches(pathname, e.prefix)) {
       // Halaman profil satu nasabah: tambahkan namanya secara umum, bukan id-nya.
