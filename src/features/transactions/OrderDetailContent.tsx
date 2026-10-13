@@ -129,6 +129,25 @@ function StatusBadge({ cfg }: { cfg: StatusConfig }) {
 const Dim = () => <span className="text-muted-foreground">—</span>
 
 // Decimal IDR string → "Rp …,00", or a dim dash when null/absent.
+// Kurs → "16.250,00 IDR/USD", atau garis redup saat null. Sejak D25 (backend
+// USDX-749) kurs & harga order mint nasabah baru dikunci di `/pay`, jadi order
+// yang belum memilih metode membawa `null` — bukan nol.
+function rate(value: string | null | undefined): ReactNode {
+  if (value === null || value === undefined || value === '') return <Dim />
+  return <span className="tabular-nums">{formatRate(value)}</span>
+}
+
+// Persen + rupiah dalam satu sel ("1% · Rp 1.000"); garis redup bila keduanya
+// belum ada (order belum `/pay`), bukan "Rp 0".
+function feeCell(pctValue: string | null | undefined, idr: string | null | undefined): ReactNode {
+  if ((pctValue == null || pctValue === '') && (idr == null || idr === '')) return <Dim />
+  return (
+    <span className="tabular-nums">
+      {pct(pctValue)} · {idr == null || idr === '' ? <Dim /> : formatIdrAmount(Number(idr))}
+    </span>
+  )
+}
+
 function money(value: string | null | undefined): ReactNode {
   if (value === null || value === undefined || value === '') return <Dim />
   return <span className="tabular-nums">{formatIdrAmount(Number(value))}</span>
@@ -299,14 +318,8 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
       </DataSection>
 
       <DataSection title="Kurs & spread">
-        <DataField label="Kurs dasar">
-          <span className="tabular-nums">{formatRate(detail.baseRate)}</span>
-        </DataField>
-        <DataField label="Kurs efektif">
-          <span className="tabular-nums">
-            {formatRate(detail.effectiveRate)}
-          </span>
-        </DataField>
+        <DataField label="Kurs dasar">{rate(detail.baseRate)}</DataField>
+        <DataField label="Kurs efektif">{rate(detail.effectiveRate)}</DataField>
         {isRedeem ? (
           <DataField label="Spread jual">{pct(detail.spreadSellPct)}</DataField>
         ) : (
@@ -322,12 +335,7 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
 
       {isRedeem ? (
         <DataSection title="Rincian biaya">
-          <DataField label="Biaya redeem">
-            <span className="tabular-nums">
-              {pct(detail.redeemFeePct)} ·{' '}
-              {formatIdrAmount(Number(detail.redeemFeeIdr ?? 0))}
-            </span>
-          </DataField>
+          <DataField label="Biaya redeem">{feeCell(detail.redeemFeePct, detail.redeemFeeIdr)}</DataField>
           <DataField label="Biaya transfer bank">{money(detail.disbursementFeeIdr)}</DataField>
           <DataField label="Total biaya (Rp)">{money(detail.totalFeeIdr)}</DataField>
           <DataField label="Nominal transfer (Rp)">
@@ -345,11 +353,7 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
               <Dim />
             )}
           </DataField>
-          <DataField label="Biaya mint">
-            <span className="tabular-nums">
-              {pct(detail.mintFeePct)} · {formatIdrAmount(Number(detail.mintFeeIdr ?? 0))}
-            </span>
-          </DataField>
+          <DataField label="Biaya mint">{feeCell(detail.mintFeePct, detail.mintFeeIdr)}</DataField>
           <DataField label="Biaya payment gateway">{money(detail.pgFeeIdr)}</DataField>
           <DataField label="Total biaya (Rp)">{money(detail.totalFeeIdr)}</DataField>
           <DataField label="Total bayar (Rp)">
@@ -371,7 +375,11 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
           </p>
         </div>
         <span className="text-base font-semibold tabular-nums text-foreground">
-          {formatIdrAmount(Number(detail.estimatedRevenueIdr))}
+          {detail.estimatedRevenueIdr == null || detail.estimatedRevenueIdr === '' ? (
+            <span title="Harga order baru dikunci saat nasabah memilih metode bayar">—</span>
+          ) : (
+            formatIdrAmount(Number(detail.estimatedRevenueIdr))
+          )}
         </span>
       </div>
 

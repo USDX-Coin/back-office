@@ -66,12 +66,12 @@ describe('bniBuyRatePayload', () => {
   })
 })
 
-// Keputusan PM 13 Okt 2026 (backend USDX-749): ±10% inklusif dari kurs dasar.
+// Keputusan PM 13 Okt 2026 (backend USDX-749): [kurs dasar, kurs dasar +10%] inklusif.
 describe('bniBuyRateRange / isBniBuyRateOutOfRange', () => {
   describe('positive', () => {
-    test('should give base ±10%', () => {
+    test('should give [base, base +10%]', () => {
       const r = bniBuyRateRange('16200.00')!
-      expect(r.min).toBeCloseTo(14580)
+      expect(r.min).toBeCloseTo(16200)
       expect(r.max).toBeCloseTo(17820)
     })
     test('should flag a one-digit typo', () => {
@@ -80,7 +80,7 @@ describe('bniBuyRateRange / isBniBuyRateOutOfRange', () => {
   })
   describe('negative', () => {
     test('should not flag a value inside, nor guess without a base', () => {
-      expect(isBniBuyRateOutOfRange('16000', bniBuyRateRange(16200))).toBe(false)
+      expect(isBniBuyRateOutOfRange('16500', bniBuyRateRange(16200))).toBe(false)
       expect(isBniBuyRateOutOfRange('1625', null)).toBe(false)
       expect(bniBuyRateRange(null)).toBeNull()
       expect(bniBuyRateRange('abc')).toBeNull()
@@ -88,8 +88,9 @@ describe('bniBuyRateRange / isBniBuyRateOutOfRange', () => {
     })
   })
   describe('edge cases', () => {
-    test('the bounds themselves are accepted (inclusive), an empty field is not flagged', () => {
-      expect(isBniBuyRateOutOfRange('9000', bniBuyRateRange(10000))).toBe(false)
+    test('the bounds themselves are accepted (inclusive), anything below the base is not, an empty field is not flagged', () => {
+      expect(isBniBuyRateOutOfRange('10000', bniBuyRateRange(10000))).toBe(false)
+      expect(isBniBuyRateOutOfRange('9999.99', bniBuyRateRange(10000))).toBe(true)
       expect(isBniBuyRateOutOfRange('11000', bniBuyRateRange(10000))).toBe(false)
       expect(isBniBuyRateOutOfRange('11000.01', bniBuyRateRange(10000))).toBe(true)
       expect(isBniBuyRateOutOfRange('', bniBuyRateRange(10000))).toBe(false)

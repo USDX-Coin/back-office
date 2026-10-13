@@ -56,29 +56,29 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       })
       await page.getByRole('button', { name: 'Ubah kurs' }).click()
       await page.getByLabel(/kurs manual/i).fill('16250')
-      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('16190.50')
+      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('16390.50')
       await page.getByRole('textbox', { name: /markup virtual account/i }).fill('2')
       await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
       const dialog = page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i })
-      await expect(dialog.getByText('16.190,50 IDR/USD')).toBeVisible()
+      await expect(dialog.getByText('16.390,50 IDR/USD')).toBeVisible()
       await dialog.getByRole('button', { name: /ya, ubah kurs/i }).click()
       await expect(page.getByRole('dialog')).toHaveCount(0)
 
       expect(posts).toHaveLength(1)
-      expect(posts[0]).toMatchObject({ bniBuyRate: '16190.50', gatewayMarkupPct: '2' })
-      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.190,50 IDR/USD')
+      expect(posts[0]).toMatchObject({ bniBuyRate: '16390.50', gatewayMarkupPct: '2' })
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.390,50 IDR/USD')
       // 16.250 × 1,02 = 16.575
       await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.575,00 IDR/USD')
     })
 
-    test('USDX-767 — a BNI rate outside base ±10% is refused by the server and shown at the field', async ({ page }) => {
+    test('USDX-767 — a BNI rate outside [base, base +10%] is refused by the server and shown at the field', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/rate')
       await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
       await page.getByLabel(/kurs manual/i).fill('16250')
-      // Petunjuk rentang terlihat sebelum simpan: 16.250 ±10%.
-      await expect(page.getByTestId('bni-rate-range')).toContainText('14.625,00 IDR/USD – 17.875,00 IDR/USD')
+      // Petunjuk rentang terlihat sebelum simpan: 16.250 sampai +10%.
+      await expect(page.getByTestId('bni-rate-range')).toContainText('16.250,00 IDR/USD – 17.875,00 IDR/USD')
       await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('20000')
       await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
       await page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i }).getByRole('button', { name: /ya, ubah kurs/i }).click()

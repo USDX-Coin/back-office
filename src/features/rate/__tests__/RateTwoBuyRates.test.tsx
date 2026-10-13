@@ -73,18 +73,18 @@ describe('Kurs — dua kurs beli mint nasabah', () => {
       const bodies = captureRatePosts()
       const { user, bni, y } = await openForm()
       await user.clear(bni)
-      await user.type(bni, '16180.75')
+      await user.type(bni, '16380.75')
       await user.clear(y)
       await user.type(y, '2')
       const dialog = await review(user)
-      expect(within(dialog).getByText('16.180,75 IDR/USD')).toBeInTheDocument()
+      expect(within(dialog).getByText('16.380,75 IDR/USD')).toBeInTheDocument()
       expect(within(dialog).getByText('2%')).toBeInTheDocument()
       await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
-      expect(bodies[0]).toMatchObject({ bniBuyRate: '16180.75', gatewayMarkupPct: '2' })
+      expect(bodies[0]).toMatchObject({ bniBuyRate: '16380.75', gatewayMarkupPct: '2' })
       await waitFor(() =>
-        expect(screen.getByLabelText('kurs beli transfer BNI')).toHaveTextContent('16.180,75 IDR/USD'),
+        expect(screen.getByLabelText('kurs beli transfer BNI')).toHaveTextContent('16.380,75 IDR/USD'),
       )
       // 16.200 × 1,02 = 16.524
       expect(screen.getByLabelText('kurs beli virtual account')).toHaveTextContent('16.524,00 IDR/USD')
@@ -141,10 +141,10 @@ describe('Kurs — dua kurs beli mint nasabah', () => {
       expect(bodies[0]).not.toHaveProperty('bniBuyRate')
     })
 
-    test('the form shows the accepted range (base ±10%) before saving, and warns when outside it', async () => {
+    test('the form shows the accepted range (base to base +10%) before saving, and warns when outside it', async () => {
       const { user, bni } = await openForm()
-      // Seed DYNAMIC, kurs dasar 16.200 → 14.580 – 17.820.
-      expect(screen.getByTestId('bni-rate-range')).toHaveTextContent(/14\.580,00 IDR\/USD – 17\.820,00 IDR\/USD/)
+      // Seed DYNAMIC, kurs dasar 16.200 → 16.200 – 17.820 (tidak boleh di bawah kurs dasar).
+      expect(screen.getByTestId('bni-rate-range')).toHaveTextContent(/16\.200,00 IDR\/USD – 17\.820,00 IDR\/USD/)
       expect(screen.queryByText(/server akan menolak angka ini/i)).not.toBeInTheDocument()
       await user.clear(bni)
       await user.type(bni, '1625')
@@ -160,11 +160,21 @@ describe('Kurs — dua kurs beli mint nasabah', () => {
       await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(await screen.findByText(/ditolak server: kurs bni 20000\.00 di luar rentang wajar/i)).toHaveTextContent(
-        '14580.00 – 17820.00',
+        '16200.00 – 17820.00',
       )
       // Form tetap terbuka, angkanya tidak hilang; konfirmasi ditutup.
       expect(screen.queryByRole('dialog', { name: /ubah kurs yang berlaku\?/i })).not.toBeInTheDocument()
       expect(bni).toHaveValue('20000')
+    })
+
+    test('a BNI rate below the base rate is flagged before saving', async () => {
+      const { user, bni } = await openForm()
+      await user.clear(bni)
+      await user.type(bni, '16199.99')
+      expect(screen.getByText(/server akan menolak angka ini/i)).toBeInTheDocument()
+      await user.clear(bni)
+      await user.type(bni, '16200')
+      expect(screen.queryByText(/server akan menolak angka ini/i)).not.toBeInTheDocument()
     })
 
     test('an unchanged markup is not sent (server keeps it)', async () => {

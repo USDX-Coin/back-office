@@ -1967,10 +1967,10 @@ export const handlers = [
         if (typeof body.bniBuyRate !== 'string' || !Number.isFinite(n) || n <= 0) {
           return rateBadRequest('bniBuyRate must be greater than 0')
         }
-        // Batas wajar ±10% dari kurs dasar baris yang disimpan (backend USDX-749):
-        // MANUAL = manualRate baris itu, DYNAMIC = kurs pasar (tiruan: tetap).
+        // Batas wajar [kurs dasar, kurs dasar +10%] baris yang disimpan (backend
+        // USDX-749): MANUAL = manualRate baris itu, DYNAMIC = kurs pasar (tiruan: tetap).
         const base = body.mode === 'MANUAL' ? Number(body.manualRate) : MOCK_DYNAMIC_BASE_RATE
-        const min = base * 0.9
+        const min = base
         const max = base * 1.1
         if (n < min || n > max) {
           return HttpResponse.json(
@@ -1980,7 +1980,7 @@ export const handlers = [
               data: null,
               error: {
                 code: 'BNI_BUY_RATE_OUT_OF_RANGE',
-                message: `Kurs BNI ${n.toFixed(2)} di luar rentang wajar ±10% dari kurs dasar ${base.toFixed(2)}: ${min.toFixed(2)} – ${max.toFixed(2)}.`,
+                message: `Kurs BNI ${n.toFixed(2)} di luar rentang wajar kurs dasar ${base.toFixed(2)} sampai +10%: ${min.toFixed(2)} – ${max.toFixed(2)}.`,
               },
             },
             { status: 422 },
@@ -3532,8 +3532,9 @@ export const handlers = [
       return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
-    if (reason.length < 10 || reason.length > 500) {
-      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    // Backend `validReason`: ≥ 10 karakter SELAIN spasi setelah trim.
+    if (reason.replace(/\s/g, '').length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
     }
     const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
     if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr'].some(has)) {
@@ -3600,8 +3601,9 @@ export const handlers = [
       return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
-    if (reason.length < 10 || reason.length > 500) {
-      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    // Backend `validReason`: ≥ 10 karakter SELAIN spasi setelah trim.
+    if (reason.replace(/\s/g, '').length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
     }
     const ids = Array.isArray(body.orderedIds) ? body.orderedIds.map(String) : []
     const all = new Set(paymentMethodStore.map((m) => m.id))

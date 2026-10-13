@@ -153,7 +153,7 @@ test.describe('Metode Pembayaran @e2e', () => {
       await dialog.getByLabel('Alasan').fill('pendek')
       await dialog.getByRole('button', { name: 'Nyalakan' }).click()
 
-      await expect(dialog.getByText('Alasan minimal 10 karakter.')).toBeVisible()
+      await expect(dialog.getByText('Alasan minimal 10 karakter selain spasi.')).toBeVisible()
       await expect(dialog).toBeVisible()
       expect(state.paymentMethodWrites).toHaveLength(0)
       await expect(page.getByTestId(BRI)).toContainText('Mati')

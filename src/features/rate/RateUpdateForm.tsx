@@ -167,7 +167,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       setErrors({})
       onOpenChange(false)
     } catch (err) {
-      // Batas wajar ±10% (backend USDX-749): pesannya menyebut rentang, jadi
+      // Batas wajar [kurs dasar, +10%] (backend USDX-749): pesannya menyebut rentang, jadi
       // ditampilkan apa adanya di isian kurs BNI — bukan toast yang keburu hilang.
       if (
         err instanceof ApiError &&
@@ -179,7 +179,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           bniBuyRate:
             err.message.trim() && err.message.trim() !== BNI_OUT_OF_RANGE
               ? `Ditolak server: ${err.message.trim()}`
-              : 'Ditolak server: kurs BNI di luar rentang ±10% dari kurs dasar.',
+              : 'Ditolak server: kurs BNI di luar rentang kurs dasar sampai +10%.',
         }))
         return
       }
@@ -372,16 +372,16 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
                 Rentang yang diterima server: <span className="tabular-nums">{formatRate(bniRange.min.toFixed(2))}</span>
                 {' – '}
                 <span className="tabular-nums">{formatRate(bniRange.max.toFixed(2))}</span> (kurs dasar
-                {form.mode === 'DYNAMIC' ? ' pasar saat ini, bisa bergeser,' : ''} ±10%).
+                {form.mode === 'DYNAMIC' ? ' pasar saat ini, bisa bergeser,' : ''} sampai +10%; tidak boleh di bawah kurs dasar).
               </p>
             ) : (
               <p className="text-xs text-muted-foreground" data-testid="bni-rate-range">
-                Kurs BNI harus dalam ±10% dari kurs dasar. Isi kurs manual dulu untuk melihat rentangnya.
+                Kurs BNI harus antara kurs dasar dan kurs dasar +10%. Isi kurs manual dulu untuk melihat rentangnya.
               </p>
             )}
             {bniOutOfRange && (
               <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
-                Di luar rentang ±10% dari kurs dasar — server akan menolak angka ini.
+                Di luar rentang kurs dasar sampai +10% — server akan menolak angka ini.
               </p>
             )}
             {current?.bniBuyRate != null && <BniRateStamp updatedAt={current.bniBuyRateUpdatedAt} />}

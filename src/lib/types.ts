@@ -985,14 +985,17 @@ export interface OrderDetail {
   /** Decimal USDX. */
   amount: string
   // ── Exchange rate + spread ──
-  /** Rate USD/IDR before spread. */
-  baseRate: string
+  /**
+   * Rate USD/IDR before spread. `null` untuk order mint nasabah yang belum
+   * `/pay` — sejak D25 harga dikunci saat metode dipilih (backend USDX-749).
+   */
+  baseRate: string | null
   /** MINT: spread beli (snapshot). REDEEM: null. */
   spreadBuyPct: string | null
   /** REDEEM: spread jual (snapshot). MINT: informasional/null. */
   spreadSellPct: string | null
-  /** = rateUsed snapshot (mint = ×(1+buy); redeem = ×(1−sell)). */
-  effectiveRate: string
+  /** = rateUsed snapshot (mint = ×(1+buy); redeem = ×(1−sell)). `null` sebelum `/pay` (D25). */
+  effectiveRate: string | null
   // ── MINT block (null untuk redeem) ──
   /** MINT only (Safe mint key). */
   idempotencyKey: string | null
@@ -1048,8 +1051,8 @@ export interface OrderDetail {
   // ── Shared ──
   /** MINT: mintFee + pgFee. REDEEM: redeemFee + disbursementFee. */
   totalFeeIdr: string | null
-  /** MINT: spread_buy_revenue + mintFee. REDEEM: spread_sell_revenue + redeemFee. */
-  estimatedRevenueIdr: string
+  /** MINT: spread_buy_revenue + mintFee. REDEEM: spread_sell_revenue + redeemFee. `null` sebelum `/pay` (D25). */
+  estimatedRevenueIdr: string | null
   status: OrderStatus
   expiresAt: string
   createdAt: string

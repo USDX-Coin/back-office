@@ -1026,14 +1026,14 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const markup = Number.parseFloat(markupRaw) || 0
       // `bniBuyRate` dihilangkan = nilai + jam lama dibawa (kontrak).
       const hasBni = Object.prototype.hasOwnProperty.call(b, 'bniBuyRate')
-      // Batas wajar ±10% dari kurs dasar baris yang disimpan (backend USDX-749).
+      // Batas wajar [kurs dasar, kurs dasar +10%] baris yang disimpan (backend USDX-749).
       if (hasBni && b.bniBuyRate != null) {
         const n = Number(b.bniBuyRate)
-        if (n < base * 0.9 || n > base * 1.1) {
+        if (n < base || n > base * 1.1) {
           return error(
             route,
             'BNI_BUY_RATE_OUT_OF_RANGE',
-            `Kurs BNI ${n.toFixed(2)} di luar rentang wajar ±10% dari kurs dasar ${base.toFixed(2)}: ${(base * 0.9).toFixed(2)} – ${(base * 1.1).toFixed(2)}.`,
+            `Kurs BNI ${n.toFixed(2)} di luar rentang wajar kurs dasar ${base.toFixed(2)} sampai +10%: ${base.toFixed(2)} – ${(base * 1.1).toFixed(2)}.`,
             422,
           )
         }
@@ -1672,7 +1672,8 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       const b = body() as Record<string, unknown>
       state.paymentMethodWrites.push({ method, path, body: b })
       const reason = typeof b.reason === 'string' ? b.reason.trim() : ''
-      if (reason.length < 10) return error(route, 'VALIDATION_ERROR', 'reason must be 10..500 characters', 422)
+      // Backend `validReason`: ≥ 10 karakter SELAIN spasi setelah trim.
+      if (reason.replace(/\s/g, '').length < 10) return error(route, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi', 422)
       if (typeof b.expectedUpdatedAt === 'string' && b.expectedUpdatedAt !== row.updatedAt) {
         return error(route, 'PAYMENT_METHOD_CHANGED', 'PAYMENT_METHOD_CHANGED', 409)
       }

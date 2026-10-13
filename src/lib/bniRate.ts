@@ -15,18 +15,19 @@ export function isBniBuyRateStale(updatedAt: string | null | undefined, now: Dat
 }
 
 /**
- * Batas wajar kurs BNI (keputusan PM 13 Okt 2026, backend USDX-749): `bniBuyRate`
- * wajib berada dalam ±10% (inklusif) dari kurs dasar baris yang disimpan —
- * MANUAL = `manualRate` baris itu, DYNAMIC = kurs pasar saat disimpan. Di luar
+ * Batas wajar kurs BNI (keputusan PM 13 Okt 2026, backend USDX-749):
+ * `bniBuyRate` wajib berada di [kurs dasar, kurs dasar + 10%] (inklusif) —
+ * TIDAK boleh di bawah kurs dasar. Kurs dasar = kurs dasar baris yang disimpan
+ * (MANUAL = `manualRate` baris itu, DYNAMIC = kurs pasar saat disimpan). Di luar
  * itu server menjawab `422 BNI_BUY_RATE_OUT_OF_RANGE`. Klien hanya memberi
  * petunjuk; server yang menentukan (kurs pasar bisa bergeser).
  */
-export const BNI_BUY_RATE_MAX_DEVIATION = 0.1
+export const BNI_BUY_RATE_MAX_MARKUP = 0.1
 
 export function bniBuyRateRange(base: string | number | null | undefined): { min: number; max: number } | null {
   const b = typeof base === 'number' ? base : Number(base)
   if (base == null || base === '' || !Number.isFinite(b) || b <= 0) return null
-  return { min: b * (1 - BNI_BUY_RATE_MAX_DEVIATION), max: b * (1 + BNI_BUY_RATE_MAX_DEVIATION) }
+  return { min: b, max: b * (1 + BNI_BUY_RATE_MAX_MARKUP) }
 }
 
 /** true hanya bila angka DAN rentang terbaca, dan angkanya di luar rentang. */

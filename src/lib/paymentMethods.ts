@@ -97,9 +97,17 @@ export function isFeeChanged(m: Pick<PaymentMethod, 'feeType' | 'feeValue'>, fee
   return feeType !== m.feeType || Number(feeValue.trim()) !== Number(m.feeValue)
 }
 
+/**
+ * Alasan PATCH / PUT urutan — sama dengan backend (`payment-methods.service.ts`
+ * `validReason`, keputusan PM 13 Okt 2026): dihitung SETELAH trim dan wajib
+ * berisi ≥ 10 karakter SELAIN spasi — sepuluh spasi atau "a a a a a" bukan
+ * alasan. Yang dikirim versi ter-trim.
+ */
 export function validateReason(raw: string): { value: string; error: string | null } {
   const value = raw.trim()
-  if (value.length < REASON_MIN) return { value, error: `Alasan minimal ${REASON_MIN} karakter.` }
+  if (value.replace(/\s/g, '').length < REASON_MIN) {
+    return { value, error: `Alasan minimal ${REASON_MIN} karakter selain spasi.` }
+  }
   if (value.length > REASON_MAX) return { value, error: `Alasan maksimal ${REASON_MAX} karakter.` }
   return { value, error: null }
 }

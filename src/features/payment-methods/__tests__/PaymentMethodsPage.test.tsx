@@ -273,6 +273,12 @@ describe('lib/paymentMethods — bentuk kanonik kontrak', () => {
     expect(isFeeChanged(m({ feeValue: '4000.00' }), 'FLAT_IDR', '4500')).toBe(true)
     expect(isFeeChanged(m({ feeValue: '4000.00' }), 'PERCENT', '4000')).toBe(true)
   })
+  test('edge: the reason counts characters OTHER than spaces, like the backend', () => {
+    expect(validateReason('a a a a a').error).toMatch(/selain spasi/)
+    expect(validateReason('          ').error).toMatch(/selain spasi/)
+    expect(validateReason('a b c d e f g h i j').error).toBeNull()
+    expect(validateReason('  sepuluhhh  ').value).toBe('sepuluhhh')
+  })
   test('edge: the BNI notice follows the server reason only, and only for Transfer BNI', () => {
     expect(bniEnableNotice(m({ unavailableReason: 'BNI_PREREQUISITE_UNVERIFIED' }))).toBe('PREREQUISITE')
     expect(bniEnableNotice(m({ unavailableReason: 'BNI_BUY_RATE_MISSING' }))).toBe('BUY_RATE')
