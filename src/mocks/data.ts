@@ -430,7 +430,7 @@ export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
 // manual_rate * (1 + spread/100); DYNAMIC mocks the third-party feed at a
 // fixed value (16,200) and applies the same spread. The exact base is
 // unimportant for FE — what matters is that GET returns a stable shape.
-const MOCK_DYNAMIC_BASE_RATE = 16_200
+export const MOCK_DYNAMIC_BASE_RATE = 16_200
 
 export function computeRateInfo(history: RateConfig[]): RateInfo {
   const latest = history[history.length - 1]

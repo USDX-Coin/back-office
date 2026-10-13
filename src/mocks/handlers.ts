@@ -77,6 +77,7 @@ import {
   createBurnRequestFromSubmission,
   createInitialRateHistory,
   createRateConfig,
+  MOCK_DYNAMIC_BASE_RATE,
   computeRateInfo,
   createInitialOncallContacts,
   createOncallContact,
@@ -1966,6 +1967,25 @@ export const handlers = [
         if (typeof body.bniBuyRate !== 'string' || !Number.isFinite(n) || n <= 0) {
           return rateBadRequest('bniBuyRate must be greater than 0')
         }
+        // Batas wajar ±10% dari kurs dasar baris yang disimpan (backend USDX-749):
+        // MANUAL = manualRate baris itu, DYNAMIC = kurs pasar (tiruan: tetap).
+        const base = body.mode === 'MANUAL' ? Number(body.manualRate) : MOCK_DYNAMIC_BASE_RATE
+        const min = base * 0.9
+        const max = base * 1.1
+        if (n < min || n > max) {
+          return HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'BNI_BUY_RATE_OUT_OF_RANGE',
+                message: `Kurs BNI ${n.toFixed(2)} di luar rentang wajar ±10% dari kurs dasar ${base.toFixed(2)}: ${min.toFixed(2)} – ${max.toFixed(2)}.`,
+              },
+            },
+            { status: 422 },
+          )
+        }
         bniBuyRate = body.bniBuyRate
         bniBuyRateUpdatedAt = new Date().toISOString()
       }
@@ -1976,7 +1996,8 @@ export const handlers = [
       manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
       spreadBuyPct: body.spreadBuyPct ?? '0',
       spreadSellPct: body.spreadSellPct ?? '0',
-      gatewayMarkupPct: body.gatewayMarkupPct ?? '0',
+      // Tidak dikirim = tidak diubah (backend USDX-749).
+      gatewayMarkupPct: body.gatewayMarkupPct ?? previous?.gatewayMarkupPct ?? '0',
       bniBuyRate,
       bniBuyRateUpdatedAt,
       updatedBy: operator.id,

@@ -13,6 +13,7 @@ import {
 import FieldError from '@/components/FieldError'
 import {
   isManualRateUnusual,
+  validateManualRate,
   validateRateUpdateForm,
 } from '@/lib/validators'
 import { ApiError } from '@/lib/apiFetch'
@@ -22,7 +23,14 @@ import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
 import BniRateStamp from './BniRateStamp'
 import { toastErrorMessage } from '@/lib/errorToast'
-import { bniBuyRatePayload } from '@/lib/bniRate'
+import {
+  bniBuyRatePayload,
+  bniBuyRateRange,
+  gatewayMarkupPayload,
+  isBniBuyRateOutOfRange,
+  isBniBuyRateUnchanged,
+} from '@/lib/bniRate'
+import { formatRate } from '@/lib/format'
 
 /**
  * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
@@ -42,6 +50,8 @@ function rateUpdateErrorMessage(err: unknown): string {
   return 'Kurs gagal diubah. Periksa koneksi lalu coba lagi.'
 }
 
+const BNI_OUT_OF_RANGE = 'BNI_BUY_RATE_OUT_OF_RANGE'
+
 interface RateUpdateFormProps {
   current: RateInfo | undefined
   /** Dialog form dibuka dari tombol di kartu "saat ini" (audit Pengaturan 11 Okt 2026). */
@@ -58,6 +68,8 @@ interface FormState {
   gatewayMarkupPct: string
   /** Kurs beli Transfer BNI dari wondr. Kosong = Transfer BNI tidak ditawarkan. */
   bniBuyRate: string
+  /** Angka BNI sama, tapi admin menyatakan sudah mengecek ulang di wondr → kirim ulang supaya jamnya bergeser. */
+  bniReconfirmed: boolean
 }
 
 // Form state is the user's overrides on top of the current config.
@@ -80,6 +92,7 @@ function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): F
     // Diisi dari config aktif; hanya DIKIRIM bila angkanya berubah
     // (`bniBuyRatePayload`) supaya jam pembaruannya tidak bergeser palsu.
     bniBuyRate: overrides.bniBuyRate ?? current?.bniBuyRate ?? '',
+    bniReconfirmed: overrides.bniReconfirmed ?? false,
   }
 }
 
@@ -90,6 +103,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirmOpen, setConfirmOpen] = useState(false)
   const form = resolveForm(overrides, current)
+  const bniUnchanged = isBniBuyRateUnchanged(form.bniBuyRate, current?.bniBuyRate)
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setOverrides((prev) => ({ ...prev, [key]: value }))
@@ -116,6 +130,9 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       setErrors(validation.errors)
       return
     }
+    // Galat server sebelumnya (mis. di luar rentang) dibuang: isiannya sudah
+    // lolos validasi lagi, dan server yang akan menilai ulang.
+    setErrors({})
     setConfirmOpen(true)
   }
 
@@ -128,14 +145,18 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
     try {
       // Bearer token attaches via apiFetch — backend derives updatedBy from
       // the JWT, no need to send the staff id in the body.
-      const bniBuyRate = bniBuyRatePayload(form.bniBuyRate, current?.bniBuyRate)
+      const bniBuyRate = bniBuyRatePayload(form.bniBuyRate, current?.bniBuyRate, {
+        reconfirmed: bniUnchanged && form.bniReconfirmed,
+      })
+      const gatewayMarkupPct = gatewayMarkupPayload(form.gatewayMarkupPct, current?.gatewayMarkupPct)
       await update.mutateAsync({
         mode: form.mode,
         manualRate: form.mode === 'MANUAL' ? form.manualRate : null,
         spreadBuyPct: form.spreadBuyPct || '0',
         spreadSellPct: form.spreadSellPct || '0',
-        gatewayMarkupPct: form.gatewayMarkupPct.trim() || '0',
-        // Tidak berubah → field dihilangkan (kontrak: nilai + jam lama dibawa).
+        // Field D25 yang tidak berubah DIHILANGKAN = tidak diubah server (nilai
+        // + jam kurs BNI lama dibawa). `bniBuyRate: null` = dikosongkan.
+        ...(gatewayMarkupPct !== undefined ? { gatewayMarkupPct } : {}),
         ...(bniBuyRate !== undefined ? { bniBuyRate } : {}),
       })
       toast.success('Kurs berhasil diubah')
@@ -146,13 +167,41 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       setErrors({})
       onOpenChange(false)
     } catch (err) {
+      // Batas wajar ±10% (backend USDX-749): pesannya menyebut rentang, jadi
+      // ditampilkan apa adanya di isian kurs BNI — bukan toast yang keburu hilang.
+      if (
+        err instanceof ApiError &&
+        (err.code === BNI_OUT_OF_RANGE || err.message.trim() === BNI_OUT_OF_RANGE)
+      ) {
+        setConfirmOpen(false)
+        setErrors((prev) => ({
+          ...prev,
+          bniBuyRate:
+            err.message.trim() && err.message.trim() !== BNI_OUT_OF_RANGE
+              ? `Ditolak server: ${err.message.trim()}`
+              : 'Ditolak server: kurs BNI di luar rentang ±10% dari kurs dasar.',
+        }))
+        return
+      }
       toastErrorMessage(rateUpdateErrorMessage(err), err)
     }
   }
 
   const dynamic = form.mode === 'DYNAMIC'
+  // Kurs dasar yang dipakai server untuk memeriksa: MANUAL = kurs manual yang
+  // sedang diisi; DYNAMIC = kurs pasar (kira-kira, bisa bergeser saat disimpan).
+  const rangeBase =
+    form.mode === 'MANUAL'
+      ? validateManualRate(form.manualRate) === null
+        ? form.manualRate.trim()
+        : null
+      : form.mode === 'DYNAMIC'
+        ? (current?.mode === 'DYNAMIC' ? current.baseRate : null)
+        : null
+  const bniRange = bniBuyRateRange(rangeBase)
+  const bniOutOfRange = !errors.bniBuyRate && isBniBuyRateOutOfRange(form.bniBuyRate, bniRange)
   const showBniWarning =
-    !errors.bniBuyRate && form.bniBuyRate.trim() !== '' && isManualRateUnusual(form.bniBuyRate)
+    !errors.bniBuyRate && !bniOutOfRange && form.bniBuyRate.trim() !== '' && isManualRateUnusual(form.bniBuyRate)
   const showRateWarning =
     form.mode === 'MANUAL' &&
     !errors.manualRate &&
@@ -318,7 +367,37 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
               Salin kurs beli dari aplikasi wondr by BNI, pakai titik desimal tanpa titik ribuan.
               Kurs ini dipakai metode Transfer BNI. Kosongkan = Transfer BNI berhenti ditawarkan.
             </p>
+            {bniRange ? (
+              <p className="text-xs text-muted-foreground" data-testid="bni-rate-range">
+                Rentang yang diterima server: <span className="tabular-nums">{formatRate(bniRange.min.toFixed(2))}</span>
+                {' – '}
+                <span className="tabular-nums">{formatRate(bniRange.max.toFixed(2))}</span> (kurs dasar
+                {form.mode === 'DYNAMIC' ? ' pasar saat ini, bisa bergeser,' : ''} ±10%).
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground" data-testid="bni-rate-range">
+                Kurs BNI harus dalam ±10% dari kurs dasar. Isi kurs manual dulu untuk melihat rentangnya.
+              </p>
+            )}
+            {bniOutOfRange && (
+              <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+                Di luar rentang ±10% dari kurs dasar — server akan menolak angka ini.
+              </p>
+            )}
             {current?.bniBuyRate != null && <BniRateStamp updatedAt={current.bniBuyRateUpdatedAt} />}
+            {bniUnchanged && (
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={form.bniReconfirmed}
+                  onChange={(e) => set('bniReconfirmed', e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]"
+                />
+                <span>
+                  Sudah dicek ulang di wondr — angkanya sama, perbarui jamnya.
+                </span>
+              </label>
+            )}
             {showBniWarning && (
               <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
                 Kurs ini di luar kebiasaan — periksa lagi angkanya di wondr.
@@ -364,6 +443,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           spreadSellPct: form.spreadSellPct,
           gatewayMarkupPct: form.gatewayMarkupPct,
           bniBuyRate: form.bniBuyRate,
+          bniReconfirmed: bniUnchanged && form.bniReconfirmed,
         }}
         onConfirm={handleConfirm}
         isPending={update.isPending}

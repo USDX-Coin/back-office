@@ -141,6 +141,56 @@ describe('Kurs — dua kurs beli mint nasabah', () => {
       expect(bodies[0]).not.toHaveProperty('bniBuyRate')
     })
 
+    test('the form shows the accepted range (base ±10%) before saving, and warns when outside it', async () => {
+      const { user, bni } = await openForm()
+      // Seed DYNAMIC, kurs dasar 16.200 → 14.580 – 17.820.
+      expect(screen.getByTestId('bni-rate-range')).toHaveTextContent(/14\.580,00 IDR\/USD – 17\.820,00 IDR\/USD/)
+      expect(screen.queryByText(/server akan menolak angka ini/i)).not.toBeInTheDocument()
+      await user.clear(bni)
+      await user.type(bni, '1625')
+      expect(screen.getByText(/server akan menolak angka ini/i)).toBeInTheDocument()
+    })
+
+    test('a server 422 BNI_BUY_RATE_OUT_OF_RANGE is shown next to the BNI field with the range it names', async () => {
+      const bodies = captureRatePosts()
+      const { user, bni } = await openForm()
+      await user.clear(bni)
+      await user.type(bni, '20000')
+      const dialog = await review(user)
+      await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(await screen.findByText(/ditolak server: kurs bni 20000\.00 di luar rentang wajar/i)).toHaveTextContent(
+        '14580.00 – 17820.00',
+      )
+      // Form tetap terbuka, angkanya tidak hilang; konfirmasi ditutup.
+      expect(screen.queryByRole('dialog', { name: /ubah kurs yang berlaku\?/i })).not.toBeInTheDocument()
+      expect(bni).toHaveValue('20000')
+    })
+
+    test('an unchanged markup is not sent (server keeps it)', async () => {
+      const bodies = captureRatePosts()
+      const { user } = await openForm()
+      const sell = screen.getByLabelText(/spread jual/i)
+      await user.clear(sell)
+      await user.type(sell, '0.6')
+      const dialog = await review(user)
+      await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).not.toHaveProperty('gatewayMarkupPct')
+      expect(bodies[0]).not.toHaveProperty('bniBuyRate')
+    })
+
+    test('"sudah dicek ulang di wondr" re-sends the same BNI number so its time is updated', async () => {
+      const bodies = captureRatePosts()
+      const { user } = await openForm()
+      await user.click(screen.getByRole('checkbox', { name: /sudah dicek ulang di wondr/i }))
+      const dialog = await review(user)
+      expect(within(dialog).getByText(/jam pembaruannya akan diperbarui/i)).toBeInTheDocument()
+      await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toMatchObject({ bniBuyRate: '16250.00' })
+    })
+
     test('clearing the BNI rate sends null, warns that Transfer BNI stops being offered, and the card says so', async () => {
       const bodies = captureRatePosts()
       const { user, bni } = await openForm()

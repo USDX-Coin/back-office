@@ -1021,9 +1021,23 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           : Number.parseFloat(liveRate.baseRate)
       const buy = Number.parseFloat(b.spreadBuyPct ?? '0') || 0
       const sell = Number.parseFloat(b.spreadSellPct ?? '0') || 0
-      const markup = Number.parseFloat(b.gatewayMarkupPct ?? '0') || 0
+      // Tidak dikirim = tidak diubah (backend USDX-749).
+      const markupRaw: string = b.gatewayMarkupPct ?? liveRate.gatewayMarkupPct
+      const markup = Number.parseFloat(markupRaw) || 0
       // `bniBuyRate` dihilangkan = nilai + jam lama dibawa (kontrak).
       const hasBni = Object.prototype.hasOwnProperty.call(b, 'bniBuyRate')
+      // Batas wajar ±10% dari kurs dasar baris yang disimpan (backend USDX-749).
+      if (hasBni && b.bniBuyRate != null) {
+        const n = Number(b.bniBuyRate)
+        if (n < base * 0.9 || n > base * 1.1) {
+          return error(
+            route,
+            'BNI_BUY_RATE_OUT_OF_RANGE',
+            `Kurs BNI ${n.toFixed(2)} di luar rentang wajar ±10% dari kurs dasar ${base.toFixed(2)}: ${(base * 0.9).toFixed(2)} – ${(base * 1.1).toFixed(2)}.`,
+            422,
+          )
+        }
+      }
       const bniBuyRate = hasBni ? ((b.bniBuyRate as string | null) ?? null) : liveRate.bniBuyRate
       const bniBuyRateUpdatedAt = hasBni ? (bniBuyRate === null ? null : '2026-06-17T00:00:00.000Z') : liveRate.bniBuyRateUpdatedAt
       liveRate = {
@@ -1033,7 +1047,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         spreadSellPct: b.spreadSellPct ?? '0',
         effectiveBuyRate: (base * (1 + buy / 100)).toFixed(4),
         effectiveSellRate: (base * (1 - sell / 100)).toFixed(4),
-        gatewayMarkupPct: b.gatewayMarkupPct ?? '0',
+        gatewayMarkupPct: markupRaw,
         gatewayBuyRate: (base * (1 + markup / 100)).toFixed(4),
         bniBuyRate,
         bniBuyRateUpdatedAt,

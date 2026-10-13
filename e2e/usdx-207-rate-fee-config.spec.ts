@@ -71,6 +71,23 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.575,00 IDR/USD')
     })
 
+    test('USDX-767 — a BNI rate outside base ±10% is refused by the server and shown at the field', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/rate')
+      await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
+      await page.getByLabel(/kurs manual/i).fill('16250')
+      // Petunjuk rentang terlihat sebelum simpan: 16.250 ±10%.
+      await expect(page.getByTestId('bni-rate-range')).toContainText('14.625,00 IDR/USD – 17.875,00 IDR/USD')
+      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('20000')
+      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
+      await page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i }).getByRole('button', { name: /ya, ubah kurs/i }).click()
+      await expect(page.getByText(/ditolak server: kurs bni 20000\.00 di luar rentang wajar/i)).toBeVisible()
+      // Yang berlaku tidak berubah.
+      await page.getByRole('button', { name: 'Batal' }).click()
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD')
+    })
+
     test('AC #3 — admin updates fee config and the new mint fee is active', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)

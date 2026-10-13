@@ -22,6 +22,8 @@ export interface RateConfirmDialogProps {
     spreadSellPct: string
     gatewayMarkupPct: string
     bniBuyRate: string
+    /** Angka sama, dicek ulang di wondr → dikirim ulang, jam diperbarui. */
+    bniReconfirmed?: boolean
   }
   onConfirm: () => void
   isPending: boolean
@@ -96,6 +98,11 @@ export default function RateConfirmDialog({
             from={current?.gatewayMarkupPct != null ? formatSpreadPct(current.gatewayMarkupPct) : '—'}
             to={formatSpreadPct(next.gatewayMarkupPct.trim() || '0')}
           />
+          {next.bniReconfirmed && (
+            <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
+              Kurs BNI tidak berubah, tapi sudah dicek ulang di wondr — jam pembaruannya akan diperbarui.
+            </p>
+          )}
           {clearsBni && (
             <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5 text-sm">
               Kurs BNI dikosongkan: metode Transfer BNI berhenti ditawarkan ke nasabah di web dan aplikasi.
