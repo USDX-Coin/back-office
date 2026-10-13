@@ -30,7 +30,7 @@ import {
   isBniBuyRateOutOfRange,
   isBniBuyRateUnchanged,
 } from '@/lib/bniRate'
-import { formatRate } from '@/lib/format'
+import { formatRate, trimTrailingZeros } from '@/lib/format'
 
 /**
  * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
@@ -78,17 +78,20 @@ interface FormState {
 type FormOverrides = Partial<FormState>
 
 function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): FormState {
+  const prefill = (value: string | null | undefined) => (value ? trimTrailingZeros(value) : '')
   return {
     mode: overrides.mode ?? current?.mode ?? '',
     // manualRate intentionally not seeded from current — current.baseRate is
     // the pre-spread base; asking the operator to retype it makes the change
     // explicit (and the field is for MANUAL mode only).
     manualRate: overrides.manualRate ?? '',
-    spreadBuyPct: overrides.spreadBuyPct ?? current?.spreadBuyPct ?? '',
-    spreadSellPct: overrides.spreadSellPct ?? current?.spreadSellPct ?? '',
+    // `numeric(5,4)` di API → '0.0000'; tanpa dipangkas, prefill ini ditolak
+    // validatornya sendiri (maks. 2 desimal) dan form tidak bisa disimpan.
+    spreadBuyPct: overrides.spreadBuyPct ?? prefill(current?.spreadBuyPct),
+    spreadSellPct: overrides.spreadSellPct ?? prefill(current?.spreadSellPct),
     // Diisi dari config aktif: kontrak membaca Y yang tidak dikirim sebagai
     // default 0, jadi menyimpan spread saja tidak boleh diam-diam menolkan Y.
-    gatewayMarkupPct: overrides.gatewayMarkupPct ?? current?.gatewayMarkupPct ?? '',
+    gatewayMarkupPct: overrides.gatewayMarkupPct ?? prefill(current?.gatewayMarkupPct),
     // Diisi dari config aktif; hanya DIKIRIM bila angkanya berubah
     // (`bniBuyRatePayload`) supaya jam pembaruannya tidak bergeser palsu.
     bniBuyRate: overrides.bniBuyRate ?? current?.bniBuyRate ?? '',

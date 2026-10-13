@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import RatePage from '@/features/rate/RatePage'
@@ -175,6 +176,46 @@ describe('Kurs — dua kurs beli mint nasabah', () => {
       await user.clear(bni)
       await user.type(bni, '16200')
       expect(screen.queryByText(/server akan menolak angka ini/i)).not.toBeInTheDocument()
+    })
+
+    test('four-decimal spreads from the API (numeric(5,4), "0.0000") prefill as "0" and save without retyping', async () => {
+      // Dev 13 Okt 2026: GET /rate mengembalikan spread '0.0000', prefill-nya
+      // ditolak validator form sendiri (maks. 2 desimal) — kurs BNI tidak bisa
+      // disimpan sampai kedua spread diketik ulang.
+      server.use(
+        http.get('/api/v1/rate', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: {
+              baseRate: '16250.0000',
+              mode: 'MANUAL',
+              spreadBuyPct: '0.0000',
+              spreadSellPct: '0.5000',
+              effectiveBuyRate: '16250.0000',
+              effectiveSellRate: '16168.7500',
+              gatewayMarkupPct: '0.0000',
+              bniBuyRate: null,
+              bniBuyRateUpdatedAt: null,
+              updatedAt: '2026-10-13T00:00:00.000Z',
+            },
+          }),
+        ),
+      )
+      const bodies = captureRatePosts()
+      const user = userEvent.setup()
+      renderWithProviders(<RatePage />, { authenticated: true })
+      await user.click(await screen.findByRole('button', { name: /^ubah kurs$/i }))
+      await waitFor(() => expect(screen.getByLabelText(/spread beli/i)).toHaveValue(0))
+      expect(screen.getByLabelText(/spread jual/i)).toHaveValue(0.5)
+      expect(screen.getByRole('textbox', { name: /markup virtual account/i })).toHaveValue('0')
+      await user.type(screen.getByLabelText(/kurs manual/i), '16250')
+      await user.type(screen.getByRole('textbox', { name: /kurs bni dari wondr/i }), '16400')
+      const dialog = await review(user)
+      expect(screen.queryByText(/maksimal 2 desimal/i)).not.toBeInTheDocument()
+      await user.click(within(dialog).getByRole('button', { name: /ya, ubah kurs/i }))
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toMatchObject({ spreadBuyPct: '0', spreadSellPct: '0.5', bniBuyRate: '16400' })
     })
 
     test('an unchanged markup is not sent (server keeps it)', async () => {
