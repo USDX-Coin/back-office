@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiFetch'
 import type { PaymentMethod, ReorderPaymentMethodsBody, UpdatePaymentMethodBody } from '@/lib/types'
 
-// ⚠️ DRAF SOT PR #50 — `payment-methods.yaml`. GET Admin + Developer; PATCH dan
-// PUT urutan Admin saja (server menegakkan 403 lagi). MSW-served sampai
-// backendnya naik (`scripts/backend-requirements.json`).
+// `sot/api/payment-methods.yaml`. GET Admin + Developer; PATCH dan PUT urutan
+// Admin saja (server menegakkan 403 lagi). Backendnya USDX-749; MSW hanya
+// melayani dev/test — build yang di-deploy memanggil server sungguhan, jadi
+// merge setelah backend (`pnpm cek:backend`, `scripts/backend-requirements.json`).
 
 export const PAYMENT_METHODS_KEY = ['payment-methods'] as const
 

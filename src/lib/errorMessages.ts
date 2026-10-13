@@ -45,7 +45,7 @@ const KODE: Record<string, string> = {
   WALLET_ALREADY_EXISTS: 'Alamat wallet ini sudah terdaftar. Periksa lagi alamatnya.',
   PAYMENT_METHOD_CHANGED: 'Metode ini baru saja diubah admin lain. Muat ulang lalu ulangi.',
   PAYMENT_METHOD_PREREQUISITE_UNMET:
-    'Transfer BNI belum bisa dinyalakan: prasyarat keamanan BNI (allowlist IP, D23) belum dinyatakan terpenuhi oleh devops.',
+    'Transfer BNI belum bisa dinyalakan: prasyarat keamanan BNI (allowlist IP pengirim notifikasi BNI, D23) belum dinyatakan terpenuhi oleh devops. Tidak ada yang berubah.',
   ONCALL_CONTACT_ALREADY_EXISTS: 'Kontak dengan kanal dan nilai ini sudah terdaftar. Ubah kontak yang sudah ada, atau pakai nilai lain.',
   SAFE_QUEUE_OCCUPIED: 'Antrean tanda tangan Safe sedang terisi transaksi lain. Selesaikan atau batalkan dulu yang itu.',
 }

@@ -47,13 +47,16 @@ async function openFeeForm() {
 
 describe('FeeConfigPage @integration', () => {
   describe('AC: open /settings/fee shows current config', () => {
-    test('shows mint / PG / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
+    test('shows mint / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
       await waitFor(() => {
         expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('1%')
       })
-      expect(screen.getByLabelText(/biaya va flat/i)).toHaveTextContent(/4\.000/)
-      expect(screen.getByLabelText(/persen biaya qris/i)).toHaveTextContent('0,7%')
+      // rev-16 (`fee.yaml`): PG fee VA/QRIS DEPRECATED — not shown as an
+      // active number; the card points to Metode Pembayaran instead.
+      expect(screen.queryByLabelText(/biaya va flat/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/persen biaya qris/i)).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Metode Pembayaran' })).toHaveAttribute('href', '/settings/payment-methods')
       // Redeem fields (W3, USDX-245).
       expect(screen.getByLabelText(/persen biaya redeem/i)).toHaveTextContent('1%')
       expect(screen.getByLabelText(/biaya pencairan flat/i)).toHaveTextContent(/5\.000/)
@@ -225,8 +228,6 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
       // the fees the operator did not touch (USDX-245).
       expect(body).toEqual({
         mintFeePct: '1',
-        pgFeeVaFlat: '4000',
-        pgFeeQrisPct: '0.7',
         redeemFeePct: '1',
         disbursementFeeFlat: '5000',
         minMintIdr: '12000',
@@ -382,8 +383,6 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       expect(bodies).toHaveLength(1)
       expect(bodies[0]).toEqual({
         mintFeePct: '1',
-        pgFeeVaFlat: '4000',
-        pgFeeQrisPct: '0.7',
         redeemFeePct: '1',
         disbursementFeeFlat: '5000',
         minMintIdr: '20000',

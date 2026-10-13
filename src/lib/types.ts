@@ -210,6 +210,19 @@ export interface RateInfo {
   effectiveBuyRate: string
   /** baseRate × (1 − spreadSellPct/100). */
   effectiveSellRate: string
+  // ── Kurs dua harga mint KONSUMEN (D25, `sot/api/rate.yaml § RateInfo`,
+  // `bni-integration.md § 4.3.3`). Opsional: backend yang belum membawa
+  // USDX-749 tidak mengirimnya — layar menulis "—", bukan menebak angka.
+  /** Y — markup % kurs beli Virtual Account (mint konsumen). ≥ 0. */
+  gatewayMarkupPct?: string
+  /** baseRate × (1 + gatewayMarkupPct/100) — kurs beli Virtual Account. */
+  gatewayBuyRate?: string
+  /** Kurs beli Transfer BNI, diisi MANUAL admin dari aplikasi wondr by BNI. `null` = belum diisi. */
+  bniBuyRate?: string | null
+  /** Kapan `bniBuyRate` terakhir disimpan admin (diisi sistem). */
+  bniBuyRateUpdatedAt?: string | null
+  /** = `bniBuyRate`; dikirim walau metode BNI belum ditawarkan. */
+  bniTransferBuyRate?: string | null
   updatedAt: string
 }
 
@@ -220,6 +233,14 @@ export interface UpdateRateConfig {
   spreadBuyPct?: string
   /** Default 0. */
   spreadSellPct?: string
+  /** Y (D25) — markup % kurs beli Virtual Account mint konsumen. Desimal ≥ 0, default 0. */
+  gatewayMarkupPct?: string
+  /**
+   * Kurs beli Transfer BNI (wondr), > 0. DIHILANGKAN dari body = nilai config
+   * aktif dibawa apa adanya dan `bniBuyRateUpdatedAt` tidak bergeser (kontrak).
+   * `null` = dikosongkan → Transfer BNI tidak ditawarkan.
+   */
+  bniBuyRate?: string | null
 }
 
 export interface RateConfig {
@@ -228,20 +249,27 @@ export interface RateConfig {
   manualRate: string | null
   spreadBuyPct: string
   spreadSellPct: string
+  gatewayMarkupPct?: string
+  bniBuyRate?: string | null
+  bniBuyRateUpdatedAt?: string | null
   updatedBy: string
   createdAt: string
 }
 
 // ─── Fee config (sot/api/fee.yaml § /api/v1/fee-config, USDX-207 + USDX-245) ──
 // Append-only, admin-set. Row terbaru = config aktif. Full snapshot:
-//  - mint (W2): mint fee (% nominal) + PG fee referensi per channel
-//    (VA flat Rp / QRIS % atas subtotal_idr).
+//  - mint (W2): mint fee (% nominal). PG fee VA flat / QRIS % DEPRECATED
+//    (rev-16, `bni-integration.md § 4.3.11` M3): biaya bayar kini per metode di
+//    `payment-methods.yaml`; kolomnya masih dikirim GET tapi tidak dipakai
+//    perhitungan apa pun, jadi layar tidak menampilkannya lagi.
 //  - redeem (W3): redeem fee (% dari gross_idr) + disbursement fee flat (Rp).
 export interface FeeConfig {
   id: string
   mintFeePct: string
-  pgFeeVaFlat: string
-  pgFeeQrisPct: string
+  /** @deprecated rev-16 — diganti biaya per metode (Metode Pembayaran). */
+  pgFeeVaFlat?: string
+  /** @deprecated rev-16 — diganti biaya per metode (Metode Pembayaran). */
+  pgFeeQrisPct?: string
   /** Redeem fee % dari gross_idr (W3). */
   redeemFeePct: string
   /** Disbursement fee Rp flat per payout (W3, referensi sampai provider real). */
@@ -269,15 +297,21 @@ export interface FeeConfig {
   createdAt: string
 }
 
-// sot/api/fee.yaml § UpdateFeeConfig — POST = full snapshot (semua field
-// required, kini 7 dengan `minRedeemIdr`, USDX-682). Jangan kirim partial: BE
+// sot/api/fee.yaml § UpdateFeeConfig — POST = snapshot penuh dari lima field
+// wajib (`mintFeePct`, `redeemFeePct`, `disbursementFeeFlat`, `minMintIdr`,
+// `minRedeemIdr`); dua PG fee opsional sejak rev-16. Jangan kirim partial: BE
 // meng-overwrite seluruh row, partial = meng-nol-kan fee yang tidak dikirim
 // (USDX-245). Body invalid → 422 VALIDATION_ERROR (conventions.md § Validation
 // Error — fee-config allowlist).
 export interface UpdateFeeConfig {
   mintFeePct: string
-  pgFeeVaFlat: string
-  pgFeeQrisPct: string
+  /**
+   * @deprecated rev-16 — opsional di kontrak; tidak dikirim form. Bila absen,
+   * backend menyalin nilai baris aktif sebelumnya (`fee.yaml § UpdateFeeConfig`).
+   */
+  pgFeeVaFlat?: string
+  /** @deprecated rev-16 — lihat `pgFeeVaFlat`. */
+  pgFeeQrisPct?: string
   redeemFeePct: string
   disbursementFeeFlat: string
   /** Minimum mint Rp — ikut snapshot penuh (USDX-637). */
@@ -3176,7 +3210,7 @@ export interface BackofficeTransactionsMetadata {
   needsActionTotal?: number
 }
 
-// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// ─── Metode Pembayaran (`sot/api/payment-methods.yaml`, `bni-integration.md § 4.3.11`) ───
 // `GET /api/v1/payment-methods` (Admin/Developer), `PATCH /api/v1/payment-methods/{id}`
 // dan `PUT /api/v1/payment-method-order` (Admin saja). Enum terbuka.
 

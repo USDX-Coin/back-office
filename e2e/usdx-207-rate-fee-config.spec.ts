@@ -42,6 +42,35 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(page.getByText('1,5%')).toBeVisible()
     })
 
+    // USDX-767 — D25: kurs BNI dari wondr + markup Virtual Account (Y).
+    test('USDX-767 — admin sets the BNI rate and the VA markup; both show on the card', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/rate')
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD', { timeout: 15000 })
+      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.412,50 IDR/USD')
+
+      const posts: Record<string, unknown>[] = []
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && req.url().includes('/api/v1/rate')) posts.push(req.postDataJSON())
+      })
+      await page.getByRole('button', { name: 'Ubah kurs' }).click()
+      await page.getByLabel(/kurs manual/i).fill('16250')
+      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('16190.50')
+      await page.getByRole('textbox', { name: /markup virtual account/i }).fill('2')
+      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
+      const dialog = page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i })
+      await expect(dialog.getByText('16.190,50 IDR/USD')).toBeVisible()
+      await dialog.getByRole('button', { name: /ya, ubah kurs/i }).click()
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+
+      expect(posts).toHaveLength(1)
+      expect(posts[0]).toMatchObject({ bniBuyRate: '16190.50', gatewayMarkupPct: '2' })
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.190,50 IDR/USD')
+      // 16.250 × 1,02 = 16.575
+      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.575,00 IDR/USD')
+    })
+
     test('AC #3 — admin updates fee config and the new mint fee is active', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
@@ -53,8 +82,10 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       const mint = page.locator('#mintFeePct')
       await expect(mint).toBeVisible({ timeout: 15000 })
       await mint.fill('2.5')
-      await page.locator('#pgFeeVaFlat').fill('5000')
-      await page.locator('#pgFeeQrisPct').fill('0.8')
+      // rev-16 (`fee.yaml`): PG fee VA/QRIS tidak lagi di form — biaya bayar
+      // diatur per metode di Metode Pembayaran.
+      await expect(page.locator('#pgFeeVaFlat')).toHaveCount(0)
+      await expect(page.locator('#pgFeeQrisPct')).toHaveCount(0)
 
       await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 

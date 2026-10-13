@@ -89,6 +89,8 @@ export const FAILED_ACTIVATION_USER = {
 }
 
 // USDX-207: spread directional (sot/api/rate.yaml). Spread 0 → effective == base.
+// D25 (`rate.yaml`): kurs beli mint nasabah dua harga — Transfer BNI =
+// `bniBuyRate` (wondr, manual), Virtual Account = dasar × (1 + Y/100).
 const RATE_INFO = {
   baseRate: '16250.0000',
   mode: 'MANUAL' as const,
@@ -96,6 +98,11 @@ const RATE_INFO = {
   spreadSellPct: '0',
   effectiveBuyRate: '16250.0000',
   effectiveSellRate: '16250.0000',
+  gatewayMarkupPct: '1',
+  gatewayBuyRate: '16412.5000',
+  bniBuyRate: '16200.00' as string | null,
+  bniBuyRateUpdatedAt: '2026-05-01T00:00:00.000Z' as string | null,
+  bniTransferBuyRate: '16200.00' as string | null,
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
@@ -906,7 +913,7 @@ export interface MockApiState {
   kycReviews: Map<string, MockKycReview[]>
   /** USDX-156 — last resend-activation timestamp per user id (cooldown). */
   resendLog: Map<string, number>
-  /** Metode Pembayaran (SOT PR #50) — seed MSW `createInitialPaymentMethods`, mutable per test. */
+  /** Metode Pembayaran (`payment-methods.yaml`) — seed MSW `createInitialPaymentMethods`, mutable per test. */
   paymentMethods: PaymentMethod[]
   /** Body PATCH/PUT metode pembayaran yang SAMPAI ke server tiruan, berurutan. */
   paymentMethodWrites: { method: string; path: string; body: Record<string, unknown> }[]
@@ -1014,6 +1021,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
           : Number.parseFloat(liveRate.baseRate)
       const buy = Number.parseFloat(b.spreadBuyPct ?? '0') || 0
       const sell = Number.parseFloat(b.spreadSellPct ?? '0') || 0
+      const markup = Number.parseFloat(b.gatewayMarkupPct ?? '0') || 0
+      // `bniBuyRate` dihilangkan = nilai + jam lama dibawa (kontrak).
+      const hasBni = Object.prototype.hasOwnProperty.call(b, 'bniBuyRate')
+      const bniBuyRate = hasBni ? ((b.bniBuyRate as string | null) ?? null) : liveRate.bniBuyRate
+      const bniBuyRateUpdatedAt = hasBni ? (bniBuyRate === null ? null : '2026-06-17T00:00:00.000Z') : liveRate.bniBuyRateUpdatedAt
       liveRate = {
         baseRate: base.toFixed(4),
         mode: b.mode,
@@ -1021,6 +1033,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         spreadSellPct: b.spreadSellPct ?? '0',
         effectiveBuyRate: (base * (1 + buy / 100)).toFixed(4),
         effectiveSellRate: (base * (1 - sell / 100)).toFixed(4),
+        gatewayMarkupPct: b.gatewayMarkupPct ?? '0',
+        gatewayBuyRate: (base * (1 + markup / 100)).toFixed(4),
+        bniBuyRate,
+        bniBuyRateUpdatedAt,
+        bniTransferBuyRate: bniBuyRate,
         updatedAt: '2026-06-17T00:00:00.000Z',
       }
       return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)
@@ -1087,13 +1104,12 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     if (key === 'GET /api/v1/fee-config') return envelope(route, liveFee)
     if (key === 'POST /api/v1/fee-config') {
       const b = body()
-      // Full 7-field snapshot, all required + non-negative (USDX-245, plus
-      // `minMintIdr` USDX-637 and `minRedeemIdr` USDX-682). Body failures →
-      // 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
+      // Snapshot of the 5 required fields, all non-negative (USDX-245, plus
+      // `minMintIdr` USDX-637 and `minRedeemIdr` USDX-682). PG fee VA/QRIS are
+      // optional since rev-16 (`fee.yaml`): absent = copy the active row.
+      // Body failures → 422 VALIDATION_ERROR (fee-config on the v1→422 allowlist).
       for (const f of [
         'mintFeePct',
-        'pgFeeVaFlat',
-        'pgFeeQrisPct',
         'redeemFeePct',
         'disbursementFeeFlat',
         'minMintIdr',
@@ -1116,8 +1132,8 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       liveFee = {
         id: 'fee-live',
         mintFeePct: b.mintFeePct,
-        pgFeeVaFlat: b.pgFeeVaFlat,
-        pgFeeQrisPct: b.pgFeeQrisPct,
+        pgFeeVaFlat: b.pgFeeVaFlat ?? liveFee.pgFeeVaFlat,
+        pgFeeQrisPct: b.pgFeeQrisPct ?? liveFee.pgFeeQrisPct,
         redeemFeePct: b.redeemFeePct,
         disbursementFeeFlat: b.disbursementFeeFlat,
         minMintIdr: b.minMintIdr,
@@ -1620,7 +1636,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
     }
 
-    // ── Metode Pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml) ──────
+    // ── Metode Pembayaran (payment-methods.yaml) ─────────────────────────
     // Meniru handler MSW (`src/mocks/handlers.ts`) dengan seed yang sama:
     // hanya Virtual Account NOBU yang ditawarkan, Transfer BNI dijaga D23 (409).
     const sortedPm = () =>

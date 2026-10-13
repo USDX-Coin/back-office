@@ -26,7 +26,8 @@ import {
   validateMintAllowedEmail,
   validateMintModeDurationHours,
   validateMintTestModeForm,
-  validatePgFeeVaFlat,
+  validateGatewayMarkupPct,
+  validateBniBuyRate,
   validateDisbursementFeeFlat,
   validateLedgerAmount,
   validateLedgerReason,
@@ -629,6 +630,73 @@ describe('validateSpreadPct', () => {
   })
 })
 
+// D25 (`sot/api/rate.yaml § UpdateRateConfig.gatewayMarkupPct`): Y = desimal ≥ 0,
+// default 0. Kontrak tidak menetapkan plafon maupun batas desimal.
+describe('validateGatewayMarkupPct', () => {
+  describe('positive', () => {
+    test('should accept the contract example 2.5', () => {
+      expect(validateGatewayMarkupPct('2.5')).toBeNull()
+    })
+    test('should accept zero (the default)', () => {
+      expect(validateGatewayMarkupPct('0')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('should reject a negative value', () => {
+      expect(validateGatewayMarkupPct('-0.5')).toMatch(/negatif/)
+    })
+    test('should reject a comma decimal separator', () => {
+      expect(validateGatewayMarkupPct('2,5')).toMatch(/titik desimal/)
+    })
+    test('should reject exponent notation and a trailing dot', () => {
+      expect(validateGatewayMarkupPct('1e2')).not.toBeNull()
+      expect(validateGatewayMarkupPct('2.')).not.toBeNull()
+    })
+  })
+  describe('edge cases', () => {
+    test('should treat empty / whitespace as valid (default 0)', () => {
+      expect(validateGatewayMarkupPct('')).toBeNull()
+      expect(validateGatewayMarkupPct('   ')).toBeNull()
+    })
+    test('should not impose a ceiling or decimal cap the contract does not set', () => {
+      expect(validateGatewayMarkupPct('25')).toBeNull()
+      expect(validateGatewayMarkupPct('0.125')).toBeNull()
+    })
+  })
+})
+
+// D25 rev 2026-10-02 (`rate.yaml § UpdateRateConfig.bniBuyRate`): kurs BNI dari
+// wondr. "Wajib > 0 bila diisi"; kosong sah (Transfer BNI tidak ditawarkan).
+describe('validateBniBuyRate', () => {
+  describe('positive', () => {
+    test('should accept an integer and a decimal value', () => {
+      expect(validateBniBuyRate('16250')).toBeNull()
+      expect(validateBniBuyRate('16250.50')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('should reject 0 and 0.00', () => {
+      expect(validateBniBuyRate('0')).toMatch(/lebih dari 0/)
+      expect(validateBniBuyRate('0.00')).toMatch(/lebih dari 0/)
+    })
+    test('should reject a negative value', () => {
+      expect(validateBniBuyRate('-16250')).toMatch(/negatif/)
+    })
+    test('should reject Indonesian thousands formatting copied from the app', () => {
+      expect(validateBniBuyRate('16.250,50')).toMatch(/titik ribuan/)
+    })
+  })
+  describe('edge cases', () => {
+    test('should treat empty as valid (Transfer BNI not offered)', () => {
+      expect(validateBniBuyRate('')).toBeNull()
+      expect(validateBniBuyRate('  ')).toBeNull()
+    })
+    test('should accept a tiny positive decimal', () => {
+      expect(validateBniBuyRate('0.01')).toBeNull()
+    })
+  })
+})
+
 describe('validateRateUpdateForm', () => {
   describe('positive', () => {
     test('MANUAL with valid rate + both spreads passes', () => {
@@ -721,13 +789,12 @@ describe('validateOptionalIdPhone', () => {
 })
 
 // USDX-207 + USDX-245 + USDX-637 + USDX-682 — fee config form (sot/api/fee.yaml
-// § UpdateFeeConfig). Full 7-field snapshot: mint fee %, PG VA flat, PG QRIS %,
-// redeem fee %, disbursement fee flat, minimum mint Rp, minimum redeem Rp.
+// § UpdateFeeConfig). Snapshot of the 5 required fields: mint fee %, redeem
+// fee %, disbursement fee flat, minimum mint Rp, minimum redeem Rp. PG fee VA /
+// QRIS are DEPRECATED (rev-16) and no longer part of the form.
 describe('validateFeeConfigForm', () => {
   const ok = {
     mintFeePct: '1.0',
-    pgFeeVaFlat: '4000.00',
-    pgFeeQrisPct: '0.7',
     redeemFeePct: '1.0',
     disbursementFeeFlat: '5000.00',
     minMintIdr: '20000',
@@ -735,15 +802,13 @@ describe('validateFeeConfigForm', () => {
   }
 
   describe('positive', () => {
-    test('all 7 valid fields pass', () => {
+    test('all 5 valid fields pass', () => {
       expect(validateFeeConfigForm(ok).valid).toBe(true)
     })
     test('zero fees are allowed', () => {
       expect(
         validateFeeConfigForm({
           mintFeePct: '0',
-          pgFeeVaFlat: '0',
-          pgFeeQrisPct: '0',
           redeemFeePct: '0',
           disbursementFeeFlat: '0',
           // Both minimums have a hard floor and are deliberately NOT zeroable.
@@ -759,16 +824,6 @@ describe('validateFeeConfigForm', () => {
       const r = validateFeeConfigForm({ ...ok, mintFeePct: '' })
       expect(r.valid).toBe(false)
       expect(r.errors.mintFeePct).toBeDefined()
-    })
-    test('negative VA flat fails', () => {
-      const r = validateFeeConfigForm({ ...ok, pgFeeVaFlat: '-1' })
-      expect(r.valid).toBe(false)
-      expect(r.errors.pgFeeVaFlat).toBeDefined()
-    })
-    test('out-of-range QRIS % fails', () => {
-      const r = validateFeeConfigForm({ ...ok, pgFeeQrisPct: '99' })
-      expect(r.valid).toBe(false)
-      expect(r.errors.pgFeeQrisPct).toBeDefined()
     })
     test('missing redeem fee fails', () => {
       const r = validateFeeConfigForm({ ...ok, redeemFeePct: '' })
@@ -826,12 +881,6 @@ describe('validateFeeConfigForm', () => {
       const r = validateFeeConfigForm({ ...ok, minMintIdr: '5000', minRedeemIdr: '20000' })
       expect(r.errors.minMintIdr).toBeDefined()
       expect(r.errors.minRedeemIdr).toBeUndefined()
-    })
-    test('VA flat rejects non-numeric', () => {
-      expect(validatePgFeeVaFlat('abc')).not.toBeNull()
-    })
-    test('VA flat accepts a large-but-valid flat amount', () => {
-      expect(validatePgFeeVaFlat('4500.50')).toBeNull()
     })
     test('disbursement flat rejects non-numeric', () => {
       expect(validateDisbursementFeeFlat('abc')).not.toBeNull()

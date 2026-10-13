@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,8 +42,6 @@ interface Props {
 
 interface FormState {
   mintFeePct: string
-  pgFeeVaFlat: string
-  pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
   minMintIdr: string
@@ -52,7 +51,7 @@ interface FormState {
 type FormOverrides = Partial<FormState>
 
 // Form seeds from the current config; undefined fields fall back to current so
-// the form fills in once GET resolves (no effect needed). All 7 fields are
+// the form fills in once GET resolves (no effect needed). All 5 fields are
 // pre-filled because POST is a full snapshot — partial submits would zero out
 // the fees we don't send (USDX-245, `minMintIdr` since USDX-637, `minRedeemIdr`
 // since USDX-682). `minRedeemIdr` is REQUIRED on the backend: a form that does
@@ -81,8 +80,6 @@ function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): 
   const prefill = (value: string | undefined) => (value ? trimTrailingZeros(value) : '')
   return {
     mintFeePct: overrides.mintFeePct ?? prefill(current?.mintFeePct),
-    pgFeeVaFlat: overrides.pgFeeVaFlat ?? prefill(current?.pgFeeVaFlat),
-    pgFeeQrisPct: overrides.pgFeeQrisPct ?? prefill(current?.pgFeeQrisPct),
     redeemFeePct: overrides.redeemFeePct ?? prefill(current?.redeemFeePct),
     disbursementFeeFlat: overrides.disbursementFeeFlat ?? prefill(current?.disbursementFeeFlat),
     minMintIdr: overrides.minMintIdr ?? prefill(current?.minMintIdr),
@@ -123,8 +120,8 @@ export default function FeeConfigUpdateForm({ current, open, onOpenChange }: Pro
     try {
       await update.mutateAsync({
         mintFeePct: form.mintFeePct.trim(),
-        pgFeeVaFlat: form.pgFeeVaFlat.trim(),
-        pgFeeQrisPct: form.pgFeeQrisPct.trim(),
+        // PG fee VA/QRIS tidak dikirim: DEPRECATED rev-16 (`fee.yaml`), backend
+        // menyalin nilai baris aktif. Biaya bayar kini per metode.
         redeemFeePct: form.redeemFeePct.trim(),
         disbursementFeeFlat: form.disbursementFeeFlat.trim(),
         minMintIdr: form.minMintIdr.trim(),
@@ -220,49 +217,13 @@ export default function FeeConfigUpdateForm({ current, open, onOpenChange }: Pro
           <FieldError message={errors.mintFeePct} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="pgFeeVaFlat">Biaya VA (flat)</Label>
-            <div className="relative">
-              <Input
-                id="pgFeeVaFlat"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.pgFeeVaFlat}
-                onChange={(e) => set('pgFeeVaFlat', e.target.value)}
-                placeholder="4000.00"
-                className="tabular-nums pr-12"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                IDR
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">Rp flat per transaksi VA.</p>
-            <FieldError message={errors.pgFeeVaFlat} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="pgFeeQrisPct">Biaya QRIS</Label>
-            <div className="relative">
-              <Input
-                id="pgFeeQrisPct"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.pgFeeQrisPct}
-                onChange={(e) => set('pgFeeQrisPct', e.target.value)}
-                placeholder="0.7"
-                className="tabular-nums pr-10"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                %
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">% atas subtotal IDR.</p>
-            <FieldError message={errors.pgFeeQrisPct} />
-          </div>
-        </div>
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+          Biaya Virtual Account, QRIS, dan Transfer BNI kini diatur per metode di{' '}
+          <Link to="/settings/payment-methods" className="font-medium text-primary underline-offset-2 hover:underline">
+            Metode Pembayaran
+          </Link>
+          .
+        </p>
 
         {/* Redeem fees (W3, USDX-245) — required; part of the full snapshot. */}
         <div className="space-y-4 border-t border-border pt-5">

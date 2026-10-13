@@ -54,8 +54,22 @@
     {
       "rute": "/settings/payment-methods — Metode Pembayaran",
       "path": "/api/v1/payment-methods",
-      "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
-      "keterangan": "Pengaturan metode pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml). PATCH /payment-methods/{id} dan PUT /payment-method-order ikut modul yang sama."
+      "butuhBranch": "backend USDX-749",
+      "keterangan": "Pengaturan metode pembayaran (payment-methods.yaml, backend USDX-749). PATCH /payment-methods/{id} dan PUT /payment-method-order ikut modul yang sama."
+    },
+    {
+      "rute": "/settings/rate — kurs BNI (wondr) + markup Virtual Account",
+      "path": "/api/v1/rate",
+      "butuhBranch": "backend USDX-749",
+      "probe": false,
+      "keterangan": "Field D25 `gatewayMarkupPct` + `bniBuyRate` di POST/GET /api/v1/rate (rate.yaml). Endpointnya sudah lama ada, jadi 401 dijawab entah field-nya didukung atau tidak. Server lama: kartu menampilkan '—' dan angka yang disimpan admin bisa dibuang diam-diam (atau ditolak 400 bila whitelist ketat). Konfirmasi manual bahwa USDX-749 sudah naik."
+    },
+    {
+      "rute": "/settings/fee — PG fee VA/QRIS tidak lagi dikirim",
+      "path": "/api/v1/fee-config",
+      "butuhBranch": "backend USDX-749",
+      "probe": false,
+      "keterangan": "fee.yaml rev-16: `pgFeeVaFlat`/`pgFeeQrisPct` opsional (deprecated). Form tidak mengirimnya lagi. Server lama mewajibkannya → SETIAP simpan biaya dijawab 422. Konfirmasi manual bahwa USDX-749 sudah naik."
     }
   ],
   "opsional": [

@@ -176,13 +176,46 @@ export function isManualRateUnusual(raw: string): boolean {
   return n < RATE_SOFT_LOW || n > RATE_SOFT_HIGH
 }
 
+// D25 (`sot/api/rate.yaml § UpdateRateConfig.gatewayMarkupPct`): Y = markup %
+// kurs beli Virtual Account mint konsumen. Kontraknya hanya "desimal ≥ 0,
+// default 0" — tanpa plafon dan tanpa batas desimal, jadi klien tidak
+// menambahkannya (aturan klien yang lebih ketat dari kontrak menolak nilai yang
+// diterima server). Kosong = default 0. Angka akibatnya (kurs VA baru) tampil di
+// dialog konfirmasi — di situlah salah ketik tertangkap.
+const PLAIN_DECIMAL_RE = /^\d+(\.\d+)?$/
+
+export function validateGatewayMarkupPct(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('-')) return 'Markup tidak boleh negatif'
+  if (!PLAIN_DECIMAL_RE.test(trimmed)) return 'Markup harus angka dengan titik desimal (contoh 2.5)'
+  return null
+}
+
+// D25 rev 2026-10-02 (`rate.yaml § UpdateRateConfig.bniBuyRate`, `bni-integration.md
+// § 4.3.3`): kurs beli Transfer BNI, IDR per USDX, disalin admin dari aplikasi
+// wondr by BNI. "Wajib > 0 bila diisi". Kosong sah: artinya Transfer BNI tidak
+// ditawarkan. Tanpa plafon (kontrak tidak menyebut satu pun); angka yang
+// janggal diberi peringatan halus lewat `isManualRateUnusual`.
+export function validateBniBuyRate(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('-')) return 'Kurs BNI tidak boleh negatif'
+  if (!PLAIN_DECIMAL_RE.test(trimmed)) return 'Kurs BNI harus angka dengan titik desimal, tanpa titik ribuan (contoh 16200.50)'
+  if (!(Number(trimmed) > 0)) return 'Kurs BNI harus lebih dari 0'
+  return null
+}
+
 // USDX-207: spread directional — validate spread beli & jual independently
 // (sot/api/rate.yaml § UpdateRateConfig). Same bounds as the old single spread.
+// D25: plus Y (`gatewayMarkupPct`) dan kurs BNI (`bniBuyRate`).
 export function validateRateUpdateForm(input: {
   mode: RateMode | ''
   manualRate: string
   spreadBuyPct: string
   spreadSellPct: string
+  gatewayMarkupPct?: string
+  bniBuyRate?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
@@ -198,14 +231,18 @@ export function validateRateUpdateForm(input: {
   if (buyErr) errors.spreadBuyPct = buyErr
   const sellErr = validateSpreadPct(input.spreadSellPct)
   if (sellErr) errors.spreadSellPct = sellErr
+  const markupErr = validateGatewayMarkupPct(input.gatewayMarkupPct ?? '')
+  if (markupErr) errors.gatewayMarkupPct = markupErr
+  const bniErr = validateBniBuyRate(input.bniBuyRate ?? '')
+  if (bniErr) errors.bniBuyRate = bniErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
 // USDX-207 + USDX-245: fee config form (sot/api/fee.yaml § UpdateFeeConfig).
-// Full 5-field snapshot, all required. Percentages (mint / QRIS / redeem fee)
-// reuse the spread bound; flat IDR amounts (PG VA / disbursement) reuse the
-// flat-fee bound.
-const PG_FEE_VA_MAX = 1_000_000 // Rp 1jt flat is already extreme for a PG fee
+// Snapshot penuh dari field wajib. Persentase (mint / redeem fee) memakai batas
+// spread; rupiah flat (disbursement) memakai batas flat-fee. PG fee VA/QRIS
+// sudah DEPRECATED (rev-16) — biayanya per metode di Metode Pembayaran.
+const FLAT_FEE_MAX = 1_000_000 // Rp 1jt flat is already extreme for a flat fee
 
 export function validateFeePct(raw: string, label: string): string | null {
   const trimmed = raw.trim()
@@ -217,20 +254,16 @@ export function validateFeePct(raw: string, label: string): string | null {
   return null
 }
 
-// Shared flat-IDR fee validator (PG VA flat + disbursement flat). `label` names
-// the field in the error message; both use the same extreme-Rp ceiling.
+// Flat-IDR fee validator (disbursement flat). `label` names the field in the
+// error message.
 function validateFlatFee(raw: string, label: string): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return `${label} wajib diisi`
   if (!DECIMAL_RE.test(trimmed)) return `${label} harus berupa angka (maksimal 4 desimal)`
   const n = Number(trimmed)
   if (!Number.isFinite(n) || n < 0) return `${label} tidak boleh negatif`
-  if (n > PG_FEE_VA_MAX) return `${label} maksimal ${PG_FEE_VA_MAX.toLocaleString('id-ID')}`
+  if (n > FLAT_FEE_MAX) return `${label} maksimal ${FLAT_FEE_MAX.toLocaleString('id-ID')}`
   return null
-}
-
-export function validatePgFeeVaFlat(raw: string): string | null {
-  return validateFlatFee(raw, 'Biaya VA')
 }
 
 // USDX-245: disbursement fee = Rp flat per payout (referensi sampai provider real).
@@ -283,8 +316,6 @@ export function validateMinRedeemIdr(raw: string): string | null {
 
 export function validateFeeConfigForm(input: {
   mintFeePct: string
-  pgFeeVaFlat: string
-  pgFeeQrisPct: string
   redeemFeePct: string
   disbursementFeeFlat: string
   minMintIdr: string
@@ -293,10 +324,6 @@ export function validateFeeConfigForm(input: {
   const errors: Record<string, string> = {}
   const mintErr = validateFeePct(input.mintFeePct, 'Biaya mint')
   if (mintErr) errors.mintFeePct = mintErr
-  const vaErr = validatePgFeeVaFlat(input.pgFeeVaFlat)
-  if (vaErr) errors.pgFeeVaFlat = vaErr
-  const qrisErr = validateFeePct(input.pgFeeQrisPct, 'Biaya QRIS')
-  if (qrisErr) errors.pgFeeQrisPct = qrisErr
   const redeemErr = validateFeePct(input.redeemFeePct, 'Biaya redeem')
   if (redeemErr) errors.redeemFeePct = redeemErr
   const disbErr = validateDisbursementFeeFlat(input.disbursementFeeFlat)
@@ -321,8 +348,6 @@ export function validateFeeConfigForm(input: {
  */
 const FEE_CONFIG_FIELD_KEYS = [
   'mintFeePct',
-  'pgFeeVaFlat',
-  'pgFeeQrisPct',
   'redeemFeePct',
   'disbursementFeeFlat',
   'minMintIdr',

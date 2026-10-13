@@ -20,7 +20,9 @@ import type { RateInfo, RateMode } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
+import BniRateStamp from './BniRateStamp'
 import { toastErrorMessage } from '@/lib/errorToast'
+import { bniBuyRatePayload } from '@/lib/bniRate'
 
 /**
  * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
@@ -52,6 +54,10 @@ interface FormState {
   manualRate: string
   spreadBuyPct: string
   spreadSellPct: string
+  /** D25 — Y, markup % kurs beli Virtual Account (mint konsumen). */
+  gatewayMarkupPct: string
+  /** Kurs beli Transfer BNI dari wondr. Kosong = Transfer BNI tidak ditawarkan. */
+  bniBuyRate: string
 }
 
 // Form state is the user's overrides on top of the current config.
@@ -68,6 +74,12 @@ function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): F
     manualRate: overrides.manualRate ?? '',
     spreadBuyPct: overrides.spreadBuyPct ?? current?.spreadBuyPct ?? '',
     spreadSellPct: overrides.spreadSellPct ?? current?.spreadSellPct ?? '',
+    // Diisi dari config aktif: kontrak membaca Y yang tidak dikirim sebagai
+    // default 0, jadi menyimpan spread saja tidak boleh diam-diam menolkan Y.
+    gatewayMarkupPct: overrides.gatewayMarkupPct ?? current?.gatewayMarkupPct ?? '',
+    // Diisi dari config aktif; hanya DIKIRIM bila angkanya berubah
+    // (`bniBuyRatePayload`) supaya jam pembaruannya tidak bergeser palsu.
+    bniBuyRate: overrides.bniBuyRate ?? current?.bniBuyRate ?? '',
   }
 }
 
@@ -97,6 +109,8 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       manualRate: form.manualRate,
       spreadBuyPct: form.spreadBuyPct,
       spreadSellPct: form.spreadSellPct,
+      gatewayMarkupPct: form.gatewayMarkupPct,
+      bniBuyRate: form.bniBuyRate,
     })
     if (!validation.valid) {
       setErrors(validation.errors)
@@ -114,11 +128,15 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
     try {
       // Bearer token attaches via apiFetch — backend derives updatedBy from
       // the JWT, no need to send the staff id in the body.
+      const bniBuyRate = bniBuyRatePayload(form.bniBuyRate, current?.bniBuyRate)
       await update.mutateAsync({
         mode: form.mode,
         manualRate: form.mode === 'MANUAL' ? form.manualRate : null,
         spreadBuyPct: form.spreadBuyPct || '0',
         spreadSellPct: form.spreadSellPct || '0',
+        gatewayMarkupPct: form.gatewayMarkupPct.trim() || '0',
+        // Tidak berubah → field dihilangkan (kontrak: nilai + jam lama dibawa).
+        ...(bniBuyRate !== undefined ? { bniBuyRate } : {}),
       })
       toast.success('Kurs berhasil diubah')
       setConfirmOpen(false)
@@ -133,6 +151,8 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
   }
 
   const dynamic = form.mode === 'DYNAMIC'
+  const showBniWarning =
+    !errors.bniBuyRate && form.bniBuyRate.trim() !== '' && isManualRateUnusual(form.bniBuyRate)
   const showRateWarning =
     form.mode === 'MANUAL' &&
     !errors.manualRate &&
@@ -218,7 +238,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="spreadBuyPct">Spread beli (mint)</Label>
+            <Label htmlFor="spreadBuyPct">Spread beli (mint OTC &amp; Partner)</Label>
             <div className="relative">
               <Input
                 id="spreadBuyPct"
@@ -235,7 +255,8 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Markup saat nasabah beli USDX. Kurs berlaku = kurs dasar × (1 + beli%).
+              Untuk mint OTC dan Partner API saja — mint nasabah di web dan aplikasi
+              memakai kurs BNI atau markup Virtual Account di bawah. Kurs = kurs dasar × (1 + beli%).
             </p>
             <FieldError message={errors.spreadBuyPct} />
           </div>
@@ -263,6 +284,73 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
             <FieldError message={errors.spreadSellPct} />
           </div>
         </div>
+
+        {/* D25 (`sot/api/rate.yaml § UpdateRateConfig`, `bni-integration.md § 4.3.3`):
+            kurs beli mint NASABAH dua harga. Transfer BNI = kurs BNI yang
+            disalin dari wondr; Virtual Account = dasar × (1 + Y%). */}
+        <fieldset className="space-y-4 border-t border-border pt-5">
+          <legend className="text-xs font-medium text-muted-foreground">
+            Kurs beli mint nasabah (web &amp; aplikasi)
+          </legend>
+          <div className="space-y-1.5">
+            <Label htmlFor="bniBuyRate">
+              Kurs BNI dari wondr{' '}
+              <span className="text-muted-foreground">(IDR per USDX)</span>
+            </Label>
+            <div className="relative sm:max-w-[50%]">
+              <Input
+                id="bniBuyRate"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.bniBuyRate}
+                onChange={(e) => set('bniBuyRate', e.target.value)}
+                placeholder="16250.00"
+                className="tabular-nums pr-12"
+                aria-invalid={!!errors.bniBuyRate}
+                aria-describedby="bniBuyRate-help"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                IDR
+              </span>
+            </div>
+            <p id="bniBuyRate-help" className="text-xs text-muted-foreground">
+              Salin kurs beli dari aplikasi wondr by BNI, pakai titik desimal tanpa titik ribuan.
+              Kurs ini dipakai metode Transfer BNI. Kosongkan = Transfer BNI berhenti ditawarkan.
+            </p>
+            {current?.bniBuyRate != null && <BniRateStamp updatedAt={current.bniBuyRateUpdatedAt} />}
+            {showBniWarning && (
+              <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+                Kurs ini di luar kebiasaan — periksa lagi angkanya di wondr.
+              </p>
+            )}
+            <FieldError message={errors.bniBuyRate} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="gatewayMarkupPct">Markup Virtual Account</Label>
+            <div className="relative sm:max-w-[50%]">
+              <Input
+                id="gatewayMarkupPct"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.gatewayMarkupPct}
+                onChange={(e) => set('gatewayMarkupPct', e.target.value)}
+                placeholder="1"
+                className="tabular-nums pr-10"
+                aria-invalid={!!errors.gatewayMarkupPct}
+                aria-describedby="gatewayMarkupPct-help"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                %
+              </span>
+            </div>
+            <p id="gatewayMarkupPct-help" className="text-xs text-muted-foreground">
+              Kurs Virtual Account = kurs dasar × (1 + markup%). Kosong = 0.
+            </p>
+            <FieldError message={errors.gatewayMarkupPct} />
+          </div>
+        </fieldset>
       </FormDialog>
 
       <RateConfirmDialog
@@ -274,6 +362,8 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           manualRate: form.manualRate,
           spreadBuyPct: form.spreadBuyPct,
           spreadSellPct: form.spreadSellPct,
+          gatewayMarkupPct: form.gatewayMarkupPct,
+          bniBuyRate: form.bniBuyRate,
         }}
         onConfirm={handleConfirm}
         isPending={update.isPending}

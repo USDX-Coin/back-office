@@ -396,6 +396,11 @@ export function createRateConfig(overrides: Partial<RateConfig> = {}): RateConfi
     // USDX-207: spread directional — beli (mint) + jual (burn/redeem).
     spreadBuyPct: '0.5',
     spreadSellPct: '0.4',
+    // D25 (`rate.yaml`): Y — markup kurs beli Virtual Account mint konsumen.
+    gatewayMarkupPct: '0',
+    // Kurs beli Transfer BNI (wondr); null = belum diisi.
+    bniBuyRate: null,
+    bniBuyRateUpdatedAt: null,
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -410,6 +415,11 @@ export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
       manualRate: null,
       spreadBuyPct: '0.5',
       spreadSellPct: '0.4',
+      // Angka contoh: dasar 16.200, Y 1% → VA 16.362; BNI 16.250 dari wondr,
+      // disimpan 30 menit lalu.
+      gatewayMarkupPct: '1',
+      bniBuyRate: '16250.00',
+      bniBuyRateUpdatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       updatedBy: seedStaffId,
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
     }),
@@ -432,11 +442,17 @@ export function computeRateInfo(history: RateConfig[]): RateInfo {
       spreadSellPct: '0',
       effectiveBuyRate: '0.00',
       effectiveSellRate: '0.00',
+      gatewayMarkupPct: '0',
+      gatewayBuyRate: '0.00',
+      bniBuyRate: null,
+      bniBuyRateUpdatedAt: null,
+      bniTransferBuyRate: null,
       updatedAt: new Date().toISOString(),
     }
   }
   const buy = Number(latest.spreadBuyPct) || 0
   const sell = Number(latest.spreadSellPct) || 0
+  const markup = Number(latest.gatewayMarkupPct) || 0
   const base =
     latest.mode === 'MANUAL' && latest.manualRate
       ? Number(latest.manualRate)
@@ -449,6 +465,12 @@ export function computeRateInfo(history: RateConfig[]): RateInfo {
     // Beli: base × (1 + buy/100); Jual: base × (1 − sell/100).
     effectiveBuyRate: (base * (1 + buy / 100)).toFixed(2),
     effectiveSellRate: (base * (1 - sell / 100)).toFixed(2),
+    // D25: Virtual Account = dasar × (1 + Y/100); Transfer BNI = kurs BNI manual.
+    gatewayMarkupPct: latest.gatewayMarkupPct ?? '0',
+    gatewayBuyRate: (base * (1 + markup / 100)).toFixed(2),
+    bniBuyRate: latest.bniBuyRate ?? null,
+    bniBuyRateUpdatedAt: latest.bniBuyRateUpdatedAt ?? null,
+    bniTransferBuyRate: latest.bniBuyRate ?? null,
     updatedAt: latest.createdAt,
   }
 }
@@ -3484,7 +3506,7 @@ export function createInitialPayoutControlChanges(): PayoutControlChange[] {
   ]
 }
 
-// ─── Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`) ───
+// ─── Metode Pembayaran (`sot/api/payment-methods.yaml`) ───
 // Seed persis tabel `bni-integration.md § 4.3.11` (biaya = `pg_fee_va_flat`
 // 4000 / `pg_fee_qris_pct` 0.7 dari fee config tiruan). Tiruan ini meniru
 // PRODUCTION: DurianPay SNAP terpasang (barisnya tersedia), baris MOCK tidak
