@@ -21,6 +21,7 @@ import type { RedeemApprovalListItem } from '@/lib/types'
 
 beforeAll(() => server.listen())
 afterEach(() => {
+  localStorage.removeItem('usdx:cols:redeem-approvals')
   server.resetHandlers()
   server.events.removeAllListeners()
   resetMockData()
@@ -33,6 +34,11 @@ const OLDEST_CUSTOMER = 'Fajar Ramadhan'
 /** Baris dengan nama menurut bank BERBEDA dari nama pada order. */
 const MISMATCH_CUSTOMER = 'Dewi Kartika'
 const MISMATCH_BANK_NAME = 'SRI WAHYUNI'
+
+/** Kolom "Bukti pembakaran" tersembunyi secara bawaan (ops-fokus, Okt 2026). */
+function showBurnColumn() {
+  localStorage.setItem('usdx:cols:redeem-approvals', JSON.stringify({ burnTx: true }))
+}
 
 function setup(staffId = 'stf_2') {
   return renderWithProviders(<RedeemApprovalsPage />, {
@@ -111,6 +117,26 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
         screen.getAllByRole('button', { name: /Setujui pencairan RDM/i })[0]!,
       )
       const dialog = await screen.findByRole('dialog')
+
+      // Pagar konvensi angka. Ini dialog tempat operator MENYETUJUI PENCAIRAN,
+      // dan barisnya dulu berbunyi "Kurs terpakai 16250.0000 (dasar 16000.00,
+      // spread jual 2.00%)" tepat di bawah empat baris yang sudah lewat
+      // `formatIdrExact`. Satu dialog, dua ejaan — dan perbaikannya sempat
+      // tidak punya satu pun test: kedua field dikembalikan ke bentuk mentah
+      // dan seluruh suite tetap hijau.
+      //
+      // Ditaruh di test INI, bukan di test "rincian gagal dimuat": di sana blok
+      // kursnya memang sengaja tidak ada, jadi pagarnya akan hampa.
+      // POSITIF, bukan negatif. Versi negatif (`not.toMatch(/\d\.\d{4,}/)`)
+      // terbukti buta di sini: nilai tiruannya `16167.60` — dua desimal, jadi
+      // mengembalikan field ini ke bentuk mentah TIDAK memerahkan apa pun,
+      // sementara `baseRate` di sebelahnya tetap menyuplai "IDR/USD" sehingga
+      // assertion positif yang longgar pun lolos.
+      await waitFor(() =>
+        expect(within(dialog).getByText(/16\.167,60 IDR\/USD/)).toBeInTheDocument()
+      )
+      expect(dialog.textContent ?? '').not.toMatch(/\d\.\d{4,}/)
+
       await user.click(within(dialog).getByRole('button', { name: /^Setujui pencairan$/ }))
 
       // Baris hilang HANYA kalau daftarnya benar-benar ditarik ulang setelah
@@ -176,6 +202,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
         within(dialog).getByText('Nama pada order dan nama menurut bank sama.'),
       ).toBeInTheDocument()
       expect(within(dialog).queryByTestId('payout-name-mismatch')).not.toBeInTheDocument()
+
     })
 
     test('should link the burn hash straight to the block explorer from the row', async () => {
@@ -183,6 +210,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       // per baris berarti satu baris `pii_access_audit` per baris — mencatat akses
       // PII untuk orang yang tidak sedang membuka PII siapa pun.
       server.use(http.get('/api/v1/redeem-approvals', () => okList([row()])))
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 
@@ -193,6 +221,14 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       )
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    })
+
+    test('should hide the burn hash column by default (ops-fokus) — no hash in front', async () => {
+      server.use(http.get('/api/v1/redeem-approvals', () => okList([row()])))
+      setup()
+      await screen.findByText('Budi Santoso')
+      expect(screen.queryByRole('link', { name: /0xfeed0000/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/0xfeed/)).not.toBeInTheDocument()
     })
 
     test('should mark a partner order — it passes through the same gate', async () => {
@@ -447,6 +483,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       server.use(
         http.get('/api/v1/redeem-approvals', () => okList([row({ burnTxHash: null })])),
       )
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 
@@ -490,6 +527,7 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
           }),
         ),
       )
+      showBurnColumn()
       setup()
       await screen.findByText('Budi Santoso')
 
@@ -524,6 +562,77 @@ describe('RedeemApprovalsPage @ USDX-669', () => {
       await user.click(await screen.findByRole('button', { name: /Tolak pencairan RDM26B/i }))
       dialog = await screen.findByRole('dialog')
       expect(within(dialog).getByLabelText('Alasan penolakan')).toHaveValue('')
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOMINAL DAN NOMOR REKENING HARUS BISA DIBACA UTUH — PEMBLOKIR.
+//
+// Komentar pada kolom "Rekening tujuan" berbunyi "Nomor PENUH, tidak dipotong:
+// nomor yang terpotong tidak bisa dicocokkan". Yang membuat kalimat itu benar
+// dulu adalah `break-all` (nomornya turun baris daripada terpotong); kelasnya
+// dibuang saat sel dipaksa satu baris, dan tidak ada penggantinya — jadi
+// komentarnya berbohong dan nomornya terpotong tanpa tanda.
+//
+// LEBARNYA diukur di `e2e/usdx-lebar-sel.spec.ts`; NILAI UTUHNYA dikunci di sini.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `title` terdekat ke atas dari sebuah simpul teks, sampai batas selnya.
+ *
+ * Judulnya tidak selalu di elemen yang memegang teks: baris "Bank Negara
+ * Indonesia 009" adalah satu `title` di pembungkusnya dengan `<span>` kode bank
+ * di dalamnya. Yang dijaga adalah pertanyaan operator — "nilai penuhnya masih
+ * bisa saya baca?" — bukan di elemen mana atributnya kebetulan dipasang.
+ */
+function titleTerdekat(el: HTMLElement, batas: HTMLElement): string | null {
+  let cur: HTMLElement | null = el
+  while (cur && cur !== batas.parentElement) {
+    const t = cur.getAttribute('title')
+    if (t) return t
+    cur = cur.parentElement
+  }
+  return null
+}
+
+describe('RedeemApprovalsPage — nilai uang & rekening tidak pernah hilang', () => {
+  describe('positive', () => {
+    test('setiap sel Nominal / Rekening tujuan / Dibakar membawa title berisi teksnya', async () => {
+      const { container } = setup()
+      await screen.findByText(OLDEST_CUSTOMER)
+      const tanpaTitle: string[] = []
+      for (const row of container.querySelectorAll<HTMLElement>('tbody tr')) {
+        for (const kolom of ['amount', 'destination', 'burnedAt']) {
+          const sel = row.querySelector<HTMLElement>(`[data-col="${kolom}"]`)
+          if (!sel) continue
+          for (const span of sel.querySelectorAll<HTMLElement>('span')) {
+            const teks = span.textContent?.trim() ?? ''
+            if (!teks || span.querySelector('span')) continue
+            const title = titleTerdekat(span, sel)
+            if (!title || !title.includes(teks)) {
+              tanpaTitle.push(`${kolom}: "${teks}" (title=${title ?? 'tidak ada'})`)
+            }
+          }
+        }
+      }
+      expect(tanpaTitle).toEqual([])
+    })
+
+    test('nomor rekening dirender UTUH, bukan disamarkan atau dipendekkan', async () => {
+      // Pagar terhadap "dipendekkan supaya muat": kalau seseorang memasang
+      // `shortHash`-style truncation di sini, gerbang ini jadi teater.
+      const { container } = setup()
+      await screen.findByText(OLDEST_CUSTOMER)
+      const sel = container.querySelector<HTMLElement>(
+        'tbody tr [data-col="destination"]',
+      )!
+      const nomor = [...sel.querySelectorAll<HTMLElement>('span')]
+        .map((s) => s.textContent?.trim() ?? '')
+        .find((t) => /^\d{8,}$/.test(t))
+      expect(nomor, 'nomor rekening penuh tidak ditemukan di sel').toBeTruthy()
+      expect(nomor).not.toContain('…')
+      expect(nomor).not.toContain('*')
     })
   })
 })

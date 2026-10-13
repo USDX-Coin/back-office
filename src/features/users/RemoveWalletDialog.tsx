@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useRemoveWallet } from './hooks'
 import type { PhaseOneUserWallet } from '@/lib/types'
+import { toastError } from '@/lib/errorToast'
 
 interface RemoveWalletDialogProps {
   open: boolean
@@ -31,10 +32,10 @@ export default function RemoveWalletDialog({
     if (!wallet) return
     try {
       await remove.mutateAsync(wallet.id)
-      toast.success('Wallet removed')
+      toast.success('Wallet dihapus')
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't remove the wallet. Please try again.")
+      toastError(err, 'Wallet gagal dihapus. Coba lagi.')
     }
   }
 
@@ -51,13 +52,13 @@ export default function RemoveWalletDialog({
         onPointerDownOutside={(e) => remove.isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Remove wallet?</DialogTitle>
+          <DialogTitle>Hapus wallet ini?</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <DialogDescription>
             {wallet
-              ? `Remove ${wallet.chain} wallet ${wallet.address}? This cannot be undone.`
-              : 'No wallet selected.'}
+              ? `Wallet ${wallet.chain} ${wallet.address} dilepas dari nasabah ini. Wallet ini tidak bisa dipakai lagi untuk mint dan redeem, dan alamatnya harus diketik ulang kalau mau dipasang kembali.`
+              : 'Belum ada wallet yang dipilih.'}
           </DialogDescription>
         </DialogBody>
         <DialogFooter>
@@ -67,7 +68,7 @@ export default function RemoveWalletDialog({
             onClick={() => onOpenChange(false)}
             disabled={remove.isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -75,7 +76,7 @@ export default function RemoveWalletDialog({
             disabled={remove.isPending}
             className="bg-destructive text-primary-foreground hover:bg-destructive/90"
           >
-            {remove.isPending ? 'Removing…' : 'Remove'}
+            {remove.isPending ? 'Menghapus…' : 'Hapus wallet'}
           </Button>
         </DialogFooter>
       </DialogContent>

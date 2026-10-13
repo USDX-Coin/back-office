@@ -34,28 +34,43 @@ function loginAsStaffRole(email: string) {
   return staff
 }
 
+
+/**
+ * Audit layout Pengaturan (11 Okt 2026): form ubah biaya tinggal di dialog yang
+ * dibuka dari tombol "Ubah biaya" di kartu "Biaya saat ini".
+ */
+async function openFeeForm() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: /^ubah biaya$/i }))
+  await screen.findByRole('dialog', { name: /ubah biaya/i })
+}
+
 describe('FeeConfigPage @integration', () => {
   describe('AC: open /settings/fee shows current config', () => {
-    test('shows mint / PG / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
+    test('shows mint / redeem / disbursement fees from GET /api/v1/fee-config', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
       await waitFor(() => {
-        expect(screen.getByLabelText(/mint fee percent/i)).toHaveTextContent('1%')
+        expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('1%')
       })
-      expect(screen.getByLabelText(/pg fee va flat/i)).toHaveTextContent(/4\.000/)
-      expect(screen.getByLabelText(/pg fee qris percent/i)).toHaveTextContent('0.7%')
+      // rev-16 (`fee.yaml`): PG fee VA/QRIS DEPRECATED — not shown as an
+      // active number; the card points to Metode Pembayaran instead.
+      expect(screen.queryByLabelText(/biaya va flat/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/persen biaya qris/i)).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Metode Pembayaran' })).toHaveAttribute('href', '/settings/payment-methods')
       // Redeem fields (W3, USDX-245).
-      expect(screen.getByLabelText(/redeem fee percent/i)).toHaveTextContent('1%')
-      expect(screen.getByLabelText(/disbursement fee flat/i)).toHaveTextContent(/5\.000/)
+      expect(screen.getByLabelText(/persen biaya redeem/i)).toHaveTextContent('1%')
+      expect(screen.getByLabelText(/biaya pencairan flat/i)).toHaveTextContent(/5\.000/)
     })
   })
 
   describe('AC: ADMIN sees update form', () => {
     test('renders the update form for the default ADMIN operator', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       expect(
-        await screen.findByRole('button', { name: /update fee config/i }),
+        await screen.findByRole('button', { name: /simpan biaya baru/i }),
       ).toBeInTheDocument()
-      expect(screen.queryByText(/your role does not have permission/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/tidak berwenang mengubah biaya/i)).not.toBeInTheDocument()
     })
   })
 
@@ -64,10 +79,10 @@ describe('FeeConfigPage @integration', () => {
       loginAsStaffRole('marcus.a@usdx.io') // compliance → STAFF
       renderWithProviders(<FeeConfigPage />)
       expect(
-        await screen.findByText(/your role does not have permission/i),
+        await screen.findByText(/tidak berwenang mengubah biaya/i),
       ).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: /update fee config/i }),
+        screen.queryByRole('button', { name: /simpan biaya baru/i }),
       ).not.toBeInTheDocument()
     })
 
@@ -75,7 +90,7 @@ describe('FeeConfigPage @integration', () => {
       loginAsStaffRole('marcus.a@usdx.io')
       renderWithProviders(<FeeConfigPage />)
       await waitFor(() => {
-        expect(screen.getByLabelText(/mint fee percent/i)).toBeInTheDocument()
+        expect(screen.getByLabelText(/persen biaya mint/i)).toBeInTheDocument()
       })
     })
   })
@@ -84,31 +99,33 @@ describe('FeeConfigPage @integration', () => {
     test('full flow: edit mint fee, submit, see the new value in the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
 
-      const mintInput = (await screen.findByLabelText(/^mint fee$/i)) as HTMLInputElement
+      const mintInput = (await screen.findByLabelText(/^biaya mint$/i)) as HTMLInputElement
       // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
       // (kolom `numeric(5,4)`), dan validator form hanya menerima dua desimal.
       await waitFor(() => expect(mintInput.value).toBe('1'))
 
       await user.clear(mintInput)
       await user.type(mintInput, '2.5')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/mint fee percent/i)).toHaveTextContent('2.5%')
+        expect(screen.getByLabelText(/persen biaya mint/i)).toHaveTextContent('2,5%')
       })
     })
 
     test('blank mint fee blocks submit with a validation error', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
-      const mintInput = (await screen.findByLabelText(/^mint fee$/i)) as HTMLInputElement
+      await openFeeForm()
+      const mintInput = (await screen.findByLabelText(/^biaya mint$/i)) as HTMLInputElement
       // Prefill DIPANGKAS nol belakangnya: API mengembalikan `'1.0000'`
       // (kolom `numeric(5,4)`), dan validator form hanya menerima dua desimal.
       await waitFor(() => expect(mintInput.value).toBe('1'))
       await user.clear(mintInput)
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
-      expect(await screen.findByText(/mint fee is required/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
+      expect(await screen.findByText(/biaya mint wajib diisi/i)).toBeInTheDocument()
     })
   })
 })
@@ -119,8 +136,9 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
   describe('AC: open the page → the field carries the active value', () => {
     test('card and input both show the active minimum mint from GET', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/20\.000/)
+        expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
       })
       const input = screen.getByLabelText(/^minimum mint \(rp\)$/i) as HTMLInputElement
       await waitFor(() => expect(input.value).toBe('20000'))
@@ -138,6 +156,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         }),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -145,10 +164,10 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
 
       await user.clear(input)
       await user.type(input, '5000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       expect(
-        await screen.findByText(/minimum mint must be at least 10,000/i),
+        await screen.findByText(/minimum mint minimal 10\.000/i),
       ).toBeInTheDocument()
       expect(posts).toBe(0)
     })
@@ -158,6 +177,7 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
     test('full flow: raise the minimum, submit, read it back from the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
@@ -165,16 +185,19 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
 
       await user.clear(input)
       await user.type(input, '15000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/15\.000/)
+        expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/15\.000/)
       })
 
-      await user.clear(input)
-      await user.type(input, '20000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      // Tersimpan = dialog tertutup; ubah lagi = buka dialognya lagi.
+      await openFeeForm()
+      const again = (await screen.findByLabelText(/^minimum mint \(rp\)$/i)) as HTMLInputElement
+      await user.clear(again)
+      await user.type(again, '20000')
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/20\.000/)
+        expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
       })
     })
 
@@ -191,21 +214,20 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         }),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
       await waitFor(() => expect(input.value).toBe('20000'))
       await user.clear(input)
       await user.type(input, '12000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       await waitFor(() => expect(body).not.toBeNull())
       // Append-only: POST replaces the whole row, so a partial body would zero
       // the fees the operator did not touch (USDX-245).
       expect(body).toEqual({
         mintFeePct: '1',
-        pgFeeVaFlat: '4000',
-        pgFeeQrisPct: '0.7',
         redeemFeePct: '1',
         disbursementFeeFlat: '5000',
         minMintIdr: '12000',
@@ -220,14 +242,14 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
       loginAsStaffRole('marcus.a@usdx.io') // compliance → STAFF
       renderWithProviders(<FeeConfigPage />)
       expect(
-        await screen.findByText(/your role does not have permission/i),
+        await screen.findByText(/tidak berwenang mengubah biaya/i),
       ).toBeInTheDocument()
       expect(
         screen.queryByLabelText(/^minimum mint \(rp\)$/i),
       ).not.toBeInTheDocument()
       // The active value is still readable — read is open to every role.
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/20\.000/)
+        expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
       })
     })
   })
@@ -252,13 +274,14 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
       await waitFor(() => expect(input.value).toBe('20000'))
       await user.clear(input)
       await user.type(input, '15000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       const inlineError = await screen.findByText(/minMintIdr must be at least 25000/)
       expect(inlineError).toBeInTheDocument()
@@ -285,11 +308,12 @@ describe('FeeConfigPage — Minimum Mint (USDX-637) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = (await screen.findByLabelText(
         /^minimum mint \(rp\)$/i,
       )) as HTMLInputElement
       await waitFor(() => expect(input.value).toBe('20000'))
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       expect(
         await screen.findByText(/fee config is locked while settlement runs/i),
@@ -333,8 +357,9 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
   describe('positive', () => {
     test('the field carries the active value from GET, and the card shows it too', async () => {
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+        expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent(/20\.000/)
       })
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
@@ -348,42 +373,42 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const bodies = recordFeeConfigBodies()
       const statuses = recordFeeConfigStatuses()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       await waitFor(() => expect(statuses).toEqual([201]))
       expect(bodies).toHaveLength(1)
       expect(bodies[0]).toEqual({
         mintFeePct: '1',
-        pgFeeVaFlat: '4000',
-        pgFeeQrisPct: '0.7',
         redeemFeePct: '1',
         disbursementFeeFlat: '5000',
         minMintIdr: '20000',
         minRedeemIdr: '20000',
       })
       // Nothing was refused, so no validation message appeared on the form.
-      expect(screen.queryByText(/minimum redeem is required/i)).not.toBeInTheDocument()
-      expect(screen.queryByText(/must be at least/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/minimum redeem wajib diisi/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/minimum redeem minimal/i)).not.toBeInTheDocument()
     })
 
     test('raising the minimum is saved and read back from the card', async () => {
       const user = userEvent.setup()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
       await user.clear(input)
       await user.type(input, '35000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/35\.000/)
+        expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent(/35\.000/)
       })
       // The mint minimum was not dragged along by the edit.
-      expect(screen.getByLabelText(/minimum mint idr/i)).toHaveTextContent(/20\.000/)
+      expect(screen.getByLabelText(/minimum mint aktif/i)).toHaveTextContent(/20\.000/)
     })
   })
 
@@ -392,13 +417,14 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const user = userEvent.setup()
       const bodies = recordFeeConfigBodies()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
       await user.clear(input)
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
-      expect(await screen.findByText(/minimum redeem is required/i)).toBeInTheDocument()
+      expect(await screen.findByText(/minimum redeem wajib diisi/i)).toBeInTheDocument()
       expect(bodies).toHaveLength(0)
     })
 
@@ -406,31 +432,32 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
       const user = userEvent.setup()
       const bodies = recordFeeConfigBodies()
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
 
       await user.clear(input)
       await user.type(input, '5000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       expect(
-        await screen.findByText(/minimum redeem must be at least 10,000/i),
+        await screen.findByText(/minimum redeem minimal 10\.000/i),
       ).toBeInTheDocument()
       expect(bodies).toHaveLength(0)
       // The active value is untouched.
-      expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+      expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent(/20\.000/)
     })
 
     test('STAFF gets the read-only view — no minimum redeem input at all', async () => {
       loginAsStaffRole('marcus.a@usdx.io') // compliance → STAFF
       renderWithProviders(<FeeConfigPage />)
       expect(
-        await screen.findByText(/your role does not have permission/i),
+        await screen.findByText(/tidak berwenang mengubah biaya/i),
       ).toBeInTheDocument()
       expect(screen.queryByLabelText(/^minimum redeem \(rp\)$/i)).not.toBeInTheDocument()
       // Reading the active value stays open to every role.
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent(/20\.000/)
+        expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent(/20\.000/)
       })
     })
   })
@@ -455,11 +482,12 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       const input = await minRedeemInput()
       await waitFor(() => expect(input.value).toBe('20000'))
       await user.clear(input)
       await user.type(input, '15000')
-      await user.click(screen.getByRole('button', { name: /update fee config/i }))
+      await user.click(screen.getByRole('button', { name: /simpan biaya baru/i }))
 
       expect(await screen.findByText(/minRedeemIdr must be at least 25000/)).toBeInTheDocument()
       // Typed value intact, and the mint field was not blamed for it.
@@ -492,8 +520,9 @@ describe('FeeConfigPage — Minimum Redeem (USDX-682) @integration', () => {
         ),
       )
       renderWithProviders(<FeeConfigPage />, { authenticated: true })
+      await openFeeForm()
       await waitFor(() => {
-        expect(screen.getByLabelText(/minimum redeem idr/i)).toHaveTextContent('—')
+        expect(screen.getByLabelText(/minimum redeem aktif/i)).toHaveTextContent('—')
       })
     })
   })

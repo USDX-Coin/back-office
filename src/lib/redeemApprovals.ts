@@ -1,3 +1,4 @@
+import { humanizeError } from './errorMessages'
 /**
  * Aturan murni layar Persetujuan Pencairan (USDX-669, `sot/api/redeem-approvals.yaml`).
  *
@@ -308,7 +309,7 @@ export function redeemApprovalErrorMessage(err: unknown): string {
     if (err.status >= 500) {
       return 'Server gagal memproses permintaan ini. Tidak ada yang berubah — coba lagi.'
     }
-    return err.message
+    return humanizeError(err).message
   }
   if (err instanceof Error) return err.message
   return 'Permintaan gagal.'

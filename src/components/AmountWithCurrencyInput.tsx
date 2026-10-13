@@ -76,9 +76,9 @@ export default function AmountWithCurrencyInput({
         ? `≈ ${formatIdrAmount(amountNum * rateNum)}`
         : `≈ ${formatUsdxAmount(amountNum / rateNum)}`
   } else if (rateLoading) {
-    preview = 'Loading rate…'
+    preview = 'Kurs sedang dimuat…'
   } else if (rateError) {
-    preview = 'Rate unavailable — backend will compute conversion at submit.'
+    preview = 'Kurs belum terbaca — konversinya dihitung server saat request dikirim.'
   }
 
   function handleCurrencyChange(next: string) {
@@ -97,8 +97,8 @@ export default function AmountWithCurrencyInput({
           together. */}
       <div
         className={cn(
-          'flex h-9 items-stretch rounded-md border border-input bg-secondary text-sm ring-offset-background',
-          'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+          'flex h-9 items-stretch rounded-md border border-input bg-secondary text-sm',
+          'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring/55',
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
@@ -111,7 +111,7 @@ export default function AmountWithCurrencyInput({
           onChange={(e) => onAmountChange(e.target.value)}
           placeholder="0"
           disabled={disabled}
-          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 shadow-none focus-visible:outline-none focus-visible:ring-0"
           aria-invalid={Boolean(amountError)}
         />
         <span aria-hidden="true" className="my-1.5 w-px bg-border/70" />
@@ -123,15 +123,15 @@ export default function AmountWithCurrencyInput({
           <SelectTrigger
             id={currencyId}
             aria-invalid={Boolean(currencyError)}
-            aria-label="Currency"
-            className="h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0"
+            aria-label="Mata uang"
+            className="tabular-nums h-full w-auto shrink-0 gap-1.5 rounded-none border-0 bg-transparent px-3 text-sm shadow-none focus:outline-none focus:ring-0"
           >
             <span>{currency}</span>
           </SelectTrigger>
           <SelectContent align="end">
             {CURRENCIES.map((c) => (
               <SelectItem key={c.value} value={c.value}>
-                <span className="font-mono">{c.value}</span>
+                <span className="tabular-nums">{c.value}</span>
                 <span className="ml-2 text-muted-foreground">({c.hint})</span>
               </SelectItem>
             ))}

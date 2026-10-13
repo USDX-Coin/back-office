@@ -14,43 +14,100 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/rate')
+      // Audit Pengaturan 11 Okt 2026: form ubah di dialog dari tombol kartu.
+      await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
 
       const buy = page.getByLabel(/spread beli/i)
       await expect(buy).toBeVisible({ timeout: 15000 })
 
       // Seeded mode is MANUAL → manual rate is required for a valid submit.
-      await page.getByLabel(/manual rate/i).fill('16300')
+      await page.getByLabel(/kurs manual/i).fill('16300')
       await buy.fill('2.5')
       await page.getByLabel(/spread jual/i).fill('1.5')
 
-      await page.getByRole('button', { name: /review and update/i }).click()
+      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
       const dialog = page.getByRole('dialog')
       await expect(dialog.getByText(/spread beli/i)).toBeVisible()
       await expect(dialog.getByText(/spread jual/i)).toBeVisible()
-      await dialog.getByRole('button', { name: /yes, update rate/i }).click()
+      await dialog.getByRole('button', { name: /ya, ubah kurs/i }).click()
+
+      // Tunggu dialognya benar-benar tertutup dulu. Nilai spread yang sama juga
+      // tercetak di dalam dialog konfirmasi, jadi menegaskannya selagi dialog
+      // masih di DOM memicu strict-mode violation, bukan kegagalan sungguhan.
+      await expect(page.getByRole('dialog')).toHaveCount(0)
 
       // After save + refetch, the current-rate card reflects the new spreads.
-      await expect(page.getByText('2.5%')).toBeVisible()
-      await expect(page.getByText('1.5%')).toBeVisible()
+      // Ejaannya id-ID sejak konvensi angka diseragamkan: koma desimal, bukan titik.
+      await expect(page.getByText('2,5%')).toBeVisible()
+      await expect(page.getByText('1,5%')).toBeVisible()
+    })
+
+    // USDX-767 — D25: kurs BNI dari wondr + markup Virtual Account (Y).
+    test('USDX-767 — admin sets the BNI rate and the VA markup; both show on the card', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/rate')
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD', { timeout: 15000 })
+      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.412,50 IDR/USD')
+
+      const posts: Record<string, unknown>[] = []
+      page.on('request', (req) => {
+        if (req.method() === 'POST' && req.url().includes('/api/v1/rate')) posts.push(req.postDataJSON())
+      })
+      await page.getByRole('button', { name: 'Ubah kurs' }).click()
+      await page.getByLabel(/kurs manual/i).fill('16250')
+      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('16390.50')
+      await page.getByRole('textbox', { name: /markup virtual account/i }).fill('2')
+      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
+      const dialog = page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i })
+      await expect(dialog.getByText('16.390,50 IDR/USD')).toBeVisible()
+      await dialog.getByRole('button', { name: /ya, ubah kurs/i }).click()
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+
+      expect(posts).toHaveLength(1)
+      expect(posts[0]).toMatchObject({ bniBuyRate: '16390.50', gatewayMarkupPct: '2' })
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.390,50 IDR/USD')
+      // 16.250 × 1,02 = 16.575
+      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.575,00 IDR/USD')
+    })
+
+    test('USDX-767 — a BNI rate outside [base, base +10%] is refused by the server and shown at the field', async ({ page }) => {
+      await installMockApi(page)
+      await seedAuthenticatedSession(page)
+      await page.goto('/settings/rate')
+      await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
+      await page.getByLabel(/kurs manual/i).fill('16250')
+      // Petunjuk rentang terlihat sebelum simpan: 16.250 sampai +10%.
+      await expect(page.getByTestId('bni-rate-range')).toContainText('16.250,00 IDR/USD – 17.875,00 IDR/USD')
+      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('20000')
+      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
+      await page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i }).getByRole('button', { name: /ya, ubah kurs/i }).click()
+      await expect(page.getByText(/ditolak server: kurs bni 20000\.00 di luar rentang wajar/i)).toBeVisible()
+      // Yang berlaku tidak berubah.
+      await page.getByRole('button', { name: 'Batal' }).click()
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD')
     })
 
     test('AC #3 — admin updates fee config and the new mint fee is active', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       // Target inputs by id — the card reuses similar aria-labels, so a
       // label-text match would be ambiguous.
       const mint = page.locator('#mintFeePct')
       await expect(mint).toBeVisible({ timeout: 15000 })
       await mint.fill('2.5')
-      await page.locator('#pgFeeVaFlat').fill('5000')
-      await page.locator('#pgFeeQrisPct').fill('0.8')
+      // rev-16 (`fee.yaml`): PG fee VA/QRIS tidak lagi di form — biaya bayar
+      // diatur per metode di Metode Pembayaran.
+      await expect(page.locator('#pgFeeVaFlat')).toHaveCount(0)
+      await expect(page.locator('#pgFeeQrisPct')).toHaveCount(0)
 
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
       // Card (aria-label "mint fee percent") reflects the new active config.
-      await expect(page.getByLabel(/mint fee percent/i)).toHaveText('2.5%')
+      await expect(page.getByLabel(/persen biaya mint/i)).toHaveText('2,5%')
     })
 
     // USDX-637 — Minimum Mint (Rp) rides in the same snapshot.
@@ -58,6 +115,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minMint = page.locator('#minMintIdr')
       await expect(minMint).toBeVisible({ timeout: 15000 })
@@ -65,9 +123,9 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(minMint).toHaveValue('20000')
 
       await minMint.fill('15000')
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
-      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/15\.000/)
+      await expect(page.getByLabel(/minimum mint aktif/i)).toHaveText(/15\.000/)
     })
 
     // USDX-682 — Minimum Redeem (Rp) rides in the same snapshot, and the mock
@@ -79,6 +137,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minRedeem = page.locator('#minRedeemIdr')
       await expect(minRedeem).toBeVisible({ timeout: 15000 })
@@ -86,27 +145,28 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(minRedeem).toHaveValue('20000')
 
       // Not one field touched — the whole point of the AC.
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
       // Nothing was refused: the card still reads the active config back.
-      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/20\.000/)
-      await expect(page.getByLabel(/mint fee percent/i)).toHaveText('1%')
-      await expect(page.getByText(/is required/i)).toHaveCount(0)
+      await expect(page.getByLabel(/minimum redeem aktif/i)).toHaveText(/20\.000/)
+      await expect(page.getByLabel(/persen biaya mint/i)).toHaveText('1%')
+      await expect(page.getByText(/wajib diisi/i)).toHaveCount(0)
     })
 
     test('USDX-682 — admin raises the minimum redeem and the card shows it', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       const minRedeem = page.locator('#minRedeemIdr')
       await expect(minRedeem).toBeVisible({ timeout: 15000 })
       await minRedeem.fill('35000')
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
-      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/35\.000/)
+      await expect(page.getByLabel(/minimum redeem aktif/i)).toHaveText(/35\.000/)
       // The mint minimum was not dragged along.
-      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/20\.000/)
+      await expect(page.getByLabel(/minimum mint aktif/i)).toHaveText(/20\.000/)
     })
   })
 
@@ -119,6 +179,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       let posted = false
       page.on('request', (req) => {
@@ -128,12 +189,12 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       const minMint = page.locator('#minMintIdr')
       await expect(minMint).toBeVisible({ timeout: 15000 })
       await minMint.fill('5000')
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
-      await expect(page.getByText(/minimum mint must be at least 10,000/i)).toBeVisible()
+      await expect(page.getByText(/minimum mint minimal 10\.000/i)).toBeVisible()
       expect(posted).toBe(false)
       // The active value is untouched.
-      await expect(page.getByLabel(/minimum mint idr/i)).toHaveText(/20\.000/)
+      await expect(page.getByLabel(/minimum mint aktif/i)).toHaveText(/20\.000/)
     })
 
     test('USDX-682 — minimum redeem below the floor is refused inline, no request', async ({
@@ -142,6 +203,7 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
+      await page.getByRole('button', { name: 'Ubah biaya' }).click({ timeout: 15000 })
 
       let posted = false
       page.on('request', (req) => {
@@ -151,11 +213,11 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       const minRedeem = page.locator('#minRedeemIdr')
       await expect(minRedeem).toBeVisible({ timeout: 15000 })
       await minRedeem.fill('5000')
-      await page.getByRole('button', { name: /update fee config/i }).click()
+      await page.getByRole('button', { name: /simpan biaya baru/i }).click()
 
-      await expect(page.getByText(/minimum redeem must be at least 10,000/i)).toBeVisible()
+      await expect(page.getByText(/minimum redeem minimal 10\.000/i)).toBeVisible()
       expect(posted).toBe(false)
-      await expect(page.getByLabel(/minimum redeem idr/i)).toHaveText(/20\.000/)
+      await expect(page.getByLabel(/minimum redeem aktif/i)).toHaveText(/20\.000/)
     })
   })
 
@@ -180,12 +242,13 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/fee')
 
-      await expect(page.getByText(/your role does not have permission/i)).toBeVisible({
+      await expect(page.getByText(/tidak berwenang mengubah/i)).toBeVisible({
         timeout: 15000,
       })
-      await expect(page.getByRole('button', { name: /update fee config/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /simpan biaya baru/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Ubah biaya' })).toHaveCount(0)
       // The current config is still readable.
-      await expect(page.getByLabel(/mint fee percent/i)).toBeVisible()
+      await expect(page.getByLabel(/persen biaya mint/i)).toBeVisible()
     })
 
     test('DEVELOPER sees the rate page read-only (no update form)', async ({ page }) => {
@@ -208,10 +271,11 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/settings/rate')
 
-      await expect(page.getByText(/your role does not have permission/i)).toBeVisible({
+      await expect(page.getByText(/tidak berwenang mengubah/i)).toBeVisible({
         timeout: 15000,
       })
-      await expect(page.getByRole('button', { name: /review and update/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: /tinjau dan ubah/i })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Ubah kurs' })).toHaveCount(0)
     })
   })
 })

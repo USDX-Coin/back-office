@@ -17,12 +17,11 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
     test('sidebar → queue → detail → SETTLED_MANUAL drops the row and shows the trail', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
-
-      await page.getByRole('link', { name: /pencairan bermasalah/i }).click()
-      await expect(page).toHaveURL(/\/payout-failures$/)
+      // Fase 2 (SOT PR #50): antrean ini dilebur ke Transaksi dan tidak lagi di
+      // navigasi; halamannya tetap hidup lewat URL ("Buka di antrean" di panel).
+      await page.goto('/payout-failures')
       await expect(page.getByRole('heading', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2')
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2')
 
       await page.getByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ }).click()
       const detail = page.getByRole('dialog', { name: /Pencairan bermasalah/ })
@@ -45,7 +44,7 @@ test.describe('USDX-662 Pencairan Bermasalah @e2e', () => {
       await expect(page.getByTestId('resolved-note')).toContainText('Dibayar di luar sistem')
       await expect(page.getByTestId('reviews')).toContainText('TRX-778812')
 
-      await detail.getByRole('button', { name: 'Tutup', exact: true }).click()
+      await detail.getByRole('button', { name: 'Tutup dialog' }).click()
       await expect(page).toHaveURL(/\/payout-failures$/)
       await expect(page.getByRole('button', { name: /Buka detail pencairan RINA SUSANTI/ })).toHaveCount(0)
       await expect(page.getByRole('button', { name: /Buka detail pencairan DEWI KARTIKA/ })).toBeVisible()

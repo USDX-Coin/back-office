@@ -1,556 +1,189 @@
-import { describe, test, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import Sidebar from '@/components/layout/Sidebar'
 import { renderWithProviders } from '@/test/test-utils'
 import { server } from '@/mocks/server'
 
-// USDX-50: sidebar layout = 3 sections (WORKSPACE / OTC / SETTINGS) per
-// sot/phase-1.md § Sidebar L452-467 and Linear AC #1.
+// Redesain fase 1: lima menu utama, tiga di antaranya grup yang bisa dilipat.
+// Bentuk menu per peran dikunci di `navItems.test.ts`; yang dikunci DI SINI
+// adalah yang benar-benar dirender Sidebar — terutama angka antreannya, yang
+// tidak boleh pernah berbohong (belum terbaca ≠ nol).
 
 beforeAll(() => server.listen())
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  server.events.removeAllListeners()
+})
 afterAll(() => server.close())
 
-describe('Sidebar @ USDX-50', () => {
-  describe('layout (admin)', () => {
-    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(screen.getByText(/workspace/i)).toBeInTheDocument()
-      expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
-      expect(screen.getByText(/settings/i)).toBeInTheDocument()
-      // USDX-87: Manual Sync lives in its own Troubleshooting section.
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
-    })
+const ADMIN = 'stf_1'
+const STAFF = 'stf_4'
 
-    test('renders all admin nav links', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      // WORKSPACE
-      expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^staff$/i })).toBeInTheDocument()
-      // OTC
-      expect(screen.getByRole('link', { name: /^mint$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^burn$/i })).toBeInTheDocument()
-      // SETTINGS
-      expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      // USDX-485 — kontak on-call insiden uang (Settings, ADMIN saja).
-      expect(screen.getByRole('link', { name: /^on-call$/i })).toBeInTheDocument()
-      // TROUBLESHOOTING (USDX-87)
-      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
-    })
+function queueCounts(data: Record<string, number>) {
+  return http.get('/api/v1/queue-counts', () => HttpResponse.json({ status: 'success', metadata: null, data }))
+}
+
+function total(path: string, n: number) {
+  return http.get(path, () =>
+    HttpResponse.json({ status: 'success', metadata: { page: 1, limit: 1, total: n }, data: [] }),
+  )
+}
+
+function recordRequests() {
+  const calls: string[] = []
+  server.events.on('request:start', ({ request }) => {
+    const url = new URL(request.url)
+    calls.push(url.pathname + url.search)
   })
+  return calls
+}
 
-  describe('regression guards (Linear AC: removed entries)', () => {
-    test('does not render Profile (navbar dropdown only)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(screen.queryByRole('link', { name: /profile/i })).not.toBeInTheDocument()
+function renderSidebar(path = '/transactions', staffId = ADMIN) {
+  return renderWithProviders(<Sidebar />, { initialEntries: [path], staffId })
+}
+
+describe('Sidebar (redesain fase 1)', () => {
+  describe('positive', () => {
+    test('should show the original USDX lockup, not the old "U" box or a typed wordmark', () => {
+      renderSidebar()
+      const aside = screen.getByRole('complementary')
+      expect(aside.querySelector('img[src="/image/logo-lockup.png"]')).not.toBeNull()
+      expect(within(aside).queryByText('USDX')).not.toBeInTheDocument()
+      expect(within(aside).queryByText(/^U$/)).not.toBeInTheDocument()
     })
 
-    test('does not render removed entries (Redeem, Mint request, Requests, Notifications, Report)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(screen.queryByRole('link', { name: /^redeem$/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /mint request/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^requests$/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^notifications$/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^report$/i })).not.toBeInTheDocument()
-    })
-  })
-
-  describe('role gating', () => {
-    test('Staff link hidden for non-admin (Flag-A: hidden per Linear)', () => {
-      // stf_4 = Sarah King (STAFF role) per data.ts seed factory.
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4',
-      })
-      expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
+    test('should render the top-level link and four collapsible groups (OTC ▸ Mint / Redeem)', () => {
+      renderSidebar('/otc/mint')
+      expect(screen.getByRole('link', { name: /^Transaksi/ })).toHaveAttribute('href', '/transactions')
+      expect(screen.getByRole('link', { name: /^Mint/ })).toHaveAttribute('href', '/otc/mint')
+      expect(screen.getByRole('link', { name: /^Redeem/ })).toHaveAttribute('href', '/otc/redeem')
+      for (const g of ['OTC', 'Nasabah', 'Keuangan', 'Pengaturan']) {
+        expect(screen.getByRole('button', { name: new RegExp(`^${g}`) })).toHaveAttribute('aria-expanded')
+      }
     })
 
-    test('SETTINGS section hidden for STAFF role (Flag-B)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // STAFF role
-      })
-      expect(screen.queryByRole('link', { name: /^rate$/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^threshold$/i })).not.toBeInTheDocument()
+    test('should open the group that holds the current page and mark the page', () => {
+      renderSidebar('/verifikasi')
+      expect(screen.getByRole('button', { name: /^Nasabah/ })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('link', { name: /^Verifikasi/ })).toHaveAttribute('aria-current', 'page')
+      expect(screen.getByRole('button', { name: /^Pengaturan/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
-    // USDX-485 (audit P1-18): On-Call di-gate di level ITEM, lebih ketat dari
-    // section-nya. Daftar itu memuat nomor telepon (PII → ADMIN saja per
-    // conventions.md § Audit Akses PII) dan menentukan siapa yang boleh menarik
-    // rem darurat payout — DEVELOPER melihat Rate/Fee/Threshold, tapi tidak ini.
-    test('On-Call link hidden for DEVELOPER even though the SETTINGS section is visible (USDX-485)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_3', // Marcus Aurelius DEVELOPER
-      })
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
+    test('should fold a group open/closed and remember the choice', async () => {
+      const user = userEvent.setup()
+      const { unmount } = renderSidebar()
+      const btn = screen.getByRole('button', { name: /^Keuangan/ })
+      expect(screen.queryByRole('link', { name: 'Rekening BNI' })).not.toBeInTheDocument()
+      await user.click(btn)
+      expect(btn).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('link', { name: 'Rekening BNI' })).toBeInTheDocument()
+      unmount()
+      renderSidebar()
+      expect(screen.getByRole('button', { name: /^Keuangan/ })).toHaveAttribute('aria-expanded', 'true')
     })
 
-    test('On-Call link hidden for STAFF (USDX-485)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // STAFF role
-      })
-      expect(screen.queryByRole('link', { name: /^on-call$/i })).not.toBeInTheDocument()
+    test('should show transactionsNeedsAction on Transaksi from ONE queue-counts request (not a sum of queues)', async () => {
+      const calls = recordRequests()
+      server.use(queueCounts({ redeemApprovalsOpen: 12, payoutFailuresOpen: 5, heldCreditsOpen: 3, approvalsOpen: 2, transactionsNeedsAction: 17 }))
+      renderSidebar()
+      expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('17')
+      expect(calls.filter((c) => c.startsWith('/api/v1/queue-counts'))).toEqual(['/api/v1/queue-counts'])
+      // Never the PII-decrypting lists for a count.
+      expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
+      expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
+      expect(calls.some((c) => c.startsWith('/api/v1/held-credits'))).toBe(false)
     })
 
-    test('SETTINGS section visible for DEVELOPER role (Flag-B: SoT § Backoffice Role System grants System Config)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_3', // Marcus Aurelius DEVELOPER
-      })
-      expect(screen.getByRole('link', { name: /^rate$/i })).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: /^threshold$/i })).toBeInTheDocument()
-      // Staff entry stays hidden (admin only) even for DEVELOPER per Flag-A.
-      expect(screen.queryByRole('link', { name: /^staff$/i })).not.toBeInTheDocument()
-    })
-
-    // Transparency lives under COMPLIANCE but carries the settings-level read
-    // gate. There is no draft state in this model — an entry is public the
-    // moment it is recorded — so the reason to restrict the menu is what the
-    // page EXPOSES: the internal `reason` of every ledger entry and the name of
-    // the staff member who filed it, neither of which appears publicly.
-    // Recording is ADMIN-only inside the page, and the route itself is guarded
-    // (see AuthGuard.test.tsx) — this only controls menu noise.
-    test('Compliance > Transparency visible to ADMIN and DEVELOPER, hidden for STAFF and MANAGER', () => {
-      const { unmount: unmountAdmin } = renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true, // ADMIN
-      })
-      expect(
-        screen.getByRole('link', { name: /^transparency$/i })
-      ).toHaveAttribute('href', '/transparency')
-      unmountAdmin()
-
-      // The half the old version of this test never actually checked, despite
-      // its name.
-      const { unmount: unmountDev } = renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_3', // Marcus Aurelius, DEVELOPER
-      })
-      expect(
-        screen.getByRole('link', { name: /^transparency$/i })
-      ).toHaveAttribute('href', '/transparency')
-      unmountDev()
-
-      const { unmount: unmountStaff } = renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // STAFF role
-      })
-      expect(
-        screen.queryByRole('link', { name: /^transparency$/i })
-      ).not.toBeInTheDocument()
-      unmountStaff()
-
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_2', // Linda Chen, MANAGER
-      })
-      expect(
-        screen.queryByRole('link', { name: /^transparency$/i })
-      ).not.toBeInTheDocument()
-    })
-
-    // USDX-87: Manual Sync is an emergency recovery surface — every role
-    // (incl. STAFF who has no Settings access) must see it.
-    test('Troubleshooting > Manual Sync visible to STAFF role', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // STAFF role
-      })
-      expect(screen.getByRole('link', { name: /manual sync/i })).toBeInTheDocument()
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('badge counter (sot/phase-1.md § Sidebar)', () => {
-    test('shows (N) badge on Mint when there are PENDING_APPROVAL requests', async () => {
+    test('should count OTC requests needing action per sub-menu (PENDING_APPROVAL + APPROVED)', async () => {
+      const calls = recordRequests()
       server.use(
         http.get('/api/v1/requests', ({ request }) => {
-          const url = new URL(request.url)
-          const type = url.searchParams.get('type')
-          const status = url.searchParams.get('status')
-          if (type === 'mint' && status === 'PENDING_APPROVAL') {
-            return HttpResponse.json({
-              status: 'success',
-              metadata: { page: 1, limit: 1, total: 7 },
-              data: [],
-            })
-          }
-          return HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 0 },
-            data: [],
-          })
-        })
+          const n = new URL(request.url).searchParams.get('type') === 'mint' ? 4 : 1
+          return HttpResponse.json({ status: 'success', metadata: { page: 1, limit: 1, total: n }, data: [] })
+        }),
       )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      const badge = await screen.findByTestId('nav-badge-mint')
-      expect(badge).toHaveTextContent('7')
+      renderSidebar('/otc/mint')
+      expect(await screen.findByTestId('nav-badge-otc-mint')).toHaveTextContent('4')
+      expect(await screen.findByTestId('nav-badge-otc-redeem')).toHaveTextContent('1')
+      expect(calls).toContain('/api/v1/requests?status=PENDING_APPROVAL,APPROVED&type=mint&limit=1')
+      expect(calls).toContain('/api/v1/requests?status=PENDING_APPROVAL,APPROVED&type=burn&limit=1')
     })
 
-    test('hides badge entirely when count is 0', async () => {
+    test('should show the group total on a CLOSED group and the item count when open', async () => {
+      const user = userEvent.setup()
+      server.use(total('/api/v1/kyc', 2), total('/api/v1/kyb', 1), total('/api/v1/screening/results', 3))
+      renderSidebar()
+      // Nasabah closed: 2 + 1 + 3.
+      expect(await screen.findByTestId('nav-badge-grup-nasabah')).toHaveTextContent('6')
+      await user.click(screen.getByRole('button', { name: /^Nasabah/ }))
+      expect(screen.queryByTestId('nav-badge-grup-nasabah')).not.toBeInTheDocument()
+      expect(screen.getByTestId('nav-badge-verifikasi')).toHaveTextContent('3')
+      expect(screen.getByTestId('nav-badge-screening')).toHaveTextContent('3')
+    })
+  })
+
+  describe('negative', () => {
+    test('should not render the OTC lists — nor fire their count query — for STAFF', async () => {
+      const calls = recordRequests()
+      server.use(queueCounts({ redeemApprovalsOpen: 1, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 1 }))
+      renderSidebar('/transactions', STAFF)
+      await screen.findByTestId('nav-badge-transactions')
+      await userEvent.setup().click(screen.getByRole('button', { name: /^OTC/ }))
+      expect(screen.getByRole('link', { name: 'Buat mint' })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^Mint$/ })).not.toBeInTheDocument()
+      expect(calls.some((c) => c.startsWith('/api/v1/requests'))).toBe(false)
+    })
+
+    test('a FAILED queue-counts reads "belum terbaca", never a made-up number or a clean queue', async () => {
       server.use(
-        http.get('/api/v1/requests', () =>
-          HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 0 },
-            data: [],
-          })
-        )
+        http.get('/api/v1/queue-counts', () =>
+          HttpResponse.json({ status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } }, { status: 500 }),
+        ),
       )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      // Wait for the query to resolve, then assert no badge testid is present.
-      // queryByTestId is sufficient because the badge node only renders when
-      // the count is > 0 (per Linear AC: hide angka, label saja saat 0).
-      expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
-    })
-  })
-
-  // USDX-678 — badge Persetujuan Pencairan (USDX-669) dan Pencairan Bermasalah (USDX-662)
-  // dibaca dari `GET /api/v1/queue-counts`, BUKAN dari list `take=1`: list keduanya
-  // mendekripsi rekening dan menulis `pii_access_audit` per baris (sot/api/queue-counts.yaml).
-  // Kedua antrean terbuka untuk SEMUA peran, jadi badge-nya juga — berbeda dari Mint/Burn.
-  describe('USDX-678 — badge antrean dari queue-counts', () => {
-    function queueCounts(data: { payoutFailuresOpen: number; redeemApprovalsOpen: number }) {
-      return http.get('/api/v1/queue-counts', () =>
-        HttpResponse.json({ status: 'success', metadata: null, data })
-      )
-    }
-
-    function recordRequests() {
-      const calls: string[] = []
-      server.events.on('request:start', ({ request }) => {
-        const url = new URL(request.url)
-        calls.push(url.pathname + url.search)
-      })
-      return calls
-    }
-
-    afterEach(() => server.events.removeAllListeners())
-
-    describe('positive', () => {
-      test('shows payoutFailuresOpen and redeemApprovalsOpen on their entries', async () => {
-        server.use(queueCounts({ payoutFailuresOpen: 3, redeemApprovalsOpen: 4 }))
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('3')
-        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('4')
-      })
-
-      test('reads both badges from ONE queue-counts request and never pulls the lists', async () => {
-        const calls = recordRequests()
-        server.use(queueCounts({ payoutFailuresOpen: 1, redeemApprovalsOpen: 2 }))
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        await screen.findByTestId('nav-badge-redeem-approvals')
-        expect(calls.filter((c) => c.startsWith('/api/v1/queue-counts'))).toEqual(['/api/v1/queue-counts'])
-        expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
-        expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
-      })
-
-      test('Pencairan Bermasalah sits in the Treasury section (Linear: sidebar TREASURY/OPS)', async () => {
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        const link = await screen.findByRole('link', { name: /pencairan bermasalah/i })
-        const section = link.closest('div.flex.flex-col')
-        expect(section).not.toBeNull()
-        expect(section!.firstElementChild).toHaveTextContent(/treasury/i)
-      })
+      renderSidebar()
+      expect(await screen.findByTestId('nav-badge-transactions-galat')).toHaveAccessibleName('Jumlah antrean belum terbaca')
+      expect(screen.queryByTestId('nav-badge-transactions')).not.toBeInTheDocument()
     })
 
-    describe('negative', () => {
-      test('hides the badge of an empty queue while the other queue still shows its count', async () => {
-        server.use(queueCounts({ payoutFailuresOpen: 0, redeemApprovalsOpen: 7 }))
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        // Badge yang TAMPIL membuktikan jawaban queue-counts sudah mendarat — tanpa itu
-        // "tidak ada badge" lolos juga sebelum request selesai.
-        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('7')
-        expect(screen.queryByTestId('nav-badge-payout-failures')).not.toBeInTheDocument()
-      })
-
-      test('a failing queue-counts request shows no badge instead of a made-up number', async () => {
-        const calls = recordRequests()
-        const settled: string[] = []
-        server.events.on('response:mocked', ({ request }) => {
-          settled.push(new URL(request.url).pathname)
-        })
-        server.use(
-          http.get('/api/v1/queue-counts', () =>
-            HttpResponse.json(
-              { status: 'error', metadata: null, data: null, error: { code: 'INTERNAL_ERROR', message: 'boom' } },
-              { status: 500 }
-            )
-          )
-        )
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        // Tunggu jawaban 500-nya benar-benar mendarat, lalu beri React satu putaran render.
-        await waitFor(() => expect(settled).toContain('/api/v1/queue-counts'))
-        await new Promise((resolve) => setTimeout(resolve, 50))
-        expect(screen.queryByTestId('nav-badge-payout-failures')).not.toBeInTheDocument()
-        expect(screen.queryByTestId('nav-badge-redeem-approvals')).not.toBeInTheDocument()
-        // Tidak ada jalan pintas kembali ke list yang mendekripsi PII saat hitungan gagal.
-        expect(calls.some((c) => c.startsWith('/api/v1/payout-failures'))).toBe(false)
-        expect(calls.some((c) => c.startsWith('/api/v1/redeem-approvals'))).toBe(false)
-      })
-    })
-
-    describe('edge cases', () => {
-      test('renders both entries and badges for STAFF too — the queues are readable by every role', async () => {
-        server.use(queueCounts({ payoutFailuresOpen: 5, redeemApprovalsOpen: 2 }))
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          staffId: 'stf_4', // STAFF
-        })
-        expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('5')
-        expect(await screen.findByTestId('nav-badge-redeem-approvals')).toHaveTextContent('2')
-        expect(screen.getByRole('link', { name: /pencairan bermasalah/i })).toHaveAttribute(
-          'href',
-          '/payout-failures'
-        )
-        expect(screen.getByRole('link', { name: /persetujuan pencairan/i })).toHaveAttribute(
-          'href',
-          '/redeem-approvals'
-        )
-      })
-
-      test('caps a large count at 99+', async () => {
-        server.use(queueCounts({ payoutFailuresOpen: 140, redeemApprovalsOpen: 0 }))
-        renderWithProviders(<Sidebar />, {
-          initialEntries: ['/dashboard'],
-          authenticated: true,
-        })
-        expect(await screen.findByTestId('nav-badge-payout-failures')).toHaveTextContent('99+')
-      })
-    })
-  })
-
-  // USDX-78 — STAFF can't access /mint /burn lists (sot/phase-1.md L34 +
-  // L653-655). Sidebar redirects Mint/Burn straight to the form and hides
-  // the (N) badge so STAFF doesn't see a counter they can't act on.
-  describe('USDX-78 — STAFF sidebar', () => {
-    test('STAFF Mint link targets /mint/new instead of /mint', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // Sarah King (STAFF)
-      })
-      const mintLink = screen.getByRole('link', { name: /^mint$/i })
-      expect(mintLink).toHaveAttribute('href', '/mint/new')
-    })
-
-    test('STAFF Burn link targets /burn/new instead of /burn', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4',
-      })
-      const burnLink = screen.getByRole('link', { name: /^burn$/i })
-      expect(burnLink).toHaveAttribute('href', '/burn/new')
-    })
-
-    test('STAFF never sees the Mint/Burn (N) badge', async () => {
-      // Even if a stale handler returned a count, the Sidebar disables the
-      // count query for STAFF and never renders a badge.
+    test('a zero count renders no badge at all', async () => {
       server.use(
-        http.get('/api/v1/requests', () =>
-          HttpResponse.json({
-            status: 'success',
-            metadata: { page: 1, limit: 1, total: 99 },
-            data: [],
-          })
-        )
+        queueCounts({ redeemApprovalsOpen: 0, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0 }),
+        total('/api/v1/requests', 0),
       )
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4',
-      })
-      expect(screen.queryByTestId('nav-badge-mint')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('nav-badge-burn')).not.toBeInTheDocument()
+      renderSidebar()
+      await waitFor(() => expect(screen.queryByTestId('nav-badge-transactions-galat')).not.toBeInTheDocument())
+      await new Promise((r) => setTimeout(r, 50))
+      expect(screen.queryByTestId('nav-badge-transactions')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-grup-otc')).not.toBeInTheDocument()
     })
   })
 
-  // Sidebar outgrew the viewport once the Reporting + Troubleshooting sections
-  // landed, and MainLayout clips overflow (h-screen overflow-hidden) — so the
-  // nav itself must scroll. jsdom performs no layout, so guard the classes
-  // that make it scrollable (min-h-0 lets the flex child shrink below its
-  // content height; without it overflow-y-auto never engages).
-  describe('scrollable nav (sidebar taller than viewport)', () => {
-    test('nav scrolls independently of the pinned header/footer', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      const nav = screen.getByRole('navigation')
-      expect(nav).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
-    })
-  })
-
-  // USDX-154 — COMPLIANCE group + KYC Review (N) badge. Visible to every role
-  // (week1.md § Authorization Guard: list is Admin/Manager/Staff/Developer);
-  // unlike Mint/Burn the badge also renders for STAFF.
-  describe('USDX-154 — COMPLIANCE / KYC Review', () => {
-    function kycCount(total: number) {
-      return http.get('/api/v1/kyc', () =>
-        HttpResponse.json({
-          status: 'success',
-          metadata: { page: 1, limit: 1, total },
-          data: [],
-        })
-      )
-    }
-
-    test('renders Compliance section with a KYC Review link to /kyc (admin)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(screen.getByText(/compliance/i)).toBeInTheDocument()
-      const link = screen.getByRole('link', { name: /kyc review/i })
-      expect(link).toHaveAttribute('href', '/kyc')
+  describe('edge cases', () => {
+    test('transactionsNeedsAction absent (backend before SOT PR #50) hides the Transaksi badge', async () => {
+      // Kontrak queue-counts.yaml: kunci opsional selama DRAF — "FE sembunyikan badge bila absen".
+      server.use(queueCounts({ redeemApprovalsOpen: 4, payoutFailuresOpen: 3, heldCreditsOpen: 1, approvalsOpen: 0 }))
+      renderSidebar()
+      await new Promise((r) => setTimeout(r, 100))
+      expect(screen.queryByTestId('nav-badge-transactions')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-badge-transactions-galat')).not.toBeInTheDocument()
     })
 
-    test('shows (N) badge with the PENDING submission count', async () => {
-      server.use(kycCount(5))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      const badge = await screen.findByTestId('nav-badge-kyc')
-      expect(badge).toHaveTextContent('5')
+    test('caps a large count at 99+', async () => {
+      server.use(queueCounts({ redeemApprovalsOpen: 150, payoutFailuresOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 150 }))
+      renderSidebar()
+      expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('99+')
     })
 
-    test('hides the badge when the PENDING count is 0', async () => {
-      server.use(kycCount(0))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      // Link renders; badge node only mounts when count > 0.
-      await screen.findByRole('link', { name: /kyc review/i })
-      expect(screen.queryByTestId('nav-badge-kyc')).not.toBeInTheDocument()
+    test('the nav scrolls independently of the pinned header/footer', () => {
+      renderSidebar()
+      expect(screen.getByRole('navigation', { name: 'Navigasi utama' })).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
     })
 
-    test('STAFF sees KYC Review with the badge (list is staff-accessible, unlike /mint)', async () => {
-      server.use(kycCount(3))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // Sarah King (STAFF)
-      })
-      const link = screen.getByRole('link', { name: /kyc review/i })
-      expect(link).toHaveAttribute('href', '/kyc')
-      const badge = await screen.findByTestId('nav-badge-kyc')
-      expect(badge).toHaveTextContent('3')
-    })
-
-    test('DEVELOPER sees KYC Review (view-only role still gets the list menu)', async () => {
-      server.use(kycCount(2))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_3', // Marcus Aurelius (DEVELOPER)
-      })
-      expect(screen.getByRole('link', { name: /kyc review/i })).toBeInTheDocument()
-      const badge = await screen.findByTestId('nav-badge-kyc')
-      expect(badge).toHaveTextContent('2')
-    })
-  })
-
-  // USDX-546 — KYB Review joins the same COMPLIANCE group, with the same
-  // visibility rule as KYC Review (all roles read; acting is gated inside the
-  // detail). Its own entry rather than a tab under KYC: the two carry different
-  // data and KYB additionally has a manual data-entry form.
-  describe('USDX-546 — COMPLIANCE / KYB Review', () => {
-    function kybCount(total: number) {
-      return http.get('/api/v1/kyb', () =>
-        HttpResponse.json({
-          status: 'success',
-          metadata: { page: 1, limit: 1, total },
-          data: [],
-        })
-      )
-    }
-
-    // `/api/v1/kyb` is real-backend-only now — its MSW handler was deleted with
-    // USDX-546 — so the badge query has nothing to answer it unless a test says
-    // so. Stub zero by default; the tests that care about the number override it.
-    beforeEach(() => {
-      server.use(kybCount(0))
-    })
-
-    test('renders a KYB Review link to /kyb (admin)', () => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      expect(screen.getByRole('link', { name: /kyb review/i })).toHaveAttribute(
-        'href',
-        '/kyb'
-      )
-    })
-
-    test('shows (N) badge with the PENDING record count', async () => {
-      server.use(kybCount(4))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      const badge = await screen.findByTestId('nav-badge-kyb')
-      expect(badge).toHaveTextContent('4')
-    })
-
-    test('hides the badge when the PENDING count is 0', async () => {
-      server.use(kybCount(0))
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        authenticated: true,
-      })
-      await screen.findByRole('link', { name: /kyb review/i })
-      expect(screen.queryByTestId('nav-badge-kyb')).not.toBeInTheDocument()
-    })
-
-    test.each([
-      ['STAFF', 'stf_4'],
-      ['MANAGER', 'stf_2'],
-      ['DEVELOPER', 'stf_3'],
-    ])('%s also sees KYB Review', (_role, staffId) => {
-      renderWithProviders(<Sidebar />, {
-        initialEntries: ['/dashboard'],
-        staffId,
-      })
-      expect(screen.getByRole('link', { name: /kyb review/i })).toBeInTheDocument()
+    test('Transaksi stays highlighted on the old queue pages it now stands for', () => {
+      renderSidebar('/payout-failures')
+      expect(screen.getByRole('link', { name: /^Transaksi/ })).toHaveAttribute('aria-current', 'page')
     })
   })
 })

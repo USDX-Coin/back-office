@@ -27,9 +27,9 @@ test.describe('USDX-156 users activation @e2e', () => {
       // Filter PENDING → only rows with emailVerifiedAt null remain
       // (Pending Pat + Failed Fia; failed implies not verified).
       await page.getByRole('button', { name: /^filter/i }).click()
-      await page.getByRole('combobox', { name: 'Activation' }).click()
-      await page.getByRole('option', { name: /^pending$/i }).click()
-      await page.getByRole('button', { name: /^apply$/i }).click()
+      await page.getByRole('combobox', { name: 'Aktivasi' }).click()
+      await page.getByRole('option', { name: /^menunggu aktivasi$/i }).click()
+      await page.getByRole('button', { name: /^terapkan$/i }).click()
 
       await expect(page).toHaveURL(/activationStatus=PENDING/)
       await expect(page.getByText('Pending Pat')).toBeVisible()
@@ -51,17 +51,17 @@ test.describe('USDX-156 users activation @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto(`/users/${PENDING_ACTIVATION_USER.id}`)
 
-      const resendBtn = page.getByRole('button', { name: /resend activation link/i })
+      const resendBtn = page.getByRole('button', { name: /kirim ulang tautan aktivasi/i })
       await expect(resendBtn).toBeVisible({ timeout: 15000 })
       await resendBtn.click()
 
-      const dialog = page.getByRole('dialog', { name: /resend activation link\?/i })
+      const dialog = page.getByRole('dialog', { name: /kirim ulang tautan aktivasi\?/i })
       await expect(dialog.getByText(PENDING_ACTIVATION_USER.email)).toBeVisible()
-      await dialog.getByRole('button', { name: /^resend$/i }).click()
+      await dialog.getByRole('button', { name: /^kirim ulang$/i }).click()
 
-      await expect(page.getByText(/activation email sent/i)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText(/email aktivasi terkirim/i)).toBeVisible({ timeout: 10000 })
       // 60s client cooldown arms immediately.
-      const cooldownBtn = page.getByRole('button', { name: /resend available in \d+s/i })
+      const cooldownBtn = page.getByRole('button', { name: /bisa dikirim ulang dalam \d+ dtk/i })
       await expect(cooldownBtn).toBeVisible()
       await expect(cooldownBtn).toBeDisabled()
     })
@@ -71,9 +71,9 @@ test.describe('USDX-156 users activation @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto(`/users/${FAILED_ACTIVATION_USER.id}`)
 
-      await expect(page.getByText(/activation email failed to send/i)).toBeVisible({ timeout: 15000 })
+      await expect(page.getByText(/email aktivasi gagal terkirim/i)).toBeVisible({ timeout: 15000 })
       await expect(page.getByTestId('activation-badge-failed')).toBeVisible()
-      await expect(page.getByRole('button', { name: /resend activation link/i })).toBeVisible()
+      await expect(page.getByRole('button', { name: /kirim ulang tautan aktivasi/i })).toBeVisible()
     })
   })
 
@@ -84,8 +84,8 @@ test.describe('USDX-156 users activation @e2e', () => {
       await page.goto(`/users/${VERIFIED_USER.id}`)
 
       await expect(page.getByTestId('activation-badge-activated')).toBeVisible({ timeout: 15000 })
-      await expect(page.getByText(/email verified ·/i)).toBeVisible()
-      await expect(page.getByRole('button', { name: /resend activation link/i })).toHaveCount(0)
+      await expect(page.getByText(/email terverifikasi ·/i)).toBeVisible()
+      await expect(page.getByRole('button', { name: /kirim ulang tautan aktivasi/i })).toHaveCount(0)
     })
 
     test('second resend within 60s surfaces the 429 toast', async ({ page }) => {
@@ -109,15 +109,15 @@ test.describe('USDX-156 users activation @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto(`/users/${PENDING_ACTIVATION_USER.id}`)
 
-      await page.getByRole('button', { name: /resend activation link/i }).click({ timeout: 15000 })
+      await page.getByRole('button', { name: /kirim ulang tautan aktivasi/i }).click({ timeout: 15000 })
       await page
-        .getByRole('dialog', { name: /resend activation link\?/i })
-        .getByRole('button', { name: /^resend$/i })
+        .getByRole('dialog', { name: /kirim ulang tautan aktivasi\?/i })
+        .getByRole('button', { name: /^kirim ulang$/i })
         .click()
 
-      await expect(page.getByText(/limited to once per 60 seconds/i)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText(/dibatasi satu kali per 60 detik/i)).toBeVisible({ timeout: 10000 })
       // Cooldown arms anyway so the operator can't hammer the endpoint.
-      await expect(page.getByRole('button', { name: /resend available in \d+s/i })).toBeDisabled()
+      await expect(page.getByRole('button', { name: /bisa dikirim ulang dalam \d+ dtk/i })).toBeDisabled()
     })
 
     test('defensive 409 (user verified concurrently) surfaces a toast', async ({ page }) => {
@@ -139,13 +139,13 @@ test.describe('USDX-156 users activation @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto(`/users/${PENDING_ACTIVATION_USER.id}`)
 
-      await page.getByRole('button', { name: /resend activation link/i }).click({ timeout: 15000 })
+      await page.getByRole('button', { name: /kirim ulang tautan aktivasi/i }).click({ timeout: 15000 })
       await page
-        .getByRole('dialog', { name: /resend activation link\?/i })
-        .getByRole('button', { name: /^resend$/i })
+        .getByRole('dialog', { name: /kirim ulang tautan aktivasi\?/i })
+        .getByRole('button', { name: /^kirim ulang$/i })
         .click()
 
-      await expect(page.getByText(/already verified their email/i)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText(/sudah memverifikasi emailnya/i)).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -162,14 +162,14 @@ test.describe('USDX-156 users activation @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/users')
-      await page.getByRole('button', { name: /add user/i }).first().click({ timeout: 15000 })
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click({ timeout: 15000 })
 
-      await page.getByLabel(/^name$/i).fill('Phone Probe')
+      await page.getByLabel(/^nama$/i).fill('Phone Probe')
       await page.getByLabel(/^email$/i).fill(`phone-probe-${Date.now()}@example.test`)
-      await page.getByLabel(/phone \(optional\)/i).fill('+62 812-3456-789')
-      await page.getByRole('button', { name: /create user/i }).click()
+      await page.getByLabel(/telepon \(opsional\)/i).fill('+62 812-3456-789')
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
 
-      await expect(page.getByText(/user created\. activation email sent\./i)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByText(/nasabah dibuat\. email aktivasi terkirim\./i)).toBeVisible({ timeout: 10000 })
       expect(payload).not.toBeNull()
       // Separators stripped before POST; BE normalizes 08xxx → +62xxx.
       expect(payload!.phone).toBe('+628123456789')
@@ -183,14 +183,14 @@ test.describe('USDX-156 users activation @e2e', () => {
       })
       await seedAuthenticatedSession(page)
       await page.goto('/users')
-      await page.getByRole('button', { name: /add user/i }).first().click({ timeout: 15000 })
+      await page.getByRole('button', { name: /tambah nasabah/i }).first().click({ timeout: 15000 })
 
-      await page.getByLabel(/^name$/i).fill('Bad Phone Probe')
+      await page.getByLabel(/^nama$/i).fill('Bad Phone Probe')
       await page.getByLabel(/^email$/i).fill(`bad-phone-${Date.now()}@example.test`)
-      await page.getByLabel(/phone \(optional\)/i).fill('+1 555 0100')
-      await page.getByRole('button', { name: /create user/i }).click()
+      await page.getByLabel(/telepon \(opsional\)/i).fill('+1 555 0100')
+      await page.getByRole('button', { name: /^buat nasabah$/i }).click()
 
-      await expect(page.getByText(/\+62xxx or 08xxx/i)).toBeVisible()
+      await expect(page.getByText(/\+62xxx atau 08xxx/i)).toBeVisible()
       expect(posted).toBe(false)
     })
   })

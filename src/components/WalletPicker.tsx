@@ -82,7 +82,7 @@ export default function WalletPicker({
           id={id}
           value=""
           disabled
-          placeholder="Select chain first"
+          placeholder="Pilih jaringan dulu"
           className="pl-9 font-mono text-sm"
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
@@ -109,7 +109,7 @@ export default function WalletPicker({
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          User belum punya wallet di chain ini — masukkan address manual.
+          Nasabah belum punya wallet di jaringan ini — masukkan alamatnya manual.
         </p>
       </div>
     )
@@ -139,7 +139,7 @@ export default function WalletPicker({
         disabled={disabled}
       >
         <SelectTrigger id={id} aria-invalid={ariaInvalid} aria-describedby={ariaDescribedBy}>
-          <SelectValue placeholder="Select wallet…" />
+          <SelectValue placeholder="Pilih wallet…" />
         </SelectTrigger>
         <SelectContent>
           {wallets.map((w) => (
@@ -147,7 +147,7 @@ export default function WalletPicker({
               {w.address}
             </SelectItem>
           ))}
-          <SelectItem value={OTHER_SENTINEL}>Other (enter address manually)</SelectItem>
+          <SelectItem value={OTHER_SENTINEL}>Lainnya (masukkan alamat manual)</SelectItem>
         </SelectContent>
       </Select>
       {isOtherMode && (
@@ -160,7 +160,7 @@ export default function WalletPicker({
             placeholder="0x…"
             className="pl-9 font-mono text-sm"
             aria-invalid={ariaInvalid}
-            aria-label="Custom wallet address"
+            aria-label="Alamat wallet manual"
           />
         </div>
       )}

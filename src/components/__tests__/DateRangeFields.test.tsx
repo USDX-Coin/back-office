@@ -98,7 +98,7 @@ describe('DateRangeFields', () => {
       expect(onChange).toHaveBeenLastCalledWith({ startDate: '2026-09-01', endDate: '2026-09-12' })
     })
 
-    test('keeps the reports markup: default English labels and report-* ids', () => {
+    test('keeps the reports markup: label bawaan bahasa Indonesia and report-* ids', () => {
       render(
         <DateRangeFields
           idPrefix="report"
@@ -107,8 +107,8 @@ describe('DateRangeFields', () => {
           showMessage={false}
         />
       )
-      expect(screen.getByLabelText('Start date')).toHaveAttribute('id', 'report-start-date')
-      expect(screen.getByLabelText('End date')).toHaveAttribute('id', 'report-end-date')
+      expect(screen.getByLabelText('Tanggal mulai')).toHaveAttribute('id', 'report-start-date')
+      expect(screen.getByLabelText('Tanggal akhir')).toHaveAttribute('id', 'report-end-date')
     })
   })
 
@@ -123,7 +123,7 @@ describe('DateRangeFields', () => {
         />
       )
       expect(screen.getByRole('alert')).toHaveTextContent('31 hari')
-      expect(screen.getByLabelText('End date')).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByLabelText('Tanggal akhir')).toHaveAttribute('aria-invalid', 'true')
     })
 
     test('shows the future-date message when the end date passes maxDate', () => {
@@ -136,7 +136,7 @@ describe('DateRangeFields', () => {
         />
       )
       expect(screen.getByRole('alert')).toHaveTextContent('hari ini')
-      expect(screen.getByLabelText('End date')).toHaveAttribute('max', '2026-09-09')
+      expect(screen.getByLabelText('Tanggal akhir')).toHaveAttribute('max', '2026-09-09')
     })
   })
 

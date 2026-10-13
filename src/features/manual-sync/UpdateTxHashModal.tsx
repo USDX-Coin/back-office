@@ -17,9 +17,11 @@ import FieldError from '@/components/FieldError'
 import { useChainConfig } from '@/features/chains/hooks'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildAddressExplorerUrl } from '@/lib/explorerUrl'
+import { ApiError } from '@/lib/apiFetch'
 import { shortRequestId } from '@/lib/format'
+import { getRequestStatusConfig } from '@/lib/status'
 import { cn } from '@/lib/utils'
-import type { ManualSyncItem } from '@/lib/types'
+import type { ManualSyncItem, RequestStatus } from '@/lib/types'
 import { isInvalidStatusError, useExecuteSync, useVerifyTxHash } from './hooks'
 
 // USDX-87 — Update Transaction Hash modal.
@@ -37,14 +39,27 @@ import { isInvalidStatusError, useExecuteSync, useVerifyTxHash } from './hooks'
 
 const TX_HASH_PATTERN = /^0x[0-9a-fA-F]{64}$/
 
+/**
+ * Pesan gagal periksa: satu kalimat Indonesia yang menyebut SEBABNYA, plus kode
+ * dari server dalam kurung. Kodenya tidak dibuang — itu yang dikutip operator
+ * saat melapor ke tim teknis (pola `unknownStatusLabel()` di `src/lib/status.ts`).
+ */
+function verifyErrorMessage(err: unknown): string {
+  const base =
+    'Bukti transaksinya tidak bisa diperiksa. Tx hash-nya mungkin salah ketik, atau transaksinya bukan milik request ini.'
+  if (err instanceof ApiError && err.code) return `${base} (${err.code})`
+  return base
+}
+
 // Display labels for the canonical field names BE sends back in
 // `MatchResult.fields[].field`. Unknown keys fall through to start-case.
 const FIELD_LABEL: Record<string, string> = {
-  safeAddress: 'Safe Address',
-  amount: 'Amount',
-  destination: 'Destination',
-  idempotencyKey: 'Idempotency Key',
-  safeTxHash: 'Safe Tx Hash',
+  safeAddress: 'Alamat dompet Safe',
+  amount: 'Nominal',
+  destination: 'Alamat tujuan',
+  // "Idempotency key" = kunci yang mencegah satu request tercatat dua kali.
+  idempotencyKey: 'Kode anti-dobel',
+  safeTxHash: 'Nomor antrean tanda tangan',
 }
 
 function fieldLabel(field: string): string {
@@ -112,7 +127,7 @@ export default function UpdateTxHashModal({
     if (!verify.data?.allMatch) return
     try {
       await execute.mutateAsync({ txHash: trimmed })
-      toast.success('Status updated to EXECUTED')
+      toast.success('Status diperbarui — request ini sekarang tercatat sudah dieksekusi.')
       onOpenChange(false)
     } catch (err) {
       if (isInvalidStatusError(err)) {
@@ -120,14 +135,19 @@ export default function UpdateTxHashModal({
         // already executed it). The list refresh is handled by the mutation's
         // onError; surface the new status and auto-close — the row is gone, so
         // keeping the modal open would only let the operator retry a no-op.
-        const currentStatus = err.details.currentStatus
-        toast.error(`Status sudah berubah ke ${currentStatus}. Refresh list.`)
+        // P1-1/P1-5 — dulu kalimat ini mencampur dua bahasa DAN mencetak nilai
+        // enum mentah ("Status sudah berubah ke EXECUTED. Refresh list."). Peta
+        // labelnya sudah ada; yang kurang cuma pemakaiannya di sini.
+        const currentStatus = err.details.currentStatus as RequestStatus
+        toast.error(
+          `Status request ini sudah berubah menjadi "${getRequestStatusConfig(currentStatus).label}". Daftarnya dimuat ulang.`,
+        )
         onOpenChange(false)
         return
       }
       // 400 mismatch / tx-not-found (anti race): surface as a toast and keep
       // the modal open so the operator can amend the tx hash.
-      toast.error("Couldn't confirm the update. Please verify again.")
+      toast.error('Perubahan tidak bisa dikonfirmasi. Periksa ulang bukti transaksinya.')
     }
   }
 
@@ -146,17 +166,21 @@ export default function UpdateTxHashModal({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            <span>Update Transaction Hash</span>
+            <span>Ubah Tx Hash</span>
             <code
-              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] font-medium text-foreground"
+              className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-foreground"
               title={item.id}
             >
               {shortRequestId(item.id)}
             </code>
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-2">
-            <span>Paste the on-chain tx hash and verify it matches the record.</span>
-            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-[11.5px]">
+            <span>
+              Tempelkan tx hash transaksi yang sudah jalan di blockchain.
+              Sistem membandingkannya baris demi baris dengan data request ini
+              sebelum statusnya boleh diubah.
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-label">
               <span className="font-medium text-foreground">
                 {chainCfg?.name ?? item.chain}
               </span>
@@ -171,13 +195,13 @@ export default function UpdateTxHashModal({
 
         <DialogBody className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="manual-sync-tx-hash">Transaction hash</Label>
+            <Label htmlFor="manual-sync-tx-hash">Tx hash</Label>
             <Input
               id="manual-sync-tx-hash"
               value={txHash}
               onChange={(e) => handleTxHashChange(e.target.value)}
               onBlur={() => setTouched(true)}
-              placeholder="0x… (66 chars)"
+              placeholder="0x… (66 karakter)"
               spellCheck={false}
               autoComplete="off"
               className="font-mono text-sm"
@@ -187,12 +211,12 @@ export default function UpdateTxHashModal({
             <FieldError
               message={
                 showFormatError
-                  ? 'Tx hash must be 0x + 64 hex characters.'
+                  ? 'Tx hash harus 0x diikuti 64 karakter hex.'
                   : undefined
               }
             />
             {chainCfg && (
-              <div className="flex flex-wrap items-center gap-3 pt-1 text-[12px]">
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                 <a
                   href={buildAddressExplorerUrl(
                     chainCfg.blockExplorerUrl,
@@ -202,7 +226,7 @@ export default function UpdateTxHashModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
-                  Manager Explorer
+                  Dompet Manager di explorer
                   <ExternalLink className="h-3 w-3" aria-hidden />
                 </a>
                 <a
@@ -214,7 +238,7 @@ export default function UpdateTxHashModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
-                  Staff Explorer
+                  Dompet Staf di explorer
                   <ExternalLink className="h-3 w-3" aria-hidden />
                 </a>
               </div>
@@ -229,7 +253,7 @@ export default function UpdateTxHashModal({
               disabled={verifyDisabled}
               aria-busy={verify.isPending}
             >
-              {verify.isPending ? 'Verifying…' : 'Verify'}
+              {verify.isPending ? 'Memeriksa…' : 'Periksa'}
             </Button>
           </div>
 
@@ -239,13 +263,10 @@ export default function UpdateTxHashModal({
           {verify.isError && !verify.isPending && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Verification failed. The tx hash may be invalid or unrelated to
-                this request.
-              </span>
+              <span>{verifyErrorMessage(verify.error)}</span>
             </div>
           )}
 
@@ -254,22 +275,24 @@ export default function UpdateTxHashModal({
               {!verify.data.allMatch && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive"
+                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    Some data doesn&apos;t match. Please verify the transaction.
+                    Ada data yang tidak cocok. Periksa ulang transaksinya —
+                    selama masih ada yang tidak cocok, statusnya tidak bisa
+                    diubah.
                   </span>
                 </div>
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-[12px]">
-                  <thead className="text-left text-[11px] uppercase tracking-[0.04em] text-muted-foreground">
+                <table className="w-full text-xs">
+                  <thead className="text-left text-xs text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-1.5 font-medium">Field</th>
-                      <th className="px-2 py-1.5 font-medium">Request data</th>
-                      <th className="px-2 py-1.5 font-medium">On-chain</th>
-                      <th className="px-2 py-1.5 font-medium text-right">Match</th>
+                      <th className="px-2 py-1.5 font-medium">Data</th>
+                      <th className="px-2 py-1.5 font-medium">Menurut request</th>
+                      <th className="px-2 py-1.5 font-medium">Di blockchain</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Cocok</th>
                     </tr>
                   </thead>
                   <tbody className="font-mono">
@@ -282,7 +305,7 @@ export default function UpdateTxHashModal({
                         )}
                         data-testid={`comparison-row-${f.field}`}
                       >
-                        <td className="px-2 py-2 font-sans text-[12px] font-medium text-foreground">
+                        <td className="px-2 py-2 font-sans text-xs font-medium text-foreground">
                           {fieldLabel(f.field)}
                         </td>
                         <td className="break-all px-2 py-2 text-foreground">
@@ -295,12 +318,12 @@ export default function UpdateTxHashModal({
                           {f.match ? (
                             <Check
                               className="ml-auto h-4 w-4 text-success"
-                              aria-label="match"
+                              aria-label="cocok"
                             />
                           ) : (
                             <X
                               className="ml-auto h-4 w-4 text-destructive"
-                              aria-label="mismatch"
+                              aria-label="tidak cocok"
                             />
                           )}
                         </td>
@@ -309,6 +332,23 @@ export default function UpdateTxHashModal({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+          {verify.data?.allMatch && (
+            <div
+              role="note"
+              data-testid="manual-sync-consequence"
+              className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-xs text-warning"
+            >
+              <p className="font-medium">
+                Konfirmasi menandai request ini SUDAH DIEKSEKUSI.
+              </p>
+              <p className="mt-0.5">
+                Statusnya memaksa catatan sistem mengikuti transaksi di atas dan
+                tidak bisa dikembalikan dari layar ini. Untuk mint, USDX dihitung
+                sudah terkirim ke wallet nasabah; untuk burn, rupiahnya wajib
+                ditransfer ke rekening nasabah setelah ini.
+              </p>
             </div>
           )}
         </DialogBody>
@@ -320,7 +360,7 @@ export default function UpdateTxHashModal({
             onClick={() => onOpenChange(false)}
             disabled={verify.isPending || execute.isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -328,7 +368,7 @@ export default function UpdateTxHashModal({
             disabled={confirmDisabled}
             aria-busy={execute.isPending}
           >
-            {execute.isPending ? 'Confirming…' : 'Confirm'}
+            {execute.isPending ? 'Mengubah status…' : 'Ya, tandai sudah dieksekusi'}
           </Button>
         </DialogFooter>
       </DialogContent>

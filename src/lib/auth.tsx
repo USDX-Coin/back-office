@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { Staff } from './types'
 import {
@@ -6,12 +6,25 @@ import {
   canRestoreMintProdMode as canRestoreMintProdModeRole,
   canDecideRedeemPayoutRole,
   canResolvePayoutFailureRole,
+  canReadDurianpayApiCallsRole,
 } from './types'
-import { apiFetch, ApiError, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
+import { apiFetch, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
+
+/**
+ * Kenapa sesi terakhir berakhir — dibaca `ProtectedRoute` untuk memilih ke mana
+ * dan dengan pesan apa operator diarahkan ke Login:
+ * - `expired`: server menjawab 401 (dan /auth/me membenarkannya) SAAT ada
+ *   operator yang masuk → Login dengan "Sesimu sudah habis" + kembali ke
+ *   halaman tadi setelah masuk;
+ * - `logout`: operator menekan Keluar → Login polos, tanpa pesan, tanpa tujuan;
+ * - `null`: belum pernah masuk di tab ini (atau baru saja masuk lagi).
+ */
+export type SessionEndReason = 'expired' | 'logout' | null
 
 interface AuthContextType {
   user: Staff | null
   isAuthenticated: boolean
+  sessionEnd: SessionEndReason
   login: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -67,14 +80,22 @@ function readPersistedStaff(): Staff | null {
 // The cookie itself is attached by the browser on every request regardless of
 // React lifecycle, so there's no token-timing race to guard against anymore
 // (the USDX-58 bearer-from-localStorage workaround is no longer needed).
-let authSessionSetter: ((staff: Staff | null) => void) | null = null
+let onSessionExpired: (() => void) | null = null
 
 configureApiFetch({
-  onUnauthorized: () => authSessionSetter?.(null),
+  onUnauthorized: () => onSessionExpired?.(),
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Staff | null>(() => readPersistedStaff())
+  const [sessionEnd, setSessionEnd] = useState<SessionEndReason>(null)
+  // Salinan sinkron `user` untuk callback 401: 401 yang datang saat TIDAK ada
+  // yang masuk (mis. salah kata sandi di layar Login memicu cek ulang /auth/me)
+  // bukan "sesi habis" dan tidak boleh memunculkan pesan itu.
+  const userRef = useRef<Staff | null>(user)
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
 
   useEffect(() => {
     if (user) {
@@ -90,9 +111,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   useEffect(() => {
-    authSessionSetter = setUser
+    onSessionExpired = () => {
+      if (!userRef.current) return
+      userRef.current = null
+      // Dua setState dalam satu callback = satu render: ProtectedRoute melihat
+      // `user === null` bersamaan dengan alasannya.
+      setSessionEnd('expired')
+      setUser(null)
+    }
     return () => {
-      authSessionSetter = null
+      onSessionExpired = null
     }
   }, [])
 
@@ -123,32 +151,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     if (!email.trim() || !password) {
-      throw new Error('Email and password are required')
+      throw new Error('Email dan kata sandi wajib diisi')
     }
-    try {
-      // The server sets the httpOnly session cookie on this response. It also
-      // still returns `accessToken` in the body for backward-compat during the
-      // migration — we deliberately ignore it and never persist it (USDX-392).
-      const data = await apiFetch<{ accessToken?: string; staff: Staff }>(LOGIN_ENDPOINT, {
-        method: 'POST',
-        body: { email, password },
-      })
-      if (!data?.staff) {
-        throw new Error('Malformed login response')
-      }
-      setUser(data.staff)
-    } catch (err) {
-      if (err instanceof ApiError) {
-        throw new Error(err.message)
-      }
-      throw err
+    // `ApiError` dibiarkan naik UTUH (kode + status + pesan server): layar
+    // login menerjemahkannya lewat `humanizeError` dan menaruh kodenya di
+    // "Detail teknis" — bukan menempelkan `(UNAUTHORIZED)` di kalimatnya.
+    // The server sets the httpOnly session cookie on this response. It also
+    // still returns `accessToken` in the body for backward-compat during the
+    // migration — we deliberately ignore it and never persist it (USDX-392).
+    const data = await apiFetch<{ accessToken?: string; staff: Staff }>(LOGIN_ENDPOINT, {
+      method: 'POST',
+      body: { email, password },
+    })
+    if (!data?.staff) {
+      throw new Error('Server menjawab dengan bentuk yang tidak dikenali saat login (respons tanpa data staf)')
     }
+    setSessionEnd(null)
+    setUser(data.staff)
   }, [])
 
   const logout = useCallback(() => {
     // Clear client state first so the UI signs out immediately (no flicker on
     // the redirect to /login). The httpOnly cookie is independent of React
     // state, so it still rides along with the revoke call below.
+    // `logout` (bukan `expired`): Login tampil polos, tanpa pesan sesi habis —
+    // dan 401 yang datang belakangan dari request yang masih berjalan tidak
+    // mengubahnya karena `userRef` sudah kosong.
+    userRef.current = null
+    setSessionEnd('logout')
     setUser(null)
     // Server-side revoke (USDX-392): invalidates the session server-side and
     // clears the cookie (Set-Cookie). Best-effort — the operator is already
@@ -161,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        sessionEnd,
         login,
         logout,
       }}
@@ -334,4 +365,14 @@ export function canResolvePayoutFailure(staff: Staff | null): boolean {
 // kewenangan yang sama dengan memutus satu berkas. BE menegakkan 403 sendiri.
 export function canManageSanctionLists(staff: Staff | null): boolean {
   return staff?.role === 'ADMIN' || staff?.role === 'MANAGER'
+}
+
+// Membaca Log Panggilan DurianPay: MANAGER / ADMIN / DEVELOPER — daftar yang
+// ditulis `@Roles(...)` di `durianpay-api-calls.controller.ts`. STAFF dijawab 403,
+// jadi entri menunya DAN rutenya digerbangi dengan daftar yang sama: menu yang
+// muncul lalu ditolak server adalah cara tercepat membuat orang mengira layarnya
+// rusak. Daftar perannya hidup SEKALI di `canReadDurianpayApiCallsRole`
+// (`lib/types.ts`), dipakai bersama handler MSW. `null` staff = tidak berwenang.
+export function canReadDurianpayApiCalls(staff: Staff | null): boolean {
+  return staff !== null && canReadDurianpayApiCallsRole(staff.role)
 }

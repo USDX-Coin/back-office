@@ -1,152 +1,85 @@
 import { describe, test, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, fireEvent, waitFor, within } from '@testing-library/react'
-import MobileNavDrawer from '@/components/layout/MobileNavDrawer'
+import { screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import MobileNavDrawer from '@/components/layout/MobileNavDrawer'
 import { renderWithProviders } from '@/test/test-utils'
 import { server } from '@/mocks/server'
 
-// USDX-27: the mobile bottom nav + "More" sheet were replaced by a single
-// left-side drawer (opened by the Navbar hamburger) that mirrors the desktop
-// Sidebar — same sections, same role gating.
+// USDX-27: laci menu ponsel. Redesain fase 1: isinya `NavTree` yang SAMA dengan
+// Sidebar — lima menu, tiga grup yang bisa dilipat, angka antrean yang sama.
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderOpen(onOpenChange = vi.fn()) {
+function renderOpen(path = '/transactions', staffId = 'stf_1', onOpenChange = vi.fn()) {
   return {
     onOpenChange,
     ...renderWithProviders(<MobileNavDrawer open onOpenChange={onOpenChange} />, {
-      initialEntries: ['/dashboard'],
-      authenticated: true,
+      initialEntries: [path],
+      staffId,
     }),
   }
 }
 
-describe('MobileNavDrawer @ USDX-27', () => {
-  describe('layout (admin)', () => {
-    test('renders 4 section headers: Workspace / OTC / Settings / Troubleshooting', () => {
+describe('MobileNavDrawer', () => {
+  describe('positive', () => {
+    test('should render the same five menus as the sidebar, with the original lockup', () => {
       renderOpen()
-      expect(screen.getByText(/workspace/i)).toBeInTheDocument()
-      expect(screen.getByText(/^otc$/i)).toBeInTheDocument()
-      expect(screen.getByText(/settings/i)).toBeInTheDocument()
-      // USDX-87: Manual Sync lives in its own Troubleshooting section.
-      expect(screen.getByText(/troubleshooting/i)).toBeInTheDocument()
-    })
-
-    test('renders every admin nav link', () => {
-      renderOpen()
-      for (const name of [
-        /dashboard/i,
-        /^users$/i,
-        /^staff$/i,
-        /^mint$/i,
-        /^burn$/i,
-        /^rate$/i,
-        /^threshold$/i,
-        /manual sync/i,
-      ]) {
-        expect(screen.getByRole('link', { name })).toBeInTheDocument()
+      const dialog = screen.getByRole('dialog')
+      expect(dialog.querySelector('img[src="/image/logo-lockup.png"]')).not.toBeNull()
+      expect(screen.getByRole('link', { name: /^Transaksi/ })).toBeInTheDocument()
+      for (const g of ['OTC', 'Nasabah', 'Keuangan', 'Pengaturan']) {
+        expect(screen.getByRole('button', { name: new RegExp(`^${g}`) })).toBeInTheDocument()
       }
+      expect(screen.getByRole('button', { name: /keluar/i })).toBeInTheDocument()
     })
 
-    test('renders the logout action', () => {
-      renderOpen()
-      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
-    })
-  })
-
-  describe('interaction', () => {
-    test('clicking a nav link closes the drawer', () => {
+    test('should close the drawer after a link is followed', async () => {
+      const user = userEvent.setup()
       const { onOpenChange } = renderOpen()
-      fireEvent.click(screen.getByRole('link', { name: /^mint$/i }))
+      await user.click(screen.getByRole('button', { name: /^Pengaturan/ }))
+      fireEvent.click(screen.getByRole('link', { name: 'Mode Mint' }))
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
-  })
 
-  describe('regression guards', () => {
-    test('does not render removed entries (Requests / OTC splash / Notifications)', () => {
+    test('should show the queue count from the shared queue-counts request', async () => {
+      server.use(
+        http.get('/api/v1/queue-counts', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: { redeemApprovalsOpen: 2, payoutFailuresOpen: 1, heldCreditsOpen: 0, approvalsOpen: 0, transactionsNeedsAction: 3 },
+          }),
+        ),
+      )
       renderOpen()
-      const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-      expect(hrefs).not.toContain('/requests')
-      expect(hrefs).not.toContain('/otc')
-      expect(hrefs).not.toContain('/notifications')
+      expect(await screen.findByTestId('nav-badge-transactions')).toHaveTextContent('3')
     })
   })
 
-  // USDX-678 — badge Pencairan Bermasalah & Persetujuan Pencairan dari queue-counts,
-  // sama dengan Sidebar; tidak ada tarikan list `take=1` yang menulis audit PII palsu.
-  describe('USDX-678 — badge antrean dari queue-counts', () => {
-    afterEach(() => server.events.removeAllListeners())
-
-    describe('positive', () => {
-      test('shows both queue badges from GET /api/v1/queue-counts', async () => {
-        server.use(
-          http.get('/api/v1/queue-counts', () =>
-            HttpResponse.json({
-              status: 'success',
-              metadata: null,
-              data: { payoutFailuresOpen: 6, redeemApprovalsOpen: 3 },
-            })
-          )
-        )
-        renderOpen()
-        const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
-        const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
-        expect(await within(payoutFailures).findByLabelText('6 pending')).toBeInTheDocument()
-        expect(await within(redeemApprovals).findByLabelText('3 pending')).toBeInTheDocument()
-      })
+  describe('negative', () => {
+    test('should give STAFF only the OTC forms, not the OTC lists', () => {
+      renderOpen('/mint/new', 'stf_4')
+      expect(screen.getByRole('link', { name: 'Buat mint' })).toHaveAttribute('href', '/mint/new')
+      expect(screen.getByRole('link', { name: 'Buat redeem' })).toHaveAttribute('href', '/burn/new')
+      expect(screen.queryByRole('link', { name: /^Mint$/ })).not.toBeInTheDocument()
     })
 
-    describe('negative', () => {
-      test('never pulls the PII-decrypting lists for a count', async () => {
-        const calls: string[] = []
-        server.events.on('request:start', ({ request }) => {
-          calls.push(new URL(request.url).pathname)
-        })
-        renderOpen()
-        await waitFor(() => expect(calls).toContain('/api/v1/queue-counts'))
-        expect(calls).not.toContain('/api/v1/payout-failures')
-        expect(calls).not.toContain('/api/v1/redeem-approvals')
-      })
-    })
-
-    describe('edge cases', () => {
-      test('a zero count renders no badge while the other queue still shows its count', async () => {
-        server.use(
-          http.get('/api/v1/queue-counts', () =>
-            HttpResponse.json({
-              status: 'success',
-              metadata: null,
-              data: { payoutFailuresOpen: 0, redeemApprovalsOpen: 2 },
-            })
-          )
-        )
-        renderOpen()
-        const redeemApprovals = screen.getByRole('link', { name: /persetujuan pencairan/i })
-        expect(await within(redeemApprovals).findByLabelText('2 pending')).toBeInTheDocument()
-        const payoutFailures = screen.getByRole('link', { name: /pencairan bermasalah/i })
-        expect(within(payoutFailures).queryByLabelText(/pending/)).not.toBeInTheDocument()
-      })
+    test('should not render the removed menus', () => {
+      renderOpen()
+      for (const old of [/^Beranda/, /^Mint OTC/, /^Burn OTC/, /^Antrean Tanda Tangan/]) {
+        expect(screen.queryByRole('link', { name: old })).not.toBeInTheDocument()
+      }
     })
   })
 
-  // USDX-78 — STAFF on mobile mirrors the desktop sidebar (sot/phase-1.md
-  // L653-655): Mint/Burn target the form directly, no PENDING_APPROVAL badge.
-  describe('USDX-78 — STAFF nav', () => {
-    test('STAFF Mint and Burn target the form routes, no badge', () => {
-      renderWithProviders(<MobileNavDrawer open onOpenChange={vi.fn()} />, {
-        initialEntries: ['/dashboard'],
-        staffId: 'stf_4', // Sarah King (STAFF)
-      })
-      expect(screen.getByRole('link', { name: /^mint$/i })).toHaveAttribute(
-        'href',
-        '/mint/new'
-      )
-      expect(screen.getByRole('link', { name: /^burn$/i })).toHaveAttribute(
-        'href',
-        '/burn/new'
-      )
+  describe('edge cases', () => {
+    test('should open the group of the current page on arrival', () => {
+      renderOpen('/staff')
+      expect(screen.getByRole('button', { name: /^Pengaturan/ })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('link', { name: 'Staf & Peran' })).toHaveAttribute('aria-current', 'page')
     })
   })
 })

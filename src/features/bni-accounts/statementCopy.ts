@@ -47,6 +47,8 @@ export function historyNotice(
   return applied.endDate < historyAvailableSince ? { kind: 'entire', text } : { kind: 'partial', text }
 }
 
+// Format SPEC, bukan format seragam: § 16.8.8 mewajibkan waktu pengapit
+// selisih "diformat seperti kolom Tanggal posting" (`YYYY-MM-DD HH:mm[:ss]`).
 function gapPoint(stamp: string | null | undefined): string | null {
   const formatted = formatBniPostDate(stamp)
   return formatted === '—' ? null : formatted

@@ -77,56 +77,62 @@ export const USDX_REVERT_ABI: Abi = [
 // few; the rest are passed through with the raw code.
 const SAFE_ERROR_CODES: Record<string, string> = {
   GS013:
-    'Safe execution reverted (GS013): the inner call failed and the reason is masked by the Safe (gas=0). Fix the underlying condition (see the simulated reason) and retry, or cancel.',
-  GS020: 'Signatures data too short (GS020).',
-  GS021: 'Invalid contract signature location (GS021).',
-  GS022: 'Invalid contract signature provided (GS022).',
-  GS023: 'Contract signature out of bounds (GS023).',
-  GS024: 'Invalid contract signature (GS024).',
-  GS025: 'Hash has not been approved by an owner (GS025).',
-  GS026: 'Invalid owner provided (GS026): a signature recovers to an address that is not a Safe owner.',
+    'Eksekusi Safe ditolak kontrak (GS013): panggilan di dalamnya gagal dan Safe menutupi alasannya (gas=0). Perbaiki dulu penyebabnya (lihat alasan hasil simulasi) lalu coba lagi, atau batalkan transaksinya.',
+  GS020: 'Data tanda tangan terlalu pendek (GS020).',
+  GS021: 'Letak tanda tangan kontrak tidak sah (GS021).',
+  GS022: 'Tanda tangan kontrak tidak sah (GS022).',
+  GS023: 'Tanda tangan kontrak di luar batas (GS023).',
+  GS024: 'Tanda tangan kontrak tidak sah (GS024).',
+  GS025: 'Hash ini belum disetujui satu owner pun (GS025).',
+  GS026: 'Owner tidak sah (GS026): ada tanda tangan yang mengarah ke alamat yang bukan owner Safe ini.',
 }
 
-// Friendly one-liners for the USDX / OZ custom errors. `args` is whatever
-// decodeErrorResult returned (addresses, bytes32, bigints).
+// Kalimat manusia untuk tiap custom error USDX / OpenZeppelin. `args` adalah apa
+// pun yang dikembalikan decodeErrorResult (alamat, bytes32, bigint).
+//
+// Tiap kalimat MEMBAWA nama error-nya dalam kurung. Operator mengutip nama itu
+// saat melapor ke tim teknis — kalimat Indonesia yang rapi tanpa kodenya membuat
+// laporan jadi "transaksinya ditolak", yang tidak bisa dicari di kode mana pun.
 function humanizeError(name: string, args: readonly unknown[]): string {
   const a0 = args[0] != null ? String(args[0]) : ''
   switch (name) {
     case 'SenderBlacklisted':
-      return `Sender wallet is blacklisted (${a0}).`
+      return `Wallet pengirim ada di daftar blokir (SenderBlacklisted: ${a0}).`
     case 'RecipientBlacklisted':
-      return `Recipient wallet is blacklisted (${a0}).`
+      return `Wallet penerima ada di daftar blokir (RecipientBlacklisted: ${a0}).`
     case 'ApproverBlacklisted':
-      return `Approver wallet is blacklisted (${a0}).`
+      return `Wallet pemberi approval ada di daftar blokir (ApproverBlacklisted: ${a0}).`
     case 'UserNotBlacklisted':
-      return `Address is not blacklisted (${a0}) — nothing to remove.`
+      return `Alamat ini tidak ada di daftar blokir (UserNotBlacklisted: ${a0}) — tidak ada yang bisa dihapus.`
     case 'CannotBlacklistZeroAddress':
-      return 'Cannot blacklist the zero address.'
+      return 'Alamat nol tidak bisa dimasukkan ke daftar blokir (CannotBlacklistZeroAddress).'
     case 'IdempotencyKeyAlreadyUsed':
-      return `Idempotency key already used (${a0}) — this mint/burn was already executed.`
+      return `Idempotency key sudah pernah dipakai (IdempotencyKeyAlreadyUsed: ${a0}) — mint/burn ini sudah pernah dieksekusi.`
     case 'UnsupportedChain':
-      return `Unsupported chain id (${a0}).`
+      return `Chain id ini belum didukung kontrak (UnsupportedChain: ${a0}).`
     case 'ZeroAddressRecipient':
-      return 'Recipient is the zero address.'
+      return 'Penerimanya alamat nol (ZeroAddressRecipient).'
     case 'ZeroAmount':
-      return 'Amount is zero.'
+      return 'Nominalnya nol (ZeroAmount).'
     case 'EnforcedPause':
-      return 'The USDX contract is paused — unpause before this can execute.'
+      return 'Kontrak USDX sedang dihentikan sementara (EnforcedPause) — jalankan kembali dulu sebelum transaksi ini bisa dieksekusi.'
     case 'ExpectedPause':
-      return 'The USDX contract is not paused.'
+      return 'Kontrak USDX sedang tidak dihentikan (ExpectedPause).'
     case 'AccessControlUnauthorizedAccount':
-      return `Caller is missing the required role (${a0}).`
+      return `Pemanggilnya tidak punya role yang dibutuhkan (AccessControlUnauthorizedAccount: ${a0}).`
     case 'OwnableUnauthorizedAccount':
-      return `Caller is not the owner (${a0}).`
+      return `Pemanggilnya bukan owner kontrak (OwnableUnauthorizedAccount: ${a0}).`
     case 'ERC20InsufficientBalance':
-      return `Insufficient balance (holder ${a0}).`
+      return `Saldo USDX tidak cukup (ERC20InsufficientBalance, pemilik ${a0}).`
     case 'ERC20InvalidSender':
-      return `Invalid sender (${a0}).`
+      return `Alamat pengirim tidak sah (ERC20InvalidSender: ${a0}).`
     case 'ERC20InvalidReceiver':
-      return `Invalid receiver (${a0}).`
+      return `Alamat penerima tidak sah (ERC20InvalidReceiver: ${a0}).`
     case 'ERC20InsufficientAllowance':
-      return `Insufficient allowance (spender ${a0}).`
+      return `Allowance tidak cukup (ERC20InsufficientAllowance, spender ${a0}).`
     default: {
+      // Error yang belum punya kalimatnya sendiri: nama + argumen apa adanya.
+      // Itu tetap kode yang bisa dikutip, bukan tebakan arti.
       const argStr = args.length ? `(${args.map((x) => String(x)).join(', ')})` : ''
       return `${name}${argStr}`
     }
@@ -147,13 +153,15 @@ export function decodeRevertData(data: Hex): string | null {
       return SAFE_ERROR_CODES[msg] ?? msg
     }
     if (decoded.errorName === 'Panic') {
-      return `Arithmetic/panic error (code ${String(args[0] ?? '')}).`
+      return `Galat aritmetika di kontrak (Panic code ${String(args[0] ?? '')}).`
     }
     return humanizeError(decoded.errorName, args)
   } catch {
     // decodeErrorResult also throws on a bare "0x"; surface the selector so the
     // operator at least has something to grep.
-    return data.length >= 10 ? `Reverted (selector ${data.slice(0, 10)}).` : null
+    return data.length >= 10
+      ? `Transaksi ditolak kontrak, alasannya tidak terbaca (selector ${data.slice(0, 10)}).`
+      : null
   }
 }
 
@@ -199,5 +207,5 @@ export function summarizeSimulationError(error: unknown): string {
   }
   if (error instanceof BaseError) return error.shortMessage
   if (error instanceof Error) return error.message
-  return 'Transaction would revert (unknown reason).'
+  return 'Transaksi akan ditolak kontrak (alasannya tidak diketahui).'
 }

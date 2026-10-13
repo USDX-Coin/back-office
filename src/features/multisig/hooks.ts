@@ -113,39 +113,43 @@ function useInvalidateMultisig() {
   }
 }
 
-export function useConfirmSignature(id: string) {
+// id ikut sebagai VARIABEL mutasi, bukan dari closure hook: hasil wallet
+// (tanda tangan / hash eksekusi) harus dikirim ke transaksi yang ditandatangani,
+// walau baris yang tampil sudah berganti selama wallet terbuka (verifikator
+// netral 11 Okt 2026).
+export function useConfirmSignature() {
   const invalidate = useInvalidateMultisig()
   return useMutation({
-    mutationFn: (body: SafeConfirmBody) =>
+    mutationFn: ({ id, body }: { id: string; body: SafeConfirmBody }) =>
       apiFetch<SafeTxDetail>(`/api/v1/multisig/${id}/confirm`, {
         method: 'POST',
         body,
       }),
-    onSuccess: () => invalidate(id),
+    onSuccess: (_data, { id }) => invalidate(id),
   })
 }
 
-export function useExecuteSafeTx(id: string) {
+export function useExecuteSafeTx() {
   const invalidate = useInvalidateMultisig()
   return useMutation({
-    mutationFn: (body: SafeExecuteBody) =>
+    mutationFn: ({ id, body }: { id: string; body: SafeExecuteBody }) =>
       apiFetch<SafeTxDetail>(`/api/v1/multisig/${id}/execute`, {
         method: 'POST',
         body,
       }),
-    onSuccess: () => invalidate(id),
+    onSuccess: (_data, { id }) => invalidate(id),
   })
 }
 
-export function useCancelSafeTx(id: string) {
+export function useCancelSafeTx() {
   const invalidate = useInvalidateMultisig()
   return useMutation({
-    mutationFn: (body: SafeCancelBody) =>
+    mutationFn: ({ id, body }: { id: string; body: SafeCancelBody }) =>
       apiFetch<SafeTxDetail>(`/api/v1/multisig/${id}/cancel`, {
         method: 'POST',
         body,
       }),
-    onSuccess: () => invalidate(id),
+    onSuccess: (_data, { id }) => invalidate(id),
   })
 }
 

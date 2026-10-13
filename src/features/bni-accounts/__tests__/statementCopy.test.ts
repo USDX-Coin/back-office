@@ -99,7 +99,7 @@ describe('gapNoticeText', () => {
     })
 
     test('USD → $, and a negative difference keeps its sign in front of the currency', () => {
-      expect(gapNoticeText({ ...GAP, difference: '-1250.50' }, 'USD')).toContain('selisih −$1,250.50.')
+      expect(gapNoticeText({ ...GAP, difference: '-1250.50' }, 'USD')).toContain('selisih −$1.250,50.')
     })
   })
 

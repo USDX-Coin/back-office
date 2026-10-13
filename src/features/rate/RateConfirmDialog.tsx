@@ -20,6 +20,10 @@ export interface RateConfirmDialogProps {
     manualRate: string
     spreadBuyPct: string
     spreadSellPct: string
+    gatewayMarkupPct: string
+    bniBuyRate: string
+    /** Angka sama, dicek ulang di wondr → dikirim ulang, jam diperbarui. */
+    bniReconfirmed?: boolean
   }
   onConfirm: () => void
   isPending: boolean
@@ -36,6 +40,7 @@ export default function RateConfirmDialog({
   onConfirm,
   isPending,
 }: RateConfirmDialogProps) {
+  const clearsBni = current?.bniBuyRate != null && next.bniBuyRate.trim() === ''
   // Esc / outside-click disabled while mutating, matching modal convention.
   function handleOpenChange(o: boolean) {
     if (isPending) return
@@ -49,10 +54,12 @@ export default function RateConfirmDialog({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Confirm rate update</DialogTitle>
+          <DialogTitle>Ubah kurs yang berlaku?</DialogTitle>
           <DialogDescription>
-            This change becomes active immediately and is applied to every
-            subsequent mint and redeem transaction.
+            Kurs baru langsung dipakai untuk semua order mint dan redeem
+            berikutnya — ini harga yang dibayar setiap nasabah mulai detik
+            tombol ini ditekan. Order yang sudah memilih metode bayar tetap
+            memakai kurs lamanya.
           </DialogDescription>
         </DialogHeader>
 
@@ -63,12 +70,12 @@ export default function RateConfirmDialog({
             to={next.mode}
           />
           <DiffRow
-            label="Base rate"
+            label="Kurs dasar"
             from={current ? formatRate(current.baseRate) : '—'}
             to={
               next.mode === 'MANUAL' && next.manualRate
                 ? formatRate(next.manualRate)
-                : 'auto (DYNAMIC feed)'
+                : 'otomatis (kurs pasar)'
             }
           />
           <DiffRow
@@ -81,6 +88,26 @@ export default function RateConfirmDialog({
             from={current ? formatSpreadPct(current.spreadSellPct) : '—'}
             to={formatSpreadPct(next.spreadSellPct || '0')}
           />
+          <DiffRow
+            label="Kurs BNI"
+            from={bniLabel(current?.bniBuyRate)}
+            to={bniLabel(next.bniBuyRate.trim() || null, current?.bniBuyRate)}
+          />
+          <DiffRow
+            label="Markup VA"
+            from={current?.gatewayMarkupPct != null ? formatSpreadPct(current.gatewayMarkupPct) : '—'}
+            to={formatSpreadPct(next.gatewayMarkupPct.trim() || '0')}
+          />
+          {next.bniReconfirmed && (
+            <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
+              Kurs BNI tidak berubah, tapi sudah dicek ulang di wondr — jam pembaruannya akan diperbarui.
+            </p>
+          )}
+          {clearsBni && (
+            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5 text-sm">
+              Kurs BNI dikosongkan: metode Transfer BNI berhenti ditawarkan ke nasabah di web dan aplikasi.
+            </p>
+          )}
         </DialogBody>
 
         <DialogFooter>
@@ -90,7 +117,7 @@ export default function RateConfirmDialog({
             onClick={() => handleOpenChange(false)}
             disabled={isPending}
           >
-            Cancel
+            Batal
           </Button>
           <Button
             type="button"
@@ -98,7 +125,7 @@ export default function RateConfirmDialog({
             disabled={isPending}
             aria-busy={isPending}
           >
-            {isPending ? 'Updating…' : 'Yes, update rate'}
+            {isPending ? 'Menyimpan…' : 'Ya, ubah kurs'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -106,14 +133,22 @@ export default function RateConfirmDialog({
   )
 }
 
+/** Kurs BNI untuk baris pembanding. Angka sama dengan sekarang ditulis sama persis (baris tidak dicoret). */
+function bniLabel(value: string | null | undefined, current?: string | null): string {
+  if (value === undefined) return '—'
+  if (value === null || value === '') return 'belum diisi'
+  if (current != null && Number(current) === Number(value)) return formatRate(current)
+  return formatRate(value)
+}
+
 function DiffRow({ label, from, to }: { label: string; from: string; to: string }) {
   const changed = from !== to
   return (
     <div className="grid grid-cols-[88px_1fr] items-baseline gap-3 text-sm">
-      <span className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {label}
       </span>
-      <div className="flex flex-wrap items-baseline gap-2 font-mono">
+      <div className="tabular-nums flex flex-wrap items-baseline gap-2">
         <span className={changed ? 'text-muted-foreground line-through' : ''}>
           {from}
         </span>

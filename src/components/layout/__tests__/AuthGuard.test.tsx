@@ -6,8 +6,21 @@ import { RoleGuard } from '@/components/layout/AuthGuard'
 import { appRoutes } from '@/App'
 import { renderWithProviders } from '@/test/test-utils'
 
+/**
+ * Sejak halaman 403 (Okt 2026) RoleGuard TIDAK lagi mengalihkan diam-diam ke
+ * /transactions: peran terlarang melihat "Kamu tidak punya akses" DI TEMPAT,
+ * dan halaman aslinya tidak pernah dipasang (datanya tidak diminta).
+ */
+function expectForbidden() {
+  expect(
+    screen.getByRole('heading', { name: /kamu tidak punya akses ke halaman ini/i }),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
+  expect(screen.queryByText('ELSEWHERE')).not.toBeInTheDocument()
+}
+
 // USDX-53 AC3: only ADMIN can reach /settings/threshold; non-ADMIN
-// (STAFF, MANAGER, DEVELOPER) must redirect away. RoleGuard is the
+// (STAFF, MANAGER, DEVELOPER) see the 403 page in place. RoleGuard is the
 // URL-level enforcement; the Sidebar gate is UI-only and not enough on
 // its own. sot/phase-1.md L516 "Threshold Management — admin only".
 
@@ -17,7 +30,7 @@ function renderTree(initialEntry: string, staffId?: string) {
       <Route element={<RoleGuard allowed={['ADMIN']} />}>
         <Route path="/settings/threshold" element={<div>THRESHOLD_PAGE</div>} />
       </Route>
-      <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+      <Route path="/transactions" element={<div>TRANSAKSI</div>} />
     </Routes>,
     { initialEntries: [initialEntry], staffId },
   )
@@ -29,75 +42,73 @@ describe('RoleGuard @ USDX-53', () => {
       // stf_1 = Marcus Thorne (ADMIN) per createStaff seed sequence.
       renderTree('/settings/threshold', 'stf_1')
       expect(screen.getByText('THRESHOLD_PAGE')).toBeInTheDocument()
-      expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+      expect(screen.queryByText('TRANSAKSI')).not.toBeInTheDocument()
     })
   })
 
   describe('negative', () => {
-    test('STAFF is redirected to /dashboard (Linear AC3)', () => {
+    test('STAFF sees the 403 page (Linear AC3)', () => {
       // stf_4 = Sarah King (STAFF) per createStaff seed sequence.
       renderTree('/settings/threshold', 'stf_4')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /dashboard', () => {
+    test('MANAGER sees the 403 page', () => {
       // stf_2 = Linda Chen (MANAGER).
       renderTree('/settings/threshold', 'stf_2')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
 
-    test('DEVELOPER is redirected to /dashboard', () => {
+    test('DEVELOPER sees the 403 page', () => {
       // stf_3 = Marcus Aurelius (DEVELOPER). SoT phase-1.md L23-30
       // contradicts L464/L516 on DEVELOPER access — strict page-spec wins
       // (admin only).
       renderTree('/settings/threshold', 'stf_3')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
 
   describe('edge cases', () => {
-    test('unauthenticated visit redirects (no user → not allowed)', () => {
+    test('no user → 403 page (fail-closed)', () => {
       renderTree('/settings/threshold')
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('THRESHOLD_PAGE')).not.toBeInTheDocument()
     })
   })
 
-  // USDX-78 — RoleGuard accepts a `redirectTo` to send disallowed roles
-  // somewhere other than /dashboard. Used on /mint and /burn so STAFF lands
-  // on the form (sot/phase-1.md L34) instead of the dashboard.
-  describe('USDX-78 — custom redirectTo', () => {
+  // USDX-78 — dulu RoleGuard menerima `redirectTo` (STAFF di /mint → /mint/new).
+  // Prop itu DIHAPUS bersama pengalihan diam-diam: STAFF di daftar OTC kini
+  // melihat 403 dengan perannya disebut, bukan dipindah ke halaman lain.
+  describe('USDX-78 — tanpa pengalihan diam-diam', () => {
     function renderMintTree(initialEntry: string, staffId: string) {
       return renderWithProviders(
         <Routes>
-          <Route
-            element={
-              <RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} redirectTo="/mint/new" />
-            }
-          >
+          <Route element={<RoleGuard allowed={['ADMIN', 'DEVELOPER', 'MANAGER']} />}>
             <Route path="/mint" element={<div>MINT_LIST</div>} />
             <Route path="/mint/:id" element={<div>MINT_LIST_DEEP</div>} />
           </Route>
           <Route path="/mint/new" element={<div>MINT_FORM</div>} />
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: [initialEntry], staffId },
       )
     }
 
-    test('STAFF on /mint is redirected to /mint/new (not /dashboard)', () => {
+    test('STAFF on /mint sees the 403 page with the role as a word, not MINT_FORM', () => {
       renderMintTree('/mint', 'stf_4') // STAFF
-      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expectForbidden()
+      expect(screen.getByTestId('route-notice-role')).toHaveTextContent('Staf')
+      expect(screen.getByTestId('route-notice-path')).toHaveTextContent('/mint')
       expect(screen.queryByText('MINT_LIST')).not.toBeInTheDocument()
-      expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+      expect(screen.queryByText('MINT_FORM')).not.toBeInTheDocument()
     })
 
-    test('STAFF on /mint/:id is also redirected to /mint/new', () => {
+    test('STAFF on /mint/:id also sees the 403 page', () => {
       renderMintTree('/mint/req_abc', 'stf_4')
-      expect(screen.getByText('MINT_FORM')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('MINT_LIST_DEEP')).not.toBeInTheDocument()
     })
 
@@ -138,7 +149,7 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
         <Route element={guard?.element}>
           <Route path="/transparency" element={<div>TRANSPARENCY_PAGE</div>} />
         </Route>
-        <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+        <Route path="/transactions" element={<div>TRANSAKSI</div>} />
       </Routes>,
       { initialEntries: ['/transparency'], staffId },
     )
@@ -163,26 +174,26 @@ describe('the SHIPPED /transparency route guard (KONTRAK-API-TRANSPARANSI § 3)'
     })
   })
 
-  describe('negative — everyone else is redirected', () => {
+  describe('negative — everyone else sees the 403 page', () => {
     // Hiding the sidebar entry is not enough: the page lists the internal
     // `reason` text of every ledger entry and the name of the staff member who
     // filed it, none of which appears publicly. Without the route guard that
     // data is one typed URL away for any authenticated operator.
-    test('STAFF is redirected to /dashboard', () => {
+    test('STAFF sees the 403 page', () => {
       renderRealGuard('stf_4') // Sarah King, STAFF
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
-    test('MANAGER is redirected to /dashboard', () => {
+    test('MANAGER sees the 403 page', () => {
       renderRealGuard('stf_2') // Linda Chen, MANAGER
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
 
-    test('an unauthenticated visit is redirected', () => {
+    test('no user → 403 page (fail-closed)', () => {
       renderRealGuard()
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('TRANSPARENCY_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -221,7 +232,7 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       renderWithProviders(
         <Routes>
           <Route path="/bni-accounts" element={<div>BNI_ACCOUNTS_PAGE</div>} />
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: ['/bni-accounts'], staffId: 'stf_4' }, // Sarah King, STAFF
       )
@@ -234,7 +245,7 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       expect(isGuarded('/multisig/*', appRoutes)).toBe(true)
     })
 
-    test('STAFF is still redirected away from /multisig by the shipped guard', () => {
+    test('STAFF still sees the 403 page on /multisig via the shipped guard', () => {
       const guard = findGuardFor('/multisig/*', appRoutes)
       // The multisig subtree nests a Suspense wrapper under the guard; walk up
       // to the RoleGuard element itself.
@@ -246,11 +257,11 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
           <Route element={roleGuard?.element}>
             <Route path="/multisig/*" element={<div>MULTISIG_PAGE</div>} />
           </Route>
-          <Route path="/dashboard" element={<div>DASHBOARD</div>} />
+          <Route path="/transactions" element={<div>TRANSAKSI</div>} />
         </Routes>,
         { initialEntries: ['/multisig'], staffId: 'stf_4' },
       )
-      expect(screen.getByText('DASHBOARD')).toBeInTheDocument()
+      expectForbidden()
       expect(screen.queryByText('MULTISIG_PAGE')).not.toBeInTheDocument()
     })
   })
@@ -264,6 +275,78 @@ describe('the SHIPPED Treasury routes (USDX-631, sot/bni-integration.md § 16 K5
       )
       expect(protectedWrapper).toBeDefined()
       expect(isGuarded('/bni-accounts', appRoutes)).toBe(false)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Log Panggilan DurianPay — the backend opens both GETs to every back-office
+// role, STAFF included (`@Roles` in `durianpay-api-calls.controller.ts`;
+// contract `sot/api/durianpay-api-calls.yaml`). STAFF was refused in the first
+// draft and that was reversed by Wisnu on 2026-09-19: the people minding the
+// money path day to day ARE staff, and this screen is the only place the
+// question "why did this payment not arrive" can be answered now that
+// production stdout logs are unreadable.
+//
+// The guard still exists, and the unauthenticated case still proves it: the
+// page must never be one typed URL away from a signed-out visitor. Read from
+// `appRoutes`, the array the router actually mounts, so deleting the wrapper
+// fails here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the SHIPPED /durianpay-api-calls route guard', () => {
+  const roleGuard = findRoleGuardAbove('/durianpay-api-calls', appRoutes)
+
+  function renderRealGuard(staffId?: string) {
+    return renderWithProviders(
+      <Routes>
+        <Route element={roleGuard?.element}>
+          <Route path="/durianpay-api-calls" element={<div>DURIANPAY_LOG_PAGE</div>} />
+        </Route>
+        <Route path="/transactions" element={<div>TRANSAKSI</div>} />
+      </Routes>,
+      { initialEntries: ['/durianpay-api-calls'], staffId },
+    )
+  }
+
+  test('both the list route and its deep link are wrapped in a guard at all', () => {
+    // Without this, deleting the RoleGuard wrapper would just make the tests
+    // below render an unguarded tree and pass.
+    expect(roleGuard).not.toBeNull()
+    expect(isGuarded('/durianpay-api-calls', appRoutes)).toBe(true)
+    expect(isGuarded('/durianpay-api-calls/:id', appRoutes)).toBe(true)
+  })
+
+  describe('positive — every role the backend allows', () => {
+    test('MANAGER reaches the log', () => {
+      renderRealGuard('stf_2') // Linda Chen, MANAGER
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+
+    test('ADMIN reaches the log', () => {
+      renderRealGuard('stf_1') // Marcus Thorne, ADMIN
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+
+    test('DEVELOPER reaches the log', () => {
+      renderRealGuard('stf_3') // Marcus Aurelius, DEVELOPER
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+
+    // The reversal itself, pinned: narrowing this screen back to MANAGER and
+    // above would lock out the very people it was built for, and that must
+    // fail here rather than be discovered by an operator who cannot open it.
+    test('STAFF reaches the log — the people minding the money path', () => {
+      renderRealGuard('stf_4') // Sarah King, STAFF
+      expect(screen.getByText('DURIANPAY_LOG_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative — the guard is still a guard', () => {
+    test('no user → 403 page (fail-closed)', () => {
+      renderRealGuard()
+      expectForbidden()
+      expect(screen.queryByText('DURIANPAY_LOG_PAGE')).not.toBeInTheDocument()
     })
   })
 })
@@ -284,3 +367,65 @@ function findRoleGuardAbove(
   }
   return null
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Redesain fase 1 — OTC. `/api/v1/requests` + `/api/v1/multisig` are
+// ADMIN / MANAGER / DEVELOPER (sot/phase-1.md L34, `@Roles` on both
+// controllers), so the page that pulls both must refuse STAFF at the ROUTE —
+// the menu is hidden for STAFF too, but a hidden menu leaves the page one URL
+// away. Old list URLs must keep working as redirects.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('the SHIPPED /otc route guard', () => {
+  const roleGuard = findRoleGuardAbove('/otc', appRoutes)
+
+  function renderRealGuard(staffId?: string, entry = '/otc') {
+    return renderWithProviders(
+      <Routes>
+        <Route element={roleGuard?.element}>
+          <Route path="/otc" element={<div>OTC_PAGE</div>} />
+          <Route path="/otc/:id" element={<div>OTC_PAGE</div>} />
+        </Route>
+        <Route path="*" element={<div>ELSEWHERE</div>} />
+      </Routes>,
+      { initialEntries: [entry], staffId },
+    )
+  }
+
+  test('both /otc and its deep link are wrapped in a guard', () => {
+    expect(isGuarded('/otc', appRoutes)).toBe(true)
+    expect(isGuarded('/otc/:id', appRoutes)).toBe(true)
+  })
+
+  describe('positive', () => {
+    test.each([
+      ['ADMIN', 'stf_1'],
+      ['MANAGER', 'stf_2'],
+      ['DEVELOPER', 'stf_3'],
+    ])('%s reaches /otc', (_role, staffId) => {
+      renderRealGuard(staffId)
+      expect(screen.getByText('OTC_PAGE')).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('STAFF sees the 403 page on /otc', () => {
+      renderRealGuard('stf_4')
+      expectForbidden()
+      expect(screen.queryByText('OTC_PAGE')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('the old /mint, /burn list URLs are kept as redirects, the forms stay', () => {
+      const flat = (routes: RouteObject[]): RouteObject[] =>
+        routes.flatMap((r) => [r, ...(r.children ? flat(r.children) : [])])
+      const all = flat(appRoutes)
+      for (const p of ['/mint', '/mint/:id', '/burn', '/burn/:id']) {
+        expect(all.some((r) => r.path === p)).toBe(true)
+      }
+      expect(all.some((r) => r.path === '/mint/new')).toBe(true)
+      expect(all.some((r) => r.path === '/burn/new')).toBe(true)
+    })
+  })
+})

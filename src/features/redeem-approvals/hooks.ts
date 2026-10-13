@@ -112,6 +112,7 @@ function invalidateQueue(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'detail', id] })
   qc.invalidateQueries({ queryKey: ['orders'] })
+  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
 }
 
 /**

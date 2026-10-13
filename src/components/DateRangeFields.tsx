@@ -42,13 +42,13 @@ interface Props extends DateRangeRules {
 }
 
 const LABEL_CLASS =
-  'text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground'
+  'text-xs font-medium text-muted-foreground'
 
 export default function DateRangeFields({
   value,
   onChange,
   idPrefix,
-  labels = { start: 'Start date', end: 'End date' },
+  labels = { start: 'Tanggal mulai', end: 'Tanggal akhir' },
   disabled = false,
   showMessage = true,
   maxDays,
@@ -96,7 +96,7 @@ export default function DateRangeFields({
           required
         />
         {showProblem && (
-          <p id={messageId} role="alert" className="text-[11.5px] text-destructive">
+          <p id={messageId} role="alert" className="text-xs text-destructive">
             {problemMessage(verdict.problem!, rules)}
           </p>
         )}

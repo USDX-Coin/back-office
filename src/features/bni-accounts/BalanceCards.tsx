@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import StatusPill from '@/components/StatusPill'
-import { formatBankAmount, formatBniPostDate, formatWibDateTime } from '@/lib/format'
+import { bniAccountTypeLabel as accountTypeLabel, formatBankAmount, formatBniStamp, formatDateTime } from '@/lib/format'
 import { getBniBalanceCardStatusConfig } from '@/lib/status'
 import type { BniAccount, BniBalances } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -19,8 +19,8 @@ import { resolveBalanceCardStates, type BalanceCardState } from './balanceCardSt
 function Amount({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 font-mono text-[18px] font-semibold leading-none tracking-tight tabular-nums">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-0.5 whitespace-nowrap text-money-lg tabular-nums">
         {value}
       </p>
     </div>
@@ -43,8 +43,8 @@ function BalanceCardView({
       <CardContent className="px-4 py-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold">{account.label}</p>
-            <p className="font-mono text-[11px] text-muted-foreground">{account.accountNo}</p>
+            <p className="truncate text-sm font-semibold">{account.label}</p>
+            <p className="tabular-nums text-xs text-muted-foreground">{account.accountNo}</p>
           </div>
           {(state.kind === 'ok' || state.kind === 'bank-rejected') && (
             <StatusPill cfg={getBniBalanceCardStatusConfig(state.card.status)} />
@@ -59,13 +59,13 @@ function BalanceCardView({
         )}
 
         {state.kind === 'unavailable' && (
-          <p className="mt-3 text-[12.5px] text-destructive" role="status">
+          <p className="mt-3 text-xs text-destructive" role="status">
             {state.error.message}
           </p>
         )}
 
         {state.kind === 'bank-rejected' && (
-          <p className="mt-3 text-[12.5px] text-destructive" role="status">
+          <p className="mt-3 text-xs text-destructive" role="status">
             {state.text}
           </p>
         )}
@@ -74,7 +74,9 @@ function BalanceCardView({
           (state.card.effectiveBalance != null || state.card.endingBalance != null) && (
             <div
               className={cn(
-                'mt-3 grid grid-cols-2 gap-3',
+                // Bertumpuk, bukan dua kolom: nominal 24px (token money-lg)
+                // "Rp 603.249.000,00" tidak muat di setengah kartu sepertiga layar.
+                'mt-3 grid gap-3',
                 state.kind === 'bank-rejected' && 'opacity-70'
               )}
             >
@@ -92,8 +94,8 @@ function BalanceCardView({
           )}
 
         {state.kind === 'ok' && (
-          <p className="mt-3 truncate font-mono text-[11px] text-muted-foreground">
-            {[state.card.accountName, state.card.accountType, state.card.currency]
+          <p className="mt-3 truncate text-xs text-muted-foreground">
+            {[state.card.accountName, accountTypeLabel(state.card.accountType), state.card.currency]
               .filter(Boolean)
               .join(' · ') || '—'}
           </p>
@@ -126,30 +128,30 @@ export default function BalanceCards({
     <section aria-labelledby="bni-balances-heading" className="mb-6">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="bni-balances-heading" className="text-[15px] font-semibold tracking-tight">
+          <h2 id="bni-balances-heading" className="text-section">
             Saldo rekening
           </h2>
-          <p className="text-[12px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {balances && !error ? (
               <>
-                Menurut bank:{' '}
-                <span className="font-mono" data-testid="bni-inquired-at-bank">
-                  {formatBniPostDate(balances.inquiredAtBank)}
+                Waktu (WIB) · menurut bank:{' '}
+                <span className="tabular-nums" data-testid="bni-inquired-at-bank">
+                  {formatBniStamp(balances.inquiredAtBank)}
                 </span>{' '}
-                WIB · Tarikan:{' '}
-                <span className="font-mono" data-testid="bni-pulled-at">
-                  {formatWibDateTime(balances.pulledAt)}
+                · tarikan:{' '}
+                <span className="tabular-nums" data-testid="bni-pulled-at">
+                  {formatDateTime(balances.pulledAt)}
                 </span>
                 {/* pullId = activity_log.metadata.pullId = api_call_log.correlation_id
                     (§ 16.2) — the one number ops can trace from the screen to the
                     bank contact. */}
                 {' · '}
-                <span className="font-mono" title="pullId (korelasi activity_log ↔ api_call_log)">
-                  pull {balances.pullId}
+                <span title="No. tarikan untuk penelusuran tim teknis — tercatat di log aktivitas dan log panggilan ke bank">
+                  No. tarikan <span className="font-mono">{balances.pullId}</span>
                 </span>
               </>
             ) : (
-              'Saldo LIVE dari BNIdirect — tidak diperbarui otomatis.'
+              'Saldo langsung dari BNI — tidak diperbarui otomatis.'
             )}
           </p>
         </div>

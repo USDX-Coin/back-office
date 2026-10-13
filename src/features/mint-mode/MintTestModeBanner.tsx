@@ -36,7 +36,7 @@ export default function MintTestModeBanner() {
       className="flex shrink-0 items-start gap-2.5 border-b border-destructive/50 bg-destructive px-4 py-2.5 text-destructive-foreground lg:px-6"
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <p className="text-[13px] font-medium leading-snug">
+      <p className="text-sm font-medium leading-snug">
         Mode uji mint aktif — mint mencetak token uji, bukan USDX. Berakhir{' '}
         {formatWibClock(data.expiresAt)}.{' '}
         {allowedCount > 0

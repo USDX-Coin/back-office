@@ -5,25 +5,25 @@ import { renderWithProviders } from '@/test/test-utils'
 
 describe('LoginPage', () => {
   describe('positive', () => {
-    test('should render the Sign in heading and required fields', () => {
+    test('should render the Masuk heading and required fields', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /^masuk$/i })).toBeInTheDocument()
       expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^sign in$/i })).toBeInTheDocument()
+      expect(screen.getByLabelText(/^kata sandi$/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^masuk$/i })).toBeInTheDocument()
     })
 
     test('should toggle password visibility', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      const passwordInput = screen.getByLabelText(/^password$/i) as HTMLInputElement
+      const passwordInput = screen.getByLabelText(/^kata sandi$/i) as HTMLInputElement
       expect(passwordInput.type).toBe('password')
-      fireEvent.click(screen.getByRole('button', { name: /show password/i }))
+      fireEvent.click(screen.getByRole('button', { name: /tampilkan kata sandi/i }))
       expect(passwordInput.type).toBe('text')
     })
 
     test('should keep Remember-this-device toggle state', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      const checkbox = screen.getByRole('checkbox', { name: /remember this device/i })
+      const checkbox = screen.getByRole('checkbox', { name: /ingat perangkat ini/i })
       expect(checkbox).toHaveAttribute('data-state', 'checked')
       fireEvent.click(checkbox)
       expect(checkbox).toHaveAttribute('data-state', 'unchecked')
@@ -33,10 +33,10 @@ describe('LoginPage', () => {
   describe('negative', () => {
     test('should show inline errors for empty submit', async () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
-      fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^masuk$/i }))
       await waitFor(() => {
-        expect(screen.getByText(/email is required/i)).toBeInTheDocument()
-        expect(screen.getByText(/password is required/i)).toBeInTheDocument()
+        expect(screen.getByText(/email wajib diisi/i)).toBeInTheDocument()
+        expect(screen.getByText(/kata sandi wajib diisi/i)).toBeInTheDocument()
       })
     })
   })
@@ -45,12 +45,14 @@ describe('LoginPage', () => {
     test('should NOT render a Forgot password link (R17)', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
       expect(screen.queryByText(/forgot password/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/lupa password/i)).not.toBeInTheDocument()
     })
 
     test('should NOT render a Register link (R17)', () => {
       renderWithProviders(<LoginPage />, { initialEntries: ['/login'] })
       expect(screen.queryByRole('link', { name: /register/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /sign up/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /daftar/i })).not.toBeInTheDocument()
     })
   })
 })

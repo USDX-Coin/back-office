@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { formatDate } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import {
   SANCTION_LIST_TYPE_LABELS,
   SCREENING_OUTCOME_LABELS,
@@ -61,12 +61,12 @@ export default function ScreeningSubjectPanel({
 
   return (
     <div className="space-y-2" data-testid="screening-panel">
-      <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
+      <p className="text-sm font-semibold text-muted-foreground">
         Screening DTTOT &amp; DPPSPM
       </p>
 
       {query.isPending && (
-        <p className="text-[12px] text-muted-foreground">Memuat status screening…</p>
+        <p className="text-xs text-muted-foreground">Memuat status screening…</p>
       )}
 
       {/* Kegagalan dinyatakan, bukan dirender sebagai panel kosong. Panel kosong
@@ -74,7 +74,7 @@ export default function ScreeningSubjectPanel({
           diketahui: statusnya TIDAK DIKETAHUI. */}
       {query.isError && (
         <p
-          className="text-[12px] text-destructive"
+          className="text-xs text-destructive"
           role="alert"
           data-testid="screening-panel-error"
         >
@@ -87,12 +87,12 @@ export default function ScreeningSubjectPanel({
         <>
           {summary.neverScreened ? (
             <p
-              className="text-[12px] text-muted-foreground"
+              className="text-xs text-muted-foreground"
               data-testid="screening-never"
             >
               Belum ada satu pun jejak pemeriksaan untuk berkas ini. POJK 8/2023
               Pasal 53 mewajibkan pencocokan terhadap DTTOT dan DPPSPM — jalankan
-              pemindaian ulang dari menu Screening sebelum memutuskan.
+              pemindaian ulang dari Nasabah › Daftar Sanksi sebelum memutuskan.
             </p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -110,7 +110,7 @@ export default function ScreeningSubjectPanel({
               bisa ditindaklanjuti siapa pun; "DPPSPM belum pernah tercek" bisa. */}
           {summary.unchecked.length > 0 && !summary.neverScreened && (
             <p
-              className="rounded-sm bg-warning/10 px-2.5 py-2 text-[12px] leading-relaxed text-warning-foreground"
+              className="rounded-sm bg-warning/10 px-2.5 py-2 text-xs leading-relaxed text-warning-foreground"
               data-testid="screening-unchecked"
             >
               <strong>
@@ -118,49 +118,44 @@ export default function ScreeningSubjectPanel({
               </strong>{' '}
               belum pernah berhasil dicek untuk berkas ini
               {summary.unavailableCount > 0 && (
-                <>
-                  {' '}
-                  — {summary.unavailableCount} pemeriksaan tercatat{' '}
-                  <code className="font-mono">LIST_UNAVAILABLE</code>
-                </>
+                <> — {summary.unavailableCount} kali daftar sanksinya belum tersedia saat diperiksa</>
               )}
-              . Approve TIDAK diblokir (fail-open disengaja), tapi berkas ini belum
-              dinyatakan bersih terhadap daftar itu. Impor dan aktifkan daftarnya,
+              . Kamu tetap bisa menyetujui, tapi berkas ini belum dinyatakan bersih
+              terhadap daftar itu — cek ulang dulu: impor dan aktifkan daftarnya,
               lalu jalankan pemindaian ulang.
             </p>
           )}
 
           {summary.unavailableCount > 0 && summary.unchecked.length === 0 && (
             <p
-              className="text-[12px] text-muted-foreground"
+              className="text-xs text-muted-foreground"
               data-testid="screening-unavailable-history"
             >
-              {summary.unavailableCount} pemeriksaan tercatat{' '}
-              <code className="font-mono">LIST_UNAVAILABLE</code>, tapi kedua daftar
-              wajib sudah pernah benar-benar dicek — lihat versinya di atas.
+              {summary.unavailableCount} pemeriksaan sempat gagal karena daftar sanksinya
+              belum tersedia, tapi kedua daftar wajib sudah pernah benar-benar dicek —
+              lihat versinya di atas.
             </p>
           )}
 
           {summary.holding.length > 0 && (
             <p
-              className="rounded-sm bg-destructive/10 px-2.5 py-2 text-[12px] leading-relaxed text-destructive"
+              className="rounded-sm bg-destructive/10 px-2.5 py-2 text-xs leading-relaxed text-destructive"
               data-testid="screening-holding"
             >
-              {summary.holding.length} temuan masih menahan subjek ini. Approve akan
-              ditolak server (<code className="font-mono">409</code>) sampai temuannya
-              diputus di menu Screening.
+              {summary.holding.length} temuan masih menahan nasabah ini. Persetujuan akan
+              ditolak sampai temuannya diputuskan di Nasabah › Daftar Sanksi.
             </p>
           )}
 
           {total > rows.length && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Menampilkan {rows.length} jejak terbaru dari {total}.
             </p>
           )}
 
           <Link
             to={`/screening?subjectType=${subjectType}&subjectId=${subjectId ?? ''}`}
-            className="inline-block text-[12px] text-primary underline-offset-2 hover:underline"
+            className="inline-block text-xs text-primary underline-offset-2 hover:underline"
           >
             Buka antrean screening
           </Link>
@@ -185,23 +180,23 @@ function ListCoverageRow({
   const style = latest ? SCREENING_OUTCOME_STYLES[latest.outcome] : null
   return (
     <div data-testid={`screening-list-${listType}`}>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
+      <p className="text-xs text-muted-foreground">
         {SANCTION_LIST_TYPE_LABELS[listType]}
       </p>
       {latest === null ? (
-        <p className="mt-1 text-[13px] font-medium text-warning">Belum pernah dicek</p>
+        <p className="mt-1 text-sm font-medium text-warning">Belum pernah dicek</p>
       ) : (
         <div className="mt-1 space-y-0.5">
           <Badge className={cn('font-normal', style?.className)}>
             {SCREENING_OUTCOME_LABELS[latest.outcome]}
           </Badge>
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {/* Versi daftarnya, bukan hanya "lolos": inilah yang menjawab
                 "lolos pakai daftar terbitan tanggal berapa" saat diperiksa. */}
             {latest.listPublishedAt
               ? `Daftar terbitan ${latest.listPublishedAt}`
               : 'Versi daftar tidak tercatat'}{' '}
-            · {SCREENING_TRIGGER_LABELS[latest.trigger]} · {formatDate(latest.createdAt)}
+            · {SCREENING_TRIGGER_LABELS[latest.trigger]} · {formatDateTime(latest.createdAt)}
           </p>
         </div>
       )}

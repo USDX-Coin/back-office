@@ -29,7 +29,34 @@ export interface DateRangeFilterDef {
   label: string
 }
 
-export type FilterDef = SelectFilterDef | DateRangeFilterDef
+/**
+ * Free-form text filter writing one URL param.
+ *
+ * Added for `/durianpay-api-calls` (Log Panggilan DurianPay), whose contract
+ * takes four text filters — path PREFIX, referenceNo, responseCode, httpStatus —
+ * and no body search at all. They belong in the same popover as every other
+ * filter rather than in the DataTable's default `Search` box, which writes
+ * `?search=` and means "find this anywhere".
+ *
+ * `hint` exists because a text box invites the wrong expectation: a filter that
+ * matches an EXACT value, or only a PREFIX, has to say so on the spot — a box
+ * that silently returns nothing reads as "there is no such data".
+ */
+export interface TextFilterDef {
+  kind: 'text'
+  /** URL search-param key. */
+  key: string
+  /** Human label rendered in the filter modal AND in the active-filter chip. */
+  label: string
+  placeholder?: string
+  /** One line under the input saying how the value is matched. */
+  hint?: string
+  /** Contract ceiling — the browser refuses longer input so the server never 400s. */
+  maxLength?: number
+  inputMode?: 'text' | 'numeric'
+}
+
+export type FilterDef = SelectFilterDef | DateRangeFilterDef | TextFilterDef
 
 /** Single sort column descriptor for the Sort popover. */
 export interface SortColumnDef {

@@ -3,15 +3,8 @@ import type { ReactNode } from 'react'
 import { AlertTriangle, Copy, ExternalLink, ShieldCheck, ShieldX } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import RecordModal, { type RecordModalNav } from '@/components/record-modal/RecordModal'
+import DetailTeknis from '@/components/DetailTeknis'
 import {
   Tooltip,
   TooltipContent,
@@ -24,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import FieldError from '@/components/FieldError'
 import { ApiError } from '@/lib/apiFetch'
 import { canDecideScreening, useAuth } from '@/lib/auth'
-import { formatDate, shortHash } from '@/lib/format'
+import { formatDateTime, formatIsoDayLong } from '@/lib/format'
 import { isPiiWithheld, PII_WITHHELD_LABEL, presentPii } from '@/lib/pii'
 import {
   formatScore,
@@ -54,35 +47,26 @@ import {
   useScreeningResult,
   useScreeningSubject,
 } from './hooks'
+import { toastError } from '@/lib/errorToast'
+import { errorMessage } from '@/lib/errorMessages'
+import { DataField, DataSection } from '@/components/DataList'
+import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 
 interface ScreeningDecisionModalProps {
   resultId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  nav?: RecordModalNav | null
 }
 
 const Dim = () => <span className="text-muted-foreground">—</span>
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
-        {label}
-      </p>
-      <div className="mt-1 text-[13px] text-foreground">{children}</div>
-    </div>
-  )
+  return <DataField label={label}>{children}</DataField>
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-primary">
-        {title}
-      </p>
-      {children}
-    </div>
-  )
+  return <DataSection title={title}>{children}</DataSection>
 }
 
 async function copyText(value: string, label: string) {
@@ -105,7 +89,7 @@ async function copyText(value: string, label: string) {
 function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
   if (!entry) {
     return (
-      <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] text-muted-foreground">
+      <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
         Temuan ini tidak menunjuk satu entri daftar pun. Itu wajar untuk hasil
         yang bukan kecocokan — misalnya pemeriksaan yang berjalan saat belum ada
         daftar aktif.
@@ -113,7 +97,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
     )
   }
   return (
-    <div className="grid gap-3" data-testid="screening-entry">
+    <div className="@container divide-y divide-border border-t border-border" data-testid="screening-entry">
       <Field label="Nama pada daftar">
         <span className="font-medium">{entry.fullName}</span>
       </Field>
@@ -125,7 +109,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
             {entry.aliases.map((alias) => (
               <li
                 key={alias}
-                className="rounded-sm bg-muted px-1.5 py-0.5 text-[12px]"
+                className="rounded-sm bg-muted px-1.5 py-0.5 text-xs"
               >
                 {alias}
               </li>
@@ -143,7 +127,7 @@ function SanctionEntryPanel({ entry }: { entry: SanctionEntryDetail | null }) {
       <Field label="Alamat">{entry.address ?? <Dim />}</Field>
       <Field label="Kode referensi">
         {entry.referenceCode ? (
-          <span className="font-mono text-[12.5px]">{entry.referenceCode}</span>
+          <span className="font-mono text-xs">{entry.referenceCode}</span>
         ) : (
           <Dim />
         )}
@@ -180,7 +164,7 @@ function SubjectPanel({
 }) {
   if (isKybDetail(detail)) {
     return (
-      <div className="grid gap-3" data-testid="screening-subject">
+      <div className="@container divide-y divide-border border-t border-border" data-testid="screening-subject">
         <Field label="Nama badan usaha">
           {detail.entityName ? (
             <span className="font-medium">{detail.entityName}</span>
@@ -191,7 +175,7 @@ function SubjectPanel({
         <Field label="Nama akun">{detail.userName ?? <Dim />}</Field>
         <Field label="Negara">{detail.country}</Field>
         <Field label="Berdiri">{detail.establishmentDate}</Field>
-        <Field label="Alamat terdaftar">{detail.registeredAddress ?? <Dim />}</Field>
+        <Field label="Alamat kedudukan">{detail.registeredAddress ?? <Dim />}</Field>
         <Field label="Alamat operasional">{detail.operationalAddress ?? <Dim />}</Field>
         <Field label="Sektor usaha">{detail.businessSector}</Field>
       </div>
@@ -201,7 +185,7 @@ function SubjectPanel({
   const name = [detail.firstName, detail.lastName].filter(Boolean).join(' ')
   const address = [detail.addressLine1, detail.addressLine2].filter(Boolean).join(', ')
   return (
-    <div className="grid gap-3" data-testid="screening-subject">
+    <div className="@container divide-y divide-border border-t border-border" data-testid="screening-subject">
       <Field label="Nama nasabah">
         {name ? <span className="font-medium">{name}</span> : <Dim />}
       </Field>
@@ -219,7 +203,7 @@ function SubjectPanel({
             <span className="flex flex-wrap items-baseline gap-1.5">
               <span>{shown}</span>
               {isPiiWithheld(address || null, staff) && (
-                <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {PII_WITHHELD_LABEL}
                 </span>
               )}
@@ -251,6 +235,7 @@ export default function ScreeningDecisionModal({
   resultId,
   open,
   onOpenChange,
+  nav,
 }: ScreeningDecisionModalProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -299,7 +284,7 @@ export default function ScreeningDecisionModal({
         return
       }
     }
-    toast.error(err instanceof Error ? err.message : 'Permintaan gagal')
+    toastError(err, 'Permintaan gagal')
   }
 
   function handleDecide() {
@@ -333,288 +318,19 @@ export default function ScreeningDecisionModal({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <Dialog
+      {/* Pola `RecordModal` (sapu bersih 11 Okt 2026): URL sendiri, ↑/↓ antar
+          temuan, footer menempel dengan keputusan di kanan. */}
+      <RecordModal
         open={open}
-        onOpenChange={(next) => {
-          if (!isMutating) onOpenChange(next)
-        }}
-      >
-        <DialogContent
-          className="max-w-3xl bg-card"
-          onEscapeKeyDown={(e) => isMutating && e.preventDefault()}
-          onPointerDownOutside={(e) => isMutating && e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Banding temuan screening</DialogTitle>
-            <DialogDescription>
-              Bandingkan data nasabah dengan entri daftar, lalu putuskan apakah
-              ini benar pihak yang sama. Kecocokan menahan subjek — pelepasan
-              adalah keputusan Anda, bukan keputusan mesin.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogBody>
-            {resultQuery.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className="h-4 w-full" />
-                ))}
-              </div>
-            ) : resultQuery.isError ? (
-              <div className="space-y-3 py-2 text-center">
-                <p className="text-sm text-destructive">
-                  {resultQuery.error instanceof Error
-                    ? resultQuery.error.message
-                    : 'Gagal memuat temuan.'}
-                </p>
-                <Button variant="outline" size="sm" onClick={() => resultQuery.refetch()}>
-                  Coba lagi
-                </Button>
-              </div>
-            ) : result ? (
-              <div className="space-y-5">
-                {/* Ringkasan temuan */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {outcomeStyle && (
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11.5px] font-medium',
-                          outcomeStyle.className,
-                        )}
-                      >
-                        <span className={cn('h-1.5 w-1.5 rounded-full', outcomeStyle.dotClass)} />
-                        {SCREENING_OUTCOME_LABELS[result.outcome]}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => copyText(result.id, 'ID temuan')}
-                      className="inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground hover:text-primary"
-                      title={result.id}
-                      aria-label="Salin ID temuan"
-                    >
-                      <span>{shortHash(result.id, 8, 6)}</span>
-                      <Copy className="h-3 w-3 opacity-50" />
-                    </button>
-                  </div>
-                  <span className="font-mono text-[11.5px] tabular-nums text-muted-foreground">
-                    Diperiksa {formatDate(result.createdAt)}
-                  </span>
-                </div>
-
-                <div className="grid gap-3 rounded-md border border-border px-3 py-2.5 sm:grid-cols-4">
-                  <Field label="Skor kemiripan">
-                    <span className="font-mono text-[14px] font-semibold tabular-nums">
-                      {formatScore(result.score) ?? '—'}
-                    </span>
-                    <span className="ml-1.5 text-[11px] text-muted-foreground">
-                      ambang {(SCREENING_MATCH_THRESHOLD * 100).toFixed(0)}%
-                    </span>
-                  </Field>
-                  <Field label="Entri yang cocok">
-                    <span className="font-mono text-[13px] tabular-nums">
-                      {result.matchCount ?? '—'}
-                    </span>
-                  </Field>
-                  <Field label="Pemicu">
-                    {SCREENING_TRIGGER_LABELS[result.trigger]}
-                  </Field>
-                  <Field label="Daftar yang dipakai">
-                    {result.listType ? (
-                      <span className="text-[12.5px]">
-                        {SANCTION_LIST_TYPE_LABELS[result.listType].split(' — ')[0]}
-                        <span className="ml-1 font-mono text-[11.5px] text-muted-foreground">
-                          terbit {result.listPublishedAt ?? '—'}
-                        </span>
-                      </span>
-                    ) : (
-                      <Dim />
-                    )}
-                  </Field>
-                </div>
-
-                {result.matchCount !== null && result.matchCount > 1 && (
-                  <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-800 dark:text-amber-300">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      {result.matchCount} entri daftar melewati ambang, tapi yang
-                      ditampilkan di bawah hanya kecocokan terbaik. Periksa berkas
-                      daftar aslinya sebelum melepas temuan ini.
-                    </span>
-                  </p>
-                )}
-
-                {/* ── Perbandingan berdampingan ─────────────────────────── */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-md border border-border px-3 py-3">
-                    <Section
-                      title={`Data nasabah — ${SCREENING_SUBJECT_TYPE_LABELS[result.subjectType]}`}
-                    >
-                      {source.kind === 'unsupported' ? (
-                        // Bukan keadaan kosong dan bukan kegagalan: memang tidak
-                        // ada endpoint yang mengambil satu baris `kyc_ubo`
-                        // berdasarkan idnya, dan temuan tidak membawa id KYB
-                        // induknya. Panel kosong akan terbaca sebagai "nasabah
-                        // ini tidak punya data" — arti yang berbeda, dan bisa
-                        // ditindaklanjuti dengan keliru.
-                        <div className="space-y-2">
-                          <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] text-muted-foreground">
-                            Subjek temuan ini adalah pemilik manfaat (UBO). Back
-                            office belum punya endpoint yang mengambil satu UBO
-                            berdasarkan idnya — UBO hanya muncul menempel pada
-                            detail KYB induknya, dan temuan ini tidak membawa id
-                            KYB tersebut. Cocokkan lewat berkas KYB badan usahanya.
-                          </p>
-                          <Field label="ID subjek (UBO)">
-                            <button
-                              type="button"
-                              onClick={() => copyText(result.subjectId, 'ID subjek')}
-                              className="inline-flex items-center gap-1.5 break-all font-mono text-[12px] hover:text-primary"
-                            >
-                              {result.subjectId}
-                              <Copy className="h-3 w-3 shrink-0 opacity-50" />
-                            </button>
-                          </Field>
-                        </div>
-                      ) : subjectQuery.isLoading ? (
-                        <div className="space-y-2">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Skeleton key={i} className="h-4 w-full" />
-                          ))}
-                        </div>
-                      ) : subjectQuery.isError ? (
-                        <div className="space-y-2">
-                          <p className="text-[12.5px] text-destructive">
-                            {subjectQuery.error instanceof Error
-                              ? subjectQuery.error.message
-                              : 'Gagal memuat data nasabah.'}
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => subjectQuery.refetch()}
-                          >
-                            Coba lagi
-                          </Button>
-                        </div>
-                      ) : subjectQuery.data ? (
-                        <>
-                          <SubjectPanel detail={subjectQuery.data} staff={user} />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(
-                                source.kind === 'KYB'
-                                  ? `/kyb/${result.subjectId}`
-                                  : `/kyc/${result.subjectId}`,
-                              )
-                            }
-                            className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
-                          >
-                            Buka berkas {source.kind} lengkap
-                            <ExternalLink className="h-3 w-3" />
-                          </button>
-                        </>
-                      ) : null}
-                    </Section>
-                  </div>
-
-                  <div className="rounded-md border border-border px-3 py-3">
-                    <Section title="Entri daftar sanksi">
-                      <SanctionEntryPanel entry={result.matchedEntry} />
-                    </Section>
-                  </div>
-                </div>
-
-                {/* Keputusan yang sudah ada */}
-                {result.decision && (
-                  <div
-                    className="rounded-md border border-border px-3 py-2.5"
-                    data-testid="screening-existing-decision"
-                  >
-                    <Section title="Keputusan yang tercatat">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Keputusan">
-                          {SCREENING_DECISION_LABELS[result.decision.outcome]}
-                        </Field>
-                        <Field label="Diputuskan oleh">
-                          {result.decision.decidedByName ?? 'Akun petugas sudah dihapus'}
-                          <span className="ml-1.5 font-mono text-[11.5px] text-muted-foreground">
-                            {formatDate(result.decision.createdAt)}
-                          </span>
-                        </Field>
-                        <div className="sm:col-span-2">
-                          <Field label="Alasan">
-                            {result.decision.reason ?? <Dim />}
-                          </Field>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-[11.5px] text-muted-foreground">
-                        Keputusan ditulis sebagai baris baru dan tidak bisa diubah
-                        atau dihapus — tabelnya append-only, dijaga dua trigger
-                        database.
-                      </p>
-                    </Section>
-                  </div>
-                )}
-
-                {/* Kotak alasan — muncul setelah salah satu keputusan dipilih */}
-                {actionable && canDecide && pending && (
-                  <div
-                    className={cn(
-                      'space-y-2 rounded-md border px-3 py-3',
-                      pending === 'CONFIRMED_MATCH'
-                        ? 'border-destructive/50 bg-destructive/5'
-                        : 'border-emerald-600/40 bg-emerald-500/5',
-                    )}
-                  >
-                    <p className="text-[13px] font-medium">
-                      {SCREENING_DECISION_LABELS[pending]}
-                    </p>
-                    <p className="text-[12px] text-muted-foreground">
-                      {pending === 'CLEARED'
-                        ? 'Subjek dilepas dan bisa diproses seperti biasa. Tulis apa yang membuat Anda yakin ini BUKAN pihak yang sama — tanggal lahir berbeda, kebangsaan berbeda, dan seterusnya.'
-                        : 'Subjek tetap tertahan dan berkasnya wajib ditolak lewat layar KYC/KYB-nya sendiri (Pasal 49). Tulis apa yang membuat Anda yakin ini pihak yang sama.'}
-                    </p>
-                    <Textarea
-                      value={reason}
-                      onChange={(e) => {
-                        setReason(e.target.value)
-                        if (reasonError) setReasonError('')
-                      }}
-                      placeholder="mis. Tanggal lahir berbeda 12 tahun dan kebangsaan tidak sama; nama identik karena umum di Indonesia"
-                      maxLength={SCREENING_REASON_MAX}
-                      rows={4}
-                      aria-label="Alasan keputusan"
-                      disabled={isMutating}
-                    />
-                    <div className="flex items-baseline justify-between gap-2">
-                      <FieldError message={reasonError} />
-                      <span
-                        className={cn(
-                          'ml-auto font-mono text-[11px] tabular-nums',
-                          reason.length >= SCREENING_REASON_MAX
-                            ? 'text-destructive'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        {reason.length}/{SCREENING_REASON_MAX}
-                      </span>
-                    </div>
-                    <p className="text-[11.5px] text-muted-foreground">
-                      Alasan wajib dan bukan formalitas: inilah “hasil analisis”
-                      yang POJK 8/2023 Pasal 63 ayat (2) huruf c wajibkan
-                      ditatausahakan, dan yang dibaca pemeriksa bertahun kemudian.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </DialogBody>
-
-          {actionable && (
-            <DialogFooter>
+        onClose={() => onOpenChange(false)}
+        locked={isMutating}
+        title="Banding temuan screening"
+        subtitle="Bandingkan data nasabah dengan entri daftar, lalu putuskan apakah ini benar pihak yang sama. Kecocokan menahan subjek — pelepasan adalah keputusan Anda, bukan keputusan mesin."
+        nav={isMutating ? null : nav}
+        testId="screening-modal"
+        actions={
+          actionable ? (
+            <>
               {canDecide ? (
                 pending ? (
                   <>
@@ -674,10 +390,276 @@ export default function ScreeningDecisionModal({
                   </TooltipContent>
                 </Tooltip>
               )}
-            </DialogFooter>
-          )}
-        </DialogContent>
-      </Dialog>
+            </>
+          ) : undefined
+        }
+      >
+            {resultQuery.isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full" />
+                ))}
+              </div>
+            ) : resultQuery.isError ? (
+              <div className="space-y-3 py-2 text-center">
+                <p className="text-sm text-destructive">
+                  {errorMessage(resultQuery.error, 'Gagal memuat temuan.')}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => resultQuery.refetch()}>
+                  Coba lagi
+                </Button>
+              </div>
+            ) : result ? (
+              <div className="space-y-5">
+                {/* Ringkasan temuan */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {outcomeStyle && (
+                      <span
+                        className={cn(
+                          STATUS_CHIP_BASE,
+                          outcomeStyle.className,
+                        )}
+                      >
+                        {SCREENING_OUTCOME_LABELS[result.outcome]}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    Diperiksa {formatDateTime(result.createdAt)}
+                  </span>
+                </div>
+
+                <div className="@container divide-y divide-border border-t border-border">
+                  <Field label="Skor kemiripan">
+                    <span className="text-base font-semibold tabular-nums">
+                      {formatScore(result.score) ?? '—'}
+                    </span>
+                    <span className="ml-1.5 text-xs text-muted-foreground">
+                      ambang {(SCREENING_MATCH_THRESHOLD * 100).toFixed(0)}%
+                    </span>
+                  </Field>
+                  <Field label="Entri yang cocok">
+                    <span className="text-sm tabular-nums">
+                      {result.matchCount ?? '—'}
+                    </span>
+                  </Field>
+                  <Field label="Pemicu">
+                    {SCREENING_TRIGGER_LABELS[result.trigger]}
+                  </Field>
+                  <Field label="Daftar yang dipakai">
+                    {result.listType ? (
+                      <span className="text-xs">
+                        {SANCTION_LIST_TYPE_LABELS[result.listType].split(' — ')[0]}
+                        <span className="tabular-nums ml-1 text-xs text-muted-foreground">
+                          terbit {result.listPublishedAt ? formatIsoDayLong(result.listPublishedAt) : '—'}
+                        </span>
+                      </span>
+                    ) : (
+                      <Dim />
+                    )}
+                  </Field>
+                </div>
+
+                {result.matchCount !== null && result.matchCount > 1 && (
+                  <p className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {result.matchCount} entri daftar melewati ambang, tapi yang
+                      ditampilkan di bawah hanya kecocokan terbaik. Periksa berkas
+                      daftar aslinya sebelum melepas temuan ini.
+                    </span>
+                  </p>
+                )}
+
+                {/* ── Perbandingan berdampingan ─────────────────────────── */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-md border border-border px-3 py-3">
+                    <Section
+                      title={`Data nasabah — ${SCREENING_SUBJECT_TYPE_LABELS[result.subjectType]}`}
+                    >
+                      {source.kind === 'unsupported' ? (
+                        // Bukan keadaan kosong dan bukan kegagalan: memang tidak
+                        // ada endpoint yang mengambil satu baris `kyc_ubo`
+                        // berdasarkan idnya, dan temuan tidak membawa id KYB
+                        // induknya. Panel kosong akan terbaca sebagai "nasabah
+                        // ini tidak punya data" — arti yang berbeda, dan bisa
+                        // ditindaklanjuti dengan keliru.
+                        <div className="space-y-2">
+                          <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                            Subjek temuan ini adalah pemilik manfaat (UBO). Back
+                            office belum punya endpoint yang mengambil satu UBO
+                            berdasarkan idnya — UBO hanya muncul menempel pada
+                            detail KYB induknya, dan temuan ini tidak membawa id
+                            KYB tersebut. Cocokkan lewat berkas KYB badan usahanya.
+                          </p>
+                          <Field label="ID subjek (UBO)">
+                            <button
+                              type="button"
+                              onClick={() => copyText(result.subjectId, 'ID subjek')}
+                              className="inline-flex items-center gap-1.5 break-all font-mono text-xs hover:text-primary"
+                            >
+                              {result.subjectId}
+                              <Copy className="h-3 w-3 shrink-0 opacity-50" />
+                            </button>
+                          </Field>
+                        </div>
+                      ) : subjectQuery.isLoading ? (
+                        <div className="space-y-2">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-4 w-full" />
+                          ))}
+                        </div>
+                      ) : subjectQuery.isError ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-destructive">
+                            {errorMessage(subjectQuery.error, 'Gagal memuat data nasabah.')}
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => subjectQuery.refetch()}
+                          >
+                            Coba lagi
+                          </Button>
+                        </div>
+                      ) : subjectQuery.data ? (
+                        <>
+                          <SubjectPanel detail={subjectQuery.data} staff={user} />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                source.kind === 'KYB'
+                                  ? `/kyb/${result.subjectId}`
+                                  : `/kyc/${result.subjectId}`,
+                              )
+                            }
+                            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                          >
+                            Buka berkas {source.kind} lengkap
+                            <ExternalLink className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : null}
+                    </Section>
+                  </div>
+
+                  <div className="rounded-md border border-border px-3 py-3">
+                    <Section title="Entri daftar sanksi">
+                      <SanctionEntryPanel entry={result.matchedEntry} />
+                    </Section>
+                  </div>
+                </div>
+
+                {/* Keputusan yang sudah ada */}
+                {result.decision && (
+                  <div
+                    className="rounded-md border border-border px-3 py-2.5"
+                    data-testid="screening-existing-decision"
+                  >
+                    <Section title="Keputusan yang tercatat">
+                      <div className="@container divide-y divide-border border-t border-border">
+                        <Field label="Keputusan">
+                          {SCREENING_DECISION_LABELS[result.decision.outcome]}
+                        </Field>
+                        <Field label="Diputuskan oleh">
+                          {result.decision.decidedByName ?? 'Akun petugas sudah dihapus'}
+                          <span className="tabular-nums ml-1.5 text-xs text-muted-foreground">
+                            {formatDateTime(result.decision.createdAt)}
+                          </span>
+                        </Field>
+                        <div className="sm:col-span-2">
+                          <Field label="Alasan">
+                            {result.decision.reason ?? <Dim />}
+                          </Field>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Keputusan ditulis sebagai baris baru dan tidak bisa diubah
+                        atau dihapus — tabelnya append-only, dijaga dua trigger
+                        database.
+                      </p>
+                    </Section>
+                  </div>
+                )}
+
+                <DetailTeknis>
+                  <Field label="ID temuan">
+                    <button
+                      type="button"
+                      onClick={() => copyText(result.id, 'ID temuan')}
+                      className="inline-flex items-center gap-1.5 break-all font-mono text-xs text-foreground hover:text-primary"
+                      title={result.id}
+                      aria-label="Salin ID temuan"
+                    >
+                      <span>{result.id}</span>
+                      <Copy className="h-3 w-3 shrink-0 opacity-50" />
+                    </button>
+                  </Field>
+                  <Field label="Subjek (kode)">
+                    <span className="break-all font-mono text-xs text-muted-foreground">
+                      {result.subjectType} · {result.subjectId}
+                    </span>
+                  </Field>
+                  <Field label="Hasil (kode)">
+                    <span className="font-mono text-xs text-muted-foreground">{result.outcome}</span>
+                  </Field>
+                </DetailTeknis>
+
+                {/* Kotak alasan — muncul setelah salah satu keputusan dipilih */}
+                {actionable && canDecide && pending && (
+                  <div
+                    className={cn(
+                      'space-y-2 rounded-md border px-3 py-3',
+                      pending === 'CONFIRMED_MATCH'
+                        ? 'border-destructive/50 bg-destructive/5'
+                        : 'border-emerald-600/40 bg-emerald-500/5',
+                    )}
+                  >
+                    <p className="text-sm font-medium">
+                      {SCREENING_DECISION_LABELS[pending]}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {pending === 'CLEARED'
+                        ? 'Subjek dilepas dan bisa diproses seperti biasa. Tulis apa yang membuat Anda yakin ini BUKAN pihak yang sama — tanggal lahir berbeda, kebangsaan berbeda, dan seterusnya.'
+                        : 'Subjek tetap tertahan dan berkasnya wajib ditolak lewat layar KYC/KYB-nya sendiri (Pasal 49). Tulis apa yang membuat Anda yakin ini pihak yang sama.'}
+                    </p>
+                    <Textarea
+                      value={reason}
+                      onChange={(e) => {
+                        setReason(e.target.value)
+                        if (reasonError) setReasonError('')
+                      }}
+                      placeholder="mis. Tanggal lahir berbeda 12 tahun dan kebangsaan tidak sama; nama identik karena umum di Indonesia"
+                      maxLength={SCREENING_REASON_MAX}
+                      rows={4}
+                      aria-label="Alasan keputusan"
+                      disabled={isMutating}
+                    />
+                    <div className="flex items-baseline justify-between gap-2">
+                      <FieldError message={reasonError} />
+                      <span
+                        className={cn(
+                          'ml-auto text-xs tabular-nums',
+                          reason.length >= SCREENING_REASON_MAX
+                            ? 'text-destructive'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {reason.length}/{SCREENING_REASON_MAX}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Alasan wajib dan bukan formalitas: inilah “hasil analisis”
+                      yang POJK 8/2023 Pasal 63 ayat (2) huruf c wajibkan
+                      ditatausahakan, dan yang dibaca pemeriksa bertahun kemudian.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+      </RecordModal>
     </TooltipProvider>
   )
 }

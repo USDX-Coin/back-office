@@ -19,11 +19,12 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       })
       await installMockApi(page)
       await seedAuthenticatedSession(page)
-      await page.goto('/dashboard')
+      await page.goto('/transactions')
 
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2', { timeout: 15000 })
-      await page.getByRole('link', { name: /persetujuan pencairan/i }).click()
-      await expect(page).toHaveURL(/\/redeem-approvals$/)
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2', { timeout: 15000 })
+      // Fase 2: badge = transactionsNeedsAction; halaman Transaksi sendiri tidak
+      // menarik list PII take=1.
+      await expect(page.getByRole('heading', { name: /^transaksi$/i, level: 1 })).toBeVisible()
 
       expect(apiCalls).toContain('/api/v1/queue-counts')
       expect(apiCalls.filter((c) => /^\/api\/v1\/(payout-failures|redeem-approvals)\?(.*&)?take=1(&|$)/.test(c))).toEqual([])
@@ -33,7 +34,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto(`/payout-failures/${RINA_ORDER}`)
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('2', { timeout: 15000 })
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveText('2', { timeout: 15000 })
 
       const detail = page.getByRole('dialog', { name: /Pencairan bermasalah/ })
       await detail.getByRole('button', { name: 'Kirim ulang' }).click({ timeout: 15000 })
@@ -60,7 +61,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await expect(resolve).toHaveCount(0)
       await expect(page.getByTestId('resolved-note')).toContainText('Dikirim ulang')
       await expect(detail.getByText('1370012245001')).toBeVisible()
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveText('1')
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveText('1')
     })
   })
 
@@ -113,7 +114,7 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
               body: JSON.stringify({
                 status: 'success',
                 metadata: null,
-                data: { payoutFailuresOpen: 0, redeemApprovalsOpen: 0 },
+                data: { payoutFailuresOpen: 0, redeemApprovalsOpen: 0, heldCreditsOpen: 0, approvalsOpen: 0 },
               }),
             })
             return true
@@ -123,10 +124,10 @@ test.describe('USDX-678 badge queue-counts + rekening pengganti @e2e', () => {
       await seedAuthenticatedSession(page)
       await page.goto('/dashboard')
 
-      await expect(page.getByRole('link', { name: /pencairan bermasalah/i })).toBeVisible({ timeout: 15000 })
+      await expect(page.locator('aside').getByRole('link', { name: /^transaksi/i })).toBeVisible({ timeout: 15000 })
       await expect.poll(() => served).toBe(true)
-      await expect(page.getByTestId('nav-badge-payout-failures')).toHaveCount(0)
-      await expect(page.getByTestId('nav-badge-redeem-approvals')).toHaveCount(0)
+      await expect(page.getByTestId('nav-badge-transactions')).toHaveCount(0)
+      await expect(page.getByTestId('nav-badge-transactions-galat')).toHaveCount(0)
     })
   })
 })

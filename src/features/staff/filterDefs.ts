@@ -2,6 +2,11 @@
 // Note: staff filtering + sorting + paginating runs entirely client-side
 // because sot/api/staff.yaml only exposes `page` + `limit` today (see comment
 // at top of StaffPage.tsx).
+//
+// Nama peran (`ADMIN` / `MANAGER` / `STAFF` / `DEVELOPER`) TIDAK diterjemahkan
+// dan ditulis persis seperti nilai enumnya: itu kata yang dipakai gerbang akses
+// di kode dan yang disebut di dokumen tim, jadi "Manajer" di layar akan membuat
+// operator mencari peran yang tidak ada namanya di tempat lain mana pun.
 import type {
   ColumnConfig,
   FilterDef,
@@ -12,12 +17,12 @@ export const STAFF_FILTER_DEFS: FilterDef[] = [
   {
     kind: 'select',
     key: 'role',
-    label: 'Role',
+    label: 'Peran',
     options: [
-      { value: 'STAFF', label: 'Staff' },
-      { value: 'MANAGER', label: 'Manager' },
-      { value: 'DEVELOPER', label: 'Developer' },
-      { value: 'ADMIN', label: 'Admin' },
+      { value: 'STAFF', label: 'STAFF' },
+      { value: 'MANAGER', label: 'MANAGER' },
+      { value: 'DEVELOPER', label: 'DEVELOPER' },
+      { value: 'ADMIN', label: 'ADMIN' },
     ],
   },
   {
@@ -25,26 +30,26 @@ export const STAFF_FILTER_DEFS: FilterDef[] = [
     key: 'active',
     label: 'Status',
     options: [
-      { value: 'active', label: 'Active' },
-      { value: 'inactive', label: 'Inactive' },
+      { value: 'active', label: 'Aktif' },
+      { value: 'inactive', label: 'Nonaktif' },
     ],
   },
 ]
 
 export const STAFF_SORT_COLUMNS: SortColumnDef[] = [
-  { id: 'name', label: 'Name' },
+  { id: 'name', label: 'Nama' },
   { id: 'email', label: 'Email' },
-  { id: 'role', label: 'Role' },
+  { id: 'role', label: 'Peran' },
   { id: 'isActive', label: 'Status' },
-  { id: 'createdAt', label: 'Created' },
+  { id: 'createdAt', label: 'Dibuat' },
 ]
 
 // Column ids must match the `accessorKey` / `id` on the TanStack ColumnDef.
 export const STAFF_COLUMN_CONFIG: ColumnConfig[] = [
-  { key: 'name', label: 'Name', required: true },
+  { key: 'name', label: 'Nama', required: true },
   { key: 'email', label: 'Email' },
-  { key: 'role', label: 'Role' },
+  { key: 'role', label: 'Peran' },
   { key: 'isActive', label: 'Status' },
-  { key: 'createdAt', label: 'Created' },
-  { key: 'actions', label: 'Actions', required: true },
+  { key: 'createdAt', label: 'Dibuat' },
+  { key: 'actions', label: 'Aksi', required: true },
 ]

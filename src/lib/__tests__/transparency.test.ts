@@ -15,6 +15,7 @@ import {
   newIdempotencyKey,
   parseAmountToCents,
   wibToday,
+  ledgerEntryTypeLabel,
 } from '@/lib/transparency'
 import type { AttestationReport } from '@/lib/types'
 
@@ -104,17 +105,17 @@ describe('addAmounts', () => {
 describe('formatAmountDecimal', () => {
   describe('positive', () => {
     test('groups thousands and keeps 2 decimals', () => {
-      expect(formatAmountDecimal('100667.41')).toBe('100,667.41')
+      expect(formatAmountDecimal('100667.41')).toBe('100.667,41')
     })
     test('pads a missing decimal place', () => {
-      expect(formatAmountDecimal('1250000.4')).toBe('1,250,000.40')
+      expect(formatAmountDecimal('1250000.4')).toBe('1.250.000,40')
     })
     test('keeps the minus sign in front of the grouped digits', () => {
-      expect(formatAmountDecimal('-1250.75')).toBe('-1,250.75')
+      expect(formatAmountDecimal('-1250.75')).toBe('-1.250,75')
     })
     test('formats a value larger than Number.MAX_SAFE_INTEGER exactly', () => {
       expect(formatAmountDecimal('9007199254740993.99')).toBe(
-        '9,007,199,254,740,993.99'
+        '9.007.199.254.740.993,99'
       )
     })
   })
@@ -124,14 +125,14 @@ describe('formatAmountDecimal', () => {
       expect(formatAmountDecimal('undefined')).toBe('undefined')
     })
     test('formats zero without collapsing it', () => {
-      expect(formatAmountDecimal('0')).toBe('0.00')
+      expect(formatAmountDecimal('0')).toBe('0,00')
     })
   })
 })
 
 describe('formatLedgerAmount', () => {
   test('appends the currency the server sent', () => {
-    expect(formatLedgerAmount('100667.41', 'USD')).toBe('100,667.41 USD')
+    expect(formatLedgerAmount('100667.41', 'USD')).toBe('100.667,41 USD')
   })
   test('keeps an unparseable amount visible next to its currency', () => {
     expect(formatLedgerAmount('n/a', 'USD')).toBe('n/a USD')
@@ -249,7 +250,7 @@ describe('activeAttestations', () => {
 describe('getPeriodParts', () => {
   describe('positive', () => {
     test('splits a valid period into month and year', () => {
-      expect(getPeriodParts('2026-07')).toEqual({ month: 'July', year: '2026' })
+      expect(getPeriodParts('2026-07')).toEqual({ month: 'Juli', year: '2026' })
     })
   })
 
@@ -266,7 +267,7 @@ describe('getPeriodParts', () => {
 
 describe('formatPeriod', () => {
   test('renders a valid period in full', () => {
-    expect(formatPeriod('2026-07')).toBe('July 2026')
+    expect(formatPeriod('2026-07')).toBe('Juli 2026')
   })
   test('falls back to the raw value when it is not a period', () => {
     expect(formatPeriod('whenever')).toBe('whenever')
@@ -385,5 +386,19 @@ describe('looksLikePdf', () => {
       } as unknown as Blob
       await expect(looksLikePdf(unreadable)).resolves.toBeNull()
     })
+  })
+})
+
+describe('ledgerEntryTypeLabel', () => {
+  test('should spell the selectable types as words', () => {
+    expect(ledgerEntryTypeLabel('SEED')).toBe('Saldo awal')
+    expect(ledgerEntryTypeLabel('ADJUSTMENT')).toBe('Koreksi')
+  })
+  test('should use the one redeem word for both BURN and REDEEM', () => {
+    expect(ledgerEntryTypeLabel('BURN')).toBe('Redeem')
+    expect(ledgerEntryTypeLabel('REDEEM')).toBe('Redeem')
+  })
+  test('should return an unknown type as-is', () => {
+    expect(ledgerEntryTypeLabel('NEW')).toBe('NEW')
   })
 })
