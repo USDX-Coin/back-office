@@ -77,6 +77,7 @@ import {
   createBurnRequestFromSubmission,
   createInitialRateHistory,
   createRateConfig,
+  MOCK_DYNAMIC_BASE_RATE,
   computeRateInfo,
   createInitialOncallContacts,
   createOncallContact,
@@ -181,7 +182,7 @@ let payoutsEnabled = true
 // kredit di layar Mint Bermasalah, karena jalan buntu di antara keduanya persis
 // yang tiket ini tutup dan tiruan yang memutusnya tidak membuktikan apa pun.
 let activityLogStore: ActivityLogEntry[] = createMockActivityLog()
-// ⚠️ DRAF SOT PR #50 — metode pembayaran. Mutable (bukan append-only): jejaknya
+// Metode pembayaran (`payment-methods.yaml`). Mutable (bukan append-only): jejaknya
 // di `activityLogStore` (PAYMENT_METHOD_UPDATED / _REORDERED), persis kontraknya.
 let paymentMethodStore: PaymentMethod[] = createInitialPaymentMethods()
 
@@ -854,7 +855,7 @@ function redeemIdrCents(raw: string): bigint | null {
  * Urut `burnedAt` ASC: terlama dulu, keputusan fairness, bukan preferensi tampilan.
  */
 
-// ─── ⚠️ DRAF SOT PR #50 — pembantu Transaksi gabungan & Metode Pembayaran ───
+// ─── Pembantu Transaksi gabungan (⚠️ DRAF SOT PR #50) & Metode Pembayaran ───
 
 function transactionsError(message: string) {
   return HttpResponse.json(
@@ -1940,7 +1941,8 @@ export const handlers = [
         return rateBadRequest('manualRate is required when mode is MANUAL')
       }
     }
-    for (const key of ['spreadBuyPct', 'spreadSellPct'] as const) {
+    // D25: Y (`gatewayMarkupPct`) ikut aturan yang sama — desimal ≥ 0.
+    for (const key of ['spreadBuyPct', 'spreadSellPct', 'gatewayMarkupPct'] as const) {
       const raw = body[key]
       if (raw != null) {
         const n = Number(raw)
@@ -1950,11 +1952,54 @@ export const handlers = [
       }
     }
 
+    // `bniBuyRate` (rate.yaml § UpdateRateConfig): DIHILANGKAN = nilai + waktu
+    // config aktif dibawa apa adanya; `null` = dikosongkan; diisi = wajib > 0
+    // dan `bniBuyRateUpdatedAt` diisi sistem sekarang.
+    const previous = rateHistory[rateHistory.length - 1]
+    let bniBuyRate: string | null = previous?.bniBuyRate ?? null
+    let bniBuyRateUpdatedAt: string | null = previous?.bniBuyRateUpdatedAt ?? null
+    if (Object.prototype.hasOwnProperty.call(body, 'bniBuyRate')) {
+      if (body.bniBuyRate === null) {
+        bniBuyRate = null
+        bniBuyRateUpdatedAt = null
+      } else {
+        const n = Number(body.bniBuyRate)
+        if (typeof body.bniBuyRate !== 'string' || !Number.isFinite(n) || n <= 0) {
+          return rateBadRequest('bniBuyRate must be greater than 0')
+        }
+        // Batas wajar [kurs dasar, kurs dasar +10%] baris yang disimpan (backend
+        // USDX-749): MANUAL = manualRate baris itu, DYNAMIC = kurs pasar (tiruan: tetap).
+        const base = body.mode === 'MANUAL' ? Number(body.manualRate) : MOCK_DYNAMIC_BASE_RATE
+        const min = base
+        const max = base * 1.1
+        if (n < min || n > max) {
+          return HttpResponse.json(
+            {
+              status: 'error',
+              metadata: null,
+              data: null,
+              error: {
+                code: 'BNI_BUY_RATE_OUT_OF_RANGE',
+                message: `Kurs BNI ${n.toFixed(2)} di luar rentang wajar kurs dasar ${base.toFixed(2)} sampai +10%: ${min.toFixed(2)} – ${max.toFixed(2)}.`,
+              },
+            },
+            { status: 422 },
+          )
+        }
+        bniBuyRate = body.bniBuyRate
+        bniBuyRateUpdatedAt = new Date().toISOString()
+      }
+    }
+
     const created = createRateConfig({
       mode: body.mode as RateMode,
       manualRate: body.mode === 'MANUAL' ? (body.manualRate ?? null) : null,
       spreadBuyPct: body.spreadBuyPct ?? '0',
       spreadSellPct: body.spreadSellPct ?? '0',
+      // Tidak dikirim = tidak diubah (backend USDX-749).
+      gatewayMarkupPct: body.gatewayMarkupPct ?? previous?.gatewayMarkupPct ?? '0',
+      bniBuyRate,
+      bniBuyRateUpdatedAt,
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })
@@ -2008,15 +2053,13 @@ export const handlers = [
       )
     }
 
-    // POST = full 7-field snapshot; every field required + non-negative (W3
+    // POST = snapshot of the 5 required fields (PG fee VA/QRIS optional since rev-16, `fee.yaml`); every field required + non-negative (W3
     // redeem fields included so partial submits can't zero them out, USDX-245;
     // `minMintIdr` since USDX-637 and `minRedeemIdr` since USDX-682 for the same
     // reason). `minRedeemIdr` is required on the real backend too, so the mock
     // refusing it here is what proves the form still saves the OLD config.
     for (const key of [
       'mintFeePct',
-      'pgFeeVaFlat',
-      'pgFeeQrisPct',
       'redeemFeePct',
       'disbursementFeeFlat',
       'minMintIdr',
@@ -2043,8 +2086,10 @@ export const handlers = [
 
     const created = createFeeConfig({
       mintFeePct: body.mintFeePct,
-      pgFeeVaFlat: body.pgFeeVaFlat,
-      pgFeeQrisPct: body.pgFeeQrisPct,
+      // rev-16 (`fee.yaml`): PG fee DEPRECATED + opsional — tidak dikirim =
+      // salin nilai baris aktif sebelumnya; dikirim = disimpan, tidak dipakai.
+      pgFeeVaFlat: body.pgFeeVaFlat ?? feeHistory[feeHistory.length - 1]?.pgFeeVaFlat,
+      pgFeeQrisPct: body.pgFeeQrisPct ?? feeHistory[feeHistory.length - 1]?.pgFeeQrisPct,
       redeemFeePct: body.redeemFeePct,
       disbursementFeeFlat: body.disbursementFeeFlat,
       minMintIdr: body.minMintIdr,
@@ -3466,7 +3511,7 @@ export const handlers = [
     })
   }),
 
-  // ─── ⚠️ DRAF SOT PR #50 — Metode Pembayaran (`payment-methods.yaml`) ───
+  // ─── Metode Pembayaran (`sot/api/payment-methods.yaml`) ───
   http.get('/api/v1/payment-methods', ({ request }) => {
     const staff = authenticatedStaff(request)
     if (staff && staff.role !== 'ADMIN' && staff.role !== 'DEVELOPER') {
@@ -3487,8 +3532,9 @@ export const handlers = [
       return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
-    if (reason.length < 10 || reason.length > 500) {
-      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    // Backend `validReason`: ≥ 10 karakter SELAIN spasi setelah trim.
+    if (reason.replace(/\s/g, '').length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
     }
     const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
     if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr'].some(has)) {
@@ -3555,8 +3601,9 @@ export const handlers = [
       return paymentMethodError(422, 'VALIDATION_ERROR', 'Invalid JSON body')
     }
     const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
-    if (reason.length < 10 || reason.length > 500) {
-      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason must be 10..500 characters')
+    // Backend `validReason`: ≥ 10 karakter SELAIN spasi setelah trim.
+    if (reason.replace(/\s/g, '').length < 10 || reason.length > 500) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
     }
     const ids = Array.isArray(body.orderedIds) ? body.orderedIds.map(String) : []
     const all = new Set(paymentMethodStore.map((m) => m.id))

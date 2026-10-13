@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
+import { Link } from 'react-router'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -24,8 +25,10 @@ import { EditPaymentMethodDialog, SaveOrderDialog, TogglePaymentMethodDialog } f
 import { usePaymentMethods } from './hooks'
 
 /**
- * Pengaturan → Metode Pembayaran (⚠️ DRAF SOT PR #50, `payment-methods.yaml`,
- * `bni-integration.md § 4.3.11`).
+ * Pengaturan → Metode Pembayaran (`sot/api/payment-methods.yaml`,
+ * `bni-integration.md § 4.3.11` + § 4.3.12 R5). Yang diatur di sini menentukan
+ * pilihan bayar mint nasabah di checkout web DAN aplikasi (`channels[]` +
+ * `GET /api/v2/config.paymentMethods[]` dibentuk backend dari tabel yang sama).
  *
  * Metode = kombinasi (channel, bank, provider) yang SUDAH didukung kode —
  * layar ini hanya menyalakan/mematikan, mengurutkan, dan mengatur biaya serta
@@ -129,7 +132,19 @@ export default function PaymentMethodsPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground" title={m.code}>
                       {providerLabel(m.provider)}
                     </p>
-                    {!m.available && reason && <p className="mt-1 text-xs text-gold-foreground">{reason}</p>}
+                    {!m.available && reason && (
+                      <p className="mt-1 text-xs text-gold-foreground" title={m.unavailableReason ?? undefined}>
+                        {reason}
+                        {m.unavailableReason === 'BNI_BUY_RATE_MISSING' && canEdit && (
+                          <>
+                            {' · '}
+                            <Link to="/settings/rate" className="font-medium text-primary underline-offset-2 hover:underline">
+                              Isi kurs BNI
+                            </Link>
+                          </>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm md:block">
                     <dt className="text-xs text-muted-foreground">Biaya</dt>
@@ -191,8 +206,18 @@ export default function PaymentMethodsPage() {
 
       {canReadActivityLog(user) && <ChangeTrail methods={methods} />}
 
-      {toggle && <TogglePaymentMethodDialog method={toggle} all={methods} onClose={() => setToggle(null)} />}
-      {edit && <EditPaymentMethodDialog method={edit} onClose={() => setEdit(null)} />}
+      {/* Dialog membaca baris TERBARU dari list: setelah 409 PAYMENT_METHOD_CHANGED
+          list ditarik ulang, jadi `expectedUpdatedAt` ulangan memakai nilai baru. */}
+      {toggle && (
+        <TogglePaymentMethodDialog
+          method={methods.find((m) => m.id === toggle.id) ?? toggle}
+          all={methods}
+          onClose={() => setToggle(null)}
+        />
+      )}
+      {edit && (
+        <EditPaymentMethodDialog method={methods.find((m) => m.id === edit.id) ?? edit} onClose={() => setEdit(null)} />
+      )}
       {saveOrder && draftOrder && (
         <SaveOrderDialog
           orderedIds={draftOrder}

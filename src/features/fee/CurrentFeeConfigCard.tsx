@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatIdrAmount, formatDateTime, formatSpreadPct } from '@/lib/format'
@@ -40,28 +41,6 @@ export default function CurrentFeeConfigCard({ data, isLoading, action }: Props)
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t lg:grid-cols-4 border-border pt-4">
-              <div>
-                <dt className="text-xs text-muted-foreground">
-                  Biaya VA (flat)
-                </dt>
-                <dd
-                  className="tabular-nums mt-1 text-sm font-medium"
-                  aria-label="biaya VA flat"
-                >
-                  {formatIdrAmount(Number(data.pgFeeVaFlat))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">
-                  Biaya QRIS (%)
-                </dt>
-                <dd
-                  className="tabular-nums mt-1 text-sm font-medium"
-                  aria-label="persen biaya QRIS"
-                >
-                  {formatSpreadPct(data.pgFeeQrisPct)}
-                </dd>
-              </div>
               <div>
                 <dt className="text-xs text-muted-foreground">
                   Biaya redeem (%)
@@ -122,6 +101,16 @@ export default function CurrentFeeConfigCard({ data, isLoading, action }: Props)
                 </dd>
               </div>
             </dl>
+            {/* rev-16 (`fee.yaml`, `bni-integration.md § 4.3.11` M3): PG fee
+                VA/QRIS global DEPRECATED — tidak dipakai perhitungan, jadi tidak
+                ditampilkan sebagai angka yang berlaku. */}
+            <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+              Biaya Virtual Account, QRIS, dan Transfer BNI diatur per metode di{' '}
+              <Link to="/settings/payment-methods" className="font-medium text-primary underline-offset-2 hover:underline">
+                Metode Pembayaran
+              </Link>
+              .
+            </p>
           </>
         )}
       </CardContent>

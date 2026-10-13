@@ -1,6 +1,6 @@
-// Metode Pembayaran — ⚠️ DRAF SOT PR #50 (`sot/api/payment-methods.yaml`,
-// `bni-integration.md § 4.3.11`). Aturan murni layar Pengaturan → Metode
-// Pembayaran. Semua enum TERBUKA: nilai tak dikenal tampil apa adanya.
+// Metode Pembayaran (`sot/api/payment-methods.yaml`, `bni-integration.md
+// § 4.3.11` + § 4.3.12 R5). Aturan murni layar Pengaturan → Metode Pembayaran.
+// Semua enum TERBUKA: nilai tak dikenal tampil apa adanya (kontrak).
 
 import { formatIdrExact } from './redeemApprovals'
 import type { PaymentMethod } from './types'
@@ -74,9 +74,40 @@ function trimDecimal(v: string): string {
   return v.includes('.') ? v.replace(/0+$/, '').replace(/\.$/, '').replace('.', ',') : v
 }
 
+/** Tambah nol di belakang sampai `places` desimal: `"4000"` → `"4000.00"`. Input sudah tervalidasi. */
+function padDecimal(v: string, places: number): string {
+  const [int, frac = ''] = v.split('.')
+  return `${int}.${frac.padEnd(places, '0')}`
+}
+
+/**
+ * `feeValue` dalam bentuk kanonik kontrak — `FLAT_IDR` 2 desimal (`"4000.00"`),
+ * `PERCENT` 4 desimal (`"0.7000"`), sama dengan yang dikirim GET — supaya
+ * "4000" yang diketik admin tidak terbaca sebagai perubahan dari "4000.00".
+ */
+export function normalizeFeeValue(feeType: string, raw: string): string {
+  const v = raw.trim()
+  if (feeType === 'FLAT_IDR') return padDecimal(v, 2)
+  if (feeType === 'PERCENT') return padDecimal(v, 4)
+  return v
+}
+
+/** Biaya berubah? Dibandingkan sebagai angka, bukan ejaan. */
+export function isFeeChanged(m: Pick<PaymentMethod, 'feeType' | 'feeValue'>, feeType: string, feeValue: string): boolean {
+  return feeType !== m.feeType || Number(feeValue.trim()) !== Number(m.feeValue)
+}
+
+/**
+ * Alasan PATCH / PUT urutan — sama dengan backend (`payment-methods.service.ts`
+ * `validReason`, keputusan PM 13 Okt 2026): dihitung SETELAH trim dan wajib
+ * berisi ≥ 10 karakter SELAIN spasi — sepuluh spasi atau "a a a a a" bukan
+ * alasan. Yang dikirim versi ter-trim.
+ */
 export function validateReason(raw: string): { value: string; error: string | null } {
   const value = raw.trim()
-  if (value.length < REASON_MIN) return { value, error: `Alasan minimal ${REASON_MIN} karakter.` }
+  if (value.replace(/\s/g, '').length < REASON_MIN) {
+    return { value, error: `Alasan minimal ${REASON_MIN} karakter selain spasi.` }
+  }
   if (value.length > REASON_MAX) return { value, error: `Alasan maksimal ${REASON_MAX} karakter.` }
   return { value, error: null }
 }
@@ -112,5 +143,16 @@ export function validateMaxAmount(code: string, raw: string): { value: string | 
   if (isBni && Number(v) > BNI_TRANSFER_POLICY_MAX_IDR) {
     return { value: null, error: 'Transfer BNI tidak boleh melebihi Rp 10.000.000 per transaksi (plafon kebijakan).' }
   }
-  return { value: v.includes('.') ? v : `${v}.00`, error: null }
+  return { value: padDecimal(v, 2), error: null }
+}
+
+/**
+ * Kenapa Transfer BNI belum akan ditawarkan bila dinyalakan sekarang — dibaca
+ * dari `unavailableReason` server, tidak ditebak. `null` = tidak ada catatan.
+ */
+export function bniEnableNotice(m: PaymentMethod): 'PREREQUISITE' | 'BUY_RATE' | null {
+  if (m.code !== BNI_TRANSFER_CODE || m.available) return null
+  if (m.unavailableReason === 'BNI_PREREQUISITE_UNVERIFIED') return 'PREREQUISITE'
+  if (m.unavailableReason === 'BNI_BUY_RATE_MISSING') return 'BUY_RATE'
+  return null
 }

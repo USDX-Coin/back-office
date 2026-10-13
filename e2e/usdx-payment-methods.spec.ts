@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { ADMIN_STAFF, installMockApi, type MockApiOptions } from './support/mock-api'
 import { seedAuthenticatedSession } from './support/auth'
 
-// Pengaturan ▸ Metode Pembayaran (⚠️ DRAF SOT PR #50, payment-methods.yaml).
+// Pengaturan ▸ Metode Pembayaran (`sot/api/payment-methods.yaml`).
 // Seed = seed MSW `createInitialPaymentMethods` (16 metode): hanya Virtual
 // Account NOBU (DurianPay) yang ditawarkan; Transfer BNI mati dan dijaga D23
 // (server menjawab 409 PAYMENT_METHOD_PREREQUISITE_UNMET saat dinyalakan).
@@ -134,7 +134,8 @@ test.describe('Metode Pembayaran @e2e', () => {
           reason: REASON,
           expectedUpdatedAt: '2026-10-09T03:00:00.000Z',
           feeType: 'FLAT_IDR',
-          feeValue: '5000',
+          // Bentuk kanonik kontrak: FLAT_IDR 2 desimal.
+          feeValue: '5000.00',
           maxAmountIdr: '50000000.00',
         },
       ])
@@ -152,7 +153,7 @@ test.describe('Metode Pembayaran @e2e', () => {
       await dialog.getByLabel('Alasan').fill('pendek')
       await dialog.getByRole('button', { name: 'Nyalakan' }).click()
 
-      await expect(dialog.getByText('Alasan minimal 10 karakter.')).toBeVisible()
+      await expect(dialog.getByText('Alasan minimal 10 karakter selain spasi.')).toBeVisible()
       await expect(dialog).toBeVisible()
       expect(state.paymentMethodWrites).toHaveLength(0)
       await expect(page.getByTestId(BRI)).toContainText('Mati')
@@ -163,13 +164,14 @@ test.describe('Metode Pembayaran @e2e', () => {
 
       await page.getByTestId(BNI_TRANSFER).getByRole('switch').click()
       const dialog = page.getByRole('dialog', { name: 'Nyalakan Transfer bank BNI?' })
-      await expect(dialog).toContainText(/belum akan ditawarkan ke nasabah sampai syaratnya terpenuhi/i)
+      // `unavailableReason = BNI_PREREQUISITE_UNVERIFIED` → diberi tahu sebelum dikirim.
+      await expect(dialog.getByRole('note')).toContainText(/server production akan menolak/i)
       await dialog.getByLabel('Alasan').fill(REASON)
       await dialog.getByRole('button', { name: 'Nyalakan' }).click()
 
       const alert = dialog.getByRole('alert')
       await expect(alert).toContainText(
-        'Transfer BNI belum bisa dinyalakan: prasyarat keamanan BNI (allowlist IP, D23) belum dinyatakan terpenuhi oleh devops.',
+        'Transfer BNI belum bisa dinyalakan: prasyarat keamanan BNI (allowlist IP pengirim notifikasi BNI, D23) belum dinyatakan terpenuhi oleh devops. Tidak ada yang berubah.',
       )
       // Kode server hanya di "Detail teknis" yang tertutup — bukan kalimat utamanya.
       await expect(alert.getByText('PAYMENT_METHOD_PREREQUISITE_UNMET', { exact: false })).toBeHidden()
