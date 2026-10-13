@@ -12,6 +12,7 @@ import {
   validateFeeConfigForm,
 } from '@/lib/validators'
 import { ApiError } from '@/lib/apiFetch'
+import { trimTrailingZeros } from '@/lib/format'
 import type { FeeConfig } from '@/lib/types'
 import { useUpdateFeeConfig } from './hooks'
 
@@ -56,26 +57,6 @@ type FormOverrides = Partial<FormState>
 // the fees we don't send (USDX-245, `minMintIdr` since USDX-637, `minRedeemIdr`
 // since USDX-682). `minRedeemIdr` is REQUIRED on the backend: a form that does
 // not send it is refused 422, so saving the OLD config would fail too.
-/**
- * Buang nol di belakang pada nilai `numeric` dari API — `'0.0000'` → `'0'`,
- * `'0.7000'` → `'0.7'`, `'4000.00'` → `'4000'`.
- *
- * Ada karena form ini TIDAK PERNAH BISA DISIMPAN tanpa mengetik ulang isinya.
- * Kolom persentase di database `numeric(5,4)`, jadi API selalu mengembalikan
- * empat desimal; validator form menerima paling banyak DUA. Prefill-nya sendiri
- * karena itu selalu ditolak validatornya sendiri, di ketiga field persentase
- * sekaligus, dan satu-satunya jalan keluar adalah operator mengetik ulang nilai
- * yang sebenarnya sudah benar. Itu terjadi diam-diam sejak konfigurasi fee
- * terakhir tersimpan 10 Agustus 2026.
- *
- * Yang dipangkas hanya PENAMPILANNYA. `Number('0.7') === Number('0.7000')`,
- * jadi nilai yang dikirim ke server tidak berubah sedikit pun.
- */
-function trimTrailingZeros(value: string): string {
-  if (!/^\d+\.\d+$/.test(value)) return value
-  return value.replace(/\.?0+$/, '') || '0'
-}
-
 function resolveForm(overrides: FormOverrides, current: FeeConfig | undefined): FormState {
   const prefill = (value: string | undefined) => (value ? trimTrailingZeros(value) : '')
   return {
