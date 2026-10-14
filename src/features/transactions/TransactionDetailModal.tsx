@@ -15,6 +15,7 @@ import {
   transactionKindLabel,
   transactionPartyName,
   transactionStatus,
+  transactionMoneyLabel,
 } from '@/lib/backofficeTransactions'
 import { allowedResolveActions, RESOLVE_ACTION_LABELS } from '@/lib/payoutFailures'
 import { heldReasonLabel } from '@/features/held-credits/labels'
@@ -98,7 +99,8 @@ export default function TransactionDetailModal({
   const isIncoming = row.kind === 'INCOMING_UNMATCHED'
   const buttons = buildActions(row.actions, user, setIntent)
   const blockedReason = buttons.find((b) => b.blocked)?.blocked ?? null
-  const amountLine = row.amountIdr ? formatIdrExact(row.amountIdr) : row.amountUsdx ? formatUsdxExact(row.amountUsdx) : null
+  const money = transactionMoneyLabel(row)
+  const amountLine = money ?? (row.amountUsdx ? formatUsdxExact(row.amountUsdx) : null)
 
   return (
     <>
@@ -162,16 +164,23 @@ export default function TransactionDetailModal({
           </DataField>
         </DataSection>
 
-        {(row.amountIdr || row.amountUsdx) && (
+        {(money || row.amountUsdx) && (
           <DataSection title="Nominal">
             {row.amountUsdx && (
               <DataField label="USDX">
                 <span className="tabular-nums">{formatUsdxExact(row.amountUsdx)}</span>
               </DataField>
             )}
-            {row.amountIdr && (
+            {money && (
               <DataField label={row.kind === 'MINT' ? 'Total bayar' : row.kind === 'REDEEM' ? 'Diterima nasabah' : 'Uang masuk'}>
-                <span className="font-semibold tabular-nums">{formatIdrExact(row.amountIdr)}</span>
+                <span className="font-semibold tabular-nums">{money}</span>
+              </DataField>
+            )}
+            {/* Transfer BNI dalam USD: padanan rupiah dari backend ikut ditulis kecil
+                (AML/laporan) — bukan angka yang ditransfer. */}
+            {row.amountCurrency === 'USD' && row.amountIdr && (
+              <DataField label="Padanan rupiah">
+                <span className="tabular-nums text-muted-foreground">{formatIdrExact(row.amountIdr)}</span>
               </DataField>
             )}
           </DataSection>

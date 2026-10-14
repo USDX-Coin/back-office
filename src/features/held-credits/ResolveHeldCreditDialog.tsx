@@ -19,7 +19,7 @@ import { ApiError } from '@/lib/apiFetch'
 import { formatIdrExact } from '@/lib/redeemApprovals'
 import { willNeedSecondPerson } from './makerChecker'
 import { buildResolveBody, useResolveHeldCredit, type ResolveFormErrors } from './hooks'
-import { heldCreditErrorMessage, receivedAmountLabel } from './labels'
+import { displaySenderName, heldCreditErrorMessage, receivedAmountLabel } from './labels'
 import {
   HELD_RESOLVE_REASON_MAX,
   type HeldCreditDetail,
@@ -130,7 +130,7 @@ export default function ResolveHeldCreditDialog({ credit, action, open, onOpenCh
           <DialogTitle>{TITLES[action]}</DialogTitle>
           <DialogDescription>
             {receivedAmountLabel(credit)}
-            {credit.senderName ? ` · dari ${credit.senderName}` : ''}
+            {displaySenderName(credit) ? ` · dari ${displaySenderName(credit)}` : ''}
           </DialogDescription>
         </DialogHeader>
 

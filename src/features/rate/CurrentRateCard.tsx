@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRate, formatSpreadPct, formatDateTime, rateModeLabel } from '@/lib/format'
 import type { RateInfo } from '@/lib/types'
-import BniRateStamp from './BniRateStamp'
 
 interface CurrentRateCardProps {
   data: RateInfo | undefined
@@ -47,32 +46,15 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
               </p>
             </div>
 
-            {/* D25 (`sot/api/rate.yaml § RateInfo`, `bni-integration.md § 4.3.3`):
-                mint KONSUMEN punya dua kurs beli. Transfer BNI = kurs BNI yang
-                diisi admin dari wondr; Virtual Account = dasar × (1 + Y%). */}
+            {/* D25 (`sot/api/rate.yaml § RateInfo`): kurs beli mint KONSUMEN lewat
+                Virtual Account = dasar × (1 + Y%). Kartu "Transfer BNI · kurs BNI dari
+                wondr" dicabut (USDX-749, keputusan PM 14 Okt 2026): Transfer BNI kini
+                transfer USD tanpa kurs. */}
             <section aria-labelledby="consumer-buy-rates" className="space-y-3 border-t border-border pt-4">
               <h3 id="consumer-buy-rates" className="text-label text-muted-foreground">
                 Kurs beli mint nasabah (web &amp; aplikasi)
               </h3>
               <dl className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md bg-muted/40 px-3 py-2.5">
-                  <dt className="text-xs text-muted-foreground">Transfer BNI</dt>
-                  <dd className="mt-1 text-sm font-semibold tabular-nums" aria-label="kurs beli transfer BNI">
-                    {data.bniBuyRate === null ? 'Belum diisi' : optionalRate(data.bniBuyRate)}
-                  </dd>
-                  <dd className="mt-0.5 space-y-0.5 text-xs">
-                    {data.bniBuyRate === null ? (
-                      <span className="text-muted-foreground">
-                        Transfer BNI tidak ditawarkan ke nasabah sampai kurs BNI diisi.
-                      </span>
-                    ) : (
-                      <>
-                        <span className="block text-muted-foreground">Kurs BNI dari aplikasi wondr, diisi Admin.</span>
-                        <BniRateStamp updatedAt={data.bniBuyRateUpdatedAt} />
-                      </>
-                    )}
-                  </dd>
-                </div>
                 <div className="rounded-md bg-muted/40 px-3 py-2.5">
                   <dt className="text-xs text-muted-foreground">Virtual Account</dt>
                   <dd className="mt-1 text-sm font-semibold tabular-nums" aria-label="kurs beli virtual account">

@@ -21,9 +21,6 @@ export interface RateConfirmDialogProps {
     spreadBuyPct: string
     spreadSellPct: string
     gatewayMarkupPct: string
-    bniBuyRate: string
-    /** Angka sama, dicek ulang di wondr → dikirim ulang, jam diperbarui. */
-    bniReconfirmed?: boolean
   }
   onConfirm: () => void
   isPending: boolean
@@ -40,7 +37,6 @@ export default function RateConfirmDialog({
   onConfirm,
   isPending,
 }: RateConfirmDialogProps) {
-  const clearsBni = current?.bniBuyRate != null && next.bniBuyRate.trim() === ''
   // Esc / outside-click disabled while mutating, matching modal convention.
   function handleOpenChange(o: boolean) {
     if (isPending) return
@@ -89,25 +85,10 @@ export default function RateConfirmDialog({
             to={formatSpreadPct(next.spreadSellPct || '0')}
           />
           <DiffRow
-            label="Kurs BNI"
-            from={bniLabel(current?.bniBuyRate)}
-            to={bniLabel(next.bniBuyRate.trim() || null, current?.bniBuyRate)}
-          />
-          <DiffRow
             label="Markup VA"
             from={current?.gatewayMarkupPct != null ? formatSpreadPct(current.gatewayMarkupPct) : '—'}
             to={formatSpreadPct(next.gatewayMarkupPct.trim() || '0')}
           />
-          {next.bniReconfirmed && (
-            <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
-              Kurs BNI tidak berubah, tapi sudah dicek ulang di wondr — jam pembaruannya akan diperbarui.
-            </p>
-          )}
-          {clearsBni && (
-            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/[0.04] px-3 py-2.5 text-sm">
-              Kurs BNI dikosongkan: metode Transfer BNI berhenti ditawarkan ke nasabah di web dan aplikasi.
-            </p>
-          )}
         </DialogBody>
 
         <DialogFooter>
@@ -131,14 +112,6 @@ export default function RateConfirmDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-/** Kurs BNI untuk baris pembanding. Angka sama dengan sekarang ditulis sama persis (baris tidak dicoret). */
-function bniLabel(value: string | null | undefined, current?: string | null): string {
-  if (value === undefined) return '—'
-  if (value === null || value === '') return 'belum diisi'
-  if (current != null && Number(current) === Number(value)) return formatRate(current)
-  return formatRate(value)
 }
 
 function DiffRow({ label, from, to }: { label: string; from: string; to: string }) {

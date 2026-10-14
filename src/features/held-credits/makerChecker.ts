@@ -1,10 +1,28 @@
 import { MAKER_CHECKER_THRESHOLD_IDR, type HeldCreditDetail } from './types'
 
 /** Rupiah bulat dari string desimal, atau `null` kalau tak terbaca. */
-function rupiahWhole(raw: string | null): number | null {
-  if (raw === null) return null
+function rupiahWhole(raw: string | null | undefined): number | null {
+  if (raw == null) return null
   const match = /^(\d+)(?:\.\d+)?$/.exec(raw.trim())
   return match ? Number(match[1]) : null
+}
+
+/**
+ * Nilai rupiah dari yang MASUK — aturan yang sama dengan `receivedStakeIdr`
+ * backend (USDX-749). Kredit rupiah = angkanya sendiri. Kredit USD (rekening
+ * penampung USD) tidak membawa angka rupiah: dinilai dengan kurs yang dikunci
+ * order pilihan mesin, dipotong ke rupiah bulat. Tanpa kurs order → null →
+ * gagal-tertutup. (Server memakai kurs dasar saat ini bila tak ada order; layar
+ * tidak memegang kurs itu, jadi ia memilih "butuh orang kedua" ketimbang menebak.)
+ */
+function receivedStakeIdr(detail: HeldCreditDetail): number | null {
+  if (detail.amountCurrency !== 'USD') return rupiahWhole(detail.receivedAmountIdr)
+  const usd = detail.receivedAmount?.trim()
+  const rate = Number(detail.order?.effectiveRate)
+  const m = usd ? /^(\d+)(?:\.(\d{1,2}))?$/.exec(usd) : null
+  if (!m || !(rate > 0)) return null
+  const cents = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
+  return Number.isSafeInteger(cents) ? Math.floor((cents * rate) / 100) : null
 }
 
 /**
@@ -27,7 +45,7 @@ export function willNeedSecondPerson(
 ): boolean {
   const matchedOrderId = detail.order?.id ?? null
   if (typedOrderId !== null && typedOrderId !== matchedOrderId) return true
-  const stakes = [rupiahWhole(detail.receivedAmountIdr)]
+  const stakes = [receivedStakeIdr(detail)]
   if (matchedOrderId !== null) stakes.push(rupiahWhole(detail.order?.expectedAmountIdr ?? null))
   if (stakes.some((value) => value === null)) return true
   return Math.max(...(stakes as number[])) > MAKER_CHECKER_THRESHOLD_IDR

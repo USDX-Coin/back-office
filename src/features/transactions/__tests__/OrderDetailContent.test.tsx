@@ -120,3 +120,57 @@ describe('OrderDetailContent — harga order', () => {
     })
   })
 })
+
+// USDX-749 (keputusan PM 14 Okt 2026): Transfer BNI = transfer USD. `/api/v1/orders/{id}`
+// menambah `totalPayUsd` + `payCurrency`; `totalPayIdr` order itu hanya padanan rupiah.
+describe('OrderDetailContent — total bayar Transfer BNI dalam USD', () => {
+  const bniUsd: OrderDetail = {
+    ...base,
+    amount: '3.470000',
+    baseRate: '16000.0000',
+    effectiveRate: '16000.0000',
+    paymentChannel: 'BANK_TRANSFER',
+    paymentBank: 'BNI',
+    paymentProvider: 'BNI',
+    subtotalIdr: '55520.00',
+    mintFeePct: '0',
+    mintFeeIdr: '0.00',
+    pgFeeIdr: '0.00',
+    totalFeeIdr: '0.00',
+    totalPayIdr: '55520.00',
+    totalPayUsd: '3.47',
+    payCurrency: 'USD',
+  }
+
+  describe('positive', () => {
+    test('shows "Total bayar (USD)" $3,47 and the rupiah equivalent on its own line', () => {
+      renderWithProviders(<OrderDetailContent detail={bniUsd} />, { authenticated: true })
+      expect(field('Total bayar (USD)')).toHaveTextContent('$3,47')
+      expect(field('Padanan rupiah (Rp)')).toHaveTextContent(/55\.520/)
+      expect(screen.queryByText('Total bayar (Rp)')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('a rupiah order (payCurrency IDR) keeps "Total bayar (Rp)" and no USD line', () => {
+      renderWithProviders(<OrderDetailContent detail={{ ...base, payCurrency: 'IDR', totalPayUsd: null }} />, {
+        authenticated: true,
+      })
+      expect(field('Total bayar (Rp)')).toHaveTextContent(/1\.661\.662/)
+      expect(screen.queryByText('Total bayar (USD)')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('USD without totalPayUsd yet shows a dash, never $0', () => {
+      renderWithProviders(<OrderDetailContent detail={{ ...bniUsd, totalPayUsd: null }} />, { authenticated: true })
+      expect(field('Total bayar (USD)')).toHaveTextContent('—')
+      expect(field('Total bayar (USD)')).not.toHaveTextContent('$')
+    })
+
+    test('an older backend without payCurrency stays rupiah', () => {
+      renderWithProviders(<OrderDetailContent detail={base} />, { authenticated: true })
+      expect(field('Total bayar (Rp)')).toBeInTheDocument()
+    })
+  })
+})

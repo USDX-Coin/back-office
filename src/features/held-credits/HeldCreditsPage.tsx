@@ -17,13 +17,14 @@ import {
 } from '@/components/ui/tooltip'
 import { useAuth } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format'
-import { formatIdrExact } from '@/lib/redeemApprovals'
 import { canResolveHeldCredit } from './access'
 import { HELD_CREDIT_COLUMN_CONFIG } from './filterDefs'
 import HeldCreditDetailModal from './HeldCreditDetailModal'
 import { useHeldCredits } from './hooks'
 import {
+  displaySenderName,
   amountGapLabel,
+  expectedAmountLabel,
   formatCreditAge,
   heldReasonLabel,
   receivedAmountLabel,
@@ -144,7 +145,8 @@ export default function HeldCreditsPage() {
       // 144px hanya memuat 120px isi; nomor 16 digit mono tidak muat.
       size: 176,
       cell: ({ row }) => {
-        const { senderName, accountFromTo } = row.original
+        const { accountFromTo } = row.original
+        const senderName = displaySenderName(row.original)
         if (!senderName && !accountFromTo) {
           return <span className="text-xs text-muted-foreground">tidak disebut penyedia</span>
         }
@@ -181,15 +183,17 @@ export default function HeldCreditsPage() {
             <span className="text-xs text-muted-foreground">Tidak ada — ops menentukan</span>
           )
         }
+        // Dalam mata uang tagihannya (USDX-749): order Transfer BNI = dolar.
+        const expected = expectedAmountLabel(order)
         return (
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-xs">{order.customerName}</span>
-            {order.expectedAmountIdr && (
+            {expected && (
               <span
                 className="truncate text-xs tabular-nums text-muted-foreground"
-                title={`Ditagihkan ${formatIdrExact(order.expectedAmountIdr)}`}
+                title={`Ditagihkan ${expected}`}
               >
-                ditagihkan {formatIdrExact(order.expectedAmountIdr)}
+                ditagihkan {expected}
               </span>
             )}
           </div>

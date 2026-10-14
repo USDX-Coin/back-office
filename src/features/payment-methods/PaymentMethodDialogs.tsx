@@ -16,7 +16,6 @@ import {
 import ErrorNotice from '@/components/ErrorNotice'
 import { FormField } from '@/components/FormLayout'
 import { DataField, DataSection } from '@/components/DataList'
-import { Link } from 'react-router'
 import {
   BNI_TRANSFER_CODE,
   bniEnableNotice,
@@ -147,15 +146,6 @@ export function TogglePaymentMethodDialog({
           <strong>Server production akan menolak ini.</strong> Transfer BNI baru bisa dinyalakan setelah devops
           menyatakan prasyarat keamanan BNI terpenuhi (allowlist IP pengirim notifikasi BNI, D23). Sampai itu, tidak
           ada yang berubah walau kamu menekan Nyalakan.
-        </p>
-      ) : bniNotice === 'BUY_RATE' ? (
-        <p role="note" className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
-          Kurs BNI belum diisi. Transfer BNI tersimpan menyala, tapi baru ditawarkan ke nasabah setelah kurs BNI dari
-          wondr diisi di{' '}
-          <Link to="/settings/rate" className="font-medium text-primary underline-offset-2 hover:underline">
-            Kurs &amp; Biaya
-          </Link>
-          .
         </p>
       ) : next && !method.available ? (
         <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
