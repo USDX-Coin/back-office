@@ -14,6 +14,7 @@ import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
 import { canResolveHeldCredit } from './access'
 import { useHeldCreditDetail } from './hooks'
 import {
+  displaySenderName,
   amountGapLabel,
   expectedAmount,
   expectedAmountLabel,
@@ -179,9 +180,9 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
             </div>
           </Field>
           <Field label="Pengirim">
-            {credit.senderName || credit.accountFromTo ? (
+            {displaySenderName(credit) || credit.accountFromTo ? (
               <>
-                {credit.senderName && <span>{credit.senderName}</span>}
+                {displaySenderName(credit) && <span>{displaySenderName(credit)}</span>}
                 {credit.accountFromTo && (
                   <span className="mt-0.5 block text-xs tabular-nums">
                     {credit.accountFromTo}

@@ -21,6 +21,16 @@ const HELD_REASON_LABELS: Record<string, string> = {
   AMOUNT_MISMATCH: 'Nominal yang masuk berbeda dari yang ditagihkan',
   ORDER_NOT_WAITING: 'Ordernya sedang tidak menunggu pembayaran',
   FAILURE_REASON_PRESENT: 'Penyedia pembayaran menyertakan sebab kegagalan',
+  // R5 (USDX-749): nama pengirim dibandingkan dengan nama KYC pemilik order.
+  SENDER_NAME_MISMATCH: 'Nama pengirim berbeda dengan nama KYC pemilik order',
+  SENDER_NAME_UNVERIFIABLE: 'Nama pengirim tidak bisa dicek ke nama KYC pemilik order',
+}
+
+/** Nama pengirim yang ditampilkan: dari Notif, atau yang dibaca dari deskripsi mutasi (R5). */
+export function displaySenderName(
+  credit: Pick<HeldCreditListItem, 'senderName' | 'extractedSenderName'>,
+): string | null {
+  return credit.senderName || credit.extractedSenderName || null
 }
 
 export function heldReasonLabel(reason: string | null): string | null {

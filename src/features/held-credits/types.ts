@@ -68,6 +68,11 @@ export interface HeldCreditListItem {
   receivedAmountRaw: string
   accountFromTo: string | null
   senderName: string | null
+  /**
+   * Nama pengirim yang dibaca backend dari deskripsi mutasi ("TRANSFER DARI | <nama>") bila
+   * Notif tidak membawa `senderName` — jalur rekaman mutasi (R5, USDX-749).
+   */
+  extractedSenderName?: string | null
   collectionAccountNo: string | null
   journalNum: string | null
   receivedAt: string

@@ -22,6 +22,7 @@ import { HELD_CREDIT_COLUMN_CONFIG } from './filterDefs'
 import HeldCreditDetailModal from './HeldCreditDetailModal'
 import { useHeldCredits } from './hooks'
 import {
+  displaySenderName,
   amountGapLabel,
   expectedAmountLabel,
   formatCreditAge,
@@ -144,7 +145,8 @@ export default function HeldCreditsPage() {
       // 144px hanya memuat 120px isi; nomor 16 digit mono tidak muat.
       size: 176,
       cell: ({ row }) => {
-        const { senderName, accountFromTo } = row.original
+        const { accountFromTo } = row.original
+        const senderName = displaySenderName(row.original)
         if (!senderName && !accountFromTo) {
           return <span className="text-xs text-muted-foreground">tidak disebut penyedia</span>
         }
