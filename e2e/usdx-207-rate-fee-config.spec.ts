@@ -42,13 +42,14 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       await expect(page.getByText('1,5%')).toBeVisible()
     })
 
-    // USDX-767 — D25: kurs BNI dari wondr + markup Virtual Account (Y).
-    test('USDX-767 — admin sets the BNI rate and the VA markup; both show on the card', async ({ page }) => {
+    // USDX-767 — D25: markup Virtual Account (Y). Isian "Kurs BNI dari wondr"
+    // dicabut di USDX-749 (Transfer BNI = transfer USD tanpa kurs BNI).
+    test('USDX-767/749 — admin sets the VA markup; no BNI rate on the card or in the body', async ({ page }) => {
       await installMockApi(page)
       await seedAuthenticatedSession(page)
       await page.goto('/settings/rate')
-      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD', { timeout: 15000 })
-      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.412,50 IDR/USD')
+      await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.412,50 IDR/USD', { timeout: 15000 })
+      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveCount(0)
 
       const posts: Record<string, unknown>[] = []
       page.on('request', (req) => {
@@ -56,36 +57,18 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       })
       await page.getByRole('button', { name: 'Ubah kurs' }).click()
       await page.getByLabel(/kurs manual/i).fill('16250')
-      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('16390.50')
+      await expect(page.getByRole('textbox', { name: /kurs bni/i })).toHaveCount(0)
       await page.getByRole('textbox', { name: /markup virtual account/i }).fill('2')
       await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
       const dialog = page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i })
-      await expect(dialog.getByText('16.390,50 IDR/USD')).toBeVisible()
       await dialog.getByRole('button', { name: /ya, ubah kurs/i }).click()
       await expect(page.getByRole('dialog')).toHaveCount(0)
 
       expect(posts).toHaveLength(1)
-      expect(posts[0]).toMatchObject({ bniBuyRate: '16390.50', gatewayMarkupPct: '2' })
-      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.390,50 IDR/USD')
+      expect(posts[0]).toMatchObject({ gatewayMarkupPct: '2' })
+      expect(posts[0]).not.toHaveProperty('bniBuyRate')
       // 16.250 × 1,02 = 16.575
       await expect(page.getByLabel('kurs beli virtual account')).toHaveText('16.575,00 IDR/USD')
-    })
-
-    test('USDX-767 — a BNI rate outside [base, base +10%] is refused by the server and shown at the field', async ({ page }) => {
-      await installMockApi(page)
-      await seedAuthenticatedSession(page)
-      await page.goto('/settings/rate')
-      await page.getByRole('button', { name: 'Ubah kurs' }).click({ timeout: 15000 })
-      await page.getByLabel(/kurs manual/i).fill('16250')
-      // Petunjuk rentang terlihat sebelum simpan: 16.250 sampai +10%.
-      await expect(page.getByTestId('bni-rate-range')).toContainText('16.250,00 IDR/USD – 17.875,00 IDR/USD')
-      await page.getByRole('textbox', { name: /kurs bni dari wondr/i }).fill('20000')
-      await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
-      await page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i }).getByRole('button', { name: /ya, ubah kurs/i }).click()
-      await expect(page.getByText(/ditolak server: kurs bni 20000\.00 di luar rentang wajar/i)).toBeVisible()
-      // Yang berlaku tidak berubah.
-      await page.getByRole('button', { name: 'Batal' }).click()
-      await expect(page.getByLabel('kurs beli transfer BNI')).toHaveText('16.200,00 IDR/USD')
     })
 
     test('AC #3 — admin updates fee config and the new mint fee is active', async ({ page }) => {

@@ -15,8 +15,9 @@ import {
   transactionStatus,
   TRANSACTION_KIND_LABEL,
   type TransactionsQuery,
+  transactionMoneyLabel,
 } from '@/lib/backofficeTransactions'
-import { formatIdrExact, formatUsdxExact } from '@/lib/redeemApprovals'
+import { formatUsdxExact } from '@/lib/redeemApprovals'
 import type { BackofficeTransactionItem } from '@/lib/types'
 import TransactionDetailModal from './TransactionDetailModal'
 import { useBackofficeTransactions } from './hooks'
@@ -139,7 +140,7 @@ export default function TransactionsPage() {
           {/* Di ponsel Jenis + Nominal disembunyikan; isinya pindah ke sini. */}
           <span className="mt-0.5 text-xs text-muted-foreground sm:hidden">
             {transactionKindLabel(r.kind)}
-            {r.amountIdr ? <span className="tabular-nums"> · {formatIdrExact(r.amountIdr)}</span> : ''}
+            {transactionMoneyLabel(r) ? <span className="tabular-nums"> · {transactionMoneyLabel(r)}</span> : ''}
           </span>
         </div>
       ),
@@ -151,11 +152,13 @@ export default function TransactionsPage() {
       className: 'hidden w-44 sm:table-cell',
       cell: (r) => (
         <div className="flex flex-col items-end">
-          {r.amountIdr && <span className="font-semibold tabular-nums">{formatIdrExact(r.amountIdr)}</span>}
+          {transactionMoneyLabel(r) && (
+            <span className="font-semibold tabular-nums">{transactionMoneyLabel(r)}</span>
+          )}
           {r.amountUsdx && (
             <span className="text-xs tabular-nums text-muted-foreground">{formatUsdxExact(r.amountUsdx)}</span>
           )}
-          {!r.amountIdr && !r.amountUsdx && <span className="text-muted-foreground">—</span>}
+          {!transactionMoneyLabel(r) && !r.amountUsdx && <span className="text-muted-foreground">—</span>}
         </div>
       ),
     },
@@ -253,7 +256,7 @@ export default function TransactionsPage() {
           columns={columns}
           rowKey={(r) => r.id}
           rowLabel={(r) =>
-            `Buka ${transactionKindLabel(r.kind)} ${transactionPartyName(r)}${r.amountIdr ? `, ${formatIdrExact(r.amountIdr)}` : ''}`
+            `Buka ${transactionKindLabel(r.kind)} ${transactionPartyName(r)}${transactionMoneyLabel(r) ? `, ${transactionMoneyLabel(r)}` : ''}`
           }
           selectedKey={selectedId ?? null}
           onSelect={(r) => open(r)}

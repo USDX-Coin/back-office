@@ -192,30 +192,16 @@ export function validateGatewayMarkupPct(raw: string): string | null {
   return null
 }
 
-// D25 rev 2026-10-02 (`rate.yaml § UpdateRateConfig.bniBuyRate`, `bni-integration.md
-// § 4.3.3`): kurs beli Transfer BNI, IDR per USDX, disalin admin dari aplikasi
-// wondr by BNI. "Wajib > 0 bila diisi". Kosong sah: artinya Transfer BNI tidak
-// ditawarkan. Tanpa plafon (kontrak tidak menyebut satu pun); angka yang
-// janggal diberi peringatan halus lewat `isManualRateUnusual`.
-export function validateBniBuyRate(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  if (trimmed.startsWith('-')) return 'Kurs BNI tidak boleh negatif'
-  if (!PLAIN_DECIMAL_RE.test(trimmed)) return 'Kurs BNI harus angka dengan titik desimal, tanpa titik ribuan (contoh 16200.50)'
-  if (!(Number(trimmed) > 0)) return 'Kurs BNI harus lebih dari 0'
-  return null
-}
-
 // USDX-207: spread directional — validate spread beli & jual independently
 // (sot/api/rate.yaml § UpdateRateConfig). Same bounds as the old single spread.
-// D25: plus Y (`gatewayMarkupPct`) dan kurs BNI (`bniBuyRate`).
+// D25: plus Y (`gatewayMarkupPct`). Kurs BNI (`bniBuyRate`) tidak lagi diisi di
+// form ini: sejak USDX-749 Transfer BNI adalah transfer USD tanpa kurs BNI.
 export function validateRateUpdateForm(input: {
   mode: RateMode | ''
   manualRate: string
   spreadBuyPct: string
   spreadSellPct: string
   gatewayMarkupPct?: string
-  bniBuyRate?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
@@ -233,8 +219,6 @@ export function validateRateUpdateForm(input: {
   if (sellErr) errors.spreadSellPct = sellErr
   const markupErr = validateGatewayMarkupPct(input.gatewayMarkupPct ?? '')
   if (markupErr) errors.gatewayMarkupPct = markupErr
-  const bniErr = validateBniBuyRate(input.bniBuyRate ?? '')
-  if (bniErr) errors.bniBuyRate = bniErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

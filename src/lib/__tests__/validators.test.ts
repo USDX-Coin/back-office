@@ -27,7 +27,6 @@ import {
   validateMintModeDurationHours,
   validateMintTestModeForm,
   validateGatewayMarkupPct,
-  validateBniBuyRate,
   validateDisbursementFeeFlat,
   validateLedgerAmount,
   validateLedgerReason,
@@ -661,38 +660,6 @@ describe('validateGatewayMarkupPct', () => {
     test('should not impose a ceiling or decimal cap the contract does not set', () => {
       expect(validateGatewayMarkupPct('25')).toBeNull()
       expect(validateGatewayMarkupPct('0.125')).toBeNull()
-    })
-  })
-})
-
-// D25 rev 2026-10-02 (`rate.yaml § UpdateRateConfig.bniBuyRate`): kurs BNI dari
-// wondr. "Wajib > 0 bila diisi"; kosong sah (Transfer BNI tidak ditawarkan).
-describe('validateBniBuyRate', () => {
-  describe('positive', () => {
-    test('should accept an integer and a decimal value', () => {
-      expect(validateBniBuyRate('16250')).toBeNull()
-      expect(validateBniBuyRate('16250.50')).toBeNull()
-    })
-  })
-  describe('negative', () => {
-    test('should reject 0 and 0.00', () => {
-      expect(validateBniBuyRate('0')).toMatch(/lebih dari 0/)
-      expect(validateBniBuyRate('0.00')).toMatch(/lebih dari 0/)
-    })
-    test('should reject a negative value', () => {
-      expect(validateBniBuyRate('-16250')).toMatch(/negatif/)
-    })
-    test('should reject Indonesian thousands formatting copied from the app', () => {
-      expect(validateBniBuyRate('16.250,50')).toMatch(/titik ribuan/)
-    })
-  })
-  describe('edge cases', () => {
-    test('should treat empty as valid (Transfer BNI not offered)', () => {
-      expect(validateBniBuyRate('')).toBeNull()
-      expect(validateBniBuyRate('  ')).toBeNull()
-    })
-    test('should accept a tiny positive decimal', () => {
-      expect(validateBniBuyRate('0.01')).toBeNull()
     })
   })
 })

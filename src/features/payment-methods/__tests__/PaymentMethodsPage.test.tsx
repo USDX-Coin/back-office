@@ -174,19 +174,22 @@ describe('PaymentMethodsPage', () => {
       server.events.removeAllListeners()
     })
 
-    test('BNI without a BNI rate: the row and the dialog say so and point to the rate page', async () => {
+    // USDX-749: Transfer BNI = transfer USD tanpa kurs BNI. Server tidak lagi menghasilkan
+    // BNI_BUY_RATE_MISSING; kalau tetap datang, tidak ada "Kurs beli BNI belum diisi · Isi kurs BNI".
+    test('BNI_BUY_RATE_MISSING from an old server: no "isi kurs BNI" hint or link, row or dialog', async () => {
       const rows = createInitialPaymentMethods().map((m) =>
-        m.code === 'BANK_TRANSFER_BNI_BNI' ? { ...m, unavailableReason: 'BNI_BUY_RATE_MISSING' } : m,
+        m.code === 'BANK_TRANSFER_BNI_BNI' ? { ...m, available: false, unavailableReason: 'BNI_BUY_RATE_MISSING' } : m,
       )
       server.use(http.get('/api/v1/payment-methods', () => HttpResponse.json({ status: 'success', metadata: null, data: rows })))
       const user = userEvent.setup()
       renderPage()
       const bni = await row('pm-BANK_TRANSFER_BNI_BNI')
-      expect(within(bni).getByText(/kurs beli BNI belum diisi/i)).toBeInTheDocument()
-      expect(within(bni).getByRole('link', { name: 'Isi kurs BNI' })).toHaveAttribute('href', '/settings/rate')
+      expect(within(bni).queryByText(/kurs beli BNI/i)).not.toBeInTheDocument()
+      expect(within(bni).queryByRole('link', { name: /isi kurs BNI/i })).not.toBeInTheDocument()
       await user.click(within(bni).getByRole('switch'))
       const dialog = await screen.findByRole('dialog')
-      expect(within(dialog).getByRole('note')).toHaveTextContent(/baru ditawarkan ke nasabah setelah kurs BNI/i)
+      expect(within(dialog).queryByText(/kurs BNI/i)).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('link', { name: /kurs/i })).not.toBeInTheDocument()
     })
 
     test('after 409 PAYMENT_METHOD_CHANGED the retry carries the refreshed updatedAt', async () => {
@@ -281,7 +284,8 @@ describe('lib/paymentMethods — bentuk kanonik kontrak', () => {
   })
   test('edge: the BNI notice follows the server reason only, and only for Transfer BNI', () => {
     expect(bniEnableNotice(m({ unavailableReason: 'BNI_PREREQUISITE_UNVERIFIED' }))).toBe('PREREQUISITE')
-    expect(bniEnableNotice(m({ unavailableReason: 'BNI_BUY_RATE_MISSING' }))).toBe('BUY_RATE')
+    // USDX-749: tidak ada lagi catatan "kurs BNI belum diisi".
+    expect(bniEnableNotice(m({ unavailableReason: 'BNI_BUY_RATE_MISSING' }))).toBeNull()
     expect(bniEnableNotice(m({ available: true, unavailableReason: null }))).toBeNull()
     expect(bniEnableNotice(m({ code: 'VA_BNI_DURIANPAY_SNAP', unavailableReason: 'BNI_BUY_RATE_MISSING' }))).toBeNull()
     expect(bniEnableNotice(m({ unavailableReason: 'SOMETHING_NEW' }))).toBeNull()

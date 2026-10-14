@@ -6,6 +6,7 @@
 // (`queue` + `refId`) dan aksinya memakai endpoint antrean yang sudah ada.
 // Semua enum TERBUKA — nilai yang tidak dikenal tampil apa adanya, tanpa aksi.
 
+import { formatMoneyExact } from './redeemApprovals'
 import { getOrderStatusConfig } from './status'
 import type { Tone } from './tone'
 import type {
@@ -83,6 +84,21 @@ export function actionTodoText(action: BackofficeTransactionAction): string {
     default:
       return `Tindakan "${action.actionType}" belum dikenali layar ini. Buka antrean asalnya.`
   }
+}
+
+/**
+ * Nominal uang yang berpindah, dalam mata uangnya (USDX-749): `amount` +
+ * `amountCurrency` — Transfer BNI = dolar ("$3,47"), selain itu rupiah. Backend
+ * lama tanpa `amountCurrency` → `amountIdr` rupiah seperti sebelumnya. Null =
+ * tidak ada angka (yang dirender pemanggil, bukan "Rp 0").
+ */
+export function transactionMoneyLabel(
+  row: Pick<BackofficeTransactionItem, 'amount' | 'amountCurrency' | 'amountIdr'>,
+): string | null {
+  if (row.amountCurrency !== undefined) {
+    return row.amount ? formatMoneyExact(row.amount, row.amountCurrency) : null
+  }
+  return row.amountIdr ? formatMoneyExact(row.amountIdr, 'IDR') : null
 }
 
 /** Nama yang tampil di kolom Nasabah. Uang masuk tanpa order memakai nama pengirim. */

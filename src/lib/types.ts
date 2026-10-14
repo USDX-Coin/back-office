@@ -871,8 +871,9 @@ export type RedeemStatus =
 // Union overall status: MINT → MintOrderStatus, REDEEM → RedeemStatus.
 export type OrderStatus = MintOrderStatus | RedeemStatus
 
-// sot/api/common.yaml § PaymentChannel / VaBank.
-export type PaymentChannel = 'VA' | 'QRIS'
+// sot/api/common.yaml § PaymentChannel / VaBank. `BANK_TRANSFER` = Transfer BNI
+// (D25; transfer USD sejak USDX-749) — order mint nasabah memang membawanya.
+export type PaymentChannel = 'VA' | 'QRIS' | 'BANK_TRANSFER'
 export type VaBank =
   | 'BCA'
   | 'BNI'
@@ -942,6 +943,10 @@ export interface OrderListItem {
   amount: string
   /** MINT: total the user pays (IDR; null until a channel is chosen). REDEEM: null. */
   totalPayIdr: string | null
+  /** USDX-749 — Transfer BNI: exact USD transferred; null otherwise. Absent = older backend. */
+  totalPayUsd?: string | null
+  /** USDX-749 — MINT: "USD" / "IDR"; REDEEM: null. */
+  payCurrency?: 'USD' | 'IDR' | null
   /** REDEEM: IDR the user receives. MINT: null. */
   netPayoutIdr: string | null
   chain: string
@@ -1008,8 +1013,12 @@ export interface OrderDetail {
   mintFeeIdr: string | null
   /** Payment gateway fee (IDR). */
   pgFeeIdr: string | null
-  /** MINT: subtotalIdr + totalFeeIdr (user bayar). */
+  /** MINT: subtotalIdr + totalFeeIdr (user bayar). Transfer BNI USD: padanan rupiah saja. */
   totalPayIdr: string | null
+  /** USDX-749 — Transfer BNI: USD yang ditransfer persis ("3.47"); null lainnya. Absen = backend lama. */
+  totalPayUsd?: string | null
+  /** USDX-749 — MINT: "USD" (Transfer BNI bertagihan USD) / "IDR"; REDEEM: null. */
+  payCurrency?: 'USD' | 'IDR' | null
   /** MINT only (redeem tidak lewat Safe). */
   safeType: SafeType | null
   paymentStatus: MintPaymentStatus | null
@@ -3196,8 +3205,19 @@ export interface BackofficeTransactionItem {
   /** Hanya INCOMING_UNMATCHED — nama pengirim dari notif bank. */
   senderName?: string | null
   amountUsdx?: string | null
-  /** MINT = total_pay_idr; REDEEM = net_payout_idr; uang masuk = nominal masuk. */
+  /**
+   * MINT = total_pay_idr (Transfer BNI USD: hanya PADANAN rupiah); REDEEM =
+   * net_payout_idr; uang masuk = nominal masuk (null untuk kredit USD).
+   */
   amountIdr?: string | null
+  /**
+   * USDX-749 — uang yang berpindah dalam `amountCurrency`: MINT = yang
+   * ditransfer nasabah (`total_pay_usd` untuk Transfer BNI, selain itu
+   * `total_pay_idr`); REDEEM = net payout; uang masuk = kredit apa adanya
+   * ("3.47" untuk rekening penampung USD). Absen = backend lama → `amountIdr`.
+   */
+  amount?: string | null
+  amountCurrency?: 'USD' | 'IDR'
   /** MintOrderStatus / RedeemStatus / HELD. */
   status: string
   needsAction: boolean
@@ -3222,7 +3242,6 @@ export type PaymentFeeType = 'FLAT_IDR' | 'PERCENT'
 export type PaymentMethodUnavailableReason =
   | 'PROVIDER_NOT_CONFIGURED'
   | 'NOT_SUPPORTED_BY_ADAPTER'
-  | 'BNI_BUY_RATE_MISSING'
   | 'BNI_PREREQUISITE_UNVERIFIED'
 
 export interface PaymentMethod {
