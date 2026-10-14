@@ -1,5 +1,5 @@
 import type { StatusConfig } from '@/lib/status'
-import { formatIdrExact } from '@/lib/redeemApprovals'
+import { formatIdrExact, formatMoneyExact, formatUsdExact } from '@/lib/redeemApprovals'
 import type { HeldCreditListItem, HeldCreditSource } from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,33 +47,73 @@ export function sourcePill(source: string): StatusConfig {
 }
 
 /**
- * Nominal yang masuk. `receivedAmountIdr` null berarti yang masuk BUKAN rupiah
- * bulat — dan justru itu yang penting: nilai aslinya tetap dirender dari
- * `receivedAmountRaw`, tidak dibulatkan dan tidak disembunyikan di balik "—".
+ * Nominal yang masuk, dalam mata uangnya (`amountCurrency`, USDX-749): kredit
+ * BNI ke rekening penampung USD = dolar ("$3,47"), lainnya rupiah. Nominal yang
+ * tak terbaca dalam mata uang itu tetap dirender dari `receivedAmountRaw` —
+ * tidak dibulatkan dan tidak disembunyikan di balik "—".
  */
 export function receivedAmountLabel(credit: HeldCreditListItem): string {
+  if (credit.amountCurrency === 'USD') {
+    if (credit.receivedAmount != null) return formatUsdExact(credit.receivedAmount)
+    return `$${credit.receivedAmountRaw} (bukan sen bulat)`
+  }
   if (credit.receivedAmountIdr !== null) return formatIdrExact(credit.receivedAmountIdr)
   return `Rp ${credit.receivedAmountRaw} (bukan rupiah bulat)`
 }
 
-/** Selisih antara yang ditagihkan dan yang masuk, kalau keduanya terbaca. */
+/** Nominal + mata uang yang masuk, dalam bentuk mentah 2 desimal — null kalau tak terbaca. */
+function received(credit: HeldCreditListItem): { amount: string; currency: 'USD' | 'IDR' } | null {
+  if (credit.amountCurrency === 'USD') {
+    return credit.receivedAmount != null ? { amount: credit.receivedAmount, currency: 'USD' } : null
+  }
+  return credit.receivedAmountIdr !== null ? { amount: credit.receivedAmountIdr, currency: 'IDR' } : null
+}
+
+/**
+ * Yang ditagihkan ke nasabah oleh order pilihan mesin, dalam mata uangnya
+ * (`expectedAmount` + `expectedAmountCurrency`, USDX-749). Backend lama tanpa
+ * field itu = `expectedAmountIdr` rupiah. Null kalau tidak ada angka.
+ */
+export function expectedAmount(
+  order: HeldCreditListItem['order'],
+): { amount: string; currency: 'USD' | 'IDR' } | null {
+  if (!order) return null
+  if (order.expectedAmountCurrency !== undefined) {
+    return order.expectedAmount ? { amount: order.expectedAmount, currency: order.expectedAmountCurrency } : null
+  }
+  return order.expectedAmountIdr ? { amount: order.expectedAmountIdr, currency: 'IDR' } : null
+}
+
+/** "$3,47" / "Rp 1.640.407,00" untuk yang ditagihkan, atau null. */
+export function expectedAmountLabel(order: HeldCreditListItem['order']): string | null {
+  const e = expectedAmount(order)
+  return e ? formatMoneyExact(e.amount, e.currency) : null
+}
+
+/**
+ * Selisih antara yang ditagihkan dan yang masuk, kalau keduanya terbaca DAN
+ * semata uang. Dolar dan rupiah tidak dibandingkan — selisihnya tidak punya
+ * arti tanpa kurs, dan server sendiri menolak menyelesaikan yang lintas mata uang.
+ */
 export function amountGapLabel(credit: HeldCreditListItem): string | null {
-  const expected = credit.order?.expectedAmountIdr
-  if (!expected || credit.receivedAmountIdr === null) return null
+  const exp = expectedAmount(credit.order)
+  const got = received(credit)
+  if (!exp || !got || exp.currency !== got.currency) return null
+  const expected = exp.amount
   const toCents = (raw: string): bigint | null => {
     const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(raw.trim())
     if (!m) return null
     return BigInt(m[1]!) * 100n + BigInt((m[2] ?? '00').padEnd(2, '0'))
   }
   const a = toCents(expected)
-  const b = toCents(credit.receivedAmountIdr)
+  const b = toCents(got.amount)
   if (a === null || b === null) return null
   if (a === b) return null
   const diff = b - a
   const abs = diff < 0n ? -diff : diff
   const whole = abs / 100n
   const cents = abs % 100n
-  const formatted = formatIdrExact(`${whole}.${String(cents).padStart(2, '0')}`)
+  const formatted = formatMoneyExact(`${whole}.${String(cents).padStart(2, '0')}`, got.currency)
   // "lebih"/"kurang" DI DEPAN nominalnya, bukan di belakang: di kolom tabel
   // yang sempit, ekor kalimatlah yang pertama terpotong — dan justru ekornya
   // yang membedakan kelebihan bayar dari kekurangan bayar.

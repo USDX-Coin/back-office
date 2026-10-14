@@ -29,8 +29,17 @@ export interface HeldCreditOrder {
   customerName: string
   /** USDX yang dipesan. */
   amount: string
-  /** Yang seharusnya ditransfer nasabah (`total_pay_idr`). */
+  /**
+   * `total_pay_idr`. Untuk order Transfer BNI dalam USD (USDX-749) ini hanya
+   * PADANAN rupiah, bukan yang ditransfer — baca `expectedAmount`.
+   */
   expectedAmountIdr: string | null
+  /** USDX-749 — yang seharusnya ditransfer nasabah, dalam `expectedAmountCurrency` ("3.47" / "1640407.00"). */
+  expectedAmount?: string | null
+  /** "USD" untuk order Transfer BNI bertagihan USD, "IDR" lainnya. Absen = backend lama (rupiah). */
+  expectedAmountCurrency?: 'USD' | 'IDR'
+  /** Kurs yang dikunci order saat /pay — dipakai menilai kredit USD dalam rupiah (maker-checker). */
+  effectiveRate?: string | null
   uniqueCode: string | null
   paymentStatus: string
   safeStatus: string
@@ -46,8 +55,15 @@ export interface HeldCreditListItem {
   source: HeldCreditSource
   /** Kenapa mesin tak bisa menyelesaikannya: NO_MATCHING_ORDER, LATE_PAYMENT, … */
   heldReason: string | null
-  /** Yang benar-benar masuk, rupiah 2 desimal; null kalau bukan rupiah bulat. */
+  /**
+   * Yang benar-benar masuk, rupiah 2 desimal; null kalau bukan rupiah bulat —
+   * dan SELALU null untuk kredit USD (USDX-749): baca `receivedAmount`.
+   */
   receivedAmountIdr: string | null
+  /** USDX-749 — yang masuk dalam `amountCurrency`, 2 desimal ("3.47" / "1640407.00"); null = tak terbaca. */
+  receivedAmount?: string | null
+  /** "USD" untuk kredit BNI ke rekening penampung USD; "IDR" lainnya. Absen = backend lama (rupiah). */
+  amountCurrency?: 'USD' | 'IDR'
   /** Persis seperti dikirim penyedia ("1640407.000" / "1640407.00"). */
   receivedAmountRaw: string
   accountFromTo: string | null

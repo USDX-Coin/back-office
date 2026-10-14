@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { Link } from 'react-router'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -135,14 +134,6 @@ export default function PaymentMethodsPage() {
                     {!m.available && reason && (
                       <p className="mt-1 text-xs text-gold-foreground" title={m.unavailableReason ?? undefined}>
                         {reason}
-                        {m.unavailableReason === 'BNI_BUY_RATE_MISSING' && canEdit && (
-                          <>
-                            {' · '}
-                            <Link to="/settings/rate" className="font-medium text-primary underline-offset-2 hover:underline">
-                              Isi kurs BNI
-                            </Link>
-                          </>
-                        )}
                       </p>
                     )}
                   </div>

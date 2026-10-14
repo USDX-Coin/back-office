@@ -394,3 +394,76 @@ describe('TransactionDetailModal — seksi Rincian order', () => {
     })
   })
 })
+
+// USDX-749 (keputusan PM 14 Okt 2026): Transfer BNI = transfer USD. Backend menambah
+// `amount` + `amountCurrency`; mint BNI = total_pay_usd, kredit di rekening USD = dolar.
+describe('TransactionsPage — nominal dalam mata uangnya (USDX-749)', () => {
+  const MINT_BNI_USD: BackofficeTransactionItem = {
+    ...MINT_DONE,
+    id: '019e5d04-4444-7000-8000-00000000dddd',
+    orderNumber: 'MNT-20261014-0001',
+    customerName: 'Tono Wijaya',
+    amountUsdx: '3.470000',
+    amountIdr: '55520.00',
+    amount: '3.47',
+    amountCurrency: 'USD',
+  }
+
+  /** Tab "Semua" → tombol baris yang namanya diawali `name`. */
+  async function allTabRow(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+    await user.click(await screen.findByRole('tab', { name: 'Semua' }))
+    return screen.findByRole('button', { name })
+  }
+
+  describe('positive', () => {
+    test('a Transfer BNI mint shows "$3,47" in the Nominal column, not its rupiah equivalent', async () => {
+      const user = userEvent.setup()
+      stubList([], [MINT_BNI_USD])
+      renderPage()
+      const row = await allTabRow(user, /^Buka Mint Tono Wijaya, \$3,47$/)
+      expect(within(row).getAllByText('$3,47').length).toBeGreaterThan(0)
+      expect(within(row).queryByText(/Rp 55\.520/)).not.toBeInTheDocument()
+    })
+
+    test('the detail modal shows the USD total and the rupiah equivalent as a separate line', async () => {
+      const user = userEvent.setup()
+      stubList([], [MINT_BNI_USD])
+      renderPage()
+      await user.click(await allTabRow(user, /^Buka Mint Tono Wijaya/))
+      const modal = await screen.findByTestId('transaction-modal')
+      expect(within(modal).getByText('Total bayar').parentElement).toHaveTextContent('$3,47')
+      expect(within(modal).getByText('Padanan rupiah').parentElement).toHaveTextContent('Rp 55.520,00')
+    })
+  })
+
+  describe('negative', () => {
+    test('a rupiah mint (amountCurrency IDR) stays rupiah, with no "Padanan rupiah" line', async () => {
+      const user = userEvent.setup()
+      stubList([], [{ ...MINT_DONE, amount: '825417.00', amountCurrency: 'IDR' }])
+      renderPage()
+      await user.click(await allTabRow(user, /^Buka Mint Sari Dewi, Rp 825\.417,00$/))
+      const modal = await screen.findByTestId('transaction-modal')
+      expect(within(modal).getByText('Total bayar').parentElement).toHaveTextContent('Rp 825.417,00')
+      expect(within(modal).queryByText('Padanan rupiah')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a USD credit with no readable amount shows "—", never Rp', async () => {
+      const user = userEvent.setup()
+      stubList([], [{ ...INCOMING, needsAction: false, actions: [], amountIdr: null, amount: null, amountCurrency: 'USD' }])
+      renderPage()
+      const row = await allTabRow(user, /^Buka Uang masuk ANDI WIJAYA$/)
+      expect(within(row).queryByText(/Rp|\$/)).not.toBeInTheDocument()
+      expect(within(row).getByText('—')).toBeInTheDocument()
+    })
+
+    test('an older backend without amountCurrency falls back to amountIdr', async () => {
+      const user = userEvent.setup()
+      stubList([], [MINT_DONE])
+      renderPage()
+      const row = await allTabRow(user, /^Buka Mint Sari Dewi, Rp 825\.417,00$/)
+      expect(within(row).getAllByText(/Rp 825\.417,00/).length).toBeGreaterThan(0)
+    })
+  })
+})

@@ -27,7 +27,6 @@ const PROVIDER_LABEL: Record<string, string> = {
 const UNAVAILABLE_LABEL: Record<string, string> = {
   PROVIDER_NOT_CONFIGURED: 'Penyedianya tidak terpasang di server ini',
   NOT_SUPPORTED_BY_ADAPTER: 'Belum didukung kode yang sedang berjalan',
-  BNI_BUY_RATE_MISSING: 'Kurs beli BNI belum diisi',
   BNI_PREREQUISITE_UNVERIFIED: 'Prasyarat keamanan BNI (allowlist IP) belum dinyatakan terpenuhi devops',
 }
 
@@ -149,10 +148,14 @@ export function validateMaxAmount(code: string, raw: string): { value: string | 
 /**
  * Kenapa Transfer BNI belum akan ditawarkan bila dinyalakan sekarang — dibaca
  * dari `unavailableReason` server, tidak ditebak. `null` = tidak ada catatan.
+ *
+ * `BNI_BUY_RATE_MISSING` ("kurs beli BNI belum diisi") tidak lagi dikenal: sejak
+ * USDX-749 Transfer BNI adalah transfer USD tanpa kurs BNI dan server tidak
+ * pernah menghasilkannya. Kalau tetap datang, ia tampil apa adanya (kodenya,
+ * lewat `unavailableReasonLabel`) — bukan petunjuk mengisi kurs yang sudah tidak ada.
  */
-export function bniEnableNotice(m: PaymentMethod): 'PREREQUISITE' | 'BUY_RATE' | null {
+export function bniEnableNotice(m: PaymentMethod): 'PREREQUISITE' | null {
   if (m.code !== BNI_TRANSFER_CODE || m.available) return null
   if (m.unavailableReason === 'BNI_PREREQUISITE_UNVERIFIED') return 'PREREQUISITE'
-  if (m.unavailableReason === 'BNI_BUY_RATE_MISSING') return 'BUY_RATE'
   return null
 }

@@ -15,6 +15,7 @@ import {
   getSafeStatusConfig,
   type StatusConfig,
 } from '@/lib/status'
+import { formatUsdExact } from '@/lib/redeemApprovals'
 import type { OrderDetail } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { resolveOrderNextStep } from './nextStep'
@@ -356,9 +357,24 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
           <DataField label="Biaya mint">{feeCell(detail.mintFeePct, detail.mintFeeIdr)}</DataField>
           <DataField label="Biaya payment gateway">{money(detail.pgFeeIdr)}</DataField>
           <DataField label="Total biaya (Rp)">{money(detail.totalFeeIdr)}</DataField>
-          <DataField label="Total bayar (Rp)">
-            <span className="font-semibold">{money(detail.totalPayIdr)}</span>
-          </DataField>
+          {/* Transfer BNI sejak USDX-749 = transfer USD: yang dibayar nasabah dolar
+              (`totalPayUsd`); `totalPayIdr`-nya hanya padanan rupiah (AML/laporan). */}
+          {detail.payCurrency === 'USD' ? (
+            <>
+              <DataField label="Total bayar (USD)">
+                {detail.totalPayUsd ? (
+                  <span className="font-semibold tabular-nums">{formatUsdExact(detail.totalPayUsd)}</span>
+                ) : (
+                  <Dim />
+                )}
+              </DataField>
+              <DataField label="Padanan rupiah (Rp)">{money(detail.totalPayIdr)}</DataField>
+            </>
+          ) : (
+            <DataField label="Total bayar (Rp)">
+              <span className="font-semibold">{money(detail.totalPayIdr)}</span>
+            </DataField>
+          )}
         </DataSection>
       )}
 

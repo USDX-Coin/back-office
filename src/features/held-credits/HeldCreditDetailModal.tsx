@@ -15,6 +15,8 @@ import { canResolveHeldCredit } from './access'
 import { useHeldCreditDetail } from './hooks'
 import {
   amountGapLabel,
+  expectedAmount,
+  expectedAmountLabel,
   formatCreditAge,
   heldCreditErrorMessage,
   heldReasonLabel,
@@ -218,10 +220,17 @@ function CreditBody({ credit }: { credit: HeldCreditDetail }) {
               )}
             </Field>
             <Field label="Yang ditagihkan">
-              {credit.order.expectedAmountIdr ? (
-                <span className="tabular-nums">
-                  {formatIdrExact(credit.order.expectedAmountIdr)}
-                </span>
+              {expectedAmountLabel(credit.order) ? (
+                <>
+                  <span className="tabular-nums">{expectedAmountLabel(credit.order)}</span>
+                  {/* Order Transfer BNI dalam USD: padanan rupiahnya ikut ditulis kecil —
+                      itu angka yang dipakai AML/laporan, bukan yang ditransfer. */}
+                  {expectedAmount(credit.order)?.currency === 'USD' && credit.order.expectedAmountIdr && (
+                    <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
+                      padanan {formatIdrExact(credit.order.expectedAmountIdr)}
+                    </span>
+                  )}
+                </>
               ) : (
                 <span className="text-muted-foreground">—</span>
               )}

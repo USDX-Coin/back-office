@@ -80,6 +80,26 @@ export function formatIdrExact(raw: string): string {
 }
 
 /**
+ * `"3.47"` → `"$3,47"` (ejaan id-ID, sama dengan halaman checkout nasabah).
+ *
+ * Transfer BNI sejak USDX-749 (keputusan PM 14 Okt 2026) adalah transfer USD:
+ * kredit di rekening USD penampung dan tagihan ordernya dalam dolar bersen.
+ * Teknik sama dengan `formatIdrExact` — sen bulat dalam BigInt, tanpa Number —
+ * dan nominal tak terbaca dirender apa adanya dengan prefiks `$`.
+ */
+export function formatUsdExact(raw: string): string {
+  const cents = parseIdrToCents(raw)
+  if (cents === null) return `$${raw}`
+  const [whole = '0', fraction = '00'] = centsToIdr(cents).split('.')
+  return `$${groupThousands(whole)},${fraction}`
+}
+
+/** Nominal 2 desimal dalam mata uangnya: USD → `formatUsdExact`, selain itu rupiah. */
+export function formatMoneyExact(raw: string, currency: 'USD' | 'IDR' | (string & {}) | null | undefined): string {
+  return currency === 'USD' ? formatUsdExact(raw) : formatIdrExact(raw)
+}
+
+/**
  * `"100.000000"` → `"100 USDX"`, `"12.5"` → `"12,5 USDX"`.
  *
  * Nol di ujung desimal dibuang karena `100.000000 USDX` membuat operator
