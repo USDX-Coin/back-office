@@ -232,7 +232,7 @@ describe('OrderDetailContent — Riwayat', () => {
       expect(rows[2]).not.toHaveTextContent('SENDER_NAME_UNVERIFIABLE')
       expect(rows[3]).toHaveTextContent('Uang masuk diselesaikan manual, ditandai lunas')
       expect(rows[3]).toHaveTextContent('oleh Linda Chen')
-      expect(rows[3]).toHaveTextContent('Nama pengirim cocok dengan KTP setelah dicek manual')
+      expect(rows[3]).toHaveTextContent('Catatan: Nama pengirim cocok dengan KTP setelah dicek manual')
       expect(rows[4]).toHaveTextContent('Pembayaran diterima')
       // Kejadian otomatis tidak diberi pelaku karangan.
       expect(rows[4]).not.toHaveTextContent('oleh')
@@ -327,6 +327,37 @@ describe('OrderDetailContent — Riwayat', () => {
       expect(rows[1]).toHaveTextContent('Sebab: NEW_CODE')
       expect(screen.getByTitle('SOMETHING_NEW')).toHaveTextContent('Kejadian belum dikenali')
       expect(rows[1]).not.toHaveTextContent('SOMETHING_NEW')
+    })
+  })
+})
+
+describe('OrderDetailContent — status pembayaran uang masuk yang ditandai gagal', () => {
+  describe('positive', () => {
+    test('HELD + order FAILED reads as a decided rejection', () => {
+      renderWithProviders(<OrderDetailContent detail={{ ...base, paymentStatus: 'HELD', status: 'FAILED' }} />, {
+        authenticated: true,
+      })
+      expect(screen.getByText('Uang masuk ditandai gagal')).toBeInTheDocument()
+      expect(screen.queryByText('Uang masuk tertahan')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('HELD while the order is still held keeps "Uang masuk tertahan"', () => {
+      renderWithProviders(<OrderDetailContent detail={{ ...base, paymentStatus: 'HELD', status: 'HELD' }} />, {
+        authenticated: true,
+      })
+      expect(screen.getAllByText('Uang masuk tertahan').length).toBeGreaterThan(0)
+      expect(screen.queryByText('Uang masuk ditandai gagal')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a paid order that later failed keeps its paid label', () => {
+      renderWithProviders(<OrderDetailContent detail={{ ...base, paymentStatus: 'PAID', status: 'FAILED' }} />, {
+        authenticated: true,
+      })
+      expect(screen.getByText('Sudah dibayar')).toBeInTheDocument()
     })
   })
 })
