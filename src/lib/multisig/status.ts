@@ -64,6 +64,36 @@ export function isSafeTxTerminal(status: SafeTxStatus): boolean {
   return status === 'EXECUTED' || status === 'FAILED' || status === 'CANCELLED'
 }
 
+// Posisi dalam siklus. SafeTx hanya bergerak MAJU (multisig.yaml: tanda tangan
+// tidak pernah ditarik) — itu yang membuat `mostAdvancedSafeTxStatus` sah. Tiga
+// status final berbagi peringkat: akhir yang berbeda, bukan jarak yang berbeda.
+const SAFE_TX_STATUS_RANK: Record<SafeTxStatus, number> = {
+  PENDING_SIGN: 0,
+  READY_TO_EXECUTE: 1,
+  CONFIRMING: 2,
+  EXECUTED: 3,
+  FAILED: 3,
+  CANCELLED: 3,
+}
+
+/**
+ * Dua pandangan atas SATU transaksi Safe — detail (cache modal) dan baris
+ * antrean — dipoll terpisah, jadi sesaat bisa berbeda. Karena SafeTx hanya
+ * bergerak maju, yang lebih jauh adalah yang benar: modal yang dibuka ulang
+ * dengan detail lama tidak boleh menawarkan "Tanda tangani" untuk transaksi
+ * yang barisnya sudah "Menunggu jaringan". `primary` (detail) menang bila
+ * seri; status tak dikenal tidak pernah menggeser yang dikenal.
+ */
+export function mostAdvancedSafeTxStatus(
+  primary: SafeTxStatus,
+  other: SafeTxStatus | null | undefined,
+): SafeTxStatus {
+  if (!other) return primary
+  const a = SAFE_TX_STATUS_RANK[primary] ?? -1
+  const b = SAFE_TX_STATUS_RANK[other] ?? -1
+  return b > a ? other : primary
+}
+
 // A SafeTx accepts more signatures only while collecting / not yet executed
 // (multisig.yaml confirm 409 SAFE_TX_NOT_SIGNABLE: only PENDING_SIGN /
 // READY_TO_EXECUTE). READY_TO_EXECUTE stays signable so extra owners can add

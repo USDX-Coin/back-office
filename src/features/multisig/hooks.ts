@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
 import { isSafeTxTerminal } from '@/lib/multisig/status'
+import { invalidateMoneyFlowViews, MONEY_FLOW_STALE_TIME } from '@/lib/moneyFlowViews'
 import type {
   PhaseOnePaginatedResponse,
   ProposeRequest,
@@ -73,17 +75,53 @@ export function useMultisigStatusCount(status: SafeTxStatus) {
   })
 }
 
+/** Poll detail biasa selama transaksi belum final. */
+export const SAFE_TX_DETAIL_POLL_MS = 12_000
+/**
+ * Poll detail selama CONFIRMING (eksekusi sudah dikirim, menunggu jaringan):
+ * operator sedang menatap tombol yang baru ia tekan, dan konfirmasi Polygon
+ * datang dalam hitungan detik, bukan menit.
+ */
+export const SAFE_TX_CONFIRMING_POLL_MS = 5_000
+
+export function multisigDetailPollInterval(status: SafeTxStatus | undefined): number | false {
+  if (!status || isSafeTxTerminal(status)) return false
+  return status === 'CONFIRMING' ? SAFE_TX_CONFIRMING_POLL_MS : SAFE_TX_DETAIL_POLL_MS
+}
+
 export function useMultisigDetail(id: string | null) {
-  return useQuery({
+  const qc = useQueryClient()
+  const query = useQuery({
     queryKey: ['multisig', 'detail', id],
     queryFn: () => apiFetch<SafeTxDetail>(`/api/v1/multisig/${id}`),
     enabled: Boolean(id),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status && !isSafeTxTerminal(status) ? 12_000 : false
-    },
+    // Membuka ulang modal selalu menarik ulang (lib/moneyFlowViews).
+    staleTime: MONEY_FLOW_STALE_TIME,
+    refetchInterval: (query) => multisigDetailPollInterval(query.state.data?.status),
     refetchOnWindowFocus: true,
   })
+
+  // Saat poll mendapati transaksi ini baru saja FINAL (biasanya CONFIRMING →
+  // EXECUTED), order / permintaan OTC di belakangnya ikut berubah di server —
+  // tapi tidak ada mutasi di klien yang menandainya. Sebarkan ke layar alur
+  // uang lain supaya Transaksi / OTC tidak menunggu poll-nya sendiri.
+  const status = query.data?.status
+  const prev = useRef<{ id: string | null; status: SafeTxStatus | undefined }>({ id, status })
+  useEffect(() => {
+    const before = prev.current
+    prev.current = { id, status }
+    if (
+      before.id === id &&
+      before.status &&
+      status &&
+      !isSafeTxTerminal(before.status) &&
+      isSafeTxTerminal(status)
+    ) {
+      invalidateMoneyFlowViews(qc)
+    }
+  }, [id, status, qc])
+
+  return query
 }
 
 // Safe meta (threshold/owners/nonce/balance). Owners drive the "is the connected
@@ -100,16 +138,17 @@ export function useSafes(chain?: string) {
 }
 
 // ─── Mutations ───────────────────────────────────────────────────────────────
-// Each invalidates the queue + detail so signature progress / status reflect the
-// change. The on-chain step (sign / send execTransaction) happens in the page
-// before these run; these only persist the result to the backend.
+// Each refreshes the detail of the posted id, then every money-flow view (queue,
+// counts, Transaksi, OTC, sidebar badges — lib/moneyFlowViews): signing or
+// executing a mint moves the order behind it, which `['multisig', …]` alone
+// never reached. The on-chain step (sign / send execTransaction) happens in the
+// page before these run; these only persist the result to the backend.
 
 function useInvalidateMultisig() {
   const qc = useQueryClient()
   return (id: string) => {
-    qc.invalidateQueries({ queryKey: ['multisig', 'list'] })
-    qc.invalidateQueries({ queryKey: ['multisig', 'count'] })
     qc.invalidateQueries({ queryKey: ['multisig', 'detail', id] })
+    invalidateMoneyFlowViews(qc)
   }
 }
 
@@ -155,16 +194,14 @@ export function useCancelSafeTx() {
 
 // USDX-280 — propose a governance op. Backend encodes calldata + simulates +
 // stores PENDING_SIGN + auto-signs 1/N. On success the new TX appears in the
-// queue → invalidate list + counts. 409 SAFE_QUEUE_OCCUPIED / 422 validation /
-// simulate-revert are surfaced by the caller (ProposeModal).
+// queue → invalidate the money-flow views (queue + counts included; the Safe
+// queue it occupies is shown on OTC too). 409 SAFE_QUEUE_OCCUPIED / 422
+// validation / simulate-revert are surfaced by the caller (ProposeModal).
 export function useProposeGovernance() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: ProposeRequest) =>
       apiFetch<SafeTxDetail>('/api/v1/multisig/propose', { method: 'POST', body }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['multisig', 'list'] })
-      qc.invalidateQueries({ queryKey: ['multisig', 'count'] })
-    },
+    onSuccess: () => invalidateMoneyFlowViews(qc),
   })
 }

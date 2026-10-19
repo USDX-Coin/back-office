@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import { validateRejectReason, validateThresholdReason } from '@/lib/redeemApprovals'
 import type {
   ApproveRedeemPayoutBody,
@@ -109,10 +110,9 @@ export function useRedeemApprovalDetail(id: string | null) {
  */
 function invalidateQueue(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'list'] })
-  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'detail', id] })
-  qc.invalidateQueries({ queryKey: ['orders'] })
-  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
+  // `['orders']`, Transaksi, dan `['queue-counts']` (lib/moneyFlowViews).
+  invalidateMoneyFlowViews(qc)
 }
 
 /**

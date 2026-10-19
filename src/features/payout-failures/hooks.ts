@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import { buildResolveBody, isStaleStateError, type ResolveFormInput } from '@/lib/payoutFailures'
 import type {
   PayoutFailureDetail,
@@ -98,10 +98,9 @@ export function usePayoutFailureDetail(id: string | null) {
  */
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['payout-failures', 'list'] })
-  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['payout-failures', 'detail', id] })
-  qc.invalidateQueries({ queryKey: ['orders'] })
-  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
+  // `['orders']`, Transaksi, dan `['queue-counts']` (lib/moneyFlowViews).
+  invalidateMoneyFlowViews(qc)
 }
 
 /**

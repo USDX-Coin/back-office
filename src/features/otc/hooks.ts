@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { OTC_ACTION_STATUSES, OTC_SAFE_QUEUE_STATUSES } from '@/lib/otc'
 import { isRequestTerminal } from '@/lib/status'
+import { MONEY_FLOW_STALE_TIME } from '@/lib/moneyFlowViews'
 import type {
   PhaseOnePaginatedResponse,
   PhaseOneSuccessResponse,
@@ -102,6 +103,9 @@ export function useRequestDetail(id: string | null) {
     queryKey: ['requests', 'detail', id],
     queryFn: () => apiFetchRaw<PhaseOneSuccessResponse<RequestDetail>>(`/api/v1/requests/${id}`),
     enabled: Boolean(id),
+    // Membuka ulang modal selalu menarik ulang (lib/moneyFlowViews) — tidak
+    // menulis `pii_access_audit`.
+    staleTime: MONEY_FLOW_STALE_TIME,
     select: (res) => res.data,
     refetchInterval: (query) => {
       const status = query.state.data?.data?.status

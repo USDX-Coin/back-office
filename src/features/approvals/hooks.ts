@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { ApiError, apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import type { PhaseOnePaginatedResponse } from '@/lib/types'
 import { isStaleApprovalError } from './labels'
 import {
@@ -68,12 +68,14 @@ function invalidateAfterDecision(qc: ReturnType<typeof useQueryClient>, id: stri
   // Usulan yang disetujui MENJALANKAN aksinya, jadi layar asal aksinya ikut basi.
   qc.invalidateQueries({ queryKey: ['held-credits'] })
   qc.invalidateQueries({ queryKey: ['payout-controls'] })
-  // Badge sidebar. Tanpa baris ini angkanya membeku sampai halaman di-reload:
-  // `Sidebar` dirender tanpa syarat di `MainLayout` jadi tidak pernah unmount,
-  // dan `useQueueCounts` memakai `refetchOnWindowFocus: false` — `staleTime`
-  // hanya berlaku saat mount/fokus, bukan sebagai timer. Badge yang tidak pernah
-  // bisa dikosongkan adalah badge yang berhenti dibaca.
-  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
+  // …termasuk order di balik kredit yang dituntaskan (Transaksi, rincian order)
+  // dan badge sidebar (`QUEUE_COUNTS_KEY` ada di fan-out ini). Tanpa badge,
+  // angkanya membeku sampai halaman di-reload: `Sidebar` dirender tanpa syarat
+  // di `MainLayout` jadi tidak pernah unmount, dan `useQueueCounts` memakai
+  // `refetchOnWindowFocus: false` — `staleTime` hanya berlaku saat mount/fokus,
+  // bukan sebagai timer. Badge yang tidak pernah bisa dikosongkan adalah badge
+  // yang berhenti dibaca.
+  invalidateMoneyFlowViews(qc)
 }
 
 export type ApprovalDecision = 'APPROVE' | 'REJECT'

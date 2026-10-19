@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { APPROVALS_LIST_KEY } from '@/features/approvals/hooks'
 import type { ApprovalRequest } from '@/features/approvals/types'
 import { ApiError, apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import type { PhaseOnePaginatedResponse } from '@/lib/types'
 import { isStaleHeldCreditError } from './labels'
 import {
@@ -161,16 +161,12 @@ export function buildResolveBody(input: ResolveFormInput): BuildResolveResult {
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: HELD_CREDITS_LIST_KEY })
   qc.invalidateQueries({ queryKey: ['held-credits', 'detail', id] })
-  // Order yang sama dirender layar Transaksi Nasabah.
-  qc.invalidateQueries({ queryKey: ['orders'] })
-  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
   // Kredit di atas ambang melahirkan usulan — antrean persetujuan ikut berubah.
   qc.invalidateQueries({ queryKey: APPROVALS_LIST_KEY })
-  // Badge sidebar — DUA angka sekaligus berubah di sini (`heldCreditsOpen` dan,
-  // lewat usulan yang lahir, `approvalsOpen`). Tanpa baris ini keduanya membeku
-  // sampai halaman di-reload: `Sidebar` tidak pernah unmount dan `useQueueCounts`
-  // tidak me-refetch saat fokus.
-  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
+  // Order yang sama dirender Transaksi + rincian order, dan badge sidebar
+  // berubah DUA angka sekaligus (`heldCreditsOpen` dan, lewat usulan yang lahir,
+  // `approvalsOpen`) — `['queue-counts']` ada di fan-out ini.
+  invalidateMoneyFlowViews(qc)
 }
 
 export function useResolveHeldCredit() {
