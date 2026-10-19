@@ -86,6 +86,13 @@
       "butuhBranch": "(belum ada — tiket BE dibuat setelah SOT PR #50 merge)",
       "keterangan": "Kunci `transactionsNeedsAction` (aditif). Tidak bisa diprobe: endpointnya sudah ada. Bila kunci absen, badge disembunyikan (kontrak), jadi bukan pemblokir keras — konfirmasi manual.",
       "probe": false
+    },
+    {
+      "rute": "/transactions/:id — Riwayat di rincian order",
+      "path": "/api/v1/orders/:id",
+      "butuhBranch": "(backend riwayat status order — dikerjakan paralel)",
+      "keterangan": "Field `timeline` (aditif) di GET /api/v1/orders/:id. Tidak bisa diprobe: endpointnya sudah ada. Bila field absen, seksi Riwayat tidak dirender — bukan pemblokir keras, konfirmasi manual.",
+      "probe": false
     }
   ]
 }

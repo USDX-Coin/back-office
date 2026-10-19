@@ -21,6 +21,7 @@ components/
   ├── DateRangeFields.tsx    # Two date inputs (+ optional maxDays / maxDate message) — reports toolbar + BNI statement panel
   ├── StatusPill.tsx         # Label badge for a StatusConfig (tanpa titik sejak revisi PM 9 Okt)
   ├── DataList.tsx           # DataSection/DataField — label–nilai satu baris per pasangan (modal, sheet)
+  ├── EventTrail.tsx         # Daftar "Riwayat" — satu kalimat per kejadian + waktu formatDateTime (modal OTC, rincian order Transaksi)
   ├── FormLayout.tsx         # FormSection/FormField/FormFooter — form gaya Stripe, tombol kanan bawah
   ├── FormDialog.tsx         # Bingkai form "ubah …" di dialog (pola halaman pengaturan, 11 Okt 2026)
   ├── OptionCombobox.tsx     # Combobox cmdk untuk daftar pilihan tetap yang panjang (> 15)

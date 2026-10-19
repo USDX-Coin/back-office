@@ -63,6 +63,7 @@ import type {
   PhaseOneUserWallet,
   OrderListItem,
   OrderDetail,
+  OrderTimelineEvent,
   OrderPartnerRef,
   RedeemApprovalControls,
   RedeemApprovalDetail,
@@ -1126,6 +1127,16 @@ function partnerOwnership(seed: number): OrderOwnership {
   }
 }
 
+// Riwayat status order (kontrak "riwayat status order") — diturunkan dari kolom
+// waktu mock yang sudah ada, tanpa kejadian karangan di luar keadaan ordernya.
+function timelineEvent(at: string, event: string, extra: Partial<OrderTimelineEvent> = {}): OrderTimelineEvent {
+  return { at, event, actorName: null, reason: null, reasonCode: null, detail: null, ...extra }
+}
+
+function minutesAfter(iso: string, minutes: number): string {
+  return new Date(new Date(iso).getTime() + minutes * 60 * 1000).toISOString()
+}
+
 function createOrderPair(
   user: Customer,
   seed: number,
@@ -1245,6 +1256,15 @@ function createOrderPair(
     expiresAt,
     createdAt,
     updatedAt: createdAt,
+    timeline: [
+      timelineEvent(createdAt, 'ORDER_CREATED'),
+      ...(hasChannel ? [timelineEvent(createdAt, 'PAYMENT_SELECTED')] : []),
+      ...(paidAt ? [timelineEvent(paidAt, 'PAID')] : []),
+      ...(safeTxHash ? [timelineEvent(minutesAfter(createdAt, 2), 'SAFE_PROPOSED')] : []),
+      ...(onChainTxHash
+        ? [timelineEvent(minutesAfter(createdAt, 5), 'SAFE_EXECUTED', { actorName: 'Demo Admin' })]
+        : []),
+    ],
   }
 
   return { list, detail }
@@ -1394,6 +1414,13 @@ function createRedeemOrderPair(
     expiresAt,
     createdAt,
     updatedAt: burnedAt ?? createdAt,
+    timeline: [
+      timelineEvent(createdAt, 'ORDER_CREATED'),
+      ...(burnedAt ? [timelineEvent(burnedAt, 'BURNED')] : []),
+      ...(payoutRef ? [timelineEvent(minutesAfter(createdAt, 14), 'PAYOUT_SUBMITTED', { detail: payoutRef })] : []),
+      ...(payoutCompletedAt ? [timelineEvent(payoutCompletedAt, 'PAYOUT_COMPLETED')] : []),
+      ...(state.status === 'EXPIRED' ? [timelineEvent(expiresAt, 'ORDER_EXPIRED')] : []),
+    ],
   }
 
   return { list, detail }
