@@ -94,6 +94,14 @@ function splitReviewDetail(detail: string): { action: string; info: string | nul
   return { action: detail.slice(0, at).trim(), info: clean(detail.slice(at + 3)) }
 }
 
+function noteWithoutCode(reason: string | null, reasonCode: string | null): string | null {
+  if (!reason) return null
+  if (!reasonCode) return reason
+  if (reason === reasonCode) return null
+  if (reason.startsWith(`${reasonCode}:`)) return clean(reason.slice(reasonCode.length + 1))
+  return reason
+}
+
 export function describeTimelineEvent(ev: OrderTimelineEvent): TimelineEntryView {
   const reasonCode = clean(ev.reasonCode)
   const reason = clean(ev.reason)
@@ -104,8 +112,9 @@ export function describeTimelineEvent(ev: OrderTimelineEvent): TimelineEntryView
     unknownCode: null,
     actor: clean(ev.actorName),
     cause: reasonCode ? timelineReasonLabel(reasonCode) : null,
-    // `reason` bisa berisi kode mesin yang sama dengan `reasonCode` — jangan dicetak dua kali.
-    note: reason && reason !== reasonCode ? reason : null,
+    // `reason` bisa berisi kode mesin yang sama dengan `reasonCode`, atau `"KODE: rincian"` —
+    // kodenya sudah tampil sebagai sebab, jadi hanya rinciannya yang dicetak.
+    note: noteWithoutCode(reason, reasonCode),
     reference: null,
     info: detail,
   }

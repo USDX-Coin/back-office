@@ -57,6 +57,13 @@ describe('describeTimelineEvent', () => {
       expect(view.cause).toBe('Nominal yang masuk berbeda dari yang ditagihkan')
       expect(view.note).toBe('Nominal kurang Rp 1')
     })
+
+    test('should print only the detail of a "CODE: detail" reason', () => {
+      const view = describeTimelineEvent(
+        ev('ORDER_FAILED', { reasonCode: 'BILL_NOT_SAVED', reason: 'BILL_NOT_SAVED: VA tidak tersimpan' }),
+      )
+      expect(view.note).toBe('VA tidak tersimpan')
+    })
   })
 
   describe('edge cases', () => {
