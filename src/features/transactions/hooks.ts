@@ -72,7 +72,8 @@ function fetchOrderDetail(id: string): Promise<PhaseOneSuccessResponse<OrderDeta
 // `staleTime` SENGAJA tetap bawaan (bukan `MONEY_FLOW_STALE_TIME`): untuk order
 // redeem, `GET /orders/{id}` mendekripsi rekening dan menulis satu baris
 // `pii_access_audit` per tarikan. Kesegaran sesudah aksi datang dari
-// `invalidateMoneyFlowViews` (`['orders']`), bukan dari refetch tiap buka.
+// `invalidateMoneyFlowViews(qc, { orderId })` — hanya order yang terkena —
+// bukan dari refetch tiap buka.
 export function useOrderDetail(id: string | null) {
   return useQuery({
     queryKey: ['orders', 'detail', id],

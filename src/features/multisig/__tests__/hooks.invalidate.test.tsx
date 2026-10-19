@@ -74,7 +74,7 @@ describe('multisig mutations — muat ulang sesudah berhasil', () => {
       const { result, keys } = setup(hook as () => ReturnType<typeof useExecuteSafeTx>)
       await act(() => result.current.mutateAsync({ id: 'tx_A', body } as never))
       expect(keys()).toEqual(expect.arrayContaining(MONEY_FLOW_VIEW_KEYS.map((k) => [...k])))
-      expect(keys()).toEqual(expect.arrayContaining([['orders'], ['backoffice-transactions'], ['requests'], ['queue-counts']]))
+      expect(keys()).toEqual(expect.arrayContaining([['orders', 'list'], ['backoffice-transactions'], ['requests'], ['queue-counts']]))
     })
 
     test('useProposeGovernance should refresh the money-flow views (queue + counts included)', async () => {

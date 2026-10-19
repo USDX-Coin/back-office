@@ -102,7 +102,7 @@ export function useRedeemApprovalDetail(id: string | null) {
 /**
  * Kunci cache yang ikut basi setiap kali satu order keluar dari antrean.
  *
- * `['orders']` ada di daftar karena order yang sama dirender layar User
+ * Daftar order + rincian order INI ada di daftar karena order yang sama dirender layar User
  * Transaction; menyetujui mengubah `payout_approved_at` dan menolak mengubah
  * status order menjadi `PAYOUT_FAILED`, jadi daftar itu memegang jawaban lama.
  * `['queue-counts']` ikut karena badge sidebar (USDX-678) menghitung antrean ini —
@@ -111,8 +111,9 @@ export function useRedeemApprovalDetail(id: string | null) {
 function invalidateQueue(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'list'] })
   qc.invalidateQueries({ queryKey: ['redeem-approvals', 'detail', id] })
-  // `['orders']`, Transaksi, dan `['queue-counts']` (lib/moneyFlowViews).
-  invalidateMoneyFlowViews(qc)
+  // Daftar order, Transaksi, `['queue-counts']`, dan rincian order INI saja
+  // (id antrean = id order redeem) — lib/moneyFlowViews.
+  invalidateMoneyFlowViews(qc, { orderId: id })
 }
 
 /**

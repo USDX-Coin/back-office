@@ -199,9 +199,10 @@ describe('desk liveness after a Safe execute', () => {
 
       const second = renderHook(() => useOrderDetail('ord_1'), { wrapper })
       expect(second.result.current.isSuccess).toBe(true)
-      await act(async () => {
-        await Promise.resolve()
-      })
+      expect(second.result.current.isFetching).toBe(false)
+      // Beri waktu nyata — refetch-on-mount yang tertunda pun sempat berangkat.
+      await act(() => new Promise((r) => setTimeout(r, 50)))
+      expect(second.result.current.isFetching).toBe(false)
       expect(orderCalls).toBe(1)
       second.unmount()
     })
@@ -223,6 +224,46 @@ describe('desk liveness after a Safe execute', () => {
       await waitFor(() => expect(orderCalls).toBe(2))
       reopened.unmount()
       exec.unmount()
+    })
+
+    test('a Safe tx with no linked order (governance) should not mark any order detail stale', async () => {
+      setup()
+      server.use(
+        http.post(`/api/v1/multisig/${ID}/execute`, () =>
+          envelope({ ...detail('CONFIRMING'), linkedOrderId: null }),
+        ),
+      )
+      const order = renderHook(() => useOrderDetail('ord_1'), { wrapper })
+      await waitFor(() => expect(order.result.current.isSuccess).toBe(true))
+      order.unmount()
+
+      const exec = renderHook(() => useExecuteSafeTx(), { wrapper })
+      await act(() => exec.result.current.mutateAsync({ id: ID, body: { execTxHash: '0xexec' } }))
+      expect(qc.getQueryState(['orders', 'detail', 'ord_1'])?.isInvalidated).toBe(false)
+      exec.unmount()
+    })
+
+    test('switching rows (↑/↓) from a CONFIRMING tx to an EXECUTED one should not fan out', async () => {
+      setup()
+      detailStatus = 'CONFIRMING'
+      server.use(
+        http.get('/api/v1/multisig/tx_done', () => envelope({ ...detail('EXECUTED'), id: 'tx_done' })),
+      )
+      const { result, rerender, unmount } = renderHook(
+        ({ id }: { id: string }) => ({ detail: useMultisigDetail(id), txs: useBackofficeTransactions({}) }),
+        { wrapper, initialProps: { id: ID } },
+      )
+      await waitFor(() => expect(result.current.detail.data?.status).toBe('CONFIRMING'))
+      await waitFor(() => expect(result.current.txs.isSuccess).toBe(true))
+
+      // Baris tujuan sudah pernah dibuka (ada di cache) — status langsung
+      // CONFIRMING (tx lain) → EXECUTED tanpa jeda `undefined` di antaranya.
+      qc.setQueryData(['multisig', 'detail', 'tx_done'], { ...detail('EXECUTED'), id: 'tx_done' })
+      rerender({ id: 'tx_done' })
+      await waitFor(() => expect(result.current.detail.data?.status).toBe('EXECUTED'))
+      await act(() => new Promise((r) => setTimeout(r, 50)))
+      expect(txCalls).toBe(1)
+      unmount()
     })
   })
 })

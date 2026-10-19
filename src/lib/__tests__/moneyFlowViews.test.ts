@@ -23,7 +23,6 @@ describe('invalidateMoneyFlowViews', () => {
         ['multisig', 'list', 'otc-queue'],
         ['multisig', 'count', 'PENDING_SIGN'],
         ['orders', 'list', {}],
-        ['orders', 'detail', 'ord_1'],
         [...BACKOFFICE_TRANSACTIONS_KEY, { needsAction: true }],
         ['requests', 'otc', { statuses: ['APPROVED'] }],
         ['requests', 'detail', 'req_1'],
@@ -33,6 +32,24 @@ describe('invalidateMoneyFlowViews', () => {
       const qc = seeded(views)
       invalidateMoneyFlowViews(qc)
       for (const key of views) expect(invalidated(qc, key), JSON.stringify(key)).toBe(true)
+    })
+  })
+
+  describe('positive — orderId', () => {
+    test('should mark ONLY the affected order detail stale', () => {
+      const qc = seeded([
+        ['orders', 'detail', 'ord_hit'],
+        ['orders', 'detail', 'ord_other'],
+      ])
+      invalidateMoneyFlowViews(qc, { orderId: 'ord_hit' })
+      expect(invalidated(qc, ['orders', 'detail', 'ord_hit'])).toBe(true)
+      expect(invalidated(qc, ['orders', 'detail', 'ord_other'])).toBe(false)
+    })
+
+    test('a null orderId (e.g. governance Safe tx) should touch no order detail', () => {
+      const qc = seeded([['orders', 'detail', 'ord_1']])
+      invalidateMoneyFlowViews(qc, { orderId: null })
+      expect(invalidated(qc, ['orders', 'detail', 'ord_1'])).toBe(false)
     })
   })
 
@@ -46,6 +63,8 @@ describe('invalidateMoneyFlowViews', () => {
         ['payout-failures', 'detail', 'po_1'],
         ['redeem-approvals', 'detail', 'ra_1'],
         ['held-credits', 'detail', 'hc_1'],
+        // Rincian order redeem = satu baris audit per tarikan.
+        ['orders', 'detail', 'ord_1'],
         ['multisig', 'safes', 'all'],
         ['multisig', 'detail', 'tx_1'],
       ]

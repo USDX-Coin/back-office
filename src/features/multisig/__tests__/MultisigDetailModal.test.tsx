@@ -459,6 +459,30 @@ describe('MultisigDetailModal status vs. the queue row', () => {
   })
 
   describe('edge cases', () => {
+    test('a FRESH detail wins even when it moved back (CONFIRMING → READY_TO_EXECUTE)', () => {
+      // safe-reconciler mengembalikan siaran macet / GS013 ke READY_TO_EXECUTE;
+      // baris antrean yang masih CONFIRMING tidak boleh menyembunyikan Eksekusi.
+      state.wallet = { ...(state.wallet as object), isConnected: true, address: OWNER, chainOk: true }
+      setDetail(
+        { status: 'READY_TO_EXECUTE', signers: [signer(OWNER, true), signer(OTHER, true)] },
+        { isFetchedAfterMount: true },
+      )
+      renderWithRow(row('CONFIRMING'))
+      expect(screen.getByRole('button', { name: /^Eksekusi$/ })).toBeInTheDocument()
+      expect(screen.getByText('Siap dieksekusi')).toBeInTheDocument()
+    })
+
+    test('the same READY_TO_EXECUTE detail still from cache defers to the CONFIRMING row', () => {
+      state.wallet = { ...(state.wallet as object), isConnected: true, address: OWNER, chainOk: true }
+      setDetail(
+        { status: 'READY_TO_EXECUTE', signers: [signer(OWNER, true), signer(OTHER, true)] },
+        { isFetchedAfterMount: false },
+      )
+      renderWithRow(row('CONFIRMING'))
+      expect(screen.queryByRole('button', { name: /^Eksekusi$/ })).not.toBeInTheDocument()
+      expect(screen.getByText('Menunggu jaringan')).toBeInTheDocument()
+    })
+
     test('deep link without a row falls back to the detail', () => {
       renderWithRow(null)
       expect(screen.getByRole('button', { name: 'Hubungkan wallet' })).toBeInTheDocument()

@@ -64,8 +64,11 @@ export function isSafeTxTerminal(status: SafeTxStatus): boolean {
   return status === 'EXECUTED' || status === 'FAILED' || status === 'CANCELLED'
 }
 
-// Posisi dalam siklus. SafeTx hanya bergerak MAJU (multisig.yaml: tanda tangan
-// tidak pernah ditarik) — itu yang membuat `mostAdvancedSafeTxStatus` sah. Tiga
+// Posisi dalam siklus. SafeTx HAMPIR selalu bergerak maju — kecuali satu jalan
+// mundur: safe-reconciler backend mengembalikan CONFIRMING → READY_TO_EXECUTE
+// saat siaran macet / GS013 (eksekusi perlu diulang). Karena itu
+// `mostAdvancedSafeTxStatus` hanya boleh dipakai untuk menambal detail dari
+// CACHE yang belum ditarik ulang; detail yang sudah segar selalu menang. Tiga
 // status final berbagi peringkat: akhir yang berbeda, bukan jarak yang berbeda.
 const SAFE_TX_STATUS_RANK: Record<SafeTxStatus, number> = {
   PENDING_SIGN: 0,
@@ -77,12 +80,14 @@ const SAFE_TX_STATUS_RANK: Record<SafeTxStatus, number> = {
 }
 
 /**
- * Dua pandangan atas SATU transaksi Safe — detail (cache modal) dan baris
- * antrean — dipoll terpisah, jadi sesaat bisa berbeda. Karena SafeTx hanya
- * bergerak maju, yang lebih jauh adalah yang benar: modal yang dibuka ulang
+ * Dua pandangan atas SATU transaksi Safe — detail dari cache modal dan baris
+ * antrean — dipoll terpisah, jadi sesaat bisa berbeda. Modal yang dibuka ulang
  * dengan detail lama tidak boleh menawarkan "Tanda tangani" untuk transaksi
- * yang barisnya sudah "Menunggu jaringan". `primary` (detail) menang bila
- * seri; status tak dikenal tidak pernah menggeser yang dikenal.
+ * yang barisnya sudah "Menunggu jaringan", jadi SELAMA detail belum ditarik
+ * ulang, yang lebih jauh dipakai. Begitu detail segar datang, pemanggil wajib
+ * memakai detail apa adanya (status bisa mundur CONFIRMING → READY_TO_EXECUTE,
+ * lihat di atas). `primary` (detail) menang bila seri; status tak dikenal
+ * tidak pernah menggeser yang dikenal.
  */
 export function mostAdvancedSafeTxStatus(
   primary: SafeTxStatus,

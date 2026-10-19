@@ -158,15 +158,20 @@ export function buildResolveBody(input: ResolveFormInput): BuildResolveResult {
 
 // ─── Mutasi ─────────────────────────────────────────────────────────────────
 
-function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
+function invalidateAfterResolve(
+  qc: ReturnType<typeof useQueryClient>,
+  id: string,
+  orderId?: string | null,
+) {
   qc.invalidateQueries({ queryKey: HELD_CREDITS_LIST_KEY })
   qc.invalidateQueries({ queryKey: ['held-credits', 'detail', id] })
   // Kredit di atas ambang melahirkan usulan — antrean persetujuan ikut berubah.
   qc.invalidateQueries({ queryKey: APPROVALS_LIST_KEY })
   // Order yang sama dirender Transaksi + rincian order, dan badge sidebar
   // berubah DUA angka sekaligus (`heldCreditsOpen` dan, lewat usulan yang lahir,
-  // `approvalsOpen`) — `['queue-counts']` ada di fan-out ini.
-  invalidateMoneyFlowViews(qc)
+  // `approvalsOpen`) — `['queue-counts']` ada di fan-out ini. Rincian order
+  // hanya untuk order yang dituntaskan (jawaban 200 menamainya).
+  invalidateMoneyFlowViews(qc, { orderId })
 }
 
 export function useResolveHeldCredit() {
@@ -183,7 +188,8 @@ export function useResolveHeldCredit() {
       })
       return interpretResolveResponse(data)
     },
-    onSuccess: (_result, { id }) => invalidateAfterResolve(qc, id),
+    onSuccess: (result, { id }) =>
+      invalidateAfterResolve(qc, id, result.outcome === 'EXECUTED' ? result.result.orderId : null),
     onError: (err, { id }) => {
       if (err instanceof ApiError && isStaleHeldCreditError(err.code)) {
         invalidateAfterResolve(qc, id)

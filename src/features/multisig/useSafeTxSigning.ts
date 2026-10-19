@@ -37,10 +37,11 @@ import {
  * sama, hanya tempatnya yang berpindah — supaya dua layar tidak pernah punya
  * dua versi aturan yang sama.
  *
- * `listStatus` = status baris antrean yang diklik (bila ada). Tombol mengikuti
- * yang lebih maju dari detail dan baris (`mostAdvancedSafeTxStatus`), supaya
- * detail lama di cache tidak menawarkan tanda tangan untuk transaksi yang
- * barisnya sudah lewat tahap itu.
+ * `listStatus` = status baris antrean yang diklik (bila ada). Selama detail
+ * masih dari cache (belum ditarik ulang sejak dibuka), tombol mengikuti yang
+ * lebih maju dari detail dan baris (`mostAdvancedSafeTxStatus`), supaya detail
+ * lama tidak menawarkan tanda tangan untuk transaksi yang barisnya sudah lewat
+ * tahap itu. Sesudah detail segar, detail yang dipakai.
  */
 export function useSafeTxSigning(
   txId: string | null,
@@ -102,7 +103,15 @@ export function useSafeTxSigning(
   )
   const alreadySigned = Boolean(mySigner?.signed)
 
-  const status = detail ? mostAdvancedSafeTxStatus(detail.status, listStatus) : null
+  // Baris antrean hanya menambal detail dari CACHE (belum ditarik ulang sejak
+  // modal dibuka). Detail yang sudah segar menang apa adanya — status bisa
+  // mundur CONFIRMING → READY_TO_EXECUTE (siaran macet), dan baris lama tidak
+  // boleh menyembunyikan tombol Eksekusi yang dibutuhkan saat itu.
+  const status = detail
+    ? query.isFetchedAfterMount
+      ? detail.status
+      : mostAdvancedSafeTxStatus(detail.status, listStatus)
+    : null
 
   // Simulate gate runs for signable/executable, not-yet-terminal transactions.
   const simulate = useSimulateExec(

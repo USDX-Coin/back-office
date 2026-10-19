@@ -92,15 +92,16 @@ export function usePayoutFailureDetail(id: string | null) {
 
 /**
  * Kunci cache yang basi saat satu order keluar dari antrean — atau saat server
- * bilang keadaannya sudah berubah (409 ALREADY_RESOLVED dsb.). `['orders']` ikut
+ * bilang keadaannya sudah berubah (409 ALREADY_RESOLVED dsb.). Daftar order + rincian order INI ikut
  * karena order yang sama dirender layar User Transaction; `['queue-counts']` ikut
  * karena badge sidebar menghitung antrean yang sama.
  */
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['payout-failures', 'list'] })
   qc.invalidateQueries({ queryKey: ['payout-failures', 'detail', id] })
-  // `['orders']`, Transaksi, dan `['queue-counts']` (lib/moneyFlowViews).
-  invalidateMoneyFlowViews(qc)
+  // Daftar order, Transaksi, `['queue-counts']`, dan rincian order INI saja
+  // (id antrean = id order redeem) — lib/moneyFlowViews.
+  invalidateMoneyFlowViews(qc, { orderId: id })
 }
 
 /**

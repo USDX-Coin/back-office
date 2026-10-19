@@ -68,8 +68,9 @@ function invalidateAfterDecision(qc: ReturnType<typeof useQueryClient>, id: stri
   // Usulan yang disetujui MENJALANKAN aksinya, jadi layar asal aksinya ikut basi.
   qc.invalidateQueries({ queryKey: ['held-credits'] })
   qc.invalidateQueries({ queryKey: ['payout-controls'] })
-  // …termasuk order di balik kredit yang dituntaskan (Transaksi, rincian order)
-  // dan badge sidebar (`QUEUE_COUNTS_KEY` ada di fan-out ini). Tanpa badge,
+  // …termasuk daftar order & Transaksi di balik kredit yang dituntaskan (rincian
+  // order tidak disapu: usulan tidak membawa id order yang pasti, dan menyapu
+  // semua rincian = jejak `pii_access_audit` palsu) dan badge sidebar (`QUEUE_COUNTS_KEY` ada di fan-out ini). Tanpa badge,
   // angkanya membeku sampai halaman di-reload: `Sidebar` dirender tanpa syarat
   // di `MainLayout` jadi tidak pernah unmount, dan `useQueueCounts` memakai
   // `refetchOnWindowFocus: false` — `staleTime` hanya berlaku saat mount/fokus,

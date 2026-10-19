@@ -106,6 +106,7 @@ export function useMultisigDetail(id: string | null) {
   // tapi tidak ada mutasi di klien yang menandainya. Sebarkan ke layar alur
   // uang lain supaya Transaksi / OTC tidak menunggu poll-nya sendiri.
   const status = query.data?.status
+  const linkedOrderId = query.data?.linkedOrderId
   const prev = useRef<{ id: string | null; status: SafeTxStatus | undefined }>({ id, status })
   useEffect(() => {
     const before = prev.current
@@ -117,9 +118,9 @@ export function useMultisigDetail(id: string | null) {
       !isSafeTxTerminal(before.status) &&
       isSafeTxTerminal(status)
     ) {
-      invalidateMoneyFlowViews(qc)
+      invalidateMoneyFlowViews(qc, { orderId: linkedOrderId })
     }
-  }, [id, status, qc])
+  }, [id, status, linkedOrderId, qc])
 
   return query
 }
@@ -146,9 +147,10 @@ export function useSafes(chain?: string) {
 
 function useInvalidateMultisig() {
   const qc = useQueryClient()
-  return (id: string) => {
+  return (id: string, fresh: SafeTxDetail | undefined) => {
     qc.invalidateQueries({ queryKey: ['multisig', 'detail', id] })
-    invalidateMoneyFlowViews(qc)
+    // Rincian order hanya untuk order di balik transaksi ini (bila ada).
+    invalidateMoneyFlowViews(qc, { orderId: fresh?.linkedOrderId })
   }
 }
 
@@ -164,7 +166,7 @@ export function useConfirmSignature() {
         method: 'POST',
         body,
       }),
-    onSuccess: (_data, { id }) => invalidate(id),
+    onSuccess: (data, { id }) => invalidate(id, data),
   })
 }
 
@@ -176,7 +178,7 @@ export function useExecuteSafeTx() {
         method: 'POST',
         body,
       }),
-    onSuccess: (_data, { id }) => invalidate(id),
+    onSuccess: (data, { id }) => invalidate(id, data),
   })
 }
 
@@ -188,7 +190,7 @@ export function useCancelSafeTx() {
         method: 'POST',
         body,
       }),
-    onSuccess: (_data, { id }) => invalidate(id),
+    onSuccess: (data, { id }) => invalidate(id, data),
   })
 }
 

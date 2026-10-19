@@ -117,7 +117,9 @@ export function useExecuteSync(id: string | null) {
     qc.invalidateQueries({ queryKey: ['manual-sync'] })
     qc.invalidateQueries({ queryKey: ['mint'] })
     qc.invalidateQueries({ queryKey: ['burn'] })
-    invalidateMoneyFlowViews(qc)
+    // Untuk `mint_order` id baris = id order; untuk OTC tidak ada rincian order
+    // dengan id itu, jadi tidak ada yang ditandai.
+    invalidateMoneyFlowViews(qc, { orderId: id })
   }
   return useMutation({
     mutationFn: (body: ManualSyncTxHashBody) => postExecute(id as string, body),

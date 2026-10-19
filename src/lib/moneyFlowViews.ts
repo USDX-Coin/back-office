@@ -21,10 +21,12 @@ import type { QueryClient } from '@tanstack/react-query'
 //   - detail Safe (`['multisig', 'detail', id]`) — mutasi Safe menyegarkan id
 //     yang dikirimnya sendiri; detail lain dipoll selama belum final.
 //   - `['multisig', 'safes']` — RPC lambat, tidak berubah karena kejadian uang.
-//   - detail yang menulis `pii_access_audit` (KYC/KYB, Pencairan Bermasalah,
-//     Persetujuan Pencairan, held-credits) — tiap fitur itu menyegarkan detail
-//     id-nya sendiri, hanya setelah aksi atas id itu. Menyapu semuanya di sini
-//     akan mencatat akses PII yang tidak dilakukan siapa pun.
+//   - detail yang menulis `pii_access_audit` (rincian order redeem
+//     `['orders', 'detail', id]`, KYC/KYB, Pencairan Bermasalah, Persetujuan
+//     Pencairan, held-credits) — menandai SEMUANYA basi berarti order redeem
+//     yang dibuka ulang dalam semenit ditarik lagi = satu baris audit ekstra
+//     untuk kejadian (mis. propose governance) yang tidak menyentuh order itu.
+//     Hanya rincian order yang MEMANG terkena (`orderId`) yang ditandai.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const MONEY_FLOW_VIEW_KEYS = [
@@ -32,8 +34,8 @@ export const MONEY_FLOW_VIEW_KEYS = [
   // `['multisig', 'list']`) + angka tab.
   ['multisig', 'list'],
   ['multisig', 'count'],
-  // Order nasabah (rincian order di modal Transaksi, dialog Perbaiki Status).
-  ['orders'],
+  // Daftar order nasabah — DAFTAR saja; rincian lewat `orderId` di bawah.
+  ['orders', 'list'],
   // Transaksi gabungan (`BACKOFFICE_TRANSACTIONS_KEY`).
   ['backoffice-transactions'],
   // Permintaan OTC: tabel, detail, angka sub-menu.
@@ -47,11 +49,19 @@ export const MONEY_FLOW_VIEW_KEYS = [
  * Tandai semua layar alur uang basi. Query yang sedang tampil ditarik ulang
  * sekarang; sisanya ditarik saat dibuka lagi. Dipanggil sesudah mutasi yang
  * mengubah status order / permintaan / transaksi Safe.
+ *
+ * `orderId` = order yang benar-benar terkena kejadian ini (mis.
+ * `linkedOrderId` transaksi Safe, id order antrean redeem). Hanya rincian order
+ * itu yang ditandai basi — lihat catatan `pii_access_audit` di atas.
  */
-export function invalidateMoneyFlowViews(qc: QueryClient): void {
+export function invalidateMoneyFlowViews(
+  qc: QueryClient,
+  { orderId }: { orderId?: string | null } = {},
+): void {
   for (const queryKey of MONEY_FLOW_VIEW_KEYS) {
     void qc.invalidateQueries({ queryKey })
   }
+  if (orderId) void qc.invalidateQueries({ queryKey: ['orders', 'detail', orderId] })
 }
 
 /**
