@@ -8,11 +8,12 @@ import RecordActions, { type RecordMoreItem, type RecordPrimary } from '@/compon
 import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
 import { DataField, DataSection } from '@/components/DataList'
 import DetailTeknis from '@/components/DetailTeknis'
+import EventTrail, { type EventTrailItem } from '@/components/EventTrail'
 import { useChainConfig } from '@/features/chains/hooks'
 import { useSafeTxSigning, type SafeTxSigning } from '@/features/multisig/useSafeTxSigning'
 import { findChainConfig } from '@/lib/chainLinks'
 import { buildTxExplorerUrl } from '@/lib/explorerUrl'
-import { formatDateTime, formatRate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
+import { formatRate, formatUsdxListAmount, truncateMiddle } from '@/lib/format'
 import { OTC_KIND_LABEL, findSafeTxFor, formatIdrPlain, otcRowState } from '@/lib/otc'
 import { safeTxUrl } from '@/lib/safeUrl'
 import type { BurnRequestDetail, RequestDetail, RequestListItem, RequestType, SafeTxListItem } from '@/lib/types'
@@ -135,10 +136,11 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
   const bankLine = burn && (burn.bankName || burn.bankAccount) ? `${burn.bankName ?? ''} ${burn.bankAccount ?? ''}`.trim() : null
 
   // ── riwayat sebagai kalimat ──
-  const events: { text: string; time: string | null }[] = [
+  const events: EventTrailItem[] = [
     {
+      key: 'created',
       text: `${req.createdByName || 'Staf'} membuat permintaan ${isMint ? 'mint' : 'redeem'} OTC`,
-      time: req.createdAt ? formatDateTime(req.createdAt) : null,
+      at: req.createdAt || null,
     },
   ]
   const sd = signing.detail
@@ -148,15 +150,16 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
       .sort((a, b) => (a.signedAt ?? '').localeCompare(b.signedAt ?? ''))
     signed.forEach((s, i) =>
       events.push({
+        key: `signed-${i}`,
         text: `${signerDisplayName(s, sd.signers.indexOf(s))} menandatangani (${i + 1} dari ${sd.signatureProgress.threshold})`,
-        time: s.signedAt ? formatDateTime(s.signedAt) : null,
+        at: s.signedAt ?? null,
       }),
     )
   }
   if (req.status === 'EXECUTED' || req.status === 'IDR_TRANSFERRED')
-    events.push({ text: isMint ? 'USDX dicetak di blockchain' : 'USDX dibakar di blockchain', time: null })
-  if (req.status === 'IDR_TRANSFERRED') events.push({ text: 'Rupiah dikirim ke rekening nasabah', time: null })
-  if (req.status === 'REJECTED') events.push({ text: 'Permintaan ditolak', time: null })
+    events.push({ key: 'executed', text: isMint ? 'USDX dicetak di blockchain' : 'USDX dibakar di blockchain', at: null })
+  if (req.status === 'IDR_TRANSFERRED') events.push({ key: 'idr', text: 'Rupiah dikirim ke rekening nasabah', at: null })
+  if (req.status === 'REJECTED') events.push({ key: 'rejected', text: 'Permintaan ditolak', at: null })
 
   // ── tombol utama + Lainnya ──
   const primary = buildPrimary(state.action, signing, req, usdx, idr, bankLine)
@@ -263,14 +266,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
       </DataSection>
 
       <DataSection title="Riwayat">
-        <ol className="space-y-2.5 pt-2.5">
-          {events.map((ev, i) => (
-            <li key={i} className="text-sm">
-              <span className="text-foreground">{ev.text}</span>
-              {ev.time && <span className="block text-xs tabular-nums text-muted-foreground">{ev.time}</span>}
-            </li>
-          ))}
-        </ol>
+        <EventTrail items={events} />
       </DataSection>
 
       <DetailTeknis description="Kode dan nomor untuk penelusuran. Tidak perlu dibuka untuk pekerjaan sehari-hari.">

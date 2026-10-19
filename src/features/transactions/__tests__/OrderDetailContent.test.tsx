@@ -174,3 +174,159 @@ describe('OrderDetailContent — total bayar Transfer BNI dalam USD', () => {
     })
   })
 })
+
+// Riwayat status order (`timeline`, kontrak "riwayat status order"). Field-nya
+// opsional: backend lama tanpa field itu tidak boleh memunculkan seksi kosong.
+describe('OrderDetailContent — Riwayat', () => {
+  const ev = (
+    at: string,
+    event: string,
+    extra: Partial<NonNullable<OrderDetail['timeline']>[number]> = {},
+  ): NonNullable<OrderDetail['timeline']>[number] => ({
+    at,
+    event,
+    actorName: null,
+    reason: null,
+    reasonCode: null,
+    detail: null,
+    ...extra,
+  })
+
+  const trail = () => screen.getByTestId('order-timeline')
+  const items = () => Array.from(trail().querySelectorAll('li'))
+  const heading = (name: string) => screen.getByRole('heading', { name })
+  const before = (a: Element, b: Element) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+  describe('positive', () => {
+    test('mint trail: held credit with its reason, then a staff decision with name and note', () => {
+      const mint: OrderDetail = {
+        ...base,
+        paymentStatus: 'PAID',
+        paidAt: '2026-10-13T07:30:00.000Z',
+        timeline: [
+          ev('2026-10-13T07:00:00.000Z', 'ORDER_CREATED'),
+          ev('2026-10-13T07:01:00.000Z', 'PAYMENT_SELECTED'),
+          ev('2026-10-13T07:10:00.000Z', 'CREDIT_HELD', {
+            reason: 'SENDER_NAME_UNVERIFIABLE',
+            reasonCode: 'SENDER_NAME_UNVERIFIABLE',
+          }),
+          ev('2026-10-13T07:29:00.000Z', 'CREDIT_RESOLVED', {
+            actorName: 'Linda Chen',
+            reason: 'Nama pengirim cocok dengan KTP setelah dicek manual',
+            detail: 'PAID',
+          }),
+          ev('2026-10-13T07:30:00.000Z', 'PAID'),
+        ],
+      }
+      renderWithProviders(<OrderDetailContent detail={mint} />, { authenticated: true })
+
+      const rows = items()
+      expect(rows).toHaveLength(5)
+      expect(rows[0]).toHaveTextContent('Order dibuat')
+      expect(rows[0]).toHaveTextContent('13 Okt 2026, 14:00:00')
+      expect(rows[1]).toHaveTextContent('Nasabah memilih metode bayar')
+      expect(rows[2]).toHaveTextContent('Uang masuk ditahan')
+      expect(rows[2]).toHaveTextContent('Sebab: Nama pengirim tidak bisa dicek ke nama KYC pemilik order')
+      // Kodenya sama dengan `reasonCode` — tidak dicetak dua kali sebagai catatan.
+      expect(rows[2]).not.toHaveTextContent('SENDER_NAME_UNVERIFIABLE')
+      expect(rows[3]).toHaveTextContent('Uang masuk diselesaikan manual, ditandai lunas')
+      expect(rows[3]).toHaveTextContent('oleh Linda Chen')
+      expect(rows[3]).toHaveTextContent('Nama pengirim cocok dengan KTP setelah dicek manual')
+      expect(rows[4]).toHaveTextContent('Pembayaran diterima')
+      // Kejadian otomatis tidak diberi pelaku karangan.
+      expect(rows[4]).not.toHaveTextContent('oleh')
+
+      expect(before(heading('Pembayaran & status'), heading('Riwayat'))).toBe(true)
+      expect(before(heading('Riwayat'), screen.getByText('Detail teknis order'))).toBe(true)
+    })
+
+    test('redeem trail: payout issue, ops review with new reference, then completion', () => {
+      const redeem: OrderDetail = {
+        ...base,
+        type: 'REDEEM',
+        status: 'PAYOUT_COMPLETE',
+        timeline: [
+          ev('2026-10-13T07:00:00.000Z', 'ORDER_CREATED'),
+          ev('2026-10-13T07:05:00.000Z', 'BURNED'),
+          ev('2026-10-13T07:06:00.000Z', 'PAYOUT_APPROVED', { actorName: 'Demo Admin' }),
+          ev('2026-10-13T07:07:00.000Z', 'PAYOUT_SUBMITTED', { detail: 'REF-001' }),
+          ev('2026-10-13T07:20:00.000Z', 'PAYOUT_ISSUE', {
+            reasonCode: 'PROVIDER_FAILED',
+            reason: 'Rekening tujuan ditutup',
+            detail: 'PAYOUT_FAILED',
+          }),
+          ev('2026-10-13T08:00:00.000Z', 'PAYOUT_REVIEW', {
+            actorName: 'Linda Chen',
+            reason: 'Nasabah sudah ganti rekening, kirim ulang',
+            detail: 'RESENT · REF-002',
+          }),
+          ev('2026-10-13T08:05:00.000Z', 'PAYOUT_COMPLETED'),
+        ],
+      }
+      renderWithProviders(<OrderDetailContent detail={redeem} />, { authenticated: true })
+
+      const rows = items()
+      expect(rows).toHaveLength(7)
+      expect(rows[1]).toHaveTextContent('USDX dibakar di blockchain')
+      expect(rows[2]).toHaveTextContent('Pencairan disetujui')
+      expect(rows[2]).toHaveTextContent('oleh Demo Admin')
+      expect(rows[3]).toHaveTextContent('Transfer rupiah dikirim ke penyedia pencairan')
+      expect(rows[3]).toHaveTextContent('Referensi REF-001')
+      expect(rows[4]).toHaveTextContent('Pencairan bermasalah: payout gagal')
+      expect(rows[4]).toHaveTextContent('Sebab: Provider menyatakan transfer gagal')
+      expect(rows[4]).toHaveTextContent('Rekening tujuan ditutup')
+      expect(rows[5]).toHaveTextContent('Pencairan dikirim ulang')
+      expect(rows[5]).toHaveTextContent('oleh Linda Chen')
+      expect(rows[5]).toHaveTextContent('Referensi baru REF-002')
+      expect(rows[5]).not.toHaveTextContent('RESENT')
+      expect(rows[6]).toHaveTextContent('Rupiah dikirim ke rekening nasabah')
+
+      expect(before(heading('Status & pencairan'), heading('Riwayat'))).toBe(true)
+      expect(before(heading('Riwayat'), screen.getByText('Detail teknis order'))).toBe(true)
+    })
+  })
+
+  describe('negative', () => {
+    test('an older backend without `timeline` renders no Riwayat section', () => {
+      renderWithProviders(<OrderDetailContent detail={base} />, { authenticated: true })
+      expect(screen.queryByRole('heading', { name: 'Riwayat' })).not.toBeInTheDocument()
+      expect(screen.queryByTestId('order-timeline')).not.toBeInTheDocument()
+    })
+
+    test('an empty or null timeline renders no Riwayat section', () => {
+      const { unmount } = renderWithProviders(<OrderDetailContent detail={{ ...base, timeline: [] }} />, {
+        authenticated: true,
+      })
+      expect(screen.queryByRole('heading', { name: 'Riwayat' })).not.toBeInTheDocument()
+      unmount()
+      renderWithProviders(<OrderDetailContent detail={{ ...base, timeline: null }} />, { authenticated: true })
+      expect(screen.queryByRole('heading', { name: 'Riwayat' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('an unknown event code renders a generic label (code only in title) and keeps its reason', () => {
+      renderWithProviders(
+        <OrderDetailContent
+          detail={{
+            ...base,
+            timeline: [
+              ev('2026-10-13T07:00:00.000Z', 'ORDER_CREATED'),
+              ev('2026-10-13T07:02:00.000Z', 'SOMETHING_NEW', { actorName: 'Linda Chen', reasonCode: 'NEW_CODE' }),
+            ],
+          }}
+        />,
+        { authenticated: true },
+      )
+      const rows = items()
+      expect(rows).toHaveLength(2)
+      expect(rows[1]).toHaveTextContent('Kejadian belum dikenali')
+      expect(rows[1]).toHaveTextContent('oleh Linda Chen')
+      // Kode alasan tanpa label tampil apa adanya, bukan dibuang.
+      expect(rows[1]).toHaveTextContent('Sebab: NEW_CODE')
+      expect(screen.getByTitle('SOMETHING_NEW')).toHaveTextContent('Kejadian belum dikenali')
+      expect(rows[1]).not.toHaveTextContent('SOMETHING_NEW')
+    })
+  })
+})

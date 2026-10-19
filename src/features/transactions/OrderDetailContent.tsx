@@ -19,6 +19,7 @@ import { formatUsdExact } from '@/lib/redeemApprovals'
 import type { OrderDetail } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { resolveOrderNextStep } from './nextStep'
+import OrderTimelineSection from './OrderTimelineSection'
 import { DataField, DataSection } from '@/components/DataList'
 import { STATUS_CHIP_BASE } from '@/lib/statusChip'
 import { paymentMethodLabel, providerLabel } from '@/lib/paymentMethods'
@@ -442,6 +443,8 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
           <DataField label="Kedaluwarsa pada (WIB)">{time(detail.expiresAt)}</DataField>
         </DataSection>
       )}
+
+      <OrderTimelineSection timeline={detail.timeline} />
 
       {/* Nomor rekening dan nama menurut bank TETAP di layar utama,
           tidak pernah dilipat: keduanya bahan keputusan, dan yang

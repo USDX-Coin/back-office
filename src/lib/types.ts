@@ -1066,6 +1066,58 @@ export interface OrderDetail {
   expiresAt: string
   createdAt: string
   updatedAt: string
+  /**
+   * Riwayat status order, urut naik menurut `at` (kontrak "riwayat status
+   * order"). OPSIONAL: backend sebelum fitur ini tidak mengirimnya — absen,
+   * `null`, atau kosong = seksi Riwayat tidak dirender.
+   */
+  timeline?: OrderTimelineEvent[] | null
+}
+
+/** Kode kejadian riwayat order yang dikenal kontrak (mint + redeem). */
+export type OrderTimelineEventCode =
+  // MINT
+  | 'ORDER_CREATED'
+  | 'PAYMENT_SELECTED'
+  | 'CREDIT_HELD'
+  | 'CREDIT_RESOLVED'
+  | 'PAID'
+  | 'SAFE_PROPOSED'
+  | 'SAFE_SIGNED'
+  | 'SAFE_EXECUTED'
+  | 'SAFE_FAILED'
+  | 'SAFE_CANCELLED'
+  | 'ORDER_FAILED'
+  | 'ORDER_EXPIRED'
+  // REDEEM
+  | 'BURN_SUBMITTED'
+  | 'BURN_SIGN_ABANDONED'
+  | 'BURNED'
+  | 'PAYOUT_APPROVED'
+  | 'PAYOUT_REJECTED'
+  | 'PAYOUT_SUBMITTED'
+  | 'PAYOUT_SUBMISSION_REJECTED'
+  | 'PAYOUT_ISSUE'
+  | 'PAYOUT_REVIEW'
+  | 'PAYOUT_COMPLETED'
+
+export interface OrderTimelineEvent {
+  /** ISO 8601 UTC. */
+  at: string
+  /**
+   * `OrderTimelineEventCode` menurut kontrak, diketik `string` karena kode baru
+   * dari backend tidak boleh membuat layar mogok — yang belum dikenal dirender
+   * dengan label umum.
+   */
+  event: string
+  /** Nama staf bila dilakukan staf; `null` = otomatis / sistem / nasabah. */
+  actorName: string | null
+  /** Alasan/catatan teks bebas dari staf, atau kode mesin (lihat `reasonCode`). */
+  reason: string | null
+  /** Kode mesin (held_reason, failure_reason, payout_issue_code) bila ada. */
+  reasonCode: string | null
+  /** Info tambahan pendek (referensi payout, PAID/FAILED, `RESENT · <ref>`). */
+  detail: string | null
 }
 
 // sot/api/burn.yaml § CreateBurnRequest — request body for POST /api/v1/burn.
