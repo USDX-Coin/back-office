@@ -2,6 +2,7 @@ import { describe, test, expect } from 'vitest'
 import {
   getOrderStatusConfig,
   getPaymentStatusConfig,
+  getMintPaymentStatusConfig,
   getSafeStatusConfig,
   isOrderTerminal,
 } from '@/lib/status'
@@ -62,6 +63,29 @@ describe('getPaymentStatusConfig', () => {
     test('PAID is a success state, EXPIRED is destructive', () => {
       expect(getPaymentStatusConfig('PAID').className).toContain('success')
       expect(getPaymentStatusConfig('EXPIRED').className).toContain('destructive')
+    })
+  })
+})
+
+describe('getMintPaymentStatusConfig', () => {
+  describe('positive', () => {
+    test('HELD on a FAILED order reads as a decided rejection, not a pending hold', () => {
+      const cfg = getMintPaymentStatusConfig('HELD', 'FAILED')
+      expect(cfg.label).toBe('Uang masuk ditandai gagal')
+      expect(cfg.className).toContain('destructive')
+    })
+  })
+
+  describe('negative', () => {
+    test('HELD on an order still waiting keeps the pending label', () => {
+      expect(getMintPaymentStatusConfig('HELD', 'HELD').label).toBe('Uang masuk tertahan')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('other payment statuses ignore the order status', () => {
+      expect(getMintPaymentStatusConfig('PAID', 'FAILED').label).toBe(getPaymentStatusConfig('PAID').label)
+      expect(getMintPaymentStatusConfig('HELD', undefined).label).toBe('Uang masuk tertahan')
     })
   })
 })

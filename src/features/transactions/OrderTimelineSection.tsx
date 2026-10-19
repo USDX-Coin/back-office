@@ -27,7 +27,12 @@ export default function OrderTimelineSection({ timeline }: { timeline: OrderTime
               {view.cause}
             </span>
           )}
-          {view.note && <span className="mt-0.5 block whitespace-pre-wrap break-words text-xs">{view.note}</span>}
+          {view.note && (
+            <span className="mt-0.5 block whitespace-pre-wrap break-words text-xs">
+              <span className="text-muted-foreground">Catatan: </span>
+              {view.note}
+            </span>
+          )}
           {view.reference && (
             <span className="mt-0.5 block text-xs text-muted-foreground">
               {view.reference.label}{' '}

@@ -309,6 +309,25 @@ export function getPaymentStatusConfig(status: MintPaymentStatus): StatusConfig 
   return paymentStatusMap[status] ?? fallbackConfig(String(status))
 }
 
+// Uang masuk yang ditandai GAGAL oleh staf meninggalkan `paymentStatus` tetap HELD sementara
+// ordernya FAILED. "Uang masuk tertahan" di situ terbaca seolah masih menunggu keputusan, padahal
+// keputusannya sudah diambil — jadi pasangan itu diberi label sendiri.
+const HELD_CREDIT_FAILED: StatusConfig = {
+  label: 'Uang masuk ditandai gagal',
+  variant: 'destructive',
+  className: 'bg-destructive/10 text-destructive',
+  dotClass: 'bg-destructive',
+}
+
+/** Status pembayaran mint dengan mempertimbangkan status order-nya (lihat HELD_CREDIT_FAILED). */
+export function getMintPaymentStatusConfig(
+  paymentStatus: MintPaymentStatus,
+  orderStatus: OrderStatus | null | undefined,
+): StatusConfig {
+  if (paymentStatus === 'HELD' && orderStatus === 'FAILED') return HELD_CREDIT_FAILED
+  return getPaymentStatusConfig(paymentStatus)
+}
+
 export function getSafeStatusConfig(status: MintSafeStatus): StatusConfig {
   return safeStatusMap[status] ?? fallbackConfig(String(status))
 }

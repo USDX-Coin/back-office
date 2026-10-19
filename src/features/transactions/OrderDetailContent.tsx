@@ -11,7 +11,7 @@ import { useChainConfig } from '@/features/chains/hooks'
 import { formatDateTime, formatIdrAmount, formatRate, formatSpreadPct, formatUsdxListAmount, shortHash } from '@/lib/format'
 import {
   getOrderStatusConfig,
-  getPaymentStatusConfig,
+  getMintPaymentStatusConfig,
   getSafeStatusConfig,
   type StatusConfig,
 } from '@/lib/status'
@@ -421,7 +421,7 @@ export default function OrderDetailContent({ detail }: { detail: OrderDetail }) 
         <DataSection title="Pembayaran & status">
           <DataField label="Status pembayaran">
             {detail.paymentStatus ? (
-              <StatusBadge cfg={getPaymentStatusConfig(detail.paymentStatus)} />
+              <StatusBadge cfg={getMintPaymentStatusConfig(detail.paymentStatus, detail.status)} />
             ) : (
               <Dim />
             )}
