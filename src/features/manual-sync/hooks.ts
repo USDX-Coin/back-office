@@ -2,6 +2,7 @@
 // SoT: sot/api/manual-sync.yaml (list / verify / execute).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, apiFetch } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import type {
   ManualSyncItem,
   ManualSyncTxHashBody,
@@ -108,17 +109,17 @@ export function isInvalidStatusError(
 export function useExecuteSync(id: string | null) {
   const qc = useQueryClient()
   // Row leaves the Manual Sync list once it's no longer PENDING_APPROVAL/
-  // APPROVED; also bust the mint/burn lists + sidebar pending badges, plus the
-  // consumer orders list (USDX-206) since a `mint_order` execute flips it to
+  // APPROVED; also bust the mint/burn lists, plus every money-flow view
+  // (lib/moneyFlowViews — OTC requests, consumer orders USDX-206, Transaksi,
+  // the Safe queue, sidebar badges) since a `mint_order` execute flips it to
   // COMPLETED there too.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['manual-sync'] })
     qc.invalidateQueries({ queryKey: ['mint'] })
     qc.invalidateQueries({ queryKey: ['burn'] })
-    qc.invalidateQueries({ queryKey: ['requests'] })
-    qc.invalidateQueries({ queryKey: ['orders'] })
-    qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
-    qc.invalidateQueries({ queryKey: ['queue-counts'] })
+    // Untuk `mint_order` id baris = id order; untuk OTC tidak ada rincian order
+    // dengan id itu, jadi tidak ada yang ditandai.
+    invalidateMoneyFlowViews(qc, { orderId: id })
   }
   return useMutation({
     mutationFn: (body: ManualSyncTxHashBody) => postExecute(id as string, body),

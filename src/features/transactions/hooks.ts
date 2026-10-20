@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetchRaw } from '@/lib/apiFetch'
 import { isOrderTerminal } from '@/lib/status'
 import { buildTransactionsQuery, type TransactionsQuery } from '@/lib/backofficeTransactions'
+import { MONEY_FLOW_STALE_TIME } from '@/lib/moneyFlowViews'
 import type {
   BackofficeTransactionItem,
   BackofficeTransactionsMetadata,
@@ -68,6 +69,11 @@ function fetchOrderDetail(id: string): Promise<PhaseOneSuccessResponse<OrderDeta
   return apiFetchRaw<PhaseOneSuccessResponse<OrderDetail>>(`/api/v1/orders/${id}`)
 }
 
+// `staleTime` SENGAJA tetap bawaan (bukan `MONEY_FLOW_STALE_TIME`): untuk order
+// redeem, `GET /orders/{id}` mendekripsi rekening dan menulis satu baris
+// `pii_access_audit` per tarikan. Kesegaran sesudah aksi datang dari
+// `invalidateMoneyFlowViews(qc, { orderId })` — hanya order yang terkena —
+// bukan dari refetch tiap buka.
 export function useOrderDetail(id: string | null) {
   return useQuery({
     queryKey: ['orders', 'detail', id],
@@ -97,6 +103,9 @@ export function useBackofficeTransactions(filters: TransactionsQuery) {
         metadata: BackofficeTransactionsMetadata
         data: BackofficeTransactionItem[]
       }>(`/api/v1/transactions?${buildTransactionsQuery(filters)}`),
+    // Modal detail dirender dari baris ini, jadi kembali ke Transaksi (atau ke
+    // tab) selalu menarik ulang (lib/moneyFlowViews).
+    staleTime: MONEY_FLOW_STALE_TIME,
     refetchOnWindowFocus: true,
   })
 }

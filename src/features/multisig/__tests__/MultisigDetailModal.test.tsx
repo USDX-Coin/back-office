@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import type { SafeMeta, SafeTxDetail, SafeTxSigner } from '@/lib/types'
+import type { SafeMeta, SafeTxDetail, SafeTxListItem, SafeTxSigner } from '@/lib/types'
 
 // Owner-verification is driven purely by the data returned from useMultisigDetail
 // + useSafes + useMultisigWallet, so we mock those hooks to control each state.
@@ -402,6 +402,91 @@ describe('MultisigDetailModal — bahasa ops', () => {
       const front = screen.getByTestId('multisig-modal').cloneNode(true) as HTMLElement
       front.querySelector('[data-testid="detail-teknis"]')?.remove()
       expect(front.textContent).not.toMatch(/0x[0-9a-fA-F]{6,}/)
+    })
+  })
+})
+
+// Modal dibuka ulang: detail di cache masih tahap lama sementara baris antrean
+// (dipoll terpisah) sudah lebih maju. Tombol & status mengikuti yang lebih maju.
+describe('MultisigDetailModal status vs. the queue row', () => {
+  function row(status: SafeTxListItem['status']): SafeTxListItem {
+    const { id, chain, safeType, safeAddress, nonce, activity, activityLabel, signatureProgress, proposerType, proposerAddress, safeTxHash, execTxHash, createdAt } = makeDetail()
+    return { id, chain, safeType, safeAddress, nonce, activity, activityLabel, signatureProgress, proposerType, proposerAddress, status, safeTxHash, execTxHash, createdAt }
+  }
+
+  function renderWithRow(listItem: SafeTxListItem | null) {
+    return render(
+      <MemoryRouter>
+        <MultisigDetailModal txId={ID} onClose={() => {}} listItem={listItem} nav={null} />
+      </MemoryRouter>,
+    )
+  }
+
+  beforeEach(() => {
+    refetchDetail = vi.fn()
+    refetchSafes = vi.fn()
+    state.wallet = {
+      isConnected: false,
+      address: undefined,
+      chainId: 137,
+      chainOk: false,
+      connect: vi.fn(),
+      switchToPolygon: vi.fn(),
+      isSwitching: false,
+    }
+    setDetail({ signers: [signer(OWNER), signer(OTHER)] })
+    setSafes([safeMeta([OWNER, OTHER])])
+    state.simulate = { status: 'idle', refetch: vi.fn(), isRefetching: false }
+  })
+
+  describe('positive', () => {
+    test('cached PENDING_SIGN detail + CONFIRMING row → no sign / connect, reads "Menunggu jaringan"', () => {
+      renderWithRow(row('CONFIRMING'))
+      expect(screen.queryByRole('button', { name: /^Tanda tangani$/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Hubungkan wallet' })).not.toBeInTheDocument()
+      expect(screen.getByText('Menunggu jaringan')).toBeInTheDocument()
+      expect(screen.getByTestId('multisig-status-sentence')).toHaveTextContent('menunggu konfirmasi jaringan')
+    })
+  })
+
+  describe('negative', () => {
+    test('a row that is BEHIND the detail never re-opens signing', () => {
+      setDetail({ status: 'CONFIRMING', signers: [signer(OWNER, true), signer(OTHER, true)] })
+      renderWithRow(row('PENDING_SIGN'))
+      expect(screen.queryByRole('button', { name: /^Tanda tangani$/ })).not.toBeInTheDocument()
+      expect(screen.getByText('Menunggu jaringan')).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('a FRESH detail wins even when it moved back (CONFIRMING → READY_TO_EXECUTE)', () => {
+      // safe-reconciler mengembalikan siaran macet / GS013 ke READY_TO_EXECUTE;
+      // baris antrean yang masih CONFIRMING tidak boleh menyembunyikan Eksekusi.
+      state.wallet = { ...(state.wallet as object), isConnected: true, address: OWNER, chainOk: true }
+      setDetail(
+        { status: 'READY_TO_EXECUTE', signers: [signer(OWNER, true), signer(OTHER, true)] },
+        { isFetchedAfterMount: true },
+      )
+      renderWithRow(row('CONFIRMING'))
+      expect(screen.getByRole('button', { name: /^Eksekusi$/ })).toBeInTheDocument()
+      expect(screen.getByText('Siap dieksekusi')).toBeInTheDocument()
+    })
+
+    test('the same READY_TO_EXECUTE detail still from cache defers to the CONFIRMING row', () => {
+      state.wallet = { ...(state.wallet as object), isConnected: true, address: OWNER, chainOk: true }
+      setDetail(
+        { status: 'READY_TO_EXECUTE', signers: [signer(OWNER, true), signer(OTHER, true)] },
+        { isFetchedAfterMount: false },
+      )
+      renderWithRow(row('CONFIRMING'))
+      expect(screen.queryByRole('button', { name: /^Eksekusi$/ })).not.toBeInTheDocument()
+      expect(screen.getByText('Menunggu jaringan')).toBeInTheDocument()
+    })
+
+    test('deep link without a row falls back to the detail', () => {
+      renderWithRow(null)
+      expect(screen.getByRole('button', { name: 'Hubungkan wallet' })).toBeInTheDocument()
+      expect(screen.getByText('Perlu tanda tangan')).toBeInTheDocument()
     })
   })
 })

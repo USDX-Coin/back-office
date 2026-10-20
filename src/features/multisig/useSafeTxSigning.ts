@@ -8,9 +8,11 @@ import {
   isSafeTxExecutable,
   isSafeTxSignable,
   isUnknownActivity,
+  mostAdvancedSafeTxStatus,
 } from '@/lib/multisig/status'
 import { safeTxHashMatches } from '@/lib/multisig/safeTx'
 import { resolveOwnerCheck, resolveOwnerVerification } from '@/lib/multisig/owner'
+import type { SafeTxStatus } from '@/lib/types'
 import {
   useCancelSafeTx,
   useConfirmSignature,
@@ -34,8 +36,18 @@ import {
  * owner, hash SafeTx, calldata tak terbaca, simulasi sebelum eksekusi) tetap
  * sama, hanya tempatnya yang berpindah — supaya dua layar tidak pernah punya
  * dua versi aturan yang sama.
+ *
+ * `listStatus` = status baris antrean yang diklik (bila ada). Selama detail
+ * masih dari cache (belum ditarik ulang sejak dibuka), tombol mengikuti yang
+ * lebih maju dari detail dan baris (`mostAdvancedSafeTxStatus`), supaya detail
+ * lama tidak menawarkan tanda tangan untuk transaksi yang barisnya sudah lewat
+ * tahap itu. Sesudah detail segar, detail yang dipakai.
  */
-export function useSafeTxSigning(txId: string | null, enabled = true) {
+export function useSafeTxSigning(
+  txId: string | null,
+  enabled = true,
+  listStatus?: SafeTxStatus | null,
+) {
   const { user } = useAuth()
   const query = useMultisigDetail(enabled ? txId : null)
   const safesQuery = useSafes()
@@ -91,10 +103,20 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
   )
   const alreadySigned = Boolean(mySigner?.signed)
 
+  // Baris antrean hanya menambal detail dari CACHE (belum ditarik ulang sejak
+  // modal dibuka). Detail yang sudah segar menang apa adanya — status bisa
+  // mundur CONFIRMING → READY_TO_EXECUTE (siaran macet), dan baris lama tidak
+  // boleh menyembunyikan tombol Eksekusi yang dibutuhkan saat itu.
+  const status = detail
+    ? query.isFetchedAfterMount
+      ? detail.status
+      : mostAdvancedSafeTxStatus(detail.status, listStatus)
+    : null
+
   // Simulate gate runs for signable/executable, not-yet-terminal transactions.
   const simulate = useSimulateExec(
     detail,
-    Boolean(detail) && (isSafeTxExecutable(detail!.status) || isSafeTxSignable(detail!.status)),
+    status !== null && (isSafeTxExecutable(status) || isSafeTxSignable(status)),
   )
 
   const isAdmin = user?.role === 'ADMIN'
@@ -102,9 +124,9 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
     Boolean(wallet.address) &&
     detail?.proposerAddress?.toLowerCase() === wallet.address?.toLowerCase()
 
-  const showSign = detail ? isSafeTxSignable(detail.status) : false
-  const showExecute = detail ? isSafeTxExecutable(detail.status) : false
-  const showCancel = detail ? isSafeTxCancellable(detail.status) && (isAdmin || isProposer) : false
+  const showSign = status ? isSafeTxSignable(status) : false
+  const showExecute = status ? isSafeTxExecutable(status) : false
+  const showCancel = status ? isSafeTxCancellable(status) && (isAdmin || isProposer) : false
 
   // ── Sign enablement ──
   const signBlockedReason = (() => {
@@ -186,6 +208,8 @@ export function useSafeTxSigning(txId: string | null, enabled = true) {
   return {
     query,
     detail,
+    /** Status yang ditampilkan & dipakai tombol (detail ⊕ baris); `null` sebelum detail dimuat. */
+    status,
     safesQuery,
     wallet,
     ownerVerification,
