@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmountDecimal } from '@/lib/transparency'
 import type { ReserveBalance } from '@/lib/types'
 import type { ReactNode } from 'react'
+import ReserveLedgerNotice from './ReserveLedgerNotice'
 
 interface Props {
   /** `data.balance` from the ledger response — the WHOLE ledger's balance. */
@@ -23,7 +24,7 @@ interface Props {
  */
 export default function ReserveBalanceCard({ balance, isLoading, action }: Props) {
   return (
-    <Card className="rounded-md shadow-none dark:border-0">
+    <Card className="rounded-md shadow-none dark:border-0" data-testid="reserve-balance-card">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-section">
           Saldo cadangan
@@ -63,6 +64,10 @@ export default function ReserveBalanceCard({ balance, isLoading, action }: Props
             </p>
           </>
         )}
+        {/* D26 § 18.5 — di luar cabang muat/kosong: selalu terbaca. */}
+        <div className="mt-4">
+          <ReserveLedgerNotice />
+        </div>
       </CardContent>
     </Card>
   )

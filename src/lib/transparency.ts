@@ -269,3 +269,15 @@ const LEDGER_ENTRY_TYPE_LABEL: Record<string, string> = {
 export function ledgerEntryTypeLabel(type: string): string {
   return LEDGER_ENTRY_TYPE_LABEL[type] ?? type
 }
+
+// ─── D26: buku besar tidak lagi menentukan angka publik ─────────────────────
+
+/**
+ * Keterangan tetap buku besar cadangan, persis teks `sot/bni-integration.md`
+ * § 18.5. Sejak D26 angka cadangan publik dibaca dari saldo Giro USD BNI, jadi
+ * entri buku besar tidak lagi tayang — tanpa kalimat ini staf mengira entri
+ * yang mereka catat mengubah usdx.co.id. Dipakai halaman Transparansi dan
+ * kartu Cadangan di Ringkasan; test menyalin teksnya sendiri dari SOT.
+ */
+export const RESERVE_LEDGER_NOT_PUBLIC_NOTICE =
+  'Catatan internal — tidak tayang di halaman publik. Angka cadangan publik = saldo Giro USD BNI yang dibaca otomatis dari bank tiap menit (lihat menu Rekening BNI).'
