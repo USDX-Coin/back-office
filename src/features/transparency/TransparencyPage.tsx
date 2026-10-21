@@ -20,8 +20,10 @@ function pageParam(raw: string | null): number {
 }
 
 /**
- * `/transparency` — the append-only reserve ledger behind the public figures on
- * usdx.co.id, plus the monthly attestation reports.
+ * `/transparency` — the append-only reserve ledger plus the monthly attestation
+ * reports published on usdx.co.id. Sejak D26 (`sot/bni-integration.md` § 18)
+ * buku besar ini catatan internal: cadangan publik = saldo Giro USD BNI, dan
+ * kartu saldo membawa keterangan § 18.5 (`ReserveLedgerNotice`).
  *
  * Susunan sejak 11 Okt 2026 (PM bingung melihat form besar terbuka di samping
  * kartu saldo kecil): ATAS = kartu saldo + tombol "Catat entri" (Admin);
@@ -82,8 +84,8 @@ export default function TransparencyPage() {
         title="Cadangan & Atestasi"
         subtitle={
           canWrite
-            ? 'Setiap entri yang dicatat di sini langsung mengubah angka cadangan yang tayang di usdx.co.id. Buku besarnya hanya bisa ditambah — koreksi dilakukan dengan mencatat entri baru, tidak pernah dengan menyunting atau menghapus.'
-            : 'Buku besar cadangan dan laporan atestasi di balik angka publik di usdx.co.id. Mencatat entri hanya untuk peran Admin.'
+            ? 'Buku besar cadangan internal dan laporan atestasi bulanan. Buku besarnya hanya bisa ditambah — koreksi dilakukan dengan mencatat entri baru, tidak pernah dengan menyunting atau menghapus.'
+            : 'Buku besar cadangan internal dan laporan atestasi yang terbit di usdx.co.id. Mencatat entri hanya untuk peran Admin.'
         }
       />
 

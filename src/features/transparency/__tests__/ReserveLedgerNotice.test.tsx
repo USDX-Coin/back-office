@@ -69,6 +69,18 @@ describe('Transparansi — keterangan buku besar tidak tayang publik (§ 18.5)',
       expect(card).not.toHaveTextContent(/yang tayang di usdx\.co\.id/i)
       expect(card).not.toHaveTextContent(/halaman publik belum menampilkan/i)
     })
+
+    test.each([
+      ['ADMIN', 'demo@usdx.io'],
+      ['DEVELOPER', 'marcus.a@usdx.io'],
+    ])('the page subtitle for %s does not say ledger entries change the public figure', async (_role, email) => {
+      renderAs(email)
+      const heading = await screen.findByRole('heading', { name: /cadangan & atestasi/i })
+      const header = heading.parentElement as HTMLElement
+      expect(header).toHaveTextContent(/buku besar cadangan internal/i)
+      expect(header).not.toHaveTextContent(/mengubah angka cadangan yang tayang/i)
+      expect(header).not.toHaveTextContent(/di balik angka publik/i)
+    })
   })
 
   describe('edge case', () => {
