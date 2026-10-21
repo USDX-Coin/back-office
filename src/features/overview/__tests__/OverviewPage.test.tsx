@@ -38,6 +38,11 @@ function stubStats() {
   server.use(http.get('/api/v1/dashboard/stats', () => HttpResponse.json({ status: 'success', metadata: null, data: STATS })))
 }
 
+// USDX-770: teks disalin dari `sot/bni-integration.md` § 18.5, bukan diimpor
+// dari kode — kode yang bergeser dari SOT membuat test ini merah.
+const SOT_18_5_NOTICE =
+  'Catatan internal — tidak tayang di halaman publik. Angka cadangan publik = saldo Giro USD BNI yang dibaca otomatis dari bank tiap menit (lihat menu Rekening BNI).'
+
 function renderPage(email = 'demo@usdx.io') {
   return renderWithProviders(<OverviewPage />, {
     initialEntries: ['/ringkasan'],
@@ -99,11 +104,17 @@ describe('OverviewPage (Ringkasan)', () => {
       expect(within(card).getByRole('button', { name: /cek ulang/i })).toBeInTheDocument()
     })
 
-    test('shows the reserve for ADMIN with the manual-entry caveat', async () => {
+    test('shows the reserve for ADMIN with the § 18.5 not-public notice (D26)', async () => {
       renderPage()
       const card = await screen.findByTestId('ringkasan-cadangan')
-      expect(within(card).getByText('Dicatat manual oleh admin, bukan saldo bank live.')).toBeInTheDocument()
+      expect(within(card).getByText(SOT_18_5_NOTICE)).toBeInTheDocument()
       expect(await within(card).findByTestId('ringkasan-cadangan-saldo')).toHaveTextContent(/,\d{2}USD$/)
+    })
+
+    test('DEVELOPER sees the same reserve notice', async () => {
+      renderPage('marcus.a@usdx.io')
+      const card = await screen.findByTestId('ringkasan-cadangan')
+      expect(within(card).getByText(SOT_18_5_NOTICE)).toBeInTheDocument()
     })
   })
 
@@ -118,6 +129,13 @@ describe('OverviewPage (Ringkasan)', () => {
       expect(calls.some((c) => c.startsWith('/api/v1/transparency/ledger'))).toBe(false)
     })
 
+    test('the reserve card no longer claims its figure is what usdx.co.id shows', async () => {
+      renderPage()
+      const card = await screen.findByTestId('ringkasan-cadangan')
+      await within(card).findByTestId('ringkasan-cadangan-saldo')
+      expect(card).not.toHaveTextContent(/yang tayang di usdx\.co\.id/i)
+    })
+
     test('the DurianPay gateway balance is "Belum tersedia" — no number at all', async () => {
       renderPage()
       const card = await screen.findByTestId('ringkasan-durianpay')
@@ -127,6 +145,18 @@ describe('OverviewPage (Ringkasan)', () => {
   })
 
   describe('edge cases', () => {
+    test('the reserve notice stays when the ledger request fails', async () => {
+      server.use(
+        http.get('/api/v1/transparency/ledger', () =>
+          HttpResponse.json({ status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } }, { status: 500 }),
+        ),
+      )
+      renderPage()
+      const card = await screen.findByTestId('ringkasan-cadangan')
+      await within(card).findByRole('button', { name: /coba lagi/i })
+      expect(within(card).getByText(SOT_18_5_NOTICE)).toBeInTheDocument()
+    })
+
     test('a failing dashboard/stats offers a retry instead of zeros', async () => {
       server.use(
         http.get('/api/v1/dashboard/stats', () =>

@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { canAccessRequestList, canManageSettings, useAuth } from '@/lib/auth'
 import { formatBankAmount, formatDecimalId, formatIdrRate, formatDateTime } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
-import { formatAmountDecimal } from '@/lib/transparency'
+import { formatAmountDecimal, RESERVE_LEDGER_NOT_PUBLIC_NOTICE } from '@/lib/transparency'
 import type { BniAccount, BniBalances, DashboardStats } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useQueueCounts } from '@/features/queue-counts/hooks'
@@ -336,7 +336,8 @@ function ReserveCard() {
   return (
     <Panel
       title="Cadangan"
-      description="Dicatat manual oleh admin, bukan saldo bank live."
+      // D26 § 18.5: keterangan yang sama dengan halaman Transparansi.
+      description={RESERVE_LEDGER_NOT_PUBLIC_NOTICE}
       testId="ringkasan-cadangan"
       action={<GoTo to="/transparency">Buka Cadangan</GoTo>}
     >
@@ -347,7 +348,7 @@ function ReserveCard() {
       ) : (
         <>
           <BigFigure value={formatAmountDecimal(balance.amount)} unit={balance.currency} testId="ringkasan-cadangan-saldo" />
-          <p className="mt-1 text-xs text-muted-foreground">Jumlah seluruh entri buku besar cadangan — angka yang tayang di usdx.co.id.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Jumlah seluruh entri buku besar cadangan.</p>
         </>
       )}
     </Panel>
