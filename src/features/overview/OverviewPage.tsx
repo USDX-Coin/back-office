@@ -7,13 +7,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { canAccessRequestList, canManageSettings, useAuth } from '@/lib/auth'
 import { formatBankAmount, formatDecimalId, formatIdrRate, formatDateTime } from '@/lib/format'
 import { getRequestStatusConfig } from '@/lib/status'
-import { formatAmountDecimal, RESERVE_LEDGER_NOT_PUBLIC_NOTICE } from '@/lib/transparency'
+import { formatAmountDecimal } from '@/lib/transparency'
 import type { BniAccount, BniBalances, DashboardStats } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { useQueueCounts } from '@/features/queue-counts/hooks'
 import { useBniAccounts, useBniBalances } from '@/features/bni-accounts/hooks'
 import { resolveBalanceCardStates } from '@/features/bni-accounts/balanceCardState'
 import { useReserveLedger } from '@/features/transparency/hooks'
+import ReserveLedgerNotice from '@/features/transparency/ReserveLedgerNotice'
 import { useDashboardStats } from './hooks'
 
 /**
@@ -336,8 +337,7 @@ function ReserveCard() {
   return (
     <Panel
       title="Cadangan"
-      // D26 § 18.5: keterangan yang sama dengan halaman Transparansi.
-      description={RESERVE_LEDGER_NOT_PUBLIC_NOTICE}
+      description="Dicatat manual oleh admin, bukan saldo bank live."
       testId="ringkasan-cadangan"
       action={<GoTo to="/transparency">Buka Cadangan</GoTo>}
     >
@@ -351,6 +351,11 @@ function ReserveCard() {
           <p className="mt-1 text-xs text-muted-foreground">Jumlah seluruh entri buku besar cadangan.</p>
         </>
       )}
+      {/* phase-1.md Ringkasan + D26 § 18.5: keterangan yang sama dengan halaman
+          Transparansi, di luar cabang muat/galat supaya selalu terbaca. */}
+      <div className="mt-4">
+        <ReserveLedgerNotice />
+      </div>
     </Panel>
   )
 }

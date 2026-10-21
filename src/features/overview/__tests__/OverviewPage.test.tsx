@@ -104,9 +104,11 @@ describe('OverviewPage (Ringkasan)', () => {
       expect(within(card).getByRole('button', { name: /cek ulang/i })).toBeInTheDocument()
     })
 
-    test('shows the reserve for ADMIN with the § 18.5 not-public notice (D26)', async () => {
+    test('shows the reserve for ADMIN with the manual-entry caveat and the § 18.5 notice (D26)', async () => {
       renderPage()
       const card = await screen.findByTestId('ringkasan-cadangan')
+      // phase-1.md Ringkasan: keterangan manual TETAP ada, § 18.5 ditambahkan.
+      expect(within(card).getByText('Dicatat manual oleh admin, bukan saldo bank live.')).toBeInTheDocument()
       expect(within(card).getByText(SOT_18_5_NOTICE)).toBeInTheDocument()
       expect(await within(card).findByTestId('ringkasan-cadangan-saldo')).toHaveTextContent(/,\d{2}USD$/)
     })
