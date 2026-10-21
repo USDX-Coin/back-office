@@ -61,6 +61,14 @@ describe('Transparansi — keterangan buku besar tidak tayang publik (§ 18.5)',
       expect(within(form).queryByTestId('reserve-ledger-notice')).not.toBeInTheDocument()
       expect(screen.getAllByTestId('reserve-ledger-notice')).toHaveLength(1)
     })
+
+    test('the reserve card no longer claims its figure is what usdx.co.id shows', async () => {
+      renderAs('demo@usdx.io')
+      const card = await screen.findByTestId('reserve-balance-card')
+      await within(card).findByText(/jumlah seluruh entri di buku besar/i)
+      expect(card).not.toHaveTextContent(/yang tayang di usdx\.co\.id/i)
+      expect(card).not.toHaveTextContent(/halaman publik belum menampilkan/i)
+    })
   })
 
   describe('edge case', () => {

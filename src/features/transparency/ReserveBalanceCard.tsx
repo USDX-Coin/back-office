@@ -14,13 +14,13 @@ interface Props {
 }
 
 /**
- * The reserve figure the public page shows.
+ * The reserve ledger's balance. Since D26 (`sot/bni-integration.md` § 18) this
+ * is an internal record only — the public page reads the BNI Giro USD balance.
  *
  * It comes from the `balance` field the server computes over every entry. It is
  * NOT derived from the rows in the table below: those rows are a single page, so
  * adding them up would silently under-report the reserve the moment the ledger
- * outgrows one page — and quietly publishing a too-low reserve is the worst
- * failure this screen has.
+ * outgrows one page.
  */
 export default function ReserveBalanceCard({ balance, isLoading, action }: Props) {
   return (
@@ -46,8 +46,7 @@ export default function ReserveBalanceCard({ balance, isLoading, action }: Props
               </span>
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Jumlah seluruh entri di buku besar, dihitung oleh server. Angka
-              inilah yang tayang di usdx.co.id.
+              Jumlah seluruh entri di buku besar, dihitung oleh server.
             </p>
           </>
         ) : (
@@ -59,8 +58,7 @@ export default function ReserveBalanceCard({ balance, isLoading, action }: Props
               —
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Belum ada saldo cadangan. Halaman publik belum menampilkan angka
-              apa pun sampai entri pertama dicatat.
+              Belum ada saldo cadangan.
             </p>
           </>
         )}
