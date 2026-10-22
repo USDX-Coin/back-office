@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, afterEach } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse, delay } from 'msw'
 import { server } from '@/mocks/server'
@@ -21,11 +21,28 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
+/**
+ * Klaim lama bahwa entri buku besar mengubah/menayangkan angka di usdx.co.id.
+ * Kalimat atestasi tidak ikut diperiksa — PDF-nya memang terbit di usdx.co.id.
+ */
+const LEDGER_PUBLIC_CLAIM = /usdx\.co\.id|angka (cadangan )?publik|cadangan publik/i
+
 function renderAs(email: string) {
   return renderWithProviders(<TransparencyPage />, {
     initialEntries: ['/transparency'],
     staffId: findStaffByEmail(email)!.id,
   })
+}
+
+/** Buka form catat entri dan isi sampai lolos validasi; kembalikan dialog form. */
+async function openFilledEntryForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^catat entri$/i }))
+  const form = await screen.findByRole('dialog', { name: /catat entri buku besar/i })
+  await user.click(within(form).getAllByRole('radio').find((r) => (r as HTMLInputElement).value === 'SEED')!)
+  await user.type(within(form).getByLabelText(/^nominal$/i), '100667.41')
+  await user.type(within(form).getByLabelText(/^alasan$/i), 'Setoran giro USD untuk penambahan cadangan')
+  fireEvent.change(within(form).getByLabelText(/^tanggal kejadian$/i), { target: { value: '2026-07-23' } })
+  return form
 }
 
 
@@ -80,6 +97,56 @@ describe('Transparansi — keterangan buku besar tidak tayang publik (§ 18.5)',
       expect(header).toHaveTextContent(/buku besar cadangan internal/i)
       expect(header).not.toHaveTextContent(/mengubah angka cadangan yang tayang/i)
       expect(header).not.toHaveTextContent(/di balik angka publik/i)
+    })
+
+    // § 18.5 (amandemen 22 Okt, review back-office#129): perilaku form, dialog
+    // konfirmasi, dan riwayat tetap, tapi kalimat yang menyatakan entri
+    // mengubah/menayangkan angka cadangan di usdx.co.id dikoreksi.
+    test('the entry form and its confirmation dialog do not say an entry changes the figure on usdx.co.id', async () => {
+      const user = userEvent.setup()
+      renderAs('demo@usdx.io')
+      const form = await openFilledEntryForm(user)
+      expect(form).not.toHaveTextContent(LEDGER_PUBLIC_CLAIM)
+
+      await user.click(within(form).getByRole('button', { name: /periksa lalu catat/i }))
+      const confirm = await screen.findByRole('dialog', { name: /catat entri ini ke buku besar cadangan\?/i })
+      expect(confirm).not.toHaveTextContent(LEDGER_PUBLIC_CLAIM)
+    })
+
+    test('a confirmation blocked by an unknown balance does not mention the figure on usdx.co.id', async () => {
+      const user = userEvent.setup()
+      server.use(
+        http.get('/api/v1/transparency/ledger', () =>
+          HttpResponse.json(
+            { status: 'error', metadata: null, data: null, error: { code: 'BOOM', message: 'x' } },
+            { status: 500 },
+          ),
+        ),
+      )
+      renderAs('demo@usdx.io')
+      const form = await openFilledEntryForm(user)
+      await user.click(within(form).getByRole('button', { name: /periksa lalu catat/i }))
+      const confirm = await screen.findByRole('dialog', { name: /catat entri ini ke buku besar cadangan\?/i })
+      const blocked = within(confirm).getByRole('alert')
+      expect(blocked).toHaveTextContent(/saldo cadangan saat ini gagal dimuat/i)
+      expect(blocked).not.toHaveTextContent(LEDGER_PUBLIC_CLAIM)
+    })
+
+    test('the empty ledger history does not promise the figure will show on usdx.co.id', async () => {
+      server.use(
+        http.get('/api/v1/transparency/ledger', () =>
+          HttpResponse.json({
+            status: 'success',
+            metadata: null,
+            data: { entries: [], page: 1, take: 50, total: 0, balance: { amount: '0.00', currency: 'USD' } },
+          }),
+        ),
+      )
+      renderAs('demo@usdx.io')
+      const empty = await screen.findByText(/belum ada entri buku besar/i)
+      const cell = empty.closest('td') as HTMLElement
+      expect(cell).toHaveTextContent(/buku besar cadangan internal/i)
+      expect(cell).not.toHaveTextContent(LEDGER_PUBLIC_CLAIM)
     })
   })
 
