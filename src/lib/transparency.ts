@@ -113,10 +113,10 @@ export function isFutureWibDate(occurredAt: string, now: Date = new Date()): boo
 /**
  * A fresh key for one attempt at filing a ledger entry (§ 3).
  *
- * Why this exists at all: `POST /ledger` is append-only and public. A gateway
- * timeout hides the response of a request that already wrote its row, the
- * operator presses the button again, and usdx.co.id reports twice the reserve
- * it holds. The key lets the backend recognise the second request as the same
+ * Why this exists at all: `POST /ledger` is append-only. A gateway timeout
+ * hides the response of a request that already wrote its row, the operator
+ * presses the button again, and the ledger records twice the reserve it
+ * holds. The key lets the backend recognise the second request as the same
  * attempt and hand back the row it already created.
  *
  * Callers must mint this ONCE per form-filling attempt and re-send the SAME

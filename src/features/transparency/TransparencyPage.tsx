@@ -32,7 +32,7 @@ function pageParam(raw: string | null): number {
  * tengah dengan URL sendiri (`/transparency/entri/:id`,
  * `/transparency/laporan/:id`) dan ↑/↓, pola halaman lain.
  *
- * There is no draft state and no publish button: an entry is public the moment
+ * There is no draft state and no publish button: an entry is final the moment
  * it is recorded, which is why the form routes through a confirmation dialog
  * rather than submitting directly. Route access (ADMIN + DEVELOPER) is enforced
  * by `RoleGuard` in App.tsx; recording and attestation writes are ADMIN-only and

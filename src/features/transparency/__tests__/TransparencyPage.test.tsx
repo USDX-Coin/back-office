@@ -8,8 +8,10 @@ import TransparencyPage from '@/features/transparency/TransparencyPage'
 import { isValidIdempotencyKey } from '@/lib/validators'
 import { renderWithProviders } from '@/test/test-utils'
 
-// Transparency (/transparency) — the append-only reserve ledger behind the
-// public figures on usdx.co.id, per catatan/KONTRAK-API-TRANSPARANSI.md.
+// Transparency (/transparency) — the append-only reserve ledger (an internal
+// record since D26: the public reserve on usdx.co.id is the BNI Giro USD
+// balance, `sot/bni-integration.md` § 18) and the attestation reports published
+// on usdx.co.id, per catatan/KONTRAK-API-TRANSPARANSI.md.
 //
 // The previous round of this feature passed a full green suite against a
 // contract the back office had invented for itself, and only fell over when it

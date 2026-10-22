@@ -33,7 +33,7 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   entry: CreateLedgerEntryInput | null
-  /** Current whole-ledger balance, used to project what the public will see. */
+  /** Current whole-ledger balance, used to project the balance after this entry. */
   balance: ReserveBalance | undefined
   onConfirm: () => void
   isPending: boolean
@@ -52,10 +52,10 @@ interface Props {
 }
 
 /**
- * The last stop before a number changes on the public website.
+ * The last stop before an entry is written to the append-only ledger.
  *
  * The ledger has no draft state and no undo, so this dialog has to carry the
- * whole weight of "are you sure": it names the public site, restates the amount
+ * whole weight of "are you sure": it names the ledger, restates the amount
  * being filed, shows the balance that will result, and says plainly that the
  * only way back is another entry. The request is fired from here — never from
  * the form's submit handler — so that dismissing this dialog is guaranteed to
@@ -158,7 +158,7 @@ export default function LedgerConfirmDialog({
                   backwards. A CORRECTION is the entry most likely to be filed
                   here, and a correction is meaningless without the figure it is
                   correcting: -1,250.75 against 51k is routine, against 900 it
-                  puts the public reserve underwater. So the commit is blocked
+                  puts the ledger reserve underwater. So the commit is blocked
                   rather than merely annotated. */}
               {!balanceKnown && (
                 <div
@@ -198,7 +198,7 @@ export default function LedgerConfirmDialog({
                   504 wording ("entrinya tercatat meski galat muncul — tutup
                   dialog ini") is gated behind `!conflict`. Left ungated it told the
                   operator to walk away from a 409 with the wrong number left
-                  standing as the public reserve and the correction never
+                  standing in the ledger and the correction never
                   filed. The heading changes with it, so the number is never
                   read as this entry's doing. */}
               {recheck !== 'idle' && (
