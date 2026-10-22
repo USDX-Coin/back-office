@@ -64,9 +64,9 @@ const EMPTY_FORM = {
  * (LedgerConfirmDialog, bertumpuk di atas dialog ini) tidak berubah.
  *
  * Submitting does NOT call the API. It validates and opens the confirmation
- * dialog, which is what actually fires the request — the entry lands on the
- * public site the instant it is created, so a stray click on a submit button
- * must not be enough to move a published number.
+ * dialog, which is what actually fires the request — the entry is permanent
+ * the instant it is created, so a stray click on a submit button must not be
+ * enough to write one.
  */
 export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) {
   const create = useCreateLedgerEntry()
@@ -128,7 +128,7 @@ export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) 
       // retry confirms the SAME `pending`. Generating it inside handleConfirm
       // would produce a new key per click, which is the failure the contract
       // added it to prevent: the first POST times out having already written
-      // the row, the operator presses again, and the public reserve doubles.
+      // the row, the operator presses again, and the ledger reserve doubles.
       idempotencyKey: newIdempotencyKey(),
     })
   }
@@ -278,8 +278,8 @@ export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) 
             <DialogHeader>
               <DialogTitle>Catat entri buku besar</DialogTitle>
               <DialogDescription>
-                Entri langsung mengubah angka cadangan di usdx.co.id dan tidak bisa
-                disunting atau dihapus.
+                Entri tersimpan permanen di buku besar cadangan internal dan tidak
+                bisa disunting atau dihapus.
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="space-y-5">
@@ -385,7 +385,7 @@ export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) 
                 />
                 <p id="ledgerReasonHint" className="text-xs text-muted-foreground">
                   Wajib diisi, minimal {LEDGER_REASON_MIN_LEN} karakter. Ini catatan
-                  internal tentang kenapa angka publik berubah — disimpan untuk
+                  internal tentang kenapa saldo buku besar berubah — disimpan untuk
                   audit dan tidak pernah tampil di halaman publik.
                 </p>
                 <FieldError message={errors.reason} />

@@ -14,6 +14,7 @@ import { useQueueCounts } from '@/features/queue-counts/hooks'
 import { useBniAccounts, useBniBalances } from '@/features/bni-accounts/hooks'
 import { resolveBalanceCardStates } from '@/features/bni-accounts/balanceCardState'
 import { useReserveLedger } from '@/features/transparency/hooks'
+import ReserveLedgerNotice from '@/features/transparency/ReserveLedgerNotice'
 import { useDashboardStats } from './hooks'
 
 /**
@@ -347,9 +348,14 @@ function ReserveCard() {
       ) : (
         <>
           <BigFigure value={formatAmountDecimal(balance.amount)} unit={balance.currency} testId="ringkasan-cadangan-saldo" />
-          <p className="mt-1 text-xs text-muted-foreground">Jumlah seluruh entri buku besar cadangan — angka yang tayang di usdx.co.id.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Jumlah seluruh entri buku besar cadangan.</p>
         </>
       )}
+      {/* phase-1.md Ringkasan + D26 § 18.5: keterangan yang sama dengan halaman
+          Transparansi, di luar cabang muat/galat supaya selalu terbaca. */}
+      <div className="mt-4">
+        <ReserveLedgerNotice />
+      </div>
     </Panel>
   )
 }

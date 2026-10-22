@@ -113,10 +113,10 @@ export function isFutureWibDate(occurredAt: string, now: Date = new Date()): boo
 /**
  * A fresh key for one attempt at filing a ledger entry (§ 3).
  *
- * Why this exists at all: `POST /ledger` is append-only and public. A gateway
- * timeout hides the response of a request that already wrote its row, the
- * operator presses the button again, and usdx.co.id reports twice the reserve
- * it holds. The key lets the backend recognise the second request as the same
+ * Why this exists at all: `POST /ledger` is append-only. A gateway timeout
+ * hides the response of a request that already wrote its row, the operator
+ * presses the button again, and the ledger records twice the reserve it
+ * holds. The key lets the backend recognise the second request as the same
  * attempt and hand back the row it already created.
  *
  * Callers must mint this ONCE per form-filling attempt and re-send the SAME
@@ -269,3 +269,15 @@ const LEDGER_ENTRY_TYPE_LABEL: Record<string, string> = {
 export function ledgerEntryTypeLabel(type: string): string {
   return LEDGER_ENTRY_TYPE_LABEL[type] ?? type
 }
+
+// ─── D26: buku besar tidak lagi menentukan angka publik ─────────────────────
+
+/**
+ * Keterangan tetap buku besar cadangan, persis teks `sot/bni-integration.md`
+ * § 18.5. Sejak D26 angka cadangan publik dibaca dari saldo Giro USD BNI, jadi
+ * entri buku besar tidak lagi tayang — tanpa kalimat ini staf mengira entri
+ * yang mereka catat mengubah usdx.co.id. Dipakai halaman Transparansi dan
+ * kartu Cadangan di Ringkasan; test menyalin teksnya sendiri dari SOT.
+ */
+export const RESERVE_LEDGER_NOT_PUBLIC_NOTICE =
+  'Catatan internal — tidak tayang di halaman publik. Angka cadangan publik = saldo Giro USD BNI yang dibaca otomatis dari bank tiap menit (lihat menu Rekening BNI).'

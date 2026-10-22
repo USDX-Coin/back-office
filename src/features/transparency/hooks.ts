@@ -69,7 +69,7 @@ export function useRefetchReserveLedger() {
 }
 
 /**
- * Filing an entry moves the number on the public site immediately — there is no
+ * Filing an entry writes to the append-only ledger immediately — there is no
  * draft to review afterwards. Callers MUST route this through
  * LedgerConfirmDialog rather than firing it from a form's submit handler.
  *
