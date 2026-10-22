@@ -111,11 +111,10 @@ export default function LedgerConfirmDialog({
         onPointerDownOutside={(e) => isPending && e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Catat entri ini ke cadangan publik?</DialogTitle>
+          <DialogTitle>Catat entri ini ke buku besar cadangan?</DialogTitle>
           <DialogDescription>
-            Angka cadangan publik akan berubah saat itu juga di halaman
-            transparansi usdx.co.id. Tidak ada draf dan tidak ada tahap
-            peninjauan setelah ini.
+            Entri tersimpan permanen di buku besar internal — tidak ada draf dan
+            tidak ada tahap peninjauan setelah ini.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,8 +170,7 @@ export default function LedgerConfirmDialog({
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Pencatatan ditahan sampai saldonya terbaca — tanpa angka itu
-                    tidak ada cara tahu entri ini mengubah angka publik di
-                    usdx.co.id jadi berapa.
+                    tidak ada cara tahu saldo buku besar sesudah entri ini.
                   </p>
                   {onReloadBalance && (
                     <Button

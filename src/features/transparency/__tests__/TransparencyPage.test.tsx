@@ -80,7 +80,7 @@ function setDate(value: string) {
  * form-nya sendiri juga dialog, `getByRole('dialog')` polos bisa menunjuk dialog
  * form — jadi dicari lewat judulnya.
  */
-const CONFIRM_DIALOG = { name: /ke cadangan publik\?|ke publik\?|cabut laporan atestasi/i }
+const CONFIRM_DIALOG = { name: /ke buku besar cadangan\?|ke publik\?|cabut laporan atestasi/i }
 
 async function openEntryForm(user: ReturnType<typeof userEvent.setup>) {
   if (screen.queryByRole('dialog', { name: /catat entri buku besar/i })) return
@@ -486,7 +486,7 @@ describe('TransparencyPage @integration', () => {
       expect(postCalls).toBe(0)
     })
 
-    test('the dialog names the public site, the amount, the new balance and the append-only rule', async () => {
+    test('the dialog names the internal ledger, the amount, the new balance and the append-only rule', async () => {
       const user = userEvent.setup()
       server.use(
         http.get('/api/v1/transparency/ledger', () =>
@@ -506,12 +506,13 @@ describe('TransparencyPage @integration', () => {
       await user.click(screen.getByRole('button', { name: /periksa lalu catat/i }))
 
       const dialog = await screen.findByRole('dialog', CONFIRM_DIALOG)
-      expect(within(dialog).getByText(/usdx\.co\.id/i)).toBeInTheDocument()
+      // D26 (§ 18.5): buku besar ini catatan internal, bukan angka di usdx.co.id.
+      expect(within(dialog).getByText(/buku besar internal/i)).toBeInTheDocument()
       expect(within(dialog).getByLabelText(/nominal yang dicatat/i)).toHaveTextContent(
         '2.500,50 USD'
       )
-      // 50000.00 + 2500.50, computed exactly — this is the number the public
-      // will see the moment Confirm is pressed.
+      // 50000.00 + 2500.50, computed exactly — this is the ledger balance the
+      // moment Confirm is pressed.
       expect(
         within(dialog).getByLabelText(/saldo cadangan baru/i)
       ).toHaveTextContent('52.500,50 USD')

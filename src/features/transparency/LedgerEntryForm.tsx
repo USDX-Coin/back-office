@@ -278,8 +278,8 @@ export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) 
             <DialogHeader>
               <DialogTitle>Catat entri buku besar</DialogTitle>
               <DialogDescription>
-                Entri langsung mengubah angka cadangan di usdx.co.id dan tidak bisa
-                disunting atau dihapus.
+                Entri tersimpan permanen di buku besar cadangan internal dan tidak
+                bisa disunting atau dihapus.
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="space-y-5">
@@ -385,7 +385,7 @@ export default function LedgerEntryForm({ balance, open, onOpenChange }: Props) 
                 />
                 <p id="ledgerReasonHint" className="text-xs text-muted-foreground">
                   Wajib diisi, minimal {LEDGER_REASON_MIN_LEN} karakter. Ini catatan
-                  internal tentang kenapa angka publik berubah — disimpan untuk
+                  internal tentang kenapa saldo buku besar berubah — disimpan untuk
                   audit dan tidak pernah tampil di halaman publik.
                 </p>
                 <FieldError message={errors.reason} />
