@@ -109,7 +109,7 @@ export default function LedgerHistoryTable({
                       <TableEmptyState
                         mode="no-data"
                         title="Belum ada entri buku besar"
-                        description="Catat entri pertama supaya angka cadangan tayang di usdx.co.id."
+                        description="Catat entri pertama untuk memulai buku besar cadangan internal."
                       />
                     </TableCell>
                   </TableRow>

@@ -94,7 +94,7 @@ export default function OtcDetailModal({ requestId, listItem, safeIndex, onClose
   // Dicocokkan dari gabungan baris + detail, jadi tautan langsung ke
   // permintaan yang tidak ada di halaman tabel tetap menemukan transaksinya.
   const safeTx = req ? findSafeTxFor(req, safeIndex) : undefined
-  const signing = useSafeTxSigning(safeTx?.id ?? null, Boolean(safeTx))
+  const signing = useSafeTxSigning(safeTx?.id ?? null, Boolean(safeTx), safeTx?.status)
 
   const wrongType = detail?.type && detail.type !== pageType ? detail.type : null
   useEffect(() => {

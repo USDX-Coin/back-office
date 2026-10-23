@@ -7,6 +7,7 @@ import {
   isSafeTxExecutable,
   getActivityLabel,
   isUnknownActivity,
+  mostAdvancedSafeTxStatus,
   SAFE_TX_TABS,
   SAFE_TX_COUNTED_STATUSES,
 } from '../status'
@@ -77,6 +78,50 @@ describe('SafeTx status predicates', () => {
       expect(isSafeTxCancellable('CONFIRMING')).toBe(false)
       expect(isSafeTxExecutable('CONFIRMING')).toBe(false)
       expect(isSafeTxExecutable('PENDING_SIGN')).toBe(false)
+    })
+  })
+})
+
+describe('mostAdvancedSafeTxStatus', () => {
+  describe('positive', () => {
+    test('should take the queue row when it is ahead of a cached detail', () => {
+      // Modal dibuka ulang: detail dari cache masih PENDING_SIGN, baris sudah
+      // "Menunggu jaringan" — tombol Tanda tangani tidak boleh muncul.
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', 'CONFIRMING')).toBe('CONFIRMING')
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', 'READY_TO_EXECUTE')).toBe('READY_TO_EXECUTE')
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'EXECUTED')).toBe('EXECUTED')
+      expect(mostAdvancedSafeTxStatus('READY_TO_EXECUTE', 'CANCELLED')).toBe('CANCELLED')
+    })
+
+    test('should keep the detail when IT is the one ahead', () => {
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'PENDING_SIGN')).toBe('CONFIRMING')
+      expect(mostAdvancedSafeTxStatus('EXECUTED', 'READY_TO_EXECUTE')).toBe('EXECUTED')
+    })
+  })
+
+  describe('negative', () => {
+    test('should never walk a transaction backwards', () => {
+      expect(mostAdvancedSafeTxStatus('EXECUTED', 'PENDING_SIGN')).toBe('EXECUTED')
+      expect(mostAdvancedSafeTxStatus('FAILED', 'CONFIRMING')).toBe('FAILED')
+    })
+
+    test('should ignore a missing second opinion', () => {
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', undefined)).toBe('PENDING_SIGN')
+      expect(mostAdvancedSafeTxStatus('PENDING_SIGN', null)).toBe('PENDING_SIGN')
+    })
+  })
+
+  describe('edge cases', () => {
+    test('should keep the detail on a tie, including between different terminals', () => {
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'CONFIRMING')).toBe('CONFIRMING')
+      // Akhir yang berbeda, bukan jarak yang berbeda — detail (payload lengkap) menang.
+      expect(mostAdvancedSafeTxStatus('FAILED', 'EXECUTED')).toBe('FAILED')
+      expect(mostAdvancedSafeTxStatus('CANCELLED', 'FAILED')).toBe('CANCELLED')
+    })
+
+    test('an unknown status should never displace a known one', () => {
+      expect(mostAdvancedSafeTxStatus('CONFIRMING', 'WEIRD' as SafeTxStatus)).toBe('CONFIRMING')
+      expect(mostAdvancedSafeTxStatus('WEIRD' as SafeTxStatus, 'PENDING_SIGN')).toBe('PENDING_SIGN')
     })
   })
 })

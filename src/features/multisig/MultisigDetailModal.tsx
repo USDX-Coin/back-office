@@ -93,7 +93,9 @@ function TechRow({ label, value, href }: { label: string; value: string; href?: 
  * RainbowKit tetap bisa diklik dari modal ini.
  */
 export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Props) {
-  const s = useSafeTxSigning(txId, true)
+  // Status baris ikut dihitung: modal yang dibuka ulang tidak boleh tertinggal
+  // dari barisnya selagi detail dari cache ditarik ulang.
+  const s = useSafeTxSigning(txId, true, listItem?.status)
   const { data: chains } = useChainConfig()
   const d = s.detail
   const base: SafeTxListItem | SafeTxDetail | null = d ?? listItem
@@ -175,7 +177,7 @@ export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Pr
       </div>
     ) : undefined
 
-  const status = base.status
+  const status = s.status ?? base.status
   const tone = STATUS_TONE[status] ?? 'wait'
   const chip = STATUS_CHIP[status] ?? 'Belum dikenali'
 
@@ -210,7 +212,7 @@ export default function MultisigDetailModal({ txId, listItem, onClose, nav }: Pr
         label={primary ? 'Yang perlu kamu lakukan' : 'Status'}
       >
         <p data-testid="multisig-status-sentence">
-          {safeTxStatusSentence(base, { executedBy: d?.executedByStaffName })}
+          {safeTxStatusSentence({ ...base, status }, { executedBy: d?.executedByStaffName })}
         </p>
       </RecordStatus>
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { QUEUE_COUNTS_KEY } from '@/features/queue-counts/hooks'
 import { apiFetch, apiFetchRaw } from '@/lib/apiFetch'
+import { invalidateMoneyFlowViews } from '@/lib/moneyFlowViews'
 import { buildResolveBody, isStaleStateError, type ResolveFormInput } from '@/lib/payoutFailures'
 import type {
   PayoutFailureDetail,
@@ -92,16 +92,16 @@ export function usePayoutFailureDetail(id: string | null) {
 
 /**
  * Kunci cache yang basi saat satu order keluar dari antrean — atau saat server
- * bilang keadaannya sudah berubah (409 ALREADY_RESOLVED dsb.). `['orders']` ikut
+ * bilang keadaannya sudah berubah (409 ALREADY_RESOLVED dsb.). Daftar order + rincian order INI ikut
  * karena order yang sama dirender layar User Transaction; `['queue-counts']` ikut
  * karena badge sidebar menghitung antrean yang sama.
  */
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>, id: string) {
   qc.invalidateQueries({ queryKey: ['payout-failures', 'list'] })
-  qc.invalidateQueries({ queryKey: QUEUE_COUNTS_KEY })
   qc.invalidateQueries({ queryKey: ['payout-failures', 'detail', id] })
-  qc.invalidateQueries({ queryKey: ['orders'] })
-  qc.invalidateQueries({ queryKey: ['backoffice-transactions'] })
+  // Daftar order, Transaksi, `['queue-counts']`, dan rincian order INI saja
+  // (id antrean = id order redeem) — lib/moneyFlowViews.
+  invalidateMoneyFlowViews(qc, { orderId: id })
 }
 
 /**
