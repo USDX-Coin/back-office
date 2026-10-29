@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatRate, formatSpreadPct } from '@/lib/format'
+import { formatRate, formatSpreadPct, rateModeLabel } from '@/lib/format'
 import type { RateInfo, RateMode } from '@/lib/types'
 
 export interface RateConfirmDialogProps {
@@ -21,6 +21,8 @@ export interface RateConfirmDialogProps {
     spreadBuyPct: string
     spreadSellPct: string
     gatewayMarkupPct: string
+    /** D28 — X; kosong = tidak dikirim = X aktif dibawa. */
+    bniRateMaxDeviationPct: string
   }
   onConfirm: () => void
   isPending: boolean
@@ -43,6 +45,11 @@ export default function RateConfirmDialog({
     onOpenChange(o)
   }
 
+  // D28-d: Y dan kedua spread TIDAK ikut berubah saat pindah mode, padahal kurs
+  // BNI sudah memuat spread bank — staf diingatkan mengkalibrasinya.
+  const switchingToBni = next.mode === 'BNI' && current?.mode !== 'BNI'
+  const nextDeviation = next.bniRateMaxDeviationPct.trim()
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -60,10 +67,24 @@ export default function RateConfirmDialog({
         </DialogHeader>
 
         <DialogBody className="space-y-4">
+          {switchingToBni && (
+            <div
+              role="note"
+              className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground"
+              data-testid="rate-bni-calibration-reminder"
+            >
+              <p className="font-medium">Sudah kalibrasi markup dan spread terhadap kurs BNI?</p>
+              <p className="mt-1 text-muted-foreground">
+                Kurs BNI sudah memuat spread bank. Markup Virtual Account (Y), spread beli, dan spread
+                jual tidak berubah otomatis saat pindah mode — pastikan angkanya sudah disesuaikan.
+                Pindah ke mode BNI hanya berhasil kalau kurs BNI bisa diambil saat ini.
+              </p>
+            </div>
+          )}
           <DiffRow
             label="Mode"
-            from={current?.mode ?? '—'}
-            to={next.mode}
+            from={current ? rateModeLabel(current.mode) : '—'}
+            to={rateModeLabel(next.mode)}
           />
           <DiffRow
             label="Kurs dasar"
@@ -71,7 +92,9 @@ export default function RateConfirmDialog({
             to={
               next.mode === 'MANUAL' && next.manualRate
                 ? formatRate(next.manualRate)
-                : 'otomatis (kurs pasar)'
+                : next.mode === 'BNI'
+                  ? 'otomatis (kurs BNI)'
+                  : 'otomatis (kurs pasar)'
             }
           />
           <DiffRow
@@ -88,6 +111,18 @@ export default function RateConfirmDialog({
             label="Markup VA"
             from={current?.gatewayMarkupPct != null ? formatSpreadPct(current.gatewayMarkupPct) : '—'}
             to={formatSpreadPct(next.gatewayMarkupPct.trim() || '0')}
+          />
+          <DiffRow
+            label="Batas X"
+            from={current?.bniRateMaxDeviationPct != null ? formatSpreadPct(current.bniRateMaxDeviationPct) : '—'}
+            // Kosong = tidak dikirim = X aktif tetap (tidak tampil sebagai perubahan).
+            to={
+              nextDeviation
+                ? formatSpreadPct(nextDeviation)
+                : current?.bniRateMaxDeviationPct != null
+                  ? formatSpreadPct(current.bniRateMaxDeviationPct)
+                  : '—'
+            }
           />
         </DialogBody>
 

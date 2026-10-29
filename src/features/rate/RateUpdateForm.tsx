@@ -387,6 +387,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           spreadBuyPct: form.spreadBuyPct,
           spreadSellPct: form.spreadSellPct,
           gatewayMarkupPct: form.gatewayMarkupPct,
+          bniRateMaxDeviationPct: form.bniRateMaxDeviationPct,
         }}
         onConfirm={handleConfirm}
         isPending={update.isPending}
