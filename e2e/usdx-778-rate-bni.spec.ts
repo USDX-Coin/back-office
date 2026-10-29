@@ -67,6 +67,8 @@ test.describe('USDX-778 mode kurs BNI @e2e', () => {
       expect(posts[0]).toMatchObject({ mode: 'BNI', bniRateMaxDeviationPct: '3' })
       expect(posts[0]).not.toHaveProperty('manualRate')
 
+      // Sumber kurs = mode aktif (baris "Mode" kartu).
+      await expect(page.locator('dd', { hasText: /^Kurs BNI \(FX-Get Rate\)$/ })).toBeVisible()
       await expect(page.getByLabel('kurs dasar beli')).toHaveText('18.140,00 IDR/USD')
       await expect(page.getByLabel('kurs dasar jual')).toHaveText('17.773,00 IDR/USD')
       await expect(page.getByLabel('kurs jual BNI')).toHaveText('18.140,00 IDR/USD')

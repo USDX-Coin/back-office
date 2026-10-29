@@ -446,7 +446,7 @@ export type MockBniFx =
   | { status: 'OK'; buyRate: string; sellRate: string; fetchedAt: string; quoteId: string }
   | { status: 'UNAVAILABLE'; reason: RateUnavailableReason }
 
-export const MOCK_BNI_FX_OK: MockBniFx = {
+export const MOCK_BNI_FX_OK: Extract<MockBniFx, { status: 'OK' }> = {
   status: 'OK',
   buyRate: '17773.0000',
   sellRate: '18140.0000',

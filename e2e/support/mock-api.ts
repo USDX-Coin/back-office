@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test'
 import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
-import { createInitialPaymentMethods } from '../../src/mocks/data'
-import type { PaymentMethod } from '../../src/lib/types'
+import { createInitialPaymentMethods, MOCK_BNI_FX_OK } from '../../src/mocks/data'
+import type { PaymentMethod, RateUnavailableReason } from '../../src/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hermetic mock of the Phase-1 API for E2E.
@@ -93,7 +93,6 @@ export const FAILED_ACTIVATION_USER = {
 // `bniBuyRate` (wondr, manual), Virtual Account = dasar × (1 + Y/100).
 // D28 (USDX-778): mode BNI — field kurs nullable, dasar per arah, angka BNI
 // mentah `bniFx*`, X, `rateUnavailableReason`.
-export type MockRateUnavailableReason = 'BNI_UNREACHABLE' | 'BNI_DEVIATION' | 'BNI_MALFORMED'
 const RATE_INFO = {
   baseRate: '16250.0000' as string | null,
   baseSellRate: '16250.0000' as string | null,
@@ -112,17 +111,12 @@ const RATE_INFO = {
   bniFxFetchedAt: null as string | null,
   bniFxQuoteId: null as string | null,
   bniRateMaxDeviationPct: '3.0000',
-  rateUnavailableReason: null as MockRateUnavailableReason | null,
+  rateUnavailableReason: null as RateUnavailableReason | null,
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
 export type MockRateInfo = typeof RATE_INFO
-// D28 — jawaban FX-Get Rate BNI tiruan (contoh AC USDX-778).
-const BNI_FX = {
-  buyRate: '17773.0000',
-  sellRate: '18140.0000',
-  fetchedAt: '2026-10-29T03:00:00.000Z',
-  quoteId: '0193a0b2-7c1d-7e2f-8a3b-4c5d6e7f8091',
-}
+// D28 — jawaban FX-Get Rate BNI tiruan (contoh AC USDX-778), sama dengan mock MSW.
+const BNI_FX = MOCK_BNI_FX_OK
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
 const RATE_USED = RATE_INFO.effectiveBuyRate as string
 
@@ -923,7 +917,7 @@ export interface MockApiOptions {
    * BNI dijawab 422 RATE_SOURCE_UNAVAILABLE, simpan selama mode sudah BNI tetap
    * 201 dengan field kurs null. Tanpa opsi = kurs BNI tersedia (`BNI_FX`).
    */
-  bniFxUnavailable?: MockRateUnavailableReason
+  bniFxUnavailable?: RateUnavailableReason
   /** USDX-692 — state of the statement COPY (defaults: recorded minutes ago, history since 2026-09-01, no gaps). */
   bniStatementCopy?: {
     recordedThrough?: string | null
