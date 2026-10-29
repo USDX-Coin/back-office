@@ -142,3 +142,74 @@ describe('RateUpdateForm mode BNI (D28) @integration', () => {
     })
   })
 })
+
+// D28-i / §20.4 rev-31 — pindah ke BNI dijawab 422 RATE_SOURCE_UNAVAILABLE.
+describe('RateUpdateForm 422 RATE_SOURCE_UNAVAILABLE @integration', () => {
+  async function switchToBni(user: ReturnType<typeof userEvent.setup>, x: HTMLInputElement, value: string) {
+    await pickMode(user, /^kurs bni \(fx-get rate\)/i)
+    await user.clear(x)
+    await user.type(x, value)
+    await reviewAndConfirm(user)
+  }
+
+  describe('positive', () => {
+    test('BNI_DEVIATION → inline message advises raising X; form stays open with its values; mode stays old', async () => {
+      configureBniFxForTests({ status: 'UNAVAILABLE', reason: 'BNI_DEVIATION' })
+      const { user, x } = await openForm()
+      await switchToBni(user, x, '3')
+
+      expect(
+        await screen.findByText(
+          'Kurs BNI ditolak pengaman pergeseran — naikkan batas pergeseran (X) lalu coba lagi dalam ±2 menit.',
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: /ubah kurs yang berlaku\?/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: /^ubah kurs$/i })).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: /mode/i })).toHaveTextContent(/kurs bni/i)
+      expect(screen.getByRole('textbox', { name: /batas pergeseran kurs bni/i })).toHaveValue('3')
+      // Config aktif tidak berubah: kartu masih mode lama (di balik dialog).
+      expect(screen.getByText('Otomatis (kurs pasar)', { selector: 'dd' })).toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test.each(['BNI_UNREACHABLE', 'BNI_MALFORMED'] as const)(
+      '%s → "cannot be fetched" message, no toast-only failure',
+      async (reason) => {
+        configureBniFxForTests({ status: 'UNAVAILABLE', reason })
+        const { user, x } = await openForm()
+        await switchToBni(user, x, '3')
+        expect(
+          await screen.findByText('Kurs BNI sedang tidak bisa diambil, mode BNI belum bisa dipilih.'),
+        ).toBeInTheDocument()
+        expect(screen.queryByText(/naikkan batas pergeseran/i)).not.toBeInTheDocument()
+      },
+    )
+  })
+
+  describe('edge cases', () => {
+    test('retrying after the rate recovers clears the message and saves', async () => {
+      configureBniFxForTests({ status: 'UNAVAILABLE', reason: 'BNI_DEVIATION' })
+      const { user, x } = await openForm()
+      await switchToBni(user, x, '3')
+      await screen.findByText(/naikkan batas pergeseran \(X\)/)
+
+      configureBniFxForTests({
+        status: 'OK',
+        buyRate: '17773.0000',
+        sellRate: '18140.0000',
+        fetchedAt: '2026-10-29T03:02:00.000Z',
+        quoteId: '0193a0b2-7c1d-7e2f-8a3b-4c5d6e7f8092',
+      })
+      await user.clear(x)
+      await user.type(x, '5')
+      await reviewAndConfirm(user)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(screen.queryByText(/naikkan batas pergeseran \(X\)/)).not.toBeInTheDocument()
+      await waitFor(() =>
+        expect(screen.getByLabelText('batas pergeseran kurs BNI')).toHaveTextContent('5%'),
+      )
+    })
+  })
+})

@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
 import { toastErrorMessage } from '@/lib/errorToast'
-import { bniDeviationPayload, gatewayMarkupPayload } from '@/lib/rateForm'
+import { bniDeviationPayload, gatewayMarkupPayload, rateSourceUnavailableMessage } from '@/lib/rateForm'
 import { formatSpreadPct, trimTrailingZeros } from '@/lib/format'
 
 /**
@@ -156,6 +156,16 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       setErrors({})
       onOpenChange(false)
     } catch (err) {
+      // D28-i: `422 RATE_SOURCE_UNAVAILABLE` — pindah ke BNI ditolak, config aktif
+      // tidak berubah. Dialog konfirmasi ditutup supaya staf bisa membetulkan
+      // isian (mis. menaikkan X); form tetap terbuka dengan isiannya, pesannya
+      // di bawah pilihan mode. Kirim ulang membersihkannya.
+      const sourceUnavailable = rateSourceUnavailableMessage(err)
+      if (sourceUnavailable) {
+        setConfirmOpen(false)
+        setErrors({ mode: sourceUnavailable })
+        return
+      }
       toastErrorMessage(rateUpdateErrorMessage(err), err)
     }
   }
