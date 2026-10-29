@@ -239,9 +239,19 @@ describe('formatRate', () => {
     })
   })
 
+  describe('negative', () => {
+    test('should render a dash, not 0 or NaN, when the rate is unavailable (D28)', () => {
+      expect(formatRate(null)).toBe('—')
+      expect(formatRate(undefined)).toBe('—')
+    })
+  })
+
   describe('edge cases', () => {
     test('should fall back to raw input when not parseable', () => {
       expect(formatRate('abc')).toBe('abc')
+    })
+    test('should treat an empty string as unavailable', () => {
+      expect(formatRate('')).toBe('—')
     })
   })
 })
@@ -473,6 +483,16 @@ describe('formatIdrRate', () => {
       // `formatIdrExact`, ejaan yang dipakai SELURUH layar uang lain.
       expect(formatIdrRate('16250.00')).toBe('Rp 16.250')
       expect(formatIdrRate('1000000')).toBe('Rp 1.000.000')
+    })
+  })
+  describe('negative', () => {
+    test('kurs tidak tersedia (dashboard `currentRate = null`, D28) → "—"', () => {
+      expect(formatIdrRate(null)).toBe('—')
+    })
+  })
+  describe('edge cases', () => {
+    test('string kosong dibaca sebagai tidak tersedia', () => {
+      expect(formatIdrRate('')).toBe('—')
     })
   })
 })

@@ -11,12 +11,6 @@ interface CurrentRateCardProps {
   action?: ReactNode
 }
 
-// Backend sebelum USDX-749 tidak mengirim field kurs dua harga; "—" di situ
-// berarti "server belum mengirim", bukan nol.
-function optionalRate(rate: string | null | undefined): string {
-  return rate != null && rate !== '' ? formatRate(rate) : '—'
-}
-
 export default function CurrentRateCard({ data, isLoading, action }: CurrentRateCardProps) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
@@ -58,7 +52,7 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
                 <div className="rounded-md bg-muted/40 px-3 py-2.5">
                   <dt className="text-xs text-muted-foreground">Virtual Account</dt>
                   <dd className="mt-1 text-sm font-semibold tabular-nums" aria-label="kurs beli virtual account">
-                    {optionalRate(data.gatewayBuyRate)}
+                    {formatRate(data.gatewayBuyRate)}
                   </dd>
                   <dd className="mt-0.5 text-xs text-muted-foreground">
                     Kurs dasar + markup{' '}

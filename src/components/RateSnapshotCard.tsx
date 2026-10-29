@@ -9,7 +9,9 @@ import { useRate } from '@/features/rate/hooks'
 // USDX-27: renamed from CurrentRateCard — the name clashed with the
 // props-based features/rate/CurrentRateCard; this one owns its own query.
 
-function formatIdr(rate: string): string {
+function formatIdr(rate: string | null | undefined): string {
+  // D28: kurs mode BNI bisa tidak tersedia (`null`) — "—", bukan "NaN".
+  if (rate == null || rate === '') return '—'
   const n = Number(rate)
   if (!Number.isFinite(n)) return rate
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n)
