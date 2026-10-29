@@ -144,3 +144,55 @@ describe('RateSnapshotCard', () => {
     })
   })
 })
+
+// USDX-778 — D28: OTC ikut mode kurs aktif; pada mode BNI kurs bisa `null`.
+describe('RateSnapshotCard mode BNI (D28)', () => {
+  function stubRate(data: Record<string, unknown>) {
+    server.use(http.get('/api/v1/rate', () => HttpResponse.json({ status: 'success', metadata: null, data })))
+  }
+  const BNI = {
+    mode: 'BNI',
+    baseRate: '18140.0000',
+    baseSellRate: '17773.0000',
+    spreadBuyPct: '0.5',
+    spreadSellPct: '0.4',
+    effectiveBuyRate: '18230.7000',
+    effectiveSellRate: '17701.9080',
+    rateUnavailableReason: null,
+    updatedAt: '2026-10-29T02:00:00.000Z',
+  }
+
+  describe('positive', () => {
+    test('labels the source as Kurs BNI, not "Kurs dinamis"', async () => {
+      stubRate(BNI)
+      setup()
+      expect(await screen.findByTestId('rate-display')).toHaveTextContent('Rp 18.230,7')
+      expect(screen.getByText(/Kurs BNI · spread beli/)).toBeInTheDocument()
+      expect(screen.queryByText(/Kurs dinamis/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('negative', () => {
+    test('rate unavailable: says so instead of "Rp —" / "Rp NaN"', async () => {
+      stubRate({
+        ...BNI,
+        baseRate: null,
+        baseSellRate: null,
+        effectiveBuyRate: null,
+        effectiveSellRate: null,
+        rateUnavailableReason: 'BNI_UNREACHABLE',
+      })
+      setup()
+      expect(await screen.findByTestId('rate-unavailable')).toHaveTextContent('Kurs BNI tidak tersedia')
+      expect(screen.queryByTestId('rate-display')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('burn (sell) side reads the sell rate', async () => {
+      stubRate(BNI)
+      renderWithProviders(<RateSnapshotCard direction="sell" />, { authenticated: true })
+      expect(await screen.findByTestId('rate-display')).toHaveTextContent('Rp 17.701,91')
+    })
+  })
+})
