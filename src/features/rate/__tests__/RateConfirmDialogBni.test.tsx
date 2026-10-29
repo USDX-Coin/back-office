@@ -51,6 +51,8 @@ describe('RateConfirmDialog (D28)', () => {
       const note = within(dialog).getByTestId('rate-bni-calibration-reminder')
       expect(note).toHaveTextContent(/Markup Virtual Account \(Y\), spread beli, dan spread\s+jual/)
       expect(note).toHaveTextContent(/kurs BNI sudah memuat spread bank/i)
+      // D28-i: transisi dicek ketersediaan kurs DAN pengaman dengan X dari request ini.
+      expect(note).toHaveTextContent(/bisa diambil saat ini dan lolos\s+pengaman pergeseran dengan batas X/)
       expect(within(dialog).getByText('Kurs BNI (FX-Get Rate)')).toBeInTheDocument()
       expect(within(dialog).getByText('otomatis (kurs BNI)')).toBeInTheDocument()
     })

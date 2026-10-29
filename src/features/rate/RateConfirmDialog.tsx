@@ -77,7 +77,8 @@ export default function RateConfirmDialog({
               <p className="mt-1 text-muted-foreground">
                 Kurs BNI sudah memuat spread bank. Markup Virtual Account (Y), spread beli, dan spread
                 jual tidak berubah otomatis saat pindah mode — pastikan angkanya sudah disesuaikan.
-                Pindah ke mode BNI hanya berhasil kalau kurs BNI bisa diambil saat ini.
+                Pindah ke mode BNI hanya berhasil kalau kurs BNI bisa diambil saat ini dan lolos
+                pengaman pergeseran dengan batas X di form ini.
               </p>
             </div>
           )}
