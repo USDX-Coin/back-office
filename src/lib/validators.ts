@@ -192,6 +192,30 @@ export function validateGatewayMarkupPct(raw: string): string | null {
   return null
 }
 
+// D28 (`sot/api/rate.yaml § UpdateRateConfig.bniRateMaxDeviationPct`,
+// `bni-integration.md` §20.3): X = batas pergeseran kurs BNI (%), desimal > 0.
+// Kosong = tidak dikirim (X aktif dibawa server). Maks. 4 desimal dan 6 digit
+// bulat = kolom `numeric(10,4)` yang dicek DTO backend (USDX-777) — klien tidak
+// mengirim angka yang pasti ditolak 400.
+const BNI_DEVIATION_MAX_DECIMALS = 4
+const BNI_DEVIATION_MAX_INTEGER_DIGITS = 6
+
+export function validateBniMaxDeviationPct(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('-')) return 'Batas pergeseran tidak boleh negatif'
+  if (!PLAIN_DECIMAL_RE.test(trimmed)) return 'Batas pergeseran harus angka dengan titik desimal (contoh 3 atau 2.5)'
+  const [integer, fraction = ''] = trimmed.split('.')
+  if (fraction.length > BNI_DEVIATION_MAX_DECIMALS) {
+    return `Batas pergeseran maksimal ${BNI_DEVIATION_MAX_DECIMALS} desimal`
+  }
+  if (integer.replace(/^0+(?=\d)/, '').length > BNI_DEVIATION_MAX_INTEGER_DIGITS) {
+    return 'Batas pergeseran terlalu besar'
+  }
+  if (Number(trimmed) <= 0) return 'Batas pergeseran harus lebih besar dari 0'
+  return null
+}
+
 // USDX-207: spread directional — validate spread beli & jual independently
 // (sot/api/rate.yaml § UpdateRateConfig). Same bounds as the old single spread.
 // D25: plus Y (`gatewayMarkupPct`). Kurs BNI (`bniBuyRate`) tidak lagi diisi di
@@ -202,6 +226,7 @@ export function validateRateUpdateForm(input: {
   spreadBuyPct: string
   spreadSellPct: string
   gatewayMarkupPct?: string
+  bniRateMaxDeviationPct?: string
 }): ValidationResult {
   const errors: Record<string, string> = {}
   if (!input.mode) {
@@ -211,14 +236,18 @@ export function validateRateUpdateForm(input: {
     const err = validateManualRate(input.manualRate)
     if (err) errors.manualRate = err
   }
-  // DYNAMIC: manualRate intentionally not validated — UI disables the field
-  // and the payload omits it.
+  // DYNAMIC / BNI: manualRate intentionally not validated — UI disables or
+  // hides the field and the payload omits it.
   const buyErr = validateSpreadPct(input.spreadBuyPct)
   if (buyErr) errors.spreadBuyPct = buyErr
   const sellErr = validateSpreadPct(input.spreadSellPct)
   if (sellErr) errors.spreadSellPct = sellErr
   const markupErr = validateGatewayMarkupPct(input.gatewayMarkupPct ?? '')
   if (markupErr) errors.gatewayMarkupPct = markupErr
+  // X dicek di SEMUA mode: isiannya tampil di setiap mode (USDX-778) dan
+  // nilainya ikut tersimpan di baris config mana pun.
+  const deviationErr = validateBniMaxDeviationPct(input.bniRateMaxDeviationPct ?? '')
+  if (deviationErr) errors.bniRateMaxDeviationPct = deviationErr
   return { valid: Object.keys(errors).length === 0, errors }
 }
 

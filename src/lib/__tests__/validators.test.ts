@@ -17,6 +17,7 @@ import {
   validateManualRate,
   validateSpreadPct,
   validateRateUpdateForm,
+  validateBniMaxDeviationPct,
   isManualRateUnusual,
   validateFeeConfigForm,
   validateMinMintIdr,
@@ -664,6 +665,51 @@ describe('validateGatewayMarkupPct', () => {
   })
 })
 
+// D28 (`sot/api/rate.yaml § UpdateRateConfig.bniRateMaxDeviationPct`): X =
+// desimal > 0; kosong = tidak dikirim. Maks. 4 desimal / 6 digit bulat = DTO
+// backend USDX-777 (`numeric(10,4)`).
+describe('validateBniMaxDeviationPct', () => {
+  describe('positive', () => {
+    test('should accept the default 3 and a decimal like 2.5', () => {
+      expect(validateBniMaxDeviationPct('3')).toBeNull()
+      expect(validateBniMaxDeviationPct('2.5')).toBeNull()
+    })
+    test('should accept a server-shaped value with 4 decimals', () => {
+      expect(validateBniMaxDeviationPct('3.0000')).toBeNull()
+    })
+  })
+  describe('negative', () => {
+    test('should reject zero', () => {
+      expect(validateBniMaxDeviationPct('0')).toMatch(/lebih besar dari 0/)
+      expect(validateBniMaxDeviationPct('0.0000')).toMatch(/lebih besar dari 0/)
+    })
+    test('should reject a negative value', () => {
+      expect(validateBniMaxDeviationPct('-1')).toMatch(/negatif/)
+    })
+    test('should reject non-numbers and a comma separator', () => {
+      expect(validateBniMaxDeviationPct('abc')).toMatch(/titik desimal/)
+      expect(validateBniMaxDeviationPct('2,5')).toMatch(/titik desimal/)
+      expect(validateBniMaxDeviationPct('1e2')).not.toBeNull()
+    })
+    test('should reject more than 4 decimals (server column numeric(10,4))', () => {
+      expect(validateBniMaxDeviationPct('3.12345')).toMatch(/4 desimal/)
+    })
+  })
+  describe('edge cases', () => {
+    test('should treat empty / whitespace as valid (not sent, active X kept)', () => {
+      expect(validateBniMaxDeviationPct('')).toBeNull()
+      expect(validateBniMaxDeviationPct('  ')).toBeNull()
+    })
+    test('should accept 6 integer digits and reject 7', () => {
+      expect(validateBniMaxDeviationPct('999999')).toBeNull()
+      expect(validateBniMaxDeviationPct('1000000')).toMatch(/terlalu besar/)
+    })
+    test('should not count leading zeros as integer digits', () => {
+      expect(validateBniMaxDeviationPct('0000005')).toBeNull()
+    })
+  })
+})
+
 describe('validateRateUpdateForm', () => {
   describe('positive', () => {
     test('MANUAL with valid rate + both spreads passes', () => {
@@ -675,6 +721,11 @@ describe('validateRateUpdateForm', () => {
       expect(r.valid).toBe(true)
       expect(r.errors.manualRate).toBeUndefined()
     })
+    test('BNI ignores manualRate and accepts X (D28)', () => {
+      const r = validateRateUpdateForm({ mode: 'BNI', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4', bniRateMaxDeviationPct: '3' })
+      expect(r.valid).toBe(true)
+      expect(r.errors.manualRate).toBeUndefined()
+    })
     test('blank spreads are allowed (optional, default 0)', () => {
       const r = validateRateUpdateForm({ mode: 'DYNAMIC', manualRate: '', spreadBuyPct: '', spreadSellPct: '' })
       expect(r.valid).toBe(true)
@@ -682,6 +733,11 @@ describe('validateRateUpdateForm', () => {
   })
 
   describe('negative', () => {
+    test('BNI with X = 0 fails on the X field', () => {
+      const r = validateRateUpdateForm({ mode: 'BNI', manualRate: '', spreadBuyPct: '', spreadSellPct: '', bniRateMaxDeviationPct: '0' })
+      expect(r.valid).toBe(false)
+      expect(r.errors.bniRateMaxDeviationPct).toMatch(/lebih besar dari 0/)
+    })
     test('MANUAL without rate fails', () => {
       const r = validateRateUpdateForm({ mode: 'MANUAL', manualRate: '', spreadBuyPct: '0.5', spreadSellPct: '0.4' })
       expect(r.valid).toBe(false)
