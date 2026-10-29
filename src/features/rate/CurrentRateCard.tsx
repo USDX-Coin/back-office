@@ -11,12 +11,6 @@ interface CurrentRateCardProps {
   action?: ReactNode
 }
 
-// Backend sebelum USDX-749 tidak mengirim field kurs dua harga; "—" di situ
-// berarti "server belum mengirim", bukan nol.
-function optionalRate(rate: string | null | undefined): string {
-  return rate != null && rate !== '' ? formatRate(rate) : '—'
-}
-
 export default function CurrentRateCard({ data, isLoading, action }: CurrentRateCardProps) {
   return (
     <Card className="rounded-md shadow-none dark:border-0">
@@ -34,17 +28,25 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
           </div>
         ) : (
           <>
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Kurs dasar
-              </p>
-              <p
-                className="mt-1 text-money-lg tabular-nums"
-                aria-label="kurs dasar"
-              >
-                {formatRate(data.baseRate)}
-              </p>
-            </div>
+            {/* D28-b (`bni-integration.md` §20.1): dasar PER ARAH. Mode BNI —
+                beli = `sellRate` BNI, jual = `buyRate` BNI; MANUAL/DYNAMIC —
+                keduanya kurs dasar yang sama. Null (kurs BNI tidak tersedia) → "—". */}
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">Kurs dasar beli (mint)</dt>
+                <dd className="mt-1 text-money-lg tabular-nums" aria-label="kurs dasar beli">
+                  {formatRate(data.baseRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Kurs dasar jual (redeem)</dt>
+                <dd className="mt-1 text-money-lg tabular-nums" aria-label="kurs dasar jual">
+                  {formatRate(data.baseSellRate)}
+                </dd>
+              </div>
+            </dl>
+
+            {data.mode === 'BNI' && <BniFxDetails data={data} />}
 
             {/* D25 (`sot/api/rate.yaml § RateInfo`): kurs beli mint KONSUMEN lewat
                 Virtual Account = dasar × (1 + Y%). Kartu "Transfer BNI · kurs BNI dari
@@ -58,7 +60,7 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
                 <div className="rounded-md bg-muted/40 px-3 py-2.5">
                   <dt className="text-xs text-muted-foreground">Virtual Account</dt>
                   <dd className="mt-1 text-sm font-semibold tabular-nums" aria-label="kurs beli virtual account">
-                    {optionalRate(data.gatewayBuyRate)}
+                    {formatRate(data.gatewayBuyRate)}
                   </dd>
                   <dd className="mt-0.5 text-xs text-muted-foreground">
                     Kurs dasar + markup{' '}
@@ -131,5 +133,47 @@ export default function CurrentRateCard({ data, isLoading, action }: CurrentRate
         )}
       </CardContent>
     </Card>
+  )
+}
+
+// D28 (`rate.yaml § RateInfo`, Q3 §20.8): angka FX-Get Rate BNI apa adanya +
+// jam ambil + X aktif. `null` (kurs tidak tersedia) → "—", bukan 0.
+function BniFxDetails({ data }: { data: RateInfo }) {
+  return (
+    <section aria-labelledby="bni-fx-rate" className="space-y-3 border-t border-border pt-4">
+      <h3 id="bni-fx-rate" className="text-label text-muted-foreground">
+        Kurs BNI (FX-Get Rate)
+      </h3>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4">
+        <div>
+          <dt className="text-xs text-muted-foreground">Kurs jual BNI → dasar beli</dt>
+          <dd className="mt-1 text-sm font-medium tabular-nums" aria-label="kurs jual BNI">
+            {formatRate(data.bniFxSellRate)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Kurs beli BNI → dasar jual</dt>
+          <dd className="mt-1 text-sm font-medium tabular-nums" aria-label="kurs beli BNI">
+            {formatRate(data.bniFxBuyRate)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Diambil dari BNI (WIB)</dt>
+          <dd
+            className="mt-1 text-sm tabular-nums text-muted-foreground"
+            aria-label="jam ambil kurs BNI"
+            title={data.bniFxFetchedAt ?? undefined}
+          >
+            {formatDateTime(data.bniFxFetchedAt)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Batas pergeseran (X)</dt>
+          <dd className="mt-1 text-sm font-medium tabular-nums" aria-label="batas pergeseran kurs BNI">
+            {data.bniRateMaxDeviationPct != null ? formatSpreadPct(data.bniRateMaxDeviationPct) : '—'}
+          </dd>
+        </div>
+      </dl>
+    </section>
   )
 }

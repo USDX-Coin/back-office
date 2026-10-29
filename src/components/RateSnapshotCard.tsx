@@ -17,14 +17,28 @@ function formatIdr(rate: string): string {
 
 // USDX-207: rate is directional — mint shows the buy (beli) side, burn the
 // sell (jual) side. Default 'buy'.
+//
+// D28 (`bni-integration.md` §20.1 D28-c, §20.4): OTC ikut mode kurs aktif. Pada
+// mode BNI kurs bisa tidak tersedia (field kurs `null`) — mint/burn OTC
+// sementara itu ditolak server 503 RATE_UNAVAILABLE.
+const MODE_LABEL: Record<string, string> = {
+  MANUAL: 'Kurs manual',
+  DYNAMIC: 'Kurs dinamis',
+  BNI: 'Kurs BNI',
+}
+
 export default function RateSnapshotCard({
   direction = 'buy',
 }: {
   direction?: 'buy' | 'sell'
 }) {
   const { data: rate, isLoading, isError } = useRate()
+  // Fallback ke dasar arahnya lalu ke dasar beli (perilaku lama). `null` di
+  // semuanya = kurs BNI tidak tersedia.
   const effective =
-    direction === 'sell' ? rate?.effectiveSellRate : rate?.effectiveBuyRate
+    (direction === 'sell' ? rate?.effectiveSellRate : rate?.effectiveBuyRate) ??
+    (direction === 'sell' ? rate?.baseSellRate : undefined) ??
+    rate?.baseRate
   const spread =
     direction === 'sell' ? rate?.spreadSellPct : rate?.spreadBuyPct
 
@@ -41,16 +55,20 @@ export default function RateSnapshotCard({
           <Skeleton className="h-7 w-32" />
         ) : isError || !rate ? (
           <p className="text-sm text-destructive">Kurs gagal dimuat</p>
+        ) : effective == null ? (
+          <p className="text-sm text-destructive" data-testid="rate-unavailable">
+            Kurs BNI tidak tersedia — mint/burn OTC sementara ditolak server.
+          </p>
         ) : (
           <>
             <p
               className="text-money-lg tabular-nums"
               data-testid="rate-display"
             >
-              Rp {formatIdr(effective ?? rate.baseRate)}
+              Rp {formatIdr(effective)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {rate.mode === 'MANUAL' ? 'Kurs manual' : 'Kurs dinamis'} · spread{' '}
+              {MODE_LABEL[rate.mode] ?? rate.mode} · spread{' '}
               {direction === 'sell' ? 'jual' : 'beli'} {spread}%
             </p>
           </>

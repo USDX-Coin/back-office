@@ -152,7 +152,7 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── queue-counts/  # useQueueCounts (USDX-678, GET /api/v1/queue-counts) — badge sidebar Pencairan Bermasalah + Persetujuan Pencairan tanpa PII
 │   │   ├── kyc/           # KycDetailModal (dibuka dari /kyc/:id di atas Verifikasi) (PII/photos/CDD/approve/reject/audit) + hooks (USDX-154/155/545)
 │   │   ├── kyb/           # KybDetailModal (dari /kyb/:id di atas Verifikasi) + KybFormPage + LegalEntityPicker + hooks (USDX-546) — manual entity due diligence; LIVE on the real backend, no MSW handlers
-│   │   ├── rate/          # RatePage + cards/forms (settings/rate) — base rate + spread beli/jual + markup VA (D25; kurs BNI dicabut USDX-749)
+│   │   ├── rate/          # RatePage + cards/forms (settings/rate) — dasar beli/jual + spread beli/jual + markup VA (D25; kurs BNI wondr dicabut USDX-749) + mode kurs BNI FX-Get Rate, batas pergeseran X, RateUnavailableBanner, pesan 422 (D28, USDX-778)
 │   │   ├── fee/           # FeeConfigPage + card/form (settings/fee) — mint fee % + redeem fee % + disbursement fee flat (USDX-245) + minimum mint Rp (USDX-637) + minimum redeem Rp (USDX-682, field wajib di BE); snapshot 5 field (PG fee VA/QRIS deprecated rev-16)
 │   │   ├── mint-mode/     # MintModePage + MintModeCard + MintTestModeDialog + MintTestModeBanner + hooks (settings/mint-mode) — mode mint PROD/UJI + banner merah global (USDX-639)
 │   │   ├── threshold/     # ThresholdPage + cards/forms (settings/threshold)
@@ -182,7 +182,7 @@ Ponsel: tombol menu di Navbar membuka `MobileNavDrawer` yang memakai `NavTree` y
 │   │   ├── durianpayApiCalls.ts # Log Panggilan DurianPay — path→kalimat, vonis empat keadaan (2xx yang ditolak di dalam amplop), keterangan responseCode tanpa menebak arti per kasus, tanggal WIB +07:00, pembaca badan terpotong / non-JSON
 │   │   ├── backofficeTransactions.ts # label jenis/tindakan/status Transaksi gabungan + query builder
 │   │   ├── paymentMethods.ts # label, validasi biaya/batas/alasan, bentuk desimal kanonik, isLastOffered, bniEnableNotice (Metode Pembayaran)
-│   │   ├── rateForm.ts    # form kurs: gatewayMarkupPayload (kirim hanya bila berubah)
+│   │   ├── rateForm.ts    # form kurs: gatewayMarkupPayload (kirim hanya bila berubah), bniDeviationPayload (X kosong = tidak dikirim), rateSourceUnavailableMessage (422 per details.reason)
 │   │   ├── errorMessages.ts # Peta galat API → kalimat (humanizeError); errorToast.ts = toastError
 │   │   ├── payoutFailures.ts # USDX-662 — aksi sah per issueKind (enum terbuka, fail-closed), buildResolveBody (alasan ≥10, externalRef SETTLED_MANUAL), peta galat code-ATAU-message, ringkasan submission, umur antrean
 │   │   └── utils.ts       # cn() class name utility

@@ -172,3 +172,52 @@ describe('OverviewPage (Ringkasan)', () => {
     })
   })
 })
+
+// USDX-778 — D28 (`sot/api/dashboard.yaml`, `bni-integration.md` §20.4): mode
+// kurs BNI dan kurs tidak tersedia → `currentRate = null`, dashboard tetap 200.
+describe('OverviewPage kurs tidak tersedia (D28)', () => {
+  function stubStatsWithRate(currentRate: string | null) {
+    server.use(
+      http.get('/api/v1/dashboard/stats', () =>
+        HttpResponse.json({ status: 'success', metadata: null, data: { ...STATS, currentRate } }),
+      ),
+    )
+  }
+
+  describe('positive', () => {
+    test('rate available: the rate row reads the rupiah rate per 1 USDX', async () => {
+      stubStatsWithRate('18140.0000')
+      renderPage()
+      const row = await screen.findByTestId('ringkasan-kurs')
+      expect(row).toHaveTextContent('Rp 18.140')
+      expect(row).toHaveTextContent('Per 1 USDX')
+    })
+  })
+
+  describe('negative', () => {
+    test('currentRate null: rate row shows "—" + "Kurs tidak tersedia", other token figures still shown', async () => {
+      stubStatsWithRate(null)
+      renderPage()
+      const row = await screen.findByTestId('ringkasan-kurs')
+      expect(row).toHaveTextContent('—')
+      expect(row).toHaveTextContent('Kurs tidak tersedia')
+      expect(row).not.toHaveTextContent(/NaN|Rp/)
+      const token = screen.getByTestId('ringkasan-token')
+      expect(within(token).getByTestId('ringkasan-pasokan')).toHaveTextContent('1.000.000,00USDX')
+      expect(within(token).getByText('750.000,00 USDX')).toBeInTheDocument()
+      expect(within(token).getByText('5.250.000,00 USDX')).toBeInTheDocument()
+      const otc = screen.getByTestId('ringkasan-otc')
+      expect(await within(otc).findByText('1.200.000,00 USDX')).toBeInTheDocument()
+    })
+  })
+
+  describe('edge cases', () => {
+    test('currentRate null does not turn the token card into a load error', async () => {
+      stubStatsWithRate(null)
+      renderPage()
+      const token = await screen.findByTestId('ringkasan-token')
+      await within(token).findByTestId('ringkasan-kurs')
+      expect(within(token).queryByRole('button', { name: /coba lagi/i })).not.toBeInTheDocument()
+    })
+  })
+})

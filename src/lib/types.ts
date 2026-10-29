@@ -192,37 +192,69 @@ export interface ApiError {
 // ─── Rate (sot/openapi.yaml § /api/v1/rate) ──────────────────────────────────
 // All numeric values are decimal strings to preserve precision across the wire.
 
-export type RateMode = 'MANUAL' | 'DYNAMIC'
+// D28 (`sot/api/rate.yaml § RateMode`, `bni-integration.md` §20): `BNI` = kurs
+// dasar dari FX-Get Rate BNI lewat bni-service.
+export type RateMode = 'MANUAL' | 'DYNAMIC' | 'BNI'
+
+/**
+ * D28 (`rate.yaml § RateInfo.rateUnavailableReason`) — kenapa kurs mode `BNI`
+ * tidak tersedia. Nilai yang sama dibawa `error.details.reason` pada
+ * `422 RATE_SOURCE_UNAVAILABLE` (rev-31).
+ */
+export type RateUnavailableReason = 'BNI_UNREACHABLE' | 'BNI_DEVIATION' | 'BNI_MALFORMED'
 
 // USDX-207: spread directional (sot/api/rate.yaml + phase-1.md § Rate
 // Configuration). Mengganti `spread_pct` tunggal jadi dua arah: beli (mint)
 // pakai `spreadBuyPct`, jual (burn/redeem) pakai `spreadSellPct`. GET juga
 // surface effective rate per arah.
 export interface RateInfo {
-  /** Base rate USD/IDR sebelum spread (manual atau feed). */
-  baseRate: string
+  /**
+   * Dasar BELI USD/IDR sebelum spread (manual, pasar, atau D28 `sellRate` BNI).
+   * `null` hanya pada mode `BNI` saat kurs tidak tersedia (`rateUnavailableReason`).
+   */
+  baseRate: string | null
+  /**
+   * D28 — dasar JUAL (redeem/burn). Mode `BNI` = `buyRate` BNI; MANUAL/DYNAMIC =
+   * `baseRate`. Opsional: backend sebelum USDX-777 tidak mengirimnya.
+   */
+  baseSellRate?: string | null
   mode: RateMode
   /** Spread % saat user beli USDX (mint). */
   spreadBuyPct: string
   /** Spread % saat user jual USDX (burn/redeem). */
   spreadSellPct: string
-  /** baseRate × (1 + spreadBuyPct/100). */
-  effectiveBuyRate: string
-  /** baseRate × (1 − spreadSellPct/100). */
-  effectiveSellRate: string
+  /** baseRate × (1 + spreadBuyPct/100). `null` bila kurs tidak tersedia (D28). */
+  effectiveBuyRate: string | null
+  /** baseSellRate × (1 − spreadSellPct/100). `null` bila kurs tidak tersedia (D28). */
+  effectiveSellRate: string | null
   // ── Kurs dua harga mint KONSUMEN (D25, `sot/api/rate.yaml § RateInfo`,
   // `bni-integration.md § 4.3.3`). Opsional: backend yang belum membawa
   // USDX-749 tidak mengirimnya — layar menulis "—", bukan menebak angka.
   /** Y — markup % kurs beli Virtual Account (mint konsumen). ≥ 0. */
   gatewayMarkupPct?: string
-  /** baseRate × (1 + gatewayMarkupPct/100) — kurs beli Virtual Account. */
-  gatewayBuyRate?: string
+  /** baseRate × (1 + gatewayMarkupPct/100) — kurs beli Virtual Account. `null` bila kurs tidak tersedia (D28). */
+  gatewayBuyRate?: string | null
   /** Kurs beli Transfer BNI, diisi MANUAL admin dari aplikasi wondr by BNI. `null` = belum diisi. */
   bniBuyRate?: string | null
   /** Kapan `bniBuyRate` terakhir disimpan admin (diisi sistem). */
   bniBuyRateUpdatedAt?: string | null
   /** = `bniBuyRate`; dikirim walau metode BNI belum ditawarkan. */
   bniTransferBuyRate?: string | null
+  // ── D28 (`rate.yaml § RateInfo`, Q3 §20.8): angka FX-Get Rate BNI mentah.
+  // Nama `bniFx*` karena `bniBuyRate` sudah berarti kurs wondr manual (D25).
+  // Null bila mode bukan `BNI` atau kurs tidak tersedia.
+  /** `buyRate` BNI apa adanya (4 desimal) — dasar jual pada mode `BNI`. */
+  bniFxBuyRate?: string | null
+  /** `sellRate` BNI apa adanya (4 desimal) — dasar beli pada mode `BNI`. */
+  bniFxSellRate?: string | null
+  /** Jam bni-service menghubungi BNI untuk kurs ini. */
+  bniFxFetchedAt?: string | null
+  /** `fx_rate_quotes.id` di bni-service. */
+  bniFxQuoteId?: string | null
+  /** X — batas pergeseran kurs BNI (%) terhadap kurs BNI terakhir yang diterima. Default 3. */
+  bniRateMaxDeviationPct?: string
+  /** Alasan field kurs `null` pada mode `BNI`; `null` bila kurs tersedia. */
+  rateUnavailableReason?: RateUnavailableReason | null
   updatedAt: string
 }
 
@@ -241,6 +273,11 @@ export interface UpdateRateConfig {
    * `null` = dikosongkan → Transfer BNI tidak ditawarkan.
    */
   bniBuyRate?: string | null
+  /**
+   * X (D28) — batas pergeseran kurs BNI (%), desimal > 0. DIHILANGKAN dari body
+   * = X config aktif dibawa apa adanya (append-only).
+   */
+  bniRateMaxDeviationPct?: string
 }
 
 export interface RateConfig {
@@ -252,6 +289,8 @@ export interface RateConfig {
   gatewayMarkupPct?: string
   bniBuyRate?: string | null
   bniBuyRateUpdatedAt?: string | null
+  /** X (D28) — kolom `rate_configs.bni_rate_max_deviation_pct`. */
+  bniRateMaxDeviationPct?: string
   updatedBy: string
   createdAt: string
 }
@@ -2164,7 +2203,11 @@ export interface DashboardStats {
     staff: string
     manager: string
   }
-  currentRate: string
+  /**
+   * Kurs aktif USD/IDR. D28 (`dashboard.yaml`, `bni-integration.md` §20.4):
+   * `null` bila mode kurs `BNI` dan kurs tidak tersedia — angka lain tetap ada.
+   */
+  currentRate: string | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

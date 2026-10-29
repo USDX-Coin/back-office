@@ -92,7 +92,9 @@ describe('Kurs — kurs beli mint nasabah (tanpa kurs BNI, USDX-749)', () => {
   describe('negative', () => {
     test('the form has no "Kurs BNI dari wondr" field, range hint, or re-check box', async () => {
       await openForm()
-      expect(screen.queryByRole('textbox', { name: /kurs bni/i })).not.toBeInTheDocument()
+      // `^`: isian X D28 ("Batas pergeseran kurs BNI") sah; yang dicabut USDX-749
+      // adalah isian kurs BNI wondr itu sendiri.
+      expect(screen.queryByRole('textbox', { name: /^kurs bni/i })).not.toBeInTheDocument()
       expect(screen.queryByTestId('bni-rate-range')).not.toBeInTheDocument()
       expect(screen.queryByRole('checkbox', { name: /dicek ulang di wondr/i })).not.toBeInTheDocument()
       expect(screen.queryByText(/wondr/i)).not.toBeInTheDocument()

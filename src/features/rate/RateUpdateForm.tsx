@@ -21,8 +21,8 @@ import { useAuth } from '@/lib/auth'
 import { useUpdateRate } from './hooks'
 import RateConfirmDialog from './RateConfirmDialog'
 import { toastErrorMessage } from '@/lib/errorToast'
-import { gatewayMarkupPayload } from '@/lib/rateForm'
-import { trimTrailingZeros } from '@/lib/format'
+import { bniDeviationPayload, gatewayMarkupPayload, rateSourceUnavailableMessage } from '@/lib/rateForm'
+import { formatSpreadPct, trimTrailingZeros } from '@/lib/format'
 
 /**
  * Galat server → kalimat Indonesia. Kode + pesan servernya tidak dibuang:
@@ -56,6 +56,8 @@ interface FormState {
   spreadSellPct: string
   /** D25 — Y, markup % kurs beli Virtual Account (mint konsumen). */
   gatewayMarkupPct: string
+  /** D28 — X, batas pergeseran kurs BNI (%). Kosong = tidak dikirim. */
+  bniRateMaxDeviationPct: string
 }
 
 // Form state is the user's overrides on top of the current config.
@@ -78,6 +80,10 @@ function resolveForm(overrides: FormOverrides, current: RateInfo | undefined): F
     // Diisi dari config aktif: kontrak membaca Y yang tidak dikirim sebagai
     // default 0, jadi menyimpan spread saja tidak boleh diam-diam menolkan Y.
     gatewayMarkupPct: overrides.gatewayMarkupPct ?? prefill(current?.gatewayMarkupPct),
+    // X aktif ditampilkan supaya staf melihat batas yang berlaku; mengosongkannya
+    // = tidak dikirim (server membawa X aktif).
+    bniRateMaxDeviationPct:
+      overrides.bniRateMaxDeviationPct ?? prefill(current?.bniRateMaxDeviationPct),
   }
 }
 
@@ -108,6 +114,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       spreadBuyPct: form.spreadBuyPct,
       spreadSellPct: form.spreadSellPct,
       gatewayMarkupPct: form.gatewayMarkupPct,
+      bniRateMaxDeviationPct: form.bniRateMaxDeviationPct,
     })
     if (!validation.valid) {
       setErrors(validation.errors)
@@ -127,15 +134,19 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       // Bearer token attaches via apiFetch — backend derives updatedBy from
       // the JWT, no need to send the staff id in the body.
       const gatewayMarkupPct = gatewayMarkupPayload(form.gatewayMarkupPct, current?.gatewayMarkupPct)
+      const bniRateMaxDeviationPct = bniDeviationPayload(form.bniRateMaxDeviationPct)
       await update.mutateAsync({
         mode: form.mode,
-        manualRate: form.mode === 'MANUAL' ? form.manualRate : null,
+        // Mode BNI: `manualRate` diabaikan kontrak — tidak dikirim sama sekali.
+        ...(form.mode === 'BNI' ? {} : { manualRate: form.mode === 'MANUAL' ? form.manualRate : null }),
         spreadBuyPct: form.spreadBuyPct || '0',
         spreadSellPct: form.spreadSellPct || '0',
         // Field D25 yang tidak berubah DIHILANGKAN = tidak diubah server.
         // `bniBuyRate` TIDAK PERNAH dikirim lagi (USDX-749): Transfer BNI kini
         // transfer USD tanpa kurs BNI, dan field yang dihilangkan = tidak diubah.
         ...(gatewayMarkupPct !== undefined ? { gatewayMarkupPct } : {}),
+        // D28 — X dikosongkan = dihilangkan = X aktif dibawa server.
+        ...(bniRateMaxDeviationPct !== undefined ? { bniRateMaxDeviationPct } : {}),
       })
       toast.success('Kurs berhasil diubah')
       setConfirmOpen(false)
@@ -145,11 +156,22 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
       setErrors({})
       onOpenChange(false)
     } catch (err) {
+      // D28-i: `422 RATE_SOURCE_UNAVAILABLE` — pindah ke BNI ditolak, config aktif
+      // tidak berubah. Dialog konfirmasi ditutup supaya staf bisa membetulkan
+      // isian (mis. menaikkan X); form tetap terbuka dengan isiannya, pesannya
+      // di bawah pilihan mode. Kirim ulang membersihkannya.
+      const sourceUnavailable = rateSourceUnavailableMessage(err)
+      if (sourceUnavailable) {
+        setConfirmOpen(false)
+        setErrors({ mode: sourceUnavailable })
+        return
+      }
       toastErrorMessage(rateUpdateErrorMessage(err), err)
     }
   }
 
   const dynamic = form.mode === 'DYNAMIC'
+  const bni = form.mode === 'BNI'
   const showRateWarning =
     form.mode === 'MANUAL' &&
     !errors.manualRate &&
@@ -189,11 +211,21 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
             <SelectContent>
               <SelectItem value="MANUAL">Manual — kurs tetap yang kamu tentukan</SelectItem>
               <SelectItem value="DYNAMIC">Otomatis — ikut kurs pasar + spread</SelectItem>
+              <SelectItem value="BNI">Kurs BNI (FX-Get Rate) — dasar beli/jual dari BNI</SelectItem>
             </SelectContent>
           </Select>
+          {bni && (
+            <p className="text-xs text-muted-foreground">
+              Dasar beli = kurs jual BNI, dasar jual = kurs beli BNI, diambil dari FX-Get Rate BNI
+              setiap kali kurs dibutuhkan. Kalau kurs BNI tidak tersedia, mint dan redeem ditolak —
+              tidak ada kurs cadangan.
+            </p>
+          )}
           <FieldError message={errors.mode} />
         </div>
 
+        {/* D28: mode BNI tidak memakai kurs manual — isiannya disembunyikan. */}
+        {!bni && (
         <div className="space-y-1.5">
           <Label htmlFor="manualRate">
             Kurs manual{' '}
@@ -232,6 +264,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           )}
           <FieldError message={errors.manualRate} />
         </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -277,7 +310,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Potongan saat nasabah jual USDX. Kurs berlaku = kurs dasar × (1 − jual%).
+              Potongan saat nasabah jual USDX. Kurs berlaku = kurs dasar jual × (1 − jual%).
             </p>
             <FieldError message={errors.spreadSellPct} />
           </div>
@@ -316,6 +349,42 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
             <FieldError message={errors.gatewayMarkupPct} />
           </div>
         </fieldset>
+
+        {/* D28-g (`bni-integration.md` §20.3): X diatur staf bersama spread, di
+            setiap mode — nilainya ikut tiap baris config dan berlaku begitu mode
+            BNI aktif. */}
+        <fieldset className="space-y-4 border-t border-border pt-5">
+          <legend className="text-xs font-medium text-muted-foreground">Pengaman kurs BNI</legend>
+          <div className="space-y-1.5">
+            <Label htmlFor="bniRateMaxDeviationPct">Batas pergeseran kurs BNI</Label>
+            <div className="relative sm:max-w-[50%]">
+              <Input
+                id="bniRateMaxDeviationPct"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.bniRateMaxDeviationPct}
+                onChange={(e) => set('bniRateMaxDeviationPct', e.target.value)}
+                placeholder="3"
+                className="tabular-nums pr-10"
+                aria-invalid={!!errors.bniRateMaxDeviationPct}
+                aria-describedby="bniRateMaxDeviationPct-help"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                %
+              </span>
+            </div>
+            <p id="bniRateMaxDeviationPct-help" className="text-xs text-muted-foreground">
+              Kurs BNI baru ditolak bila kurs jual atau kurs beli BNI bergeser lebih dari X% dari
+              kurs BNI terakhir yang diterima. Kosong = tetap memakai X yang berlaku
+              {current?.bniRateMaxDeviationPct != null
+                ? ` (${formatSpreadPct(current.bniRateMaxDeviationPct)})`
+                : ''}
+              .
+            </p>
+            <FieldError message={errors.bniRateMaxDeviationPct} />
+          </div>
+        </fieldset>
       </FormDialog>
 
       <RateConfirmDialog
@@ -328,6 +397,7 @@ export default function RateUpdateForm({ current, open, onOpenChange }: RateUpda
           spreadBuyPct: form.spreadBuyPct,
           spreadSellPct: form.spreadSellPct,
           gatewayMarkupPct: form.gatewayMarkupPct,
+          bniRateMaxDeviationPct: form.bniRateMaxDeviationPct,
         }}
         onConfirm={handleConfirm}
         isPending={update.isPending}

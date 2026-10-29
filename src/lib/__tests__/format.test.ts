@@ -239,9 +239,19 @@ describe('formatRate', () => {
     })
   })
 
+  describe('negative', () => {
+    test('should render a dash, not 0 or NaN, when the rate is unavailable (D28)', () => {
+      expect(formatRate(null)).toBe('—')
+      expect(formatRate(undefined)).toBe('—')
+    })
+  })
+
   describe('edge cases', () => {
     test('should fall back to raw input when not parseable', () => {
       expect(formatRate('abc')).toBe('abc')
+    })
+    test('should treat an empty string as unavailable', () => {
+      expect(formatRate('')).toBe('—')
     })
   })
 })
@@ -475,6 +485,16 @@ describe('formatIdrRate', () => {
       expect(formatIdrRate('1000000')).toBe('Rp 1.000.000')
     })
   })
+  describe('negative', () => {
+    test('kurs tidak tersedia (dashboard `currentRate = null`, D28) → "—"', () => {
+      expect(formatIdrRate(null)).toBe('—')
+    })
+  })
+  describe('edge cases', () => {
+    test('string kosong dibaca sebagai tidak tersedia', () => {
+      expect(formatIdrRate('')).toBe('—')
+    })
+  })
 })
 
 describe('bniAccountTypeLabel', () => {
@@ -499,12 +519,23 @@ describe('bniAccountTypeLabel', () => {
 })
 
 describe('rateModeLabel', () => {
-  test('should spell the two rate modes as words', () => {
-    expect(rateModeLabel('MANUAL')).toBe('Manual')
-    expect(rateModeLabel('DYNAMIC')).toBe('Otomatis (kurs pasar)')
+  describe('positive', () => {
+    test('should spell the three rate modes as words', () => {
+      expect(rateModeLabel('MANUAL')).toBe('Manual')
+      expect(rateModeLabel('DYNAMIC')).toBe('Otomatis (kurs pasar)')
+      // D28 — label dari tiket USDX-778.
+      expect(rateModeLabel('BNI')).toBe('Kurs BNI (FX-Get Rate)')
+    })
   })
-  test('should return an unknown mode as-is', () => {
-    expect(rateModeLabel('X')).toBe('X')
+  describe('negative', () => {
+    test('should return an unknown mode as-is', () => {
+      expect(rateModeLabel('X')).toBe('X')
+    })
+  })
+  describe('edge cases', () => {
+    test('should not match a lowercase mode (server sends uppercase enum)', () => {
+      expect(rateModeLabel('bni')).toBe('bni')
+    })
   })
 })
 

@@ -78,7 +78,8 @@ export function formatDecimalId(value: string, fractionDigits = 2): string {
  * Spasi setelah `Rp` mengikuti `formatIdrAmount` / `formatIdrExact`, yaitu
  * ejaan yang dipakai SELURUH layar uang lain di back office ini.
  */
-export function formatIdrRate(value: string): string {
+export function formatIdrRate(value: string | null | undefined): string {
+  if (value == null || value === '') return '—'
   return `Rp ${formatDecimalId(value, 0)}`
 }
 
@@ -139,8 +140,11 @@ export function formatShortDate(dateString: string): string {
 
 // String desimal kurs ("16250.00") → "16.250,00 IDR/USD".
 // Nilai yang tidak terbaca dikembalikan APA ADANYA, supaya jawaban backend yang
-// tak terduga tidak tersembunyi di balik artefak koersi.
-export function formatRate(rate: string): string {
+// tak terduga tidak tersembunyi di balik artefak koersi. `null`/kosong → "—":
+// kurs mode BNI yang tidak tersedia (D28) atau field yang belum dikirim server —
+// bukan nol, dan bukan "NaN".
+export function formatRate(rate: string | null | undefined): string {
+  if (rate == null || rate === '') return '—'
   const n = Number(rate)
   if (!Number.isFinite(n)) return rate
   return `${new Intl.NumberFormat('id-ID', {
@@ -413,9 +417,10 @@ export function bniAccountTypeLabel(code: string | null | undefined): string | n
   return BNI_ACCOUNT_TYPE_LABEL[code.trim().toUpperCase()] ?? code
 }
 
-/** Mode kurs dari server (`MANUAL` / `DYNAMIC`) → kata yang dibaca operator. */
+/** Mode kurs dari server (`MANUAL` / `DYNAMIC` / `BNI`) → kata yang dibaca operator. */
 export function rateModeLabel(mode: string): string {
   if (mode === 'MANUAL') return 'Manual'
   if (mode === 'DYNAMIC') return 'Otomatis (kurs pasar)'
+  if (mode === 'BNI') return 'Kurs BNI (FX-Get Rate)'
   return mode
 }

@@ -1,7 +1,7 @@
 import type { Page, Route } from '@playwright/test'
 import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
-import { createInitialPaymentMethods } from '../../src/mocks/data'
-import type { PaymentMethod } from '../../src/lib/types'
+import { createInitialPaymentMethods, MOCK_BNI_FX_OK } from '../../src/mocks/data'
+import type { PaymentMethod, RateUnavailableReason } from '../../src/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hermetic mock of the Phase-1 API for E2E.
@@ -91,22 +91,34 @@ export const FAILED_ACTIVATION_USER = {
 // USDX-207: spread directional (sot/api/rate.yaml). Spread 0 → effective == base.
 // D25 (`rate.yaml`): kurs beli mint nasabah dua harga — Transfer BNI =
 // `bniBuyRate` (wondr, manual), Virtual Account = dasar × (1 + Y/100).
+// D28 (USDX-778): mode BNI — field kurs nullable, dasar per arah, angka BNI
+// mentah `bniFx*`, X, `rateUnavailableReason`.
 const RATE_INFO = {
-  baseRate: '16250.0000',
-  mode: 'MANUAL' as const,
+  baseRate: '16250.0000' as string | null,
+  baseSellRate: '16250.0000' as string | null,
+  mode: 'MANUAL' as 'MANUAL' | 'DYNAMIC' | 'BNI',
   spreadBuyPct: '0',
   spreadSellPct: '0',
-  effectiveBuyRate: '16250.0000',
-  effectiveSellRate: '16250.0000',
+  effectiveBuyRate: '16250.0000' as string | null,
+  effectiveSellRate: '16250.0000' as string | null,
   gatewayMarkupPct: '1',
-  gatewayBuyRate: '16412.5000',
+  gatewayBuyRate: '16412.5000' as string | null,
   bniBuyRate: '16200.00' as string | null,
   bniBuyRateUpdatedAt: '2026-05-01T00:00:00.000Z' as string | null,
   bniTransferBuyRate: '16200.00' as string | null,
+  bniFxBuyRate: null as string | null,
+  bniFxSellRate: null as string | null,
+  bniFxFetchedAt: null as string | null,
+  bniFxQuoteId: null as string | null,
+  bniRateMaxDeviationPct: '3.0000',
+  rateUnavailableReason: null as RateUnavailableReason | null,
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
+export type MockRateInfo = typeof RATE_INFO
+// D28 — jawaban FX-Get Rate BNI tiruan (contoh AC USDX-778), sama dengan mock MSW.
+const BNI_FX = MOCK_BNI_FX_OK
 // Mint OTC = beli → use the effective buy rate for the conversion + rateUsed.
-const RATE_USED = RATE_INFO.effectiveBuyRate
+const RATE_USED = RATE_INFO.effectiveBuyRate as string
 
 // USDX-207 + USDX-245: fee config (sot/api/fee.yaml). Full snapshot — W2
 // mint/PG tariffs + W3 redeem fee % + disbursement fee flat + minimum mint /
@@ -157,14 +169,14 @@ const MINT_MODE_PROD: {
   updatedAt: '2026-05-01T00:00:00.000Z',
 }
 const THRESHOLD = { id: 'thr_1', mode: 'IDR' as const, amount: '1000000000', updatedBy: ADMIN_STAFF.id, createdAt: '2026-05-01T00:00:00.000Z' }
-const DASHBOARD_STATS = {
+export const DASHBOARD_STATS = {
   totalSupply: '1000000.00',
   totalMinted: '1200000.00',
   totalBurned: '200000.00',
   pendingRequests: 2,
   requestsByStatus: { PENDING_APPROVAL: 2, APPROVED: 1, EXECUTED: 4, REJECTED: 1 },
   safeBalances: { staff: '750000.00', manager: '5250000.00' },
-  currentRate: '16250.00',
+  currentRate: '16250.00' as string | null,
 }
 
 const HEX64 = (c: string) => '0x' + c.repeat(64)
@@ -895,6 +907,17 @@ export interface MockApiOptions {
   routes?: Record<string, RouteOverride>
   /** USDX-631 — replace the seeded BNI account list (empty array = "belum dikonfigurasi"). */
   bniAccounts?: { accountNo: string; role: string; label: string }[]
+  /**
+   * USDX-778 — config kurs awal (digabung ke seed MANUAL), mis. mode BNI yang
+   * sudah aktif dengan kurs tidak tersedia.
+   */
+  rate?: Partial<MockRateInfo>
+  /**
+   * USDX-778 — FX-Get Rate BNI tidak tersedia dengan alasan ini: pindah KE mode
+   * BNI dijawab 422 RATE_SOURCE_UNAVAILABLE, simpan selama mode sudah BNI tetap
+   * 201 dengan field kurs null. Tanpa opsi = kurs BNI tersedia (`BNI_FX`).
+   */
+  bniFxUnavailable?: RateUnavailableReason
   /** USDX-692 — state of the statement COPY (defaults: recorded minutes ago, history since 2026-09-01, no gaps). */
   bniStatementCopy?: {
     recordedThrough?: string | null
@@ -942,7 +965,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
 
   // USDX-207: per-test mutable rate + fee config so POST is reflected by the
   // next GET (the FE invalidates and refetches after a successful update).
-  let liveRate = { ...RATE_INFO }
+  let liveRate: MockRateInfo = { ...RATE_INFO, ...opts.rate }
   let liveFee = { ...FEE_CONFIG }
   // USDX-639: mode mint PROD/UJI, mutable per test — POST harus terbaca oleh
   // GET berikutnya karena banner global membacanya dari query yang sama.
@@ -1015,10 +1038,33 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     // refetched GET shows the new spreads in the card.
     if (key === 'POST /api/v1/rate') {
       const b = body()
-      const base =
-        b.mode === 'MANUAL' && b.manualRate
+      const isBni = b.mode === 'BNI'
+      // D28-i: pindah KE BNI hanya bila kurs BNI bisa diambil; saat mode sudah BNI tidak dicek.
+      if (isBni && liveRate.mode !== 'BNI' && opts.bniFxUnavailable) {
+        return route.fulfill({
+          status: 422,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'error', metadata: null, data: null,
+            error: {
+              code: 'RATE_SOURCE_UNAVAILABLE',
+              message: 'Kurs BNI sedang tidak bisa diambil, mode BNI belum bisa dipilih',
+              details: { reason: opts.bniFxUnavailable },
+            },
+          }),
+        })
+      }
+      // D28-b: dasar per arah. BNI — beli = sellRate, jual = buyRate.
+      // Keluar dari BNI (atau dasar lama null) → kembali ke dasar seed.
+      const previousBase = liveRate.mode !== 'BNI' && liveRate.baseRate != null ? liveRate.baseRate : '16250.0000'
+      const base = isBni
+        ? Number.parseFloat(BNI_FX.sellRate)
+        : b.mode === 'MANUAL' && b.manualRate
           ? Number.parseFloat(b.manualRate)
-          : Number.parseFloat(liveRate.baseRate)
+          : Number.parseFloat(previousBase)
+      const sellBase = isBni ? Number.parseFloat(BNI_FX.buyRate) : base
+      const unavailable = isBni ? (opts.bniFxUnavailable ?? null) : null
+      const rateOrNull = (n: number) => (unavailable ? null : n.toFixed(4))
       const buy = Number.parseFloat(b.spreadBuyPct ?? '0') || 0
       const sell = Number.parseFloat(b.spreadSellPct ?? '0') || 0
       // Tidak dikirim = tidak diubah (backend USDX-749).
@@ -1040,18 +1086,27 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
       }
       const bniBuyRate = hasBni ? ((b.bniBuyRate as string | null) ?? null) : liveRate.bniBuyRate
       const bniBuyRateUpdatedAt = hasBni ? (bniBuyRate === null ? null : '2026-06-17T00:00:00.000Z') : liveRate.bniBuyRateUpdatedAt
+      const bniFx = isBni && !unavailable ? BNI_FX : null
       liveRate = {
-        baseRate: base.toFixed(4),
+        baseRate: rateOrNull(base),
+        baseSellRate: rateOrNull(sellBase),
         mode: b.mode,
         spreadBuyPct: b.spreadBuyPct ?? '0',
         spreadSellPct: b.spreadSellPct ?? '0',
-        effectiveBuyRate: (base * (1 + buy / 100)).toFixed(4),
-        effectiveSellRate: (base * (1 - sell / 100)).toFixed(4),
+        effectiveBuyRate: rateOrNull(base * (1 + buy / 100)),
+        effectiveSellRate: rateOrNull(sellBase * (1 - sell / 100)),
         gatewayMarkupPct: markupRaw,
-        gatewayBuyRate: (base * (1 + markup / 100)).toFixed(4),
+        gatewayBuyRate: rateOrNull(base * (1 + markup / 100)),
         bniBuyRate,
         bniBuyRateUpdatedAt,
         bniTransferBuyRate: bniBuyRate,
+        bniFxBuyRate: bniFx?.buyRate ?? null,
+        bniFxSellRate: bniFx?.sellRate ?? null,
+        bniFxFetchedAt: bniFx?.fetchedAt ?? null,
+        bniFxQuoteId: bniFx?.quoteId ?? null,
+        // Dihilangkan = X aktif dibawa (rate.yaml § UpdateRateConfig).
+        bniRateMaxDeviationPct: b.bniRateMaxDeviationPct ?? liveRate.bniRateMaxDeviationPct,
+        rateUnavailableReason: unavailable,
         updatedAt: '2026-06-17T00:00:00.000Z',
       }
       return envelope(route, { id: 'rate-live', updatedBy: ADMIN_STAFF.id, createdAt: liveRate.updatedAt, ...b }, 201)

@@ -78,6 +78,7 @@ import {
   createInitialRateHistory,
   createRateConfig,
   MOCK_DYNAMIC_BASE_RATE,
+  MOCK_BNI_FX_OK,
   computeRateInfo,
   createInitialOncallContacts,
   createOncallContact,
@@ -110,6 +111,7 @@ import {
   MANAGER_THRESHOLD_IDR,
   createInitialPaymentMethods,
 } from './data'
+import type { MockBniFx } from './data'
 
 // ─── Stores ───
 let customerStore: Customer[] = createMockCustomerList()
@@ -120,6 +122,8 @@ let otcRedeemStore: OtcRedeemTransaction[]
 let oncallStore: OncallContact[] = createInitialOncallContacts()
 ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
 let rateHistory: RateConfig[] = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+// D28 — jawaban FX-Get Rate BNI tiruan untuk mode kurs BNI (lihat configureBniFxForTests).
+let bniFxState: MockBniFx = MOCK_BNI_FX_OK
 let feeHistory: FeeConfig[] = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
 let mintModeState: MintModeConfig = createInitialMintMode(
   staffStore[0] ?? { id: 'seed', name: 'seed' }
@@ -223,6 +227,7 @@ export function resetMockData() {
   staffStore = createMockStaffList()
   ;({ mints: otcMintStore, redeems: otcRedeemStore } = createMockOtcTransactions(customerStore, staffStore))
   rateHistory = createInitialRateHistory(staffStore[0]?.id ?? 'seed')
+  bniFxState = MOCK_BNI_FX_OK
   feeHistory = createInitialFeeHistory(staffStore[0]?.id ?? 'seed')
   mintModeState = createInitialMintMode(staffStore[0] ?? { id: 'seed', name: 'seed' })
   reserveLedger = createInitialLedgerEntries()
@@ -280,6 +285,14 @@ function resolveMintMode(): MintModeConfig {
 // resetMockData(). Tidak dipakai kode runtime.
 export function configureMintModeForTests(next: MintModeConfig) {
   mintModeState = { ...next }
+}
+
+// USDX-778 — test helper: jawaban FX-Get Rate BNI untuk mode kurs BNI (D28).
+// `UNAVAILABLE` membuat GET /api/v1/rate menjawab field kurs null + alasannya
+// dan pindah KE mode BNI ditolak 422 RATE_SOURCE_UNAVAILABLE. Direset oleh
+// resetMockData(). Tidak dipakai kode runtime.
+export function configureBniFxForTests(next: MockBniFx) {
+  bniFxState = next
 }
 
 // USDX-631 — test helper: replace the "env-configured" BNI account list
@@ -1899,7 +1912,7 @@ export const handlers = [
     HttpResponse.json({
       status: 'success',
       metadata: null,
-      data: computeRateInfo(rateHistory),
+      data: computeRateInfo(rateHistory, bniFxState),
     })
   ),
 
@@ -1932,8 +1945,8 @@ export const handlers = [
       )
     }
 
-    if (body.mode !== 'MANUAL' && body.mode !== 'DYNAMIC') {
-      return rateBadRequest('mode must be MANUAL or DYNAMIC')
+    if (body.mode !== 'MANUAL' && body.mode !== 'DYNAMIC' && body.mode !== 'BNI') {
+      return rateBadRequest('mode must be MANUAL, DYNAMIC or BNI')
     }
     if (body.mode === 'MANUAL') {
       const n = Number(body.manualRate)
@@ -1952,10 +1965,38 @@ export const handlers = [
       }
     }
 
+    // D28 — X: desimal > 0, maks. 4 desimal (DTO backend USDX-777).
+    // Dihilangkan = X config aktif dibawa.
+    if (body.bniRateMaxDeviationPct != null) {
+      const raw = body.bniRateMaxDeviationPct
+      if (typeof raw !== 'string' || !/^\d{1,6}(\.\d{1,4})?$/.test(raw) || Number(raw) <= 0) {
+        return rateBadRequest('bniRateMaxDeviationPct must be a decimal number greater than 0')
+      }
+    }
+
+    const previous = rateHistory[rateHistory.length - 1]
+
+    // D28-i: pindah KE mode BNI (config aktif bukan BNI) hanya bila kurs BNI bisa
+    // diambil saat itu; selama mode sudah BNI request tidak dicek (pemulihan Q1).
+    if (body.mode === 'BNI' && previous?.mode !== 'BNI' && bniFxState.status === 'UNAVAILABLE') {
+      return HttpResponse.json(
+        {
+          status: 'error',
+          metadata: null,
+          data: null,
+          error: {
+            code: 'RATE_SOURCE_UNAVAILABLE',
+            message: 'Kurs BNI sedang tidak bisa diambil, mode BNI belum bisa dipilih',
+            details: { reason: bniFxState.reason },
+          },
+        },
+        { status: 422 }
+      )
+    }
+
     // `bniBuyRate` (rate.yaml § UpdateRateConfig): DIHILANGKAN = nilai + waktu
     // config aktif dibawa apa adanya; `null` = dikosongkan; diisi = wajib > 0
     // dan `bniBuyRateUpdatedAt` diisi sistem sekarang.
-    const previous = rateHistory[rateHistory.length - 1]
     let bniBuyRate: string | null = previous?.bniBuyRate ?? null
     let bniBuyRateUpdatedAt: string | null = previous?.bniBuyRateUpdatedAt ?? null
     if (Object.prototype.hasOwnProperty.call(body, 'bniBuyRate')) {
@@ -2000,6 +2041,7 @@ export const handlers = [
       gatewayMarkupPct: body.gatewayMarkupPct ?? previous?.gatewayMarkupPct ?? '0',
       bniBuyRate,
       bniBuyRateUpdatedAt,
+      bniRateMaxDeviationPct: body.bniRateMaxDeviationPct ?? previous?.bniRateMaxDeviationPct ?? '3.0000',
       updatedBy: operator.id,
       createdAt: new Date().toISOString(),
     })

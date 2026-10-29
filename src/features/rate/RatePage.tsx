@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { canManageRate } from '@/lib/types'
 import CurrentRateCard from './CurrentRateCard'
 import RateUpdateForm from './RateUpdateForm'
+import RateUnavailableBanner from './RateUnavailableBanner'
 import { useRate } from './hooks'
 
 export default function RatePage() {
@@ -29,6 +30,7 @@ export default function RatePage() {
       {/* Audit layout Pengaturan (11 Okt 2026): kartu "saat ini" + tombol ubah
           di kanan atas; form ubah di dialog, bukan kartu besar di sampingnya. */}
       <div className="space-y-4">
+        {rate.data && <RateUnavailableBanner data={rate.data} />}
         <CurrentRateCard
           data={rate.data}
           isLoading={rate.isLoading}

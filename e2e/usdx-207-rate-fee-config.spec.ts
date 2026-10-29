@@ -57,7 +57,8 @@ test.describe('USDX-207 rate + fee config @e2e', () => {
       })
       await page.getByRole('button', { name: 'Ubah kurs' }).click()
       await page.getByLabel(/kurs manual/i).fill('16250')
-      await expect(page.getByRole('textbox', { name: /kurs bni/i })).toHaveCount(0)
+      // `^`: isian X D28 ("Batas pergeseran kurs BNI", USDX-778) sah.
+      await expect(page.getByRole('textbox', { name: /^kurs bni/i })).toHaveCount(0)
       await page.getByRole('textbox', { name: /markup virtual account/i }).fill('2')
       await page.getByRole('button', { name: /tinjau dan ubah/i }).click()
       const dialog = page.getByRole('dialog', { name: /ubah kurs yang berlaku\?/i })
