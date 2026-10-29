@@ -201,7 +201,14 @@ function TokenCard() {
           <Rows>
             <Row label="Saldo Safe Staf" value={`${formatDecimalId(s.safeBalances.staff)} USDX`} />
             <Row label="Saldo Safe Manager" value={`${formatDecimalId(s.safeBalances.manager)} USDX`} />
-            <Row label="Kurs beli berlaku" hint="Per 1 USDX" value={formatIdrRate(s.currentRate)} />
+            {/* D28 (`dashboard.yaml`, §20.4): mode kurs BNI dan kurs tidak tersedia →
+                `currentRate = null`; angka lain di kartu ini tetap tampil. */}
+            <Row
+              label="Kurs beli berlaku"
+              hint={s.currentRate == null ? 'Kurs tidak tersedia' : 'Per 1 USDX'}
+              value={formatIdrRate(s.currentRate)}
+              testId="ringkasan-kurs"
+            />
           </Rows>
         </div>
       )}
