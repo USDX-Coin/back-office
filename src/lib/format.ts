@@ -417,9 +417,10 @@ export function bniAccountTypeLabel(code: string | null | undefined): string | n
   return BNI_ACCOUNT_TYPE_LABEL[code.trim().toUpperCase()] ?? code
 }
 
-/** Mode kurs dari server (`MANUAL` / `DYNAMIC`) → kata yang dibaca operator. */
+/** Mode kurs dari server (`MANUAL` / `DYNAMIC` / `BNI`) → kata yang dibaca operator. */
 export function rateModeLabel(mode: string): string {
   if (mode === 'MANUAL') return 'Manual'
   if (mode === 'DYNAMIC') return 'Otomatis (kurs pasar)'
+  if (mode === 'BNI') return 'Kurs BNI (FX-Get Rate)'
   return mode
 }

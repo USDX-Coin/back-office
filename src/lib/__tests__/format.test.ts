@@ -519,12 +519,23 @@ describe('bniAccountTypeLabel', () => {
 })
 
 describe('rateModeLabel', () => {
-  test('should spell the two rate modes as words', () => {
-    expect(rateModeLabel('MANUAL')).toBe('Manual')
-    expect(rateModeLabel('DYNAMIC')).toBe('Otomatis (kurs pasar)')
+  describe('positive', () => {
+    test('should spell the three rate modes as words', () => {
+      expect(rateModeLabel('MANUAL')).toBe('Manual')
+      expect(rateModeLabel('DYNAMIC')).toBe('Otomatis (kurs pasar)')
+      // D28 — label dari tiket USDX-778.
+      expect(rateModeLabel('BNI')).toBe('Kurs BNI (FX-Get Rate)')
+    })
   })
-  test('should return an unknown mode as-is', () => {
-    expect(rateModeLabel('X')).toBe('X')
+  describe('negative', () => {
+    test('should return an unknown mode as-is', () => {
+      expect(rateModeLabel('X')).toBe('X')
+    })
+  })
+  describe('edge cases', () => {
+    test('should not match a lowercase mode (server sends uppercase enum)', () => {
+      expect(rateModeLabel('bni')).toBe('bni')
+    })
   })
 })
 
