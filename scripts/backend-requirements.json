@@ -65,6 +65,13 @@
       "keterangan": "Field D25 `gatewayMarkupPct` + `bniBuyRate` di POST/GET /api/v1/rate (rate.yaml). Endpointnya sudah lama ada, jadi 401 dijawab entah field-nya didukung atau tidak. Server lama: kartu menampilkan '—' dan angka yang disimpan admin bisa dibuang diam-diam (atau ditolak 400 bila whitelist ketat). Konfirmasi manual bahwa USDX-749 sudah naik."
     },
     {
+      "rute": "/settings/rate — mode kurs BNI + batas pergeseran X (D28)",
+      "path": "/api/v1/rate",
+      "butuhBranch": "backend USDX-777 (backend#379, merged ke dev 1690ac6b)",
+      "probe": false,
+      "keterangan": "Mode `BNI`, `bniRateMaxDeviationPct`, `baseSellRate`, `bniFx*`, `rateUnavailableReason`, dan 422 RATE_SOURCE_UNAVAILABLE di GET/POST /api/v1/rate (rate.yaml D28). Endpointnya sudah lama ada, jadi 401 dijawab entah field-nya didukung atau tidak. Server lama: memilih mode BNI ditolak 400 (`@IsEnum` MANUAL|DYNAMIC) dan kartu menulis '—' untuk dasar jual. Konfirmasi manual bahwa USDX-777 sudah naik ke server yang dituju (dev: sudah; production: belum, ikut rilis backend)."
+    },
+    {
       "rute": "/settings/fee — PG fee VA/QRIS tidak lagi dikirim",
       "path": "/api/v1/fee-config",
       "butuhBranch": "backend USDX-749",
