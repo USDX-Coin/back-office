@@ -40,6 +40,7 @@ import type {
   StaffSummary,
   RateConfig,
   RateInfo,
+  RateUnavailableReason,
   FeeConfig,
   MintModeConfig,
   ReserveLedgerEntry,
@@ -402,6 +403,8 @@ export function createRateConfig(overrides: Partial<RateConfig> = {}): RateConfi
     // Kurs beli Transfer BNI (wondr); null = belum diisi.
     bniBuyRate: null,
     bniBuyRateUpdatedAt: null,
+    // D28 — X: `numeric(10,4)` di API, default 3 (rate.yaml § RateInfo).
+    bniRateMaxDeviationPct: '3.0000',
     updatedBy: 'seed',
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -433,7 +436,27 @@ export function createInitialRateHistory(seedStaffId: string): RateConfig[] {
 // unimportant for FE — what matters is that GET returns a stable shape.
 export const MOCK_DYNAMIC_BASE_RATE = 16_200
 
-export function computeRateInfo(history: RateConfig[]): RateInfo {
+/**
+ * D28 — tiruan jawaban FX-Get Rate BNI lewat bni-service (`bni-integration.md`
+ * §20). Angkanya contoh AC USDX-778: dasar beli = `sellRate` 18.140, dasar jual
+ * = `buyRate` 17.773. `unavailable` = kurs tidak tersedia dengan alasannya
+ * (bni-service gagal, ditolak pengaman, atau bentuk rusak).
+ */
+export type MockBniFx =
+  | { status: 'OK'; buyRate: string; sellRate: string; fetchedAt: string; quoteId: string }
+  | { status: 'UNAVAILABLE'; reason: RateUnavailableReason }
+
+export const MOCK_BNI_FX_OK: MockBniFx = {
+  status: 'OK',
+  buyRate: '17773.0000',
+  sellRate: '18140.0000',
+  fetchedAt: '2026-10-29T03:00:00.000Z',
+  quoteId: '0193a0b2-7c1d-7e2f-8a3b-4c5d6e7f8091',
+}
+
+const BNI_FX_NULLS = { bniFxBuyRate: null, bniFxSellRate: null, bniFxFetchedAt: null, bniFxQuoteId: null }
+
+export function computeRateInfo(history: RateConfig[], bniFx: MockBniFx = MOCK_BNI_FX_OK): RateInfo {
   const latest = history[history.length - 1]
   if (!latest) {
     return {
@@ -448,31 +471,63 @@ export function computeRateInfo(history: RateConfig[]): RateInfo {
       bniBuyRate: null,
       bniBuyRateUpdatedAt: null,
       bniTransferBuyRate: null,
+      ...BNI_FX_NULLS,
+      bniRateMaxDeviationPct: '3.0000',
+      rateUnavailableReason: null,
       updatedAt: new Date().toISOString(),
     }
   }
   const buy = Number(latest.spreadBuyPct) || 0
   const sell = Number(latest.spreadSellPct) || 0
   const markup = Number(latest.gatewayMarkupPct) || 0
-  const base =
-    latest.mode === 'MANUAL' && latest.manualRate
-      ? Number(latest.manualRate)
-      : MOCK_DYNAMIC_BASE_RATE
-  return {
-    baseRate: base.toFixed(2),
+  const settings = {
     mode: latest.mode,
     spreadBuyPct: latest.spreadBuyPct,
     spreadSellPct: latest.spreadSellPct,
-    // Beli: base × (1 + buy/100); Jual: base × (1 − sell/100).
-    effectiveBuyRate: (base * (1 + buy / 100)).toFixed(2),
-    effectiveSellRate: (base * (1 - sell / 100)).toFixed(2),
-    // D25: Virtual Account = dasar × (1 + Y/100); Transfer BNI = kurs BNI manual.
     gatewayMarkupPct: latest.gatewayMarkupPct ?? '0',
-    gatewayBuyRate: (base * (1 + markup / 100)).toFixed(2),
     bniBuyRate: latest.bniBuyRate ?? null,
     bniBuyRateUpdatedAt: latest.bniBuyRateUpdatedAt ?? null,
     bniTransferBuyRate: latest.bniBuyRate ?? null,
+    bniRateMaxDeviationPct: latest.bniRateMaxDeviationPct ?? '3.0000',
     updatedAt: latest.createdAt,
+  }
+  // D28 §20.4: desk GET tidak gagal saat kurs BNI tidak tersedia — field kurs
+  // null + alasannya, pengaturan tetap terbaca.
+  if (latest.mode === 'BNI' && bniFx.status === 'UNAVAILABLE') {
+    return {
+      ...settings,
+      baseRate: null,
+      baseSellRate: null,
+      effectiveBuyRate: null,
+      effectiveSellRate: null,
+      gatewayBuyRate: null,
+      ...BNI_FX_NULLS,
+      rateUnavailableReason: bniFx.reason,
+    }
+  }
+  // D28-b: dasar per arah. BNI — beli = `sellRate`, jual = `buyRate`;
+  // MANUAL/DYNAMIC — keduanya kurs dasar yang sama.
+  const bni = latest.mode === 'BNI' && bniFx.status === 'OK' ? bniFx : null
+  const baseBuy = bni
+    ? Number(bni.sellRate)
+    : latest.mode === 'MANUAL' && latest.manualRate
+      ? Number(latest.manualRate)
+      : MOCK_DYNAMIC_BASE_RATE
+  const baseSell = bni ? Number(bni.buyRate) : baseBuy
+  return {
+    ...settings,
+    baseRate: baseBuy.toFixed(2),
+    baseSellRate: baseSell.toFixed(2),
+    // Beli: dasar beli × (1 + buy/100); Jual: dasar jual × (1 − sell/100).
+    effectiveBuyRate: (baseBuy * (1 + buy / 100)).toFixed(2),
+    effectiveSellRate: (baseSell * (1 - sell / 100)).toFixed(2),
+    // D25: Virtual Account = dasar beli × (1 + Y/100).
+    gatewayBuyRate: (baseBuy * (1 + markup / 100)).toFixed(2),
+    bniFxBuyRate: bni?.buyRate ?? null,
+    bniFxSellRate: bni?.sellRate ?? null,
+    bniFxFetchedAt: bni?.fetchedAt ?? null,
+    bniFxQuoteId: bni?.quoteId ?? null,
+    rateUnavailableReason: null,
   }
 }
 

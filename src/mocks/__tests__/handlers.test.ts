@@ -4,6 +4,7 @@ import {
   handlers,
   resetMockData,
   clearActiveRequestsForTests,
+  configureBniFxForTests,
   flushSettlement,
   issueMockJwt,
   getDefaultStaff,
@@ -510,6 +511,91 @@ describe('KYB is served by the real backend, not by MSW', () => {
         .filter((path) => path.startsWith('/api/v1/kyc'))
 
       expect(kycPaths.length).toBeGreaterThan(0)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USDX-778 — mock /api/v1/rate mengikuti kontrak D28 (`sot/api/rate.yaml`,
+// `bni-integration.md` §20.4): mode BNI, dasar per arah, desk tidak gagal saat
+// kurs tidak tersedia, dan 422 RATE_SOURCE_UNAVAILABLE hanya saat transisi.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('rate mode BNI (D28)', () => {
+  function postRate(body: Record<string, unknown>) {
+    const staff = getDefaultStaff()! // super_admin → boleh mengatur kurs
+    document.cookie = `usdx_session=${issueMockJwt(staff)}; Path=/`
+    return fetch('/api/v1/rate', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+  async function getRate() {
+    return (await (await fetch('/api/v1/rate')).json()).data
+  }
+
+  describe('positive', () => {
+    test('switching to BNI returns per-direction bases + raw BNI numbers + X', async () => {
+      const res = await postRate({ mode: 'BNI', bniRateMaxDeviationPct: '3' })
+      expect(res.status).toBe(201)
+      const rate = await getRate()
+      expect(rate).toMatchObject({
+        mode: 'BNI',
+        baseRate: '18140.00',
+        baseSellRate: '17773.00',
+        bniFxBuyRate: '17773.0000',
+        bniFxSellRate: '18140.0000',
+        bniRateMaxDeviationPct: '3',
+        rateUnavailableReason: null,
+      })
+      expect(rate.bniFxFetchedAt).toBeTruthy()
+    })
+    test('MANUAL/DYNAMIC keep one base for both directions and no BNI numbers', async () => {
+      const rate = await getRate() // seed DYNAMIC
+      expect(rate.baseSellRate).toBe(rate.baseRate)
+      expect(rate.bniFxBuyRate).toBeNull()
+      expect(rate.rateUnavailableReason).toBeNull()
+    })
+  })
+
+  describe('negative', () => {
+    test('switching to BNI while the rate is unavailable → 422 with details.reason, config unchanged', async () => {
+      configureBniFxForTests({ status: 'UNAVAILABLE', reason: 'BNI_DEVIATION' })
+      const res = await postRate({ mode: 'BNI', bniRateMaxDeviationPct: '3' })
+      expect(res.status).toBe(422)
+      const body = await res.json()
+      expect(body.error).toMatchObject({ code: 'RATE_SOURCE_UNAVAILABLE', details: { reason: 'BNI_DEVIATION' } })
+      expect((await getRate()).mode).toBe('DYNAMIC')
+    })
+    test('X of 0 is rejected as a validation error', async () => {
+      const res = await postRate({ mode: 'DYNAMIC', bniRateMaxDeviationPct: '0' })
+      expect(res.status).toBe(400)
+    })
+  })
+
+  describe('edge cases', () => {
+    test('already in BNI: saving while unavailable is not checked; GET stays 200 with null rates', async () => {
+      await postRate({ mode: 'BNI' })
+      configureBniFxForTests({ status: 'UNAVAILABLE', reason: 'BNI_UNREACHABLE' })
+      const res = await postRate({ mode: 'BNI', bniRateMaxDeviationPct: '5' })
+      expect(res.status).toBe(201)
+      const rate = await getRate()
+      expect(rate).toMatchObject({
+        mode: 'BNI',
+        baseRate: null,
+        baseSellRate: null,
+        effectiveBuyRate: null,
+        effectiveSellRate: null,
+        gatewayBuyRate: null,
+        bniRateMaxDeviationPct: '5',
+        rateUnavailableReason: 'BNI_UNREACHABLE',
+      })
+    })
+    test('omitting X carries the active X', async () => {
+      await postRate({ mode: 'DYNAMIC', bniRateMaxDeviationPct: '4.5' })
+      await postRate({ mode: 'DYNAMIC' })
+      expect((await getRate()).bniRateMaxDeviationPct).toBe('4.5')
     })
   })
 })
