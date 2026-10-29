@@ -48,7 +48,7 @@ describe('RatePage @integration', () => {
 
       // RateInfo skeleton resolves to the seeded DYNAMIC config
       await waitFor(() => {
-        expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/kurs dasar beli/i)).toHaveTextContent(/IDR\/USD/)
       })
       // Mode dibaca sebagai kata, bukan enum mentah.
       expect(screen.getByText('Otomatis (kurs pasar)')).toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/kurs dasar/i)).toBeInTheDocument()
+        expect(screen.getByLabelText(/kurs dasar beli/i)).toBeInTheDocument()
       })
     })
   })
@@ -174,7 +174,7 @@ describe('RatePage @integration', () => {
       renderWithProviders(<RatePage />, { authenticated: true })
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/kurs dasar/i)).toHaveTextContent(/IDR\/USD/)
+        expect(screen.getByLabelText(/kurs dasar beli/i)).toHaveTextContent(/IDR\/USD/)
       })
       await openRateForm()
 
