@@ -145,6 +145,22 @@ describe('MintSwapIssuesPage @ USDX-792', () => {
       expect(within(m).queryByTestId('mint-swap-pending-unknown')).not.toBeInTheDocument()
     })
 
+    test('should hold RETRY and CLOSED while a SETTLED_MANUAL proposal is pending', async () => {
+      const user = userEvent.setup()
+      setup(`/swap-bermasalah/${BUDI}`)
+      const m = await modal()
+      await user.click(await within(m).findByRole('button', { name: 'Sudah ditukar manual' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Nyatakan sudah ditukar manual?' })
+      await user.type(within(dialog).getByLabelText(/Nomor referensi BNI/), 'FX-MANUAL-02')
+      await user.type(within(dialog).getByLabelText(/Dolar yang diterima/), '1000')
+      await user.type(within(dialog).getByLabelText(/^Alasan/), 'Treasury menukar di BNIdirect')
+      await user.click(within(dialog).getByRole('button', { name: 'Kirim usulan' }))
+      await waitFor(() => expect(within(m).getByTestId('mint-swap-pending-approval')).toHaveTextContent('aksi lain ditahan'))
+      // Dolar sudah dibeli di luar sistem: RETRY membeli lagi, CLOSED menggagalkan order yang dolarnya ada.
+      expect(within(m).queryByRole('button', { name: 'Coba lagi' })).not.toBeInTheDocument()
+      expect(within(m).queryByRole('button', { name: 'Tutup swap' })).not.toBeInTheDocument()
+    })
+
     test('should send ONE resolve request when the submit button is pressed twice', async () => {
       const user = userEvent.setup()
       let calls = 0

@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Info } from 'lucide-react'
 import RecordModal, { RecordStatus, type RecordModalNav } from '@/components/record-modal/RecordModal'
@@ -74,11 +74,21 @@ export default function MintSwapDetailModal({ swapId, open, onOpenChange, nav, r
     setChosen(null)
   }
 
-  // Selama antrean usulan belum terbaca, tombol tidak ditawarkan: RETRY / CLOSED di atas
-  // usulan "Sudah ditukar manual" yang menunggu bisa membuat dolar dibeli dua kali.
-  const actions =
-    detail && pending.known ? visibleMintSwapActions(detail.allowedActions, canResolve) : []
+  // Antrean usulan ditarik ulang tiap kali swap dibuka: usulan yang dibuat orang lain setelah
+  // cache terbaca tidak boleh terlewat.
+  const refetchPending = pending.refetch
+  useEffect(() => {
+    if (open) void refetchPending()
+  }, [open, swapId, refetchPending])
+
+  // Tombol hanya ditawarkan bila antrean usulan TERBACA dan tidak ada usulan "Sudah ditukar
+  // manual" yang menunggu. Treasury sudah menukar di luar sistem; RETRY / CLOSED di atasnya bisa
+  // membuat dolar dibeli dua kali atau order gagal padahal dolarnya ada.
   const pendingApprovalId = detail ? pending.bySwap.get(detail.id) : undefined
+  const actions =
+    detail && pending.known && !pendingApprovalId
+      ? visibleMintSwapActions(detail.allowedActions, canResolve)
+      : []
 
   return (
     <RecordModal
@@ -396,7 +406,7 @@ function StatusBox({
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               <strong>Menunggu persetujuan orang kedua.</strong> Usulan "Sudah ditukar manual" sudah tercatat. Swap tetap
-              di antrean sampai disetujui.{' '}
+              di antrean dan aksi lain ditahan sampai usulan itu diputuskan.{' '}
               <Link to={`/persetujuan/${pendingApprovalId}`} className="font-medium text-primary hover:underline">
                 Buka usulannya
               </Link>
