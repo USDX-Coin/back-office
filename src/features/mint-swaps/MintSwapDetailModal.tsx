@@ -74,7 +74,10 @@ export default function MintSwapDetailModal({ swapId, open, onOpenChange, nav, r
     setChosen(null)
   }
 
-  const actions = detail ? visibleMintSwapActions(detail.allowedActions, canResolve) : []
+  // Selama antrean usulan belum terbaca, tombol tidak ditawarkan: RETRY / CLOSED di atas
+  // usulan "Sudah ditukar manual" yang menunggu bisa membuat dolar dibeli dua kali.
+  const actions =
+    detail && pending.known ? visibleMintSwapActions(detail.allowedActions, canResolve) : []
   const pendingApprovalId = detail ? pending.bySwap.get(detail.id) : undefined
 
   return (
@@ -133,6 +136,9 @@ export default function MintSwapDetailModal({ swapId, open, onOpenChange, nav, r
               actions={actions}
               canResolve={canResolve}
               pendingApprovalId={pendingApprovalId}
+              pendingUnknown={!pending.known && detail.status === 'NEEDS_ACTION'}
+              pendingFailed={pending.isError}
+              onRetryPending={() => pending.refetch()}
             />
           </div>
 
@@ -351,11 +357,17 @@ function StatusBox({
   actions,
   canResolve,
   pendingApprovalId,
+  pendingUnknown,
+  pendingFailed,
+  onRetryPending,
 }: {
   detail: MintSwapDetail
   actions: MintSwapAction[]
   canResolve: boolean
   pendingApprovalId: string | undefined
+  pendingUnknown: boolean
+  pendingFailed: boolean
+  onRetryPending: () => void
 }) {
   const issue = mintSwapIssueLabel(detail.issueCode)
   const isQueue = detail.status === 'NEEDS_ACTION'
@@ -392,6 +404,21 @@ function StatusBox({
           </p>
         )}
 
+        {pendingUnknown && (
+          <div className="space-y-2" role={pendingFailed ? 'alert' : undefined} data-testid="mint-swap-pending-unknown">
+            <p className="text-sm text-muted-foreground">
+              {pendingFailed
+                ? 'Usulan "Sudah ditukar manual" yang menunggu persetujuan tidak bisa dimuat. Aksi disembunyikan sampai terbaca, supaya swap ini tidak diselesaikan dua kali.'
+                : 'Memeriksa usulan yang menunggu persetujuan…'}
+            </p>
+            {pendingFailed && (
+              <Button variant="outline" size="sm" onClick={onRetryPending}>
+                Muat ulang
+              </Button>
+            )}
+          </div>
+        )}
+
         {actions.length > 0 && (
           <ul className="space-y-1 text-sm" data-testid="mint-swap-action-reasons">
             {actions.map((a) => (
@@ -400,7 +427,7 @@ function StatusBox({
           </ul>
         )}
 
-        {isQueue && actions.length === 0 && !pendingApprovalId && (
+        {isQueue && actions.length === 0 && !pendingApprovalId && !pendingUnknown && (
           <p className="text-sm text-muted-foreground" data-testid="mint-swap-no-action">
             {canResolve
               ? 'Belum ada aksi yang sah sekarang — percobaan terakhir masih menunggu jawaban bank. Sistem terus menanyakan statusnya.'

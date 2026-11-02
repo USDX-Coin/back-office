@@ -65,6 +65,9 @@ export function useMintSwapDetail(id: string | null) {
  * Detail swap tidak membawa tanda "usulan menunggu" (kontrak diam), jadi dibaca
  * dari antrean Persetujuan Orang Kedua (`GET /api/v1/approvals`, semua peran):
  * `actionType = MINT_SWAP_SETTLED_MANUAL`, `status = PENDING`, `payload.mintSwapId`.
+ *
+ * `known = false` selama antrean itu belum terbaca (memuat ATAU gagal): `bySwap` kosong
+ * di situ BUKAN berarti "tidak ada usulan", jadi pemanggil tidak boleh menawarkan aksi.
  */
 export function usePendingSettledManual() {
   const q = useApprovals({ status: 'PENDING', actionType: 'MINT_SWAP_SETTLED_MANUAL', take: 100, page: 1 })
@@ -73,7 +76,7 @@ export function usePendingSettledManual() {
     const swapId = (a.payload as { mintSwapId?: unknown }).mintSwapId
     if (typeof swapId === 'string') bySwap.set(swapId, a.id)
   }
-  return { bySwap, isError: q.isError }
+  return { bySwap, known: q.isSuccess, isError: q.isError, refetch: q.refetch }
 }
 
 function invalidateAfterResolve(qc: ReturnType<typeof useQueryClient>) {

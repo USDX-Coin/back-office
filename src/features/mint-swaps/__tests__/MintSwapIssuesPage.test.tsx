@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 import MintSwapIssuesPage from '@/features/mint-swaps/MintSwapIssuesPage'
@@ -123,6 +123,53 @@ describe('MintSwapIssuesPage @ USDX-792', () => {
   })
 
   describe('negative', () => {
+    test('should hide every action while pending proposals cannot be read, then offer them after reload', async () => {
+      const user = userEvent.setup()
+      let fail = true
+      server.use(
+        http.get('/api/v1/approvals', () =>
+          fail ? HttpResponse.json({ status: 'error', error: { code: 'INTERNAL' } }, { status: 500 }) : undefined,
+        ),
+      )
+      setup(`/swap-bermasalah/${BUDI}`)
+      const m = await modal()
+      const notice = await within(m).findByTestId('mint-swap-pending-unknown')
+      expect(notice).toHaveTextContent('tidak bisa dimuat')
+      // RETRY / CLOSED di atas usulan manual yang mungkin menunggu = dolar bisa dibeli dua kali.
+      expect(within(m).queryByRole('button', { name: 'Coba lagi' })).not.toBeInTheDocument()
+      expect(within(m).queryByRole('button', { name: 'Tutup swap' })).not.toBeInTheDocument()
+      expect(within(m).queryByRole('button', { name: 'Sudah ditukar manual' })).not.toBeInTheDocument()
+      fail = false
+      await user.click(within(notice).getByRole('button', { name: 'Muat ulang' }))
+      expect(await within(m).findByRole('button', { name: 'Tutup swap' })).toBeInTheDocument()
+      expect(within(m).queryByTestId('mint-swap-pending-unknown')).not.toBeInTheDocument()
+    })
+
+    test('should send ONE resolve request when the submit button is pressed twice', async () => {
+      const user = userEvent.setup()
+      let calls = 0
+      server.events.on('request:start', ({ request }) => {
+        if (request.method === 'POST' && request.url.endsWith('/resolve')) calls++
+      })
+      // Jawaban server ditahan supaya klik kedua jatuh SAAT kiriman pertama masih berjalan.
+      server.use(
+        http.post('/api/v1/mint-swaps/:id/resolve', async () => {
+          await delay(300)
+          return undefined
+        }),
+      )
+      setup(`/swap-bermasalah/${BUDI}`)
+      const m = await modal()
+      await user.click(await within(m).findByRole('button', { name: 'Coba lagi' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Coba lagi swap ini?' })
+      await user.type(within(dialog).getByLabelText(/^Alasan/), 'Prefunding sudah diisi treasury')
+      const submit = within(dialog).getByRole('button', { name: 'Coba lagi' })
+      await user.click(submit)
+      await user.click(submit)
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Coba lagi swap ini?' })).not.toBeInTheDocument())
+      expect(calls).toBe(1)
+    })
+
     test('should render no action buttons for STAFF and say why', async () => {
       setup(`/swap-bermasalah/${BUDI}`, 'stf_4')
       const m = await modal()
