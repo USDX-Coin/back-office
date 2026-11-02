@@ -40,6 +40,7 @@ const ACTION_TYPES: ApprovalActionType[] = [
   'PAYOUT_CONTROLS_RELEASE',
   'HELD_CREDIT_RESOLVE',
   'PAYOUT_CONTROLS_LIMITS',
+  'MINT_SWAP_SETTLED_MANUAL',
 ]
 
 function asStatus(value: string): ApprovalStatus | undefined {

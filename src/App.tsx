@@ -43,6 +43,10 @@ import TransparencyPage from '@/features/transparency/TransparencyPage'
 import OncallContactsPage from '@/features/oncall/OncallContactsPage'
 import ManualSyncPage from '@/features/manual-sync/ManualSyncPage'
 import PaymentMethodsPage from '@/features/payment-methods/PaymentMethodsPage'
+import MintSwapsPage from '@/features/mint-swaps/MintSwapsPage'
+import MintSwapIssuesPage from '@/features/mint-swaps/MintSwapIssuesPage'
+import PgSettlementsPage from '@/features/pg-settlements/PgSettlementsPage'
+import PaymentGatewaySettingsPage from '@/features/pg-settlements/PaymentGatewaySettingsPage'
 import BniAccountsPage from '@/features/bni-accounts/BniAccountsPage'
 import DurianpayApiCallsPage from '@/features/durianpay-api-calls/DurianpayApiCallsPage'
 import ProfilePage from '@/features/profile/ProfilePage'
@@ -174,6 +178,17 @@ export const appRoutes: RouteObject[] = [
           // MANAGER/ADMIN di dalam layar dan ditegakkan 403 oleh backend.
           { path: '/payout-failures', element: <PayoutFailuresPage /> },
           { path: '/payout-failures/:id', element: <PayoutFailuresPage /> },
+          // D29 (USDX-792) — Swap IDR→USD, Swap Bermasalah, Pencairan PG, Settings →
+          // Payment Gateway. TANPA RoleGuard: `mint-swaps.yaml` / `pg-settlements.yaml`
+          // membuka GET untuk keempat peran; aksi (resolve, tautkan manual, ubah
+          // pengaturan) digerbangi MANAGER/ADMIN di dalam layar dan 403 di backend.
+          { path: '/swap-idr-usd', element: <MintSwapsPage /> },
+          { path: '/swap-idr-usd/:id', element: <MintSwapsPage /> },
+          { path: '/swap-bermasalah', element: <MintSwapIssuesPage /> },
+          { path: '/swap-bermasalah/:id', element: <MintSwapIssuesPage /> },
+          { path: '/pencairan-pg', element: <PgSettlementsPage /> },
+          { path: '/pencairan-pg/:id', element: <PgSettlementsPage /> },
+          { path: '/settings/payment-gateway', element: <PaymentGatewaySettingsPage /> },
           // USDX-342 — antrean Mint Bermasalah (kredit masuk yang tertahan,
           // `sot/bni-integration.md § 6`). TANPA RoleGuard, alasan yang sama
           // dengan /payout-failures: `HeldCreditsController` membuka list +

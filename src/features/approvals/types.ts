@@ -19,6 +19,8 @@ export type ApprovalActionType =
   | 'PAYOUT_CONTROLS_RELEASE'
   | 'HELD_CREDIT_RESOLVE'
   | 'PAYOUT_CONTROLS_LIMITS'
+  /** D29 (`bni-integration.md` § 21.6) — usulan "swap sudah ditukar manual", selalu empat mata. */
+  | 'MINT_SWAP_SETTLED_MANUAL'
 
 /**
  * PENDING → APPROVED | REJECTED | EXPIRED. Ketiganya terminal: tidak ada jalan

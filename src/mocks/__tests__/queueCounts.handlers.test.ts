@@ -48,6 +48,9 @@ describe('GET /api/v1/queue-counts', () => {
         transactionsNeedsAction: (
           (await (await fetch('/api/v1/transactions?take=1')).json()) as { metadata: { needsActionTotal: number } }
         ).metadata.needsActionTotal,
+        // D29 — predikat sama dengan list masing-masing.
+        mintSwapIssuesOpen: await listTotal('/api/v1/mint-swaps?status=NEEDS_ACTION'),
+        pgSettlementsMismatch: await listTotal('/api/v1/pg-settlements?status=MISMATCH'),
       })
       expect(body.data.payoutFailuresOpen).toBeGreaterThan(0)
       expect(body.data.redeemApprovalsOpen).toBeGreaterThan(0)
@@ -60,7 +63,9 @@ describe('GET /api/v1/queue-counts', () => {
       expect(Object.keys(body.data).sort()).toEqual([
         'approvalsOpen',
         'heldCreditsOpen',
+        'mintSwapIssuesOpen',
         'payoutFailuresOpen',
+        'pgSettlementsMismatch',
         'redeemApprovalsOpen',
         'transactionsNeedsAction',
       ])

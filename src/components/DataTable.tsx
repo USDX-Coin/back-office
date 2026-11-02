@@ -316,6 +316,7 @@ export default function DataTable<T>({
               <li
                 key={row.id}
                 data-hoverable=""
+                data-row-id={getRowId ? row.id : undefined}
                 role={clickable ? 'button' : undefined}
                 tabIndex={clickable ? 0 : undefined}
                 aria-label={clickable && rowAriaLabel ? rowAriaLabel(row.original) : undefined}
@@ -446,6 +447,7 @@ export default function DataTable<T>({
                     // yang menyala — baris skeleton, galat, dan keadaan kosong
                     // tidak menunjuk ke apa pun, jadi tidak ikut menyala.
                     data-hoverable=""
+                    data-row-id={getRowId ? row.id : undefined}
                     role={clickable ? 'button' : undefined}
                     tabIndex={clickable ? 0 : undefined}
                     aria-label={

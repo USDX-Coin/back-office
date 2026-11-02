@@ -68,6 +68,8 @@ function invalidateAfterDecision(qc: ReturnType<typeof useQueryClient>, id: stri
   // Usulan yang disetujui MENJALANKAN aksinya, jadi layar asal aksinya ikut basi.
   qc.invalidateQueries({ queryKey: ['held-credits'] })
   qc.invalidateQueries({ queryKey: ['payout-controls'] })
+  // D29 — menyetujui "sudah ditukar manual" mengubah status swap.
+  qc.invalidateQueries({ queryKey: ['mint-swaps'] })
   // …termasuk daftar order & Transaksi di balik kredit yang dituntaskan (rincian
   // order tidak disapu: usulan tidak membawa id order yang pasti, dan menyapu
   // semua rincian = jejak `pii_access_audit` palsu) dan badge sidebar (`QUEUE_COUNTS_KEY` ada di fan-out ini). Tanpa badge,

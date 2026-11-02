@@ -24,6 +24,8 @@ const HELD_REASON_LABELS: Record<string, string> = {
   // R5 (USDX-749): nama pengirim dibandingkan dengan nama KYC pemilik order.
   SENDER_NAME_MISMATCH: 'Nama pengirim berbeda dengan nama KYC pemilik order',
   SENDER_NAME_UNVERIFIABLE: 'Nama pengirim tidak bisa dicek ke nama KYC pemilik order',
+  // D29 § 21.7: kredit di rekening collection yang mungkin kaki USD sebuah swap IDR→USD.
+  FX_AMBIGUOUS: 'Mungkin dolar hasil swap IDR→USD, bukan transfer nasabah — sistem tidak menebak',
 }
 
 /** Nama pengirim yang ditampilkan: dari Notif, atau yang dibaca dari deskripsi mutasi (R5). */

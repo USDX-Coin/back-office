@@ -21,12 +21,16 @@ import {
   bniEnableNotice,
   formatFee,
   formatMaxAmount,
+  formatPgMdr,
   isFeeChanged,
+  isPgMdrChanged,
+  isPgMdrMissing,
   isLastOffered,
   normalizeFeeValue,
   paymentMethodLabel,
   validateFeeValue,
   validateMaxAmount,
+  validatePgMdr,
   validateReason,
 } from '@/lib/paymentMethods'
 import type { PaymentFeeType, PaymentMethod, UpdatePaymentMethodBody } from '@/lib/types'
@@ -178,6 +182,8 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
   const [feeType, setFeeType] = useState<string>(method.feeType)
   const [feeValue, setFeeValue] = useState(method.feeValue)
   const [maxAmount, setMaxAmount] = useState(method.maxAmountIdr ?? '')
+  const [mdrType, setMdrType] = useState<string>(method.pgMdrType ?? '')
+  const [mdrValue, setMdrValue] = useState(method.pgMdrValue ?? '')
   const [reason, setReason] = useState('')
   const [touched, setTouched] = useState(false)
   const isBni = method.code === BNI_TRANSFER_CODE
@@ -189,11 +195,16 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
   const currentMax = method.maxAmountIdr ?? null
   const maxChanged =
     max.value === null || currentMax === null ? max.value !== currentMax : Number(max.value) !== Number(currentMax)
-  const unchanged = !feeChanged && !maxChanged
+  const mdrError = validatePgMdr(method, mdrType, mdrValue)
+  // "Berubah" dinilai dari isian, sah atau tidak — isian tak sah harus bisa dikirim
+  // ke validasi (dan galatnya tampil), bukan diam-diam membuat tombol mati.
+  const mdrDirty = isPgMdrChanged(method, mdrType, mdrValue)
+  const mdrChanged = !mdrError && mdrDirty
+  const unchanged = !feeChanged && !maxChanged && !mdrDirty
 
   async function submit() {
     setTouched(true)
-    if (feeError || max.error || why.error || unchanged) return
+    if (feeError || max.error || mdrError || why.error || unchanged) return
     const body: UpdatePaymentMethodBody = { reason: why.value, expectedUpdatedAt: method.updatedAt }
     // `feeType` + `feeValue` selalu berpasangan (kontrak: salah satunya saja → 422).
     if (feeChanged) {
@@ -201,6 +212,11 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
       body.feeValue = normalizeFeeValue(feeType, feeValue)
     }
     if (maxChanged) body.maxAmountIdr = max.value
+    // D29 — `pgMdrType` + `pgMdrValue` berpasangan, hanya bila berubah.
+    if (mdrChanged) {
+      body.pgMdrType = mdrType as PaymentFeeType
+      body.pgMdrValue = normalizeFeeValue(mdrType, mdrValue)
+    }
     try {
       await update.mutateAsync({ id: method.id, body })
       toast.success(`Biaya ${paymentMethodLabel(method)} disimpan`)
@@ -232,6 +248,7 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
       <DataSection title="Sekarang">
         <DataField label="Biaya">{formatFee(method)}</DataField>
         <DataField label="Batas per transaksi">{formatMaxAmount(method.maxAmountIdr)}</DataField>
+        <DataField label="Tarif kontrak PG">{formatPgMdr(method) ?? 'Belum diisi'}</DataField>
       </DataSection>
       <div className="grid gap-x-4 gap-y-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
         <FormField label="Jenis biaya" htmlFor="pmFeeType">
@@ -261,6 +278,45 @@ export function EditPaymentMethodDialog({ method, onClose }: { method: PaymentMe
       >
         <Input id="pmMax" inputMode="decimal" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="tabular-nums" />
       </FormField>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Tarif kontrak PG</p>
+        <p className="text-xs text-muted-foreground">
+          Potongan Durianpay dari MAF per order — bukan biaya yang ditagih ke nasabah. Dipakai menghitung dana bersih dan
+          untung.
+        </p>
+        {isPgMdrMissing(method) && (
+          <p role="note" className="rounded-md border border-gold/40 bg-gold-soft/40 px-3 py-2 text-xs" data-testid="pm-mdr-missing">
+            Tarif kontrak belum diisi, padahal metode ini butuh swap IDR→USD — dana bersih dan untung ordernya tidak bisa
+            dihitung. Isi tarifnya di sini.
+          </p>
+        )}
+        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
+          <FormField label="Jenis tarif kontrak" htmlFor="pmMdrType">
+            <Select value={mdrType} onValueChange={setMdrType}>
+              <SelectTrigger id="pmMdrType">
+                <SelectValue placeholder="Pilih jenis" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FLAT_IDR">Rupiah tetap</SelectItem>
+                <SelectItem value="PERCENT">Persen</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField
+            label={mdrType === 'PERCENT' ? 'Tarif kontrak (%)' : 'Tarif kontrak (Rp)'}
+            htmlFor="pmMdrValue"
+            error={touched ? mdrError : null}
+          >
+            <Input
+              id="pmMdrValue"
+              inputMode="decimal"
+              value={mdrValue}
+              onChange={(e) => setMdrValue(e.target.value)}
+              className="tabular-nums"
+            />
+          </FormField>
+        </div>
+      </div>
       <ReasonField value={reason} onChange={setReason} error={touched ? why.error : null} />
       {touched && unchanged && <p className="text-sm text-muted-foreground">Belum ada yang diubah.</p>}
       {update.error != null && <ErrorNotice error={update.error} />}

@@ -1,7 +1,14 @@
 import type { ActivityLogEntry } from '@/features/activity-log/types'
 import type { ApprovalRequest } from '@/features/approvals/types'
 import type { HeldCreditDetail } from '@/features/held-credits/types'
-import type { PaymentMethod } from '@/lib/types'
+import type {
+  MintSwapAttempt,
+  MintSwapDetail,
+  MintSwapTimelineEvent,
+  PaymentMethod,
+  PgSettlementBatchDetail,
+  PgSettlementSettings,
+} from '@/lib/types'
 import type { PayoutControlChange, PayoutControls } from '@/features/payout-controls/types'
 import type {
   AmountCurrency,
@@ -3609,5 +3616,243 @@ export function createInitialPaymentMethods(): PaymentMethod[] {
     rows.push({ id: id(10 + i), code: `VA_${bank}_MOCK`, channel: 'VA', bank, provider: 'MOCK', enabled: true, sortOrder: 100 + i * 10, feeType: 'FLAT_IDR', feeValue: '4000.00', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
   })
   rows.push({ id: id(30), code: 'QRIS_MOCK', channel: 'QRIS', bank: null, provider: 'MOCK', enabled: true, sortOrder: 200, feeType: 'PERCENT', feeValue: '0.7000', available: false, unavailableReason: 'PROVIDER_NOT_CONFIGURED', maxAmountIdr: null, updatedBy: null, updatedByName: null, updatedAt: seedAt })
-  return rows
+  // D29 (`payment-methods.yaml`): seed `requiresFxSwap` = channel VA. Tarif kontrak
+  // hanya diisi untuk VA NOBU (contoh kontrak `"4000.00"`); sisanya belum diisi.
+  return rows.map((r) => ({
+    ...r,
+    requiresFxSwap: r.channel === 'VA',
+    pgMdrType: r.code === 'VA_NOBU_DURIANPAY_SNAP' ? 'FLAT_IDR' : null,
+    pgMdrValue: r.code === 'VA_NOBU_DURIANPAY_SNAP' ? '4000.00' : null,
+  }))
+}
+
+// ─── D29 — Swap IDR→USD + Pencairan PG (mint-swaps.yaml, pg-settlements.yaml) ──
+// Data tiruan untuk MSW (dev/Vitest). Nominal mengikuti contoh kontrak
+// (`18158140.00` → USD `1000.97`, kurs `18140.0000`). `allowedActions` DIHITUNG
+// handler dari percobaan terakhir + peran (cermin `mint-swap-actions.ts` backend).
+
+const swapId = (n: number) => `019f5d01-0792-7c31-9b2d-${String(n).padStart(12, '0')}`
+const orderId = (n: number) => `019f5d02-0792-7c31-9b2d-${String(n).padStart(12, '0')}`
+export const MOCK_PG_BATCH_MISMATCH_ID = '019f5d03-0792-7c31-9b2d-000000000001'
+export const MOCK_PG_BATCH_MATCHED_ID = '019f5d03-0792-7c31-9b2d-000000000002'
+export const MOCK_PG_BATCH_OPEN_ID = '019f5d03-0792-7c31-9b2d-000000000003'
+
+function attempt(
+  no: number,
+  orderNo: number,
+  sentAt: string,
+  outcome: MintSwapAttempt['outcome'],
+  extra: Partial<MintSwapAttempt> = {},
+): MintSwapAttempt {
+  return {
+    attemptNo: no,
+    requestKey: `5b2c9a1e-0792-5000-8000-${String(orderNo * 10 + no).padStart(12, '0')}`,
+    plannedIdr: '18158140.00',
+    rateQuoteId: `rq-${orderNo}-${no}`,
+    rateSell: '18140.0000',
+    sentAt,
+    outcome,
+    bniStatus: outcome === 'PENDING' ? null : outcome,
+    responseCode: null,
+    referenceNo: null,
+    creditedUsd: null,
+    finalAt: outcome === 'PENDING' || outcome === 'UNKNOWN' ? null : new Date(Date.parse(sentAt) + 2000).toISOString(),
+    ...extra,
+  }
+}
+
+function baseTimeline(n: number, createdAt: string, paidAt: string, queuedAt: string): MintSwapTimelineEvent[] {
+  return [
+    { at: createdAt, kind: 'ORDER_CREATED', summary: 'Order dibuat: 1000.000000 USDX, kurs 18200.00, tagihan Rp 18204000.00, biaya ke user Rp 4000.00', amountIdr: '18204000.00', amountUsd: '1000.000000', source: 'mint_orders' },
+    { at: new Date(Date.parse(createdAt) + 30_000).toISOString(), kind: 'VA_ISSUED', summary: 'VA NOBU diterbitkan', amountIdr: null, amountUsd: null, source: 'mint_orders' },
+    { at: paidAt, kind: 'PAID', summary: `User membayar Rp 18204000.00 (waktu Durianpay ${paidAt})`, amountIdr: '18204000.00', amountUsd: null, source: 'durianpay_notifications' },
+    { at: paidAt, kind: 'PG_FEE', summary: 'Biaya PG kontrak Rp 4000.00, dana bersih Rp 18200000.00', amountIdr: '18200000.00', amountUsd: null, source: 'mint_orders' },
+    { at: queuedAt, kind: 'SWAP_QUEUED', summary: `Swap masuk antrean (1000.000000 USDX, buffer 0.1000%) — order ${n}`, amountIdr: null, amountUsd: '1000.000000', source: 'mint_swaps' },
+  ]
+}
+
+function attemptEvents(attempts: MintSwapAttempt[]): MintSwapTimelineEvent[] {
+  return attempts.flatMap((a) => {
+    const sent: MintSwapTimelineEvent = {
+      at: a.sentAt,
+      kind: 'SWAP_ATTEMPT_SENT',
+      summary: a.plannedIdr ? `Percobaan ${a.attemptNo}: kurs ${a.rateSell}, Rp ${a.plannedIdr}, key ${a.requestKey}` : `Percobaan ${a.attemptNo}: kurs tidak tersedia`,
+      amountIdr: a.plannedIdr,
+      amountUsd: null,
+      source: 'mint_swap_attempts',
+    }
+    if (!a.finalAt) return [sent]
+    const text =
+      a.outcome === 'SUCCEEDED'
+        ? `Percobaan ${a.attemptNo} berhasil: Rp ${a.plannedIdr} → USD ${a.creditedUsd} (kode ${a.responseCode ?? '-'}, ref ${a.referenceNo ?? '-'})`
+        : a.outcome === 'NOT_SENT'
+          ? `Percobaan ${a.attemptNo} tidak terkirim ke bank`
+          : `Percobaan ${a.attemptNo} ditolak bank (kode ${a.responseCode ?? '-'})`
+    return [sent, { at: a.finalAt, kind: 'SWAP_ATTEMPT_FINAL', summary: text, amountIdr: a.plannedIdr, amountUsd: a.creditedUsd ?? null, source: 'mint_swap_attempts' }]
+  })
+}
+
+function swap(
+  n: number,
+  name: string,
+  minutesAgo: number,
+  status: string,
+  attempts: MintSwapAttempt[],
+  extra: Partial<MintSwapDetail> = {},
+  now = Date.now(),
+): MintSwapDetail {
+  const queuedAt = new Date(now - minutesAgo * 60_000).toISOString()
+  const createdAt = new Date(Date.parse(queuedAt) - 5 * 60_000).toISOString()
+  const paidAt = new Date(Date.parse(queuedAt) - 1000).toISOString()
+  const ok = attempts.find((a) => a.outcome === 'SUCCEEDED')
+  return {
+    id: swapId(n),
+    mintOrderId: orderId(n),
+    customerName: name,
+    status,
+    issueCode: null,
+    amountUsdx: '1000.000000',
+    plannedIdr: attempts.at(-1)?.plannedIdr ?? null,
+    creditedUsd: ok?.creditedUsd ?? null,
+    usdDifference: ok?.creditedUsd ? `${(Number(ok.creditedUsd) - 1000).toFixed(6)}` : null,
+    attemptCount: attempts.length,
+    queuedAt,
+    succeededAt: ok?.finalAt ?? null,
+    waitingSeconds: ok?.finalAt ? Math.floor((Date.parse(ok.finalAt) - Date.parse(queuedAt)) / 1000) : minutesAgo * 60,
+    issueReason: null,
+    bufferPct: '0.1000',
+    rateSellAtSwap: attempts.at(-1)?.rateSell ?? null,
+    effectiveRate: ok ? '18140.0000' : null,
+    bniReferenceNo: ok?.referenceNo ?? null,
+    order: {
+      lockedRate: '18200.00',
+      totalPayIdr: '18204000.00',
+      pgFeeIdr: '4000.00',
+      pgMdrIdr: '4000.00',
+      netReceivedIdr: '18200000.00',
+      paidAt,
+      paymentStatus: 'PAID',
+      status: 'WAITING_FOR_APPROVAL',
+      safeStatus: 'NONE',
+      onChainTxHash: null,
+    },
+    reconciliation: { idrDebitEntryId: null, usdCreditEntryId: null, statementReconciledAt: null },
+    pgSettlement: null,
+    profitIdr: null,
+    attempts,
+    reviews: [],
+    timeline: [...baseTimeline(n, createdAt, paidAt, queuedAt), ...attemptEvents(attempts)],
+    allowedActions: [],
+    ...extra,
+  }
+}
+
+export function createMockMintSwaps(now = Date.now()): Map<string, MintSwapDetail> {
+  const t = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString()
+  const rows: MintSwapDetail[] = [
+    swap(1, 'Budi Santoso', 95, 'NEEDS_ACTION', [
+      attempt(1, 1, t(94), 'FAILED', { responseCode: '4031714' }),
+      attempt(2, 1, t(80), 'FAILED', { responseCode: '4031714' }),
+      attempt(3, 1, t(65), 'FAILED', { responseCode: '4031714' }),
+    ], { issueCode: 'RETRY_EXHAUSTED', issueReason: 'Saldo prefunding NP IDR kurang (4031714) sampai batas 30 menit.' }, now),
+    swap(2, 'Siti Rahayu', 70, 'NEEDS_ACTION', [attempt(1, 2, t(69), 'FAILED', { responseCode: '4031715' })], {
+      issueCode: 'BANK_REJECTED',
+      issueReason: 'BNI menjawab 4031715 — transaksi tidak diizinkan.',
+    }, now),
+    swap(3, 'Andi Wijaya', 45, 'NEEDS_ACTION', [attempt(1, 3, t(44), 'UNKNOWN', { bniStatus: 'PENDING' })], {
+      issueCode: 'RESULT_PENDING',
+      issueReason: 'Status transfer belum pasti; sistem masih menanyakan BNI tiap 15 detik.',
+    }, now),
+    swap(4, 'Dewi Lestari', 40, 'NEEDS_ACTION', [attempt(1, 4, t(39), 'UNKNOWN', { bniStatus: 'NEEDS_REVIEW' })], {
+      issueCode: 'RESULT_PENDING',
+      issueReason: 'BNI menandai transfer untuk ditinjau manual (UNKNOWN > 24 jam di bank).',
+    }, now),
+    swap(5, 'Rudi Hartono', 60 * 26, 'SUCCEEDED', [
+      attempt(1, 5, t(60 * 26 - 1), 'SUCCEEDED', { responseCode: '2001700', referenceNo: 'BNI-FX-26103001', creditedUsd: '1000.97' }),
+    ], {
+      reconciliation: { idrDebitEntryId: 'stmt-np-0005', usdCreditEntryId: 'ledger-usd-0005', statementReconciledAt: t(60 * 25) },
+      pgSettlement: { batchId: MOCK_PG_BATCH_MATCHED_ID, businessDate: '2026-10-31', status: 'MATCHED' },
+      profitIdr: '41860.00',
+      order: { lockedRate: '18200.00', totalPayIdr: '18204000.00', pgFeeIdr: '4000.00', pgMdrIdr: '4000.00', netReceivedIdr: '18200000.00', paidAt: t(60 * 26 + 1), paymentStatus: 'PAID', status: 'COMPLETED', safeStatus: 'EXECUTED', onChainTxHash: `0x${'5a'.repeat(32)}` },
+    }, now),
+    swap(6, 'Lina Marlina', 30, 'SUCCEEDED', [
+      attempt(1, 6, t(29), 'SUCCEEDED', { responseCode: '2001700', referenceNo: 'BNI-FX-26110201', creditedUsd: '999.97' }),
+    ], { pgSettlement: { batchId: MOCK_PG_BATCH_OPEN_ID, businessDate: '2026-11-02', status: 'OPEN' } }, now),
+    swap(7, 'Hendra Gunawan', 1, 'QUEUED', [], {}, now),
+  ]
+  // Kejadian keputusan / mint untuk swap yang sudah berjalan sampai akhir.
+  const done = rows[4]!
+  done.timeline.push(
+    { at: t(60 * 26 - 2), kind: 'USD_CREDIT_RECONCILED', summary: 'Kredit USD 1000.97 tercatat di mutasi Giro USD', amountIdr: null, amountUsd: '1000.97', source: 'bni_notifications' },
+    { at: t(60 * 26 - 3), kind: 'MINT_PROPOSED', summary: 'Mint diajukan ke Safe', amountIdr: null, amountUsd: null, source: 'safe_transactions' },
+    { at: t(60 * 26 - 10), kind: 'MINT_EXECUTED', summary: `Mint dieksekusi on-chain 0x${'5a'.repeat(32)}`, amountIdr: null, amountUsd: '1000.000000', source: 'safe_transactions' },
+    { at: t(60 * 2), kind: 'PG_SETTLED', summary: 'Masuk batch pencairan PG 2026-10-31 (MATCHED)', amountIdr: null, amountUsd: null, source: 'pg_settlement_batches' },
+    { at: t(60 * 2), kind: 'PROFIT_FINAL', summary: 'Untung final Rp 41860.00', amountIdr: '41860.00', amountUsd: null, source: 'pg_settlement_batches' },
+  )
+  return new Map(rows.map((r) => [r.id, r]))
+}
+
+export function createMockPgSettlements(): Map<string, PgSettlementBatchDetail> {
+  const rows: PgSettlementBatchDetail[] = [
+    {
+      id: MOCK_PG_BATCH_MISMATCH_ID,
+      businessDate: '2026-11-01',
+      mode: 'NET',
+      orderCount: 3,
+      expectedIdr: '54600000.00',
+      creditedIdr: '54450000.00',
+      differenceIdr: '-150000.00',
+      status: 'MISMATCH',
+      matchedAt: null,
+      matchedByName: null,
+      orders: [1, 2, 3].map((n) => ({
+        mintOrderId: orderId(100 + n),
+        paidAt: `2026-11-01T0${n}:15:00.000Z`,
+        totalPayIdr: '18204000.00',
+        pgMdrIdr: '4000.00',
+        netReceivedIdr: '18200000.00',
+      })),
+      candidateCredits: [
+        { entryId: 'stmt-np-1101-a', bookedAt: '2026-11-02T02:10:00.000Z', amountIdr: '54450000.00', description: 'TRF DURIANPAY SETTLEMENT 20261101' },
+        { entryId: 'stmt-np-1101-b', bookedAt: '2026-11-02T03:40:00.000Z', amountIdr: '150000.00', description: 'DURIANPAY ADJ 20261101' },
+      ],
+    },
+    {
+      id: MOCK_PG_BATCH_MATCHED_ID,
+      businessDate: '2026-10-31',
+      mode: 'NET',
+      orderCount: 2,
+      expectedIdr: '36400000.00',
+      creditedIdr: '36400000.00',
+      differenceIdr: '0.00',
+      status: 'MATCHED',
+      matchedAt: '2026-11-01T02:05:00.000Z',
+      matchedByName: null,
+      orders: [
+        { mintOrderId: orderId(5), paidAt: '2026-10-31T04:00:00.000Z', totalPayIdr: '18204000.00', pgMdrIdr: '4000.00', netReceivedIdr: '18200000.00' },
+        { mintOrderId: orderId(201), paidAt: '2026-10-31T06:00:00.000Z', totalPayIdr: '18204000.00', pgMdrIdr: '4000.00', netReceivedIdr: '18200000.00' },
+      ],
+      candidateCredits: [],
+    },
+    {
+      id: MOCK_PG_BATCH_OPEN_ID,
+      businessDate: '2026-11-02',
+      mode: 'NET',
+      orderCount: 1,
+      expectedIdr: '18200000.00',
+      creditedIdr: null,
+      differenceIdr: null,
+      status: 'OPEN',
+      matchedAt: null,
+      matchedByName: null,
+      orders: [{ mintOrderId: orderId(6), paidAt: '2026-11-02T01:00:00.000Z', totalPayIdr: '18204000.00', pgMdrIdr: '4000.00', netReceivedIdr: '18200000.00' }],
+      candidateCredits: [],
+    },
+  ]
+  return new Map(rows.map((r) => [r.id, r]))
+}
+
+/** Baris tunggal `pg_settlement_settings` — default migrasi USDX-791 (§ 21.8): NET, `DURIANPAY`. */
+export function createInitialPgSettlementSettings(): PgSettlementSettings {
+  return { mode: 'NET', senderPattern: 'DURIANPAY', prefundingLowIdr: '200000000.00' }
 }

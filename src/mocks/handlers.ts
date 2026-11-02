@@ -54,6 +54,11 @@ import type {
   DurianpayApiCallDetail,
   DurianpayApiCallListItem,
   PayoutFailureDetail,
+  MintSwapDetail,
+  MintSwapListItem,
+  PgSettlementBatch,
+  PgSettlementBatchDetail,
+  PgSettlementSettings,
   PayoutFailureListItem,
   PayoutIssueKind,
   PayoutResolution,
@@ -62,7 +67,7 @@ import type {
   BackofficeTransactionItem,
   BackofficeTransactionAction,
 } from '@/lib/types'
-import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole, canReadDurianpayApiCallsRole } from '@/lib/types'
+import { canEnableMintTestMode, canRestoreMintProdMode, canManageRate, canManageFeeConfig, canManageTransparency, canManageOncallContacts, canDecideRedeemPayoutRole, canResolvePayoutFailureRole, canReadDurianpayApiCallsRole, canResolveMintSwapRole } from '@/lib/types'
 import {
   createKycReviewLog,
   createMockCustomerList,
@@ -108,6 +113,9 @@ import {
   createInitialRedeemApprovalControls,
   createMockDurianpayApiCalls,
   createMockPayoutFailures,
+  createMockMintSwaps,
+  createMockPgSettlements,
+  createInitialPgSettlementSettings,
   MANAGER_THRESHOLD_IDR,
   createInitialPaymentMethods,
 } from './data'
@@ -176,6 +184,11 @@ let redeemApprovalControls: RedeemApprovalControls = createInitialRedeemApproval
 // TIDAK masuk `INTEGRATION_PATHS`. Detail menyimpan `resolution` alih-alih membuang
 // baris — resolve kedua harus dijawab `409 ALREADY_RESOLVED`, bukan `404`.
 let payoutFailureStore: Map<string, PayoutFailureDetail> = createMockPayoutFailures()
+// D29 (USDX-792) — Swap IDR→USD + Pencairan PG + pengaturannya. mint-swaps sudah
+// di backend dev (masuk `INTEGRATION_PATHS`); pg-settlements* belum (USDX-791).
+let mintSwapStore: Map<string, MintSwapDetail> = createMockMintSwaps()
+let pgSettlementStore: Map<string, PgSettlementBatchDetail> = createMockPgSettlements()
+let pgSettlementSettings: PgSettlementSettings = createInitialPgSettlementSettings()
 // Cermin `payout_controls.payouts_enabled`; tabel kosong di server = HIDUP.
 let payoutsEnabled = true
 // ─── Empat layar yang hilang ───
@@ -247,6 +260,9 @@ export function resetMockData() {
   redeemApprovalDecisions = new Map()
   redeemApprovalControls = createInitialRedeemApprovalControls()
   payoutFailureStore = createMockPayoutFailures()
+  mintSwapStore = createMockMintSwaps()
+  pgSettlementStore = createMockPgSettlements()
+  pgSettlementSettings = createInitialPgSettlementSettings()
   payoutsEnabled = true
   durianpayApiCallStore = createMockDurianpayApiCalls()
   pendingTimers.forEach(clearTimeout)
@@ -1189,6 +1205,7 @@ const APPROVAL_ACTION_TYPES: string[] = [
   'PAYOUT_CONTROLS_RELEASE',
   'HELD_CREDIT_RESOLVE',
   'PAYOUT_CONTROLS_LIMITS',
+  'MINT_SWAP_SETTLED_MANUAL',
 ]
 
 /** Ambang maker-checker, konstanta di kode backend (`approvals.types.ts`). */
@@ -1349,6 +1366,29 @@ function applyHeldCreditResolve(
  * mengundang eksekusi kedua atas aksi yang mungkin sudah separuh berjalan.
  */
 function runApprovedAction(approval: ApprovalRequest): string | null {
+  if (approval.actionType === 'MINT_SWAP_SETTLED_MANUAL') {
+    const payload = approval.payload as { mintSwapId?: unknown; reason?: unknown; externalRef?: unknown; creditedUsd?: unknown }
+    const sw = typeof payload.mintSwapId === 'string' ? mintSwapStore.get(payload.mintSwapId) : undefined
+    if (!sw) return 'MINT_SWAP_NOT_FOUND'
+    if (sw.status !== 'NEEDS_ACTION') return 'ALREADY_RESOLVED'
+    const now = new Date().toISOString()
+    const proposer = findStaffById(approval.proposerStaffId)
+    sw.status = 'SETTLED_MANUAL'
+    sw.creditedUsd = String(payload.creditedUsd)
+    sw.reviews = [
+      ...(sw.reviews ?? []),
+      {
+        action: 'SETTLED_MANUAL',
+        reason: String(payload.reason ?? ''),
+        externalRef: String(payload.externalRef ?? ''),
+        approvalRequestId: approval.id,
+        actorStaffName: proposer?.name ?? '',
+        createdAt: now,
+      },
+    ]
+    sw.timeline = [...sw.timeline, { at: now, kind: 'OPS_DECISION', summary: `Keputusan ops SETTLED_MANUAL oleh ${proposer?.name ?? '?'}: ${String(payload.reason ?? '')}`, amountIdr: null, amountUsd: null, source: 'mint_swap_reviews' }]
+    return null
+  }
   if (approval.actionType === 'HELD_CREDIT_RESOLVE') {
     const payload = approval.payload as {
       creditId?: unknown
@@ -1489,6 +1529,62 @@ function decideApproval(
     : { ...decided, executedAt: new Date().toISOString(), executionError: null }
   approvalStore.set(id, executed)
   return HttpResponse.json({ status: 'success', metadata: null, data: executed })
+}
+
+// ─── D29 — Swap IDR→USD (mint-swaps.yaml) + Pencairan PG (pg-settlements.yaml) ──
+
+function d29Error(status: number, code: string, message: string) {
+  return HttpResponse.json({ status: 'error', metadata: null, data: null, error: { code, message } }, { status })
+}
+
+/** Cermin `mint-swap-actions.ts` backend: aksi sah dari percobaan terakhir + peran. */
+function mintSwapAllowedActions(sw: MintSwapDetail, role: string | null): string[] {
+  if (sw.status !== 'NEEDS_ACTION') return []
+  const last = [...sw.attempts].sort((a, b) => a.attemptNo - b.attemptNo).at(-1)
+  const final = !last || (last.outcome !== 'PENDING' && last.outcome !== 'UNKNOWN')
+  const settledPending = [...approvalStore.values()].some(
+    (a) => a.actionType === 'MINT_SWAP_SETTLED_MANUAL' && a.status === 'PENDING' && (a.payload as { mintSwapId?: unknown }).mintSwapId === sw.id,
+  )
+  const ok: string[] = []
+  if (!last || last.outcome === 'FAILED' || last.outcome === 'NOT_SENT') ok.push('RETRY')
+  if (!settledPending && (final || last?.bniStatus === 'NEEDS_REVIEW')) ok.push('SETTLED_MANUAL')
+  if (final) ok.push('CLOSED')
+  // Tanpa sesi tiruan (browser dev) dianggap berwenang — gerbang ditegakkan saat sesi terbaca.
+  if (role !== null && !canResolveMintSwapRole(role as Staff['role'])) return []
+  return ok
+}
+
+function toMintSwapListItem(sw: MintSwapDetail): MintSwapListItem {
+  return {
+    id: sw.id,
+    mintOrderId: sw.mintOrderId,
+    customerName: sw.customerName,
+    status: sw.status,
+    issueCode: sw.issueCode,
+    amountUsdx: sw.amountUsdx,
+    plannedIdr: sw.plannedIdr,
+    creditedUsd: sw.creditedUsd,
+    usdDifference: sw.usdDifference,
+    attemptCount: sw.attemptCount,
+    queuedAt: sw.queuedAt,
+    succeededAt: sw.succeededAt,
+    waitingSeconds: sw.waitingSeconds,
+  }
+}
+
+function toPgBatch(b: PgSettlementBatchDetail): PgSettlementBatch {
+  return {
+    id: b.id,
+    businessDate: b.businessDate,
+    mode: b.mode,
+    orderCount: b.orderCount,
+    expectedIdr: b.expectedIdr,
+    creditedIdr: b.creditedIdr,
+    differenceIdr: b.differenceIdr,
+    status: b.status,
+    matchedAt: b.matchedAt,
+    matchedByName: b.matchedByName,
+  }
 }
 
 export const handlers = [
@@ -3579,7 +3675,7 @@ export const handlers = [
       return paymentMethodError(422, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
     }
     const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k)
-    if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr'].some(has)) {
+    if (!['enabled', 'sortOrder', 'feeType', 'feeValue', 'maxAmountIdr', 'pgMdrType', 'pgMdrValue'].some(has)) {
       return paymentMethodError(422, 'VALIDATION_ERROR', 'at least one of enabled, sortOrder, feeType+feeValue, maxAmountIdr is required')
     }
     if (has('feeType') !== has('feeValue')) {
@@ -3597,6 +3693,17 @@ export const handlers = [
       if (ft !== 'FLAT_IDR' && ft !== 'PERCENT') return paymentMethodError(422, 'VALIDATION_ERROR', 'feeType must be FLAT_IDR or PERCENT')
       const ok = ft === 'FLAT_IDR' ? /^\d+(\.\d{1,2})?$/.test(fv) : /^\d+(\.\d{1,4})?$/.test(fv) && Number(fv) <= 100
       if (!ok) return paymentMethodError(422, 'VALIDATION_ERROR', 'feeValue is invalid for feeType')
+    }
+    // D29 — tarif kontrak PG, berpasangan, format sama dengan feeValue.
+    if (has('pgMdrType') !== has('pgMdrValue')) {
+      return paymentMethodError(422, 'VALIDATION_ERROR', 'pgMdrType and pgMdrValue must be sent together')
+    }
+    if (has('pgMdrType')) {
+      const mt = body.pgMdrType
+      const mv = typeof body.pgMdrValue === 'string' ? body.pgMdrValue : ''
+      if (mt !== 'FLAT_IDR' && mt !== 'PERCENT') return paymentMethodError(422, 'VALIDATION_ERROR', 'pgMdrType must be FLAT_IDR or PERCENT')
+      const ok = mt === 'FLAT_IDR' ? /^\d+(\.\d{1,2})?$/.test(mv) : /^\d+(\.\d{1,4})?$/.test(mv) && Number(mv) <= 100
+      if (!ok) return paymentMethodError(422, 'VALIDATION_ERROR', 'pgMdrValue is invalid for pgMdrType')
     }
     const isBniTransfer = row.code === 'BANK_TRANSFER_BNI_BNI'
     if (has('maxAmountIdr')) {
@@ -3626,6 +3733,10 @@ export const handlers = [
       row.feeValue = String(body.feeValue)
     }
     if (has('maxAmountIdr')) row.maxAmountIdr = (body.maxAmountIdr as string | null)
+    if (has('pgMdrType')) {
+      row.pgMdrType = body.pgMdrType as PaymentMethod['pgMdrType']
+      row.pgMdrValue = String(body.pgMdrValue)
+    }
     row.updatedAt = new Date().toISOString()
     row.updatedBy = staff?.id ?? null
     row.updatedByName = staff?.name ?? null
@@ -3671,6 +3782,174 @@ export const handlers = [
     return HttpResponse.json({ status: 'success', metadata: null, data: sortedPaymentMethods() })
   }),
 
+  // ─── D29 — Swap IDR→USD (sot/api/mint-swaps.yaml) ───
+  http.get('/api/v1/mint-swaps', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const status = url.searchParams.get('status')
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const wibDay = (iso: string) => new Date(Date.parse(iso) + 7 * 3_600_000).toISOString().slice(0, 10)
+    const rows = [...mintSwapStore.values()]
+      .filter((sw) => !status || sw.status === status)
+      .filter((sw) => !from || wibDay(sw.queuedAt) >= from)
+      .filter((sw) => !to || wibDay(sw.queuedAt) <= to)
+      // Antrean NEEDS_ACTION: terlama dulu; selain itu terbaru dulu (kontrak § list).
+      .sort((a, b) => (status === 'NEEDS_ACTION' ? a.queuedAt.localeCompare(b.queuedAt) : b.queuedAt.localeCompare(a.queuedAt)))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toMintSwapListItem),
+    })
+  }),
+
+  http.get('/api/v1/mint-swaps/:id', ({ request, params }) => {
+    const sw = mintSwapStore.get(String(params.id))
+    if (!sw) return d29Error(404, 'NOT_FOUND', 'MINT_SWAP_NOT_FOUND')
+    const staff = authenticatedStaff(request)
+    return HttpResponse.json({
+      status: 'success',
+      metadata: null,
+      data: { ...sw, allowedActions: mintSwapAllowedActions(sw, staff?.role ?? null) },
+    })
+  }),
+
+  http.post('/api/v1/mint-swaps/:id/resolve', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolveMintSwapRole(staff.role)) return d29Error(403, 'FORBIDDEN', 'FORBIDDEN')
+    let body: { action?: unknown; reason?: unknown; externalRef?: unknown; creditedUsd?: unknown }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return d29Error(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.replace(/\s/g, '').length < 10 || reason.length > 500) {
+      return d29Error(400, 'VALIDATION_ERROR', 'reason wajib berisi minimal 10 karakter selain spasi')
+    }
+    const action = body.action
+    if (action !== 'RETRY' && action !== 'SETTLED_MANUAL' && action !== 'CLOSED') {
+      return d29Error(400, 'BAD_REQUEST', 'action must be one of RETRY, SETTLED_MANUAL, CLOSED')
+    }
+    const sw = mintSwapStore.get(String(params.id))
+    if (!sw) return d29Error(404, 'NOT_FOUND', 'MINT_SWAP_NOT_FOUND')
+    // Bentuk galat filter Nest: nama kode di `message`, `code` dari status HTTP.
+    if (sw.status !== 'NEEDS_ACTION') return d29Error(409, 'CONFLICT', 'ALREADY_RESOLVED')
+    const now = new Date().toISOString()
+    if (action === 'SETTLED_MANUAL') {
+      if (typeof body.externalRef !== 'string' || !body.externalRef.trim()) return d29Error(400, 'BAD_REQUEST', 'EXTERNAL_REF_REQUIRED')
+      if (typeof body.creditedUsd !== 'string' || !/^\d{1,12}\.\d{2}$/.test(body.creditedUsd)) {
+        return d29Error(400, 'BAD_REQUEST', 'CREDITED_USD_REQUIRED')
+      }
+      const pendingExists = [...approvalStore.values()].some(
+        (a) => a.actionType === 'MINT_SWAP_SETTLED_MANUAL' && a.status === 'PENDING' && (a.payload as { mintSwapId?: unknown }).mintSwapId === sw.id,
+      )
+      if (pendingExists) return d29Error(409, 'CONFLICT', 'APPROVAL_ALREADY_PENDING')
+      if (!mintSwapAllowedActions(sw, null).includes('SETTLED_MANUAL')) return d29Error(409, 'CONFLICT', 'ACTION_NOT_ALLOWED')
+      const approval = createApproval({
+        actionType: 'MINT_SWAP_SETTLED_MANUAL',
+        payload: { mintSwapId: sw.id, reason, externalRef: body.externalRef.trim(), creditedUsd: body.creditedUsd },
+        amountIdr: sw.plannedIdr ?? null,
+        proposerStaffId: staff?.id ?? getDefaultStaff()?.id ?? 'stf_1',
+      })
+      return HttpResponse.json({ status: 'success', metadata: null, data: { approvalRequestId: approval.id } }, { status: 202 })
+    }
+    if (!mintSwapAllowedActions(sw, null).includes(action)) return d29Error(409, 'CONFLICT', 'ACTION_NOT_ALLOWED')
+    sw.status = action === 'RETRY' ? 'QUEUED' : 'CLOSED'
+    if (action === 'CLOSED') sw.order = { ...sw.order, status: 'FAILED' }
+    sw.reviews = [
+      ...(sw.reviews ?? []),
+      { action, reason, externalRef: null, approvalRequestId: null, actorStaffName: staff?.name ?? '', createdAt: now },
+    ]
+    sw.timeline = [...sw.timeline, { at: now, kind: 'OPS_DECISION', summary: `Keputusan ops ${action} oleh ${staff?.name ?? '?'}: ${reason}`, amountIdr: null, amountUsd: null, source: 'mint_swap_reviews' }]
+    return HttpResponse.json({ status: 'success', metadata: null, data: toMintSwapListItem(sw) })
+  }),
+
+  // ─── D29 — Pencairan PG (sot/api/pg-settlements.yaml) — backend USDX-791 belum ada ───
+  http.get('/api/v1/pg-settlements', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
+    const take = Math.min(100, Math.max(1, Number(url.searchParams.get('take') || '20')))
+    const status = url.searchParams.get('status')
+    const rows = [...pgSettlementStore.values()]
+      .filter((b) => !status || b.status === status)
+      .sort((a, b) => b.businessDate.localeCompare(a.businessDate))
+    const start = (page - 1) * take
+    return HttpResponse.json({
+      status: 'success',
+      metadata: { page, limit: take, total: rows.length },
+      data: rows.slice(start, start + take).map(toPgBatch),
+    })
+  }),
+
+  http.get('/api/v1/pg-settlements/:id', ({ params }) => {
+    const b = pgSettlementStore.get(String(params.id))
+    if (!b) return d29Error(404, 'NOT_FOUND', 'PG_SETTLEMENT_NOT_FOUND')
+    return HttpResponse.json({ status: 'success', metadata: null, data: b })
+  }),
+
+  http.post('/api/v1/pg-settlements/:id/match-manual', async ({ request, params }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolveMintSwapRole(staff.role)) return d29Error(403, 'FORBIDDEN', 'FORBIDDEN')
+    let body: { creditEntryId?: unknown; reason?: unknown }
+    try {
+      body = (await request.json()) as typeof body
+    } catch {
+      return d29Error(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    if (reason.length < 10 || reason.length > 500 || typeof body.creditEntryId !== 'string') {
+      return d29Error(400, 'BAD_REQUEST', 'reason must be longer than or equal to 10 characters')
+    }
+    const b = pgSettlementStore.get(String(params.id))
+    if (!b) return d29Error(404, 'NOT_FOUND', 'PG_SETTLEMENT_NOT_FOUND')
+    if (b.status !== 'MISMATCH') return d29Error(409, 'CONFLICT', 'BATCH_NOT_MISMATCH')
+    const credit = (b.candidateCredits ?? []).find((c) => c.entryId === body.creditEntryId)
+    if (!credit) return d29Error(409, 'CONFLICT', 'CREDIT_ALREADY_LINKED')
+    const diff = (Number(credit.amountIdr) - Number(b.expectedIdr)).toFixed(2)
+    Object.assign(b, {
+      status: 'MATCHED_MANUAL',
+      creditedIdr: credit.amountIdr,
+      differenceIdr: diff,
+      matchedAt: new Date().toISOString(),
+      matchedByName: staff?.name ?? getDefaultStaff()?.name ?? null,
+      candidateCredits: [],
+    })
+    return HttpResponse.json({ status: 'success', metadata: null, data: toPgBatch(b) })
+  }),
+
+  http.get('/api/v1/pg-settlement-settings', () =>
+    HttpResponse.json({ status: 'success', metadata: null, data: pgSettlementSettings }),
+  ),
+
+  http.put('/api/v1/pg-settlement-settings', async ({ request }) => {
+    const staff = authenticatedStaff(request)
+    if (staff && !canResolveMintSwapRole(staff.role)) return d29Error(403, 'FORBIDDEN', 'FORBIDDEN')
+    let body: Record<string, unknown>
+    try {
+      body = (await request.json()) as Record<string, unknown>
+    } catch {
+      return d29Error(400, 'BAD_REQUEST', 'Invalid JSON body')
+    }
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+    const pattern = typeof body.senderPattern === 'string' ? body.senderPattern : ''
+    const low = body.prefundingLowIdr
+    if (
+      (body.mode !== 'NET' && body.mode !== 'GROSS') ||
+      !pattern.trim() ||
+      pattern.length > 200 ||
+      !(low === null || (typeof low === 'string' && /^\d+(\.\d{1,2})?$/.test(low))) ||
+      reason.length < 10 ||
+      reason.length > 500
+    ) {
+      return d29Error(400, 'BAD_REQUEST', 'Invalid pg settlement settings')
+    }
+    pgSettlementSettings = { mode: body.mode, senderPattern: pattern, prefundingLowIdr: low as string | null }
+    return HttpResponse.json({ status: 'success', metadata: null, data: pgSettlementSettings })
+  }),
+
   // ─── USDX-678 — Hitungan antrean untuk badge (sot/api/queue-counts.yaml) ───
   // MSW-served sampai api-dev menyajikan USDX-676 (13 Sep 2026: 404). Tiap angka
   // dihitung dari predikat YANG SAMA dengan `metadata.total` list tiruannya — badge
@@ -3709,6 +3988,9 @@ export const handlers = [
         approvalsOpen,
         // ⚠️ DRAF SOT PR #50 — per BARIS, dari predikat yang sama dengan list.
         transactionsNeedsAction: buildBackofficeTransactions().rows.filter((r) => r.needsAction).length,
+        // D29 — predikat sama dengan list (`mint-swaps.yaml`, `pg-settlements.yaml`).
+        mintSwapIssuesOpen: [...mintSwapStore.values()].filter((sw) => sw.status === 'NEEDS_ACTION').length,
+        pgSettlementsMismatch: [...pgSettlementStore.values()].filter((b) => b.status === 'MISMATCH').length,
       },
     })
   }),

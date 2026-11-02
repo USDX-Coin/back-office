@@ -12,7 +12,9 @@ import { formatDateTime } from '@/lib/format'
 import {
   formatFee,
   formatMaxAmount,
+  formatPgMdr,
   isOffered,
+  isPgMdrMissing,
   paymentMethodLabel,
   providerLabel,
   unavailableReasonLabel,
@@ -130,6 +132,12 @@ export default function PaymentMethodsPage() {
                         di `title` untuk dikutip ke tim teknis. */}
                     <p className="mt-0.5 text-xs text-muted-foreground" title={m.code}>
                       {providerLabel(m.provider)}
+                      {m.requiresFxSwap !== undefined && (
+                        <span data-testid={`pm-swap-${m.code}`}>
+                          {' · '}
+                          {m.requiresFxSwap ? 'Butuh swap IDR→USD sebelum mint' : 'Tanpa swap IDR→USD'}
+                        </span>
+                      )}
                     </p>
                     {!m.available && reason && (
                       <p className="mt-1 text-xs text-gold-foreground" title={m.unavailableReason ?? undefined}>
@@ -142,6 +150,15 @@ export default function PaymentMethodsPage() {
                     <dd className="tabular-nums">{formatFee(m)}</dd>
                     <dt className="text-xs text-muted-foreground md:mt-1">Batas per transaksi</dt>
                     <dd className="tabular-nums">{formatMaxAmount(m.maxAmountIdr)}</dd>
+                    {/* D29 § 21.2 — tarif KONTRAK PG (potongan Durianpay), bukan biaya ke nasabah. */}
+                    <dt className="text-xs text-muted-foreground md:mt-1">Tarif kontrak PG</dt>
+                    <dd className="tabular-nums" data-testid={`pm-mdr-${m.code}`}>
+                      {formatPgMdr(m) ?? (
+                        <span className={isPgMdrMissing(m) ? 'text-destructive' : 'text-muted-foreground'}>
+                          {isPgMdrMissing(m) ? 'Belum diisi — wajib' : 'Belum diisi'}
+                        </span>
+                      )}
+                    </dd>
                   </dl>
                   <p className="text-xs text-muted-foreground">
                     {m.updatedByName ? `Diubah ${m.updatedByName}` : 'Belum pernah diubah'}

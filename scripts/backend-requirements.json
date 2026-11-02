@@ -77,6 +77,31 @@
       "butuhBranch": "backend USDX-749",
       "probe": false,
       "keterangan": "fee.yaml rev-16: `pgFeeVaFlat`/`pgFeeQrisPct` opsional (deprecated). Form tidak mengirimnya lagi. Server lama mewajibkannya → SETIAP simpan biaya dijawab 422. Konfirmasi manual bahwa USDX-749 sudah naik."
+    },
+    {
+      "rute": "/swap-idr-usd + /swap-bermasalah — Swap IDR→USD (D29)",
+      "path": "/api/v1/mint-swaps",
+      "butuhBranch": "backend USDX-790 (backend#380, merged ke dev be139ed4)",
+      "keterangan": "Daftar + detail + resolve swap (mint-swaps.yaml). Dev: sudah. Production: ikut rilis backend."
+    },
+    {
+      "rute": "/pencairan-pg — Pencairan PG (D29)",
+      "path": "/api/v1/pg-settlements",
+      "butuhBranch": "backend USDX-791",
+      "keterangan": "Batch pencairan PG + match-manual (pg-settlements.yaml). Tanpa endpoint ini menu Pencairan PG kosong dengan galat."
+    },
+    {
+      "rute": "/settings/payment-gateway — Payment Gateway (D29)",
+      "path": "/api/v1/pg-settlement-settings",
+      "butuhBranch": "backend USDX-791",
+      "keterangan": "Mode NET/GROSS, pola pengirim, batas prefunding (pg-settlements.yaml § settings). Kartu prefunding di Pencairan PG juga membacanya."
+    },
+    {
+      "rute": "/settings/payment-methods — tarif kontrak PG + requiresFxSwap (D29)",
+      "path": "/api/v1/payment-methods",
+      "butuhBranch": "backend USDX-791",
+      "probe": false,
+      "keterangan": "Field `pgMdrType`/`pgMdrValue`/`requiresFxSwap` di GET + PATCH /payment-methods. Endpointnya sudah ada, jadi 401 dijawab entah field-nya didukung atau tidak. Server lama: kolom tarif kontrak tampil 'Belum diisi' dan PATCH yang hanya membawa pgMdr* ditolak 422 ('at least one of …'). Konfirmasi manual bahwa USDX-791 sudah naik."
     }
   ],
   "opsional": [
@@ -100,6 +125,13 @@
       "butuhBranch": "(backend riwayat status order — dikerjakan paralel)",
       "keterangan": "Field `timeline` (aditif) di GET /api/v1/orders/:id. Tidak bisa diprobe: endpointnya sudah ada. Bila field absen, seksi Riwayat tidak dirender — bukan pemblokir keras, konfirmasi manual.",
       "probe": false
+    },
+    {
+      "rute": "sidebar — badge Swap Bermasalah + Pencairan PG (D29)",
+      "path": "/api/v1/queue-counts",
+      "butuhBranch": "backend USDX-790 (mintSwapIssuesOpen) + USDX-791 (pgSettlementsMismatch)",
+      "probe": false,
+      "keterangan": "Kunci aditif queue-counts.yaml. Kunci absen ⇒ badge disembunyikan (bukan galat). Konfirmasi manual."
     }
   ]
 }

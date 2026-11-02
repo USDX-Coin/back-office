@@ -1,6 +1,12 @@
 import type { Page, Route } from '@playwright/test'
 import { computeSafeTxHash } from '../../src/lib/multisig/safeTx'
-import { createInitialPaymentMethods, MOCK_BNI_FX_OK } from '../../src/mocks/data'
+import {
+  createInitialPaymentMethods,
+  createInitialPgSettlementSettings,
+  createMockMintSwaps,
+  createMockPgSettlements,
+  MOCK_BNI_FX_OK,
+} from '../../src/mocks/data'
 import type { PaymentMethod, RateUnavailableReason } from '../../src/lib/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -944,6 +950,8 @@ export interface MockApiState {
   activityLogs: { id: string; action: string; resourceType: string; resourceId: string | null; metadata: Record<string, unknown>; createdAt: string }[]
   /** Berapa kali `GET /api/v1/activity-logs` diminta (Jejak perubahan = Admin saja). */
   activityLogRequests: number
+  /** D29 (USDX-792) — body POST resolve swap / match-manual / PUT settings yang sampai ke server tiruan. */
+  d29Writes: { method: string; path: string; body: Record<string, unknown> }[]
 }
 
 export async function installMockApi(page: Page, opts: MockApiOptions = {}): Promise<MockApiState> {
@@ -961,6 +969,7 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
     paymentMethodWrites: [],
     activityLogs: [],
     activityLogRequests: 0,
+    d29Writes: [],
   }
 
   // USDX-207: per-test mutable rate + fee config so POST is reflected by the
@@ -973,6 +982,11 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
   // USDX-662: antrean Pencairan Bermasalah, mutable per test — resolve harus terbaca
   // oleh GET list/detail berikutnya karena layarnya menarik ulang keduanya.
   const payoutFailures = seedPayoutFailures()
+  // D29 (USDX-792) — seed yang sama dengan MSW (`src/mocks/data.ts`), mutable per test.
+  const mintSwaps = createMockMintSwaps()
+  const pgBatches = createMockPgSettlements()
+  let pgSettings = createInitialPgSettlementSettings()
+  const swapApprovals: { id: string; mintSwapId: string }[] = []
   // USDX-692 — entries stored by "Segarkan dari bank", per account, per install.
   const bniRefreshedEntries = new Map<string, number>()
 
@@ -1645,7 +1659,89 @@ export async function installMockApi(page: Page, opts: MockApiOptions = {}): Pro
         approvalsOpen: 0,
         // ⚠️ DRAF SOT PR #50 — badge menu Transaksi, per baris.
         transactionsNeedsAction: buildTransactions().filter((r) => r.needsAction).length,
+        mintSwapIssuesOpen: [...mintSwaps.values()].filter((sw) => sw.status === 'NEEDS_ACTION').length,
+        pgSettlementsMismatch: [...pgBatches.values()].filter((b) => b.status === 'MISMATCH').length,
       })
+    }
+
+    // ── D29 Swap IDR→USD (mint-swaps.yaml) — tiruan ringkas handler MSW ───────
+    if (key === 'GET /api/v1/mint-swaps') {
+      const st = url.searchParams.get('status')
+      const rows = [...mintSwaps.values()]
+        .filter((sw) => !st || sw.status === st)
+        .sort((a, b) => (st === 'NEEDS_ACTION' ? a.queuedAt.localeCompare(b.queuedAt) : b.queuedAt.localeCompare(a.queuedAt)))
+      return paginated(route, rows, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('take') ?? '20'))
+    }
+    const swapMatch = path.match(/^\/api\/v1\/mint-swaps\/([^/]+)(\/resolve)?$/)
+    if (swapMatch) {
+      const sw = mintSwaps.get(swapMatch[1]!)
+      if (!sw) return error(route, 'NOT_FOUND', 'MINT_SWAP_NOT_FOUND', 404)
+      const last = sw.attempts.at(-1)
+      const final = !last || (last.outcome !== 'PENDING' && last.outcome !== 'UNKNOWN')
+      const pendingApproval = swapApprovals.some((a) => a.mintSwapId === sw.id)
+      const allowed =
+        sw.status !== 'NEEDS_ACTION'
+          ? []
+          : [
+              ...(!last || last.outcome === 'FAILED' || last.outcome === 'NOT_SENT' ? ['RETRY'] : []),
+              ...(!pendingApproval && (final || last?.bniStatus === 'NEEDS_REVIEW') ? ['SETTLED_MANUAL'] : []),
+              ...(final ? ['CLOSED'] : []),
+            ]
+      if (method === 'GET' && !swapMatch[2]) return envelope(route, { ...sw, allowedActions: allowed })
+      if (method === 'POST' && swapMatch[2]) {
+        const b = body()
+        state.d29Writes.push({ method, path, body: b })
+        if (sw.status !== 'NEEDS_ACTION') return error(route, 'CONFLICT', 'ALREADY_RESOLVED', 409)
+        if (!allowed.includes(b.action)) return error(route, 'CONFLICT', 'ACTION_NOT_ALLOWED', 409)
+        if (b.action === 'SETTLED_MANUAL') {
+          const id = `019f5d09-0792-7c31-9b2d-${String(swapApprovals.length + 1).padStart(12, '0')}`
+          swapApprovals.push({ id, mintSwapId: sw.id })
+          return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ status: 'success', metadata: null, data: { approvalRequestId: id } }) })
+        }
+        sw.status = b.action === 'RETRY' ? 'QUEUED' : 'CLOSED'
+        sw.reviews = [...(sw.reviews ?? []), { action: b.action, reason: b.reason, externalRef: null, approvalRequestId: null, actorStaffName: ADMIN_STAFF.name, createdAt: '2026-11-02T08:00:00.000Z' }]
+        return envelope(route, sw)
+      }
+    }
+    if (key === 'GET /api/v1/approvals') {
+      const rows = swapApprovals.map((a) => ({
+        id: a.id, actionType: 'MINT_SWAP_SETTLED_MANUAL', payload: { mintSwapId: a.mintSwapId }, amountIdr: null, status: 'PENDING',
+        proposerStaffId: ADMIN_STAFF.id, proposedAt: '2026-11-02T08:00:00.000Z', expiresAt: '2099-01-01T00:00:00.000Z',
+        approverStaffId: null, decidedAt: null, decisionReason: null, executedAt: null, executionError: null,
+      }))
+      return paginated(route, rows, 1, 100)
+    }
+
+    // ── D29 Pencairan PG + pengaturan (pg-settlements.yaml) ──────────────────
+    if (key === 'GET /api/v1/pg-settlements') {
+      const st = url.searchParams.get('status')
+      const rows = [...pgBatches.values()]
+        .filter((b) => !st || b.status === st)
+        .sort((a, b) => b.businessDate.localeCompare(a.businessDate))
+        .map((b) => ({ ...b, orders: undefined, candidateCredits: undefined }))
+      return paginated(route, rows, Number(url.searchParams.get('page') ?? '1'), Number(url.searchParams.get('take') ?? '20'))
+    }
+    const pgMatch = path.match(/^\/api\/v1\/pg-settlements\/([^/]+)(\/match-manual)?$/)
+    if (pgMatch) {
+      const batch = pgBatches.get(pgMatch[1]!)
+      if (!batch) return error(route, 'NOT_FOUND', 'PG_SETTLEMENT_NOT_FOUND', 404)
+      if (method === 'GET' && !pgMatch[2]) return envelope(route, batch)
+      if (method === 'POST' && pgMatch[2]) {
+        const b = body()
+        state.d29Writes.push({ method, path, body: b })
+        if (batch.status !== 'MISMATCH') return error(route, 'CONFLICT', 'BATCH_NOT_MISMATCH', 409)
+        const credit = (batch.candidateCredits ?? []).find((c) => c.entryId === b.creditEntryId)
+        if (!credit) return error(route, 'CONFLICT', 'CREDIT_ALREADY_LINKED', 409)
+        Object.assign(batch, { status: 'MATCHED_MANUAL', creditedIdr: credit.amountIdr, matchedAt: '2026-11-02T08:00:00.000Z', matchedByName: ADMIN_STAFF.name, candidateCredits: [] })
+        return envelope(route, batch)
+      }
+    }
+    if (key === 'GET /api/v1/pg-settlement-settings') return envelope(route, pgSettings)
+    if (key === 'PUT /api/v1/pg-settlement-settings') {
+      const b = body()
+      state.d29Writes.push({ method, path, body: b })
+      pgSettings = { mode: b.mode, senderPattern: b.senderPattern, prefundingLowIdr: b.prefundingLowIdr }
+      return envelope(route, pgSettings)
     }
 
     // ── Pencairan Bermasalah (USDX-662, sot/api/payout-failures.yaml) ─────

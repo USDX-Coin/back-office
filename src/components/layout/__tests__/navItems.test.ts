@@ -65,10 +65,18 @@ describe('NAV — lima menu utama', () => {
     test('isi tiap grup mengikuti keputusan PM', () => {
       expect(itemsIn(ADMIN, 'OTC')).toEqual(['Mint', 'Redeem'])
       expect(itemsIn(ADMIN, 'Nasabah')).toEqual(['Daftar Nasabah', 'Verifikasi', 'Daftar Sanksi'])
-      expect(itemsIn(ADMIN, 'Keuangan')).toEqual(['Rekening BNI', 'Laporan', 'Cadangan & Atestasi'])
+      expect(itemsIn(ADMIN, 'Keuangan')).toEqual([
+        'Rekening BNI',
+        'Swap IDR→USD',
+        'Swap Bermasalah',
+        'Pencairan PG',
+        'Laporan',
+        'Cadangan & Atestasi',
+      ])
       expect(itemsIn(ADMIN, 'Pengaturan')).toEqual([
         'Kurs & Biaya',
         'Metode Pembayaran',
+        'Payment Gateway',
         'Mode Mint',
         'Plafon Pencairan',
         'Staf & Peran',
@@ -92,6 +100,8 @@ describe('NAV — lima menu utama', () => {
         Verifikasi: 'verification',
         'Daftar Sanksi': 'screening',
         'Persetujuan Orang Kedua': 'approvals',
+        'Swap Bermasalah': 'mintSwapIssues',
+        'Pencairan PG': 'pgSettlements',
       })
     })
   })
@@ -214,8 +224,8 @@ describe('visibleNav — gerbang peran tidak ikut dirombak', () => {
 
     test('grup yang seluruh isinya disembunyikan dibuang, bukan dirender kosong', () => {
       // Tidak ada peran yang hari ini mengosongkan satu grup penuh — tapi grup
-      // Keuangan untuk STAFF tinggal satu entri, dan tetap tampil.
-      expect(itemsIn(STAFF, 'Keuangan')).toEqual(['Rekening BNI'])
+      // Keuangan untuk STAFF: Rekening BNI + tiga layar D29 (GET terbuka semua peran).
+      expect(itemsIn(STAFF, 'Keuangan')).toEqual(['Rekening BNI', 'Swap IDR→USD', 'Swap Bermasalah', 'Pencairan PG'])
     })
   })
 })
