@@ -19,8 +19,18 @@ import type { Staff, StaffRole } from '@/lib/types'
  *   verification — berkas KYC + KYB yang menunggu diperiksa
  *   screening    — temuan daftar sanksi yang masih menahan subjeknya
  *   approvals    — usulan Persetujuan Orang Kedua yang belum kedaluwarsa
+ *   mintSwapIssues — D29: swap `NEEDS_ACTION` (`queue-counts.mintSwapIssuesOpen`)
+ *   pgSettlements  — D29: batch pencairan PG `MISMATCH` (`queue-counts.pgSettlementsMismatch`)
  */
-export type BadgeKey = 'transactions' | 'otcMint' | 'otcRedeem' | 'verification' | 'screening' | 'approvals'
+export type BadgeKey =
+  | 'transactions'
+  | 'otcMint'
+  | 'otcRedeem'
+  | 'verification'
+  | 'screening'
+  | 'approvals'
+  | 'mintSwapIssues'
+  | 'pgSettlements'
 
 export interface NavItem {
   to: string
@@ -135,6 +145,13 @@ export const NAV: NavEntry[] = [
     icon: Landmark,
     items: [
       { to: '/bni-accounts', label: 'Rekening BNI' },
+      // D29 (USDX-792, § 21.6/§ 21.8): tiket menaruhnya di section TREASURY
+      // berdampingan dengan "Pencairan Bermasalah". Sejak redesain fase 1 TREASURY
+      // lama (Rekening BNI) = grup Keuangan, dan Pencairan Bermasalah dilebur ke
+      // Transaksi — jadi di sini. Semua peran (GET terbuka untuk keempatnya).
+      { to: '/swap-idr-usd', label: 'Swap IDR→USD' },
+      { to: '/swap-bermasalah', label: 'Swap Bermasalah', badgeKey: 'mintSwapIssues' },
+      { to: '/pencairan-pg', label: 'Pencairan PG', badgeKey: 'pgSettlements' },
       { to: '/reports/mint/daily', label: 'Laporan', visibleWhen: canAccessReports, match: ['/reports'] },
       { to: '/transparency', label: 'Cadangan & Atestasi', visibleWhen: canManageSettings },
     ],
@@ -152,6 +169,8 @@ export const NAV: NavEntry[] = [
         match: ['/settings/rate', '/settings/fee', '/settings/threshold', '/settings/oncall'],
       },
       { to: '/settings/payment-methods', label: 'Metode Pembayaran', visibleWhen: canManageSettings },
+      // D29 § 21.8 — GET semua peran, PUT Manager/Admin (digerbangi di halaman).
+      { to: '/settings/payment-gateway', label: 'Payment Gateway' },
       { to: '/settings/mint-mode', label: 'Mode Mint' },
       { to: '/plafon-pencairan', label: 'Plafon Pencairan' },
       { to: '/staff', label: 'Staf & Peran', visibleWhen: canManageStaff },

@@ -57,6 +57,12 @@ interface RecordModalProps {
    * pengguna berinteraksi dengan jendela wallet atau menekan Esc di dalamnya.
    */
   walletSafe?: boolean
+  /**
+   * Elemen yang menerima fokus setelah modal ditutup (mis. baris tabel yang
+   * terakhir dibuka — USDX-792: "fokus kembali ke baris"). `null` = perilaku
+   * bawaan Radix (elemen yang fokus sebelum modal dibuka).
+   */
+  returnFocusTo?: () => HTMLElement | null
 }
 
 /** Event berasal dari jendela wallet RainbowKit (portal bertanda `data-rk`). */
@@ -89,6 +95,7 @@ export default function RecordModal({
   className,
   testId,
   walletSafe = false,
+  returnFocusTo,
 }: RecordModalProps) {
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -157,6 +164,13 @@ export default function RecordModal({
         {...(subtitle ? {} : { 'aria-describedby': undefined })}
         onEscapeKeyDown={(e) => {
           if (locked || (walletSafe && (fromWalletModal(e.target) || walletModalOpen()))) e.preventDefault()
+        }}
+        onCloseAutoFocus={(e) => {
+          const el = returnFocusTo?.()
+          if (el && el.isConnected) {
+            e.preventDefault()
+            el.focus()
+          }
         }}
         onInteractOutside={(e) => {
           if (locked || (walletSafe && fromWalletModal(e.detail.originalEvent.target))) e.preventDefault()

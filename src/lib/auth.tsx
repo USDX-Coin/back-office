@@ -7,6 +7,7 @@ import {
   canDecideRedeemPayoutRole,
   canResolvePayoutFailureRole,
   canReadDurianpayApiCallsRole,
+  canResolveMintSwapRole,
 } from './types'
 import { apiFetch, AUTH_ME_PATH, configureApiFetch } from './apiFetch'
 
@@ -375,4 +376,13 @@ export function canManageSanctionLists(staff: Staff | null): boolean {
 // (`lib/types.ts`), dipakai bersama handler MSW. `null` staff = tidak berwenang.
 export function canReadDurianpayApiCalls(staff: Staff | null): boolean {
   return staff !== null && canReadDurianpayApiCallsRole(staff.role)
+}
+
+// D29 — resolve "Swap Bermasalah", tautkan batch Pencairan PG manual, dan ubah
+// Settings → Payment Gateway: MANAGER / ADMIN (`sot/api/mint-swaps.yaml`,
+// `sot/api/pg-settlements.yaml` § Akses). Daftar + detail tetap terbuka untuk
+// semua peran — yang digerbangi tombolnya. BE menegakkan 403 sendiri.
+// `null` staff = tidak berwenang (fail-closed).
+export function canResolveMintSwap(staff: Staff | null): boolean {
+  return staff !== null && canResolveMintSwapRole(staff.role)
 }

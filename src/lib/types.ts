@@ -3265,6 +3265,13 @@ export interface QueueCounts {
    * yang absen ⇒ badge disembunyikan (kontrak), bukan "belum terbaca".
    */
   transactionsNeedsAction?: number
+  /**
+   * D29 (`queue-counts.yaml`, aditif, opsional) — swap `NEEDS_ACTION` tanpa
+   * resolusi (antrean "Swap Bermasalah"). Kunci absen ⇒ badge disembunyikan.
+   */
+  mintSwapIssuesOpen?: number
+  /** D29 (aditif, opsional) — batch pencairan PG `MISMATCH`. Absen ⇒ badge disembunyikan. */
+  pgSettlementsMismatch?: number
 }
 
 // ─── Transaksi gabungan back-office (⚠️ DRAF SOT PR #50, `backoffice-transactions.yaml`) ───
@@ -3356,6 +3363,15 @@ export interface PaymentMethod {
   unavailableReason?: PaymentMethodUnavailableReason | (string & {}) | null
   /** null = tanpa batas. */
   maxAmountIdr?: string | null
+  /**
+   * D29 (`bni-integration.md` § 21.2) — tarif KONTRAK PG (potongan Durianpay dari
+   * MAF), beda dari `feeType`/`feeValue` (biaya ke nasabah). Wajib bila `requiresFxSwap`.
+   * Absen di backend sebelum USDX-791 ⇒ diperlakukan `null`.
+   */
+  pgMdrType?: PaymentFeeType | (string & {}) | null
+  pgMdrValue?: string | null
+  /** D29 SW3 — order `PAID` dengan metode ini memicu swap IDR→USD sebelum mint. */
+  requiresFxSwap?: boolean
   updatedBy?: string | null
   updatedByName?: string | null
   updatedAt: string
@@ -3367,6 +3383,9 @@ export interface UpdatePaymentMethodBody {
   feeType?: PaymentFeeType
   feeValue?: string
   maxAmountIdr?: string | null
+  /** D29 — dikirim BERPASANGAN dengan `pgMdrValue`. */
+  pgMdrType?: PaymentFeeType
+  pgMdrValue?: string
   reason: string
   expectedUpdatedAt?: string
 }
@@ -3462,4 +3481,179 @@ export const DURIANPAY_API_CALLS_ROLES: readonly StaffRole[] = [
 
 export function canReadDurianpayApiCallsRole(role: StaffRole): boolean {
   return DURIANPAY_API_CALLS_ROLES.includes(role)
+}
+
+// ─── D29 — Swap IDR→USD per order mint VA (`sot/api/mint-swaps.yaml`, § 21) ───
+// Semua enum TERBUKA: nilai tak dikenal dirender sebagai kodenya.
+
+export type MintSwapStatus = 'QUEUED' | 'IN_FLIGHT' | 'SUCCEEDED' | 'NEEDS_ACTION' | 'SETTLED_MANUAL' | 'CLOSED'
+export type MintSwapAction = 'RETRY' | 'SETTLED_MANUAL' | 'CLOSED'
+export type MintSwapAttemptOutcome = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN' | 'NOT_SENT'
+
+export interface MintSwapListItem {
+  id: string
+  mintOrderId: string
+  customerName?: string | null
+  status: MintSwapStatus | (string & {})
+  issueCode?: string | null
+  /** USDX 6 desimal (`"1000.000000"`). */
+  amountUsdx: string
+  plannedIdr?: string | null
+  creditedUsd?: string | null
+  /** `creditedUsd − amountUsdx`; negatif = kurang. */
+  usdDifference?: string | null
+  attemptCount: number
+  queuedAt: string
+  succeededAt?: string | null
+  /** Lama menunggu sejak `queuedAt` sampai sekarang atau sampai selesai. */
+  waitingSeconds?: number
+}
+
+export interface MintSwapAttempt {
+  attemptNo: number
+  requestKey: string
+  /** null hanya untuk `NOT_SENT` karena kurs tidak tersedia (rev-40). */
+  plannedIdr: string | null
+  rateQuoteId?: string | null
+  rateSell?: string | null
+  sentAt: string
+  outcome: MintSwapAttemptOutcome | (string & {})
+  bniStatus?: string | null
+  responseCode?: string | null
+  referenceNo?: string | null
+  creditedUsd?: string | null
+  finalAt?: string | null
+}
+
+export interface MintSwapTimelineEvent {
+  at: string
+  kind: string
+  summary?: string
+  amountIdr?: string | null
+  amountUsd?: string | null
+  source: string
+}
+
+export interface MintSwapReview {
+  action: MintSwapAction | (string & {})
+  reason: string
+  externalRef?: string | null
+  approvalRequestId?: string | null
+  actorStaffName: string
+  createdAt: string
+}
+
+export interface MintSwapDetail extends MintSwapListItem {
+  issueReason?: string | null
+  bufferPct?: string
+  rateSellAtSwap?: string | null
+  effectiveRate?: string | null
+  bniReferenceNo?: string | null
+  order: {
+    lockedRate?: string | null
+    totalPayIdr: string | null
+    pgFeeIdr?: string | null
+    pgMdrIdr?: string | null
+    netReceivedIdr?: string | null
+    paidAt?: string | null
+    paymentStatus: string
+    status: string
+    safeStatus: string
+    onChainTxHash?: string | null
+  }
+  reconciliation?: {
+    idrDebitEntryId?: string | null
+    usdCreditEntryId?: string | null
+    statementReconciledAt?: string | null
+  } | null
+  pgSettlement?: {
+    batchId: string
+    businessDate: string
+    status: PgSettlementStatus | (string & {})
+  } | null
+  /** null sampai batch PG `MATCHED`/`MATCHED_MANUAL` — FE menulis "Menunggu pencairan PG". */
+  profitIdr?: string | null
+  attempts: MintSwapAttempt[]
+  reviews?: MintSwapReview[]
+  timeline: MintSwapTimelineEvent[]
+  allowedActions: (MintSwapAction | (string & {}))[]
+}
+
+export interface ResolveMintSwapBody {
+  action: MintSwapAction
+  reason: string
+  externalRef?: string
+  creditedUsd?: string
+}
+
+/** `200` (RETRY/CLOSED) = baris swap baru; `202` (SETTLED_MANUAL) = usulan maker-checker. */
+export type ResolveMintSwapResult = MintSwapListItem | { approvalRequestId: string }
+
+// ─── D29 — Pencairan PG T+1 (`sot/api/pg-settlements.yaml`, § 21.8) ───
+
+export type PgSettlementStatus = 'OPEN' | 'MATCHED' | 'MISMATCH' | 'MATCHED_MANUAL'
+export type PgSettlementMode = 'NET' | 'GROSS'
+
+export interface PgSettlementBatch {
+  id: string
+  /** Tanggal transaksi WIB `YYYY-MM-DD`. */
+  businessDate: string
+  mode: PgSettlementMode | (string & {})
+  orderCount: number
+  expectedIdr: string
+  creditedIdr?: string | null
+  /** `creditedIdr − expectedIdr`. */
+  differenceIdr?: string | null
+  status: PgSettlementStatus | (string & {})
+  matchedAt?: string | null
+  matchedByName?: string | null
+}
+
+export interface PgSettlementOrder {
+  mintOrderId: string
+  paidAt: string
+  totalPayIdr: string
+  pgMdrIdr: string
+  netReceivedIdr: string
+}
+
+export interface PgSettlementCandidateCredit {
+  entryId: string
+  bookedAt: string
+  amountIdr: string
+  description: string
+}
+
+export interface PgSettlementBatchDetail extends PgSettlementBatch {
+  orders?: PgSettlementOrder[]
+  candidateCredits?: PgSettlementCandidateCredit[]
+}
+
+export interface PgSettlementSettings {
+  mode: PgSettlementMode | (string & {})
+  senderPattern: string
+  /** null = tidak ada alert `SWAP_PREFUNDING_LOW`. */
+  prefundingLowIdr: string | null
+}
+
+export interface UpdatePgSettlementSettingsBody {
+  mode: PgSettlementMode
+  senderPattern: string
+  prefundingLowIdr: string | null
+  reason: string
+}
+
+export interface MatchPgSettlementBody {
+  creditEntryId: string
+  reason: string
+}
+
+/**
+ * D29 — resolve swap bermasalah (§ 21.6), tautkan batch PG manual + ubah
+ * pengaturan PG (§ 21.8): MANAGER / ADMIN (`mint-swaps.yaml`, `pg-settlements.yaml`
+ * § Akses). STAFF / DEVELOPER baca saja. Dipakai handler MSW; pasangan UI-nya di
+ * `src/lib/auth.tsx`.
+ */
+export function canResolveMintSwapRole(role: StaffRole): boolean {
+  return role === 'MANAGER' || role === 'ADMIN'
 }

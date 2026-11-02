@@ -1,5 +1,5 @@
 import type { StatusConfig } from '@/lib/status'
-import { formatIdrExact } from '@/lib/redeemApprovals'
+import { formatIdrExact, formatUsdExact } from '@/lib/redeemApprovals'
 import type { ApprovalActionType, ApprovalRequest, ApprovalStatus } from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ const ACTION_TYPE_LABELS: Record<ApprovalActionType, string> = {
   HELD_CREDIT_RESOLVE: 'Selesaikan mint bermasalah',
   PAYOUT_CONTROLS_RELEASE: 'Lepas rem pencairan',
   PAYOUT_CONTROLS_LIMITS: 'Ubah plafon pencairan',
+  MINT_SWAP_SETTLED_MANUAL: 'Swap IDR→USD sudah ditukar manual',
 }
 
 export function actionTypeLabel(actionType: string): string {
@@ -181,6 +182,30 @@ export function describePayload(
           label: 'Order per putaran (sesudah)',
           value: batch === null ? 'kembali ke bawaan server' : String(batch),
         },
+        { label: 'Alasan pengusul', value: reason },
+      ],
+      complete: true,
+    }
+  }
+
+  if (actionType === 'MINT_SWAP_SETTLED_MANUAL') {
+    // Bentuk payload dari backend dev (`MintSwapSettledManualPayload`,
+    // mint-swaps.service.ts USDX-790): { mintSwapId, reason, externalRef, creditedUsd }.
+    const mintSwapId = readString(payload, 'mintSwapId')
+    const reason = readString(payload, 'reason')
+    const externalRef = readString(payload, 'externalRef')
+    const creditedUsd = readString(payload, 'creditedUsd')
+    if (!mintSwapId || !reason || !externalRef || !creditedUsd) return { lines: [], complete: false }
+    return {
+      lines: [
+        {
+          label: 'Yang akan terjadi',
+          value:
+            'Swap dinyatakan SUDAH DITUKAR di luar sistem oleh treasury, lalu order dilanjutkan ke mint USDX. Pastikan dolarnya benar-benar sudah masuk Giro USD.',
+        },
+        { label: 'Id swap', value: mintSwapId, mono: true },
+        { label: 'Nomor referensi BNI', value: externalRef, mono: true },
+        { label: 'Dolar yang diterima', value: formatUsdExact(creditedUsd) },
         { label: 'Alasan pengusul', value: reason },
       ],
       complete: true,

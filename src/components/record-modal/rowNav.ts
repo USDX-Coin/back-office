@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { RecordModalNav } from './RecordModal'
 
 /**
@@ -22,4 +23,19 @@ export function rowNav<T>(
     onPrev: prev ? () => open(getId(prev)) : undefined,
     onNext: next ? () => open(getId(next)) : undefined,
   }
+}
+
+/**
+ * Fokus kembali ke BARIS tabel yang terakhir dibuka setelah modal ditutup
+ * (USDX-792 aksesibilitas). Barisnya dicari lewat `data-row-id` (`DataTable`
+ * dengan `getRowId`) — setelah ↑/↓ itu baris yang sedang tampil, bukan baris
+ * pertama yang diklik. Baris yang sudah keluar dari daftar ⇒ `null` (bawaan Radix).
+ */
+export function useReturnFocusToRow(activeId: string | null | undefined): () => HTMLElement | null {
+  const last = useRef<string | null>(null)
+  useEffect(() => {
+    if (activeId) last.current = activeId
+  }, [activeId])
+  return () =>
+    last.current ? document.querySelector<HTMLElement>(`[data-row-id="${last.current.replace(/"/g, '')}"]`) : null
 }

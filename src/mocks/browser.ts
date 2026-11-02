@@ -165,6 +165,13 @@ const INTEGRATION_PATHS = new Set([
   '/api/v1/transparency/attestations',
   '/api/v1/transparency/attestations/upload-url',
   '/api/v1/transparency/attestations/:id',
+  // D29 (USDX-792): Swap IDR→USD — backend#380 (USDX-790) di dev, api-dev menjawab
+  // 401 tanpa sesi (2 Nov 2026). Handler tetap di handlers.ts untuk Vitest. Saudara
+  // D29-nya (`/api/v1/pg-settlements*`, `/api/v1/pg-settlement-settings`) SENGAJA
+  // absen: backend USDX-791 belum ada (404) — masukkan ke sini setelah ia naik.
+  '/api/v1/mint-swaps',
+  '/api/v1/mint-swaps/:id',
+  '/api/v1/mint-swaps/:id/resolve',
 ])
 
 const browserHandlers = handlers.filter((handler) => {

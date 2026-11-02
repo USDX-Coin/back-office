@@ -137,3 +137,22 @@ describe('formatExpiry @ USDX-486', () => {
     })
   })
 })
+
+describe('MINT_SWAP_SETTLED_MANUAL (D29)', () => {
+  test('should describe the payload the checker approves', async () => {
+    const { actionTypeLabel, describePayload } = await import('../labels')
+    expect(actionTypeLabel('MINT_SWAP_SETTLED_MANUAL')).toBe('Swap IDR→USD sudah ditukar manual')
+    const d = describePayload('MINT_SWAP_SETTLED_MANUAL', {
+      mintSwapId: 's-1',
+      reason: 'ditukar manual',
+      externalRef: 'FX-1',
+      creditedUsd: '1000.50',
+    })
+    expect(d.complete).toBe(true)
+    expect(d.lines.map((l) => l.value)).toContain('$1.000,50')
+  })
+  test('should fail honestly on an unknown payload shape', async () => {
+    const { describePayload } = await import('../labels')
+    expect(describePayload('MINT_SWAP_SETTLED_MANUAL', { mintSwapId: 's-1' }).complete).toBe(false)
+  })
+})

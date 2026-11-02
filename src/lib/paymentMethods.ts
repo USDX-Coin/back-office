@@ -159,3 +159,51 @@ export function bniEnableNotice(m: PaymentMethod): 'PREREQUISITE' | null {
   if (m.unavailableReason === 'BNI_PREREQUISITE_UNVERIFIED') return 'PREREQUISITE'
   return null
 }
+
+// ─── D29 — tarif kontrak PG + flag swap (`payment-methods.yaml`, § 21.2) ────
+
+/**
+ * Tarif kontrak PG (potongan Durianpay dari MAF) — BEDA dari `feeType`/`feeValue`
+ * (biaya ke nasabah). `null` = belum diisi.
+ */
+export function formatPgMdr(m: Pick<PaymentMethod, 'pgMdrType' | 'pgMdrValue'>): string | null {
+  if (!m.pgMdrType || m.pgMdrValue == null) return null
+  if (m.pgMdrType === 'FLAT_IDR') return formatIdrExact(m.pgMdrValue)
+  if (m.pgMdrType === 'PERCENT') return `${trimDecimal(m.pgMdrValue)}%`
+  return `${m.pgMdrValue} (${m.pgMdrType})`
+}
+
+/** Kontrak: tarif kontrak WAJIB terisi bila `requiresFxSwap`. */
+export function isPgMdrMissing(m: Pick<PaymentMethod, 'pgMdrType' | 'pgMdrValue' | 'requiresFxSwap'>): boolean {
+  return m.requiresFxSwap === true && (!m.pgMdrType || m.pgMdrValue == null)
+}
+
+/** Tarif kontrak berubah? Dibandingkan sebagai angka, bukan ejaan. */
+export function isPgMdrChanged(
+  m: Pick<PaymentMethod, 'pgMdrType' | 'pgMdrValue'>,
+  type: string,
+  value: string,
+): boolean {
+  if (!type && !value.trim()) return false
+  return type !== (m.pgMdrType ?? '') || m.pgMdrValue == null || Number(value.trim()) !== Number(m.pgMdrValue)
+}
+
+/**
+ * Isian tarif kontrak: kosong keduanya = tidak dikirim. Selain itu jenis + nilai
+ * berpasangan, format sama dengan biaya (`validateFeeValue`).
+ *
+ * Tarif yang BELUM diisi pada metode `requiresFxSwap` hanya DIPERINGATKAN
+ * (`isPgMdrMissing`), tidak memblokir simpan perubahan lain: kontrak menyebutnya
+ * wajib tetapi tidak menyebut PATCH lain harus ditolak — itu keputusan backend
+ * (USDX-791) / PM, bukan layar ini.
+ */
+export function validatePgMdr(
+  _m: Pick<PaymentMethod, 'pgMdrType' | 'pgMdrValue' | 'requiresFxSwap'>,
+  type: string,
+  value: string,
+): string | null {
+  const empty = !type && !value.trim()
+  if (empty) return null
+  if (!type) return 'Pilih jenis tarif kontrak.'
+  return validateFeeValue(type, value)
+}

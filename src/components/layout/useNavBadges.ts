@@ -75,8 +75,24 @@ export function useNavBadges(): (key?: BadgeKey) => BadgeValue {
         return fromQuery(screening)
       case 'approvals':
         return fromCounts((c) => c.approvalsOpen)
+      // D29 — kunci opsional & aditif (`queue-counts.yaml`): absen ⇒ badge
+      // disembunyikan (preseden `transactionsNeedsAction`), bukan "belum terbaca" —
+      // backend pencairan (USDX-791) belum mengirim `pgSettlementsMismatch`.
+      case 'mintSwapIssues':
+        return optionalCount(queueCounts, (c) => c.mintSwapIssuesOpen)
+      case 'pgSettlements':
+        return optionalCount(queueCounts, (c) => c.pgSettlementsMismatch)
       default:
         return EMPTY_BADGE
     }
   }
+}
+
+function optionalCount(
+  q: { isError: boolean; data?: QueueCounts },
+  pick: (c: QueueCounts) => number | undefined,
+): BadgeValue {
+  if (q.isError) return { count: 0, unknown: true }
+  const n = q.data ? pick(q.data) : undefined
+  return typeof n === 'number' ? { count: n, unknown: false } : EMPTY_BADGE
 }
